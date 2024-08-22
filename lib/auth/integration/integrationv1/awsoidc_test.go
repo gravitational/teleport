@@ -213,7 +213,7 @@ func TestConvertSecurityGroupRulesToProto(t *testing.T) {
 	}
 }
 
-func TestListEICE(t *testing.T) {
+func TestRBAC(t *testing.T) {
 	t.Parallel()
 
 	clusterName := "test-cluster"
@@ -241,141 +241,10 @@ func TestListEICE(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
-			Integration: integrationName,
-			Region:      "my-region",
-			VpcIds:      []string{"vpc-123"},
-			NextToken:   "",
-		})
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
-	})
-	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead, types.VerbUse},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
-			Integration: integrationName,
-			Region:      "",
-			VpcIds:      []string{"vpc-123"},
-			NextToken:   "",
-		})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
-	})
-}
-
-func TestListDatabases(t *testing.T) {
-	t.Parallel()
-
-	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
-	integrationName := "my-awsoidc-integration"
-	ig, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: integrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-		},
-	)
-	require.NoError(t, err)
-
-	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, integrationSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
-
-	_, err = localClient.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	awsSvc, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService:    integrationSvc,
-		Authorizer:            integrationSvc.authorizer,
-		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
-		Cache:                 &mockCache{},
-	})
-	require.NoError(t, err)
-
-	role := types.RoleSpecV6{
-		Allow: types.RoleConditions{Rules: []types.Rule{{
-			Resources: []string{types.KindIntegration},
-			Verbs:     []string{types.VerbRead},
-		}}},
+	type endpointSubtest struct {
+		name string
+		fn   func() error
 	}
-
-	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-		_, err = awsSvc.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
-			Integration: integrationName,
-			Region:      "",
-			RdsType:     "",
-			Engines:     []string{},
-			NextToken:   "",
-			VpcId:       "vpc-123",
-		})
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
-	})
-	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead, types.VerbUse},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsSvc.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
-			Integration: integrationName,
-			Region:      "",
-			RdsType:     "",
-			Engines:     []string{},
-			NextToken:   "",
-			VpcId:       "vpc-123",
-		})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
-	})
-}
-
-func TestEnrollEKSClusters(t *testing.T) {
-	t.Parallel()
-
-	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1"
-	integrationName := "my-awsoidc-integration"
-	ig, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: integrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-		},
-	)
-	require.NoError(t, err)
-
-	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
-
-	_, err = localClient.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService:    resourceSvc,
-		Authorizer:            resourceSvc.authorizer,
-		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
-		Cache:                 &mockCache{},
-	})
-	require.NoError(t, err)
-
 	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
 		role := types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -386,14 +255,84 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
-		_, err = awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
-			Integration:     integrationName,
-			Region:          "my-region",
-			EksClusterNames: []string{"EKS1"},
-			AgentVersion:    "10.0.0",
-		})
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
+		for _, tt := range []endpointSubtest{
+			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListDatabases",
+				fn: func() error {
+					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
+						Integration: integrationName,
+						Region:      "",
+						RdsType:     "",
+						Engines:     []string{},
+						NextToken:   "",
+						VpcId:       "vpc-123",
+					})
+					return err
+				},
+			},
+			{
+				name: "EnrollEKSClusters",
+				fn: func() error {
+					_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
+						Integration:     integrationName,
+						Region:          "my-region",
+						EksClusterNames: []string{"EKS1"},
+						AgentVersion:    "10.0.0",
+					})
+					return err
+				},
+			},
+			{
+				name: "DeployService",
+				fn: func() error {
+					_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListSubnets",
+				fn: func() error {
+					_, err := awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcId:       "vpc-1",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListVPCs",
+				fn: func() error {
+					_, err := awsoidService.ListVPCs(userCtx, &integrationv1.ListVPCsRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				err := tt.fn()
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
+			})
+		}
 	})
+
 	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
 		role := types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{{
@@ -404,137 +343,81 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
-		_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
-			Integration:     integrationName,
-			Region:          "my-region",
-			EksClusterNames: []string{"EKS1"},
-		})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
-	})
-}
-
-func TestDeployService(t *testing.T) {
-	t.Parallel()
-
-	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
-	integrationName := "my-awsoidc-integration"
-	ig, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: integrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-		},
-	)
-	require.NoError(t, err)
-
-	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
-
-	_, err = localClient.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService:    resourceSvc,
-		Authorizer:            resourceSvc.authorizer,
-		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
-		Cache:                 &mockCache{},
-	})
-	require.NoError(t, err)
-
-	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead},
-			}}},
+		for _, tt := range []endpointSubtest{
+			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListDatabases",
+				fn: func() error {
+					_, err := awsoidService.ListDatabases(userCtx, &integrationv1.ListDatabasesRequest{
+						Integration: integrationName,
+						Region:      "",
+						RdsType:     "",
+						Engines:     []string{},
+						NextToken:   "",
+						VpcId:       "vpc-123",
+					})
+					return err
+				},
+			},
+			{
+				name: "EnrollEKSClusters",
+				fn: func() error {
+					_, err := awsoidService.EnrollEKSClusters(userCtx, &integrationv1.EnrollEKSClustersRequest{
+						Integration:     integrationName,
+						Region:          "my-region",
+						EksClusterNames: []string{"EKS1"},
+						AgentVersion:    "10.0.0",
+					})
+					return err
+				},
+			},
+			{
+				name: "DeployService",
+				fn: func() error {
+					_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListSubnets",
+				fn: func() error {
+					_, err := awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcId:       "vpc-1",
+					})
+					return err
+				},
+			},
+			{
+				name: "ListVPCs",
+				fn: func() error {
+					_, err := awsoidService.ListVPCs(userCtx, &integrationv1.ListVPCsRequest{
+						Integration: integrationName,
+						Region:      "my-region",
+					})
+					return err
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				err := tt.fn()
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
+			})
 		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
-			Integration: integrationName,
-			Region:      "my-region",
-		})
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
-	})
-	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead, types.VerbUse},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.DeployService(userCtx, &integrationv1.DeployServiceRequest{
-			Integration: integrationName,
-			Region:      "my-region",
-		})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
-	})
-}
-
-func TestListSubnets(t *testing.T) {
-	t.Parallel()
-
-	clusterName := "test-cluster"
-	proxyPublicAddr := "127.0.0.1.nip.io"
-	integrationName := "my-awsoidc-integration"
-	ig, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: integrationName},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
-		},
-	)
-	require.NoError(t, err)
-
-	ca := newCertAuthority(t, types.HostCA, clusterName)
-	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
-
-	_, err = localClient.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
-		IntegrationService:    resourceSvc,
-		Authorizer:            resourceSvc.authorizer,
-		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
-		Cache:                 &mockCache{},
-	})
-	require.NoError(t, err)
-
-	t.Run("fails when user doesn't have access to integration.use", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
-			Integration: integrationName,
-			Region:      "my-region",
-			VpcId:       "vpc-1",
-		})
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, but got %T", err)
-	})
-	t.Run("calls awsoidc package when user has access to integration.use/read", func(t *testing.T) {
-		role := types.RoleSpecV6{
-			Allow: types.RoleConditions{Rules: []types.Rule{{
-				Resources: []string{types.KindIntegration},
-				Verbs:     []string{types.VerbRead, types.VerbUse},
-			}}},
-		}
-
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
-
-		_, err = awsoidService.ListSubnets(userCtx, &integrationv1.ListSubnetsRequest{
-			Integration: integrationName,
-			Region:      "my-region",
-			VpcId:       "",
-		})
-		require.True(t, trace.IsBadParameter(err), "expected BadParameter error, but got %T", err)
 	})
 }

@@ -177,7 +177,7 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return resources, next, trace.Wrap(err)
 }
 func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -220,7 +220,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 
 // ListResourcesWithFilter returns a paginated list of resources that match the given filter.
 func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -444,7 +444,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 
 // MakeKey will make a key for the service given a name.
 func (s *Service[T]) MakeKey(name string) []byte {
-	return backend.Key(s.backendPrefix, name)
+	return backend.NewKey(s.backendPrefix, name)
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.

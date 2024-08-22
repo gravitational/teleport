@@ -25,6 +25,7 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H3,
   LabelInput,
   Text,
 } from 'design';
@@ -86,7 +87,7 @@ export default function ResourceEditor(props) {
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="h4" color="text.main">
+            <Text mb="2" typography="body1">
               {name}
             </Text>
           )}
@@ -120,13 +121,8 @@ export default function ResourceEditor(props) {
             bg="levels.surface"
           >
             <Box>
-              <DialogTitle typography="body1" bold>
-                {' '}
-                SETUP INSTRUCTIONS{' '}
-              </DialogTitle>
-              <Text typography="body1" mt={3}>
-                {directions}
-              </Text>
+              <H3>Setup Instructions</H3>
+              <Text mt={3}>{directions}</Text>
             </Box>
             <ButtonBorder
               size="medium"

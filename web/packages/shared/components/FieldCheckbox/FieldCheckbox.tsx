@@ -54,8 +54,8 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
   ) => {
     const labelColor = disabled ? 'text.disabled' : 'text.main';
     const helperColor = disabled ? 'text.disabled' : 'text.slightlyMuted';
-    const labelTypography = size === 'small' ? 'newBody2' : 'newBody1';
-    const helperTypography = size === 'small' ? 'newBody3' : 'newBody2';
+    const labelTypography = size === 'small' ? 'body2' : 'body1';
+    const helperTypography = size === 'small' ? 'body3' : 'body2';
     return (
       <Box mb={3} {...styles}>
         <StyledLabel disabled={disabled}>

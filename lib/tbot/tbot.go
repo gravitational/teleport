@@ -44,7 +44,6 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -242,22 +241,19 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 
-	// Gate heartbeating behind the workload identity experiment for now.
-	if experiment.Enabled() {
-		services = append(services, &heartbeatService{
-			now:       time.Now,
-			botCfg:    b.cfg,
-			startedAt: startedAt,
-			log: b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
-			),
-			heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
-				b.botIdentitySvc.GetClient().GetConnection(),
-			),
-			interval:   time.Minute * 30,
-			retryLimit: 5,
-		})
-	}
+	services = append(services, &heartbeatService{
+		now:       time.Now,
+		botCfg:    b.cfg,
+		startedAt: startedAt,
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+		),
+		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+			b.botIdentitySvc.GetClient().GetConnection(),
+		),
+		interval:   time.Minute * 30,
+		retryLimit: 5,
+	})
 
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,

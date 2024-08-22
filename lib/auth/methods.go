@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -39,9 +38,7 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -500,6 +497,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	ha.PublicKey = req.PublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
@@ -537,6 +535,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
+	// TODO(nklaassen): support split SSH and TLS keys for headless auth.
 	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 		return nil, trace.AccessDenied("headless authentication public key mismatch")
 	}
@@ -632,87 +631,20 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
-	}
-
-	// Calculate the trusted device requirement for the session. Helps inform the
-	// frontend if the user might run into access problems without a trusted
-	// device.
-	trustedDeviceRequirement, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		// TODO(codingllama): Levegare the checker inside CreateWebSessionFromReq to
-		//  avoid duplicate work here.
-		roles, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return roles, nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.SetTrustedDeviceRequirement(trustedDeviceRequirement)
 
 	return sess, nil
-}
-
-func (a *Server) calculateTrustedDeviceMode(ctx context.Context, getRoles func() ([]types.Role, error)) (types.TrustedDeviceRequirement, error) {
-	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
-
-	// Don't evaluate for OSS.
-	if !modules.GetModules().IsEnterpriseBuild() {
-		return unspecified, nil
-	}
-
-	// Required by cluster mode?
-	ap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	if dtconfig.GetEffectiveMode(ap.GetDeviceTrust()) == constants.DeviceTrustModeRequired {
-		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-	}
-
-	// Required by roles?
-	roles, err := getRoles()
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	for _, role := range roles {
-		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-		}
-	}
-
-	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED, nil
 }
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
@@ -767,18 +699,25 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sshPublicKey := req.SSHPublicKey
+	tlsPublicKey := req.TLSPublicKey
+	sshPublicKeyAttestationStatement := req.SSHAttestationStatement
+	tlsPublicKeyAttestationStatement := req.TLSAttestationStatement
+	if req.PublicKey != nil {
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		sshPublicKey = req.PublicKey
+		publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsPublicKey, err = keys.MarshalPublicKey(publicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshPublicKeyAttestationStatement = req.AttestationStatement
+		tlsPublicKeyAttestationStatement = req.AttestationStatement
 	}
-	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := req.AttestationStatement
-	tlsPublicKeyAttestationStatement := req.AttestationStatement
 
 	certReq := certRequest{
 		user:                             user,
@@ -801,6 +740,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// TODO(nklaassen): support split keys for headless auth.
 		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
 			return nil, trace.AccessDenied("headless authentication public key mismatch")
 		}

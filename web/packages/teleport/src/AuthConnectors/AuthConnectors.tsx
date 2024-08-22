@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
-import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
+import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
+
+import { P } from 'design/Text/Text';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
@@ -63,10 +65,11 @@ export function AuthConnectors(props: State) {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription typography="subtitle1">
-          {description}
-        </MobileDescription>
-        <ResponsiveAddButton onClick={() => resources.create('github')}>
+        <MobileDescription>{description}</MobileDescription>
+        <ResponsiveAddButton
+          fill="border"
+          onClick={() => resources.create('github')}
+        >
           New GitHub Connector
         </ResponsiveAddButton>
       </ResponsiveFeatureHeader>
@@ -90,13 +93,9 @@ export function AuthConnectors(props: State) {
               onDelete={resources.remove}
             />
             <DesktopDescription>
-              <Text typography="h6" mb={3} caps>
-                Auth Connectors
-              </Text>
-              <Text typography="subtitle1" mb={3}>
-                {description}
-              </Text>
-              <Text typography="subtitle1" mb={2}>
+              <H3 mb={3}>Auth Connectors</H3>
+              <P mb={3}>{description}</P>
+              <P mb={2}>
                 Please{' '}
                 <Link
                   color="text.main"
@@ -107,7 +106,7 @@ export function AuthConnectors(props: State) {
                   view our documentation
                 </Link>{' '}
                 on how to configure a GitHub connector.
-              </Text>
+              </P>
             </DesktopDescription>
           </>
         </Flex>

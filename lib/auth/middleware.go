@@ -406,11 +406,12 @@ func (a *Middleware) ValidateClientVersion(ctx context.Context, info IdentityInf
 	}
 
 	ua := metadata.UserAgentFromContext(ctx)
-	logger := log.WithFields(logrus.Fields{"user_agent": ua, "identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString})
+
+	logger := log.WithFields(logrus.Fields{"user_agent": ua, "identity": info.IdentityGetter.GetIdentity().Username, "version": clientVersionString, "addr": info.Conn.RemoteAddr().String()})
 	clientVersion, err := semver.NewVersion(clientVersionString)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to determine client version")
-		a.displayRejectedClientAlert(ctx, ua)
+		a.displayRejectedClientAlert(ctx, clientVersionString, info.Conn.RemoteAddr(), ua, info.IdentityGetter)
 		if err := info.Conn.Close(); err != nil {
 			logger.WithError(err).Warn("Failed to close client connection")
 		}
@@ -420,7 +421,7 @@ func (a *Middleware) ValidateClientVersion(ctx context.Context, info IdentityInf
 
 	if clientVersion.LessThan(*a.OldestSupportedVersion) {
 		logger.Info("Terminating connection of client using unsupported version")
-		a.displayRejectedClientAlert(ctx, ua)
+		a.displayRejectedClientAlert(ctx, clientVersionString, info.Conn.RemoteAddr(), ua, info.IdentityGetter)
 
 		if err := info.Conn.Close(); err != nil {
 			logger.WithError(err).Warn("Failed to close client connection")
@@ -439,15 +440,9 @@ var clientUARegex = regexp.MustCompile(`(tsh|tbot|tctl)\/\d+`)
 // being denied to prevent causing issues. Alerts are limited to being
 // created once per day to reduce backend writes if there are a large
 // number of unsupported clients constantly being rejected.
-func (a *Middleware) displayRejectedClientAlert(ctx context.Context, userAgent string) {
+func (a *Middleware) displayRejectedClientAlert(ctx context.Context, clientVersion string, addr net.Addr, userAgent string, ident authz.IdentityGetter) {
 	if a.AlertCreator == nil {
 		return
-	}
-
-	connectionType := "agents"
-	match := clientUARegex.FindStringSubmatch(userAgent)
-	if len(match) > 1 {
-		connectionType = match[1]
 	}
 
 	now := time.Now()
@@ -461,9 +456,32 @@ func (a *Middleware) displayRejectedClientAlert(ctx context.Context, userAgent s
 		return
 	}
 
+	alertVersion := semver.Version{
+		Major: a.OldestSupportedVersion.Major,
+		Minor: a.OldestSupportedVersion.Minor,
+		Patch: a.OldestSupportedVersion.Patch,
+	}
+
+	match := clientUARegex.FindStringSubmatch(userAgent)
+	i := ident.GetIdentity()
+	br, builtin := ident.(authz.BuiltinRole)
+	rbr, remoteBuiltin := ident.(authz.RemoteBuiltinRole)
+
+	var message string
+	switch {
+	case len(match) > 1: // A match indicates the connection was from a client tool
+		message = fmt.Sprintf("Connection from %s v%s by %s was rejected. Connections will be allowed after upgrading %s to v%s or newer", match[1], clientVersion, i.Username, match[1], alertVersion.String())
+	case builtin: // If the identity is a builtin then this connection is from an agent
+		message = fmt.Sprintf("Connection from %s %s at %s, running an unsupported version of v%s was rejected. Connections will be allowed after upgrading the agent to v%s or newer", br.AdditionalSystemRoles, i.Username, addr.String(), clientVersion, alertVersion.String())
+	case remoteBuiltin: // If the identity is a remote builtin then this connection is from an agent, or leaf cluster
+		message = fmt.Sprintf("Connection from %s %s at %s in cluster %s, running an unsupported version of v%s was rejected. Connections will be allowed after upgrading the agent to v%s or newer", rbr.Username, i.Username, addr.String(), rbr.ClusterName, clientVersion, alertVersion.String())
+	default: // The connection is from an old client tool that does not provide a user agent.
+		message = fmt.Sprintf("Connection from tsh, tctl, tbot, or a plugin running v%s by %s was rejected. Connections will be allowed after upgrading to v%s or newer", clientVersion, i.Username, alertVersion.String())
+	}
+
 	alert, err := types.NewClusterAlert(
 		"rejected-unsupported-connection",
-		fmt.Sprintf("Connections were rejected from %s running unsupported Teleport versions(<%s), they will be inaccessible until upgraded.", connectionType, a.OldestSupportedVersion),
+		message,
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),

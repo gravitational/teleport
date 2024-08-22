@@ -191,7 +191,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.main}>
+            <Text typography="body1" color={theme.colors.text.main}>
               Primary
             </Text>
           </Flex>
@@ -216,10 +216,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.slightlyMuted}
-            >
+            <Text typography="body1" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
           </Flex>
@@ -244,7 +241,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.muted}>
+            <Text typography="body1" color={theme.colors.text.muted}>
               Placeholder
             </Text>
           </Flex>
@@ -269,7 +266,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.disabled}>
               Disabled
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.disabled}>
+            <Text typography="body1" color={theme.colors.text.disabled}>
               Disabled
             </Text>
           </Flex>
@@ -296,10 +293,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.primaryInverse}
-            >
+            <Text typography="body1" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
           </Flex>

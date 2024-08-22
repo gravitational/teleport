@@ -28,6 +28,7 @@ import (
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -149,6 +150,18 @@ func (d AWSTags) ToAthenaTags() []athenatypes.Tag {
 		})
 	}
 	return athenaTags
+}
+
+// ToSSMTags returns the default tags using the expected type for SSM resources: [ssmtypes.Tag]
+func (d AWSTags) ToSSMTags() []ssmtypes.Tag {
+	ssmTags := make([]ssmtypes.Tag, 0, len(d))
+	for k, v := range d {
+		ssmTags = append(ssmTags, ssmtypes.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	return ssmTags
 }
 
 // ToMap returns the default tags using the expected type for other aws resources.

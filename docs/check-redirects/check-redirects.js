@@ -1,20 +1,22 @@
-const yaml = require('yaml');
-const path = require('path');
+import path from 'node:path';
 
 const teleportDocsURL = 'https://goteleport.com/docs';
-// RedirectChecker checks for Teleport docs site domains and paths within a
-// given file tree and determines whether a given docs configuration requires
-// redirects.
-// @param fs - The filesystem to use. Either memfs or the NodeJS fs package.
-// @param {string} otherRepoRoot - directory path in fs in which to check for
-// required redirects.
-// @param {string} docsRoot - directory path in fs in which to check for present
-// or missing docs files based on URL paths found in the directory tree at
-// otherRepoRoot.
-// @param {Array<object>} redirects - array of objects with keys "source",
-// "destination", and "permanent".
-// @param {Array<string>} exclude - array of file extensions not to check.
-class RedirectChecker {
+
+/**
+ * RedirectChecker checks for Teleport docs site domains and paths within a
+ * given file tree and determines whether a given docs configuration requires
+ * redirects.
+ * @param fs - The filesystem to use. Either memfs or the NodeJS fs package.
+ * @param {string} otherRepoRoot - directory path in fs in which to check for
+ * required redirects.
+ * @param {string} docsRoot - directory path in fs in which to check for present
+ * or missing docs files based on URL paths found in the directory tree at
+ * otherRepoRoot.
+ * @param {Array<object>} redirects - array of objects with keys "source",
+ * "destination", and "permanent".
+ * @param {Array<string>} exclude - array of file extensions not to check.
+ */
+export class RedirectChecker {
   constructor(fs, otherRepoRoot, docsRoot, redirects, exclude) {
     this.fs = fs;
     this.otherRepoRoot = otherRepoRoot;
@@ -27,7 +29,7 @@ class RedirectChecker {
       this.exclude = exclude;
     }
 
-    if (!!redirects) {
+    if (redirects) {
       redirects.forEach(r => {
         this.redirectSet.add(r.source);
       });
@@ -83,17 +85,16 @@ class RedirectChecker {
     let result = [];
     docsURLs.forEach(url => {
       const docsPath = this.urlToDocsPath(url[0]);
-      const missingEntry =
-        this.fs.statSync(docsPath, {
-          throwIfNoEntry: false,
-        }) == undefined;
+      const missingEntry = !this.fs.statSync(docsPath, {
+        throwIfNoEntry: false,
+      });
 
       if (!missingEntry) {
         return [];
       }
 
       let pathPart = url[2];
-      if (pathPart[pathPart.length - 1] != '/') {
+      if (pathPart[pathPart.length - 1] !== '/') {
         pathPart += '/';
       }
 
@@ -107,14 +108,12 @@ class RedirectChecker {
   urlToDocsPath(url) {
     let nofrag = url.split('#')[0]; // Remove the fragment
     let rest = nofrag.slice(teleportDocsURL.length);
-    if (rest.length == 0) {
+    if (rest.length === 0) {
       return path.join(this.docsRoot, 'docs', 'pages', 'index.mdx');
     }
-    if (rest[rest.length - 1] == '/') {
+    if (rest[rest.length - 1] === '/') {
       rest = rest.slice(0, rest.length - 1);
     }
     return path.join(this.docsRoot, 'docs', 'pages', rest + '.mdx');
   }
 }
-
-module.exports.RedirectChecker = RedirectChecker;

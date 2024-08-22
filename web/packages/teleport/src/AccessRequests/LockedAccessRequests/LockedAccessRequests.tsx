@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Card, Flex, H2, Image, Link, Text } from 'design';
+import { Box, Card, Flex, H2, Image, Link, Subtitle2, Text } from 'design';
 
 import {
   FeatureBox,
@@ -55,9 +55,9 @@ export function LockedAccessRequests() {
         flexDirection="column"
         width="auto"
       >
-        <Box width="100%" textAlign="left">
+        <Box as="header" width="100%" textAlign="left">
           <H2 mb={1}>Access Requests Flow</H2>
-          <Text typography="subtitle1" mb={5}>
+          <Subtitle2 mb={5}>
             To learn more about access requests, take a look at&nbsp;
             <Link
               color="text.secondary"
@@ -66,7 +66,7 @@ export function LockedAccessRequests() {
             >
               Teleport Documentation.
             </Link>
-          </Text>
+          </Subtitle2>
         </Box>
         <Flex
           gap={4}

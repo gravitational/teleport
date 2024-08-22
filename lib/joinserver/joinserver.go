@@ -62,7 +62,7 @@ type joinServiceClient interface {
 // server. On the Auth Server, this is passed to auth.ServerWithRoles and
 // through to auth.Server to be handled.
 type JoinServiceGRPCServer struct {
-	*proto.UnimplementedJoinServiceServer
+	proto.UnimplementedJoinServiceServer
 
 	joinServiceClient joinServiceClient
 	clock             clockwork.Clock
@@ -133,7 +133,7 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(srv proto.JoinService_Reg
 		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setBotInstanceID(ctx, req.RegisterUsingTokenRequest)
+		setBotParameters(ctx, req.RegisterUsingTokenRequest)
 
 		return req, nil
 	})
@@ -205,9 +205,9 @@ func setClientRemoteAddr(ctx context.Context, req *types.RegisterUsingTokenReque
 	return nil
 }
 
-// setBotInstanceID extracts a bot instance ID from either the incoming request
+// setBotParameters extracts a bot instance ID from either the incoming request
 // or the context identity.
-func setBotInstanceID(ctx context.Context, req *types.RegisterUsingTokenRequest) {
+func setBotParameters(ctx context.Context, req *types.RegisterUsingTokenRequest) {
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return
@@ -233,6 +233,8 @@ func setBotInstanceID(ctx context.Context, req *types.RegisterUsingTokenRequest)
 		// trusted source, i.e. another proxy or certificate field.
 		req.BotInstanceID = ""
 	}
+
+	req.BotGeneration = int32(ident.Generation)
 }
 
 func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
@@ -252,7 +254,7 @@ func (s *JoinServiceGRPCServer) registerUsingAzureMethod(srv proto.JoinService_R
 		if err := setClientRemoteAddr(ctx, req.RegisterUsingTokenRequest); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		setBotInstanceID(ctx, req.RegisterUsingTokenRequest)
+		setBotParameters(ctx, req.RegisterUsingTokenRequest)
 
 		return req, nil
 	})
@@ -330,7 +332,7 @@ func (s *JoinServiceGRPCServer) registerUsingTPMMethod(
 		return trace.Wrap(err, "setting client address")
 	}
 
-	setBotInstanceID(ctx, initReq.JoinRequest)
+	setBotParameters(ctx, initReq.JoinRequest)
 
 	certs, err := s.joinServiceClient.RegisterUsingTPMMethod(
 		ctx,

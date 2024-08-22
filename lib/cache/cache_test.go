@@ -49,6 +49,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -58,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -126,6 +128,8 @@ type testPack struct {
 	accessMonitoringRules   services.AccessMonitoringRules
 	crownJewels             services.CrownJewels
 	databaseObjects         services.DatabaseObjects
+	spiffeFederations       *local.SPIFFEFederationService
+	staticHostUsers         services.StaticHostUser
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -325,6 +329,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.crownJewels = crownJewelsSvc
 
+	spiffeFederationsSvc, err := local.NewSPIFFEFederationService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.spiffeFederations = spiffeFederationsSvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -341,6 +351,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.notifications = notificationsSvc
+
+	staticHostUserService, err := local.NewStaticHostUserService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.staticHostUsers = staticHostUserService
 
 	return p, nil
 }
@@ -387,7 +403,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Notifications:           p.notifications,
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
+		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -600,6 +618,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		StaticHostUsers:         p.staticHostUsers,
 		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
@@ -791,6 +810,8 @@ func TestCompletenessInit(t *testing.T) {
 			AccessMonitoringRules:   p.accessMonitoringRules,
 			CrownJewels:             p.crownJewels,
 			DatabaseObjects:         p.databaseObjects,
+			SPIFFEFederations:       p.spiffeFederations,
+			StaticHostUsers:         p.staticHostUsers,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -868,6 +889,8 @@ func TestCompletenessReset(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -915,7 +938,7 @@ cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
 BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
 */
 func BenchmarkGetMaxNodes(b *testing.B) {
-	benchGetNodes(b, backend.DefaultRangeLimit)
+	benchGetNodes(b, 1_000_000)
 }
 
 func benchGetNodes(b *testing.B, nodeCount int) {
@@ -923,18 +946,32 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	require.NoError(b, err)
 	defer p.Close()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	createErr := make(chan error, 1)
+
+	go func() {
+		for i := 0; i < nodeCount; i++ {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			if err != nil {
+				createErr <- err
+				return
+			}
+		}
+	}()
+
+	timeout := time.After(time.Second * 90)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-		_, err := p.presenceS.UpsertNode(ctx, server)
-		require.NoError(b, err)
-
 		select {
 		case event := <-p.eventsC:
 			require.Equal(b, EventProcessed, event.Type)
-		case <-time.After(200 * time.Millisecond):
-			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		case err := <-createErr:
+			b.Fatalf("failed to create node: %v", err)
+		case <-timeout:
+			b.Fatalf("timeout waiting for event, progress=%d", i)
 		}
 	}
 
@@ -1057,6 +1094,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1145,6 +1184,8 @@ func initStrategy(t *testing.T) {
 		AccessMonitoringRules:   p.accessMonitoringRules,
 		CrownJewels:             p.crownJewels,
 		DatabaseObjects:         p.databaseObjects,
+		SPIFFEFederations:       p.spiffeFederations,
+		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2646,6 +2687,34 @@ func TestGlobalNotifications(t *testing.T) {
 	})
 }
 
+// TestStaticHostUsers tests that CRUD operations on static host user resources are
+// replicated from the backend to the cache.
+func TestStaticHostUsers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*userprovisioningpb.StaticHostUser]{
+		newResource: func(name string) (*userprovisioningpb.StaticHostUser, error) {
+			return newStaticHostUser(t, name), nil
+		},
+		create: func(ctx context.Context, item *userprovisioningpb.StaticHostUser) error {
+			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.cache.staticHostUsersCache.DeleteAllStaticHostUsers,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2912,7 +2981,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	require.Len(t, nodes, nodeCount)
 
 	clock.Advance(time.Hour * 24)
-	for expired := nodeCount - expiryLimit; expired > 0; expired -= expiryLimit {
+	for expired := nodeCount - expiryLimit; expired > expiryLimit; expired -= expiryLimit {
 		// get rid of events that were emitted before clock advanced
 		drainEvents(p.eventsC)
 		// wait for next relative expiry check to run
@@ -3220,6 +3289,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
+		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3371,7 +3442,7 @@ func TestInvalidDatabases(t *testing.T) {
 				value, err := services.MarshalDatabase(db)
 				require.NoError(t, err)
 				_, err = b.Create(ctx, backend.Item{
-					Key:     backend.Key("db", db.GetName()),
+					Key:     backend.NewKey("db", db.GetName()),
 					Value:   value,
 					Expires: db.Expiry(),
 				})
@@ -3393,7 +3464,7 @@ func TestInvalidDatabases(t *testing.T) {
 				marshalledDB, err := services.MarshalDatabase(validDB)
 				require.NoError(t, err)
 				_, err = b.Create(ctx, backend.Item{
-					Key:     backend.Key("db", validDB.GetName()),
+					Key:     backend.NewKey("db", validDB.GetName()),
 					Value:   marshalledDB,
 					Expires: validDB.Expiry(),
 				})
@@ -3413,7 +3484,7 @@ func TestInvalidDatabases(t *testing.T) {
 				value, err := services.MarshalDatabase(invalidDB)
 				require.NoError(t, err)
 				_, err = b.Update(ctx, backend.Item{
-					Key:     backend.Key("db", cacheDB.GetName()),
+					Key:     backend.NewKey("db", cacheDB.GetName()),
 					Value:   value,
 					Expires: invalidDB.Expiry(),
 				})
@@ -3747,6 +3818,14 @@ func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonito
 		},
 	}
 	return notification
+}
+
+func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHostUser {
+	t.Helper()
+	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+		Login:  "foo",
+		Groups: []string{"bar", "baz"},
+	})
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

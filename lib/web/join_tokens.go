@@ -147,7 +147,12 @@ type CreateTokenRequest struct {
 	Content string `json:"content"`
 }
 
-func (h *Handler) upsertTokenContent(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+func (h *Handler) updateTokenYAML(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+	tokenId := r.Header.Get(HeaderTokenName)
+	if tokenId == "" {
+		return nil, trace.BadParameter("requires a token name to edit")
+	}
+
 	var yaml CreateTokenRequest
 	if err := httplib.ReadJSON(r, &yaml); err != nil {
 		return nil, trace.Wrap(err)
@@ -156,6 +161,10 @@ func (h *Handler) upsertTokenContent(w http.ResponseWriter, r *http.Request, par
 	extractedRes, err := ExtractResourceAndValidate(yaml.Content)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if tokenId != extractedRes.Metadata.Name {
+		return nil, trace.BadParameter("renaming tokens is not supported")
 	}
 
 	token, err := services.UnmarshalProvisionToken(extractedRes.Raw)
@@ -182,7 +191,69 @@ func (h *Handler) upsertTokenContent(w http.ResponseWriter, r *http.Request, par
 
 }
 
-func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+type upsertTokenHandleRequest struct {
+	types.ProvisionTokenSpecV2
+	Name string `json:"name"`
+}
+
+func (h *Handler) upsertTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	// if using the PUT route, tokenId will be present
+	// in the X-Teleport-TokenName header
+	editing := r.Method == "PUT"
+	tokenId := r.Header.Get(HeaderTokenName)
+	if editing && tokenId == "" {
+		return nil, trace.BadParameter("requires a token name to edit")
+	}
+
+	var req upsertTokenHandleRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if editing && tokenId != req.Name {
+		return nil, trace.BadParameter("renaming tokens is not supported")
+	}
+
+	// set expires time to default node join token TTL
+	expires := time.Now().UTC().Add(defaults.NodeJoinTokenTTL)
+	// IAM and GCP tokens should never expire
+	if req.JoinMethod == types.JoinMethodGCP || req.JoinMethod == types.JoinMethodIAM {
+		expires = time.Now().UTC().AddDate(1000, 0, 0)
+	}
+
+	name := req.Name
+	if name == "" {
+		randName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		name = randName
+	}
+
+	token, err := types.NewProvisionTokenFromSpec(name, expires, req.ProvisionTokenSpecV2)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = clt.UpsertToken(r.Context(), token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiToken, err := ui.MakeJoinToken(token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiToken, nil
+}
+
+func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)

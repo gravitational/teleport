@@ -77,12 +77,21 @@ const api = {
     );
   },
 
-  deleteWithHeaders(url, headers?: Record<string, string>, signal?) {
-    return api.fetch(url, {
-      method: 'DELETE',
-      headers,
-      signal,
-    });
+  deleteWithHeaders(
+    url,
+    headers?: Record<string, string>,
+    signal?,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        method: 'DELETE',
+        headers,
+        signal,
+      },
+      webauthnResponse
+    );
   },
 
   // TODO (avatus) add abort signal to this
@@ -92,6 +101,23 @@ const api = {
       {
         body: JSON.stringify(data),
         method: 'PUT',
+      },
+      webauthnResponse
+    );
+  },
+
+  putWithHeaders(
+    url,
+    data,
+    headers?: Record<string, string>,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+        headers,
       },
       webauthnResponse
     );

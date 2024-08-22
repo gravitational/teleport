@@ -62,7 +62,7 @@ const IconBox: React.FC<PropsWithChildren<{ text: string }>> = ({
       <Flex justifyContent="center" p={2} gap={2}>
         {children}
       </Flex>
-      <Text typography="paragraph2" mt={2}>
+      <Text typography="body2" mt={2}>
         {text}
       </Text>
     </Flex>

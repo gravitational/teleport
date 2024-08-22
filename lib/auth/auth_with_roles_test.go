@@ -698,6 +698,7 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 
 	testCases := []struct {
 		desc       string
@@ -707,25 +708,27 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 		{
 			desc:       "Roles don't have max_session_ttl set",
 			user:       user1,
-			expiration: time.Now().Add(authPrefs.GetDefaultSessionTTL().Duration()),
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 		{
 			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
 			user:       user2,
-			expiration: time.Now().Add(2 * time.Hour),
+			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			client, err := srv.NewClient(TestUser(tt.user.GetName()))
+			user := TestUser(tt.user.GetName())
+			user.TTL = defaultDuration
+			client, err := srv.NewClient(user)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 				SSHPublicKey:      sshPubKey,
 				TLSPublicKey:      tlsPubKey,
 				Username:          tt.user.GetName(),
-				Expires:           time.Now().Add(time.Hour),
+				Expires:           srv.Auth().GetClock().Now().Add(defaultDuration),
 				KubernetesCluster: kubeClusterName,
 				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
 				Usage:             proto.UserCertsRequest_Kubernetes,
@@ -749,6 +752,186 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	}
 }
 
+func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
+	t.Parallel()
+
+	const minVerificationDuration = 35 * time.Minute
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const kubeClusterName = "kube-cluster-1"
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: kubeClusterName,
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3(
+		types.Metadata{
+			Name:   kubeClusterName,
+			Labels: map[string]string{"name": kubeClusterName},
+		},
+
+		types.KubernetesServerSpecV3{
+			HostID:   kubeClusterName,
+			Hostname: "test",
+			Cluster:  kubeCluster,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	// Create test user1.
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	require.NoError(t, err)
+
+	// Create test user2.
+	user2, role2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	require.NoError(t, err)
+
+	role2Opts := role2.GetOptions()
+	role2Opts.MFAVerificationInterval = minVerificationDuration
+	role2Opts.RequireMFAType = types.RequireMFAType_SESSION
+	role2.SetOptions(role2Opts)
+
+	_, err = srv.Auth().UpsertRole(ctx, role2)
+	require.NoError(t, err)
+
+	// Create test user3.
+	user3, role3, err := CreateUserAndRole(srv.Auth(), "user3", []string{"role3"}, nil)
+	require.NoError(t, err)
+
+	role3Opts := role3.GetOptions()
+	role3Opts.MFAVerificationInterval = minVerificationDuration
+	role3.SetOptions(role3Opts)
+
+	_, err = srv.Auth().UpsertRole(ctx, role3)
+	require.NoError(t, err)
+
+	user1, err = srv.Auth().UpdateUser(ctx, user1)
+	require.NoError(t, err)
+
+	user2, err = srv.Auth().UpdateUser(ctx, user2)
+	require.NoError(t, err)
+
+	user3, err = srv.Auth().UpdateUser(ctx, user3)
+	require.NoError(t, err)
+
+	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
+	require.NoError(t, err)
+
+	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
+	authClock := srv.Auth().GetClock()
+
+	testCases := []struct {
+		desc              string
+		user              types.User
+		expiration        time.Time
+		clusterRequireMFA bool
+		usage             proto.UserCertsRequest_CertUsage
+		requester         proto.UserCertsRequest_Requester
+	}{
+		{
+			desc:       "Roles don't have mfa_verification_interval set",
+			user:       user1,
+			expiration: authClock.Now().Add(defaultDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:       "Roles have mfa_verification_interval set, but MFA is not required",
+			user:       user3,
+			expiration: authClock.Now().Add(defaultDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:              "Roles have mfa_verification_interval set, MFA required only on cluster level",
+			user:              user3,
+			expiration:        authClock.Now().Add(minVerificationDuration),
+			usage:             proto.UserCertsRequest_Kubernetes,
+			requester:         proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+			clusterRequireMFA: true,
+		},
+		{
+			desc:       "Kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+		},
+		{
+			desc:       "Headless kube proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Kubernetes,
+			requester:  proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS,
+		},
+		{
+			desc:       "DB Proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_Database,
+			requester:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+		},
+		{
+			desc:       "App proxy, roles have mfa_verification_interval set, cert expiration adjusted",
+			user:       user2,
+			expiration: authClock.Now().Add(minVerificationDuration),
+			usage:      proto.UserCertsRequest_App,
+			requester:  proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			user := TestUser(tt.user.GetName())
+			user.TTL = defaultDuration
+			client, err := srv.NewClient(user)
+			require.NoError(t, err)
+
+			ap, ok := authPrefs.(*types.AuthPreferenceV2)
+			require.True(t, ok)
+
+			if tt.clusterRequireMFA {
+				ap.Spec.RequireMFAType = types.RequireMFAType_SESSION
+			} else {
+				ap.Spec.RequireMFAType = types.RequireMFAType_OFF
+			}
+
+			_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
+			require.NoError(t, err)
+
+			_, pub, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				PublicKey:         pub,
+				Username:          tt.user.GetName(),
+				Expires:           authClock.Now().Add(defaultDuration),
+				KubernetesCluster: kubeClusterName,
+				RouteToDatabase:   proto.RouteToDatabase{ServiceName: "test"},
+				RouteToApp:        proto.RouteToApp{Name: "test"},
+				RequesterName:     tt.requester,
+				Usage:             tt.usage,
+			})
+			require.NoError(t, err)
+
+			// Parse the Identity
+			tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+			require.NoError(t, err)
+			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+			require.NoError(t, err)
+			require.Less(t, tt.expiration.Sub(identity.Expires).Abs(), 10*time.Second,
+				"Identity expiration is out of expected boundaries")
+		})
+	}
+}
 func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -3764,6 +3947,21 @@ func TestListResources_WithLogins(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+
+		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
+				Spec: types.AppSpecV3{
+					URI: "https://console.aws.amazon.com/ec2/v2/home",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, awsApp)
+		require.NoError(t, err)
 	}
 
 	// create user and client
@@ -3772,6 +3970,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
 
@@ -3779,7 +3978,7 @@ func TestListResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("with fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer} {
+		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
 			var results []*types.EnrichedResource
 			var start string
 
@@ -3797,22 +3996,22 @@ func TestListResources_WithLogins(t *testing.T) {
 				start = resp.NextKey
 			}
 
-			// Check that only server and desktop resources contain the expected logins
+			// Check that only server, desktop, and app server resources contain the expected logins
 			for _, resource := range results {
 				switch resource.ResourceWithLabels.(type) {
-				case types.Server, types.WindowsDesktop:
+				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
-					})))
+					})), "mismatch on expected logins list for resource %T", resource.ResourceWithLabels)
 				default:
-					require.Empty(t, resource.Logins)
+					require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.ResourceWithLabels, resource.Logins)
 				}
 			}
 		}
 	})
 
 	t.Run("without fake pagination", func(t *testing.T) {
-		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer} {
+		for _, resourceType := range []string{types.KindNode, types.KindWindowsDesktop, types.KindDatabaseServer, types.KindAppServer} {
 			var results []*types.EnrichedResource
 			var start string
 
@@ -3829,15 +4028,15 @@ func TestListResources_WithLogins(t *testing.T) {
 				start = resp.NextKey
 			}
 
-			// Check that only server and desktop resources contain the expected logins
+			// Check that only server, desktop, and app server resources contain the expected logins
 			for _, resource := range results {
 				switch resource.ResourceWithLabels.(type) {
-				case types.Server, types.WindowsDesktop:
+				case types.Server, types.WindowsDesktop, types.AppServer:
 					require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 						return strings.Compare(a, b) < 0
-					})))
+					})), "mismatch on expected logins list for resource %T", resource.ResourceWithLabels)
 				default:
-					require.Empty(t, resource.Logins)
+					require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.ResourceWithLabels, resource.Logins)
 				}
 			}
 		}
@@ -4753,6 +4952,21 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, srv.Auth().UpsertWindowsDesktop(ctx, desktop))
+
+		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
+			HostID:   "_",
+			Hostname: "_",
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
+				Spec: types.AppSpecV3{
+					URI: "https://console.aws.amazon.com/ec2/v2/home",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, awsApp)
+		require.NoError(t, err)
 	}
 
 	// create user and client
@@ -4761,6 +4975,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	require.NoError(t, err)
 	role.SetWindowsDesktopLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	role.SetWindowsLogins(types.Allow, logins)
+	role.SetAWSRoleARNs(types.Allow, logins)
 	_, err = srv.Auth().UpdateRole(ctx, role)
 	require.NoError(t, err)
 
@@ -4769,7 +4984,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 	var results []*proto.PaginatedResource
 	var start string
-	for len(results) != 15 {
+	for {
 		resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
 			Limit:         5,
 			IncludeLogins: true,
@@ -4780,18 +4995,25 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		results = append(results, resp.Resources...)
 		start = resp.NextKey
+		if start == "" {
+			break
+		}
 	}
+	// Note: this number should be updated in case we add more resources to the
+	// setup loop.
+	require.Len(t, results, 20)
 
-	// Check that only server and desktop resources contain the expected logins
+	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
-		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil {
+		isAWSConsoleApp := resource.GetAppServer() != nil && resource.GetAppServer().GetApp().IsAWSConsole()
+		if resource.GetNode() != nil || resource.GetWindowsDesktop() != nil || isAWSConsoleApp {
 			require.Empty(t, cmp.Diff(resource.Logins, logins, cmpopts.SortSlices(func(a, b string) bool {
 				return strings.Compare(a, b) < 0
-			})))
+			})), "mismatch on expected logins list for resource %T", resource.Resource)
 			continue
 		}
 
-		require.Empty(t, resource.Logins)
+		require.Empty(t, resource.Logins, "expected resource %T to get empty list of logins but got %s", resource.Resource, resource.Logins)
 	}
 }
 
@@ -8363,6 +8585,140 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectResp, resp)
+		})
+	}
+}
+
+func TestCloudDefaultPasswordless(t *testing.T) {
+	tt := []struct {
+		name                     string
+		cloud                    bool
+		withPresetUsers          bool
+		qtyPreexistingUsers      int
+		expectedDefaultConnector string
+	}{
+		{
+			name:                     "First Cloud user should set cluster to passwordless when presets exist",
+			cloud:                    true,
+			withPresetUsers:          true,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "First Cloud user should set cluster to passwordless when presets don't exist",
+			cloud:                    true,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: constants.PasswordlessConnector,
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets exist",
+			cloud:                    true,
+			withPresetUsers:          true,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "Second Cloud user should not set cluster to passwordless when presets don't exist",
+			cloud:                    true,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      1,
+			expectedDefaultConnector: "",
+		},
+		{
+			name:                     "First non-Cloud user should not set cluster to passwordless",
+			cloud:                    false,
+			withPresetUsers:          false,
+			qtyPreexistingUsers:      0,
+			expectedDefaultConnector: "",
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			// create new server
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
+			// set cluster Webauthn
+			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+			})
+			require.NoError(t, err)
+			_, err = srv.Auth().UpsertAuthPreference(ctx, authPreference)
+			require.NoError(t, err)
+
+			// the test server doesn't create the preset users, so we call createPresetUsers manually
+			if tc.withPresetUsers {
+				createPresetUsers(ctx, srv.Auth())
+			}
+
+			// create preexisting users
+			for i := 0; i < tc.qtyPreexistingUsers; i += 1 {
+				_, _, err = CreateUserAndRole(srv.Auth(), fmt.Sprintf("testuser-%d", i), nil /* allowedLogins */, nil /* allowRules */)
+				require.NoError(t, err)
+			}
+
+			// create the user that might have the auth method changed to passwordless with 2FA
+			// since CreateResetPasswordToken requires MFA verification.
+			u, err := createUserWithSecondFactors(srv)
+			require.NoError(t, err)
+
+			// add permission to edit users, necessary to change auth method to passwordless
+			user, err := srv.Auth().GetUser(ctx, u.username, false /* withSecrets */)
+			require.NoError(t, err)
+			// createUserWithSecondFactors creates a role for the user already, so we modify it with extra perms
+			roleName := user.GetRoles()[0]
+			role, err := srv.Auth().GetRole(ctx, roleName)
+			require.NoError(t, err)
+			role.SetRules(types.Allow, []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+			})
+			_, err = srv.Auth().UpsertRole(ctx, role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			// setup to change authentication method to passkey
+			resetToken, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+				Name: user.GetName(),
+			})
+			require.NoError(t, err)
+			token := resetToken.GetName()
+
+			registerChal, err := client.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+				TokenID:     token,
+				DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+				DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			})
+			require.NoError(t, err)
+
+			_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
+			require.NoError(t, err)
+
+			_, err = client.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+				TokenID:                token,
+				NewMFARegisterResponse: registerSolved,
+			})
+			require.NoError(t, err)
+
+			authPreferences, err := client.GetAuthPreference(ctx)
+			require.NoError(t, err)
+
+			// assert that the auth preference matches the expected
+			require.Equal(t, tc.expectedDefaultConnector, authPreferences.GetConnectorName())
 		})
 	}
 }

@@ -1686,14 +1686,42 @@ func splitMatchers[T types.Matcher](matchers []T, matcherTypeCheck func(string) 
 	return
 }
 
-func (s *Server) updatesEmptyDiscoveryGroup(getter func() (types.ResourceWithLabels, error)) bool {
-	if s.DiscoveryGroup == "" {
-		return false
+func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, getter func() (types.ResourceWithLabels, error)) error {
+	// We can only resolve the error if we have a discovery group configured
+	// and the error is that the resource already exists.
+	if s.DiscoveryGroup == "" || !trace.IsAlreadyExists(createErr) {
+		return trace.Wrap(createErr)
 	}
+
 	old, err := getter()
 	if err != nil {
-		return false
+		return trace.NewAggregate(createErr, err)
 	}
+
+	// Check that the registered resource origin matches the origin we want.
+	oldOrigin, err := types.GetOrigin(old)
+	if err != nil {
+		return trace.NewAggregate(createErr, err)
+	}
+	if oldOrigin != discoveryOrigin {
+		return trace.Wrap(createErr,
+			"not updating because the resource origin indicates that it is not managed by auto-discovery",
+		)
+	}
+
+	// Check that the registered resource's discovery group is blank or matches
+	// this server's discovery group.
+	// We check if the old group is empty because that's a special case where
+	// the old/new groups don't match but we still want to update the resource.
+	// In this way, discovery agents with a discovery_group essentially claim
+	// the resources they discover that used to be (or currently are) discovered
+	// by an agent that did not have a discovery_group configured.
 	oldDiscoveryGroup, _ := old.GetLabel(types.TeleportInternalDiscoveryGroupName)
-	return oldDiscoveryGroup == ""
+	if oldDiscoveryGroup != "" && oldDiscoveryGroup != s.DiscoveryGroup {
+		return trace.Wrap(createErr,
+			"not updating because the resource is in a different discovery group",
+		)
+	}
+
+	return nil
 }

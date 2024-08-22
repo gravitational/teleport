@@ -211,16 +211,16 @@ func readDefaultKey(key string, defaultValue string) (string, error) {
 	return defaultValue, nil
 }
 
-// readDefaultHome reads /etc/default/useradd for the HOME key,
+// GetDefaultHomeDirectory reads /etc/default/useradd for the HOME key,
 // defaulting to "/home" and join it with the user for the user
 // home directory
-func readDefaultHome(user string) (string, error) {
+func (u *HostUsersProvisioningBackend) GetDefaultHomeDirectory(user string) (string, error) {
 	const defaultHome = "/home"
 	home, err := readDefaultKey("HOME", defaultHome)
 	return filepath.Join(home, user), trace.Wrap(err)
 }
 
-// readDefaultHome reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
+// readDefaultSkel reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
 func readDefaultSkel() (string, error) {
 	const defaultSkel = "/etc/skel"
 	skel, err := readDefaultKey("SKEL", defaultSkel)

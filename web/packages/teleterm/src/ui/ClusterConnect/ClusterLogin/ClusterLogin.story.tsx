@@ -269,6 +269,17 @@ export const SsoWithLocalAndPasswordless = () => {
   );
 };
 
+export const SsoWithNoProvidersConfigured = () => {
+  const props = makeProps();
+  props.initAttempt.data.authType = 'github';
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
 export const HardwareTapPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';

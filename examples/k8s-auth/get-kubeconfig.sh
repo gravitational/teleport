@@ -160,7 +160,7 @@ EOF
 echo "---
 Done!
 
-Copy the generated kubeconfig file to your Teleport Proxy server, and set the
+Copy the generated kubeconfig file to your Teleport Kubernetes Service, and set the
 kubeconfig_file parameter in your teleport.yaml config file to point to this
 kubeconfig file.
 

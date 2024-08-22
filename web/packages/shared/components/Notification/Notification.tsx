@@ -131,7 +131,7 @@ function getRenderedContent(
   if (typeof content === 'string') {
     return (
       <Flex alignItems="center" justifyContent="space-between" width="100%">
-        <Text typography="body1" fontSize={13} css={longerTextCss}>
+        <Text fontSize={13} css={longerTextCss}>
           {content}
         </Text>
         {removeIcon}

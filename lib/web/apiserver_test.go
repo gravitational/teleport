@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -115,7 +116,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -486,7 +486,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
-		ProxySettings:                   &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   s.server.Auth(),
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(proxySessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -3055,6 +3059,38 @@ func TestMultipleConnectors(t *testing.T) {
 	require.Equal(t, "foo", out.Auth.OIDC.Name)
 }
 
+func TestPingSSHDialTimeout(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	// hit the ping endpoint to get the ssh dial timeout
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	var out webclient.PingResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, apidefaults.DefaultIOTimeout, out.Proxy.SSH.DialTimeout)
+
+	// Update the timeout
+	cnc, err := s.server.Auth().GetClusterNetworkingConfig(s.ctx)
+	require.NoError(t, err)
+
+	cnc.SetSSHDialTimeout(time.Minute)
+	cnc, err = s.server.Auth().UpsertClusterNetworkingConfig(s.ctx, cnc)
+	require.NoError(t, err)
+
+	// hit the ping endpoint again to validate that updated values are returned
+	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
+
+}
+
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
 // encrypt and decrypt data that passes through the ConstructSSHResponse
 // function.
@@ -4515,7 +4551,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 	require.Empty(t, collectAppSessions(context.Background()))
 }
 
-func TestGetWebConfig(t *testing.T) {
+func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
@@ -4571,29 +4607,29 @@ func TestGetWebConfig(t *testing.T) {
 		JoinActiveSessions: true,
 		Edition:            modules.BuildOSS, // testBuildType is empty
 		Entitlements: map[string]webclient.EntitlementInfo{
-			"AccessLists":            {Enabled: false},
-			"AccessMonitoring":       {Enabled: false},
-			"AccessRequests":         {Enabled: false},
-			"App":                    {Enabled: true},
-			"CloudAuditLogRetention": {Enabled: false},
-			"DB":                     {Enabled: true},
-			"Desktop":                {Enabled: true},
-			"DeviceTrust":            {Enabled: false},
-			"ExternalAuditStorage":   {Enabled: false},
-			"FeatureHiding":          {Enabled: false},
-			"HSM":                    {Enabled: false},
-			"Identity":               {Enabled: false},
-			"JoinActiveSessions":     {Enabled: true},
-			"K8s":                    {Enabled: true},
-			"MobileDeviceManagement": {Enabled: false},
-			"OIDC":                   {Enabled: false},
-			"OktaSCIM":               {Enabled: false},
-			"OktaUserSync":           {Enabled: false},
-			"Policy":                 {Enabled: false},
-			"SAML":                   {Enabled: false},
-			"SessionLocks":           {Enabled: false},
-			"UpsellAlert":            {Enabled: false},
-			"UsageReporting":         {Enabled: false},
+			string(entitlements.AccessLists):            {Enabled: false},
+			string(entitlements.AccessMonitoring):       {Enabled: false},
+			string(entitlements.AccessRequests):         {Enabled: false},
+			string(entitlements.App):                    {Enabled: true},
+			string(entitlements.CloudAuditLogRetention): {Enabled: false},
+			string(entitlements.DB):                     {Enabled: true},
+			string(entitlements.Desktop):                {Enabled: true},
+			string(entitlements.DeviceTrust):            {Enabled: false},
+			string(entitlements.ExternalAuditStorage):   {Enabled: false},
+			string(entitlements.FeatureHiding):          {Enabled: false},
+			string(entitlements.HSM):                    {Enabled: false},
+			string(entitlements.Identity):               {Enabled: false},
+			string(entitlements.JoinActiveSessions):     {Enabled: true},
+			string(entitlements.K8s):                    {Enabled: true},
+			string(entitlements.MobileDeviceManagement): {Enabled: false},
+			string(entitlements.OIDC):                   {Enabled: false},
+			string(entitlements.OktaSCIM):               {Enabled: false},
+			string(entitlements.OktaUserSync):           {Enabled: false},
+			string(entitlements.Policy):                 {Enabled: false},
+			string(entitlements.SAML):                   {Enabled: false},
+			string(entitlements.SessionLocks):           {Enabled: false},
+			string(entitlements.UpsellAlert):            {Enabled: false},
+			string(entitlements.UsageReporting):         {Enabled: false},
 		},
 		TunnelPublicAddress:            "",
 		RecoveryCodesEnabled:           false,
@@ -4655,12 +4691,12 @@ func TestGetWebConfig(t *testing.T) {
 	expectedCfg.JoinActiveSessions = false
 	expectedCfg.Edition = "" // testBuildType is empty
 	expectedCfg.TrustedDevices = true
-	expectedCfg.Entitlements["App"] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
-	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
-	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
-	expectedCfg.Entitlements["JoinActiveSessions"] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements["K8s"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
+	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
+	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
+	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
@@ -4681,9 +4717,9 @@ func TestGetWebConfig(t *testing.T) {
 	env.proxies[0].client = mockClient
 	expectedCfg.AutomaticUpgrades = false
 	expectedCfg.TrustedDevices = false
-	expectedCfg.Entitlements["DB"] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements["Desktop"] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements["DeviceTrust"] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: false}
+	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
@@ -4703,7 +4739,7 @@ func TestGetWebConfig(t *testing.T) {
 	require.Equal(t, expectedCfg, cfg)
 }
 
-func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
+func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
@@ -4734,7 +4770,7 @@ func TestGetWebConfig_LegacyIdentityFeatureLimits(t *testing.T) {
 			AccessListCreateLimit:               5,
 			AccessMonitoringMaxReportRangeLimit: 10,
 		},
-		IsTeam:              true,
+		IsTeam:              false,
 		IsIGSEnabled:        true,
 		IsStripeManaged:     true,
 		Questionnaire:       true,
@@ -7160,7 +7196,7 @@ func TestCreateDatabase(t *testing.T) {
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
 	// Create an initial database to table test a duplicate creation
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     "duplicatedb",
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7169,13 +7205,13 @@ func TestCreateDatabase(t *testing.T) {
 
 	for _, tt := range []struct {
 		name           string
-		req            createDatabaseRequest
+		req            createOrOverwriteDatabaseRequest
 		expectedStatus int
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7191,7 +7227,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "valid with labels",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "dbwithlabels",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7211,7 +7247,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty name",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7223,7 +7259,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty protocol",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyprotocol",
 				Protocol: "",
 				URI:      "someuri:3306",
@@ -7235,7 +7271,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty uri",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyuri",
 				Protocol: "mysql",
 				URI:      "",
@@ -7247,7 +7283,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "missing port",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "missingport",
 				Protocol: "mysql",
 				URI:      "someuri",
@@ -7259,7 +7295,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "duplicatedb",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "duplicatedb",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7316,6 +7352,79 @@ func TestCreateDatabase(t *testing.T) {
 	}
 }
 
+func TestOverwriteDatabase(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+
+	initDb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+		},
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().CreateDatabase(context.Background(), initDb)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		req            createOrOverwriteDatabaseRequest
+		verifyResponse func(*testing.T, *roundtrip.Response, createOrOverwriteDatabaseRequest, error)
+	}{
+		{
+			name: "overwrite",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      initDb.GetName(),
+				Overwrite: true,
+				URI:       "some-other-uri:3306",
+				Protocol:  "postgres",
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.NoError(t, err)
+
+				var gotDb ui.Database
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
+				require.Equal(t, req.URI, gotDb.URI)
+				require.Equal(t, req.Protocol, gotDb.Protocol)
+				require.Empty(t, req.AWSRDS)
+				require.Equal(t, initDb.GetName(), gotDb.Name)
+
+				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
+				require.NoError(t, err)
+				require.Equal(t, ui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+			},
+		},
+		{
+			name: "overwrite error: database does not exist",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      "this-db-does-not-exist",
+				URI:       "some-uri",
+				Protocol:  "mysql",
+				Overwrite: true,
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+			resp, err := pack.clt.PostJSON(context.Background(), endpoint, test.req)
+
+			test.verifyResponse(t, resp, test.req, err)
+		})
+	}
+}
+
 func TestUpdateDatabase_Errors(t *testing.T) {
 	t.Parallel()
 
@@ -7341,7 +7450,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 
 	// Create database
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7444,7 +7553,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 
 	// Create a database.
 	dbProtocol := "mysql"
-	database, err := getNewDatabaseResource(createDatabaseRequest{
+	database, err := getNewDatabaseResource(createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: dbProtocol,
 		URI:      "someuri:3306",
@@ -8184,7 +8293,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   client,
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(sessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -8477,22 +8590,6 @@ func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(term, "teleport"))
-}
-
-type mockProxySettings struct {
-	mockedGetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
-}
-
-func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
-	if mock.mockedGetProxySettings != nil {
-		return mock.mockedGetProxySettings(ctx)
-	}
-	return &webclient.ProxySettings{}, nil
-}
-
-// GetOpenAIAPIKey returns a dummy OpenAI API key.
-func (mock *mockProxySettings) GetOpenAIAPIKey() string {
-	return "test-key"
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9328,74 +9425,6 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
-}
-
-// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
-func TestSAMlSessionClearedOnLogout(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 2)
-
-	const user = "llama"
-	const samlSessionID = "saml_session_id"
-
-	// create logged in session
-	pack := env.proxies[0].authPack(t, user, nil /* roles */)
-
-	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
-	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   samlSessionID,
-		Username:    pack.user,
-		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
-	})
-	require.NoError(t, err)
-	// add SAML session session cookie to authenticated client pack.
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	setSAMLCookie := &http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    samlSessionID,
-		MaxAge:   int(time.Second) * 5,
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}
-	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
-	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
-
-	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, user, samlSession.GetUser())
-	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
-
-	// logout from web. The saml session needs to be deleted and the proxy should
-	// respond with SAML session cookie with empty value.
-	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
-	require.NoError(t, err)
-	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
-	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
-}
-
-func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookieString := (&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-	}).String()
-	for _, cookie := range cookies {
-		if cookie.String() == samlCookieString {
-			return true
-		}
-	}
-	return false
 }
 
 // initGRPCServer creates a gRPC server serving on the provided listener.
@@ -10348,6 +10377,47 @@ func TestCalculateDesktopLogins(t *testing.T) {
 	}
 }
 
+func TestCalculateAppLogins(t *testing.T) {
+	cases := []struct {
+		name           string
+		allowedLogins  []string
+		expectedLogins []string
+		loginGetter    loginGetterFunc
+	}{
+		{
+			name:           "allowed logins",
+			allowedLogins:  []string{"llama", "fish", "dog"},
+			expectedLogins: []string{"llama", "fish", "dog"},
+			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
+				return nil, nil
+			},
+		},
+		{
+			name: "no allowed logins",
+			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
+				return nil, nil
+			},
+		},
+		{
+			name:           "no allowed logins with fallback",
+			expectedLogins: []string{"apple", "banana"},
+			loginGetter: func(_ services.AccessCheckable) ([]string, error) {
+				return []string{"apple", "banana"}, nil
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			logins, err := calculateAppLogins(test.loginGetter, &types.AppServerV3{}, test.allowedLogins)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
+				return strings.Compare(a, b) < 0
+			})))
+		})
+	}
+}
+
 type loginGetterFunc func(resource services.AccessCheckable) ([]string, error)
 
 func (f loginGetterFunc) GetAllowedLoginsForResource(resource services.AccessCheckable) ([]string, error) {
@@ -10472,4 +10542,491 @@ func TestUnstartedServerShutdown(t *testing.T) {
 
 	// Shutdown the server before starting it shouldn't panic.
 	require.NoError(t, srv.Shutdown(context.Background()))
+}
+
+func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
+	tests := []struct {
+		name            string
+		config          *webclient.WebConfig
+		clusterFeatures authproto.Features
+		expected        *webclient.WebConfig
+	}{
+		{
+			name:   "sets entitlements",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls: false,
+				AccessGraph:    false,
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 10,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             false,
+					MaxReportRangeLimit: 20,
+				},
+				AccessMonitoringConfigured: false,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 30,
+				},
+				AdvancedAccessWorkflows: false,
+				App:                     false,
+				Assist:                  false,
+				AutomaticUpgrades:       false,
+				Cloud:                   false,
+				CustomTheme:             "theme",
+				DB:                      false,
+				Desktop:                 false,
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           false,
+					DevicesUsageLimit: 40,
+				},
+				ExternalAuditStorage:   false,
+				FeatureHiding:          false,
+				HSM:                    false,
+				IdentityGovernance:     false,
+				IsStripeManaged:        false,
+				IsUsageBased:           false,
+				JoinActiveSessions:     false,
+				Kubernetes:             false,
+				MobileDeviceManagement: false,
+				OIDC:                   false,
+				Plugins:                false,
+				Policy:                 nil,
+				ProductType:            0,
+				Questionnaire:          false,
+				RecoveryCodes:          false,
+				SAML:                   false,
+				SupportType:            0,
+				// since present, becomes source of truth  for feature enablement
+				Entitlements: map[string]*authproto.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
+					string(entitlements.App):                    {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
+					string(entitlements.DB):                     {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
+					string(entitlements.Identity):               {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set by the equivalent entitlement value
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             true,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               99,
+					AccessMonitoringMaxReportRangeLimit: 99,
+					AccessRequestMonthlyRequestLimit:    99,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true, Limit: 99},
+					string(entitlements.AccessMonitoring):       {Enabled: true, Limit: 99},
+					string(entitlements.AccessRequests):         {Enabled: true, Limit: 99},
+					string(entitlements.App):                    {Enabled: true, Limit: 99},
+					string(entitlements.CloudAuditLogRetention): {Enabled: true, Limit: 99},
+					string(entitlements.DB):                     {Enabled: true, Limit: 99},
+					string(entitlements.Desktop):                {Enabled: true, Limit: 99},
+					string(entitlements.DeviceTrust):            {Enabled: true, Limit: 99},
+					string(entitlements.ExternalAuditStorage):   {Enabled: true, Limit: 99},
+					string(entitlements.FeatureHiding):          {Enabled: true, Limit: 99},
+					string(entitlements.HSM):                    {Enabled: true, Limit: 99},
+					string(entitlements.Identity):               {Enabled: true, Limit: 99},
+					string(entitlements.JoinActiveSessions):     {Enabled: true, Limit: 99},
+					string(entitlements.K8s):                    {Enabled: true, Limit: 99},
+					string(entitlements.MobileDeviceManagement): {Enabled: true, Limit: 99},
+					string(entitlements.OIDC):                   {Enabled: true, Limit: 99},
+					string(entitlements.OktaSCIM):               {Enabled: true, Limit: 99},
+					string(entitlements.OktaUserSync):           {Enabled: true, Limit: 99},
+					string(entitlements.Policy):                 {Enabled: true, Limit: 99},
+					string(entitlements.SAML):                   {Enabled: true, Limit: 99},
+					string(entitlements.SessionLocks):           {Enabled: true, Limit: 99},
+					string(entitlements.UpsellAlert):            {Enabled: true, Limit: 99},
+					string(entitlements.UsageReporting):         {Enabled: true, Limit: 99},
+				},
+			},
+		},
+		{
+			name:   "sets legacy features when no entitlements are present (Identity true)",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls:             false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				AdvancedAccessWorkflows:    false,
+				App:                        false,
+				Assist:                     false,
+				AutomaticUpgrades:          false,
+				Cloud:                      false,
+				CustomTheme:                "",
+				DB:                         false,
+				Desktop:                    false,
+				HSM:                        false,
+				IsStripeManaged:            false,
+				IsUsageBased:               false,
+				Kubernetes:                 false,
+				Plugins:                    false,
+				ProductType:                0,
+				Questionnaire:              false,
+				RecoveryCodes:              false,
+				SupportType:                0,
+				// not present
+				Entitlements: nil,
+				// will set equivalent entitlement values
+				ExternalAuditStorage:   true,
+				FeatureHiding:          true,
+				IdentityGovernance:     true,
+				JoinActiveSessions:     true,
+				MobileDeviceManagement: true,
+				OIDC:                   true,
+				SAML:                   true,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 88,
+				},
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 88,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             true,
+					MaxReportRangeLimit: 88,
+				},
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           true,
+					DevicesUsageLimit: 88,
+				},
+				Policy: &clientproto.PolicyFeature{
+					Enabled: true,
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set to legacy feature
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             true,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               88,
+					AccessMonitoringMaxReportRangeLimit: 88,
+					AccessRequestMonthlyRequestLimit:    88,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					// no equivalent legacy feature; defaults to false
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+
+					// set to equivalent legacy feature
+					string(entitlements.ExternalAuditStorage):   {Enabled: true},
+					string(entitlements.FeatureHiding):          {Enabled: true},
+					string(entitlements.Identity):               {Enabled: true},
+					string(entitlements.JoinActiveSessions):     {Enabled: true},
+					string(entitlements.MobileDeviceManagement): {Enabled: true},
+					string(entitlements.OIDC):                   {Enabled: true},
+					string(entitlements.Policy):                 {Enabled: true},
+					string(entitlements.SAML):                   {Enabled: true},
+					// set to legacy feature "IsIGSEnabled"; true so set true and clear limits
+					string(entitlements.AccessLists):      {Enabled: true},
+					string(entitlements.AccessMonitoring): {Enabled: true},
+					string(entitlements.AccessRequests):   {Enabled: true},
+					string(entitlements.DeviceTrust):      {Enabled: true},
+					string(entitlements.OktaSCIM):         {Enabled: true},
+					string(entitlements.OktaUserSync):     {Enabled: true},
+					string(entitlements.SessionLocks):     {Enabled: true},
+				},
+			},
+		},
+		{
+			name:   "sets legacy features when no entitlements are present (Identity false)",
+			config: &webclient.WebConfig{},
+			clusterFeatures: authproto.Features{
+				AccessControls:             false,
+				AccessGraph:                false,
+				AccessMonitoringConfigured: false,
+				AdvancedAccessWorkflows:    false,
+				App:                        false,
+				Assist:                     false,
+				AutomaticUpgrades:          false,
+				Cloud:                      false,
+				CustomTheme:                "",
+				DB:                         false,
+				Desktop:                    false,
+				HSM:                        false,
+				IsStripeManaged:            false,
+				IsUsageBased:               false,
+				Kubernetes:                 false,
+				Plugins:                    false,
+				ProductType:                0,
+				Questionnaire:              false,
+				RecoveryCodes:              false,
+				SupportType:                0,
+				// not present
+				Entitlements: nil,
+				// will set equivalent entitlement values
+				ExternalAuditStorage:   true,
+				FeatureHiding:          true,
+				IdentityGovernance:     false,
+				JoinActiveSessions:     true,
+				MobileDeviceManagement: true,
+				OIDC:                   true,
+				SAML:                   true,
+				AccessRequests: &clientproto.AccessRequestsFeature{
+					MonthlyRequestLimit: 88,
+				},
+				AccessList: &clientproto.AccessListFeature{
+					CreateLimit: 88,
+				},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{
+					Enabled:             true,
+					MaxReportRangeLimit: 88,
+				},
+				DeviceTrust: &clientproto.DeviceTrustFeature{
+					Enabled:           true,
+					DevicesUsageLimit: 88,
+				},
+				Policy: &clientproto.PolicyFeature{
+					Enabled: true,
+				},
+			},
+			expected: &webclient.WebConfig{
+				Auth:                           webclient.WebConfigAuthSettings{},
+				AutomaticUpgrades:              false,
+				AutomaticUpgradesTargetVersion: "",
+				CanJoinSessions:                false,
+				CustomTheme:                    "",
+				Edition:                        "",
+				IsCloud:                        false,
+				IsDashboard:                    false,
+				IsStripeManaged:                false,
+				IsTeam:                         false,
+				IsUsageBasedBilling:            false,
+				PlayableDatabaseProtocols:      nil,
+				PremiumSupport:                 false,
+				ProxyClusterName:               "",
+				Questionnaire:                  false,
+				RecoveryCodesEnabled:           false,
+				TunnelPublicAddress:            "",
+				UI:                             webclient.UIConfig{},
+				// set to legacy feature
+				AccessRequests:           true,
+				ExternalAuditStorage:     true,
+				HideInaccessibleFeatures: true,
+				IsIGSEnabled:             false,
+				IsPolicyEnabled:          true,
+				JoinActiveSessions:       true,
+				MobileDeviceManagement:   true,
+				OIDC:                     true,
+				SAML:                     true,
+				TrustedDevices:           true,
+				FeatureLimits: webclient.FeatureLimits{
+					AccessListCreateLimit:               88,
+					AccessMonitoringMaxReportRangeLimit: 88,
+					AccessRequestMonthlyRequestLimit:    88,
+				},
+				Entitlements: map[string]webclient.EntitlementInfo{
+					// no equivalent legacy feature; defaults to false
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+
+					// set to equivalent legacy feature
+					string(entitlements.ExternalAuditStorage):   {Enabled: true},
+					string(entitlements.FeatureHiding):          {Enabled: true},
+					string(entitlements.Identity):               {Enabled: false},
+					string(entitlements.JoinActiveSessions):     {Enabled: true},
+					string(entitlements.MobileDeviceManagement): {Enabled: true},
+					string(entitlements.OIDC):                   {Enabled: true},
+					string(entitlements.Policy):                 {Enabled: true},
+					string(entitlements.SAML):                   {Enabled: true},
+					// set to legacy feature "IsIGSEnabled"; false so set value and keep limits
+					string(entitlements.AccessLists):      {Enabled: true, Limit: 88},
+					string(entitlements.AccessMonitoring): {Enabled: true, Limit: 88},
+					string(entitlements.AccessRequests):   {Enabled: true, Limit: 88},
+					string(entitlements.DeviceTrust):      {Enabled: true, Limit: 88},
+					string(entitlements.OktaSCIM):         {Enabled: false},
+					string(entitlements.OktaUserSync):     {Enabled: false},
+					string(entitlements.SessionLocks):     {Enabled: false},
+				},
+			},
+		},
+		{
+			name: "retains non-feature field values",
+			config: &webclient.WebConfig{
+				Auth: webclient.WebConfigAuthSettings{
+					LocalAuthEnabled:  true,
+					AllowPasswordless: true,
+					MOTD:              "some-message",
+				},
+				PlayableDatabaseProtocols: []string{"play-able"},
+				UI: webclient.UIConfig{
+					ScrollbackLines: 10,
+					ShowResources:   "foo",
+				},
+				Edition:                        "edition",
+				TunnelPublicAddress:            "0000",
+				AutomaticUpgradesTargetVersion: "99",
+				CustomTheme:                    "theme",
+				CanJoinSessions:                true,
+				IsCloud:                        true,
+				RecoveryCodesEnabled:           true,
+				IsDashboard:                    true,
+				IsUsageBasedBilling:            true,
+				AutomaticUpgrades:              true,
+				Questionnaire:                  true,
+				IsStripeManaged:                true,
+				PremiumSupport:                 true,
+			},
+			clusterFeatures: authproto.Features{
+				DeviceTrust:      &clientproto.DeviceTrustFeature{},
+				AccessRequests:   &clientproto.AccessRequestsFeature{},
+				AccessList:       &clientproto.AccessListFeature{},
+				AccessMonitoring: &clientproto.AccessMonitoringFeature{},
+				Policy:           &clientproto.PolicyFeature{},
+			},
+			expected: &webclient.WebConfig{
+				Auth: webclient.WebConfigAuthSettings{
+					LocalAuthEnabled:  true,
+					AllowPasswordless: true,
+					MOTD:              "some-message",
+				},
+				PlayableDatabaseProtocols: []string{"play-able"},
+				UI: webclient.UIConfig{
+					ScrollbackLines: 10,
+					ShowResources:   "foo",
+				},
+				Edition:                        "edition",
+				TunnelPublicAddress:            "0000",
+				AutomaticUpgradesTargetVersion: "99",
+				CustomTheme:                    "theme",
+				CanJoinSessions:                true,
+				IsCloud:                        true,
+				RecoveryCodesEnabled:           true,
+				IsDashboard:                    true,
+				IsUsageBasedBilling:            true,
+				AutomaticUpgrades:              true,
+				Questionnaire:                  true,
+				IsStripeManaged:                true,
+				PremiumSupport:                 true,
+				// Default; not under test
+				ProxyClusterName:         "",
+				FeatureLimits:            webclient.FeatureLimits{},
+				IsTeam:                   false,
+				HideInaccessibleFeatures: false,
+				IsIGSEnabled:             false,
+				IsPolicyEnabled:          false,
+				ExternalAuditStorage:     false,
+				JoinActiveSessions:       false,
+				AccessRequests:           false,
+				TrustedDevices:           false,
+				OIDC:                     false,
+				SAML:                     false,
+				MobileDeviceManagement:   false,
+				Entitlements: map[string]webclient.EntitlementInfo{
+					string(entitlements.AccessLists):            {Enabled: true}, // AccessLists had no previous behavior from an enablement perspective; so we default to true
+					string(entitlements.AccessMonitoring):       {Enabled: false},
+					string(entitlements.AccessRequests):         {Enabled: false},
+					string(entitlements.App):                    {Enabled: false},
+					string(entitlements.CloudAuditLogRetention): {Enabled: false},
+					string(entitlements.DB):                     {Enabled: false},
+					string(entitlements.Desktop):                {Enabled: false},
+					string(entitlements.DeviceTrust):            {Enabled: false},
+					string(entitlements.ExternalAuditStorage):   {Enabled: false},
+					string(entitlements.FeatureHiding):          {Enabled: false},
+					string(entitlements.HSM):                    {Enabled: false},
+					string(entitlements.Identity):               {Enabled: false},
+					string(entitlements.JoinActiveSessions):     {Enabled: false},
+					string(entitlements.K8s):                    {Enabled: false},
+					string(entitlements.MobileDeviceManagement): {Enabled: false},
+					string(entitlements.OIDC):                   {Enabled: false},
+					string(entitlements.OktaSCIM):               {Enabled: false},
+					string(entitlements.OktaUserSync):           {Enabled: false},
+					string(entitlements.Policy):                 {Enabled: false},
+					string(entitlements.SAML):                   {Enabled: false},
+					string(entitlements.SessionLocks):           {Enabled: false},
+					string(entitlements.UpsellAlert):            {Enabled: false},
+					string(entitlements.UsageReporting):         {Enabled: false},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setEntitlementsWithLegacyLogic(tt.config, tt.clusterFeatures)
+
+			assert.Equal(t, tt.expected, tt.config)
+		})
+	}
 }

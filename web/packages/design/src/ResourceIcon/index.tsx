@@ -45,7 +45,7 @@ export const ResourceIcon = ({ name, ...props }: ResourceIconProps) => {
   if (!icon) {
     return null;
   }
-  return <Image src={icon} {...props} />;
+  return <Image src={icon} data-testid={`res-icon-${name}`} {...props} />;
 };
 
 export { type ResourceIconName, resourceIconSpecs, iconNames };

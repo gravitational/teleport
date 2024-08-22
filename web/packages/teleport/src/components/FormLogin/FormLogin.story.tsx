@@ -153,6 +153,11 @@ export const PrimarySso = () => {
       url: '',
     } as const,
     {
+      name: 'Okta',
+      type: 'saml',
+      url: '',
+    } as const,
+    {
       displayName: 'Microsoft',
       name: 'microsoft',
       type: 'oidc',

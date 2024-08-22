@@ -203,6 +203,32 @@ func TestLoadKeyPair(t *testing.T) {
 	require.False(t, ok, "expiry should be unknown on a broken credential")
 }
 
+func TestKeyPair(t *testing.T) {
+	t.Parallel()
+
+	// Load expected tls.Config.
+	expectedTLSConfig := getExpectedTLSConfig(t)
+
+	// Load key pair from disk.
+	creds, err := KeyPair(tlsCert, keyPEM, tlsCACert)
+	require.NoError(t, err)
+
+	// Build tls.Config and compare to expected tls.Config.
+	tlsConfig, err := creds.TLSConfig()
+	require.NoError(t, err)
+	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
+
+	// Load invalid keypairs.
+	invalidIdentityCreds, err := KeyPair([]byte("invalid_cert"), []byte("invalid_key"), []byte("invalid_ca_cert"))
+	require.NoError(t, err)
+	_, err = invalidIdentityCreds.TLSConfig()
+	require.Error(t, err)
+
+	// Load missing keypairs
+	_, err = KeyPair(nil, nil, nil)
+	require.Error(t, err)
+}
+
 func TestLoadProfile(t *testing.T) {
 	t.Parallel()
 	profileName := "proxy.example.com"
