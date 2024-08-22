@@ -20,6 +20,23 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
 
+// AccountPermissionSet represents a permission set that is available on a given
+// account. This is not intended to be a complete description of a PermissionSet,
+// but just enough to identify it for cross-referencing.
+message AccountPermissionSet {
+  // Arn is the unique ARN for this permission set
+  string arn = 1;
+
+  // Title is the human-readable name of the permission set
+  string name = 2;
+}
+
+// AccountStatus represents holds any commonly-changing data about an Identity
+// Center account.
+message AccountStatus {
+  repeated AccountPermissionSet permission_sets = 1;
+}
+
 // Account is an AWS account
 message Account {
   string kind = 1;
@@ -27,6 +44,7 @@ message Account {
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
   AccountSpec spec = 5;
+  AccountStatus status = 6;
 }
 
 // AccountSpec holds non-changing data about an AWS Account
@@ -64,32 +82,6 @@ message PermissionSetSpec {
 
   // Description is a human-readable description of the AWS Permission Set
   string description = 3;
-}
-
-// AccountPermissionSet holds information about a permission sets available
-// for a given AWS account
-message AccountPermissionSet {
-  string kind = 1;
-  string sub_kind = 2;
-  string version = 3;
-  teleport.header.v1.Metadata metadata = 4;
-  AccountPermissionSetsSpec spec = 5;
-}
-
-// AccountPermissionSetsSpec holds the Account and Permission Set data for an
-// AccountPermissionSets resource
-message AccountPermissionSetsSpec {
-  // ID is the AWS-assigned account ID
-  string id = 1;
-
-  // Arn is the AWS-assigned account ARN
-  string arn = 2;
-
-  // Title is the human-readable name of the account
-  string title = 3;
-
-  // PermissionSets is the lit of permission sets available for this account
-  repeated PermissionSet permission_sets = 4;
 }
 
 // PrincipalAssignment relates a collection of PermissionSets and Applications

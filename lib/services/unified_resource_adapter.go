@@ -18,6 +18,10 @@ type resource153Adapter[T unifiedResource153[T]] struct {
 	inner T
 }
 
+func (r resource153Adapter[T]) Unwrap() T {
+	return r.inner
+}
+
 // MarshalJSON adds support for marshaling the wrapped resource (instead of
 // marshaling the adapter itself).
 func (r resource153Adapter[T]) MarshalJSON() ([]byte, error) {

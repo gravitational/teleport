@@ -23,7 +23,7 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
-
+import { IdentityCenterAccount } from '../identitycenter';
 import { UserGroup } from '../userGroups';
 
 import type { MfaAuthnResponse } from '../mfa';
@@ -35,7 +35,8 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
-  | UserGroup;
+  | UserGroup
+  | IdentityCenterAccount;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];
 
@@ -88,7 +89,8 @@ export type ResourceIdKind =
   | 'kube_cluster'
   | 'user_group'
   | 'windows_desktop'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'aws_iam_ic_account';
 
 export type AccessRequestScope =
   | 'my_requests'

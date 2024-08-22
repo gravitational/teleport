@@ -920,17 +920,25 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 				RequiresRequest: requiresRequest,
 			}
 		}
-	// case types.KindIdentityCenterAccount:
-	// 	unwrapper, ok := resource.(resource153Adapter[IdentityCenterAccount])
-	// 	if !ok {
-	// 		return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
-	// 	}
-	// 	protoResource = &proto.PaginatedResource{
-	// 		Resource: &proto.PaginatedResource_IdentityCenterAccount{
-	// 			IdentityCenterAccount: unwrapper.Unwrap(),
-	// 		},
-	// 		RequiresRequest: requiresRequest,
-	// 	}
+	case types.KindIdentityCenterAccount:
+		unwrapper, ok := resource.(resource153Adapter[IdentityCenterAccount])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		acct := unwrapper.Unwrap()
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_IdentityCenterAccount{
+				IdentityCenterAccount: &proto.IdentityCenterAccount{
+					Kind:        acct.Kind,
+					SubKind:     acct.SubKind,
+					Metadata:    resource.GetMetadata(),
+					ID:          acct.Spec.Id,
+					ARN:         acct.Spec.Arn,
+					Description: acct.Spec.Description,
+				},
+			},
+			RequiresRequest: requiresRequest,
+		}
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}

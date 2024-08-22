@@ -2991,8 +2991,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
 
-		case types.Resource153Unwrapper:
-			h.logger.Error("Found Resource153Unwrapper")
+		case *proto.IdentityCenterAccount:
+			acct := ui.MakeIdentityCenterAccount(r, accessChecker, enriched.RequiresRequest)
+			unifiedResources = append(unifiedResources, acct)
 
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)
@@ -4276,7 +4277,17 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 
-		return fn(w, r, p, sctx, site)
+		response, err := fn(w, r, p, sctx, site)
+		if err != nil {
+			h.log.
+				WithFields(logrus.Fields{
+					"http_method": r.Method,
+					"http_path":   r.URL.Path,
+				}).
+				WithError(err).
+				Error("Request failed")
+		}
+		return response, err
 	})
 }
 
