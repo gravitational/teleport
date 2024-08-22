@@ -21,6 +21,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -62,6 +63,7 @@ func (t *TermHandlers) HandleExec(ctx context.Context, ch ssh.Channel, req *ssh.
 // "exec" or "shell" requests. The "pty-req" includes the size of the TTY as
 // well as the terminal type requested.
 func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	fmt.Printf("--> alloc pty req!\n")
 	// parse and extract the requested window size of the pty
 	ptyRequest, err := parsePTYReq(req)
 	if err != nil {
@@ -122,6 +124,7 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Printf("--> execRequest: %v\n", execRequest.GetCommand())
 	if err := scx.SetExecRequest(execRequest); err != nil {
 		return trace.Wrap(err)
 	}

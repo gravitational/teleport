@@ -1186,12 +1186,13 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 
 	// Create the execCommand that will be sent to the child process.
 	return &ExecCommand{
-		Command:               command,
-		DestinationAddress:    c.DstAddr,
-		Username:              c.Identity.TeleportUser,
-		Login:                 c.Identity.Login,
-		Roles:                 roleNames,
-		Terminal:              c.termAllocated || command == "",
+		Command:            command,
+		DestinationAddress: c.DstAddr,
+		Username:           c.Identity.TeleportUser,
+		Login:              c.Identity.Login,
+		Roles:              roleNames,
+		//Terminal:              c.termAllocated || command == "",
+		Terminal:              false,
 		TerminalName:          c.ttyName,
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,

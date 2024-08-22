@@ -139,6 +139,8 @@ type terminal struct {
 	pty *os.File
 	tty *os.File
 
+	pf *PipeFile
+
 	// terminateFD when closed informs the terminal that
 	// the process running in the shell should be killed.
 	terminateFD *os.File
@@ -159,6 +161,7 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		}),
 		serverContext: ctx,
 		terminateFD:   ctx.killShellw,
+		pf:            NewPipeFile(),
 	}
 
 	// Open PTY and corresponding TTY.
@@ -314,7 +317,8 @@ func (t *terminal) Kill(_ context.Context) error {
 func (t *terminal) PTY() io.ReadWriter {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.pty
+	return t.pf
+	//return t.pty
 }
 
 // TTY returns the TTY backing the terminal.
@@ -725,5 +729,43 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
 		t.log.WithError(err).Debug("Unable to set environment variables")
+	}
+}
+
+type PipeFile struct {
+	reader *io.PipeReader
+	writer *io.PipeWriter
+}
+
+// Write implements io.Writer interface for PipeFile
+func (pf *PipeFile) Write(p []byte) (int, error) {
+	return pf.writer.Write(p)
+}
+
+// Read implements io.Reader interface for PipeFile
+func (pf *PipeFile) Read(p []byte) (int, error) {
+	return pf.reader.Read(p)
+}
+
+// Close implements io.Closer interface for PipeFile (closes both ends of the pipe)
+func (pf *PipeFile) Close() error {
+	err1 := pf.writer.Close()
+	err2 := pf.reader.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// Stat is a placeholder that returns nil to satisfy os.File interface
+func (pf *PipeFile) Stat() (os.FileInfo, error) {
+	return nil, nil // Stat isn't relevant for a pipe, so just returning nil
+}
+
+func NewPipeFile() *PipeFile {
+	reader, writer := io.Pipe()
+	return &PipeFile{
+		reader: reader,
+		writer: writer,
 	}
 }

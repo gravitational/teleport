@@ -306,6 +306,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// allocate terminal on the server:
 	remoteTerm, err := ns.allocateTerminal(ctx, termType, sess)
 	if err != nil {
@@ -519,6 +520,7 @@ func (s *sessionWriter) Write(p []byte) (int, error) {
 
 // runShell executes user's shell on the remote node under an interactive session
 func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, chanReqCallback tracessh.ChannelRequestCallback, beforeStart func(io.Writer), shellCallback ShellCreatedCallback) error {
+
 	return ns.interactiveSession(ctx, mode, chanReqCallback, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
 		w := &sessionWriter{
 			tshOut:  ns.nodeClient.TC.Stdout,
