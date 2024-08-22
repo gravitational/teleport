@@ -296,6 +296,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
 	// Crown Jewels
+	h.GET("/enterprise/crownjewels/:name", h.WithAuth(p.getCrownJewel))
 	h.GET("/enterprise/crownjewels", h.WithAuth(p.listCrownJewels))
 	h.POST("/enterprise/crownjewels", h.WithAuth(p.markCrownJewel))
 	h.DELETE("/enterprise/crownjewels/:name", h.WithAuth(p.deleteCrownJewel))

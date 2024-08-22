@@ -34,6 +34,24 @@ type listCrownJewelsResponse struct {
 	NextToken   string           `json:"next_token"`
 }
 
+func (p *Plugin) getCrownJewel(_ http.ResponseWriter, r *http.Request, params httprouter.Params, webCtx *web.SessionContext) (any, error) {
+	authClient, err := webCtx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	crownJewelName := params.ByName("name")
+
+	ctx := r.Context()
+	crownJewel, err :=
+		authClient.CrownJewelServiceClient().GetCrownJewel(ctx, crownJewelName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.ToCrownJewel(crownJewel), nil
+}
+
 func (*Plugin) listCrownJewels(_ http.ResponseWriter, r *http.Request, p httprouter.Params, webCtx *web.SessionContext) (any, error) {
 	authClient, err := webCtx.GetClient()
 	if err != nil {

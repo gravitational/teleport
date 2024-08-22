@@ -18,6 +18,37 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
+func TestGetCrownJewel(t *testing.T) {
+	t.Parallel()
+
+	s := newWebSuite(t)
+	authClient := s.newAdminAuthClient(s.ctx, t)
+
+	ctx := context.Background()
+	createCrownJewel(t, ctx, authClient, 0)
+
+	webPack := s.newAuthWebPack(t, "foo")
+	getEndpoint := webPack.clt.Endpoint("enterprise", "crownjewels", "test-0")
+	resp, err := webPack.clt.Get(ctx, getEndpoint, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// Read the response
+	var cj ui.CrownJewel
+	err = json.Unmarshal(resp.Bytes(), &cj)
+	require.NoError(t, err)
+
+	require.Equal(t, "test-0", cj.Name)
+	require.Len(t, cj.Spec.TeleportMatchers, 1)
+	require.Equal(t, "SELECT * FROM nodes", cj.Spec.Query)
+	require.Equal(t, ui.TeleportMatcher{
+		Kinds:  []string{"node"},
+		Names:  []string{"test"},
+		Labels: map[string][]string{},
+	}, cj.Spec.TeleportMatchers[0])
+}
+
 func TestCreateCrownJewel(t *testing.T) {
 	t.Parallel()
 
@@ -201,6 +232,7 @@ func createCrownJewel(t *testing.T, ctx context.Context, authClient authclient.C
 			Name: fmt.Sprintf("test-%d", number),
 		},
 		Spec: &crownjewelv1.CrownJewelSpec{
+			Query: "SELECT * FROM nodes",
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 				{
 					Kinds: []string{"node"},
