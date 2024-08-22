@@ -839,7 +839,7 @@ func (s *CA) DeleteAllRemoteClusters(ctx context.Context) error {
 }
 
 // catToItem builds a backend.Item corresponding to the supplied CA.
-func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
+func caToItem(key backend.Key, ca types.CertAuthority) (backend.Item, error) {
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -854,12 +854,12 @@ func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
 }
 
 // activeCAKey builds the active key variant for the supplied ca id.
-func activeCAKey(id types.CertAuthID) []byte {
+func activeCAKey(id types.CertAuthID) backend.Key {
 	return backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName)
 }
 
 // inactiveCAKey builds the inactive key variant for the supplied ca id.
-func inactiveCAKey(id types.CertAuthID) []byte {
+func inactiveCAKey(id types.CertAuthID) backend.Key {
 	return backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
 }
 
