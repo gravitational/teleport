@@ -386,7 +386,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 }
 
 // Get implements [backend.Backend].
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	item, err := pgcommon.RetryIdempotent(ctx, b.log, func() (*backend.Item, error) {
 		batch := new(pgx.Batch)
 		// batches run in an implicit transaction
@@ -432,7 +432,7 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 }
 
 // GetRange implements [backend.Backend].
-func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if limit <= 0 {
 		limit = backend.DefaultRangeLimit
 	}
@@ -483,7 +483,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 }
 
 // Delete implements [backend.Backend].
-func (b *Backend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	deleted, err := pgcommon.Retry(ctx, b.log, func() (bool, error) {
 		tag, err := b.pool.Exec(ctx,
 			"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key))
@@ -502,7 +502,7 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	expectedRevision, ok := revisionFromString(rev)
 	if !ok {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -529,7 +529,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 }
 
 // DeleteRange implements [backend.Backend].
-func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	// this is the only backend operation that might affect a disproportionate
 	// amount of rows at the same time; in actual operation, DeleteRange hardly
 	// ever deletes more than dozens of items at once, and logical decoding

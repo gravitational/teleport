@@ -6943,7 +6943,9 @@ message HeadlessAuthentication {
   string user = 2;
 
   // PublicKey is an ssh public key to sign in case of successful auth.
-  bytes public_key = 3;
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;
@@ -6953,6 +6955,14 @@ message HeadlessAuthentication {
 
   // ClientIPAddress is the IP address of the client being authenticated.
   string client_ip_address = 6;
+
+  // SshPublicKey is a public key that will be used as the subject of the issued
+  // SSH certificate in case of successful auth. It must be in SSH authorized_keys format.
+  bytes ssh_public_key = 7;
+  // TlsPublicKey is a public key that will be used as the subject of the issued
+  // TLS certificate in case of successful auth. It must be in PEM-encoded
+  // PKCS#1 or PKIX format.
+  bytes tls_public_key = 8;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.

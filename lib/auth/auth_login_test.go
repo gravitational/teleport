@@ -1393,8 +1393,9 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
 				_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						PublicKey: []byte(sshPubKey),
-						Webauthn:  car,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
+						Webauthn:     car,
 					},
 					TTL: 12 * time.Hour,
 				})
@@ -1555,8 +1556,9 @@ func TestSSOPasswordBypass(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			req := authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  mfa.User,
-					PublicKey: []byte(sshPubKey),
+					Username:     mfa.User,
+					SSHPublicKey: []byte(sshPubKey),
+					TLSPublicKey: []byte(tlsPubKey),
 					// test.setSecondFactor sets either Pass, OTP or Webauthn.
 				},
 				TTL: 12 * time.Hour,
@@ -1753,7 +1755,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			require.NoError(t, err)
 
 			req := authclient.AuthenticateUserRequest{
-				PublicKey: []byte(sshPubKey),
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
@@ -1886,7 +1889,8 @@ func TestServer_Authenticate_headless(t *testing.T) {
 					Webauthn:                 &wantypes.CredentialAssertionResponse{},
 					OTP:                      &authclient.OTPCreds{},
 					Username:                 username,
-					PublicKey:                []byte(sshPubKey),
+					SSHPublicKey:             []byte(sshPubKey),
+					TLSPublicKey:             []byte(tlsPubKey),
 					ClientMetadata: &authclient.ForwardedClientMetadata{
 						RemoteAddr: "0.0.0.0",
 					},
@@ -1897,7 +1901,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			// Use assert so that we also output any test failures below.
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
-			tc.assertError(t, err)
+			tc.assertError(t, err, trace.DebugReport(err))
 		})
 	}
 }

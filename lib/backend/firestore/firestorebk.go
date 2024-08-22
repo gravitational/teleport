@@ -127,12 +127,12 @@ type Backend struct {
 }
 
 type record struct {
-	Key        []byte `firestore:"key,omitempty"`
-	Timestamp  int64  `firestore:"timestamp,omitempty"`
-	Expires    int64  `firestore:"expires,omitempty"`
-	Value      []byte `firestore:"value,omitempty"`
-	RevisionV2 string `firestore:"revision,omitempty"`
-	RevisionV1 string `firestore:"-"`
+	Key        backend.Key `firestore:"key,omitempty"`
+	Timestamp  int64       `firestore:"timestamp,omitempty"`
+	Expires    int64       `firestore:"expires,omitempty"`
+	Value      []byte      `firestore:"value,omitempty"`
+	RevisionV2 string      `firestore:"revision,omitempty"`
+	RevisionV1 string      `firestore:"-"`
 }
 
 func (r *record) updates() []firestore.Update {
@@ -190,7 +190,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			return nil, ConvertGRPCError(err)
 		}
 		r = record{
-			Key:       []byte(rl.Key),
+			Key:       backend.Key(rl.Key),
 			Value:     []byte(rl.Value),
 			Timestamp: rl.Timestamp,
 			Expires:   rl.Expires,
@@ -425,7 +425,7 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 	return backend.NewLease(item), nil
 }
 
-func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []byte, limit int) ([]*firestore.DocumentSnapshot, error) {
+func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key, limit int) ([]*firestore.DocumentSnapshot, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -460,7 +460,7 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey []byte, endKey []by
 }
 
 // GetRange returns range of elements
-func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	docSnaps, err := b.getRangeDocs(ctx, startKey, endKey, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -501,7 +501,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	docs, err := b.getRangeDocs(ctx, startKey, endKey, backend.DefaultRangeLimit)
 	if err != nil {
 		return trace.Wrap(err)
@@ -511,7 +511,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 }
 
 // Get returns a single item or not found error
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -613,7 +613,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 }
 
 // Delete deletes item by key
-func (b *Backend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -631,7 +631,7 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 }
 
 // ConditionalDelete deletes item by key if the revision matches
-func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	if !isRevisionV2(rev) {
 		return b.legacyConditionalDelete(ctx, key, rev)
 	}
@@ -677,7 +677,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string)
 	return nil
 }
 
-func (b *Backend) legacyConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) legacyConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	revision, err := fromRevisionV1(rev)
 	if err != nil {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -835,7 +835,7 @@ func (b *Backend) Clock() clockwork.Clock {
 // IDs. See
 // https://firebase.google.com/docs/firestore/quotas#collections_documents_and_fields
 // for Firestore limitations.
-func (b *Backend) keyToDocumentID(key []byte) string {
+func (b *Backend) keyToDocumentID(key backend.Key) string {
 	// URL-safe base64 will not have periods or forward slashes.
 	// This should satisfy the Firestore requirements.
 	return base64.URLEncoding.EncodeToString(key)
