@@ -16,15 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import fs from 'node:fs/promises';
+
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+
+import Logger, { NullService } from 'teleterm/logger';
 
 import {
   ShellCommand,
   TshLoginCommand,
   GatewayCliClientCommand,
+  PtyProcessCreationStatus,
 } from '../types';
 
-import { getPtyProcessOptions } from './buildPtyOptions';
+import { getPtyProcessOptions, buildPtyOptions } from './buildPtyOptions';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
+
+jest.mock('./resolveShellEnv', () => ({
+  resolveShellEnvCached: () => Promise.resolve({}),
+}));
 
 describe('getPtyProcessOptions', () => {
   describe('pty.gateway-cli-client', () => {
@@ -126,5 +139,98 @@ describe('getPtyProcessOptions', () => {
 
       expect(args).toContain('--no-resume');
     });
+  });
+});
+
+describe('buildPtyOptions', () => {
+  it('shellId is resolved to the shell object', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'bash',
+    };
+
+    const { shell, creationStatus } = await buildPtyOptions(
+      makeRuntimeSettings({
+        availableShells: [
+          {
+            id: 'bash',
+            friendlyName: 'bash',
+            binPath: '/bin/bash',
+            binName: 'bash',
+          },
+        ],
+      }),
+      {
+        customShellPath: '',
+        ssh: { noResume: false },
+        windowsPty: { useConpty: true },
+      },
+      cmd
+    );
+
+    expect(shell).toEqual({
+      id: 'bash',
+      binPath: '/bin/bash',
+      binName: 'bash',
+      friendlyName: 'bash',
+    });
+    expect(creationStatus).toBe(PtyProcessCreationStatus.Ok);
+  });
+
+  it("custom shell path is resolved to the shell object when shellId is 'custom''", async () => {
+    jest.spyOn(fs, 'access').mockResolvedValue();
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'custom',
+    };
+
+    const { shell, creationStatus } = await buildPtyOptions(
+      makeRuntimeSettings(),
+      {
+        customShellPath: '/custom/shell/path/better-shell',
+        ssh: { noResume: false },
+        windowsPty: { useConpty: true },
+      },
+      cmd
+    );
+
+    expect(shell).toEqual({
+      id: 'custom',
+      binPath: '/custom/shell/path/better-shell',
+      binName: 'better-shell',
+      friendlyName: 'better-shell',
+    });
+    expect(creationStatus).toBe(PtyProcessCreationStatus.Ok);
+  });
+
+  it('if the provided shellId is not available, an OS default is returned', async () => {
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'no-such-shell',
+    };
+
+    const { shell, creationStatus } = await buildPtyOptions(
+      makeRuntimeSettings(),
+      {
+        customShellPath: '',
+        ssh: { noResume: false },
+        windowsPty: { useConpty: true },
+      },
+      cmd
+    );
+
+    expect(shell).toEqual({
+      id: 'zsh',
+      binPath: '/bin/zsh',
+      binName: 'zsh',
+      friendlyName: 'zsh',
+    });
+    expect(creationStatus).toBe(PtyProcessCreationStatus.ShellNotResolved);
   });
 });
