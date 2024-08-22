@@ -20,8 +20,6 @@ package machineidv1
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"log/slog"
 	"sync"
 	"time"
@@ -37,6 +35,8 @@ import (
 
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -554,7 +554,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 
 	bundleBytes, err := bundle.Marshal()
 	if err != nil {
-		return nil, trace.Wrap(err, "marshalling bundle")
+		return nil, trace.Wrap(err, "marshaling bundle")
 	}
 	out.Status.CurrentBundle = string(bundleBytes)
 	out.Status.CurrentBundleSyncedFrom = current.Spec.BundleSource
