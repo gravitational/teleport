@@ -157,7 +157,7 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 	}, s.runWhileLocked)
 }
 
-type spiffeFederationState struct {
+type trustDomainSyncState struct {
 	// eventsCh is an unbuffered channel for passing events to a specific
 	// SPIFFEFederations syncer.
 	eventsCh chan types.Event
@@ -170,9 +170,14 @@ type spiffeFederationState struct {
 // the local cluster. It does this by creating a goroutine that manages each
 // federated cluster.
 func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
-	s.cfg.Logger.InfoContext(ctx, "Obtained lock, SPIFFE Federation Syncer is starting")
+	s.cfg.Logger.InfoContext(
+		ctx,
+		"Obtained lock, SPIFFEFederation syncer is starting",
+	)
 	defer func() {
-		s.cfg.Logger.InfoContext(ctx, "SPIFFE Federation Syncer has stopped")
+		s.cfg.Logger.InfoContext(
+			ctx, "SPIFFEFederation syncer has stopped",
+		)
 	}()
 
 	// This wg will track all active syncers. We'll wait here until we're done.
@@ -184,8 +189,9 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Set up state management that will hold a list of all active trust domain syncers.
-	states := map[string]spiffeFederationState{}
+	// Set up state management that will hold a list of all active trust domain
+	// syncers.
+	states := map[string]trustDomainSyncState{}
 	mu := &sync.Mutex{}
 	startSyncingFederation := func(trustDomain string) {
 		mu.Lock()
@@ -197,7 +203,7 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 			return
 		}
 
-		states[trustDomain] = spiffeFederationState{
+		states[trustDomain] = trustDomainSyncState{
 			eventsCh: make(chan types.Event),
 		}
 
@@ -209,7 +215,7 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 				mu.Unlock()
 				wg.Done()
 			}()
-			s.syncFederationLoop(ctx, trustDomain, states[trustDomain].eventsCh)
+			s.syncTrustDomainLoop(ctx, trustDomain, states[trustDomain].eventsCh)
 		}()
 	}
 
@@ -222,12 +228,14 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err, "failed to create watcher")
 	}
-	defer func(w types.Watcher) {
+	defer func() {
 		err := w.Close()
 		if err != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Failed to close watcher", "error", err)
+			s.cfg.Logger.ErrorContext(
+				ctx, "Failed to close watcher", "error", err,
+			)
 		}
-	}(w)
+	}()
 
 	// Wait for initial "Init" event to indicate we're now receiving events.
 	select {
@@ -249,19 +257,25 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 		startSyncingFederation(td.GetMetadata().GetName())
 	}
 
-	// Now we can start reacting to events, we'll want to start/stop syncers as needed.
-	// We'll want to start a syncer for any new trust domain, and propagate events to existing syncers.
+	// Now we can start reacting to events, we'll want to start/stop syncers as
+	// needed. We'll want to start a syncer for any new trust domain, and
+	// propagate events to existing syncers.
 	for {
 		select {
 		case evt := <-w.Events():
 			s.cfg.Logger.DebugContext(
 				ctx,
-				"Received SPIFFEFederation event from watcher",
+				"Received event from SPIFFEFederation watcher",
 				"evt_type", evt.Type,
 			)
+			if !(evt.Type == types.OpPut || evt.Type == types.OpDelete) {
+				continue
+			}
+
 			mu.Lock()
 			existingState, ok := states[evt.Resource.GetName()]
 			mu.Unlock()
+
 			// If it already exists, we can just pass the event along. If
 			// there's already a sync queued due to an event, we don't need to
 			// queue another since it fetches the latest resource anyway.
@@ -288,15 +302,15 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 	}
 }
 
-func (s *SPIFFEFederationSyncer) syncFederationLoop(
+func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	ctx context.Context,
 	name string,
 	eventsCh <-chan types.Event,
 ) {
 	log := s.cfg.Logger.With("trust_domain", name)
-	log.InfoContext(ctx, "Starting to manage syncing of SPIFFEFederation", "trust_domain", name)
+	log.InfoContext(ctx, "Starting sync loop for trust domain", "trust_domain", name)
 	defer func() {
-		log.InfoContext(ctx, "Stopped managing syncing of SPIFFEFederation", "trust_domain", name)
+		log.InfoContext(ctx, "Stopped sync loop for trust domain", "trust_domain", name)
 	}()
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
@@ -309,7 +323,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 	if err != nil {
 		log.ErrorContext(
 			ctx,
-			"Failed to create retry strategy, federation syncer will not run",
+			"Failed to create retry strategy, trust domain sync loop will not run",
 			"error", err,
 		)
 		return
@@ -339,7 +353,10 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 			log.InfoContext(ctx, "Wait for backoff complete, retrying sync")
 		case evt := <-eventsCh:
 			if evt.Type == types.OpDelete {
-				log.DebugContext(ctx, "Resource has been deleted, stopping sync loop")
+				log.DebugContext(
+					ctx,
+					"Resource has been deleted, stopping sync loop for trust domain",
+				)
 				// If we've been deleted, we should stop syncing.
 				return
 			}
@@ -349,7 +366,10 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 				if evt.Resource.GetRevision() == synced.GetMetadata().GetRevision() {
 					continue
 				}
-				log.DebugContext(ctx, "Resource has been updated, trying sync immediately")
+				log.DebugContext(
+					ctx,
+					"Resource has been updated, trying to sync trust domain immediately",
+				)
 			}
 			// Note, we explicitly don't use the resource within the event.
 			// Instead, we will fetch the latest upon starting the sync. This
@@ -359,7 +379,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 		}
 
 		syncCtx, cancel := context.WithTimeout(ctx, s.cfg.SyncTimeout)
-		synced, err = s.syncFederation(syncCtx, name)
+		synced, err = s.syncTrustDomain(syncCtx, name)
 		cancel()
 		if err != nil {
 			// If the resource has been deleted, there's no point retrying.
@@ -367,8 +387,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 			if trace.IsNotFound(err) {
 				log.ErrorContext(
 					ctx,
-					"Resource has been deleted, stopping sync",
-					"trust_domain", name,
+					"Resource has been deleted, stopping sync loop for trust domain",
 					"error", err,
 				)
 				return
@@ -376,7 +395,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 			retry.Inc()
 			log.ErrorContext(
 				ctx,
-				"Failed to sync federation, will retry after backoff",
+				"Failed to sync trust domain, will retry after backoff",
 				"error", err,
 				"backoff", retry.Duration(),
 			)
@@ -391,13 +410,17 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 				// Ensure the timer after /after/ the next sync time.
 				timeUntil = timeUntil + time.Second
 				nextSync.Reset(timeUntil)
-				log.InfoContext(ctx, "Will try to sync again at", "next_sync_at", nextSyncAt)
+				log.InfoContext(
+					ctx,
+					"Will try to sync again at",
+					"next_sync_at", nextSyncAt,
+				)
 			}
 		}
 	}
 }
 
-func shouldSyncFederation(
+func shouldSyncTrustDomain(
 	ctx context.Context,
 	log *slog.Logger,
 	clock clockwork.Clock,
@@ -438,17 +461,17 @@ func shouldSyncFederation(
 	return ""
 }
 
-func (s *SPIFFEFederationSyncer) syncFederation(
+func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	ctx context.Context, name string,
 ) (out *machineidv1.SPIFFEFederation, err error) {
-	ctx, span := tracer.Start(ctx, "SPIFFEFederationSyncer/syncFederation")
+	ctx, span := tracer.Start(ctx, "SPIFFEFederationSyncer/syncTrustDomain")
 	defer func() {
 		tracing.EndSpan(span, err)
 	}()
 
 	current, err := s.cfg.Store.GetSPIFFEFederation(ctx, name)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to get SPIFFE federation")
+		return nil, trace.Wrap(err, "failed to get SPIFFEFederation")
 	}
 
 	log := s.cfg.Logger.With(
@@ -458,12 +481,11 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 
 	td, err := spiffeid.TrustDomainFromString(current.GetMetadata().GetName())
 	if err != nil {
-		log.ErrorContext(ctx, "Invalid trust domain name", "error", err)
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing metadata.name as trust domain name")
 	}
 
 	// Determine - should we refresh...
-	syncReason := shouldSyncFederation(ctx, log, s.cfg.Clock, current)
+	syncReason := shouldSyncTrustDomain(ctx, log, s.cfg.Clock, current)
 	if syncReason == "" {
 		log.DebugContext(ctx, "Skipping sync as is not required")
 		return current, nil
@@ -493,27 +515,44 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 			return nil, trace.Wrap(err, "fetching bundle using https_web profile")
 		}
 
-		// Calculate the duration before we should next sync, applying any sensible upper and lower bounds.
+		// Calculate the duration before we should next sync, applying any
+		// sensible upper and lower bounds.
 		nextSyncIn = s.cfg.DefaultSyncInterval
 		if refreshHint, ok := bundle.RefreshHint(); ok {
 			if refreshHint < s.cfg.MinSyncInterval {
-				log.InfoContext(ctx, "Refresh hint is less than MinSyncInterval, using MinSyncInterval", "refresh_hint", refreshHint)
+				log.InfoContext(
+					ctx,
+					"Refresh hint is less than MinSyncInterval, using MinSyncInterval",
+					"refresh_hint", refreshHint,
+				)
 				nextSyncIn = s.cfg.MinSyncInterval
 			} else if refreshHint > s.cfg.MaxSyncInterval {
-				log.InfoContext(ctx, "Refresh hint is greater than MaxSyncInterval, using MaxSyncInterval", "refresh_hint", refreshHint)
+				log.InfoContext(
+					ctx,
+					"Refresh hint is greater than MaxSyncInterval, using MaxSyncInterval",
+					"refresh_hint", refreshHint,
+				)
 				nextSyncIn = s.cfg.MaxSyncInterval
 			} else {
 				nextSyncIn = refreshHint
 			}
 		}
 	case current.Spec.BundleSource.Static != nil:
-		log.DebugContext(ctx, "Fetching bundle using spec.bundle_source.static.bundle")
-		bundle, err = spiffebundle.Parse(td, []byte(current.Spec.BundleSource.Static.Bundle))
+		log.DebugContext(
+			ctx, "Fetching bundle using spec.bundle_source.static.bundle",
+		)
+		bundle, err = spiffebundle.Parse(
+			td, []byte(current.Spec.BundleSource.Static.Bundle),
+		)
 		if err != nil {
-			return nil, trace.Wrap(err, "parsing bundle from static profile")
+			return nil, trace.Wrap(
+				err, "parsing bundle from static profile",
+			)
 		}
 	default:
-		return nil, trace.BadParameter("spec.bundle_source: at least one of https_web or static must be set")
+		return nil, trace.BadParameter(
+			"spec.bundle_source: at least one of https_web or static must be set",
+		)
 	}
 
 	bundleBytes, err := bundle.Marshal()
@@ -532,11 +571,13 @@ func (s *SPIFFEFederationSyncer) syncFederation(
 
 	out, err = s.cfg.Store.UpdateSPIFFEFederation(ctx, out)
 	if err != nil {
-		return nil, trace.Wrap(err, "persisting updated SPIFFE federation")
+		return nil, trace.Wrap(
+			err, "persisting updated SPIFFEFederation",
+		)
 	}
 	log.InfoContext(
 		ctx,
-		"Sync finished",
+		"Sync succeeded, new SPIFFEFederation persisted",
 		"new_revision", out.Metadata.Revision,
 	)
 
