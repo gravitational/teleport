@@ -104,8 +104,8 @@ func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 			return trace.Wrap(err)
 		}
 		isEnabled := c.toolsAutoupdate == "on"
-		if isEnabled != config.Spec.ToolsAutoUpdate {
-			config.Spec.ToolsAutoUpdate = isEnabled
+		if isEnabled != config.Spec.ToolsAutoupdate {
+			config.Spec.ToolsAutoupdate = isEnabled
 			if _, err := serviceClient.UpsertAutoupdateConfig(ctx, &autoupdate.UpsertAutoupdateConfigRequest{
 				Config: config,
 			}); err != nil {

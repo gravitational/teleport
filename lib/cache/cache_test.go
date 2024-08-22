@@ -3913,7 +3913,7 @@ func newAutoupdateConfig(t *testing.T) *autoupdate.AutoupdateConfig {
 	t.Helper()
 
 	r, err := update.NewAutoupdateConfig(&autoupdate.AutoupdateConfigSpec{
-		ToolsAutoUpdate: true,
+		ToolsAutoupdate: true,
 	})
 	require.NoError(t, err)
 	return r

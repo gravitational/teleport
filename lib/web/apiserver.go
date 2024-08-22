@@ -1458,7 +1458,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if !trace.IsNotFound(err) && err != nil {
 		return nil, trace.Wrap(err)
 	} else if !trace.IsNotFound(err) {
-		response.ToolsAutoupdate = autoupdateConfig.GetSpec().GetToolsAutoUpdate()
+		response.ToolsAutoupdate = autoupdateConfig.GetSpec().GetToolsAutoupdate()
 	}
 
 	autoupdateVersion, err := h.GetAccessPoint().GetAutoupdateVersion(r.Context())
