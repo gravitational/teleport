@@ -35,6 +35,7 @@ import {
 } from '../types';
 
 import {
+  getNodeProcessEnv,
   resolveShellEnvCached,
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
@@ -87,7 +88,7 @@ export async function buildPtyOptions(
     })
     .then(({ shellEnv, creationStatus }) => {
       const combinedEnv = {
-        ...process.env,
+        ...getNodeProcessEnv(),
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
         TERM_PROGRAM_VERSION: settings.appVersion,

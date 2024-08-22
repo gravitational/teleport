@@ -35,6 +35,10 @@ beforeAll(() => {
 
 jest.mock('./resolveShellEnv', () => ({
   resolveShellEnvCached: () => Promise.resolve({}),
+  getNodeProcessEnv: () => ({
+    // Simulate the user defined WSLENV var.
+    WSLENV: 'CUSTOM_VAR',
+  }),
 }));
 
 describe('getPtyProcessOptions', () => {
@@ -232,8 +236,6 @@ describe('buildPtyOptions', () => {
   });
 
   it("Teleport Connect env variables are prepended to the user's WSLENV for wsl.exe", async () => {
-    // Simulate the user defined WSLENV var.
-    process.env.WSLENV = 'CUSTOM_VAR';
     const cmd: ShellCommand = {
       kind: 'pty.shell',
       clusterName: 'bar',
