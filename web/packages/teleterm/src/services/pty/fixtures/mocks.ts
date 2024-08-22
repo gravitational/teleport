@@ -66,7 +66,7 @@ export class MockPtyServiceClient implements PtyServiceClient {
       process: new MockPtyProcess(),
       creationStatus: PtyProcessCreationStatus.Ok,
       windowsPty: undefined,
-      openedShell: {
+      shell: {
         id: 'zsh',
         friendlyName: 'zsh',
         binPath: '/bin/zsh',

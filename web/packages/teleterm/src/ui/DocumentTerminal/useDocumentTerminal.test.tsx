@@ -246,7 +246,7 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.ResolveShellEnvTimeout,
     windowsPty: undefined,
-    openedShell: {
+    shell: {
       id: 'zsh',
       friendlyName: 'zsh',
       binPath: '/bin/zsh',
@@ -590,7 +590,7 @@ const testSetup = (
         process: getPtyProcessMock(),
         creationStatus: PtyProcessCreationStatus.Ok,
         windowsPty: undefined,
-        openedShell: {
+        shell: {
           id: 'zsh',
           friendlyName: 'zsh',
           binPath: '/bin/zsh',
@@ -632,7 +632,7 @@ test('shellId is set to a config default when empty', async () => {
     process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.Ok,
     windowsPty: undefined,
-    openedShell: {
+    shell: {
       id: 'zsh',
       friendlyName: 'zsh',
       binPath: '/bin/zsh',
