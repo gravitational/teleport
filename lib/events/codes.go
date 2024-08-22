@@ -132,6 +132,10 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionAWSConsoleRequestCode is event code for AWS console request.
+	AppSessionAWSConsoleRequestCode = "T2014I"
+	// AppSessionAWSConsoleRequestFailureCode is event code when AWS console request fails.
+	AppSessionAWSConsoleRequestFailureCode = "T2014W"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

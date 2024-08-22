@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -35,10 +36,13 @@ import (
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -54,15 +58,8 @@ type Cloud interface {
 type AWSSigninRequest struct {
 	// Identity is the identity of the user requesting signin URL.
 	Identity *tlsca.Identity
-	// TargetURL is the target URL within the console.
-	TargetURL string
-	// Issuer is the application public URL.
-	Issuer string
-	// ExternalID is the AWS external ID.
-	ExternalID string
-	// Integration is the Integration name to use to generate credentials.
-	// If empty, it will use ambient credentials
-	Integration string
+	// App is the AWS application requested for access.
+	App types.Application
 }
 
 // CheckAndSetDefaults validates the request.
@@ -74,13 +71,17 @@ func (r *AWSSigninRequest) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if r.TargetURL == "" {
-		return trace.BadParameter("missing TargetURL")
+	if r.App == nil {
+		return trace.BadParameter("missing app")
 	}
-	if r.Issuer == "" {
-		return trace.BadParameter("missing Issuer")
+	if !r.App.IsAWSConsole() {
+		return trace.BadParameter("app %s is not an AWS app", r.App.GetName())
 	}
 	return nil
+}
+
+func (r *AWSSigninRequest) roleSessionName() string {
+	return awsutils.MaybeHashRoleSessionName(r.Identity.Username)
 }
 
 // AWSSigninResponse contains AWS console signin URL.
@@ -95,12 +96,22 @@ type CloudConfig struct {
 	SessionGetter awsutils.AWSSessionProvider
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// Emitter emits audit events
+	Emitter apievents.Emitter
+	// HostID is the id of the host where this application agent is running.
+	HostID string
 }
 
 // CheckAndSetDefaults validates the config.
 func (c *CloudConfig) CheckAndSetDefaults() error {
 	if c.SessionGetter == nil {
 		return trace.BadParameter("missing session getter")
+	}
+	if c.Emitter == nil {
+		return trace.BadParameter("missing Emitter")
+	}
+	if c.HostID == "" {
+		return trace.BadParameter("missing HostID")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -110,7 +121,7 @@ func (c *CloudConfig) CheckAndSetDefaults() error {
 
 type cloud struct {
 	cfg CloudConfig
-	log logrus.FieldLogger
+	log *slog.Logger
 }
 
 // NewCloud creates a new cloud service.
@@ -120,7 +131,7 @@ func NewCloud(cfg CloudConfig) (Cloud, error) {
 	}
 	return &cloud{
 		cfg: cfg,
-		log: logrus.WithField(teleport.ComponentKey, "cloud"),
+		log: slog.With(teleport.ComponentKey, "cloud"),
 	}, nil
 }
 
@@ -133,22 +144,25 @@ func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWS
 		return nil, trace.Wrap(err)
 	}
 
-	federationURL := getFederationURL(req.TargetURL)
-	signinToken, err := c.getAWSSigninToken(ctx, &req, federationURL)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	federationURL := getFederationURL(req.App.GetURI())
 	signinURL, err := url.Parse(federationURL)
 	if err != nil {
+		c.emitAudit(ctx, req, err)
 		return nil, trace.Wrap(err)
 	}
 
+	signinToken, err := c.getAWSSigninToken(ctx, &req, federationURL)
+	if err != nil {
+		c.emitAudit(ctx, req, err)
+		return nil, trace.Wrap(err)
+	}
+
+	c.emitAudit(ctx, req, nil)
 	signinURL.RawQuery = url.Values{
 		"Action":      []string{"login"},
 		"SigninToken": []string{signinToken},
-		"Destination": []string{req.TargetURL},
-		"Issuer":      []string{req.Issuer},
+		"Destination": []string{req.App.GetURI()},
+		"Issuer":      []string{req.App.GetPublicAddr()},
 	}.Encode()
 
 	return &AWSSigninResponse{
@@ -159,7 +173,7 @@ func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWS
 // getAWSSigninToken gets the signin token required for the AWS sign in URL.
 //
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html
-func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, endpoint string, options ...func(*stscreds.AssumeRoleProvider)) (string, error) {
+func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, endpoint string, options ...func(*stscreds.AssumeRoleProvider)) (token string, err error) {
 	// It is stated in the user guide linked above:
 	// When you use DurationSeconds in an AssumeRole* operation, you must call
 	// it as an IAM user with long-term credentials. Otherwise, the call to the
@@ -173,7 +187,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 
 	// Sign In requests target IAM endpoints which don't require a region.
 	region := ""
-	session, err := c.cfg.SessionGetter(ctx, region, req.Integration)
+	session, err := c.cfg.SessionGetter(ctx, region, req.App.GetIntegration())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -191,7 +205,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	options = append(options, func(creds *stscreds.AssumeRoleProvider) {
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
-		creds.RoleSessionName = awsutils.MaybeHashRoleSessionName(req.Identity.Username)
+		creds.RoleSessionName = req.roleSessionName()
 
 		// Setting web console session duration through AssumeRole call for AWS
 		// sessions with temporary credentials.
@@ -208,8 +222,8 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 			creds.Duration = duration
 		}
 
-		if req.ExternalID != "" {
-			creds.ExternalID = aws.String(req.ExternalID)
+		if req.App.GetAWSExternalID() != "" {
+			creds.ExternalID = aws.String(req.App.GetAWSExternalID())
 		}
 	})
 	stsCredentials, err := stscreds.NewCredentials(session, req.Identity.RouteToApp.AWSRoleARN, options...).Get()
@@ -262,6 +276,37 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 	}
 
 	return fedResp.SigninToken, nil
+}
+
+func (c *cloud) emitAudit(ctx context.Context, req AWSSigninRequest, requestErr error) {
+	event := &apievents.AppSessionAWSConsoleRequest{
+		Metadata: apievents.Metadata{
+			Type:        events.AppSessionAWSConsoleRequestEvent,
+			Code:        events.AppSessionAWSConsoleRequestCode,
+			ClusterName: req.Identity.RouteToApp.ClusterName,
+		},
+		ServerMetadata:  common.MakeServerMetadata(c.cfg.HostID),
+		SessionMetadata: req.Identity.GetSessionMetadata(req.Identity.RouteToApp.SessionID),
+		UserMetadata:    req.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: req.Identity.LoginIP,
+		},
+		AppMetadata:        common.MakeAppMetadata(req.App),
+		AWSSessionMetadata: awsutils.MakeSessionMetadata(req.roleSessionName(), req.App.GetAWSExternalID(), nil /* session tags */),
+		Status: apievents.Status{
+			Success: true,
+		},
+	}
+
+	if requestErr != nil {
+		event.Metadata.Code = events.AppSessionAWSConsoleRequestFailureCode
+		event.Status.Success = false
+		event.Status.Error = requestErr.Error()
+	}
+
+	if err := c.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		c.log.WarnContext(ctx, "Failed to emit audit event.", "event", event)
+	}
 }
 
 // isSessionUsingTemporaryCredentials checks if the current aws session is

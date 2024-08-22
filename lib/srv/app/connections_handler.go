@@ -146,6 +146,8 @@ func (c *ConnectionsHandlerConfig) CheckAndSetDefaults() error {
 		cloud, err := NewCloud(CloudConfig{
 			Clock:         c.Clock,
 			SessionGetter: c.AWSSessionProvider,
+			Emitter:       c.Emitter,
+			HostID:        c.HostID,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -470,11 +472,8 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 	)
 
 	url, err := c.cfg.Cloud.GetAWSSigninURL(r.Context(), AWSSigninRequest{
-		Identity:    identity,
-		TargetURL:   app.GetURI(),
-		Issuer:      app.GetPublicAddr(),
-		ExternalID:  app.GetAWSExternalID(),
-		Integration: app.GetIntegration(),
+		Identity: identity,
+		App:      app,
 	})
 	if err != nil {
 		return trace.Wrap(err)

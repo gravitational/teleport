@@ -725,6 +725,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_PluginDelete{
 			PluginDelete: e,
 		}
+	case *AppSessionAWSConsoleRequest:
+		out.Event = &OneOf_AppSessionAWSConsoleRequest{
+			AppSessionAWSConsoleRequest: e,
+		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

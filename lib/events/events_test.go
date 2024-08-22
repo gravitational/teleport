@@ -218,6 +218,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	PluginCreateEvent:                           &apievents.PluginCreate{},
 	PluginUpdateEvent:                           &apievents.PluginUpdate{},
 	PluginDeleteEvent:                           &apievents.PluginDelete{},
+	AppSessionAWSConsoleRequestEvent:            &apievents.AppSessionAWSConsoleRequest{},
 }
 
 // TestJSON tests JSON marshal events

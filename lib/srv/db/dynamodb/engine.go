@@ -187,14 +187,15 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	re, err := e.resolveEndpoint(req)
 	if err != nil {
 		// special error case where we couldn't resolve the endpoint, just emit using the configured URI.
-		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), 0, err)
+		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), 0, err, nil)
 		return trace.Wrap(err)
 	}
 
 	// emit an audit event regardless of failure, but using the resolved endpoint.
 	var responseStatusCode uint32
+	var signingCtx *libaws.SigningCtx
 	defer func() {
-		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
+		e.emitAuditEvent(req, re.URL, responseStatusCode, err, signingCtx)
 	}()
 
 	// try to read, close, and replace the incoming request body.
@@ -218,7 +219,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signingCtx := &libaws.SigningCtx{
+	signingCtx = &libaws.SigningCtx{
 		SigningName:   re.SigningName,
 		SigningRegion: re.SigningRegion,
 		Expiry:        e.sessionCtx.Identity.Expires,
@@ -255,7 +256,7 @@ func (e *Engine) sendResponse(resp *http.Response) error {
 }
 
 // emitAuditEvent writes the request and response status code to the audit stream.
-func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32, err error) {
+func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32, err error, signingCtx *libaws.SigningCtx) {
 	var eventCode string
 	if err == nil && statusCode != 0 {
 		eventCode = events.DynamoDBRequestCode
@@ -286,12 +287,13 @@ func (e *Engine) emitAuditEvent(req *http.Request, uri string, statusCode uint32
 			DatabaseName:     e.sessionCtx.DatabaseName,
 			DatabaseUser:     e.sessionCtx.DatabaseUser,
 		},
-		StatusCode: statusCode,
-		Path:       req.URL.Path,
-		RawQuery:   req.URL.RawQuery,
-		Method:     req.Method,
-		Target:     target,
-		Body:       body,
+		StatusCode:         statusCode,
+		Path:               req.URL.Path,
+		RawQuery:           req.URL.RawQuery,
+		Method:             req.Method,
+		Target:             target,
+		Body:               body,
+		AWSSessionMetadata: signingCtx.MakeSessionMetadata(),
 	}
 	e.Audit.EmitEvent(e.Context, event)
 }

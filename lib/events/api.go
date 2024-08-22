@@ -399,7 +399,7 @@ const (
 
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
-	// AppSessionEndEvent is emitted when a user connects to a TCP application.
+	// AppSessionEndEvent is emitted when a user finishes a TCP application.
 	AppSessionEndEvent = "app.session.end"
 
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
@@ -413,6 +413,10 @@ const (
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
+	// AppSessionAWSConsoleRequestEvent is a request to genreate AWS console
+	// signin URL.
+	AppSessionAWSConsoleRequestEvent = "app.session.aws_console.request"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"

@@ -151,7 +151,12 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	status := uint32(resp.StatusCode)
 
 	// Emit the event to the audit log.
-	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, status, nil /*aws endpoint*/); err != nil {
+
+	if err := sessCtx.Audit.OnRequest(t.closeContext, &common.RequestWithContext{
+		SessionContext: sessCtx,
+		Request:        r,
+		Status:         status,
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

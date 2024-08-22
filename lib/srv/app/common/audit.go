@@ -35,6 +35,20 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
+// RequestWithContext defines context for a request for auditing purpose.
+type RequestWithContext struct {
+	// Request is the HTTP request sent to upstream.
+	*http.Request
+	// SessionContext is the app session context.
+	SessionContext *SessionContext
+	// Status is the response status code.
+	Status uint32
+	// ResolvedEndpoint is the AWS resolved endpoint.
+	ResolvedEndpoint *endpoints.ResolvedEndpoint
+	// SigningCtx is the AWS signing context.
+	SigningCtx *awsutils.SigningCtx
+}
+
 // Audit defines an interface for app access audit events logger.
 type Audit interface {
 	// OnSessionStart is called when new app session starts.
@@ -44,9 +58,9 @@ type Audit interface {
 	// OnSessionChunk is called when a new session chunk is created.
 	OnSessionChunk(ctx context.Context, serverID, chunkID string, identity *tlsca.Identity, app types.Application) error
 	// OnRequest is called when an app request is sent during the session and a response is received.
-	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
+	OnRequest(ctx context.Context, req *RequestWithContext) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
-	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error
+	OnDynamoDBRequest(ctx context.Context, req *RequestWithContext) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -90,11 +104,7 @@ func NewAudit(config AuditConfig) (Audit, error) {
 }
 
 func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {
-	return apievents.SessionMetadata{
-		SessionID:        identity.RouteToApp.SessionID,
-		WithMFA:          identity.MFAVerified,
-		PrivateKeyPolicy: string(identity.PrivateKeyPolicy),
-	}
+	return identity.GetSessionMetadata(identity.RouteToApp.SessionID)
 }
 
 // OnSessionStart is called when new app session starts.
@@ -105,21 +115,13 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 			Code:        events.AppSessionStartCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        serverID,
-			ServerNamespace: apidefaults.Namespace,
-		},
+		ServerMetadata:  MakeServerMetadata(serverID),
 		SessionMetadata: getSessionMetadata(identity),
 		UserMetadata:    identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: identity.LoginIP,
 		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
+		AppMetadata: MakeAppMetadata(app),
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
@@ -132,21 +134,13 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 			Code:        events.AppSessionEndCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        serverID,
-			ServerNamespace: apidefaults.Namespace,
-		},
+		ServerMetadata:  MakeServerMetadata(serverID),
 		SessionMetadata: getSessionMetadata(identity),
 		UserMetadata:    identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: identity.LoginIP,
 		},
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
+		AppMetadata: MakeAppMetadata(app),
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
@@ -159,45 +153,38 @@ func (a *audit) OnSessionChunk(ctx context.Context, serverID, chunkID string, id
 			Code:        events.AppSessionChunkCode,
 			ClusterName: identity.RouteToApp.ClusterName,
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        serverID,
-			ServerNamespace: apidefaults.Namespace,
-		},
+		ServerMetadata:  MakeServerMetadata(serverID),
 		SessionMetadata: getSessionMetadata(identity),
 		UserMetadata:    identity.GetUserMetadata(),
-		AppMetadata: apievents.AppMetadata{
-			AppURI:        app.GetURI(),
-			AppPublicAddr: app.GetPublicAddr(),
-			AppName:       app.GetName(),
-		},
-		SessionChunkID: chunkID,
+		AppMetadata:     MakeAppMetadata(app),
+		SessionChunkID:  chunkID,
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnRequest is called when an app request is sent during the session and a response is received.
-func (a *audit) OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnRequest(ctx context.Context, req *RequestWithContext) error {
 	event := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
 			Type: events.AppSessionRequestEvent,
 			Code: events.AppSessionRequestCode,
 		},
-		AppMetadata:        *MakeAppMetadata(sessionCtx.App),
+		AppMetadata:        MakeAppMetadata(req.SessionContext.App),
 		Method:             req.Method,
 		Path:               req.URL.Path,
 		RawQuery:           req.URL.RawQuery,
-		StatusCode:         status,
-		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
+		StatusCode:         req.Status,
+		AWSRequestMetadata: MakeAWSRequestMetadata(req.Request, req.ResolvedEndpoint),
+		AWSSessionMetadata: req.SigningCtx.MakeSessionMetadata(),
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
 // OnDynamoDBRequest is called when a DynamoDB app request is sent during the session.
-func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) error {
+func (a *audit) OnDynamoDBRequest(ctx context.Context, req *RequestWithContext) error {
 	// Try to read the body and JSON unmarshal it.
 	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable, so it's ok if body is left nil here.
-	body, err := awsutils.UnmarshalRequestBody(req)
+	body, err := awsutils.UnmarshalRequestBody(req.Request)
 	if err != nil {
 		a.log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
 	}
@@ -209,16 +196,17 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 			Type: events.AppSessionDynamoDBRequestEvent,
 			Code: events.AppSessionDynamoDBRequestCode,
 		},
-		UserMetadata:       sessionCtx.Identity.GetUserMetadata(),
-		AppMetadata:        *MakeAppMetadata(sessionCtx.App),
-		AWSRequestMetadata: *MakeAWSRequestMetadata(req, re),
-		SessionChunkID:     sessionCtx.ChunkID,
-		StatusCode:         status,
+		UserMetadata:       req.SessionContext.Identity.GetUserMetadata(),
+		AppMetadata:        MakeAppMetadata(req.SessionContext.App),
+		AWSRequestMetadata: MakeAWSRequestMetadata(req.Request, req.ResolvedEndpoint),
+		SessionChunkID:     req.SessionContext.ChunkID,
+		StatusCode:         req.Status,
 		Path:               req.URL.Path,
 		RawQuery:           req.URL.RawQuery,
 		Method:             req.Method,
 		Target:             target,
 		Body:               body,
+		AWSSessionMetadata: req.SigningCtx.MakeSessionMetadata(),
 	}
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
@@ -242,8 +230,8 @@ func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 }
 
 // MakeAppMetadata returns common server metadata for database session.
-func MakeAppMetadata(app types.Application) *apievents.AppMetadata {
-	return &apievents.AppMetadata{
+func MakeAppMetadata(app types.Application) apievents.AppMetadata {
+	return apievents.AppMetadata{
 		AppURI:        app.GetURI(),
 		AppPublicAddr: app.GetPublicAddr(),
 		AppName:       app.GetName(),
@@ -252,15 +240,25 @@ func MakeAppMetadata(app types.Application) *apievents.AppMetadata {
 
 // MakeAWSRequestMetadata is a helper to build AWSRequestMetadata from the provided request and endpoint.
 // If the aws endpoint is nil, returns an empty request metadata.
-func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEndpoint) *apievents.AWSRequestMetadata {
-	if awsEndpoint == nil {
-		return &apievents.AWSRequestMetadata{}
+func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEndpoint) apievents.AWSRequestMetadata {
+	if awsEndpoint == nil || req == nil {
+		return apievents.AWSRequestMetadata{}
 	}
 
-	return &apievents.AWSRequestMetadata{
+	return apievents.AWSRequestMetadata{
 		AWSRegion:      awsEndpoint.SigningRegion,
 		AWSService:     awsEndpoint.SigningName,
 		AWSHost:        req.URL.Host,
 		AWSAssumedRole: GetAWSAssumedRole(req),
+	}
+}
+
+// MakeServerMetadata is a helper to build ServerMetadata for app session
+// events.
+func MakeServerMetadata(serverID string) apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerVersion:   teleport.Version,
+		ServerID:        serverID,
+		ServerNamespace: apidefaults.Namespace,
 	}
 }
