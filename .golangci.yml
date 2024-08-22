@@ -162,7 +162,7 @@ linters-settings:
             desc: '"devicetrust/enroll" requires CGO on darwin'
           - pkg: github.com/gravitational/teleport/lib/devicetrust/native
             desc: '"devicetrust/native" requires CGO on darwin'
-          - pkg: github.com/gravitational/teleport/lib/lib/bpf
+          - pkg: github.com/gravitational/teleport/lib/bpf
             desc: '"lib/bpf" requires CGO'
           - pkg: github.com/gravitational/teleport/lib/vnet/daemon
             desc: '"vnet/daemon" requires CGO'
