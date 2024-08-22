@@ -38,7 +38,7 @@ type PingResponse struct {
 
 // PingClient describes the required methods to list AWS VPCs.
 type PingClient interface {
-	// DescribeVpcs describes VPCs.
+	// GetCallerIdentity does AWS STS GetCallerIdentity API request and returns its result.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
 }
 
