@@ -58,7 +58,7 @@ jobs:
         # Even after changing AWS roles, the docker daemon should still be able to use these credentials
         # until they expire.  
       - name: Login to Pending ECR Registry
-        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ${{ vars.ECR_PENDING_REPO_BASE }}
 
@@ -69,11 +69,11 @@ jobs:
           SIGNING_KEY_ARN: "${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}"
           SRC_IMAGE_TAG: "${{ env.SRC_REPO }}:${{ inputs.pending-tag }}"
         run: |
-          cosign verify --key awskms:///${SIGNING_KEY_ARN} ${SRC_IMAGE_TAG} > validated-image.json
+          cosign verify --key awskms:///"${SIGNING_KEY_ARN} ${SRC_IMAGE_TAG}" > validated-image.json
           # TODO(reed): Re-enable OIDC identity verification when signature is attached
           # cosign verify ${SRC_IMAGE_TAG} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
           TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
-          echo TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH >> $GITHUB_ENV
+          echo "TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH" >> "$GITHUB_ENV"
 
       - name: Assume AWS ECR Push Role
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -84,7 +84,7 @@ jobs:
           role-duration-seconds: 900
 
       - name: Login to Production ECR Registry
-        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3.2.0
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           # Don't use `vars.OCI_PUBLIC_REPO_BASE` here due to a bug with the login action.
           # The login action checks to see if the registry is exactly equal to `public.ecr.aws`,
@@ -99,6 +99,7 @@ jobs:
       - name: Copy multiarch image to production repository
         run: |
           SRC_IMAGE_HASH="${SRC_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
+          # shellcheck disable=SC2043
           for DST_TAG in ${{ inputs.production-tags }}; do
             docker buildx imagetools create --tag "$DST_REPO:$DST_TAG" "$SRC_IMAGE_HASH"
           done
@@ -108,5 +109,5 @@ jobs:
           SIGNING_KEY_ARN: ${{ vars.OCI_PUBLIC_SIGNING_KEY_ARN }}
         run: |
           DST_IMAGE_HASH="${DST_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
-          cosign sign --yes --key awskms:///${SIGNING_KEY_ARN} --recursive "${DST_IMAGE_HASH}"
+          cosign sign --yes --key awskms:///"${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE_HASH}"
           cosign sign --yes --upload=false --recursive "${DST_IMAGE_HASH}"
