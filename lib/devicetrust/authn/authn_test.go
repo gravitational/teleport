@@ -28,6 +28,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
+	authntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
@@ -63,7 +64,7 @@ func TestCeremony_Run(t *testing.T) {
 	sshCert, sshSigner, err := testenv.NewSelfSignedSSHCert()
 	require.NoError(t, err)
 
-	runParams := &authn.CeremonyRunParams{
+	runParams := &authntypes.CeremonyRunParams{
 		DevicesClient: devices,
 		Certs: &devicepb.UserCertificates{
 			SshAuthorizedKey: sshCert,

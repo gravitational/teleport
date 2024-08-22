@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -363,7 +363,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// validatingRunCeremony checks the parameters passed to dtAuthnRunCeremony
 		// and returns validCerts on success.
 		var runCeremonyCalls int
-		validatingRunCeremony := func(_ context.Context, params *dtauthn.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		validatingRunCeremony := func(_ context.Context, params *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			switch {
 			case params.DevicesClient == nil:
@@ -387,7 +387,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx, &dtauthn.CeremonyRunParams{
+		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 			DevicesClient: rootAuthClient.DevicesClient(),
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
@@ -412,7 +412,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	t.Run("attempt login respects ping", func(t *testing.T) {
 		runCeremonyCalled := false
 		teleportClient.SetDTAttemptLoginIgnorePing(false)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthn.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalled = true
 			return nil, errors.New("dtAuthnRunCeremony called unexpectedly")
 		})
@@ -439,7 +439,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		var enrolled bool
 		var runCeremonyCalls, autoEnrollCalls int
 		teleportClient.SetDTAutoEnrollIgnorePing(true)
-		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthn.CeremonyRunParams) (*devicepb.UserCertificates, error) {
+		teleportClient.SetDTAuthnRunCeremony(func(_ context.Context, _ *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 			runCeremonyCalls++
 			if !enrolled {
 				return nil, errors.New("device not enrolled")
@@ -463,7 +463,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		defer rootAuthClient.Close()
 
 		// Test!
-		got, err := teleportClient.DeviceLogin(ctx, &dtauthn.CeremonyRunParams{
+		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 			DevicesClient: rootAuthClient.DevicesClient(),
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
