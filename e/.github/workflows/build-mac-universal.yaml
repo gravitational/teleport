@@ -165,17 +165,6 @@ jobs:
         run: |
           make pkg ARCH=universal OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
-      - name: Build tsh Package
-        if: inputs.build-packages
-        env:
-          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
-          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
-          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
-          TELEPORT_VERSION: ${{ inputs.release-version }}
-        run: |
-          make pkg-tsh ARCH=universal OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
-
       - name: Prepare tsh Package for Teleport Connect
         if: inputs.build-packages
         env:
@@ -227,12 +216,6 @@ jobs:
             --path "teleport-${TELEPORT_VERSION}.pkg" \
             --products 'teleport' --os 'darwin' --architecture 'universal' \
             --description "MacOS Universal .pkg installer"
-
-          "${RELCLI_PATH}" generate-manifest \
-            --path "tsh-${TELEPORT_VERSION}.pkg" \
-            --products 'teleport' --products 'teleport-ent' \
-            --os 'darwin' --architecture 'universal' \
-            --description "MacOS Universal .pkg installer (tsh client only)"
 
           if [[ "${RELEASE}" == 'enterprise' ]]; then
             "${RELCLI_PATH}" generate-manifest \
