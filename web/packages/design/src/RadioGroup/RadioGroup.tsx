@@ -19,6 +19,7 @@
 import React, { ReactNode } from 'react';
 
 import { Flex } from 'design';
+import { RadioButton } from 'design/RadioButton/RadioButton';
 
 interface RadioObjectOption {
   value: string;
@@ -94,14 +95,8 @@ export function Radio(props: RadioProps) {
         cursor: ${optionDisabled ? 'not-allowed' : 'pointer'};
       `}
     >
-      <input
+      <RadioButton
         autoFocus={props.autoFocus}
-        css={`
-          margin: 0 ${props => props.theme.space[2]}px 0 0;
-          accent-color: ${props => props.theme.colors.brand};
-          cursor: inherit;
-        `}
-        type="radio"
         name={props.name}
         checked={props.checked}
         onChange={() => props.onChange?.(optionValue)}
