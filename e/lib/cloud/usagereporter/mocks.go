@@ -23,7 +23,7 @@ func NewMockedBackendGetter() *MockedBackendGetter {
 	}
 }
 
-func (m *MockedBackendGetter) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (m *MockedBackendGetter) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	if item, ok := m.items[string(key)]; ok {
 		return &item, nil
 	}

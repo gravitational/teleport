@@ -66,7 +66,7 @@ type BackendAPIGetter interface {
 	// Create creates item if it does not exist
 	Create(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*backend.Item, error)
+	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
 	// Clock returns clock used by this backend
 	Clock() clockwork.Clock
 }

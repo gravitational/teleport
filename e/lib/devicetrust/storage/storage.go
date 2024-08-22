@@ -355,7 +355,7 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 // updateDeviceRefsIndex creates or updates a hand-written devicesRef index.
 func (s *S) updateDeviceRefsIndex(
 	ctx context.Context,
-	key []byte,
+	key backend.Key,
 	ref *deviceRef,
 	dedupMatchingOS bool,
 ) error {
@@ -410,7 +410,7 @@ func (s *S) updateDeviceRefsIndex(
 	return trace.Wrap(lastErr)
 }
 
-func (s *S) createDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (retryable bool, err error) {
+func (s *S) createDeviceRef(ctx context.Context, key backend.Key, ref *deviceRef) (retryable bool, err error) {
 	val, err := json.Marshal(&devicesRef{
 		Devices: []*deviceRef{ref},
 	})
@@ -800,7 +800,7 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 // index.
 func (s *S) removeFromDeviceRefsIndex(
 	ctx context.Context,
-	key []byte,
+	key backend.Key,
 	deviceID string,
 ) error {
 	item, err := s.backend.Get(ctx, key)
@@ -1065,7 +1065,7 @@ func (s *S) getDeviceRefsByTag(ctx context.Context, assetTag string) (*devicesRe
 	return s.getDeviceRefs(ctx, devicesByAssetTagKey(assetTag))
 }
 
-func (s *S) getDeviceRefs(ctx context.Context, key []byte) (*devicesRef, error) {
+func (s *S) getDeviceRefs(ctx context.Context, key backend.Key) (*devicesRef, error) {
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1456,8 +1456,8 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 // simplifiedCollectedData is used to decide which collected data entries to
 // delete.
 type simplifiedCollectedData struct {
-	Key        []byte    `json:"-"`
-	RecordTime time.Time `json:"record_time"`
+	Key        backend.Key `json:"-"`
+	RecordTime time.Time   `json:"record_time"`
 }
 
 func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) error {
@@ -1983,7 +1983,7 @@ func (s *S) getWebAuthnAttempt(
 	return item, &attempt, nil
 }
 
-func deviceIDFromKey(key []byte) string {
+func deviceIDFromKey(key backend.Key) string {
 	idx := bytes.LastIndexByte(key, backend.Separator)
 	return string(key[idx+1:])
 }
@@ -2180,34 +2180,34 @@ func tpmPlatformAttestationFromStored(stored *tpmPlatformAttestation) *devicepb.
 	}
 }
 
-func deviceKeyStart() []byte {
+func deviceKeyStart() backend.Key {
 	return backend.NewKey(devicetrust.DevicesIDPrefix...)
 }
 
-func deviceKey(deviceID string) []byte {
+func deviceKey(deviceID string) backend.Key {
 	return backend.NewKey(append(devicetrust.DevicesIDPrefix, deviceID)...)
 }
 
-func deviceTokenKey(deviceID string) []byte {
+func deviceTokenKey(deviceID string) backend.Key {
 	return backend.NewKey("devices", "enroll_token", deviceID)
 }
 
-func deviceWebAuthenticationAttemptKey(attemptID string) []byte {
+func deviceWebAuthenticationAttemptKey(attemptID string) backend.Key {
 	return backend.NewKey("devices", "web_authn_attempt", attemptID)
 }
 
-func devicesByAssetTagKey(assetTag string) []byte {
+func devicesByAssetTagKey(assetTag string) backend.Key {
 	return backend.NewKey("devices", "byTag", assetTag)
 }
 
-func devicesByUserKey(user string) []byte {
+func devicesByUserKey(user string) backend.Key {
 	return backend.NewKey("devices", "by_user", user)
 }
 
-func collectedDataKey(deviceID, cdID string) []byte {
+func collectedDataKey(deviceID, cdID string) backend.Key {
 	return backend.NewKey("devices", "collected_data", deviceID, cdID)
 }
 
-func collectedDataKeyStart(deviceID string) []byte {
+func collectedDataKeyStart(deviceID string) backend.Key {
 	return backend.NewKey("devices", "collected_data", deviceID)
 }
