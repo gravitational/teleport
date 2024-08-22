@@ -40,15 +40,15 @@ export function createPtyService(
       const windowsPty = getWindowsPty(runtimeSettings, {
         windowsBackend: configService.get('terminal.windowsBackend').value,
       });
-      const { processOptions, creationStatus, shell } = await buildPtyOptions(
-        runtimeSettings,
-        {
+      const { processOptions, creationStatus, shell } = await buildPtyOptions({
+        settings: runtimeSettings,
+        options: {
           ssh: { noResume: configService.get('ssh.noResume').value },
           customShellPath: configService.get('terminal.customShell').value,
           windowsPty,
         },
-        command
-      );
+        cmd: command,
+      });
       const ptyId = await ptyHostClient.createPtyProcess(processOptions);
 
       // Electron's context bridge doesn't allow to return a class here

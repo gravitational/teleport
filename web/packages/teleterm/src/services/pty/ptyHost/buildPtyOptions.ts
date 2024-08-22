@@ -35,7 +35,6 @@ import {
 } from '../types';
 
 import {
-  getNodeProcessEnv,
   resolveShellEnvCached,
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
@@ -48,11 +47,17 @@ type PtyOptions = {
 
 const WSLENV_VAR = 'WSLENV';
 
-export async function buildPtyOptions(
-  settings: RuntimeSettings,
-  options: PtyOptions,
-  cmd: PtyCommand
-): Promise<{
+export async function buildPtyOptions({
+  settings,
+  options,
+  cmd,
+  processEnv = process.env,
+}: {
+  settings: RuntimeSettings;
+  options: PtyOptions;
+  cmd: PtyCommand;
+  processEnv?: typeof process.env;
+}): Promise<{
   processOptions: PtyProcessOptions;
   shell: Shell;
   creationStatus: PtyProcessCreationStatus;
@@ -88,7 +93,7 @@ export async function buildPtyOptions(
     })
     .then(({ shellEnv, creationStatus }) => {
       const combinedEnv = {
-        ...getNodeProcessEnv(),
+        ...processEnv,
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
         TERM_PROGRAM_VERSION: settings.appVersion,

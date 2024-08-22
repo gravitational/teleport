@@ -35,10 +35,6 @@ beforeAll(() => {
 
 jest.mock('./resolveShellEnv', () => ({
   resolveShellEnvCached: () => Promise.resolve({}),
-  getNodeProcessEnv: () => ({
-    // Simulate the user defined WSLENV var.
-    WSLENV: 'CUSTOM_VAR',
-  }),
 }));
 
 describe('getPtyProcessOptions', () => {
@@ -153,8 +149,8 @@ describe('buildPtyOptions', () => {
       shellId: 'bash',
     };
 
-    const { shell, creationStatus } = await buildPtyOptions(
-      makeRuntimeSettings({
+    const { shell, creationStatus } = await buildPtyOptions({
+      settings: makeRuntimeSettings({
         availableShells: [
           {
             id: 'bash',
@@ -164,13 +160,13 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      {
+      options: {
         customShellPath: '',
         ssh: { noResume: false },
         windowsPty: { useConpty: true },
       },
-      cmd
-    );
+      cmd,
+    });
 
     expect(shell).toEqual({
       id: 'bash',
@@ -189,15 +185,15 @@ describe('buildPtyOptions', () => {
       shellId: 'custom',
     };
 
-    const { shell, creationStatus } = await buildPtyOptions(
-      makeRuntimeSettings(),
-      {
+    const { shell, creationStatus } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: {
         customShellPath: '/custom/shell/path/better-shell',
         ssh: { noResume: false },
         windowsPty: { useConpty: true },
       },
-      cmd
-    );
+      cmd,
+    });
 
     expect(shell).toEqual({
       id: 'custom',
@@ -216,15 +212,15 @@ describe('buildPtyOptions', () => {
       shellId: 'no-such-shell',
     };
 
-    const { shell, creationStatus } = await buildPtyOptions(
-      makeRuntimeSettings(),
-      {
+    const { shell, creationStatus } = await buildPtyOptions({
+      settings: makeRuntimeSettings(),
+      options: {
         customShellPath: '',
         ssh: { noResume: false },
         windowsPty: { useConpty: true },
       },
-      cmd
-    );
+      cmd,
+    });
 
     expect(shell).toEqual({
       id: 'zsh',
@@ -243,8 +239,8 @@ describe('buildPtyOptions', () => {
       shellId: 'wsl.exe',
     };
 
-    const { processOptions } = await buildPtyOptions(
-      makeRuntimeSettings({
+    const { processOptions } = await buildPtyOptions({
+      settings: makeRuntimeSettings({
         platform: 'win32',
         availableShells: [
           {
@@ -255,13 +251,17 @@ describe('buildPtyOptions', () => {
           },
         ],
       }),
-      {
+      options: {
         customShellPath: '',
         ssh: { noResume: false },
         windowsPty: { useConpty: true },
       },
-      cmd
-    );
+      cmd,
+      processEnv: {
+        // Simulate the user defined WSLENV var.
+        WSLENV: 'CUSTOM_VAR',
+      },
+    });
 
     expect(processOptions.env.WSLENV).toBe(
       'CUSTOM_VAR:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:KUBECONFIG/p'

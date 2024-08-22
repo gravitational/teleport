@@ -162,8 +162,3 @@ async function resolveUnixShellEnv(
     });
   });
 }
-
-/** A utility function that allows us to mock `process.env` in tests. */
-export function getNodeProcessEnv() {
-  return process.env;
-}
