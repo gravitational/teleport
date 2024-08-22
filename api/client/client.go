@@ -2865,7 +2865,7 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// GetAutoupdateConfig gets cluster autoupdate configuration.
+// GetAutoupdateConfig gets autoupdate configuration.
 func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
 	resp, err := c.AutoupdateServiceClient().GetAutoupdateConfig(ctx, &autoupdate.GetAutoupdateConfigRequest{})
 	if err != nil {
@@ -2874,7 +2874,7 @@ func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.Autoupdat
 	return resp, nil
 }
 
-// GetAutoupdateVersion gets cluster autoupdate version.
+// GetAutoupdateVersion gets autoupdate version.
 func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
 	resp, err := c.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
 	if err != nil {

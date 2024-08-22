@@ -308,7 +308,7 @@ type ReadProxyAccessPoint interface {
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 
-	// GetAutoupdateConfig gets the cluster autoupdate config from the backend.
+	// GetAutoupdateConfig gets the autoupdate config from the backend.
 	GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error)
 
 	// GetAutoupdateVersion gets the autoupdate version from the backend.

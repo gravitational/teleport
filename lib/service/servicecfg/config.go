@@ -169,7 +169,7 @@ type Config struct {
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
 
-	// AutoupdateService is a service that provides cluster autoupdate configuration.
+	// AutoupdateService is a service that provides autoupdate configuration.
 	AutoupdateService services.AutoupdateService
 
 	// CipherSuites is a list of TLS ciphersuites that Teleport supports. If

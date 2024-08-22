@@ -320,8 +320,8 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
-	// KindAutoupdateConfig is the resource with cluster autoupdate configuration.
-	KindAutoupdateConfig = "cluster_autoupdate_config"
+	// KindAutoupdateConfig is the resource with autoupdate configuration.
+	KindAutoupdateConfig = "autoupdate_config"
 
 	// KindAutoupdateVersion is the resource with autoupdate versions.
 	KindAutoupdateVersion = "autoupdate_version"

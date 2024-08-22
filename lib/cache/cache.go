@@ -645,7 +645,7 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
-	// AutoupdateService is a cluster autoupdate service
+	// AutoupdateService is a autoupdate service
 	AutoupdateService services.AutoupdateService
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
@@ -1896,7 +1896,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.reader.GetClusterName(opts...)
 }
 
-// GetAutoupdateConfig gets the cluster autoupdate config from the backend.
+// GetAutoupdateConfig gets the autoupdate config from the backend.
 func (c *Cache) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoupdateConfig")
 	defer span.End()

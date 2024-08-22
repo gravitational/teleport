@@ -32,11 +32,11 @@ type AutoupdateGetter interface {
 	GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error)
 }
 
-// AutoupdateService stores the cluster autoupdate service.
+// AutoupdateService stores the autoupdate service.
 type AutoupdateService interface {
 	AutoupdateGetter
 
-	// UpsertAutoupdateConfig sets cluster autoupdate configuration.
+	// UpsertAutoupdateConfig sets autoupdate configuration.
 	UpsertAutoupdateConfig(ctx context.Context, c *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
 
 	// DeleteAutoupdateConfig deletes types.AutoupdateConfig from the backend.

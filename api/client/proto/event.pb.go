@@ -967,7 +967,7 @@ type Event_StaticHostUser struct {
 }
 
 type Event_AutoupdateConfig struct {
-	// AutoupdateConfig is a resource for cluster autoupdate config.
+	// AutoupdateConfig is a resource for autoupdate config.
 	AutoupdateConfig *v112.AutoupdateConfig `protobuf:"bytes,64,opt,name=AutoupdateConfig,proto3,oneof"`
 }
 

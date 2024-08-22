@@ -360,7 +360,7 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
-// UpsertAutoupdateConfig sets cluster autoupdate configuration.
+// UpsertAutoupdateConfig sets autoupdate configuration.
 func (c *Client) UpsertAutoupdateConfig(ctx context.Context, config *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
@@ -379,7 +379,7 @@ func (c *Client) DeleteAutoupdateVersion(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertAutoupdateVersion sets cluster autoupdate version.
+// UpsertAutoupdateVersion sets autoupdate version.
 func (c *Client) UpsertAutoupdateVersion(ctx context.Context, config *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }

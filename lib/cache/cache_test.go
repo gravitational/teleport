@@ -414,9 +414,9 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
+		AutoupdateService:       p.autoupdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AutoupdateService:       p.autoupdateService,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2668,6 +2668,72 @@ func TestDatabaseObjects(t *testing.T) {
 				}
 			}
 			return nil
+		},
+	})
+}
+
+// TestAutoupdateConfig tests that CRUD operations on autoupdate config resource is
+// replicated from the backend to the cache.
+func TestAutoupdateConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoupdateConfig]{
+		newResource: func(name string) (*autoupdate.AutoupdateConfig, error) {
+			return newAutoupdateConfig(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoupdateConfig) error {
+			_, err := p.autoupdateService.UpsertAutoupdateConfig(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoupdateConfig, error) {
+			item, err := p.autoupdateService.GetAutoupdateConfig(ctx)
+			return []*autoupdate.AutoupdateConfig{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoupdateConfig, error) {
+			item, err := p.cache.GetAutoupdateConfig(ctx)
+			if trace.IsNotFound(err) {
+				return nil, nil
+			}
+			return []*autoupdate.AutoupdateConfig{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoupdateService.DeleteAutoupdateConfig(ctx))
+		},
+	})
+}
+
+// TestAutoupdateVersion tests that CRUD operations on autoupdate version resource is
+// replicated from the backend to the cache.
+func TestAutoupdateVersion(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoupdateVersion]{
+		newResource: func(name string) (*autoupdate.AutoupdateVersion, error) {
+			return newAutoupdateVersion(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoupdateVersion) error {
+			_, err := p.autoupdateService.UpsertAutoupdateVersion(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoupdateVersion, error) {
+			item, err := p.autoupdateService.GetAutoupdateVersion(ctx)
+			return []*autoupdate.AutoupdateVersion{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoupdateVersion, error) {
+			item, err := p.cache.GetAutoupdateVersion(ctx)
+			if trace.IsNotFound(err) {
+				return nil, nil
+			}
+			return []*autoupdate.AutoupdateVersion{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoupdateService.DeleteAutoupdateVersion(ctx))
 		},
 	})
 }

@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// NewAutoupdateConfig creates a new cluster autoupdate configuration resource.
+// NewAutoupdateConfig creates a new autoupdate configuration resource.
 func NewAutoupdateConfig(spec *autoupdate.AutoupdateConfigSpec) (*autoupdate.AutoupdateConfig, error) {
 	config := &autoupdate.AutoupdateConfig{
 		Kind:    types.KindAutoupdateConfig,

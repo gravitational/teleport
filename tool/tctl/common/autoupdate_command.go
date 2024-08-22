@@ -90,7 +90,7 @@ func (c *AutoupdateCommand) TryRun(ctx context.Context, cmd string, client *auth
 	return true, trace.Wrap(err)
 }
 
-// Upsert works with cluster_autoupdate_config and autoupdate_version resources to create or update
+// Upsert works with autoupdate_config and autoupdate_version resources to create or update
 func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Client) error {
 	serviceClient := client.AutoupdateServiceClient()
 
@@ -111,7 +111,7 @@ func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 			}); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Println("cluster_autoupdate_config has been upserted")
+			fmt.Println("autoupdate_config has been upserted")
 		}
 	}
 

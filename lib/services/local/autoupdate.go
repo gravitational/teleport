@@ -71,7 +71,7 @@ func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 	}, nil
 }
 
-// UpsertAutoupdateConfig sets cluster autoupdate configuration.
+// UpsertAutoupdateConfig sets autoupdate configuration.
 func (s *AutoupdateService) UpsertAutoupdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoupdateConfig,
@@ -94,7 +94,7 @@ func (s *AutoupdateService) DeleteAutoupdateConfig(ctx context.Context) error {
 	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoupdateConfig))
 }
 
-// UpsertAutoupdateVersion sets cluster autoupdate version resource.
+// UpsertAutoupdateVersion sets autoupdate version resource.
 func (s *AutoupdateService) UpsertAutoupdateVersion(ctx context.Context, v *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error) {
 	if err := update.ValidateAutoupdateVersion(v); err != nil {
 		return nil, trace.Wrap(err)
@@ -111,5 +111,5 @@ func (s *AutoupdateService) GetAutoupdateVersion(ctx context.Context) (*autoupda
 
 // DeleteAutoupdateVersion deletes types.AutoupdateVersion from the backend.
 func (s *AutoupdateService) DeleteAutoupdateVersion(ctx context.Context) error {
-	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoupdateVersion))
+	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoupdateVersion))
 }
