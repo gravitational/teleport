@@ -59,8 +59,8 @@ export default {
   ],
 };
 
-export const InstanceList = () => <Component />;
-InstanceList.parameters = {
+export const SelfHostedFlow = () => <Component />;
+SelfHostedFlow.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
@@ -74,25 +74,20 @@ InstanceList.parameters = {
         res(ctx.json({}))
       ),
       rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(
-          ctx.json({ services: [{ name: 'test', matchers: { '*': ['*'] } }] })
-        )
-      ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
-      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
-        res(ctx.json({ vpcMapOfSubnets: {} }))
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
       ),
     ],
   },
 };
 
-export const InstanceListForCloud = () => {
+export const CloudFlow = () => {
   cfg.isCloud = true;
   return <Component />;
 };
-InstanceListForCloud.parameters = {
+CloudFlow.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
@@ -104,34 +99,107 @@ InstanceListForCloud.parameters = {
       rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
-      rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
-        res(
-          ctx.json({
-            items: [
-              { name: 'test', resource_matchers: [{ labels: { '*': ['*'] } }] },
-            ],
-          })
-        )
-      ),
+
       rest.get(cfg.api.databaseServicesPath, (req, res, ctx) =>
         res(ctx.json({}))
       ),
-      rest.post(cfg.api.awsRdsDbRequiredVpcsPath, (req, res, ctx) =>
-        res(ctx.json({ vpcMapOfSubnets: { 'vpc-1': ['subnet1'] } }))
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
       ),
     ],
   },
 };
 
-export const InstanceListLoading = () => {
-  cfg.isCloud = true;
+export const NoVpcs = () => {
   return <Component />;
 };
-InstanceListLoading.parameters = {
+NoVpcs.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res(ctx.json({ databases: [] }))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res.once(ctx.json({ vpcs: [] }))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
+      ),
+    ],
+  },
+};
+
+export const VpcError = () => {
+  return <Component />;
+};
+VpcError.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(
+          ctx.status(404),
+          ctx.json({ message: 'Whoops, error fetching required vpcs.' })
+        )
+      ),
+    ],
+  },
+};
+
+export const SelectedVpcAlreadyExists = () => {
+  return <Component />;
+};
+SelectedVpcAlreadyExists.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res(ctx.json({ databases: rdsInstances }))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(
+          ctx.json({
+            vpcs: [
+              {
+                id: 'Click me, then toggle ON auto enroll',
+                ecsServiceDashboardURL: 'http://some-dashboard-url',
+              },
+              {
+                id: 'vpc-1234',
+              },
+            ],
+          })
+        )
+      ),
+      rest.get(cfg.api.databasesPath, (req, res, ctx) =>
+        res(ctx.json({ items: [rdsInstances[2]] }))
+      ),
+    ],
+  },
+};
+
+export const LoadingVpcs = () => {
+  return <Component />;
+};
+LoadingVpcs.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.delay('infinite'))
+      ),
+    ],
+  },
+};
+
+export const LoadingDatabases = () => {
+  return <Component />;
+};
+LoadingDatabases.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
         res(ctx.delay('infinite'))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
       ),
     ],
   },
@@ -142,21 +210,59 @@ WithAwsPermissionsError.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(
+        res(ctx.json({ databases: [] }))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res.once(
           ctx.status(403),
           ctx.json({ message: 'StatusCode: 403, RequestID: operation error' })
+        )
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
+      ),
+    ],
+  },
+};
+
+export const WithDbListError = () => <Component />;
+WithDbListError.parameters = {
+  msw: {
+    handlers: [
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
+      ),
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({ message: 'Whoops, fetching aws databases error' })
         )
       ),
     ],
   },
 };
 
-export const WithOtherError = () => <Component />;
-WithOtherError.parameters = {
+export const WithOneOfDbListError = () => <Component />;
+WithOneOfDbListError.parameters = {
   msw: {
     handlers: [
       rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
-        res(ctx.status(404))
+        res.once(ctx.json({ databases: rdsInstances }))
+      ),
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res.once(
+          ctx.status(403),
+          ctx.json({ message: 'Whoops, fetching another aws databases error' })
+        )
+      ),
+      rest.post(cfg.api.awsRdsDbListPath, (req, res, ctx) =>
+        res(ctx.json({ databases: rdsInstances }))
+      ),
+      rest.get(cfg.api.databasesPath, (req, res, ctx) =>
+        res(ctx.json({ items: [rdsInstances[2]] }))
+      ),
+      rest.post(cfg.api.awsDatabaseVpcsPath, (req, res, ctx) =>
+        res(ctx.json({ vpcs }))
       ),
     ],
   },
@@ -303,5 +409,28 @@ const rdsInstances = [
         resource_id: 'rds-5-resource-id',
       },
     },
+  },
+];
+
+const vpcs = [
+  {
+    name: '',
+    id: 'vpc-341c69a6-1bdb-5521-aad1',
+  },
+  {
+    name: '',
+    id: 'vpc-92b8d60f-0f0e-5d31-b5b4',
+  },
+  {
+    name: 'aws-controlsomething-VPC',
+    id: 'vpc-d36151d6-8f0e-588d-87a7',
+  },
+  {
+    name: 'eksctl-bob-test-1-cluster/VPC',
+    id: 'vpc-fe7203d3-e959-57d4-8f87',
+  },
+  {
+    name: 'Default VPC (DO NOT USE)',
+    id: 'vpc-57cbdb9c-0f3e-5efb-bd84',
   },
 ];

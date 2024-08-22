@@ -56,6 +56,7 @@ export function CreateDatabaseView({
   isDbCreateErr,
   prevStep,
   nextStep,
+  handleOnTimeout,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -73,7 +74,10 @@ export function CreateDatabaseView({
     }
   }, [isDbCreateErr]);
 
-  function handleOnProceed(validator: Validator, retry = false) {
+  function handleOnProceed(
+    validator: Validator,
+    { overwriteDb = false, retry = false } = {}
+  ) {
     if (!validator.validate()) {
       return;
     }
@@ -84,12 +88,15 @@ export function CreateDatabaseView({
       return;
     }
 
-    registerDatabase({
-      labels,
-      name: dbName,
-      uri: `${dbUri}:${dbPort}`,
-      protocol: getDatabaseProtocol(dbEngine),
-    });
+    registerDatabase(
+      {
+        labels,
+        name: dbName,
+        uri: `${dbUri}:${dbPort}`,
+        protocol: getDatabaseProtocol(dbEngine),
+      },
+      { overwriteDb }
+    );
   }
 
   return (
@@ -187,7 +194,11 @@ export function CreateDatabaseView({
             <CreateDatabaseDialog
               pollTimeout={pollTimeout}
               attempt={attempt}
-              retry={() => handleOnProceed(validator, true /* retry */)}
+              retry={() => handleOnProceed(validator, { retry: true })}
+              onOverwrite={() =>
+                handleOnProceed(validator, { overwriteDb: true })
+              }
+              onTimeout={handleOnTimeout}
               close={clearAttempt}
               dbName={dbName}
               next={nextStep}
