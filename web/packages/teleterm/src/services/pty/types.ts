@@ -128,8 +128,3 @@ export type SshOptions = {
 export type TerminalOptions = {
   windowsBackend: 'auto' | 'winpty';
 };
-
-export type PtyOptions = {
-  ssh: SshOptions;
-  terminal: TerminalOptions;
-};
