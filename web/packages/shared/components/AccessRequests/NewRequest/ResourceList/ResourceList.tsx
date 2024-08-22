@@ -39,8 +39,6 @@ import { Desktops } from './Desktops';
 import { Kubes } from './Kubes';
 import { Roles } from './Roles';
 import { UserGroups } from './UserGroups';
-import { IdentityCenterAccounts } from './IdentityCenterAccounts';
-import { IdentityCenterAccount } from 'teleport/services/identitycenter';
 
 export function ResourceList(props: ResourceListProps) {
   const {
@@ -73,9 +71,6 @@ export function ResourceList(props: ResourceListProps) {
       )}
       {selectedResource === 'user_group' && (
         <UserGroups userGroups={agents as UserGroup[]} {...listProps} />
-      )}
-      {selectedResource === 'aws_iam_ic_account' && (
-        <IdentityCenterAccounts identityCenterAccounts={agents as IdentityCenterAccount[]} {...listProps} />
       )}
     </Wrapper>
   );

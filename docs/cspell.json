@@ -785,6 +785,7 @@
     "rolebindings",
     "rolesanywhere",
     "rollouts",
+    "rootca",
     "rootcluster",
     "rtrzn",
     "runcommand",

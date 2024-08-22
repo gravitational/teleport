@@ -52,7 +52,7 @@ type CloneConfig struct {
 func Clone(ctx context.Context, src, dst Backend, parallel int, force bool) error {
 	log := slog.With(teleport.ComponentKey, "clone")
 	itemC := make(chan Item, bufferSize)
-	start := Key("")
+	start := NewKey("")
 	migrated := &atomic.Int32{}
 
 	if parallel <= 0 {
