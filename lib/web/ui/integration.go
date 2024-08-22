@@ -506,9 +506,9 @@ type AWSOIDCDeployEC2ICEResponseEndpoint struct {
 // This response contains meta information about the current state of the Integration.
 type AWSOIDCPingResponse struct {
 	// AccountID number of the account that owns or contains the calling entity.
-	AccountID string `json:"accountId,omitempty"`
+	AccountID string `json:"accountId"`
 	// ARN associated with the calling entity.
-	ARN string `json:"arn,omitempty"`
+	ARN string `json:"arn"`
 	// UserID is the unique identifier of the calling entity.
-	UserID string `json:"userId,omitempty"`
+	UserID string `json:"userId"`
 }
