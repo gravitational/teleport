@@ -17,6 +17,7 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -2887,6 +2888,19 @@ message RoleOptions {
   // database when not set to off.
   // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MFAVerificationInterval optionally defines the maximum duration that can elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  google.protobuf.Duration MFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "mfa_verification_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 message RecordSession {
