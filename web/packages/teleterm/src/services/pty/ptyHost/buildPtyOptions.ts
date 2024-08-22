@@ -244,8 +244,16 @@ function prependBinDirToPath(
   //
   // Windows seems to construct Path by first taking the system Path env var and adding to it the
   // user Path env var.
-  const pathName = settings.platform === 'win32' ? 'Path' : 'PATH';
-  env[pathName] = [settings.binDir, env[pathName]]
+  //
+  // For process.env on Windows, Path and PATH are the same (case insensitivity).
+  // Node.js have special setters and getters, so no matter what property you set,
+  // the single underlying value is updated. However, since we merge many sources
+  // of env vars into a single object with the object spread (let env = { ...process.env }),
+  // theses setters and getters are lost.
+  // We have to figure out the exact name of the PATH ourselves.
+  // vscode does it the same way.
+  const pathKey = getPropertyCaseInsensitive(env, 'PATH');
+  env[pathKey] = [settings.binDir, env[pathKey]]
     .map(path => path?.trim())
     .filter(Boolean)
     .join(delimiter);
@@ -271,4 +279,14 @@ async function resolveShell(
   if (customShellPath) {
     return makeCustomShellFromPath(customShellPath);
   }
+}
+
+function getPropertyCaseInsensitive(
+  env: Record<string, string>,
+  key: string
+): string | undefined {
+  const pathKeys = Object.keys(env).filter(
+    k => k.toLowerCase() === key.toLowerCase()
+  );
+  return pathKeys.length > 0 ? pathKeys[0] : key;
 }
