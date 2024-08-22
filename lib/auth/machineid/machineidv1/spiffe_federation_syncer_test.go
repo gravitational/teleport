@@ -46,7 +46,156 @@ import (
 	"time"
 )
 
+func makeTrustDomain(t *testing.T, name string) (spiffeid.TrustDomain, *spiffebundle.Bundle) {
+	td := spiffeid.RequireTrustDomainFromString(name)
+	bundle := spiffebundle.New(td)
+	b, _ := pem.Decode([]byte(fixtures.TLSCACertPEM))
+	cert, err := x509.ParseCertificate(b.Bytes)
+	require.NoError(t, err)
+	bundle.AddX509Authority(cert)
+	bundle.SetRefreshHint(time.Minute * 12)
+	return td, bundle
+}
+
+func TestSPIFFEFederationSyncer(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	logger := utils.NewSlogLoggerForTests()
+	clock := clockwork.NewRealClock()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	store, err := local.NewSPIFFEFederationService(backend)
+	require.NoError(t, err)
+	eventsSvc := local.NewEventsService(backend)
+
+	td1, bundle1 := makeTrustDomain(t, "1.example.com")
+	marshaledBundle1, err := bundle1.Marshal()
+	require.NoError(t, err)
+	td2, bundle2 := makeTrustDomain(t, "2.example.com")
+	marshaledBundle2, err := bundle1.Marshal()
+	require.NoError(t, err)
+
+	// Implement a fake SPIFFE Federation bundle endpoint
+	testSrv1 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, err := federation.NewHandler(td1, bundle1)
+		if !assert.NoError(t, err) {
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
+	testSrv2 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, err := federation.NewHandler(td2, bundle2)
+		if !assert.NoError(t, err) {
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
+
+	caPool := x509.NewCertPool()
+	caPool.AddCert(testSrv1.Certificate())
+	caPool.AddCert(testSrv2.Certificate())
+
+	// Create one trust domain prior to startng the syncer
+	created1, err := store.CreateSPIFFEFederation(ctx, &machineidv1pb.SPIFFEFederation{
+		Kind:    types.KindSPIFFEFederation,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "1.example.com",
+		},
+		Spec: &machineidv1pb.SPIFFEFederationSpec{
+			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+					BundleEndpointUrl: testSrv1.URL,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	syncer, err := NewSPIFFEFederationSyncer(SPIFFEFederationSyncerConfig{
+		Backend:       backend,
+		Store:         store,
+		EventsWatcher: eventsSvc,
+		Clock:         clock,
+		Logger:        logger,
+		SPIFFEFetchOptions: []federation.FetchOption{
+			federation.WithWebPKIRoots(caPool),
+		},
+	})
+	require.NoError(t, err)
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := syncer.Run(ctx)
+		assert.NoError(t, err)
+		errCh <- err
+	}()
+
+	// Wait for the initially created SPIFFEFederation to be synced
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		got, err := store.GetSPIFFEFederation(ctx, created1.Metadata.Name)
+		if !assert.NoError(t, err) {
+			return
+		}
+		// Check that some update as occurred (as indicated by the revision)
+		if !assert.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision) {
+			return
+		}
+		// Check that the expected status fields have been set...
+		if !assert.NotNil(t, got.Status) {
+			return
+		}
+		assert.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
+	}, time.Second*5, time.Millisecond*100)
+
+	// Create a second SPIFFEFederation and wait for it to be synced
+	created2, err := store.CreateSPIFFEFederation(ctx, &machineidv1pb.SPIFFEFederation{
+		Kind:    types.KindSPIFFEFederation,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: "2.example.com",
+		},
+		Spec: &machineidv1pb.SPIFFEFederationSpec{
+			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
+				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+					BundleEndpointUrl: testSrv2.URL,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		got, err := store.GetSPIFFEFederation(ctx, created2.Metadata.Name)
+		if !assert.NoError(t, err) {
+			return
+		}
+		// Check that some update as occurred (as indicated by the revision)
+		if !assert.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision) {
+			return
+		}
+		// Check that the expected status fields have been set...
+		if !assert.NotNil(t, got.Status) {
+			return
+		}
+		assert.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
+	}, time.Second*5, time.Millisecond*100)
+
+	cancel()
+	select {
+	case err := <-errCh:
+		assert.NoError(t, err)
+	case <-time.After(time.Second * 5):
+		t.Fatalf("timeout waiting for syncer to stop")
+	}
+}
+
 func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -59,15 +208,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 	require.NoError(t, err)
 	eventsSvc := local.NewEventsService(backend)
 
-	td := spiffeid.RequireTrustDomainFromString("example.com")
-	bundle := spiffebundle.New(td)
-	b, _ := pem.Decode([]byte(fixtures.TLSCACertPEM))
-	cert, err := x509.ParseCertificate(b.Bytes)
-	if !assert.NoError(t, err) {
-		return
-	}
-	bundle.AddX509Authority(cert)
-	bundle.SetRefreshHint(time.Minute * 12)
+	td, bundle := makeTrustDomain(t, "example.com")
 	marshaledBundle, err := bundle.Marshal()
 	require.NoError(t, err)
 
@@ -93,8 +234,6 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	// TODO: Add test for static bundle, change and no change
 
 	t.Run("https-web", func(t *testing.T) {
 		in := &machineidv1pb.SPIFFEFederation{
