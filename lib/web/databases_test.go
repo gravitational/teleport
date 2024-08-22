@@ -47,12 +47,12 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 
 	for _, test := range []struct {
 		desc      string
-		req       createDatabaseRequest
+		req       createOrOverwriteDatabaseRequest
 		errAssert require.ErrorAssertionFunc
 	}{
 		{
 			desc: "valid general",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "name",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -61,7 +61,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "valid aws rds",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "name",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -76,7 +76,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing name",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -88,7 +88,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing protocol",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "name",
 				Protocol: "",
 				URI:      "uri",
@@ -100,7 +100,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing uri",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "name",
 				Protocol: "protocol",
 				URI:      "",
@@ -112,7 +112,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing aws rds account id",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -129,7 +129,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing aws rds resource id",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -146,7 +146,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing aws rds subnets",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "protocol",
 				URI:      "uri",
@@ -163,7 +163,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 		},
 		{
 			desc: "invalid missing aws rds vpcid",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "protocol",
 				URI:      "uri",

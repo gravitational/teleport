@@ -92,6 +92,20 @@ exports[`render clusters 1`] = `
   color: #000000;
 }
 
+.c20 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+}
+
 .c1 {
   display: flex;
 }
@@ -402,7 +416,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           nidvojik
         </td>
@@ -438,7 +459,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           lidtabih
         </td>
@@ -474,7 +502,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           farovluv
         </td>
@@ -510,7 +545,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           rozpaari
         </td>
@@ -546,7 +588,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           wetjolune
         </td>
@@ -582,7 +631,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           dashawic
         </td>
@@ -618,7 +674,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           jesushenry58
         </td>
@@ -654,7 +717,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           jordansimpson35
         </td>
@@ -690,7 +760,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           leonamann249
         </td>
@@ -726,7 +803,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           bessiecohen207
         </td>
@@ -762,7 +846,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           philipjohnson10
         </td>
@@ -798,7 +889,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           teresastone14
         </td>
@@ -834,7 +932,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           connorsharp137
         </td>
@@ -870,7 +975,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           ricardosingleton242
         </td>
@@ -906,7 +1018,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           rozpaari
         </td>
@@ -942,7 +1061,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           wetjolune
         </td>
@@ -978,7 +1104,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           dashawic
         </td>
@@ -1014,7 +1147,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           williepayne223
         </td>
@@ -1050,7 +1190,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           samlewis176
         </td>
@@ -1086,7 +1233,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           nellwheeler72
         </td>
@@ -1122,7 +1276,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           albertowens200
         </td>
@@ -1158,7 +1319,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           beatricecarson171
         </td>
@@ -1194,7 +1362,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           besscarroll152
         </td>
@@ -1230,7 +1405,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           hannahsutton232
         </td>
@@ -1266,7 +1448,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           barrynelson110
         </td>
@@ -1302,7 +1491,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           rozpaari
         </td>
@@ -1338,7 +1534,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           wetjolune
         </td>
@@ -1374,7 +1577,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           dashawic
         </td>
@@ -1410,7 +1620,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           henriettarios78
         </td>
@@ -1446,7 +1663,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           josephinewolfe55
         </td>
@@ -1482,7 +1706,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           jaysandoval137
         </td>
@@ -1518,7 +1749,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           isabellekim81
         </td>
@@ -1554,7 +1792,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           francismoran134
         </td>
@@ -1590,7 +1835,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           theodorefrazier78
         </td>
@@ -1626,7 +1878,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           hattiestanley34
         </td>
@@ -1662,7 +1921,14 @@ exports[`render clusters 1`] = `
       <tr>
         <td
           style="width: 40px;"
-        />
+        >
+          <div
+            class="c20"
+            kind="secondary"
+          >
+            LEAF
+          </div>
+        </td>
         <td>
           tommybrooks146
         </td>

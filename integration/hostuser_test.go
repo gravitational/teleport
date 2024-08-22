@@ -218,7 +218,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -243,7 +243,7 @@ func TestRootHostUsers(t *testing.T) {
 		_, err := user.LookupGroupId(testGID)
 		require.ErrorIs(t, err, user.UnknownGroupIdError(testGID))
 
-		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 			UID:  testUID,
 			GID:  testGID,
@@ -272,7 +272,7 @@ func TestRootHostUsers(t *testing.T) {
 		expectedHome := filepath.Join("/home", testuser)
 		require.NoDirExists(t, expectedHome)
 
-		closer, err := users.UpsertUser(testuser, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP})
+		closer, err := users.UpsertUser(testuser, services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP})
 		require.NoError(t, err)
 		require.Nil(t, closer)
 		t.Cleanup(cleanupUsersAndGroups([]string{testuser}, nil))
@@ -303,7 +303,7 @@ func TestRootHostUsers(t *testing.T) {
 			host.UserDel(testuser)
 		})
 		closer, err := users.UpsertUser(testuser,
-			&services.HostUsersInfo{
+			services.HostUsersInfo{
 				Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
 			})
 		require.NoError(t, err)
@@ -333,12 +333,12 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, err := users.UpsertUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
+			_, err := users.UpsertUser(user, services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP})
 			require.NoError(t, err)
 		}
 
 		// this user should not be in the service group as it was created with mode keep.
-		closer, err := users.UpsertUser("teleport-user4", &services.HostUsersInfo{
+		closer, err := users.UpsertUser("teleport-user4", services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
@@ -392,7 +392,7 @@ func TestRootHostUsers(t *testing.T) {
 
 				// Verify that the user is created with the first set of groups.
 				users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
-				_, err := users.UpsertUser(testuser, &services.HostUsersInfo{
+				_, err := users.UpsertUser(testuser, services.HostUsersInfo{
 					Groups: tc.firstGroups,
 					Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				})
@@ -402,7 +402,7 @@ func TestRootHostUsers(t *testing.T) {
 				requireUserInGroups(t, u, tc.firstGroups)
 
 				// Verify that the user is updated with the second set of groups.
-				_, err = users.UpsertUser(testuser, &services.HostUsersInfo{
+				_, err = users.UpsertUser(testuser, services.HostUsersInfo{
 					Groups: tc.secondGroups,
 					Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				})
