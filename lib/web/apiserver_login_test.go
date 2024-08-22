@@ -761,9 +761,7 @@ func validateSSHLoginResponse(t *testing.T, resp []byte, expectedSubjectSSHPub s
 	t.Helper()
 
 	var loginResp authclient.SSHLoginResponse
-	if err := json.Unmarshal(resp, &loginResp); !assert.NoError(t, err) {
-		return nil
-	}
+	require.NoError(t, json.Unmarshal(resp, &loginResp))
 	assert.NotEmpty(t, loginResp.Username)
 	assert.NotEmpty(t, loginResp.HostSigners)
 
