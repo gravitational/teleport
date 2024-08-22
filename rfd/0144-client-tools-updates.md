@@ -217,7 +217,7 @@ $ tctl autoupdate get --proxy proxy.example.com
 Enrollment of clients in automatic updates will be enforced at the cluster
 level.
 
-The `cluster_autoupdate_config` resource will be updated to allow cluster
+The `autoupdate_config` resource will be updated to allow cluster
 administrators to turn client tools automatic updates `on` or `off`.
 A `autoupdate_version` resource will be added to allow cluster administrators
 to manage the version of tools pushed to clients.
@@ -227,7 +227,7 @@ to manage the version of tools pushed to clients.
 > updates](https://github.com/gravitational/teleport/blob/master/lib/modules/modules.go#L332-L355)
 > to `autoupdate_version` on Cloud.
 >
-> While Cloud customers will be able to use `cluster_autoupdate_config` to
+> While Cloud customers will be able to use `autoupdate_config` to
 > turn client tools automatic updates `off` and self-manage updates, they will
 > not be able to control the version of client tools in `autoupdate_version`.
 > That will continue to be managed by the Teleport Cloud team.
@@ -236,12 +236,12 @@ Both resources can either be updated directly or by using `tctl` helper
 functions.
 
 ```yaml
-kind: cluster_autoupdate_config
+kind: autoupdate_config
 spec:
-  # tools_auto_update allows turning client tools updates on or off at the
+  # tools_autoupdate allows turning client tools updates on or off at the
   # cluster level. Only turn client tools automatic updates off if self-managed
   # updates are in place.
-  tools_auto_update: on|off
+  tools_autoupdate: on|off
 
   [...]
 ```
@@ -250,8 +250,8 @@ $ tctl autoupdate update --set-tools-auto-update=off
 Automatic updates configuration has been updated.
 ```
 
-By default, all Cloud clusters will be opted into `tools_auto_update: on`. All
-self-hosted clusters will be opted into `tools_auto_update: off`.
+By default, all Cloud clusters will be opted into `tools_autoupdate: on`. All
+self-hosted clusters will be opted into `tools_autoupdate: off`.
 
 ```yaml
 kind: autoupdate_version
@@ -277,7 +277,7 @@ cache state, the last known version of the resources should be used for the resp
 ```
 $ curl https://proxy.example.com/v1/webapi/find | jq .
 {
-    "tools_auto_update": true,
+    "tools_autoupdate": true,
     "tools_version": "X.Y.Z",
     [...]
 }
