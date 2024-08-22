@@ -3523,7 +3523,7 @@ func TestInvalidDatabases(t *testing.T) {
 				value, err := services.MarshalDatabase(db)
 				require.NoError(t, err)
 				_, err = b.Create(ctx, backend.Item{
-					Key:     backend.Key("db", db.GetName()),
+					Key:     backend.NewKey("db", db.GetName()),
 					Value:   value,
 					Expires: db.Expiry(),
 				})
@@ -3545,7 +3545,7 @@ func TestInvalidDatabases(t *testing.T) {
 				marshalledDB, err := services.MarshalDatabase(validDB)
 				require.NoError(t, err)
 				_, err = b.Create(ctx, backend.Item{
-					Key:     backend.Key("db", validDB.GetName()),
+					Key:     backend.NewKey("db", validDB.GetName()),
 					Value:   marshalledDB,
 					Expires: validDB.Expiry(),
 				})
@@ -3565,7 +3565,7 @@ func TestInvalidDatabases(t *testing.T) {
 				value, err := services.MarshalDatabase(invalidDB)
 				require.NoError(t, err)
 				_, err = b.Update(ctx, backend.Item{
-					Key:     backend.Key("db", cacheDB.GetName()),
+					Key:     backend.NewKey("db", cacheDB.GetName()),
 					Value:   value,
 					Expires: invalidDB.Expiry(),
 				})

@@ -220,10 +220,10 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 		var endKey []byte
 		if req.SortBy.IsDesc {
 			iterateRange = tree.DescendRange
-			endKey = backend.Key(prefix)
+			endKey = backend.NewKey(prefix)
 		} else {
 			iterateRange = tree.AscendRange
-			endKey = backend.RangeEnd(backend.Key(prefix))
+			endKey = backend.RangeEnd(backend.NewKey(prefix))
 		}
 		var iteratorErr error
 		iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
@@ -276,10 +276,10 @@ func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
 	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list
 	if req.SortBy.IsDesc {
-		return backend.RangeEnd(backend.Key(prefix))
+		return backend.RangeEnd(backend.NewKey(prefix))
 	}
 	// return start of the list
-	return backend.Key(prefix)
+	return backend.NewKey(prefix)
 }
 
 func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
@@ -300,7 +300,7 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree in ascending order
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	req := &proto.ListUnifiedResourcesRequest{Limit: backend.NoLimit, SortBy: types.SortBy{IsDesc: false, Field: sortByName}}
-	result, _, err := c.getRange(ctx, backend.Key(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
+	result, _, err := c.getRange(ctx, backend.NewKey(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,7 +319,7 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
 		for _, id := range ids {
-			key := backend.Key(prefix, id)
+			key := backend.NewKey(prefix, id)
 			res, found := cache.nameTree.Get(&item{Key: key})
 			if !found || res == nil {
 				continue
@@ -418,8 +418,8 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	return resourceSortKey{
 		// names should be stored as lowercase to keep items sorted as
 		// expected, regardless of case
-		byName: backend.Key(prefix, strings.ToLower(name), kind),
-		byType: backend.Key(prefix, kind, strings.ToLower(name)),
+		byName: backend.NewKey(prefix, strings.ToLower(name), kind),
+		byType: backend.NewKey(prefix, kind, strings.ToLower(name)),
 	}
 }
 
@@ -774,7 +774,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindNode:
 		srv, ok := resource.(*types.ServerV2)
 		if !ok {
