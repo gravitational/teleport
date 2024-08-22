@@ -2595,6 +2595,9 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clientMeta := clientMetaFromReq(r)
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
