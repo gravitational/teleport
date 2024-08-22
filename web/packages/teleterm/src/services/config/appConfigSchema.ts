@@ -91,7 +91,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
             shellId => shellId === configuredShell
           ),
         configuredShell => ({
-          message: `Cannot find the shell "${configuredShell}". Available options are: [${availableShellIdsWithCustom.join(', ')}]. Using platform default.`,
+          message: `Cannot find the shell "${configuredShell}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
         })
       ),
     'terminal.customShell': z
