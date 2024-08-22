@@ -176,7 +176,7 @@ func Delete() Action {
 type ConditionalAction struct {
 	// Key is the key against which the associated condition and action are to
 	// be applied.
-	Key []byte
+	Key Key
 
 	// Condition must be one of Exists|NotExists|Revision(<revision>)|Whatever
 	Condition Condition

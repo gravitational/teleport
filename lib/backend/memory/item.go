@@ -50,7 +50,7 @@ func (i *btreeItem) Less(iother btree.Item) bool {
 // prefixItem is used for prefix matches on a B-Tree
 type prefixItem struct {
 	// prefix is a prefix to match
-	prefix []byte
+	prefix backend.Key
 }
 
 // Less is used for Btree operations
