@@ -233,4 +233,39 @@ describe('buildPtyOptions', () => {
     });
     expect(creationStatus).toBe(PtyProcessCreationStatus.ShellNotResolved);
   });
+
+  it("Teleport Connect env variables are prepended to the user's WSLENV for wsl.exe", async () => {
+    // Simulate the user defined WSLENV var.
+    process.env.WSLENV = 'CUSTOM_VAR';
+    const cmd: ShellCommand = {
+      kind: 'pty.shell',
+      clusterName: 'bar',
+      proxyHost: 'baz',
+      shellId: 'wsl.exe',
+    };
+
+    const { processOptions } = await buildPtyOptions(
+      makeRuntimeSettings({
+        platform: 'win32',
+        availableShells: [
+          {
+            id: 'wsl.exe',
+            binName: 'wsl.exe',
+            friendlyName: '',
+            binPath: '',
+          },
+        ],
+      }),
+      {
+        customShellPath: '',
+        ssh: { noResume: false },
+        windowsPty: { useConpty: true },
+      },
+      cmd
+    );
+
+    expect(processOptions.env.WSLENV).toBe(
+      'CUSTOM_VAR:TERM_PROGRAM:TERM_PROGRAM_VERSION:TELEPORT_CLUSTER:TELEPORT_PROXY:TELEPORT_HOME/p:KUBECONFIG/p'
+    );
+  });
 });

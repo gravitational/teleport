@@ -46,6 +46,8 @@ type PtyOptions = {
   customShellPath: string;
 };
 
+const WSLENV_VAR = 'WSLENV';
+
 export async function buildPtyOptions(
   settings: RuntimeSettings,
   options: PtyOptions,
@@ -55,9 +57,6 @@ export async function buildPtyOptions(
   shell: Shell;
   creationStatus: PtyProcessCreationStatus;
 }> {
-  // Get the full shell object by the shell ID.
-  // We wouldn't have to do it if we sent a shell bin path from the renderer,
-  // but it's better to validate inputs that come from that process.
   const defaultShell = settings.availableShells.find(
     s => s.id === settings.defaultOsShellId
   );
@@ -111,7 +110,10 @@ export async function buildPtyOptions(
           'TELEPORT_HOME/p',
           'KUBECONFIG/p',
         ];
-        combinedEnv['WSLENV'] = wslEnv.join(':');
+        // Preserve the user defined WSLENV and add ours (ours takes precedence).
+        combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]
+          .flat()
+          .join(':');
       }
 
       return {
