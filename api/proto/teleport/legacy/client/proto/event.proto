@@ -178,9 +178,9 @@ message Event {
     teleport.machineid.v1.SPIFFEFederation SPIFFEFederation = 62;
     // StaticHostUser is a resource for static host users.
     teleport.userprovisioning.v1.StaticHostUser StaticHostUser = 63;
-    // ClusterAutoUpdateConfig is a resource for cluster autoupdate config.
-    teleport.autoupdate.v1.ClusterAutoUpdateConfig ClusterAutoUpdateConfig = 64;
-    // AutoUpdateVersion is a resource for autoupdate version.
-    teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
+    // AutoupdateConfig is a resource for cluster autoupdate config.
+    teleport.autoupdate.v1.AutoupdateConfig AutoupdateConfig = 64;
+    // AutoupdateVersion is a resource for autoupdate version.
+    teleport.autoupdate.v1.AutoupdateVersion AutoupdateVersion = 65;
   }
 }

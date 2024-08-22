@@ -1454,18 +1454,18 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ClusterName:      h.auth.clusterName,
 	}
 
-	autoUpdateConfig, err := h.GetAccessPoint().GetClusterAutoUpdateConfig(r.Context())
+	autoupdateConfig, err := h.GetAccessPoint().GetAutoupdateConfig(r.Context())
 	if !trace.IsNotFound(err) && err != nil {
 		return nil, trace.Wrap(err)
 	} else if !trace.IsNotFound(err) {
-		response.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoUpdate()
+		response.ToolsAutoupdate = autoupdateConfig.GetSpec().GetToolsAutoUpdate()
 	}
 
-	autoUpdateVersion, err := h.GetAccessPoint().GetAutoUpdateVersion(r.Context())
+	autoupdateVersion, err := h.GetAccessPoint().GetAutoupdateVersion(r.Context())
 	if !trace.IsNotFound(err) && err != nil {
 		return nil, trace.Wrap(err)
 	} else if !trace.IsNotFound(err) {
-		response.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+		response.ToolsVersion = autoupdateVersion.GetSpec().GetToolsVersion()
 	}
 
 	return response, nil

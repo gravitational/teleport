@@ -19,7 +19,6 @@ package autoupd
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/lib/utils"
 	"slices"
 	"testing"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var allAdminStates = map[authz.AdminActionAuthState]string{
@@ -63,7 +63,7 @@ func otherAdminStates(states []authz.AdminActionAuthState) []authz.AdminActionAu
 
 // callMethod calls a method with given name in the DatabaseObjectService service
 func callMethod(t *testing.T, service *Service, method string) error {
-	for _, desc := range autoupdate.AutoUpdateService_ServiceDesc.Methods {
+	for _, desc := range autoupdate.AutoupdateService_ServiceDesc.Methods {
 		if desc.MethodName == method {
 			_, err := desc.Handler(service, context.Background(), func(_ any) error { return nil }, nil)
 			return err
@@ -83,7 +83,7 @@ func TestServiceAccess(t *testing.T) {
 		disallowedStates []authz.AdminActionAuthState
 	}{
 		{
-			name: "UpsertClusterAutoUpdateConfig",
+			name: "UpsertAutoupdateConfig",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified,
@@ -92,19 +92,19 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:             "GetClusterAutoUpdateConfig",
+			name:             "GetAutoupdateConfig",
 			allowedStates:    []authz.AdminActionAuthState{},
 			disallowedStates: []authz.AdminActionAuthState{},
 			allowedVerbs:     []string{types.VerbRead},
 		},
 		{
-			name:          "DeleteClusterAutoUpdateConfig",
+			name:          "DeleteAutoupdateConfig",
 			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
 			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// Autoupdate version check.
 		{
-			name: "UpsertAutoUpdateVersion",
+			name: "UpsertAutoupdateVersion",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthNotRequired,
 				authz.AdminActionAuthMFAVerified,
@@ -113,13 +113,13 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:             "GetAutoUpdateVersion",
+			name:             "GetAutoupdateVersion",
 			allowedStates:    []authz.AdminActionAuthState{},
 			disallowedStates: []authz.AdminActionAuthState{},
 			allowedVerbs:     []string{types.VerbRead},
 		},
 		{
-			name:          "DeleteAutoUpdateVersion",
+			name:          "DeleteAutoupdateVersion",
 			allowedStates: []authz.AdminActionAuthState{authz.AdminActionAuthNotRequired, authz.AdminActionAuthMFAVerified},
 			allowedVerbs:  []string{types.VerbDelete},
 		},
@@ -168,7 +168,7 @@ func TestServiceAccess(t *testing.T) {
 
 	// verify that all declared methods have matching test cases
 	t.Run("verify coverage", func(t *testing.T) {
-		for _, method := range autoupdate.AutoUpdateService_ServiceDesc.Methods {
+		for _, method := range autoupdate.AutoupdateService_ServiceDesc.Methods {
 			t.Run(method.MethodName, func(t *testing.T) {
 				match := false
 				for _, testCase := range testCases {
@@ -186,7 +186,7 @@ type fakeChecker struct {
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
-	if resource == types.KindClusterAutoUpdateConfig || resource == types.KindAutoUpdateVersion {
+	if resource == types.KindAutoupdateConfig || resource == types.KindAutoupdateVersion {
 		for _, allowedVerb := range f.allowedVerbs {
 			if allowedVerb == verb {
 				return nil
@@ -203,13 +203,13 @@ func newService(t *testing.T, authState authz.AdminActionAuthState, checker serv
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	storage, err := local.NewClusterAutoUpdateService(bk)
+	storage, err := local.NewAutoupdateService(bk)
 	require.NoError(t, err)
 
 	return newServiceWithStorage(t, authState, checker, storage)
 }
 
-func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoUpdateService) *Service {
+func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker, storage services.AutoupdateService) *Service {
 	t.Helper()
 
 	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {

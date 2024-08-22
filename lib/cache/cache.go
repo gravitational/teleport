@@ -186,8 +186,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindStaticHostUser},
-		{Kind: types.KindAutoUpdateVersion},
-		{Kind: types.KindClusterAutoUpdateConfig},
+		{Kind: types.KindAutoupdateVersion},
+		{Kind: types.KindAutoupdateConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -240,8 +240,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
 		{Kind: types.KindKubeWaitingContainer},
-		{Kind: types.KindClusterAutoUpdateConfig},
-		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoupdateConfig},
+		{Kind: types.KindAutoupdateVersion},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -496,7 +496,7 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfiguration
-	autoUpdateCache              services.AutoUpdateService
+	autoupdateCache              services.AutoupdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -645,8 +645,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
-	// AutoUpdateService is a cluster autoupdate service
-	AutoUpdateService services.AutoUpdateService
+	// AutoupdateService is a cluster autoupdate service
+	AutoupdateService services.AutoupdateService
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
 	// Users is a users service
@@ -926,7 +926,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterAutoUpdateCache, err := local.NewClusterAutoUpdateService(config.Backend)
+	autoupdateCache, err := local.NewAutoupdateService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -970,7 +970,7 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
-		autoUpdateCache:              clusterAutoUpdateCache,
+		autoupdateCache:              autoupdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
 		usersCache:                   local.NewIdentityService(config.Backend),
 		accessCache:                  local.NewAccessService(config.Backend),
@@ -1896,50 +1896,50 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.reader.GetClusterName(opts...)
 }
 
-// GetClusterAutoUpdateConfig gets the cluster autoupdate config from the backend.
-func (c *Cache) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAutoUpdateConfig")
+// GetAutoupdateConfig gets the cluster autoupdate config from the backend.
+func (c *Cache) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoupdateConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoUpdateConfigs)
+	rg, err := readCollectionCache(c, c.collections.autoupdateConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
-			cfg, err := rg.reader.GetClusterAutoUpdateConfig(ctx)
+		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
+			cfg, err := rg.reader.GetAutoupdateConfig(ctx)
 			return cfg, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return protobuf.Clone(cachedConfig).(*autoupdate.ClusterAutoUpdateConfig), nil
+		return protobuf.Clone(cachedConfig).(*autoupdate.AutoupdateConfig), nil
 	}
-	return rg.reader.GetClusterAutoUpdateConfig(ctx)
+	return rg.reader.GetAutoupdateConfig(ctx)
 }
 
-// GetAutoUpdateVersion gets the autoupdate version from the backend.
-func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
+// GetAutoupdateVersion gets the autoupdate version from the backend.
+func (c *Cache) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoupdateVersion")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoUpdateVersions)
+	rg, err := readCollectionCache(c, c.collections.autoupdateVersions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-			version, err := rg.reader.GetAutoUpdateVersion(ctx)
+		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
+			version, err := rg.reader.GetAutoupdateVersion(ctx)
 			return version, err
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
+		return protobuf.Clone(cachedVersion).(*autoupdate.AutoupdateVersion), nil
 	}
-	return rg.reader.GetAutoUpdateVersion(ctx)
+	return rg.reader.GetAutoupdateVersion(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

@@ -132,7 +132,7 @@ type testPack struct {
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
-	autoUpdateService       services.AutoUpdateService
+	autoupdateService       services.AutoupdateService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -361,7 +361,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.staticHostUsers = staticHostUserService
 
-	p.autoUpdateService, err = local.NewClusterAutoUpdateService(p.backend)
+	p.autoupdateService, err = local.NewAutoupdateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -416,7 +416,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		StaticHostUsers:         p.staticHostUsers,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AutoUpdateService:       p.autoUpdateService,
+		AutoupdateService:       p.autoupdateService,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -821,7 +821,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseObjects:         p.databaseObjects,
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
-			AutoUpdateService:       p.autoUpdateService,
+			AutoupdateService:       p.autoupdateService,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -901,7 +901,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoUpdateService:       p.autoUpdateService,
+		AutoupdateService:       p.autoupdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1107,7 +1107,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoUpdateService:       p.autoUpdateService,
+		AutoupdateService:       p.autoupdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1198,7 +1198,7 @@ func initStrategy(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoUpdateService:       p.autoUpdateService,
+		AutoupdateService:       p.autoupdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -3304,8 +3304,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
-		types.KindClusterAutoUpdateConfig: types.Resource153ToLegacy(newAutoUpdateConfig(t)),
-		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindAutoupdateConfig:        types.Resource153ToLegacy(newAutoupdateConfig(t)),
+		types.KindAutoupdateVersion:       types.Resource153ToLegacy(newAutoupdateVersion(t)),
 	}
 
 	for name, cfg := range cases {
@@ -3843,20 +3843,20 @@ func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHost
 	})
 }
 
-func newAutoUpdateConfig(t *testing.T) *autoupdate.ClusterAutoUpdateConfig {
+func newAutoupdateConfig(t *testing.T) *autoupdate.AutoupdateConfig {
 	t.Helper()
 
-	r, err := update.NewClusterAutoUpdateConfig(&autoupdate.ClusterAutoUpdateConfigSpec{
-		ToolsAutoUpdate: "on",
+	r, err := update.NewAutoupdateConfig(&autoupdate.AutoupdateConfigSpec{
+		ToolsAutoUpdate: true,
 	})
 	require.NoError(t, err)
 	return r
 }
 
-func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
+func newAutoupdateVersion(t *testing.T) *autoupdate.AutoupdateVersion {
 	t.Helper()
 
-	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
+	r, err := update.NewAutoupdateVersion(&autoupdate.AutoupdateVersionSpec{
 		ToolsVersion: "1.2.3",
 	})
 	require.NoError(t, err)

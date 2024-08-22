@@ -96,10 +96,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
-		case types.KindClusterAutoUpdateConfig:
-			parser = newClusterAutoUpdateConfigParser()
-		case types.KindAutoUpdateVersion:
-			parser = newAutoUpdateVersionParser()
+		case types.KindAutoupdateConfig:
+			parser = newAutoupdateConfigParser()
+		case types.KindAutoupdateVersion:
+			parser = newAutoupdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -708,67 +708,67 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newClusterAutoUpdateConfigParser() *clusterAutoUpdateConfigParser {
-	return &clusterAutoUpdateConfigParser{
-		baseParser: newBaseParser(backend.Key(autoUpdateConfigPrefix)),
+func newAutoupdateConfigParser() *autoupdateConfigParser {
+	return &autoupdateConfigParser{
+		baseParser: newBaseParser(backend.Key(autoupdateConfigPrefix)),
 	}
 }
 
-type clusterAutoUpdateConfigParser struct {
+type autoupdateConfigParser struct {
 	baseParser
 }
 
-func (p *clusterAutoUpdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+func (p *autoupdateConfigParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindClusterAutoUpdateConfig, types.V1, 0)
+		h, err := resourceHeader(event, types.KindAutoupdateConfig, types.V1, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		h.SetName(types.MetaNameClusterAutoUpdateConfig)
+		h.SetName(types.MetaNameAutoupdateConfig)
 		return h, nil
 	case types.OpPut:
-		autoUpdateConfig, err := services.UnmarshalProtoResource[*autoupdate.ClusterAutoUpdateConfig](event.Item.Value,
+		autoupdateConfig, err := services.UnmarshalProtoResource[*autoupdate.AutoupdateConfig](event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToLegacy(autoUpdateConfig), nil
+		return types.Resource153ToLegacy(autoupdateConfig), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 }
 
-func newAutoUpdateVersionParser() *autoUpdateVersionParser {
-	return &autoUpdateVersionParser{
-		baseParser: newBaseParser(backend.Key(autoUpdateVersionPrefix)),
+func newAutoupdateVersionParser() *autoupdateVersionParser {
+	return &autoupdateVersionParser{
+		baseParser: newBaseParser(backend.Key(autoupdateVersionPrefix)),
 	}
 }
 
-type autoUpdateVersionParser struct {
+type autoupdateVersionParser struct {
 	baseParser
 }
 
-func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+func (p *autoupdateVersionParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		h, err := resourceHeader(event, types.KindAutoUpdateVersion, types.V1, 0)
+		h, err := resourceHeader(event, types.KindAutoupdateVersion, types.V1, 0)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		h.SetName(types.MetaNameAutoUpdateVersion)
+		h.SetName(types.MetaNameAutoupdateVersion)
 		return h, nil
 	case types.OpPut:
-		autoUpdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion](event.Item.Value,
+		autoupdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoupdateVersion](event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToLegacy(autoUpdateVersion), nil
+		return types.Resource153ToLegacy(autoupdateVersion), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

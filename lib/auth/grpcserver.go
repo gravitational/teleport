@@ -5423,12 +5423,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	userprovisioningpb.RegisterStaticHostUsersServiceServer(server, staticHostUserServer)
 
-	autoUpdateStorage, err := local.NewClusterAutoUpdateService(cfg.AuthServer.bk)
+	autoupdateStorage, err := local.NewAutoupdateService(cfg.AuthServer.bk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	autoUpdateServiceServer := autoupd.NewService(autoUpdateStorage, cfg.Authorizer)
-	autoupdate.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
+	autoupdateServiceServer := autoupd.NewService(autoupdateStorage, cfg.Authorizer)
+	autoupdate.RegisterAutoupdateServiceServer(server, autoupdateServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

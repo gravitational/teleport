@@ -26,28 +26,28 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// NewAutoUpdateVersion creates a new autoupdate version resource.
-func NewAutoUpdateVersion(spec *autoupdate.AutoUpdateVersionSpec) (*autoupdate.AutoUpdateVersion, error) {
-	version := &autoupdate.AutoUpdateVersion{
-		Kind:    types.KindAutoUpdateVersion,
+// NewAutoupdateVersion creates a new autoupdate version resource.
+func NewAutoupdateVersion(spec *autoupdate.AutoupdateVersionSpec) (*autoupdate.AutoupdateVersion, error) {
+	version := &autoupdate.AutoupdateVersion{
+		Kind:    types.KindAutoupdateVersion,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameAutoUpdateVersion,
+			Name: types.MetaNameAutoupdateVersion,
 		},
 		Spec: spec,
 	}
-	if err := ValidateAutoUpdateVersion(version); err != nil {
+	if err := ValidateAutoupdateVersion(version); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return version, nil
 }
 
-// ValidateAutoUpdateVersion checks that required parameters are set
-// for the specified AutoUpdateVersion.
-func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
+// ValidateAutoupdateVersion checks that required parameters are set
+// for the specified AutoupdateVersion.
+func ValidateAutoupdateVersion(v *autoupdate.AutoupdateVersion) error {
 	if v == nil {
-		return trace.BadParameter("AutoUpdateVersion is nil")
+		return trace.BadParameter("AutoupdateVersion is nil")
 	}
 	if v.Metadata == nil {
 		return trace.BadParameter("Metadata is nil")

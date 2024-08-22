@@ -24,27 +24,27 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 
-type AutoUpdateGetter interface {
-	// GetClusterAutoUpdateConfig gets the autoupdate configuration from the backend.
-	GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error)
+type AutoupdateGetter interface {
+	// GetAutoupdateConfig gets the autoupdate configuration from the backend.
+	GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error)
 
-	// GetAutoUpdateVersion gets the autoupdate version from the backend.
-	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+	// GetAutoupdateVersion gets the autoupdate version from the backend.
+	GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error)
 }
 
-// AutoUpdateService stores the cluster autoupdate service.
-type AutoUpdateService interface {
-	AutoUpdateGetter
+// AutoupdateService stores the cluster autoupdate service.
+type AutoupdateService interface {
+	AutoupdateGetter
 
-	// UpsertClusterAutoUpdateConfig sets cluster autoupdate configuration.
-	UpsertClusterAutoUpdateConfig(ctx context.Context, c *autoupdate.ClusterAutoUpdateConfig) (*autoupdate.ClusterAutoUpdateConfig, error)
+	// UpsertAutoupdateConfig sets cluster autoupdate configuration.
+	UpsertAutoupdateConfig(ctx context.Context, c *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
 
-	// DeleteClusterAutoUpdateConfig deletes types.ClusterAutoUpdateConfig from the backend.
-	DeleteClusterAutoUpdateConfig(ctx context.Context) error
+	// DeleteAutoupdateConfig deletes types.AutoupdateConfig from the backend.
+	DeleteAutoupdateConfig(ctx context.Context) error
 
-	// UpsertAutoUpdateVersion sets autoupdate version.
-	UpsertAutoUpdateVersion(ctx context.Context, c *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error)
+	// UpsertAutoupdateVersion sets autoupdate version.
+	UpsertAutoupdateVersion(ctx context.Context, c *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error)
 
-	// DeleteAutoUpdateVersion deletes types.AutoUpdateVersion from the backend.
-	DeleteAutoUpdateVersion(ctx context.Context) error
+	// DeleteAutoupdateVersion deletes types.AutoupdateVersion from the backend.
+	DeleteAutoupdateVersion(ctx context.Context) error
 }

@@ -360,41 +360,41 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
-// UpsertClusterAutoUpdateConfig sets cluster autoupdate configuration.
-func (c *Client) UpsertClusterAutoUpdateConfig(ctx context.Context, config *autoupdate.ClusterAutoUpdateConfig) (*autoupdate.ClusterAutoUpdateConfig, error) {
+// UpsertAutoupdateConfig sets cluster autoupdate configuration.
+func (c *Client) UpsertAutoupdateConfig(ctx context.Context, config *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// GetClusterAutoUpdateConfig gets the autoupdate configuration from the backend.
-func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
-	config, err := c.APIClient.GetClusterAutoUpdateConfig(ctx)
+// GetAutoupdateConfig gets the autoupdate configuration from the backend.
+func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
+	config, err := c.APIClient.GetAutoupdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
 
-// DeleteAutoUpdateVersion deletes types.AutoUpdateVersion from the backend.
-func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
+// DeleteAutoupdateVersion deletes types.AutoupdateVersion from the backend.
+func (c *Client) DeleteAutoupdateVersion(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertAutoUpdateVersion sets cluster autoupdate version.
-func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, config *autoupdate.AutoUpdateVersion) (*autoupdate.AutoUpdateVersion, error) {
+// UpsertAutoupdateVersion sets cluster autoupdate version.
+func (c *Client) UpsertAutoupdateVersion(ctx context.Context, config *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// GetAutoUpdateVersion gets the autoupdate version from the backend.
-func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	config, err := c.APIClient.GetAutoUpdateVersion(ctx)
+// GetAutoupdateVersion gets the autoupdate version from the backend.
+func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
+	config, err := c.APIClient.GetAutoupdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return config, nil
 }
 
-// DeleteClusterAutoUpdateConfig deletes types.ClusterAutoUpdateConfig from the backend.
-func (c *Client) DeleteClusterAutoUpdateConfig(ctx context.Context) error {
+// DeleteAutoupdateConfig deletes types.AutoupdateConfig from the backend.
+func (c *Client) DeleteAutoupdateConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -1539,7 +1539,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
-	services.AutoUpdateService
+	services.AutoupdateService
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1792,8 +1792,8 @@ type ClientI interface {
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	StaticHostUserClient() services.StaticHostUser
 
-	// AutoUpdateServiceClient returns a AutoUpdate service client.
-	AutoUpdateServiceClient() autoupdate.AutoUpdateServiceClient
+	// AutoupdateServiceClient returns a Autoupdate service client.
+	AutoupdateServiceClient() autoupdate.AutoupdateServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

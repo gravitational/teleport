@@ -26,28 +26,28 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// NewClusterAutoUpdateConfig creates a new cluster autoupdate configuration resource.
-func NewClusterAutoUpdateConfig(spec *autoupdate.ClusterAutoUpdateConfigSpec) (*autoupdate.ClusterAutoUpdateConfig, error) {
-	config := &autoupdate.ClusterAutoUpdateConfig{
-		Kind:    types.KindClusterAutoUpdateConfig,
+// NewAutoupdateConfig creates a new cluster autoupdate configuration resource.
+func NewAutoupdateConfig(spec *autoupdate.AutoupdateConfigSpec) (*autoupdate.AutoupdateConfig, error) {
+	config := &autoupdate.AutoupdateConfig{
+		Kind:    types.KindAutoupdateConfig,
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameClusterAutoUpdateConfig,
+			Name: types.MetaNameAutoupdateConfig,
 		},
 		Spec: spec,
 	}
-	if err := ValidateClusterAutoUpdateConfig(config); err != nil {
+	if err := ValidateAutoupdateConfig(config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return config, nil
 }
 
-// ValidateClusterAutoUpdateConfig checks that required parameters are set
-// for the specified ClusterAutoUpdateConfig.
-func ValidateClusterAutoUpdateConfig(c *autoupdate.ClusterAutoUpdateConfig) error {
+// ValidateAutoupdateConfig checks that required parameters are set
+// for the specified AutoupdateConfig.
+func ValidateAutoupdateConfig(c *autoupdate.AutoupdateConfig) error {
 	if c == nil {
-		return trace.BadParameter("ClusterAutoUpdateConfig is nil")
+		return trace.BadParameter("AutoupdateConfig is nil")
 	}
 	if c.Metadata == nil {
 		return trace.BadParameter("Metadata is nil")

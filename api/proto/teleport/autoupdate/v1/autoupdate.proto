@@ -20,36 +20,36 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
 
-// ClusterAutoupdateConfigV1 is a config singleton used to configure cluster
+// AutoupdateConfig is a config singleton used to configure cluster
 // autoupdate settings.
-message ClusterAutoUpdateConfig {
+message AutoupdateConfig {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
 
-  ClusterAutoUpdateConfigSpec spec = 5;
+  AutoupdateConfigSpec spec = 5;
 }
 
-// ClusterAutoupdateConfigSpecV1 encodes the parameters of the autoupdate config object.
-message ClusterAutoUpdateConfigSpec {
+// AutoupdateConfigSpec encodes the parameters of the autoupdate config object.
+message AutoupdateConfigSpec {
   // ToolsAutoUpdate encodes the feature flag to enable/disable tools autoupdates.
-  string tools_auto_update = 1;
+  bool tools_auto_update = 1;
 }
 
-// AutoupdateVersionV1 is a resource singleton with version required for
+// AutoupdateVersion is a resource singleton with version required for
 // tools autoupdate.
-message AutoUpdateVersion {
+message AutoupdateVersion {
   string kind = 1;
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
 
-  AutoUpdateVersionSpec spec = 5;
+  AutoupdateVersionSpec spec = 5;
 }
 
-// AutoupdateVersionSpecV1 encodes the parameters of the autoupdate versions.
-message AutoUpdateVersionSpec {
+// AutoupdateVersionSpec encodes the parameters of the autoupdate versions.
+message AutoupdateVersionSpec {
   // ToolsVersion is the semantic version required for tools autoupdates.
   string tools_version = 1;
 }

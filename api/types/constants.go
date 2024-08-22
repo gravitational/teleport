@@ -320,17 +320,17 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
-	// KindClusterAutoUpdateConfig is the resource with cluster autoupdate configuration.
-	KindClusterAutoUpdateConfig = "cluster_autoupdate_config"
+	// KindAutoupdateConfig is the resource with cluster autoupdate configuration.
+	KindAutoupdateConfig = "cluster_autoupdate_config"
 
-	// KindAutoUpdateVersion is the resource with cluster autoupdate versions.
-	KindAutoUpdateVersion = "autoupdate_version"
+	// KindAutoupdateVersion is the resource with autoupdate versions.
+	KindAutoupdateVersion = "autoupdate_version"
 
-	// MetaNameClusterAutoUpdateConfig is the name of a configuration resource for cluster autoupdate config.
-	MetaNameClusterAutoUpdateConfig = "cluster-autoupdate-config"
+	// MetaNameAutoupdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoupdateConfig = "autoupdate-config"
 
-	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
-	MetaNameAutoUpdateVersion = "autoupdate-version"
+	// MetaNameAutoupdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoupdateVersion = "autoupdate-version"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"

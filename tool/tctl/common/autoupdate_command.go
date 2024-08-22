@@ -43,9 +43,9 @@ type versionResponse struct {
 	ToolsVersion string `json:"tools_version"`
 }
 
-// AutoUpdateCommand implements the `tctl autoupdate` command for managing
+// AutoupdateCommand implements the `tctl autoupdate` command for managing
 // autoupdate process for tools and agents.
-type AutoUpdateCommand struct {
+type AutoupdateCommand struct {
 	app    *kingpin.Application
 	config *servicecfg.Config
 
@@ -53,30 +53,30 @@ type AutoUpdateCommand struct {
 	getCmd    *kingpin.CmdClause
 	watchCmd  *kingpin.CmdClause
 
-	toolsAutoUpdate        string
-	toolsAutoUpdateVersion string
+	toolsAutoupdate        string
+	toolsAutoupdateVersion string
 	proxy                  string
 }
 
-// Initialize allows AutoUpdateCommand to plug itself into the CLI parser.
-func (c *AutoUpdateCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+// Initialize allows AutoupdateCommand to plug itself into the CLI parser.
+func (c *AutoupdateCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.app = app
 	c.config = config
-	autoUpdateCmd := app.Command("autoupdate", "Teleport autoupdate commands.")
+	autoupdateCmd := app.Command("autoupdate", "Teleport autoupdate commands.")
 
-	c.updateCmd = autoUpdateCmd.Command("update", "Edit autoupdate configuration.")
-	c.updateCmd.Flag("set-tools-auto-update", `Enable or disable tools autoupdate in cluster.`).EnumVar(&c.toolsAutoUpdate, "on", "off")
-	c.updateCmd.Flag("set-tools-version", `Defines client tools version required to be force updated.`).StringVar(&c.toolsAutoUpdateVersion)
+	c.updateCmd = autoupdateCmd.Command("update", "Edit autoupdate configuration.")
+	c.updateCmd.Flag("set-tools-auto-update", `Enable or disable tools autoupdate in cluster.`).EnumVar(&c.toolsAutoupdate, "on", "off")
+	c.updateCmd.Flag("set-tools-version", `Defines client tools version required to be force updated.`).StringVar(&c.toolsAutoupdateVersion)
 
-	c.getCmd = autoUpdateCmd.Command("get", "Receive tools autoupdate version.")
+	c.getCmd = autoupdateCmd.Command("get", "Receive tools autoupdate version.")
 	c.getCmd.Flag("proxy", `URL of the proxy`).StringVar(&c.proxy)
 
-	c.watchCmd = autoUpdateCmd.Command("watch", "Start monitoring autoupdate version updates.")
+	c.watchCmd = autoupdateCmd.Command("watch", "Start monitoring autoupdate version updates.")
 	c.watchCmd.Flag("proxy", `URL of the proxy`).StringVar(&c.proxy)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
-func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *AutoupdateCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.updateCmd.FullCommand():
 		err = c.Upsert(ctx, client)
@@ -91,21 +91,22 @@ func (c *AutoUpdateCommand) TryRun(ctx context.Context, cmd string, client *auth
 }
 
 // Upsert works with cluster_autoupdate_config and autoupdate_version resources to create or update
-func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Client) error {
-	serviceClient := client.AutoUpdateServiceClient()
+func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Client) error {
+	serviceClient := client.AutoupdateServiceClient()
 
-	if c.toolsAutoUpdate != "" {
-		config, err := serviceClient.GetClusterAutoUpdateConfig(ctx, &autoupdate.GetClusterAutoUpdateConfigRequest{})
+	if c.toolsAutoupdate != "" {
+		config, err := serviceClient.GetAutoupdateConfig(ctx, &autoupdate.GetAutoupdateConfigRequest{})
 		if trace.IsNotFound(err) {
-			if config, err = update.NewClusterAutoUpdateConfig(&autoupdate.ClusterAutoUpdateConfigSpec{}); err != nil {
+			if config, err = update.NewAutoupdateConfig(&autoupdate.AutoupdateConfigSpec{}); err != nil {
 				return trace.Wrap(err)
 			}
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
-		if c.toolsAutoUpdate != config.Spec.ToolsAutoUpdate {
-			config.Spec.ToolsAutoUpdate = c.toolsAutoUpdate
-			if _, err := serviceClient.UpsertClusterAutoUpdateConfig(ctx, &autoupdate.UpsertClusterAutoUpdateConfigRequest{
+		isEnabled := c.toolsAutoupdate == "on"
+		if isEnabled != config.Spec.ToolsAutoUpdate {
+			config.Spec.ToolsAutoUpdate = isEnabled
+			if _, err := serviceClient.UpsertAutoupdateConfig(ctx, &autoupdate.UpsertAutoupdateConfigRequest{
 				Config: config,
 			}); err != nil {
 				return trace.Wrap(err)
@@ -114,17 +115,17 @@ func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 		}
 	}
 
-	version, err := client.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdate.GetAutoUpdateVersionRequest{})
+	version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
 	if trace.IsNotFound(err) {
-		if version, err = update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{}); err != nil {
+		if version, err = update.NewAutoupdateVersion(&autoupdate.AutoupdateVersionSpec{}); err != nil {
 			return trace.Wrap(err)
 		}
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.Spec.ToolsVersion != c.toolsAutoUpdateVersion {
-		version.Spec.ToolsVersion = c.toolsAutoUpdateVersion
-		if _, err := serviceClient.UpsertAutoUpdateVersion(ctx, &autoupdate.UpsertAutoUpdateVersionRequest{
+	if version.Spec.ToolsVersion != c.toolsAutoupdateVersion {
+		version.Spec.ToolsVersion = c.toolsAutoupdateVersion
+		if _, err := serviceClient.UpsertAutoupdateVersion(ctx, &autoupdate.UpsertAutoupdateVersionRequest{
 			Version: version,
 		}); err != nil {
 			return trace.Wrap(err)
@@ -137,7 +138,7 @@ func (c *AutoUpdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 
 // Get makes request to fetch tools autoupdate version, if proxy flag is not set
 // authorized handler should be used.
-func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) error {
+func (c *AutoupdateCommand) Get(ctx context.Context, client *authclient.Client) error {
 	response, err := c.get(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
@@ -151,7 +152,7 @@ func (c *AutoUpdateCommand) Get(ctx context.Context, client *authclient.Client) 
 }
 
 // Watch launch the watcher of the tools autoupdate version updates.
-func (c *AutoUpdateCommand) Watch(ctx context.Context, client *authclient.Client) error {
+func (c *AutoupdateCommand) Watch(ctx context.Context, client *authclient.Client) error {
 	current := teleport.SemVersion
 	ticker := interval.New(interval.Config{
 		Duration:      time.Minute,
@@ -185,7 +186,7 @@ func (c *AutoUpdateCommand) Watch(ctx context.Context, client *authclient.Client
 	}
 }
 
-func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) (*versionResponse, error) {
+func (c *AutoupdateCommand) get(ctx context.Context, client *authclient.Client) (*versionResponse, error) {
 	var response versionResponse
 	if c.proxy != "" {
 		find, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: c.proxy, Insecure: true})
@@ -194,7 +195,7 @@ func (c *AutoUpdateCommand) get(ctx context.Context, client *authclient.Client) 
 		}
 		response.ToolsVersion = find.ToolsVersion
 	} else {
-		version, err := client.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdate.GetAutoUpdateVersionRequest{})
+		version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

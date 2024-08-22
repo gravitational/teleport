@@ -30,26 +30,26 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// Service implements the gRPC API layer for the AutoUpdate.
+// Service implements the gRPC API layer for the Autoupdate.
 type Service struct {
 	// Opting out of forward compatibility, this service must implement all service methods.
-	autoupdate.UnsafeAutoUpdateServiceServer
+	autoupdate.UnsafeAutoupdateServiceServer
 
-	storage    services.AutoUpdateService
+	storage    services.AutoupdateService
 	authorizer authz.Authorizer
 }
 
-// NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
-func NewService(storage services.AutoUpdateService, authorizer authz.Authorizer) *Service {
+// NewService returns a new Autoupdate API service using the given storage layer and authorizer.
+func NewService(storage services.AutoupdateService, authorizer authz.Authorizer) *Service {
 	return &Service{
 		storage:    storage,
 		authorizer: authorizer,
 	}
 }
 
-// GetClusterAutoUpdateConfig gets the current autoupdate config singleton.
-func (s *Service) GetClusterAutoUpdateConfig(ctx context.Context, req *autoupdate.GetClusterAutoUpdateConfigRequest) (*autoupdate.ClusterAutoUpdateConfig, error) {
-	config, err := s.storage.GetClusterAutoUpdateConfig(ctx)
+// GetAutoupdateConfig gets the current autoupdate config singleton.
+func (s *Service) GetAutoupdateConfig(ctx context.Context, req *autoupdate.GetAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
+	config, err := s.storage.GetAutoupdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,14 +57,14 @@ func (s *Service) GetClusterAutoUpdateConfig(ctx context.Context, req *autoupdat
 	return config, nil
 }
 
-// UpsertClusterAutoUpdateConfig updates or creates autoupdate config singleton.
-func (s *Service) UpsertClusterAutoUpdateConfig(ctx context.Context, req *autoupdate.UpsertClusterAutoUpdateConfigRequest) (*autoupdate.ClusterAutoUpdateConfig, error) {
+// UpsertAutoupdateConfig updates or creates autoupdate config singleton.
+func (s *Service) UpsertAutoupdateConfig(ctx context.Context, req *autoupdate.UpsertAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindClusterAutoUpdateConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -72,18 +72,18 @@ func (s *Service) UpsertClusterAutoUpdateConfig(ctx context.Context, req *autoup
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.storage.UpsertClusterAutoUpdateConfig(ctx, req.Config)
+	config, err := s.storage.UpsertAutoupdateConfig(ctx, req.Config)
 	return config, trace.Wrap(err)
 }
 
-// DeleteClusterAutoUpdateConfig deletes autoupdate config singleton.
-func (s *Service) DeleteClusterAutoUpdateConfig(ctx context.Context, req *autoupdate.DeleteClusterAutoUpdateConfigRequest) (*emptypb.Empty, error) {
+// DeleteAutoupdateConfig deletes autoupdate config singleton.
+func (s *Service) DeleteAutoupdateConfig(ctx context.Context, req *autoupdate.DeleteAutoupdateConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindClusterAutoUpdateConfig, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateConfig, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -91,15 +91,15 @@ func (s *Service) DeleteClusterAutoUpdateConfig(ctx context.Context, req *autoup
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.storage.DeleteClusterAutoUpdateConfig(ctx); err != nil {
+	if err := s.storage.DeleteAutoupdateConfig(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
 }
 
-// GetAutoUpdateVersion gets the current autoupdate version singleton.
-func (s *Service) GetAutoUpdateVersion(ctx context.Context, req *autoupdate.GetAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
-	version, err := s.storage.GetAutoUpdateVersion(ctx)
+// GetAutoupdateVersion gets the current autoupdate version singleton.
+func (s *Service) GetAutoupdateVersion(ctx context.Context, req *autoupdate.GetAutoupdateVersionRequest) (*autoupdate.AutoupdateVersion, error) {
+	version, err := s.storage.GetAutoupdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,14 +107,14 @@ func (s *Service) GetAutoUpdateVersion(ctx context.Context, req *autoupdate.GetA
 	return version, nil
 }
 
-// UpsertAutoUpdateVersion updates or creates autoupdate version singleton.
-func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.UpsertAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
+// UpsertAutoupdateVersion updates or creates autoupdate version singleton.
+func (s *Service) UpsertAutoupdateVersion(ctx context.Context, req *autoupdate.UpsertAutoupdateVersionRequest) (*autoupdate.AutoupdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateVersion, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -122,18 +122,18 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoUpdateVersion, err := s.storage.UpsertAutoUpdateVersion(ctx, req.Version)
-	return autoUpdateVersion, trace.Wrap(err)
+	autoupdateVersion, err := s.storage.UpsertAutoupdateVersion(ctx, req.Version)
+	return autoupdateVersion, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateVersion deletes autoupdate version singleton.
-func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error) {
+// DeleteAutoupdateVersion deletes autoupdate version singleton.
+func (s *Service) DeleteAutoupdateVersion(ctx context.Context, req *autoupdate.DeleteAutoupdateVersionRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbDelete); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateVersion, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -141,7 +141,7 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.storage.DeleteAutoUpdateVersion(ctx); err != nil {
+	if err := s.storage.DeleteAutoupdateVersion(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

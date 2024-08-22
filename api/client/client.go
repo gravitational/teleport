@@ -887,9 +887,9 @@ func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 }
 
-// AutoUpdateServiceClient returns an unadorned client for the AutoUpdate service.
-func (c *Client) AutoUpdateServiceClient() autoupdate.AutoUpdateServiceClient {
-	return autoupdate.NewAutoUpdateServiceClient(c.conn)
+// AutoupdateServiceClient returns an unadorned client for the Autoupdate service.
+func (c *Client) AutoupdateServiceClient() autoupdate.AutoupdateServiceClient {
+	return autoupdate.NewAutoupdateServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -2865,18 +2865,18 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// GetClusterAutoUpdateConfig gets cluster autoupdate configuration.
-func (c *Client) GetClusterAutoUpdateConfig(ctx context.Context) (*autoupdate.ClusterAutoUpdateConfig, error) {
-	resp, err := c.AutoUpdateServiceClient().GetClusterAutoUpdateConfig(ctx, &autoupdate.GetClusterAutoUpdateConfigRequest{})
+// GetAutoupdateConfig gets cluster autoupdate configuration.
+func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
+	resp, err := c.AutoupdateServiceClient().GetAutoupdateConfig(ctx, &autoupdate.GetAutoupdateConfigRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
 }
 
-// GetAutoUpdateVersion gets cluster autoupdate version.
-func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdate.GetAutoUpdateVersionRequest{})
+// GetAutoupdateVersion gets cluster autoupdate version.
+func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
+	resp, err := c.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

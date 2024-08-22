@@ -100,13 +100,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_StaticHostUser{
 				StaticHostUser: r,
 			}
-		case *autoupdate.ClusterAutoUpdateConfig:
-			out.Resource = &proto.Event_ClusterAutoUpdateConfig{
-				ClusterAutoUpdateConfig: r,
+		case *autoupdate.AutoupdateConfig:
+			out.Resource = &proto.Event_AutoupdateConfig{
+				AutoupdateConfig: r,
 			}
-		case *autoupdate.AutoUpdateVersion:
-			out.Resource = &proto.Event_AutoUpdateVersion{
-				AutoUpdateVersion: r,
+		case *autoupdate.AutoupdateVersion:
+			out.Resource = &proto.Event_AutoupdateVersion{
+				AutoupdateVersion: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -551,10 +551,10 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetStaticHostUser(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetClusterAutoUpdateConfig(); r != nil {
+	} else if r := in.GetAutoupdateConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetAutoUpdateVersion(); r != nil {
+	} else if r := in.GetAutoupdateVersion(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
