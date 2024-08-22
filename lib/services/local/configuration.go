@@ -62,7 +62,7 @@ func NewClusterConfigurationService(backend backend.Backend) (*ClusterConfigurat
 
 // GetClusterName gets the name of the cluster from the backend.
 func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
+	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			clusterNameNotFound.Inc()
@@ -76,7 +76,7 @@ func (s *ClusterConfigurationService) GetClusterName(opts ...services.MarshalOpt
 
 // DeleteClusterName deletes types.ClusterName from the backend.
 func (s *ClusterConfigurationService) DeleteClusterName() error {
-	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, namePrefix))
+	err := s.Delete(context.TODO(), backend.NewKey(clusterConfigPrefix, namePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("cluster configuration not found")
@@ -96,7 +96,7 @@ func (s *ClusterConfigurationService) SetClusterName(c types.ClusterName) error 
 	}
 
 	_, err = s.Create(context.TODO(), backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, namePrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, namePrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
 		Revision: rev,
@@ -117,7 +117,7 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 	}
 
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, namePrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, namePrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
 		ID:       c.GetResourceID(),
@@ -132,7 +132,7 @@ func (s *ClusterConfigurationService) UpsertClusterName(c types.ClusterName) err
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (s *ClusterConfigurationService) GetStaticTokens() (types.StaticTokens, error) {
-	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, staticTokensPrefix))
+	item, err := s.Get(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("static tokens not found")
@@ -151,7 +151,7 @@ func (s *ClusterConfigurationService) SetStaticTokens(c types.StaticTokens) erro
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, staticTokensPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, staticTokensPrefix),
 		Value:    value,
 		Expires:  c.Expiry(),
 		ID:       c.GetResourceID(),
@@ -166,7 +166,7 @@ func (s *ClusterConfigurationService) SetStaticTokens(c types.StaticTokens) erro
 
 // DeleteStaticTokens deletes static tokens
 func (s *ClusterConfigurationService) DeleteStaticTokens() error {
-	err := s.Delete(context.TODO(), backend.Key(clusterConfigPrefix, staticTokensPrefix))
+	err := s.Delete(context.TODO(), backend.NewKey(clusterConfigPrefix, staticTokensPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("static tokens are not found")
@@ -179,7 +179,7 @@ func (s *ClusterConfigurationService) DeleteStaticTokens() error {
 // GetAuthPreference fetches the cluster authentication preferences
 // from the backend and return them.
 func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	item, err := s.Get(ctx, backend.Key(authPrefix, preferencePrefix, generalPrefix))
+	item, err := s.Get(ctx, backend.NewKey(authPrefix, preferencePrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("authentication preference not found")
@@ -203,7 +203,7 @@ func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, 
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Key:   backend.NewKey(authPrefix, preferencePrefix, generalPrefix),
 		Value: value,
 	}
 
@@ -230,7 +230,7 @@ func (s *ClusterConfigurationService) UpdateAuthPreference(ctx context.Context, 
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Key:      backend.NewKey(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
 		ID:       preference.GetResourceID(),
 		Revision: rev,
@@ -259,7 +259,7 @@ func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, 
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Key:      backend.NewKey(authPrefix, preferencePrefix, generalPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -275,7 +275,7 @@ func (s *ClusterConfigurationService) UpsertAuthPreference(ctx context.Context, 
 
 // DeleteAuthPreference deletes types.AuthPreference from the backend.
 func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(authPrefix, preferencePrefix, generalPrefix))
+	err := s.Delete(ctx, backend.NewKey(authPrefix, preferencePrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("auth preference not found")
@@ -287,7 +287,7 @@ func (s *ClusterConfigurationService) DeleteAuthPreference(ctx context.Context) 
 
 // GetClusterAuditConfig gets cluster audit config from the backend.
 func (s *ClusterConfigurationService) GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, auditPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("cluster audit config not found")
@@ -311,7 +311,7 @@ func (s *ClusterConfigurationService) CreateClusterAuditConfig(ctx context.Conte
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, auditPrefix),
+		Key:   backend.NewKey(clusterConfigPrefix, auditPrefix),
 		Value: value,
 	}
 
@@ -333,7 +333,7 @@ func (s *ClusterConfigurationService) UpdateClusterAuditConfig(ctx context.Conte
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, auditPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, auditPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -355,7 +355,7 @@ func (s *ClusterConfigurationService) UpsertClusterAuditConfig(ctx context.Conte
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, auditPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, auditPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -371,7 +371,7 @@ func (s *ClusterConfigurationService) UpsertClusterAuditConfig(ctx context.Conte
 
 // DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, auditPrefix))
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, auditPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("cluster audit config not found")
@@ -383,7 +383,7 @@ func (s *ClusterConfigurationService) DeleteClusterAuditConfig(ctx context.Conte
 
 // GetClusterNetworkingConfig gets cluster networking config from the backend.
 func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, networkingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("cluster networking config not found")
@@ -406,7 +406,7 @@ func (s *ClusterConfigurationService) CreateClusterNetworkingConfig(ctx context.
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, networkingPrefix),
+		Key:   backend.NewKey(clusterConfigPrefix, networkingPrefix),
 		Value: value,
 	}
 
@@ -433,7 +433,7 @@ func (s *ClusterConfigurationService) UpdateClusterNetworkingConfig(ctx context.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, networkingPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -460,7 +460,7 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, networkingPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, networkingPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -476,7 +476,7 @@ func (s *ClusterConfigurationService) UpsertClusterNetworkingConfig(ctx context.
 
 // DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, networkingPrefix))
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, networkingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("cluster networking config not found")
@@ -488,7 +488,7 @@ func (s *ClusterConfigurationService) DeleteClusterNetworkingConfig(ctx context.
 
 // GetSessionRecordingConfig gets session recording config from the backend.
 func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, sessionRecordingPrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("session recording config not found")
@@ -511,7 +511,7 @@ func (s *ClusterConfigurationService) CreateSessionRecordingConfig(ctx context.C
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Key:   backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix),
 		Value: value,
 	}
 
@@ -538,7 +538,7 @@ func (s *ClusterConfigurationService) UpdateSessionRecordingConfig(ctx context.C
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -566,7 +566,7 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, sessionRecordingPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -582,7 +582,7 @@ func (s *ClusterConfigurationService) UpsertSessionRecordingConfig(ctx context.C
 
 // DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 func (s *ClusterConfigurationService) DeleteSessionRecordingConfig(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, sessionRecordingPrefix))
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("session recording config not found")
@@ -612,7 +612,7 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 }
 
 func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, uiPrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, uiPrefix))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -627,7 +627,7 @@ func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, uiPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, uiPrefix),
 		Value:    value,
 		Revision: rev,
 	})
@@ -635,12 +635,12 @@ func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types
 }
 
 func (s *ClusterConfigurationService) DeleteUIConfig(ctx context.Context) error {
-	return trace.Wrap(s.Delete(ctx, backend.Key(clusterConfigPrefix, uiPrefix)))
+	return trace.Wrap(s.Delete(ctx, backend.NewKey(clusterConfigPrefix, uiPrefix)))
 }
 
 // GetInstaller gets the script of the cluster from the backend.
 func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -656,7 +656,7 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 	}
 
 	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
+		Key:      backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, ins.GetName()),
 		Value:    value,
 		Expires:  ins.Expiry(),
 		Revision: rev,
@@ -667,7 +667,7 @@ func (s *ClusterConfigurationService) SetInstaller(ctx context.Context, ins type
 // DeleteInstaller sets the installer script to default script in the backend.
 func (s *ClusterConfigurationService) DeleteInstaller(ctx context.Context, name string) error {
 	return trace.Wrap(
-		s.Delete(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name)))
+		s.Delete(ctx, backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix, name)))
 }
 
 // DeleteAllInstallers removes all installer resources.
@@ -682,7 +682,7 @@ func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) e
 
 // GetClusterMaintenanceConfig loads the maintenance config singleton resource.
 func (s *ClusterConfigurationService) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, maintenancePrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, maintenancePrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("no maintenance config has been created")
@@ -707,7 +707,7 @@ func (s *ClusterConfigurationService) UpdateClusterMaintenanceConfig(ctx context
 	err := generic.FastUpdateNonceProtectedResource(
 		ctx,
 		s.Backend,
-		backend.Key(clusterConfigPrefix, maintenancePrefix),
+		backend.NewKey(clusterConfigPrefix, maintenancePrefix),
 		cmc,
 	)
 
@@ -720,7 +720,7 @@ func (s *ClusterConfigurationService) UpdateClusterMaintenanceConfig(ctx context
 
 // DeleteClusterMaintenanceConfig deletes the maintenance config singleton resource.
 func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, maintenancePrefix))
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, maintenancePrefix))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -729,7 +729,7 @@ func (s *ClusterConfigurationService) DeleteClusterMaintenanceConfig(ctx context
 
 // GetAccessGraphSettings fetches the cluster *clusterconfigpb.AccessGraphSettings from the backend and return them.
 func (s *ClusterConfigurationService) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
-	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("AccessGraphSettings preference not found")
@@ -748,7 +748,7 @@ func (s *ClusterConfigurationService) CreateAccessGraphSettings(ctx context.Cont
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Key:   backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix),
 		Value: value,
 	}
 
@@ -771,7 +771,7 @@ func (s *ClusterConfigurationService) UpdateAccessGraphSettings(ctx context.Cont
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -794,7 +794,7 @@ func (s *ClusterConfigurationService) UpsertAccessGraphSettings(ctx context.Cont
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix),
+		Key:      backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix),
 		Value:    value,
 		Revision: rev,
 	}
@@ -810,7 +810,7 @@ func (s *ClusterConfigurationService) UpsertAccessGraphSettings(ctx context.Cont
 
 // DeleteAccessGraphSettings deletes *clusterconfigpb.AccessGraphSettings from the backend.
 func (s *ClusterConfigurationService) DeleteAccessGraphSettings(ctx context.Context) error {
-	err := s.Delete(ctx, backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix))
+	err := s.Delete(ctx, backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("access graph settings not found")

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package service
+package web
 
 import (
 	"context"
@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type accessPointMock struct{}
@@ -95,10 +94,10 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := &proxySettings{
-				cfg:          tt.cfgFn(),
-				proxySSHAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:3080"},
-				accessPoint:  &accessPointMock{},
+			p := &ProxySettings{
+				ServiceConfig: tt.cfgFn(),
+				ProxySSHAddr:  "0.0.0.0:3080",
+				AccessPoint:   &accessPointMock{},
 			}
 
 			proxySettings, err := p.GetProxySettings(context.Background())

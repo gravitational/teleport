@@ -706,6 +706,7 @@ Spec is a ClusterNetworkingConfig specification
 | proxy_ping_interval              | duration |          | ProxyPingInterval defines in which interval the TLS routing ping message should be sent. This is applicable only when using ping-wrapped connections, regular TLS routing connections are not affected. |
 | routing_strategy                 | number   |          | RoutingStrategy determines the strategy used to route to nodes. 0 is "unambiguous_match"; 1 is "most_recent".                                                                                           |
 | session_control_timeout          | duration |          | SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.   |
+| ssh_dial_timeout                 | duration |          | SSHDialTimeout is a custom dial timeout used when establishing SSH connections. If not set, the default timeout of 30s will be used.                                                                    |
 | tunnel_strategy                  | object   |          | TunnelStrategyV1 determines the tunnel strategy used in the cluster.                                                                                                                                    |
 | web_idle_timeout                 | duration |          | WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.                                                                                                                        |
 
@@ -987,11 +988,12 @@ Oracle is an additional Oracle configuration options.
 
 TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.
 
-|    Name     |  Type  | Required |                                                            Description                                                             |
-|-------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------|
-| ca_cert     | string |          | CACert is an optional user provided CA certificate used for verifying database TLS connection.                                     |
-| mode        | number |          | Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".                                              |
-| server_name | string |          | ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation. |
+|          Name          |  Type  | Required |                                                                                                                                                                                   Description                                                                                                                                                                                    |
+|------------------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ca_cert                | string |          | CACert is an optional user provided CA certificate used for verifying database TLS connection.                                                                                                                                                                                                                                                                                   |
+| mode                   | number |          | Mode is a TLS connection mode. 0 is "verify-full"; 1 is "verify-ca", 2 is "insecure".                                                                                                                                                                                                                                                                                            |
+| server_name            | string |          | ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation.                                                                                                                                                                                                                                               |
+| trust_system_cert_pool | bool   |          | TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation. |
 
 Example:
 
@@ -1040,16 +1042,25 @@ Metadata holds resource metadata.
 
 Spec is an Github connector specification.
 
-|       Name       |  Type  | Required |                                                             Description                                                             |
-|------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
-| api_endpoint_url | string |          | APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.                                         |
-| client_id        | string | *        | ClientID is the Github OAuth app client ID.                                                                                         |
-| client_secret    | string | *        | ClientSecret is the Github OAuth app client secret.                                                                                 |
-| display          | string |          | Display is the connector display name.                                                                                              |
-| endpoint_url     | string |          | EndpointURL is the URL of the GitHub instance this connector is for.                                                                |
-| redirect_url     | string |          | RedirectURL is the authorization callback URL.                                                                                      |
-| teams_to_logins  | object |          | TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead. |
-| teams_to_roles   | object |          | TeamsToRoles maps Github team memberships onto allowed roles.                                                                       |
+|           Name           |  Type  | Required |                                                               Description                                                                |
+|--------------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------|
+| api_endpoint_url         | string |          | APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.                                              |
+| client_id                | string | *        | ClientID is the Github OAuth app client ID.                                                                                              |
+| client_redirect_settings | object |          | ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. |
+| client_secret            | string | *        | ClientSecret is the Github OAuth app client secret.                                                                                      |
+| display                  | string |          | Display is the connector display name.                                                                                                   |
+| endpoint_url             | string |          | EndpointURL is the URL of the GitHub instance this connector is for.                                                                     |
+| redirect_url             | string |          | RedirectURL is the authorization callback URL.                                                                                           |
+| teams_to_logins          | object |          | TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.      |
+| teams_to_roles           | object |          | TeamsToRoles maps Github team memberships onto allowed roles.                                                                            |
+
+#### spec.client_redirect_settings
+
+ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.
+
+|          Name           |       Type       | Required |                        Description                         |
+|-------------------------|------------------|----------|------------------------------------------------------------|
+| allowed_https_hostnames | array of strings |          | a list of hostnames allowed for https client redirect URLs |
 
 #### spec.teams_to_logins
 
@@ -1202,6 +1213,7 @@ Spec is an OIDC connector specification.
 | allow_unverified_email     | bool             |          | AllowUnverifiedEmail tells the connector to accept OIDC users with unverified emails.                                                         |
 | claims_to_roles            | object           |          | ClaimsToRoles specifies a dynamic mapping from claims to roles.                                                                               |
 | client_id                  | string           |          | ClientID is the id of the authentication client (Teleport Auth server).                                                                       |
+| client_redirect_settings   | object           |          | ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.      |
 | client_secret              | string           |          | ClientSecret is used to authenticate the client.                                                                                              |
 | display                    | string           |          | Display is the friendly name for this provider.                                                                                               |
 | google_admin_email         | string           |          | GoogleAdminEmail is the email of a google admin to impersonate.                                                                               |
@@ -1224,6 +1236,14 @@ ClaimsToRoles specifies a dynamic mapping from claims to roles.
 | claim | string           |          | Claim is a claim name.                             |
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
+
+#### spec.client_redirect_settings
+
+ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.
+
+|          Name           |       Type       | Required |                        Description                         |
+|-------------------------|------------------|----------|------------------------------------------------------------|
+| allowed_https_hostnames | array of strings |          | a list of hostnames allowed for https client redirect URLs |
 
 Example:
 
@@ -2040,7 +2060,7 @@ Options is for OpenSSH options like agent forwarding.
 | create_host_user_mode      | number           |          | CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". |
 | desktop_clipboard          | bool             |          |                                                                                                                                                                                                        |
 | desktop_directory_sharing  | bool             |          |                                                                                                                                                                                                        |
-| device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode. Reserved for future use, not yet used by Teleport.                             |
+| device_trust_mode          | string           |          | DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.                                                                                |
 | disconnect_expired_cert    | bool             |          | DisconnectExpiredCert sets disconnect clients on expired certificates.                                                                                                                                 |
 | enhanced_recording         | array of strings |          | BPF defines what events to record for the BPF-based session recorder.                                                                                                                                  |
 | forward_agent              | bool             |          | ForwardAgent is SSH agent forwarding.                                                                                                                                                                  |
@@ -2177,22 +2197,24 @@ Metadata holds resource metadata.
 
 Spec is an SAML connector specification.
 
-|          Name           |  Type  | Required |                                                                            Description                                                                            |
-|-------------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| acs                     | string | *        | AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).                                                       |
-| allow_idp_initiated     | bool   |          | AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.                                                                 |
-| assertion_key_pair      | object |          | EncryptionKeyPair is a key pair used for decrypting SAML assertions.                                                                                              |
-| attributes_to_roles     | object | *        | AttributesToRoles is a list of mappings of attribute statements to roles.                                                                                         |
-| audience                | string |          | Audience uniquely identifies our service provider.                                                                                                                |
-| cert                    | string |          | Cert is the identity provider certificate PEM. IDP signs &lt;Response&gt; responses using this certificate.                                                       |
-| display                 | string |          | Display controls how this connector is displayed.                                                                                                                 |
-| entity_descriptor       | string |          | EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. |
-| entity_descriptor_url   | string |          | EntityDescriptorURL is a URL that supplies a configuration XML.                                                                                                   |
-| issuer                  | string |          | Issuer is the identity provider issuer.                                                                                                                           |
-| provider                | string |          | Provider is the external identity provider.                                                                                                                       |
-| service_provider_issuer | string |          | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                                           |
-| signing_key_pair        | object |          | SigningKeyPair is an x509 key pair used to sign AuthnRequest.                                                                                                     |
-| sso                     | string |          | SSO is the URL of the identity provider's SSO service.                                                                                                            |
+|           Name           |  Type  | Required |                                                                            Description                                                                            |
+|--------------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| acs                      | string | *        | AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).                                                       |
+| allow_idp_initiated      | bool   |          | AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.                                                                 |
+| assertion_key_pair       | object |          | EncryptionKeyPair is a key pair used for decrypting SAML assertions.                                                                                              |
+| attributes_to_roles      | object | *        | AttributesToRoles is a list of mappings of attribute statements to roles.                                                                                         |
+| audience                 | string |          | Audience uniquely identifies our service provider.                                                                                                                |
+| cert                     | string |          | Cert is the identity provider certificate PEM. IDP signs &lt;Response&gt; responses using this certificate.                                                       |
+| client_redirect_settings | object |          | ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.                          |
+| display                  | string |          | Display controls how this connector is displayed.                                                                                                                 |
+| entity_descriptor        | string |          | EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements. |
+| entity_descriptor_url    | string |          | EntityDescriptorURL is a URL that supplies a configuration XML.                                                                                                   |
+| issuer                   | string |          | Issuer is the identity provider issuer.                                                                                                                           |
+| provider                 | string |          | Provider is the external identity provider.                                                                                                                       |
+| service_provider_issuer  | string |          | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                                           |
+| signing_key_pair         | object |          | SigningKeyPair is an x509 key pair used to sign AuthnRequest.                                                                                                     |
+| single_logout_url        | string |          | SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.                                   |
+| sso                      | string |          | SSO is the URL of the identity provider's SSO service.                                                                                                            |
 
 #### spec.assertion_key_pair
 
@@ -2212,6 +2234,14 @@ AttributesToRoles is a list of mappings of attribute statements to roles.
 | name  | string           |          | Name is an attribute statement name.                |
 | roles | array of strings |          | Roles is a list of static teleport roles to map to. |
 | value | string           |          | Value is an attribute statement value to match.     |
+
+#### spec.client_redirect_settings
+
+ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.
+
+|          Name           |       Type       | Required |                        Description                         |
+|-------------------------|------------------|----------|------------------------------------------------------------|
+| allowed_https_hostnames | array of strings |          | a list of hostnames allowed for https client redirect URLs |
 
 #### spec.signing_key_pair
 
@@ -2618,28 +2648,31 @@ Spec is a user specification
 
 GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                Description                                |
-|--------------|--------|----------|---------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
-| username     | string |          | Username is username supplied by external identity provider               |
+|        Name         |  Type  | Required |                                               Description                                                |
+|---------------------|--------|----------|----------------------------------------------------------------------------------------------------------|
+| connector_id        | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'                                |
+| samlSingleLogoutUrl | string |          | SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable. |
+| username            | string |          | Username is username supplied by external identity provider                                              |
 
 #### spec.oidc_identities
 
 OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                Description                                |
-|--------------|--------|----------|---------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
-| username     | string |          | Username is username supplied by external identity provider               |
+|        Name         |  Type  | Required |                                               Description                                                |
+|---------------------|--------|----------|----------------------------------------------------------------------------------------------------------|
+| connector_id        | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'                                |
+| samlSingleLogoutUrl | string |          | SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable. |
+| username            | string |          | Username is username supplied by external identity provider                                              |
 
 #### spec.saml_identities
 
 SAMLIdentities lists associated SAML identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                Description                                |
-|--------------|--------|----------|---------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
-| username     | string |          | Username is username supplied by external identity provider               |
+|        Name         |  Type  | Required |                                               Description                                                |
+|---------------------|--------|----------|----------------------------------------------------------------------------------------------------------|
+| connector_id        | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com'                                |
+| samlSingleLogoutUrl | string |          | SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable. |
+| username            | string |          | Username is username supplied by external identity provider                                              |
 
 ### status
 
