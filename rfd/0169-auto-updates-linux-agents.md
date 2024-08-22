@@ -57,7 +57,7 @@ The version and edition served from that endpoint will be configured using new `
 
 Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
 - The `host=[uuid]` parameter sent to `/v1/webapi/find`
-- The schedule defined in the new `cluster_autoupdate_config` resource
+- The schedule defined in the new `autoupdate_config` resource
 - The status of past agent upgrades for the given version
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
@@ -195,7 +195,7 @@ Notes:
 #### Scheduling
 
 ```yaml
-kind: cluster_autoupdate_config
+kind: autoupdate_config
 spec:
   # agent_autoupdate allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
@@ -260,7 +260,7 @@ Note the MVP version of this resource will not support host UUIDs, groups, or ba
 This field will remain indefinitely to cover connected agents that are not matched to a group.
 
 ```yaml
-kind: cluster_autoupdate_config
+kind: autoupdate_config
 spec:
   # agent_autoupdate allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
@@ -354,7 +354,7 @@ Automatic updates configuration has been updated.
 ```
 
 Notes:
-- `autoupdate_version` is separate from `cluster_autoupdate_config` so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
+- `autoupdate_version` is separate from `autoupdate_config` so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
 
 #### Rollout
 
@@ -707,54 +707,66 @@ When TUF is added, that events related to supply chain security may be sent to t
 
 Note: all updates use revisions to prevent data loss in case of concurrent access.
 
-### clusterconfig/v1
+### autoupdate/v1
 
 ```protobuf
 syntax = "proto3";
 
-package teleport.clusterconfig.v1;
+package teleport.autoupdate.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
 
-// ClusterConfigService provides methods to manage cluster configuration resources.
-service ClusterConfigService {
-  // ...
+// AutoupdateService serves agent and client automatic version updates.
+service AutoupdateService {
+  // GetAutoupdateConfig updates the autoupdate config.
+  rpc GetAutoupdateConfig(GetAutoupdateConfigRequest) returns (AutoupdateConfig);
+  // CreateAutoupdateConfig creates the autoupdate config.
+  rpc CreateAutoupdateConfig(CreateAutoupdateConfigRequest) returns (AutoupdateConfig);
+  // UpdateAutoupdateConfig updates the autoupdate config.
+  rpc UpdateAutoupdateConfig(UpdateAutoupdateConfigRequest) returns (AutoupdateConfig);
+  // UpsertAutoupdateConfig overwrites the autoupdate config.
+  rpc UpsertAutoupdateConfig(UpsertAutoupdateConfigRequest) returns (AutoupdateConfig);
+  // ResetAutoupdateConfig restores the autoupdate config to default values.
+  rpc ResetAutoupdateConfig(ResetAutoupdateConfigRequest) returns (AutoupdateConfig);
 
-  // GetClusterAutoupdateConfig updates the cluster autoupdate config.
-  rpc GetClusterAutoupdateConfig(GetClusterAutoupdateConfigRequest) returns (ClusterAutoupdateConfig);
-  // CreateClusterAutoupdateConfig creates the cluster autoupdate config.
-  rpc CreateClusterAutoupdateConfig(CreateClusterAutoupdateConfigRequest) returns (ClusterAutoupdateConfig);
-  // UpdateClusterAutoupdateConfig updates the cluster autoupdate config.
-  rpc UpdateClusterAutoupdateConfig(UpdateClusterAutoupdateConfigRequest) returns (ClusterAutoupdateConfig);
-  // UpsertClusterAutoupdateConfig overwrites the cluster autoupdate config.
-  rpc UpsertClusterAutoupdateConfig(UpsertClusterAutoupdateConfigRequest) returns (ClusterAutoupdateConfig);
-  // ResetClusterAutoupdateConfig restores the cluster autoupdate config to default values.
-  rpc ResetClusterAutoupdateConfig(ResetClusterAutoupdateConfigRequest) returns (ClusterAutoupdateConfig);
+  // GetAutoupdateVersion returns the autoupdate version.
+  rpc GetAutoupdateVersion(GetAutoupdateVersionRequest) returns (AutoupdateVersion);
+  // CreateAutoupdateVersion creates the autoupdate version.
+  rpc CreateAutoupdateVersion(CreateAutoupdateVersionRequest) returns (AutoupdateVersion);
+  // UpdateAutoupdateVersion updates the autoupdate version.
+  rpc UpdateAutoupdateVersion(UpdateAutoupdateVersionRequest) returns (AutoupdateVersion);
+  // UpsertAutoupdateVersion overwrites the autoupdate version.
+  rpc UpsertAutoupdateVersion(UpsertAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // GetAgentRolloutPlan returns the agent rollout plan and current progress.
+  rpc GetAgentRolloutPlan(GetAgentRolloutPlanRequest) returns (AgentRolloutPlan);
+  // GetAutoupdateVersion streams the agent rollout plan's list of all hosts.
+  rpc GetAgentRolloutPlanHosts(GetAgentRolloutPlanHostsRequest) returns (stream AgentRolloutPlanHost);
 }
 
-// GetClusterAutoupdateConfigRequest requests the contents of the ClusterAutoupdateConfig.
-message GetClusterAutoupdateConfigRequest {}
+// GetAutoupdateConfigRequest requests the contents of the AutoupdateConfig.
+message GetAutoupdateConfigRequest {}
 
-// CreateClusterAutoupdateConfigRequest requests creation of the the ClusterAutoupdateConfig.
-message CreateClusterAutoupdateConfigRequest {
-  ClusterAutoupdateConfig cluster_autoupdate_config = 1;
+// CreateAutoupdateConfigRequest requests creation of the the AutoupdateConfig.
+message CreateAutoupdateConfigRequest {
+  AutoupdateConfig autoupdate_config = 1;
 }
 
-// UpdateClusterAutoupdateConfigRequest requests an update of the the ClusterAutoupdateConfig.
-message UpdateClusterAutoupdateConfigRequest {
-  ClusterAutoupdateConfig cluster_autoupdate_config = 1;
+// UpdateAutoupdateConfigRequest requests an update of the the AutoupdateConfig.
+message UpdateAutoupdateConfigRequest {
+  AutoupdateConfig autoupdate_config = 1;
 }
 
-// UpsertClusterAutoupdateConfigRequest requests an upsert of the the ClusterAutoupdateConfig.
-message UpsertClusterAutoupdateConfigRequest {
-  ClusterAutoupdateConfig cluster_autoupdate_config = 1;
+// UpsertAutoupdateConfigRequest requests an upsert of the the AutoupdateConfig.
+message UpsertAutoupdateConfigRequest {
+  AutoupdateConfig autoupdate_config = 1;
 }
 
-// ResetClusterAutoupdateConfigRequest requests a reset of the the ClusterAutoupdateConfig to default values.
-message ResetClusterAutoupdateConfigRequest {}
+// ResetAutoupdateConfigRequest requests a reset of the the AutoupdateConfig to default values.
+message ResetAutoupdateConfigRequest {}
 
-// ClusterAutoupdateConfig holds dynamic configuration settings for cluster maintenance activities.
-message ClusterAutoupdateConfig {
+// AutoupdateConfig holds dynamic configuration settings for automatic updates.
+message AutoupdateConfig {
   // kind is the kind of the resource.
   string kind = 1;
   // sub_kind is the sub kind of the resource.
@@ -764,11 +776,11 @@ message ClusterAutoupdateConfig {
   // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
-  ClusterAutoupdateConfigSpec spec = 7;
+  AutoupdateConfigSpec spec = 7;
 }
 
-// ClusterAutoupdateConfigSpec is the spec for the cluster autoupdate config.
-message ClusterAutoupdateConfigSpec {
+// AutoupdateConfigSpec is the spec for the autoupdate config.
+message AutoupdateConfigSpec {
   // agent_autoupdate specifies whether agent autoupdates are enabled.
   bool agent_autoupdate = 1;
   // agent_default_schedules specifies schedules for upgrades of agents.
@@ -848,33 +860,6 @@ enum Day {
   DAY_FRIDAY = 7;
   DAY_SATURDAY = 8;
 }
-```
-
-### autoupdate/v1
-
-```protobuf
-syntax = "proto3";
-
-package teleport.autoupdate.v1;
-
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
-
-// AutoupdateService serves agent and client automatic version updates.
-service AutoupdateService {
-  // GetAutoupdateVersion returns the autoupdate version.
-  rpc GetAutoupdateVersion(GetAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // CreateAutoupdateVersion creates the autoupdate version.
-  rpc CreateAutoupdateVersion(CreateAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // UpdateAutoupdateVersion updates the autoupdate version.
-  rpc UpdateAutoupdateVersion(UpdateAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // UpsertAutoupdateVersion overwrites the autoupdate version.
-  rpc UpsertAutoupdateVersion(UpsertAutoupdateVersionRequest) returns (AutoupdateVersion);
-
-  // GetAgentRolloutPlan returns the agent rollout plan and current progress.
-  rpc GetAgentRolloutPlan(GetAgentRolloutPlanRequest) returns (AgentRolloutPlan);
-  // GetAutoupdateVersion streams the agent rollout plan's list of all hosts.
-  rpc GetAgentRolloutPlanHosts(GetAgentRolloutPlanHostsRequest) returns (stream AgentRolloutPlanHost);
-}
 
 // GetAutoupdateVersionRequest requests the autoupdate_version singleton resource.
 message GetAutoupdateVersionRequest {}
@@ -908,7 +893,7 @@ message AutoupdateVersion {
   // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
-  AutoupdateVersionSpec spec = 6;
+  AutoupdateVersionSpec spec = 5;
 }
 
 // AutoupdateVersionSpec is the spec for the autoupdate version.
@@ -959,7 +944,7 @@ message AgentRolloutPlan {
   AgentRolloutPlanStatus status = 6;
 }
 
-// AutoupdateVersionSpec is the spec for the autoupdate version.
+// AutoupdateVersionSpec is the spec for the AgentRolloutPlan.
 message AgentRolloutPlanSpec {
   // start_time of the rollout
   google.protobuf.Timestamp start_time = 1;
@@ -971,7 +956,7 @@ message AgentRolloutPlanSpec {
   int64 host_count = 4;
 }
 
-// AutoupdateVersionSpec is the spec for the autoupdate version.
+// AutoupdateVersionStatus is the status for the AgentRolloutPlan.
 message AgentRolloutPlanStatus {
   // last_active_host_index specifies the index of the last host that may be updated.
   int64 last_active_host_index = 1;
