@@ -25,6 +25,7 @@ import { IAppContext } from 'teleterm/ui/types';
 import {
   DocumentsService,
   isDocumentTshNodeWithLoginHost,
+  canDocChangeShell,
 } from 'teleterm/ui/services/workspacesService';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
@@ -34,7 +35,6 @@ import {
   PtyProcessCreationStatus,
   WindowsPty,
 } from 'teleterm/services/pty';
-import { ConfigService } from 'teleterm/services/config';
 import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
@@ -55,12 +55,27 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
+    // Add `shellId` before going further.
+    // When a new document is crated, its `shellId` is empty
+    // (setting the default shell would require reading it from ConfigService
+    // in DocumentsService and I wasn't sure about adding more dependencies there).
+    // Because of that, I decided to initialize this property later.
+    // `doc.shellId` is used in here, in `useDocumentTerminal` and in `tabContextMenu`.
+    let docWithDefaultShell: types.DocumentTerminal;
+    if (canDocChangeShell(doc) && !doc.shellId) {
+      docWithDefaultShell = {
+        ...doc,
+        shellId: ctx.configService.get('terminal.shell').value,
+      };
+      documentsService.update(doc.uri, docWithDefaultShell);
+    }
+
     try {
       return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
-        doc
+        docWithDefaultShell || doc
       );
     } catch (err) {
       if ('status' in doc) {
@@ -231,7 +246,6 @@ async function setUpPtyProcess(
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
   const cmd = createCmd(
     ctx.clustersService,
-    ctx.configService,
     doc,
     rootCluster.proxyHost,
     getClusterName()
@@ -369,7 +383,6 @@ async function createPtyProcess(
 // inspected to get the correct command for the gateway CLI client.
 function createCmd(
   clustersService: ClustersService,
-  configService: ConfigService,
   doc: types.DocumentTerminal,
   proxyHost: string,
   clusterName: string
@@ -465,7 +478,7 @@ function createCmd(
       clusterName,
       env,
       initMessage,
-      shellId: getShellId(doc, configService),
+      shellId: doc.shellId,
     };
   }
 
@@ -475,13 +488,6 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
-    shellId: getShellId(doc, configService),
+    shellId: doc.shellId,
   };
-}
-
-function getShellId(
-  doc: types.DocumentPtySession | types.DocumentGatewayKube,
-  configService: ConfigService
-) {
-  return doc.shellId || configService.get('terminal.shell').value;
 }
