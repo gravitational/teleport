@@ -410,7 +410,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 			nextSync.Reset(timeUntil)
 			log.InfoContext(
 				ctx,
-				"Will try to sync again at",
+				"Waiting to sync again",
 				"next_sync_at", nextSyncAt,
 			)
 		}
@@ -481,7 +481,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 		return nil, trace.Wrap(err, "parsing metadata.name as trust domain name")
 	}
 
-	// Determine - should we refresh...
+	// Determine - should we sync...
 	syncReason := shouldSyncTrustDomain(ctx, log, s.cfg.Clock, current)
 	if syncReason == "" {
 		log.DebugContext(ctx, "Skipping sync as is not required")
