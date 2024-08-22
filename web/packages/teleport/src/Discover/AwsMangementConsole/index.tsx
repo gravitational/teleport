@@ -43,7 +43,7 @@ export const AwsMangementConsole: ResourceViewConfig<ResourceSpec> = {
       {
         title: 'Create Application Server',
         component: CreateAppAccess,
-        // TODO(lisa) define a create application aws step
+        eventName: DiscoverEvent.CreateApplicationServer,
       },
       {
         title: 'Set Up Access',

@@ -75,6 +75,9 @@ type ConnectionContext struct {
 	// clientLastActive records the last time there was activity from the client.
 	clientLastActive time.Time
 
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
+
 	clock clockwork.Clock
 }
 
