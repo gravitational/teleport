@@ -87,3 +87,32 @@ const (
 	// CookieName is the name of the session cookie.
 	CookieName = "__Host-session"
 )
+
+const (
+	// SSOMFAToken is the name of the SAML IdP session cookie.
+	// This cookie is set by SAML IdP after a successful SAML authentication.
+	SSOMFAToken = "__Host-sso_mfa_token"
+)
+
+// SetMFACookie set's the SAML session cookie named by [SSOMFAToken].
+func SetMFACookie(w http.ResponseWriter, token string, maxAgeSeconds int) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SSOMFAToken,
+		Value:    token,
+		MaxAge:   maxAgeSeconds,
+		HttpOnly: true,
+		Secure:   true,
+		Path:     "/",
+	})
+}
+
+// ClearMFACookie wipes the session cookie to invalidate SAML user session.
+func ClearMFACookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     SSOMFAToken,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+	})
+}

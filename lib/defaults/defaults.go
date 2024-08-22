@@ -711,8 +711,11 @@ const (
 	// made for an existing file transfer request
 	WebsocketFileTransferDecision = "t"
 
-	// WebsocketWebauthnChallenge is sending a webauthn challenge.
+	// WebsocketWebauthnChallenge is sending a Webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
+
+	// WebsocketIdPChallenge is sending an identity provider challenge challenge.
+	WebsocketIdPChallenge = "p"
 
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"

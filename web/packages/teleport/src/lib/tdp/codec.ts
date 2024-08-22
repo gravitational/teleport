@@ -144,7 +144,7 @@ export type Notification = {
 
 // | message type (10) | mfa_type byte | message_length uint32 | json []byte
 export type MfaJson = {
-  mfaType: 'u' | 'n';
+  mfaType: 'u' | 'n' | 'p';
   jsonString: string;
 };
 
@@ -790,8 +790,8 @@ export default class Codec {
     offset += BYTE_LEN; // eat message type
     const mfaType = String.fromCharCode(dv.getUint8(offset));
     offset += BYTE_LEN; // eat mfa_type
-    if (mfaType !== 'n' && mfaType !== 'u') {
-      throw new Error(`invalid mfa type ${mfaType}, should be "n" or "u"`);
+    if (mfaType !== 'n' && mfaType !== 'u' && mfaType !== 'p') {
+      throw new Error(`invalid mfa type ${mfaType}, should be "n", "u", or "p"`);
     }
     let messageLength = dv.getUint32(offset);
     offset += UINT_32_LEN; // eat message_length

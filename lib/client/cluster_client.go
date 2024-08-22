@@ -559,7 +559,8 @@ type PerformMFACeremonyParams struct {
 	// certificates.
 	RootAuthClient PerformMFARootClient
 	// MFAPrompt is used to prompt the user for an MFA solution.
-	MFAPrompt mfa.Prompt
+	MFAPrompt   mfa.Prompt
+	MFAResponse *proto.MFAAuthenticateResponse
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -600,59 +601,61 @@ type PerformMFACeremonyParams struct {
 func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*KeyRing, *proto.Certs, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
-
 	mfaRequiredReq := params.MFARequiredReq
+	mfaResponse := params.MFAResponse
 
-	// If connecting to a host in a leaf cluster and MFA failed check to see
-	// if the leaf cluster requires MFA. If it doesn't return an error indicating
-	// that MFA was not required instead of the error received from the root cluster.
-	if mfaRequiredReq != nil && !params.MFAAgainstRoot {
-		mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
-		log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
-		switch {
-		case err != nil:
-			return nil, nil, trace.Wrap(MFARequiredUnknown(err))
-		case !mfaRequiredResp.Required:
+	if mfaResponse == nil {
+		// If connecting to a host in a leaf cluster and MFA failed check to see
+		// if the leaf cluster requires MFA. If it doesn't return an error indicating
+		// that MFA was not required instead of the error received from the root cluster.
+		if mfaRequiredReq != nil && !params.MFAAgainstRoot {
+			mfaRequiredResp, err := currentClient.IsMFARequired(ctx, mfaRequiredReq)
+			log.Debugf("MFA requirement acquired from leaf, MFARequired=%s", mfaRequiredResp.GetMFARequired())
+			switch {
+			case err != nil:
+				return nil, nil, trace.Wrap(MFARequiredUnknown(err))
+			case !mfaRequiredResp.Required:
+				return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			}
+			mfaRequiredReq = nil // Already checked, don't check again at root.
+		}
+
+		// Acquire MFA challenge.
+		authnChal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+				ContextUser: &proto.ContextUser{},
+			},
+			MFARequiredCheck: mfaRequiredReq,
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			},
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
+		if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
 			return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
 		}
-		mfaRequiredReq = nil // Already checked, don't check again at root.
-	}
 
-	// Acquire MFA challenge.
-	authnChal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
-		MFARequiredCheck: mfaRequiredReq,
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+		if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil && authnChal.AuthConnectorChallenge == nil {
+			// TODO(Joerger): CreateAuthenticateChallenge should return
+			// this error directly instead of an empty challenge, without
+			// regressing https://github.com/gravitational/teleport/issues/36482.
+			return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
+		}
 
-	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
-	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	}
-
-	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil && authnChal.AuthConnectorChallenge == nil {
-		// TODO(Joerger): CreateAuthenticateChallenge should return
-		// this error directly instead of an empty challenge, without
-		// regressing https://github.com/gravitational/teleport/issues/36482.
-		return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
-	}
-
-	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := params.MFAPrompt.Run(ctx, authnChal)
-	if err != nil {
-		return nil, nil, trace.Wrap(ceremonyFailedErr{err})
+		// Prompt user for solution (eg, security key touch).
+		mfaResponse, err = params.MFAPrompt.Run(ctx, authnChal)
+		if err != nil {
+			return nil, nil, trace.Wrap(ceremonyFailedErr{err})
+		}
 	}
 
 	// Issue certificate.
 	certsReq := params.CertsReq
-	certsReq.MFAResponse = authnSolved
+	certsReq.MFAResponse = mfaResponse
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)

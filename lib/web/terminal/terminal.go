@@ -219,11 +219,11 @@ type MFACodec interface {
 	DecodeResponse(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error)
 }
 
-// WriteChallenge encodes and writes the challenge to the
+// WriteChallenge encodes and writes the webauthn challenge to the
 // websocket in the correct format.
-func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, codec MFACodec) error {
+func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, codec MFACodec, envelopeType string) error {
 	// Send the challenge over the socket.
-	msg, err := codec.Encode(challenge, defaults.WebsocketWebauthnChallenge)
+	msg, err := codec.Encode(challenge, envelopeType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,12 +233,12 @@ func (t *WSStream) WriteChallenge(challenge *client.MFAAuthenticateChallenge, co
 
 // ReadChallengeResponse reads and decodes the challenge response from the
 // websocket in the correct format.
-func (t *WSStream) ReadChallengeResponse(codec MFACodec) (*authproto.MFAAuthenticateResponse, error) {
+func (t *WSStream) ReadChallengeResponse(codec MFACodec, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
 	envelope, ok := <-t.challengeC
 	if !ok {
 		return nil, io.EOF
 	}
-	resp, err := codec.DecodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	resp, err := codec.DecodeResponse([]byte(envelope.Payload), envelopeType)
 	return resp, trace.Wrap(err)
 }
 

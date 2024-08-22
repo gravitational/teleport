@@ -42,6 +42,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -64,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
+	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
@@ -349,6 +351,8 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	websession.ClearMFACookie(w)
+
 	t.handler(ws, r)
 }
 
@@ -468,6 +472,14 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
 
+	if mfaToken, err := r.Cookie(websession.SSOMFAToken); err == nil {
+		tc.MFAResponse = &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_TokenID{
+				TokenID: mfaToken.Value,
+			},
+		}
+	}
+
 	// Block until the terminal session is complete.
 	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
@@ -581,17 +593,23 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
+	mfaPrompt := mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+		if tc.MFAResponse != nil {
+			return tc.MFAResponse, nil
+		}
+		span.AddEvent("prompting user with mfa challenge")
+		assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}, certsReq, t.ctx.cfg.RootClient).Run(ctx, chal)
+		span.AddEvent("user completed mfa challenge")
+		return assertion, trace.Wrap(err)
+	})
+
 	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}).Run(ctx, chal)
-			span.AddEvent("user completed mfa challenge")
-			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
-		MFARequiredReq: mfaRequiredReq,
+		MFAPrompt:         mfaPrompt,
+		MFAResponse:       tc.MFAResponse,
+		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
@@ -612,25 +630,77 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
+func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec, certsReq *authproto.UserCertsRequest, clt authclient.ClientI) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
-
+		var envelopeType string
 		// Convert from proto to JSON types.
 		switch {
+		case chal.GetAuthConnectorChallenge() != nil:
+			clientRedirectURL := fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin)
+			var redirectURL string
+			switch chal.GetAuthConnectorChallenge().Type {
+			case constants.OIDC:
+				resp, err := clt.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
+					Username:              certsReq.Username,
+					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
+					Type:                  chal.GetAuthConnectorChallenge().Type,
+					CheckUser:             true,
+					ClientRedirectURL:     clientRedirectURL,
+					CreatePrivilegedToken: true,
+					CreateWebSession:      true,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				redirectURL = resp.RedirectURL
+			case constants.SAML:
+				resp, err := clt.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+					Username:              certsReq.Username,
+					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
+					Type:                  chal.GetAuthConnectorChallenge().Type,
+					ClientRedirectURL:     clientRedirectURL,
+					CreatePrivilegedToken: true,
+					CreateWebSession:      true,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				redirectURL = resp.RedirectURL
+			case constants.Github:
+				resp, err := clt.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+					Username:              certsReq.Username,
+					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
+					Type:                  chal.GetAuthConnectorChallenge().Type,
+					ClientRedirectURL:     clientRedirectURL,
+					CreatePrivilegedToken: true,
+					CreateWebSession:      true,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				redirectURL = resp.RedirectURL
+			}
+
+			envelopeType = defaults.WebsocketIdPChallenge
+			challenge = &client.MFAAuthenticateChallenge{
+				IdPChallenge: client.IdPChallenge{
+					RedirectURL: redirectURL,
+				},
+			}
 		case chal.GetWebauthnChallenge() != nil:
+			envelopeType = defaults.WebsocketWebauthnChallenge
 			challenge = &client.MFAAuthenticateChallenge{
 				WebauthnChallenge: wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge),
 			}
+
 		default:
 			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
 		}
-
-		if err := stream.WriteChallenge(challenge, codec); err != nil {
+		if err := stream.WriteChallenge(challenge, codec, envelopeType); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		resp, err := stream.ReadChallengeResponse(codec)
+		resp, err := stream.ReadChallengeResponse(codec, envelopeType)
 		return resp, trace.Wrap(err)
 	})
 }
@@ -790,7 +860,8 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				// TODO
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{}, nil, nil)); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}

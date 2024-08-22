@@ -245,7 +245,8 @@ func (p *podHandler) handler(r *http.Request) error {
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
 		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
+			// TODO
+			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}, nil, nil).Run(ctx, chal)
 			return assertion, trace.Wrap(err)
 		}),
 		MFAAgainstRoot: p.sctx.cfg.RootClusterName == p.teleportCluster,

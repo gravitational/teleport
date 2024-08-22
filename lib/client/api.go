@@ -493,6 +493,8 @@ type Config struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	MFAResponse *proto.MFAAuthenticateResponse
 }
 
 // CachePolicy defines cache policy for local clients

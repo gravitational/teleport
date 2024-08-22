@@ -301,7 +301,12 @@ type MFAAuthenticateChallenge struct {
 	// login/authentication ceremonies.
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool `json:"totp_challenge"`
+	TOTPChallenge bool         `json:"totp_challenge"`
+	IdPChallenge  IdPChallenge `json:"idp_challenge"`
+}
+
+type IdPChallenge struct {
+	RedirectURL string `json:"redirect_url"`
 }
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.

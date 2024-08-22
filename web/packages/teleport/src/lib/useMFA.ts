@@ -25,7 +25,7 @@ import {
   makeWebauthnAssertionResponse,
 } from 'teleport/services/auth';
 
-export default function useWebAuthn(
+export default function useMFA(
   emitterSender: EventEmitterWebAuthnSender
 ): WebAuthnState {
   const [state, setState] = useState({
@@ -33,9 +33,10 @@ export default function useWebAuthn(
     requested: false,
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
+    redirectUri: '',
   });
 
-  function authenticate() {
+  function authenticateWebauthn() {
     if (!window.PublicKeyCredential) {
       const errorText =
         'This browser does not support WebAuthn required for hardware tokens, \
@@ -68,7 +69,11 @@ export default function useWebAuthn(
       });
   }
 
-  const onChallenge = challengeJson => {
+  function authenticateProvider() {
+    window.location.href = state.redirectUri
+  }
+
+  const onWebAuthnChallenge = challengeJson => {
     const challenge = JSON.parse(challengeJson);
     const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
 
@@ -80,12 +85,25 @@ export default function useWebAuthn(
     });
   };
 
+  const onIdPChallenge = challengeJson => {
+    const challenge = JSON.parse(challengeJson);    
+
+    setState({
+      ...state,
+      requested: true,
+      addMfaToScpUrls: true,
+      redirectUri: challenge.idp_challenge.redirect_url,
+    });
+  };
+
   useEffect(() => {
     if (emitterSender) {
-      emitterSender.on(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
+      emitterSender.on(TermEvent.WEBAUTHN_CHALLENGE, onWebAuthnChallenge);
+      emitterSender.on(TermEvent.IDP_CHALLENGE, onIdPChallenge);
 
       return () => {
-        emitterSender.removeListener(TermEvent.WEBAUTHN_CHALLENGE, onChallenge);
+        emitterSender.removeListener(TermEvent.WEBAUTHN_CHALLENGE, onWebAuthnChallenge);
+        emitterSender.removeListener(TermEvent.IDP_CHALLENGE, onIdPChallenge);
       };
     }
   }, [emitterSender]);
@@ -93,16 +111,20 @@ export default function useWebAuthn(
   return {
     errorText: state.errorText,
     requested: state.requested,
-    authenticate,
+    authenticateWebauthn: authenticateWebauthn,
+    authenticateProvider: authenticateProvider,
     setState,
     addMfaToScpUrls: state.addMfaToScpUrls,
+    publicKey: state.publicKey,
+    redirectUri: state.redirectUri,
   };
 }
 
 export type WebAuthnState = {
   errorText: string;
   requested: boolean;
-  authenticate: () => void;
+  authenticateWebauthn: () => void;
+  authenticateProvider: () => void;
   setState: Dispatch<
     SetStateAction<{
       addMfaToScpUrls: boolean;
@@ -112,4 +134,6 @@ export type WebAuthnState = {
     }>
   >;
   addMfaToScpUrls: boolean;
+  publicKey: PublicKeyCredentialRequestOptions;
+  redirectUri: string,
 };

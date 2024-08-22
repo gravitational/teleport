@@ -30,6 +30,7 @@ export const MessageTypeEnum = {
   FILE_TRANSFER_REQUEST: 'f',
   FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
+  IDP_CHALLENGE: 'p',
   ERROR: 'e',
   LATENCY: 'l',
   KUBE_EXEC: 'k',

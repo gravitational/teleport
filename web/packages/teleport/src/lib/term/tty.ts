@@ -193,6 +193,9 @@ class Tty extends EventEmitterWebAuthnSender {
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
           break;
+        case MessageTypeEnum.IDP_CHALLENGE:
+          this.emit(TermEvent.IDP_CHALLENGE, msg.payload);
+          break;
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);
           break;

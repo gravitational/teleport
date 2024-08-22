@@ -39,7 +39,7 @@ import useDesktopSession, {
 import TopBar from './TopBar';
 
 import type { State, WebsocketAttempt } from './useDesktopSession';
-import type { WebAuthnState } from 'teleport/lib/useWebAuthn';
+import type { WebAuthnState } from 'teleport/lib/useMFA';
 
 export function DesktopSessionContainer() {
   const state = useDesktopSession();
@@ -184,7 +184,8 @@ export function DesktopSession(props: State) {
 const MfaDialog = ({ webauthn }: { webauthn: WebAuthnState }) => {
   return (
     <AuthnDialog
-      onContinue={webauthn.authenticate}
+      onWebauthn={webauthn.authenticateWebauthn}
+      onSSO={webauthn.authenticateProvider}
       onCancel={() => {
         webauthn.setState(prevState => {
           return {

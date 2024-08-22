@@ -31,7 +31,8 @@ export const Error = () => (
 );
 
 const props: Props = {
-  onContinue: () => null,
+  onWebauthn: () => null,
+  onSSO: () => null,
   onCancel: () => null,
   errorText: '',
 };

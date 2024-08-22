@@ -18,7 +18,7 @@
 
 import { EventEmitter } from 'events';
 
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import { IdPMFAResponse, WebauthnAssertionResponse } from 'teleport/services/auth';
 
 class EventEmitterWebAuthnSender extends EventEmitter {
   constructor() {
@@ -27,6 +27,11 @@ class EventEmitterWebAuthnSender extends EventEmitter {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   sendWebAuthn(data: WebauthnAssertionResponse) {
+    throw new Error('Not implemented');
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sendIdP(data: IdPMFAResponse) {
     throw new Error('Not implemented');
   }
 }

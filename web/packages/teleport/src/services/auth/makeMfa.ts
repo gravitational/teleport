@@ -149,3 +149,7 @@ export type WebauthnAssertionResponse = {
     userHandle: string;
   };
 };
+
+export type IdPMFAResponse = {
+  token: string;
+};

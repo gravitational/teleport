@@ -27,7 +27,8 @@ import { Danger } from 'design/Alert';
 import { Text, ButtonPrimary, ButtonSecondary } from 'design';
 
 export default function AuthnDialog({
-  onContinue,
+  onWebauthn: onWebauthn,
+  onSSO: onSSO,
   onCancel,
   errorText,
 }: Props) {
@@ -49,9 +50,12 @@ export default function AuthnDialog({
         </Text>
       </DialogContent>
       <DialogFooter textAlign="center">
-        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
+        <ButtonPrimary onClick={onWebauthn} autoFocus mr={3} width="130px">
           {errorText ? 'Retry' : 'OK'}
         </ButtonPrimary>
+        <ButtonSecondary onClick={onSSO} mr={3}>
+          SSO
+        </ButtonSecondary>
         <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
       </DialogFooter>
     </Dialog>
@@ -59,7 +63,8 @@ export default function AuthnDialog({
 }
 
 export type Props = {
-  onContinue: () => void;
+  onWebauthn: () => void;
+  onSSO: () => void;
   onCancel: () => void;
   errorText: string;
 };

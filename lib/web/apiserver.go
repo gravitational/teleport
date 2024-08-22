@@ -1948,6 +1948,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
 			ClientRedirectURL: response.Req.ClientRedirectURL,
+			Token:             response.Token,
 		}
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
@@ -4999,6 +5000,7 @@ type SSOCallbackResponse struct {
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
+	Token             string
 }
 
 // SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
@@ -5013,11 +5015,17 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
-		return trace.Wrap(err)
+	if response.SessionName != "" {
+		if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
+	if response.Token != "" {
+		websession.SetMFACookie(w, response.Token, 60)
+	}
+
+	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL, response.Token)
 	if err != nil {
 		return trace.Wrap(err)
 	}

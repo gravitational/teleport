@@ -57,7 +57,7 @@ import type {
   SyncKeys,
   SharedDirectoryTruncateResponse,
 } from './codec';
-import type { WebauthnAssertionResponse } from 'teleport/services/auth';
+import type { IdPMFAResponse, WebauthnAssertionResponse } from 'teleport/services/auth';
 
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
@@ -377,6 +377,8 @@ export default class Client extends EventEmitterWebAuthnSender {
       const mfaJson = this.codec.decodeMfaJson(buffer);
       if (mfaJson.mfaType == 'n') {
         this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString);
+      } else if (mfaJson.mfaType == 'p') {
+        this.emit(TermEvent.IDP_CHALLENGE, mfaJson.jsonString);
       } else {
         // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error.
         this.handleError(
@@ -626,6 +628,14 @@ export default class Client extends EventEmitterWebAuthnSender {
   sendWebAuthn(data: WebauthnAssertionResponse) {
     const msg = this.codec.encodeMfaJson({
       mfaType: 'n',
+      jsonString: JSON.stringify(data),
+    });
+    this.send(msg);
+  }
+
+  sendIdP(data: IdPMFAResponse) {
+    const msg = this.codec.encodeMfaJson({
+      mfaType: 'p',
       jsonString: JSON.stringify(data),
     });
     this.send(msg);

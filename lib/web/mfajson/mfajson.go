@@ -44,10 +44,15 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 				Webauthn: wantypes.CredentialAssertionResponseToProto(&webauthnResponse),
 			},
 		}
-
+	case defaults.WebsocketIdPChallenge:
+		resp = &authproto.MFAAuthenticateResponse{
+			Response: &authproto.MFAAuthenticateResponse_TokenID{
+				TokenID: string(b),
+			},
+		}
 	default:
 		return nil, trace.BadParameter(
-			"received type %v, expected %v (WebAuthn)", typ, defaults.WebsocketWebauthnChallenge)
+			"received type %v, expected %v (WebAuthn) or %v (IdP)", typ, defaults.WebsocketWebauthnChallenge, defaults.WebsocketIdPChallenge)
 	}
 
 	return resp, nil
