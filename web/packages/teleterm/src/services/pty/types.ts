@@ -40,7 +40,7 @@ export type PtyServiceClient = {
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
     windowsPty: WindowsPty;
-    openedShell: Shell;
+    shell: Shell;
   }>;
 };
 

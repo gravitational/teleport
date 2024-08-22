@@ -52,7 +52,7 @@ export async function buildPtyOptions(
   cmd: PtyCommand
 ): Promise<{
   processOptions: PtyProcessOptions;
-  openedShell: Shell;
+  shell: Shell;
   creationStatus: PtyProcessCreationStatus;
 }> {
   // Get the full shell object by the shell ID.
@@ -122,7 +122,7 @@ export async function buildPtyOptions(
           env: combinedEnv,
           shellBinPath: shell.binPath,
         }),
-        openedShell: shell,
+        shell,
         creationStatus: failedToResolveShell
           ? PtyProcessCreationStatus.ShellNotResolved
           : creationStatus,

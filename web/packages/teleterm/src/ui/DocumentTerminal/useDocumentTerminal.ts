@@ -252,9 +252,9 @@ async function setUpPtyProcess(
   const {
     process: ptyProcess,
     windowsPty,
-    openedShell,
+    shell,
   } = await createPtyProcess(ctx, cmd);
-  documentsService.update(doc.uri, { shellId: openedShell.id });
+  documentsService.update(doc.uri, { shellId: shell.id });
 
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse({
@@ -283,7 +283,7 @@ async function setUpPtyProcess(
 
   const refreshTitle = async () => {
     documentsService.refreshPtyTitle(doc.uri, {
-      shell: openedShell,
+      shell: shell,
       cwd: await ptyProcess.getCwd(),
       clusterName: getClusterName(),
       runtimeSettings: ctx.mainProcessClient.getRuntimeSettings(),
@@ -343,9 +343,9 @@ async function createPtyProcess(
 ): Promise<{
   process: IPtyProcess;
   windowsPty: WindowsPty;
-  openedShell: Shell;
+  shell: Shell;
 }> {
-  const { process, creationStatus, windowsPty, openedShell } =
+  const { process, creationStatus, windowsPty, shell } =
     await ctx.terminalsService.createPtyProcess(cmd);
 
   if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
@@ -374,7 +374,7 @@ async function createPtyProcess(
     }
   }
 
-  return { process, windowsPty, openedShell };
+  return { process, windowsPty, shell };
 }
 
 // TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal
