@@ -108,7 +108,7 @@ func (s UnstableService) GetSystemRoleAssertions(ctx context.Context, serverID s
 	return set, nil
 }
 
-func systemRoleAssertionsKey(serverID string, assertionID string) []byte {
+func systemRoleAssertionsKey(serverID string, assertionID string) backend.Key {
 	return backend.NewKey(systemRoleAssertionsPrefix, serverID, assertionID)
 }
 

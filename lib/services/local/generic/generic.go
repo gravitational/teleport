@@ -372,7 +372,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 }
 
 // MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) []byte {
+func (s *Service[T]) MakeKey(name string) backend.Key {
 	return backend.NewKey(s.backendPrefix, name)
 }
 

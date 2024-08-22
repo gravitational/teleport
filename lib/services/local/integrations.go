@@ -140,7 +140,7 @@ func (s *IntegrationsService) DeleteIntegration(ctx context.Context, name string
 // notReferencedByEAS checks that integration [name] is not referenced by any EAS (External Audit Storage)
 // integration. It should be called under the externalAuditStorageLock only.
 func notReferencedByEAS(ctx context.Context, bk backend.Backend, name string) error {
-	for _, key := range [][]byte{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
+	for _, key := range []backend.Key{draftExternalAuditStorageBackendKey, clusterExternalAuditStorageBackendKey} {
 		eas, err := getExternalAuditStorage(ctx, bk, key)
 		if err != nil {
 			if !trace.IsNotFound(err) {

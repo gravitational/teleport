@@ -485,11 +485,11 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*ty
 	return req, nil
 }
 
-func accessRequestKey(name string) []byte {
+func accessRequestKey(name string) backend.Key {
 	return backend.NewKey(accessRequestsPrefix, name, paramsPrefix)
 }
 
-func AccessRequestAllowedPromotionKey(name string) []byte {
+func AccessRequestAllowedPromotionKey(name string) backend.Key {
 	return backend.NewKey(accessRequestPromotionPrefix, name, paramsPrefix)
 }
 
