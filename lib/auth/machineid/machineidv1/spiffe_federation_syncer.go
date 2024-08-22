@@ -330,19 +330,13 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	}
 
 	var synced *machineidv1.SPIFFEFederation
+	var nextRetry <-chan time.Time
 	nextSync := s.cfg.Clock.NewTimer(time.Minute)
 	nextSync.Stop()
 	defer nextSync.Stop()
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
 	for {
-		// Default behaviour of retry is to return a closed channel if duration
-		// is zero, but it makes more sense here to have a channel that will
-		// block forever.
-		var nextRetry <-chan time.Time
-		if err != nil {
-			nextRetry = retry.After()
-		}
 		select {
 		case <-firstRun:
 			// On the first run, we should sync immediately.
@@ -377,10 +371,13 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		case <-ctx.Done():
 			return
 		}
+		// Stop our sync timer, we'll only set it if we successfully sync.
+		nextSync.Stop()
 
 		syncCtx, cancel := context.WithTimeout(ctx, s.cfg.SyncTimeout)
 		synced, err = s.syncTrustDomain(syncCtx, name)
 		cancel()
+
 		if err != nil {
 			// If the resource has been deleted, there's no point retrying.
 			// We should stop syncing.
@@ -399,23 +396,23 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 				"error", err,
 				"backoff", retry.Duration(),
 			)
-		} else {
-			retry.Reset()
+			nextRetry = retry.After()
+			continue
 		}
+		retry.Reset()
+		nextRetry = nil
 
-		nextSync.Stop()
-		if synced != nil {
-			if nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
-				timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
-				// Ensure the timer after /after/ the next sync time.
-				timeUntil = timeUntil + time.Second
-				nextSync.Reset(timeUntil)
-				log.InfoContext(
-					ctx,
-					"Will try to sync again at",
-					"next_sync_at", nextSyncAt,
-				)
-			}
+		// If we've successfully synced, set the timer up for our next sync.
+		if nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
+			timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
+			// Ensure the timer after /after/ the next sync time.
+			timeUntil = timeUntil + time.Second
+			nextSync.Reset(timeUntil)
+			log.InfoContext(
+				ctx,
+				"Will try to sync again at",
+				"next_sync_at", nextSyncAt,
+			)
 		}
 	}
 }
