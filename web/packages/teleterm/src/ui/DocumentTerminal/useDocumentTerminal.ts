@@ -34,6 +34,7 @@ import {
   PtyProcessCreationStatus,
   WindowsPty,
 } from 'teleterm/services/pty';
+import { ConfigService } from 'teleterm/services/config';
 import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
@@ -54,25 +55,12 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
-    // Add `shellId` before going further.
-    let docWithDefaultShell: types.DocumentTerminal;
-    if (
-      (doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube') &&
-      !doc.shellId
-    ) {
-      docWithDefaultShell = {
-        ...doc,
-        shellId: ctx.configService.get('terminal.shell').value,
-      };
-      documentsService.update(doc.uri, docWithDefaultShell);
-    }
-
     try {
       return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
-        docWithDefaultShell || doc
+        doc
       );
     } catch (err) {
       if ('status' in doc) {
@@ -243,6 +231,7 @@ async function setUpPtyProcess(
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
   const cmd = createCmd(
     ctx.clustersService,
+    ctx.configService,
     doc,
     rootCluster.proxyHost,
     getClusterName()
@@ -253,6 +242,9 @@ async function setUpPtyProcess(
     windowsPty,
     shell,
   } = await createPtyProcess(ctx, cmd);
+  // Update the document with the shell that was resolved.
+  // This may be a different shell than the one passed as `shellId`
+  // (for example, if it is no longer available, the default one will be opened).
   documentsService.update(doc.uri, { shellId: shell.id });
 
   if (doc.kind === 'doc.terminal_tsh_node') {
@@ -377,6 +369,7 @@ async function createPtyProcess(
 // inspected to get the correct command for the gateway CLI client.
 function createCmd(
   clustersService: ClustersService,
+  configService: ConfigService,
   doc: types.DocumentTerminal,
   proxyHost: string,
   clusterName: string
@@ -472,7 +465,7 @@ function createCmd(
       clusterName,
       env,
       initMessage,
-      shellId: doc.shellId,
+      shellId: getShellId(doc, configService),
     };
   }
 
@@ -482,6 +475,13 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
-    shellId: doc.shellId,
+    shellId: getShellId(doc, configService),
   };
+}
+
+function getShellId(
+  doc: types.DocumentPtySession | types.DocumentGatewayKube,
+  configService: ConfigService
+) {
+  return doc.shellId || configService.get('terminal.shell').value;
 }
