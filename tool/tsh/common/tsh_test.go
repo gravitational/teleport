@@ -5102,8 +5102,19 @@ func TestShowSessions(t *testing.T) {
         "sid": "",
         "db_protocol": "postgres",
         "db_uri": "",
+        "db_name": "db-name",
         "session_start": "0001-01-01T00:00:00Z",
         "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID5",
+        "time": "0001-01-01T00:00:00Z",
+        "user": "someUser",
+        "sid": "",
+        "server_id": "",
+        "app_name": "app-name"
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -5139,10 +5150,23 @@ func TestShowSessions(t *testing.T) {
 				User: "someUser",
 			},
 			DatabaseMetadata: events.DatabaseMetadata{
+				DatabaseName:     "db-name",
 				DatabaseProtocol: "postgres",
 			},
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
+		},
+		&events.AppSessionEnd{
+			Metadata: events.Metadata{
+				ID:   "someID5",
+				Time: time.Time{},
+			},
+			UserMetadata: events.UserMetadata{
+				User: "someUser",
+			},
+			AppMetadata: events.AppMetadata{
+				AppName: "app-name",
+			},
 		},
 	}
 	var buf bytes.Buffer
@@ -6108,6 +6132,38 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			require.Equal(t, tt.outPort, tc.HostPort)
 			require.Equal(t, tt.outJumpHosts, tc.JumpHosts)
 			require.Equal(t, tt.outCluster, tc.SiteName)
+		})
+	}
+}
+
+func TestRolesToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		roles    []string
+		expected string
+		debug    bool
+	}{
+		{
+			name:     "empty",
+			roles:    []string{},
+			expected: "",
+		},
+		{
+			name:     "exceed threshold okta roles should be squashed",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, and 2 more Okta access list roles ...",
+		},
+		{
+			name:     "debug flag",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			debug:    true,
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, app-figma-access-okta-acl-role, app-figma-reviewer-okta-acl-role",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, rolesToString(tc.debug, tc.roles))
 		})
 	}
 }

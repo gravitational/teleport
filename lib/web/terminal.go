@@ -136,6 +136,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
 			resolver:           cfg.HostNameResolver,
+			sshDialTimeout:     cfg.SSHDialTimeout,
 		},
 		displayLogin:    cfg.DisplayLogin,
 		term:            cfg.Term,
@@ -198,6 +199,8 @@ type TerminalHandlerConfig struct {
 	Clock clockwork.Clock
 	// WebsocketConn is the active websocket connection
 	WebsocketConn *websocket.Conn
+	// SSHDialTimeout is the dial timeout that should be enforced on ssh connections.
+	SSHDialTimeout time.Duration
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -283,6 +286,9 @@ type sshBaseHandler struct {
 	interactiveCommand []string
 	// resolver looks up the hostname for the server UUID.
 	resolver func(serverID string) (hostname string, err error)
+	// sshDialTimeout is the maximum time to wait for an SSH connection
+	// to be established before aborting.
+	sshDialTimeout time.Duration
 }
 
 // localAccessPoint is a subset of the cache used to look up
@@ -507,6 +513,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *terminal.Strea
 	clientConfig.SessionID = t.sessionData.ID.String()
 	clientConfig.ClientAddr = clientAddr
 	clientConfig.Tracer = t.tracer
+	clientConfig.SSHDialTimeout = t.sshDialTimeout
 
 	if len(t.interactiveCommand) > 0 {
 		clientConfig.InteractiveCommand = true
@@ -892,6 +899,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 		User:            tc.HostLogin,
 		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         t.sshDialTimeout,
 	}
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
@@ -929,6 +937,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws termin
 		User:            tc.HostLogin,
 		Auth:            authMethods,
 		HostKeyCallback: tc.HostKeyCallback,
+		Timeout:         t.sshDialTimeout,
 	}
 
 	// connect to the node again with the new certs
