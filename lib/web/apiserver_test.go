@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -95,6 +96,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -111,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -11031,4 +11034,113 @@ func Test_setEntitlementsWithLegacyLogic(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.config)
 		})
 	}
+}
+
+// TestCreateSSHCert tests the login endpoint /webapi/ssh/certs with different
+// options for subject SSH and TLS keys.
+func TestCreateSSHCert(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	pack := newWebPack(t, 1)
+	proxy := pack.proxies[0]
+
+	const (
+		user      = "alice"
+		login     = "root"
+		pass      = "password1234"
+		otpSecret = ""
+	)
+	var roles []types.Role
+
+	proxy.createUser(ctx, t, user, login, pass, otpSecret, roles)
+	clt := proxy.newClient(t)
+
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, pack.server.AuthServer.AuthServer)
+	require.NoError(t, err)
+
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubKey := ssh.MarshalAuthorizedKey(sshPub)
+	tlsPubKey, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                string
+		pubKey              []byte
+		sshPubKey           []byte
+		tlsPubKey           []byte
+		expectError         string
+		expectSubjectSSHPub ssh.PublicKey
+		expectSubjectTLSPub crypto.PublicKey
+	}{
+		{
+			// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be
+			// using split keys.
+			desc:                "single key",
+			pubKey:              sshPubKey,
+			expectSubjectSSHPub: sshPub,
+			expectSubjectTLSPub: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubKey,
+			tlsPubKey:           tlsPubKey,
+			expectSubjectSSHPub: sshPub,
+			expectSubjectTLSPub: tlsKey.Public(),
+		},
+		{
+			desc:                "only SSH",
+			sshPubKey:           sshPubKey,
+			expectSubjectSSHPub: sshPub,
+		},
+		{
+			desc:                "only TLS",
+			tlsPubKey:           tlsPubKey,
+			expectSubjectTLSPub: tlsKey.Public(),
+		},
+		{
+			desc:        "no key",
+			expectError: "'ssh_pub_key' or 'tls_pub_key' must be set",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req := &client.CreateSSHCertReq{
+				User:      user,
+				Password:  pass,
+				PubKey:    tc.pubKey,
+				SSHPubKey: tc.sshPubKey,
+				TLSPubKey: tc.tlsPubKey,
+			}
+			resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), req)
+			if tc.expectError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectError)
+				return
+			}
+			require.NoError(t, err)
+
+			var out authclient.SSHLoginResponse
+			err = json.Unmarshal(resp.Bytes(), &out)
+			require.NoError(t, err)
+
+			if tc.expectSubjectSSHPub != nil {
+				fmt.Println(string(out.Cert))
+				sshCert, err := apisshutils.ParseCertificate(out.Cert)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectSubjectSSHPub, sshCert.Key)
+			} else {
+				assert.Empty(t, out.Cert)
+			}
+
+			if tc.expectSubjectTLSPub != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(out.TLSCert)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expectSubjectTLSPub, tlsCert.PublicKey)
+			} else {
+				assert.Empty(t, out.TLSCert)
+			}
+		})
+	}
+
 }
