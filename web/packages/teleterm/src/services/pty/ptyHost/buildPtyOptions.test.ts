@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'node:fs/promises';
-
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -180,7 +178,6 @@ describe('buildPtyOptions', () => {
   });
 
   it("custom shell path is resolved to the shell object when shellId is 'custom''", async () => {
-    jest.spyOn(fs, 'access').mockResolvedValue();
     const cmd: ShellCommand = {
       kind: 'pty.shell',
       clusterName: 'bar',

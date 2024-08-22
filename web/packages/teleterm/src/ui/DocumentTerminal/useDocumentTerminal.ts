@@ -39,7 +39,6 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-import { CUSTOM_SHELL_ID } from 'teleterm/services/config/appConfigSchema';
 
 import type { Shell } from 'teleterm/mainProcess/shell';
 import type * as types from 'teleterm/ui/services/workspacesService';
@@ -361,17 +360,9 @@ async function createPtyProcess(
     cmd.kind === 'pty.shell' &&
     creationStatus === PtyProcessCreationStatus.ShellNotResolved
   ) {
-    if (cmd.shellId === CUSTOM_SHELL_ID) {
-      ctx.notificationsService.notifyWarning({
-        title: 'Custom shell is not configured correctly',
-        description:
-          'Make sure the path to the shell is set correctly in the config file (terminal.customShell).',
-      });
-    } else {
-      ctx.notificationsService.notifyWarning({
-        title: `Requested shell (${cmd.shellId}) is not available`,
-      });
-    }
+    ctx.notificationsService.notifyWarning({
+      title: `Requested shell "${cmd.shellId}" is not available`,
+    });
   }
 
   return { process, windowsPty, shell };

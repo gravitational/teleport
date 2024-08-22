@@ -17,7 +17,6 @@
  */
 
 import path, { delimiter } from 'path';
-import fs from 'fs/promises';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
@@ -269,11 +268,6 @@ async function resolveShell(
 
   const { customShellPath } = ptyOptions;
   if (customShellPath) {
-    try {
-      await fs.access(customShellPath);
-      return makeCustomShellFromPath(customShellPath);
-    } catch (e) {
-      /* empty */
-    }
+    return makeCustomShellFromPath(customShellPath);
   }
 }
