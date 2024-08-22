@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -70,6 +72,7 @@ func (s *DiscordBaseSuite) SetupTest() {
 	conf.Teleport = s.TeleportConfig()
 	conf.Discord.Token = "000000"
 	conf.Discord.APIURL = s.fakeDiscord.URL() + "/"
+	conf.PluginType = types.PluginTypeDiscord
 
 	s.appConfig = &conf
 }
@@ -605,4 +608,92 @@ func (s *DiscordSuiteEnterprise) TestRace() {
 
 		return next
 	})
+}
+
+// TestMessagePostingWithAMR validates that a message is sent to each recipient
+// specified in the monitoring rule and the plugin config is ignored. It also checks that the message
+// content is correct.
+func (s *DiscordSuiteOSS) TestMessagePostingWithAMR() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	// max size of request was decreased here: https://github.com/gravitational/teleport/pull/13298
+	s.SetReasonPadding(4000)
+
+	// When we define two recipients for the editor role requests.
+	s.appConfig.Recipients = common.RawRecipientsMap{
+		"editor": []string{
+			"1001", // recipient 1
+		},
+		"*": []string{"fallback"},
+	}
+
+	s.startApp()
+
+	_, err := s.ClientByName(integration.RulerUserName).
+		AccessMonitoringRulesClient().
+		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+			Kind:    types.KindAccessMonitoringRule,
+			Version: types.V1,
+			Metadata: &v1.Metadata{
+				Name: "test-slack-amr-2",
+			},
+			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				Subjects:  []string{types.KindAccessRequest},
+				Condition: "!is_empty(access_request.spec.roles)",
+				Notification: &accessmonitoringrulesv1.Notification{
+					Name: "discord",
+					Recipients: []string{
+						"1001", // recipient 1
+						"1002", // recipient 2
+					},
+				},
+			},
+		})
+	assert.NoError(t, err)
+
+	userName := integration.RequesterOSSUserName
+	req := s.CreateAccessRequest(ctx, userName, nil)
+
+	// We expect 2 messages to be sent by the plugin: one for each recipient.
+	// We check if the stored plugin data makes sense.
+	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
+		return len(data.SentMessages) > 0
+	})
+	assert.Len(t, pluginData.SentMessages, 2)
+
+	// Then we check that our fake Discord has received the messages.
+	var messages []discord.DiscordMsg
+	messageSet := make(MessageSet)
+	for i := 0; i < 2; i++ {
+		msg, err := s.fakeDiscord.CheckNewMessage(ctx)
+		require.NoError(t, err)
+		messageSet.Add(accessrequest.MessageData{ChannelID: msg.Channel, MessageID: msg.DiscordID})
+		messages = append(messages, msg)
+	}
+
+	assert.Len(t, messageSet, 2)
+	assert.Contains(t, messageSet, pluginData.SentMessages[0])
+	assert.Contains(t, messageSet, pluginData.SentMessages[1])
+
+	// Finally, we validate the messages content
+	sort.Sort(MessageSlice(messages))
+	assert.Equal(t, "1001", messages[0].Channel)
+	assert.Equal(t, "1002", messages[1].Channel)
+
+	msgUser, err := parseMessageField(messages[0], "User")
+	require.NoError(t, err)
+	assert.Equal(t, integration.RequesterOSSUserName, msgUser)
+
+	t.Logf("%q", messages[0].Text)
+	matches := requestReasonRegexp.FindAllStringSubmatch(messages[0].Text, -1)
+	require.Len(t, matches, 1)
+	require.Len(t, matches[0], 3)
+	assert.Equal(t, "because of "+strings.Repeat("A", 489), matches[0][1])
+	assert.Equal(t, " (truncated)", matches[0][2])
+
+	status, err := parseMessageField(messages[0], "Status")
+	require.NoError(t, err)
+	assert.Equal(t, "⏳ PENDING", status)
 }
