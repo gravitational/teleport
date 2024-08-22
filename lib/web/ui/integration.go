@@ -501,3 +501,14 @@ type AWSOIDCDeployEC2ICEResponseEndpoint struct {
 	// SubnetID is the subnet where this endpoint was created.
 	SubnetID string `json:"subnetId"`
 }
+
+// AWSOIDCPingResponse contains the result of the Ping request.
+// This response contains meta information about the current state of the Integration.
+type AWSOIDCPingResponse struct {
+	// AccountID number of the account that owns or contains the calling entity.
+	AccountID string `json:"accountId,omitempty"`
+	// ARN associated with the calling entity.
+	ARN string `json:"arn,omitempty"`
+	// UserID is the unique identifier of the calling entity.
+	UserID string `json:"userId,omitempty"`
+}

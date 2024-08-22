@@ -73,6 +73,12 @@ service AWSOIDCService {
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_ListClusters.html
   // https://docs.aws.amazon.com/eks/latest/APIReference/API_DescribeCluster.html
   rpc ListEKSClusters(ListEKSClustersRequest) returns (ListEKSClustersResponse);
+
+  // Ping does an health check for the integration.
+  // Returns the caller identity.
+  // It uses the following APIs:
+  // https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
+  rpc Ping(PingRequest) returns (PingResponse);
 }
 
 // ListEICERequest is a request for a paginated list of AWS EC2 Instance Connect Endpoints.
@@ -506,4 +512,21 @@ message ListEKSClustersResponse {
   // NextToken is used for pagination.
   // If non-empty, it can be used to request the next page.
   string next_token = 2;
+}
+
+// PingRequest is a request for doing an health check against the configured integration.
+message PingRequest {
+  // Integration is the AWS OIDC Integration name.
+  // Required.
+  string integration = 1;
+}
+
+// PingResponse contains the response for the Ping operation.
+message PingResponse {
+  // The AWS account ID number of the account that owns or contains the calling entity.
+  string account_id = 1;
+  // The AWS ARN associated with the calling entity.
+  string arn = 2;
+  // The unique identifier of the calling entity.
+  string user_id = 3;
 }

@@ -1356,3 +1356,32 @@ func getServiceURLs(dbServices []types.DatabaseService, accountID, region, telep
 	}
 	return serviceURLByVPC, nil
 }
+
+// awsOIDCPing performs an health check for the integration.
+// Returns meta information: account id and assumed the ARN for the IAM Role.
+func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
+		Integration: integrationName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCPingResponse{
+		AccountID: pingResp.AccountId,
+		ARN:       pingResp.Arn,
+		UserID:    pingResp.UserId,
+	}, nil
+}
