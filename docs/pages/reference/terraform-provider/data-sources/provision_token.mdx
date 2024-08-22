@@ -44,6 +44,7 @@ Optional:
 - `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
 - `suggested_agent_matcher_labels` (Map of List of String)
 - `suggested_labels` (Map of List of String)
+- `terraform` (Attributes) Terraform allows the configuration of options specific to the "terraform" join method. (see [below for nested schema](#nested-schema-for-specterraform))
 - `tpm` (Attributes) TPM allows the configuration of options specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
 
 ### Nested Schema for `spec.allow`
@@ -194,6 +195,27 @@ Optional:
 - `caller_type` (String) CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.
 - `scope` (String) Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
 - `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.
+
+
+
+### Nested Schema for `spec.terraform`
+
+Optional:
+
+- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specterraformallow))
+- `audience` (String) Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud.
+
+### Nested Schema for `spec.terraform.allow`
+
+Optional:
+
+- `organization_id` (String) OrganizationID is the ID of the HCP Terraform organization
+- `organization_name` (String) OrganizationName is the human-readable name of the HCP Terraform organization
+- `project_id` (String) ProjectID is the ID of the HCP Terraform project
+- `project_name` (String) ProjectName is the human-readable name for the HCP Terraform project
+- `run_phase` (String) RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`
+- `workspace_id` (String) WorkspaceID is the ID of the HCP Terraform workspace
+- `workspace_name` (String) WorkspaceName is the human-readable name of the HCP Terraform workspace
 
 
 
