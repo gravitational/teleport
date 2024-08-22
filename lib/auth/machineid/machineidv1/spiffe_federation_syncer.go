@@ -69,7 +69,8 @@ func listAllTrustDomains(ctx context.Context, store spiffeFederationStore) ([]*m
 	return trustDomains, nil
 }
 
-// SPIFFEFederationSyncerConfig is the configuration for the SPIFFE federation syncer.
+// SPIFFEFederationSyncerConfig is the configuration for the SPIFFE federation
+// syncer.
 type SPIFFEFederationSyncerConfig struct {
 	Backend       backend.Backend
 	Store         spiffeFederationStore
@@ -77,23 +78,31 @@ type SPIFFEFederationSyncerConfig struct {
 	Logger        *slog.Logger
 	Clock         clockwork.Clock
 
-	// MinSyncInterval is the minimum interval between syncs. If an upstream trust domain specifies a refresh hint
-	// that is less than this value, this value will be used instead. This allows us to prevent a poorly configured
+	// MinSyncInterval is the minimum interval between syncs. If an upstream
+	// trust domain specifies a refresh hint that is less than this value, this
+	// value will be used instead. This allows us to prevent a poorly configured
 	// upstream trust domain from causing excessive load on the local cluster.
 	MinSyncInterval time.Duration
-	// MaxSyncInterval is the maximum interval between syncs. If an upstream trust domain specifies a refresh hint
-	// that is greater than this value, this value will be used instead. This allows us to prevent a poorly configured
-	// upstream trust domain from causing excessive staleness in the local cluster.
+	// MaxSyncInterval is the maximum interval between syncs. If an upstream
+	// trust domain specifies a refresh hint that is greater than this value,
+	// this value will be used instead. This allows us to prevent a poorly
+	// configured upstream trust domain from causing excessive staleness in the
+	// local cluster.
 	MaxSyncInterval time.Duration
-	// DefaultSyncInterval is the interval between syncs that will be used if an upstream trust domain does not specify
-	// a refresh hint.
+	// DefaultSyncInterval is the interval between syncs that will be used if an
+	// upstream trust domain does not specify a refresh hint.
 	DefaultSyncInterval time.Duration
+
+	// SyncTimeout is the maximum time that a sync operation is allowed to take.
+	// If a sync operation takes longer than this value, it will be aborted and
+	// retried.
+	SyncTimeout time.Duration
 
 	SPIFFEFetchOptions []federation.FetchOption
 }
 
-// SPIFFEFederationSyncer is a syncer that manages the trust bundles of federated clusters.
-// It runs on a single elected auth server.
+// SPIFFEFederationSyncer is a syncer that manages the trust bundles of
+// federated clusters. It runs on a single elected auth server.
 type SPIFFEFederationSyncer struct {
 	cfg SPIFFEFederationSyncerConfig
 }
@@ -102,6 +111,7 @@ const (
 	minRefreshInterval     = time.Minute * 1
 	maxRefreshInterval     = time.Hour * 24
 	defaultRefreshInterval = time.Minute * 5
+	defaultSyncTimeout     = time.Second * 30
 )
 
 // NewSPIFFEFederationSyncer creates a new SPIFFEFederationSyncer.
@@ -124,6 +134,9 @@ func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederat
 	}
 	if cfg.DefaultSyncInterval == 0 {
 		cfg.DefaultSyncInterval = defaultRefreshInterval
+	}
+	if cfg.SyncTimeout == 0 {
+		cfg.SyncTimeout = defaultSyncTimeout
 	}
 	return &SPIFFEFederationSyncer{
 		cfg: cfg,
@@ -157,6 +170,11 @@ type spiffeFederationState struct {
 // the local cluster. It does this by creating a goroutine that manages each
 // federated cluster.
 func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
+	s.cfg.Logger.InfoContext(ctx, "Obtained lock, SPIFFE Federation Syncer is starting")
+	defer func() {
+		s.cfg.Logger.InfoContext(ctx, "SPIFFE Federation Syncer has stopped")
+	}()
+
 	// This wg will track all active syncers. We'll wait here until we're done.
 	wg := &sync.WaitGroup{}
 	defer func() {
@@ -236,14 +254,34 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 	for {
 		select {
 		case evt := <-w.Events():
+			s.cfg.Logger.DebugContext(
+				ctx,
+				"Received SPIFFEFederation event from watcher",
+				"evt_type", evt.Type,
+			)
 			mu.Lock()
 			existingState, ok := states[evt.Resource.GetName()]
+			mu.Unlock()
+			// If it already exists, we can just pass the event along. If
+			// there's already a sync queued due to an event, we don't need to
+			// queue another since it fetches the latest resource anyway.
 			if ok {
-				existingState.eventsCh <- evt
-			} else {
+				select {
+				case existingState.eventsCh <- evt:
+				default:
+					s.cfg.Logger.DebugContext(
+						ctx,
+						"Sync already queued for trust domain, ignoring event",
+					)
+				}
+				continue
+			}
+			if evt.Type == types.OpPut {
+				// If it doesn't exist, we should kick off a goroutine to start
+				// managing it. That routine will sync automatically on first
+				// run so we don't need to pass the event along.
 				startSyncingFederation(evt.Resource.GetName())
 			}
-			mu.Unlock()
 		case <-ctx.Done():
 			return nil
 		}
@@ -320,7 +358,9 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 			return
 		}
 
-		synced, err = s.syncFederation(ctx, name)
+		syncCtx, cancel := context.WithTimeout(ctx, s.cfg.SyncTimeout)
+		synced, err = s.syncFederation(syncCtx, name)
+		cancel()
 		if err != nil {
 			// If the resource has been deleted, there's no point retrying.
 			// We should stop syncing.
