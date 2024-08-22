@@ -281,7 +281,7 @@ func (s *SPIFFEFederationSyncer) syncFederationLoop(
 	nextSync := s.cfg.Clock.NewTimer(time.Minute)
 	nextSync.Stop()
 	defer nextSync.Stop()
-	firstRun := make(chan struct{})
+	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
 	for {
 		// Default behaviour of retry is to return a closed channel if duration
