@@ -28,6 +28,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
@@ -57,19 +58,6 @@ func NewCeremony() *Ceremony {
 	}
 }
 
-// CeremonyRunParams holds parameters for [Ceremony.Run].
-type CeremonyRunParams struct {
-	// DevicesClient is a client to the DeviceTrustService.
-	DevicesClient devicepb.DeviceTrustServiceClient
-	// Certs holds user certs to be augmented by the authn ceremony. Only the
-	// SSH certificate will be forwarded, the TLS identity is part of the
-	// mTLS connection.
-	Certs *devicepb.UserCertificates
-	// SSHSigner, if specified, will be used to prove ownership of the SSH
-	// certificate subject key by signing a challenge.
-	SSHSigner crypto.Signer
-}
-
 // Run performs the client-side device authentication ceremony.
 //
 // Device authentication requires a previously registered and enrolled device
@@ -79,7 +67,7 @@ type CeremonyRunParams struct {
 // augmented with device extensions.
 func (c *Ceremony) Run(
 	ctx context.Context,
-	params *CeremonyRunParams,
+	params *dtauthntypes.CeremonyRunParams,
 ) (*devicepb.UserCertificates, error) {
 	switch {
 	case params.DevicesClient == nil:
