@@ -166,6 +166,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindVnetConfig:               rc.createVnetConfig,
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
+		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -956,6 +957,23 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 		}
 		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
 	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.SPIFFEFederationServiceClient()
+	if _, err := c.CreateSPIFFEFederation(ctx, &machineidv1pb.CreateSPIFFEFederationRequest{
+		SpiffeFederation: in,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SPIFFE Federation %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -1786,6 +1804,15 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	case types.KindSPIFFEFederation:
+		if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
+			ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2837,6 +2864,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &accessGraphSettings{accessGraphSettings: rec}, nil
+	case types.KindSPIFFEFederation:
+		if rc.ref.Name != "" {
+			resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &spiffeFederationCollection{items: []*machineidv1pb.SPIFFEFederation{resource}}, nil
+		}
+
+		var resources []*machineidv1pb.SPIFFEFederation
+		pageToken := ""
+		for {
+			resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.SpiffeFederations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &spiffeFederationCollection{items: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

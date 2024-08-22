@@ -60,6 +60,7 @@ user:
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
 | `device_trust_mode` | Enforce authenticated device access for users assigned this role (`required`, `optional`, `off`). Applies only to the resources in the roles' allow field. | |
 | `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`). Applies only to the resources in the roles' allow field. | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `mfa_verification_interval` | Define the maximum duration that can elapse between successive MFA verifications  | The shortest interval wins |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
