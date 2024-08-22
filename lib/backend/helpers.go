@@ -29,20 +29,15 @@ import (
 )
 
 const (
-	flagsPrefix = ".flags"
 	locksPrefix = ".locks"
 )
 
-func FlagKey(parts ...string) []byte {
-	return internalKey(flagsPrefix, parts...)
-}
-
-func lockKey(parts ...string) []byte {
+func lockKey(parts ...string) Key {
 	return internalKey(locksPrefix, parts...)
 }
 
 type Lock struct {
-	key []byte
+	key Key
 	id  []byte
 	ttl time.Duration
 }

@@ -1210,6 +1210,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
@@ -2541,6 +2551,16 @@ spec:
                       sessions per connection.
                     format: int64
                     type: integer
+                  mfa_verification_interval:
+                    description: MFAVerificationInterval optionally defines the maximum
+                      duration that can elapse between successive MFA verifications.
+                      This variable is used to ensure that users are periodically
+                      prompted to verify their identity, enhancing security by preventing
+                      prolonged sessions without re-authentication when using tsh
+                      proxy * derivatives. It's only effective if the session requires
+                      MFA. If not set, defaults to `max_session_ttl`.
+                    format: duration
+                    type: string
                   permit_x11_forwarding:
                     description: PermitX11Forwarding authorizes use of X11 forwarding.
                     type: boolean
