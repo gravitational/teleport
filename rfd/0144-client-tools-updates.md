@@ -246,7 +246,7 @@ spec:
   [...]
 ```
 ```
-$ tctl autoupdate update --set-tools-auto-update=off
+$ tctl autoupdate update --set-tools-autoupdate=off
 Automatic updates configuration has been updated.
 ```
 
