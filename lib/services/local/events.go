@@ -710,7 +710,7 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAutoupdateConfigParser() *autoupdateConfigParser {
 	return &autoupdateConfigParser{
-		baseParser: newBaseParser(backend.Key(autoupdateConfigPrefix)),
+		baseParser: newBaseParser(backend.NewKey(autoupdateConfigPrefix)),
 	}
 }
 
@@ -743,7 +743,7 @@ func (p *autoupdateConfigParser) parse(event backend.Event) (types.Resource, err
 
 func newAutoupdateVersionParser() *autoupdateVersionParser {
 	return &autoupdateVersionParser{
-		baseParser: newBaseParser(backend.Key(autoupdateVersionPrefix)),
+		baseParser: newBaseParser(backend.NewKey(autoupdateVersionPrefix)),
 	}
 }
 
