@@ -389,13 +389,10 @@ export class DocumentsService {
     }
   ) {
     const doc = this.getDocument(uri);
-    if (!doc) {
-      return;
-    }
     const omitShellName =
-      runtimeSettings.platform === 'linux' ||
-      (runtimeSettings.platform === 'darwin' &&
-        shell.id === runtimeSettings.defaultOsShellId);
+      (runtimeSettings.platform === 'linux' ||
+        runtimeSettings.platform === 'darwin') &&
+      shell.id === runtimeSettings.defaultOsShellId;
     const shellBinName = !omitShellName && shell.binName;
     if (doc.kind === 'doc.terminal_shell') {
       this.update(doc.uri, {
