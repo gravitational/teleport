@@ -22,6 +22,7 @@ import { Flex } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService/documentsService/types';
+import { canDocChangeShell } from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
 import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
 import { IAppContext } from 'teleterm/ui/types';
@@ -98,10 +99,7 @@ export function TabHost({
         documentsService.duplicatePtyAndActivate(doc.uri);
       },
       onReopenPtyInShell(shell: Shell) {
-        if (
-          doc.kind === 'doc.terminal_shell' ||
-          doc.kind === 'doc.gateway_kube'
-        ) {
+        if (canDocChangeShell(doc)) {
           documentsService.reopenPtyInShell(doc, shell);
         }
       },

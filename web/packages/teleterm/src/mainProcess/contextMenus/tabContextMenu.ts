@@ -26,14 +26,16 @@ import {
 
 import { ConfigService } from 'teleterm/services/config';
 import { Shell, makeCustomShellFromPath } from 'teleterm/mainProcess/shell';
+import {
+  Document,
+  canDocChangeShell,
+} from 'teleterm/ui/services/workspacesService';
 
 import {
   TabContextMenuEventChannel,
   TabContextMenuEventType,
   TabContextMenuOptions,
 } from '../types';
-
-import type { Document } from 'teleterm/ui/services/workspacesService';
 
 type MainTabContextMenuOptions = {
   document: Document;
@@ -98,10 +100,7 @@ export function subscribeToTabContextMenuEvent(
 
         function getShellTemplate(): MenuItemConstructorOptions[] {
           const doc = options.document;
-          const canChangeShell =
-            doc.kind === 'doc.terminal_shell' ||
-            doc.kind === 'doc.gateway_kube';
-          if (!canChangeShell) {
+          if (!canDocChangeShell(doc)) {
             return;
           }
           const activeShellId = doc.shellId;

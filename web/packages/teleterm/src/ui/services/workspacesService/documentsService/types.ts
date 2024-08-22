@@ -252,6 +252,12 @@ export function isDocumentTshNodeWithServerId(
   return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
 }
 
+export function canDocChangeShell(
+  doc: Document
+): doc is DocumentPtySession | DocumentGatewayKube {
+  return doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube';
+}
+
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri | uri.AppUri;
