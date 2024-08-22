@@ -5092,7 +5092,8 @@ type ProvisionTokenSpecV2Terraform struct {
 	// allow rule to use this token.
 	Allow []*ProvisionTokenSpecV2Terraform_Rule `protobuf:"bytes,1,rep,name=Allow,proto3" json:"allow,omitempty"`
 	// Audience is the JWT audience as configured in the
-	// TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud.
+	// TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+	// unset, defaults to the Teleport cluster name.
 	Audience             string   `protobuf:"bytes,2,opt,name=Audience,proto3" json:"audience,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

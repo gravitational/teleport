@@ -1615,7 +1615,8 @@ message ProvisionTokenSpecV2Terraform {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 
   // Audience is the JWT audience as configured in the
-  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud.
+  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
   string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
 }
 
