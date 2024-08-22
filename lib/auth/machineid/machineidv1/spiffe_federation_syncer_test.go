@@ -114,11 +114,11 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		created, err := store.CreateSPIFFEFederation(ctx, in)
 		require.NoError(t, err)
 
-		firstSync, err := syncer.syncFederation(ctx, "example.com")
+		firstSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
 		got, err := store.GetSPIFFEFederation(ctx, "example.com")
 		require.NoError(t, err)
-		// Require that the persisted resource equals the resource output by syncFederation
+		// Require that the persisted resource equals the resource output by syncTrustDomain
 		require.Empty(t, cmp.Diff(got, firstSync, protocmp.Transform()))
 		// Check that some update as occurred (as indicated by the revision)
 		require.NotEqual(t, created.Metadata.Revision, firstSync.Metadata.Revision)
@@ -133,13 +133,13 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		require.Empty(t, cmp.Diff(firstSync.Status, wantStatus, protocmp.Transform()))
 
 		// Check that syncing again does nothing.
-		secondSync, err := syncer.syncFederation(ctx, "example.com")
+		secondSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(secondSync, firstSync, protocmp.Transform()))
 
 		// Advance the clock and check that the sync is triggered again.
 		clock.Advance(time.Minute * 15)
-		thirdSync, err := syncer.syncFederation(ctx, "example.com")
+		thirdSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
 		require.NotEqual(t, firstSync.Metadata.Revision, thirdSync.Metadata.Revision)
 		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
@@ -151,7 +151,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		require.Empty(t, cmp.Diff(thirdSync.Status, wantStatus, protocmp.Transform()))
 
 		// Check that syncing again does nothing.
-		fourthSync, err := syncer.syncFederation(ctx, "example.com")
+		fourthSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform()))
 
@@ -159,7 +159,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = fmt.Sprintf("%s/modified", testSrv.URL)
 		updated, err := store.UpdateSPIFFEFederation(ctx, fourthSync)
 		require.NoError(t, err)
-		fifthSync, err := syncer.syncFederation(ctx, "example.com")
+		fifthSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
 		require.NotEqual(t, updated.Metadata.Revision, fifthSync.Metadata.Revision)
 		wantStatus = &machineidv1pb.SPIFFEFederationStatus{
