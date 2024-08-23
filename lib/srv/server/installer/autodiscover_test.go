@@ -319,7 +319,7 @@ func TestAutoDiscoverNode(t *testing.T) {
 						case "project/project-id":
 							return "my-project", nil
 						}
-						return "", trace.NotFound("path %q not found in metadata", path)
+						return "", trace.BadParameter("path %q not found in metadata", path)
 					}),
 				)
 			},
