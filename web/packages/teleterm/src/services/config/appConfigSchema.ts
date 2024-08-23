@@ -83,7 +83,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .string()
       .default(settings.defaultOsShellId)
       .describe(
-        'A default terminal shell. It is best to configure it through UI (right click on a terminal tab > Default Shell).'
+        'A default terminal shell. Can be set to `custom` to take the shell path from `terminal.customShell`. It is best to configure it through UI (right click on a terminal tab > Default Shell).'
       )
       .refine(
         configuredShell =>
@@ -98,7 +98,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .string()
       .default('')
       .describe(
-        'Path to a custom shell that is used when terminal.shell is set to "custom".'
+        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).'
       ),
     'terminal.rightClick': z
       .enum(['paste', 'copyPaste', 'menu'])
