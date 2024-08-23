@@ -83,6 +83,9 @@ func TestThirdpartyStreams(t *testing.T) {
 	t.Run("StreamManyParts", func(t *testing.T) {
 		test.Stream(t, handler)
 	})
+	t.Run("StreamWithPadding", func(t *testing.T) {
+		test.StreamWithPadding(t, handler)
+	})
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
 	})
