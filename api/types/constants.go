@@ -690,7 +690,7 @@ const (
 	// installation commands on the node.
 	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
 	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
-	// The difference between this and the above, is that this one will be visible to the user
+	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
 	// and can be used in RBAC checks.
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabel is used to identify virtual machines by region found
