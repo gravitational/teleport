@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,90 +19,30 @@
 import React from 'react';
 import { screen } from '@testing-library/react';
 
-import { render, fireEvent } from 'design/utils/testing';
-
-import { darkTheme } from 'design/theme';
+import { render } from 'design/utils/testing';
 
 import selectEvent from 'react-select-event';
 
 import useRule from '../Validation/useRule';
 
-import { FieldSelect, FieldSelectAsync } from './FieldSelect';
+import { FieldSelectCreatableAsync } from './FieldSelectCreatable';
 
 jest.mock('../Validation/useRule');
 const mockedUseRule = jest.mocked(useRule);
 
-test('valid values and onChange prop', () => {
-  const onChange = jest.fn(e => e);
-  const options = [
-    { value: 'a', label: 'A' },
-    { value: 'b', label: 'B' },
-  ];
-
-  mockedUseRule.mockReturnValue({ valid: true, message: '' });
-
-  render(
-    <FieldSelect
-      label="labelText"
-      placeholder="placeholderText"
-      options={options}
-      onChange={onChange}
-      value={null}
-    />
-  );
-  // test placeholder is rendered
-  expect(screen.getByText('placeholderText')).toBeInTheDocument();
-
-  // test onChange is respected
-  const selectEl = screen.getByLabelText('labelText');
-  fireEvent.focus(selectEl);
-  fireEvent.keyDown(selectEl, { key: 'ArrowDown', keyCode: 40 });
-  fireEvent.click(screen.getByText('B'));
-  expect(onChange).toHaveReturnedWith({ value: 'b', label: 'B' });
-});
-
-test('select element validation error state', () => {
-  const rule = jest.fn();
-  const errorColor = darkTheme.colors.error.main;
-
-  mockedUseRule.mockReturnValue({ valid: false, message: 'errorMsg' });
-
-  const { container } = render(
-    <FieldSelect
-      label="labelText"
-      placeholder="placeholderText"
-      rule={rule}
-      onChange={jest.fn()}
-      value={null}
-      options={null}
-    />
-  );
-
-  // test !valid values renders with error message
-  const labelEl = screen.getByText('errorMsg');
-  expect(labelEl).toHaveStyle({ color: errorColor });
-
-  // test !valid values renders error colors
-  // "react-select__control" defined by react-select library
-  // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
-  const selectEl = container.getElementsByClassName('react-select__control')[0];
-  expect(selectEl).toHaveStyle({
-    'border-color': errorColor,
-  });
-});
-
-describe('FieldSelectAsync', () => {
+describe('FieldSelectCreatableAsync', () => {
   beforeEach(() => {
     mockedUseRule.mockReturnValue({ valid: true, message: '' });
   });
-
   it('loads options', async () => {
     const loadOptions = () =>
       Promise.resolve([
         { label: 'Apples', value: 'apples' },
         { label: 'Bananas', value: 'bananas' },
       ]);
-    render(<FieldSelectAsync loadOptions={loadOptions} />);
+    render(
+      <FieldSelectCreatableAsync loadOptions={loadOptions} defaultOptions />
+    );
     selectEvent.openMenu(screen.getByRole('combobox'));
     expect(await screen.findByRole('option', { name: 'Apples' })).toBeVisible();
     expect(
@@ -112,7 +52,9 @@ describe('FieldSelectAsync', () => {
 
   it('supports empty option lists', async () => {
     const loadOptions = () => Promise.resolve([]);
-    render(<FieldSelectAsync loadOptions={loadOptions} />);
+    render(
+      <FieldSelectCreatableAsync loadOptions={loadOptions} defaultOptions />
+    );
     selectEvent.openMenu(screen.getByRole('combobox'));
     expect(await screen.findByText('No options')).toBeVisible();
   });
@@ -121,7 +63,9 @@ describe('FieldSelectAsync', () => {
     // We may never use this case, but react-select allows `loadOptions` to
     // return void, so we need to be prepared.
     const loadOptions = () => {};
-    render(<FieldSelectAsync loadOptions={loadOptions} />);
+    render(
+      <FieldSelectCreatableAsync loadOptions={loadOptions} defaultOptions />
+    );
     selectEvent.openMenu(screen.getByRole('combobox'));
     expect(await screen.findByText('No options')).toBeVisible();
   });
@@ -129,8 +73,9 @@ describe('FieldSelectAsync', () => {
   it('displays no options message', async () => {
     const loadOptions = () => Promise.resolve([]);
     render(
-      <FieldSelectAsync
+      <FieldSelectCreatableAsync
         loadOptions={loadOptions}
+        defaultOptions
         noOptionsMessage={() => 'This is sad'}
       />
     );
@@ -140,10 +85,12 @@ describe('FieldSelectAsync', () => {
 
   it('displays error message', async () => {
     const loadOptions = () => Promise.reject(new Error('oops'));
-    render(<FieldSelectAsync loadOptions={loadOptions} />);
+    render(
+      <FieldSelectCreatableAsync loadOptions={loadOptions} defaultOptions />
+    );
     selectEvent.openMenu(screen.getByRole('combobox'));
     expect(
-      await screen.findByText('Could not load options: oops')
+      await screen.findByText('Could not load options: Error: oops')
     ).toBeVisible();
   });
 });
