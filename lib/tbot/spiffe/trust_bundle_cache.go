@@ -126,6 +126,10 @@ type TrustBundleCache struct {
 	subscribers map[chan<- struct{}]struct{}
 }
 
+func (m *TrustBundleCache) String() string {
+	return "spiffe-trust-bundle-cache"
+}
+
 type TrustBundleCacheConfig struct {
 	FederationClient machineidv1pb.SPIFFEFederationServiceClient
 	TrustClient      trustv1.TrustServiceClient
