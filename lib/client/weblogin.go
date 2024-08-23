@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
@@ -154,8 +155,16 @@ type CreateSSHCertReq struct {
 	OTPToken string `json:"otp_token"`
 	// HeadlessAuthenticationID is a headless authentication resource id.
 	HeadlessAuthenticationID string `json:"headless_id"`
-	// PubKey is a public key user wishes to sign
+	// PubKey is a public key user wishes to sign.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
 	PubKey []byte `json:"pub_key"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
@@ -168,7 +177,58 @@ type CreateSSHCertReq struct {
 	// credentials to.
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement associated with the given public key.
+	//
+	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
+	switch {
+	case len(r.PubKey) > 0 && len(r.SSHPubKey) > 0:
+		return trace.BadParameter("'pub_key' and 'ssh_pub_key' cannot both be set")
+	case len(r.PubKey) > 0 && len(r.TLSPubKey) > 0:
+		return trace.BadParameter("'pub_key' and 'tls_pub_key' cannot both be set")
+	case len(r.PubKey)+len(r.SSHPubKey)+len(r.TLSPubKey) == 0:
+		return trace.BadParameter("'ssh_pub_key' or 'tls_pub_key' must be set")
+	case r.AttestationStatement != nil && r.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case r.AttestationStatement != nil && r.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
+	}
+	if len(r.PubKey) > 0 {
+		// Normalize by splitting PubKey to SSHPubKey and TLSPubKey to reduce
+		// special case handling elsewhere. PubKey is deprecated.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		r.SSHPubKey = r.PubKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(r.PubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.TLSPubKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		r.PubKey = nil
+	}
+	if r.AttestationStatement != nil {
+		// Normalize by splitting AttestationStatement to
+		// SSHAttestationStatement and TLSAttestationStatement to reduce special
+		// case handling elsewhere. AttestationStatement is deprecated.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated attestation statements.
+		r.SSHAttestationStatement = r.AttestationStatement
+		r.TLSAttestationStatement = r.AttestationStatement
+		r.AttestationStatement = nil
+	}
+	return nil
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against

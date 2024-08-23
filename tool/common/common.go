@@ -26,11 +26,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -65,27 +65,21 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 			typ = session.Protocol
 			participants = strings.Join(session.Participants, ", ")
 			hostname = session.ServerAddr
-			timestamp = humanize.Time(session.GetTime())
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		case *events.WindowsDesktopSessionEnd:
 			id = session.GetSessionID()
 			typ = "windows"
 			participants = strings.Join(session.Participants, ", ")
 			hostname = session.DesktopName
-			timestamp = humanize.Time(session.GetTime())
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		case *events.DatabaseSessionEnd:
 			id = session.GetSessionID()
 			typ = session.DatabaseProtocol
 			participants = session.GetUser()
 			hostname = session.DatabaseService
-			timestamp = humanize.Time(session.GetTime())
-		case *events.AppSessionEnd:
-			id = session.GetSessionID()
-			typ = "app"
-			participants = session.User
-			hostname = session.AppName
-			timestamp = humanize.Time(session.GetTime())
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		default:
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd, DatabaseSessionEnd, or AppSessionEnd: got: %T", event))
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
 			continue
 		}
 
