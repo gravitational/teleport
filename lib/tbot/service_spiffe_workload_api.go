@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
@@ -71,6 +72,8 @@ import (
 // - https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
+
+	trustDomainCache *spiffe.TrustDomainCache
 
 	svcIdentity *config.UnstableClientCredentialOutput
 	botCfg      *config.BotConfig
@@ -702,29 +705,27 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	ctx := srv.Context()
 	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
 	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
-	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
+
+	bundleSetCh, stopBundleSetCh := s.trustDomainCache.Subscribe()
+	defer stopBundleSetCh()
+
+	// TODO: If no value is available within the first X seconds, should we drop
+	// the client rather than keeping them waiting.
 
 	for {
+		var bundleSet *spiffe.BundleSet
+		select {
+		case <-ctx.Done():
+			return nil
+		case bundleSet = <-bundleSetCh:
+		}
+
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
-		tb := s.getTrustBundle()
 		err := srv.Send(&workloadpb.X509BundlesResponse{
-			// Bundles keyed by trust domain
-			Bundles: map[string][]byte{
-				tb.TrustDomain().IDString(): trustBundleToRawCerts(tb),
-			},
+			Bundles: bundleSet.EncodedX509Bundles(true),
 		})
 		if err != nil {
 			return trace.Wrap(err)
-		}
-
-		select {
-		case <-ctx.Done():
-			s.log.DebugContext(ctx, "Context closed, stopping x.509 trust bundle stream")
-			return nil
-		case <-renewCh:
-			s.log.DebugContext(ctx, "Trust bundle has been updated, resending trust bundle")
-			continue
 		}
 	}
 }
