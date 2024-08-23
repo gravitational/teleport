@@ -91,12 +91,10 @@ func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]
 
 type mockGCPInstanceGetter struct{}
 
-// GetInstance gets a GCP VM.
 func (m *mockGCPInstanceGetter) GetInstance(ctx context.Context, req *gcp.InstanceRequest) (*gcp.Instance, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
 
-// GetInstanceTags gets the GCP tags for the instance.
 func (m *mockGCPInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.InstanceRequest) (map[string]string, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
