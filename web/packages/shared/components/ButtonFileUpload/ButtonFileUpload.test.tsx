@@ -25,7 +25,7 @@ test('buttonFileUpload', async () => {
   const file = new File(['dummy'], 'dummy.text', { type: 'plain/text' });
   render(
     <ButtonFileUpload
-      setSelectedFile={setSelectedFile}
+      onFileSelect={setSelectedFile}
       text="click"
       errorMessage="No files selected."
       accept=".txt"

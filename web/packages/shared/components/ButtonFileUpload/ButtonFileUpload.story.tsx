@@ -35,7 +35,7 @@ export const ButtonFileUpload = () => {
   return (
     <>
       <ButtonFileUploadComponent
-        setSelectedFile={setSelectedFile}
+        onFileSelect={setSelectedFile}
         text="Click me to upload a file"
         errorMessage="No files selected."
         accept=".txt"

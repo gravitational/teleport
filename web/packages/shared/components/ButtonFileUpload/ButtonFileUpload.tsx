@@ -1,3 +1,21 @@
+/**
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { Upload } from 'design/Icon';
@@ -11,10 +29,11 @@ import type { IconSize } from 'design/Icon/Icon';
  * Only single file can be selected. To support multiple file uploads,
  * update this component with `multiple` attribute.
  * @param text button text.
- * @param errorMessage error message to display when no file is selected.
+ * @param errorMessage error message to display when a file is not selected.
+ * @param showValidationError display errorMessage on file validation error.
  * @param accept whitelist file extension for the file picker.
  * @param disabled enable or disable button.
- * @param setFile callback function to process selected file.
+ * @param onFileSelect callback function to process selected file.
  * @param buttonSize button display size.
  * @param buttonIconSize upload icon display size.
  */
@@ -23,7 +42,8 @@ export function ButtonFileUpload({
   errorMessage,
   accept,
   disabled,
-  setSelectedFile,
+  onFileSelect,
+  showValidationError,
   buttonSize = 'medium',
   buttonIconSize = 'medium',
 }: {
@@ -31,12 +51,19 @@ export function ButtonFileUpload({
   errorMessage: string;
   accept: string;
   disabled: boolean;
-  setSelectedFile: (file: File) => void;
+  onFileSelect: (file: File) => void;
+  showValidationError?: boolean;
   buttonSize?: ButtonSize;
   buttonIconSize?: IconSize;
 }) {
   const fileInputRef = useRef<HTMLInputElement>();
-  const [fileInputError, setFileInputError] = useState<boolean>(false);
+  const [fileInputError, setFileInputError] =
+    useState<boolean>(showValidationError);
+  if (showValidationError !== fileInputError) {
+    if (!fileInputError) {
+      setFileInputError(showValidationError);
+    }
+  }
   const [fileName, setFileName] = useState<string>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -52,7 +79,7 @@ export function ButtonFileUpload({
     }
     const file = e.target.files[0];
     setFileName(file.name);
-    setSelectedFile(file);
+    onFileSelect(file);
   }
 
   useEffect(() => {
