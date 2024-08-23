@@ -683,10 +683,16 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
+	// ProjectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
+	projectIDLabelSuffix = "project-id"
 	// ProjectIDLabel is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
+	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
+	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
+	// The difference between this and the above, is that this one will be visible to the user
+	// and can be used in RBAC checks.
+	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabel is used to identify virtual machines by region found
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
@@ -695,14 +701,14 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
-	// ZoneLabel is used to identify virtual machines by GCP zone
+	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportInternalLabelPrefix + "zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
+	ZoneLabelDiscovery = TeleportInternalLabelPrefix + "zone"
+	// NameLabelDiscovery is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportInternalLabelPrefix + "name"
+	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
