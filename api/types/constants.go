@@ -685,7 +685,7 @@ const (
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
 	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
