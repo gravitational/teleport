@@ -387,8 +387,11 @@ export class DocumentsService {
       clusterName: string;
       runtimeSettings: Pick<RuntimeSettings, 'platform' | 'defaultOsShellId'>;
     }
-  ) {
+  ): void {
     const doc = this.getDocument(uri);
+    if (!doc) {
+      throw Error(`Document ${uri} does not exist`);
+    }
     const omitShellName =
       (runtimeSettings.platform === 'linux' ||
         runtimeSettings.platform === 'darwin') &&
