@@ -73,7 +73,7 @@ import (
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	trustDomainCache *spiffe.TrustDomainCache
+	trustBundleCache *spiffe.TrustBundleCache
 
 	svcIdentity *config.UnstableClientCredentialOutput
 	botCfg      *config.BotConfig
@@ -662,6 +662,18 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		)
 	}
 
+	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
+	defer stopBundleSetCh()
+
+	var bundleSet *spiffe.BundleSet
+	select {
+	case <-ctx.Done():
+		return nil
+	case bundleSet = <-bundleSetCh:
+	}
+	// TODO: If no value is available within the first X seconds, should we drop
+	// the client rather than keeping them waiting.
+
 	for {
 		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
@@ -670,7 +682,8 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 			return trace.Wrap(err)
 		}
 		err = srv.Send(&workloadpb.X509SVIDResponse{
-			Svids: svids,
+			Svids:            svids,
+			FederatedBundles: bundleSet.EncodedX509Bundles(false),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -683,6 +696,12 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		case <-ctx.Done():
 			log.DebugContext(ctx, "Context closed, stopping SVID stream")
 			return nil
+		case bundleSet = <-bundleSetCh:
+			log.DebugContext(ctx, "Federated trust bundles have been updated, renewing SVIDs")
+			// TODO(noah): This really shouldn't trigger a full blown renewal
+			// but this PR is going to be big enough, a second PR will introduce
+			// the SVIDManager w/ similar functionality to TrustBundleCache.
+			continue
 		case <-time.After(s.botCfg.RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
 			// Time to renew the certificate
@@ -706,7 +725,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
 	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
 
-	bundleSetCh, stopBundleSetCh := s.trustDomainCache.Subscribe()
+	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
 	defer stopBundleSetCh()
 
 	// TODO: If no value is available within the first X seconds, should we drop
