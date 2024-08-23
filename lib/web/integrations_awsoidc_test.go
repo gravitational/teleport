@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -974,6 +975,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	proxy := env.proxies[0]
+	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
 	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
@@ -1022,7 +1024,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "https://my-integration." + proxyPublicAddr,
+					PublicAddr:  "my-integration." + proxyPublicAddr,
 				},
 			},
 		},
