@@ -252,6 +252,10 @@ export function isDocumentTshNodeWithServerId(
   return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
 }
 
+/**
+ * `DocumentPtySession` and `DocumentGatewayKube` spawn a shell.
+ * The shell is taken from the `doc.shellId` property.
+ */
 export function canDocChangeShell(
   doc: Document
 ): doc is DocumentPtySession | DocumentGatewayKube {

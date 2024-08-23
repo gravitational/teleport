@@ -255,7 +255,9 @@ function prependBinDirToPath(
   // the single underlying value is updated. However, since we merge many sources
   // of env vars into a single object with the object spread (let env = { ...process.env }),
   // theses setters and getters are lost.
-  // We have to figure out the exact name of the PATH ourselves.
+  // The problem happens when user variables and system variables use different
+  // casing for PATH and Node.js merges them into a single variable, and we have
+  // to figure out its casing.
   // vscode does it the same way.
   const pathKey = getPropertyCaseInsensitive(env, 'PATH');
   env[pathKey] = [settings.binDir, env[pathKey]]
