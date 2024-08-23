@@ -183,7 +183,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |allow|[][object](#specterraformallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
-|audience|string|Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud.|
+|audience|string|Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name.|
 
 ### spec.terraform.allow items
 
