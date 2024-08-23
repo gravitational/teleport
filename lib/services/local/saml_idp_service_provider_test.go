@@ -599,3 +599,175 @@ func TestCreateSAMLIdPServiceProvider_GetTeleportSPSSODescriptor(t *testing.T) {
 	index, _ := GetTeleportSPSSODescriptor(ed.SPSSODescriptors)
 	require.Equal(t, 3, index)
 }
+
+func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewSAMLIdPServiceProviderService(backend)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:     "missing url scheme in acs input",
+			entityID: "sp",
+			acsURL:   "sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "http url scheme in acs",
+			entityID: "sp",
+			acsURL:   "http://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:     "unsupported scheme in acs",
+			entityID: "sp",
+			acsURL:   "gopher://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "invalid character in acs",
+			entityID: "sp",
+			acsURL:   "https://sp>",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: newSAMLSPMetadata("sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "test",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+			})
+			require.NoError(t, err)
+
+			err = service.CreateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewSAMLIdPServiceProviderService(backend)
+	require.NoError(t, err)
+
+	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "sp",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: newSAMLSPMetadata("https://sp", "https://sp"),
+	})
+	require.NoError(t, err)
+
+	err = service.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("https://sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("https://sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: newSAMLSPMetadata("https://sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: newSAMLSPMetadata("https://sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "sp",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+			})
+			require.NoError(t, err)
+
+			err = service.UpdateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
