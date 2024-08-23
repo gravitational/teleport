@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1322,6 +1323,27 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
+	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
+	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
+	}
+	if len(a.PublicKey) > 0 {
+		// Normalize by splitting PublicKey to SSHPublicKey and TLSPublicKey to
+		// reduce special case handling elsewhere. PublicKey will be deprecated
+		// in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		a.SSHPublicKey = a.PublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(a.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.TLSPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.PublicKey = nil
 	}
 	return nil
 }
@@ -1376,20 +1398,23 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 && len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter: at least one of 'ssh_public_key', 'tls_public_key', 'public_key' must be set")
+	switch {
+	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
+	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	if len(a.PublicKey) != 0 && len(a.SSHPublicKey) != 0 {
-		return trace.BadParameter("both 'public_key' and 'ssh_public_key' are set")
-	}
-	if len(a.PublicKey) != 0 && len(a.TLSPublicKey) != 0 {
-		return trace.BadParameter("both 'public_key' and 'tls_public_key' are set")
-	}
-	if a.AttestationStatement != nil && a.SSHAttestationStatement != nil {
-		return trace.BadParameter("both 'attestation_statement' and 'ssh_attestation_statement' are set")
-	}
-	if a.AttestationStatement != nil && a.TLSAttestationStatement != nil {
-		return trace.BadParameter("both 'attestation_statement' and 'tls_attestation_statement' are set")
+	if a.AttestationStatement != nil {
+		// Normalize by splitting AttestationStatement to SSHAttestationStatement
+		// and TLSAttestationStatement to reduce special case handling
+		// elsewhere. AttestingStatement will be deprecated in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated attestation statements.
+		a.SSHAttestationStatement = a.AttestationStatement
+		a.TLSAttestationStatement = a.AttestationStatement
+		a.AttestationStatement = nil
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {

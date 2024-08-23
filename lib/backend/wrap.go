@@ -66,7 +66,7 @@ func (s *Wrapper) SetReadError(err error) {
 }
 
 // GetRange returns query range
-func (s *Wrapper) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (s *Wrapper) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	if err := s.GetReadError(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,7 +95,7 @@ func (s *Wrapper) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
 }
 
 // Get returns a single item or not found error
-func (s *Wrapper) Get(ctx context.Context, key []byte) (*Item, error) {
+func (s *Wrapper) Get(ctx context.Context, key Key) (*Item, error) {
 	if err := s.GetReadError(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,17 +109,17 @@ func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith
 }
 
 // Delete deletes item by key
-func (s *Wrapper) Delete(ctx context.Context, key []byte) error {
+func (s *Wrapper) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
 }
 
 // ConditionalDelete deletes item by key if revisions match.
-func (s *Wrapper) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (s *Wrapper) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items
-func (s *Wrapper) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (s *Wrapper) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 
