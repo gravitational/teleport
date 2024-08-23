@@ -5240,7 +5240,6 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
 		r := resource.GetSAMLIdPServiceProvider()
-		t.Log(r.GetName(), r.Spec.ACSURL)
 		require.True(t, strings.Contains(r.GetName(), "example"))
 	}
 }
