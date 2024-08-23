@@ -177,7 +177,7 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 	return resources, next, trace.Wrap(err)
 }
 func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -194,7 +194,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 	}
 
 	out := make([]T, 0, len(result.Items))
-	var lastKey []byte
+	var lastKey backend.Key
 	for _, item := range result.Items {
 		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
@@ -220,7 +220,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 
 // ListResourcesWithFilter returns a paginated list of resources that match the given filter.
 func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
-	rangeStart := backend.Key(s.backendPrefix, pageToken)
+	rangeStart := backend.NewKey(s.backendPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(s.backendPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -231,7 +231,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 	limit := pageSize + 1
 
 	var resources []T
-	var lastKey []byte
+	var lastKey backend.Key
 	if err := backend.IterateRange(
 		ctx,
 		s.backend,
@@ -443,8 +443,8 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 }
 
 // MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) []byte {
-	return backend.Key(s.backendPrefix, name)
+func (s *Service[T]) MakeKey(name string) backend.Key {
+	return backend.NewKey(s.backendPrefix, name)
 }
 
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.

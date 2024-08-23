@@ -230,7 +230,7 @@ function ActionCell({
           Remove
         </ButtonPrimary>
       )}
-      <Flex alignItems="center" justifyContent="end">
+      <Flex alignItems="center" justifyContent="end" mt={1}>
         <ToolTipInfo muteIconColor={true}>
           This application {agent.name} can be alternatively requested by
           members of user groups. You can alternatively select user groups
@@ -271,7 +271,7 @@ const StyledSelect = styled(BaseStyledSelect)`
 
   .react-select__control {
     font-size: 12px;
-    width: 225px;
+    width: 250px;
     height: 26px;
     min-height: 24px;
     border: 2px solid ${p => p.theme.colors.buttons.secondary.default};
@@ -293,6 +293,7 @@ const StyledSelect = styled(BaseStyledSelect)`
 
   .react-select__dropdown-indicator {
     padding-top: 0px;
+    padding-bottom: 0px;
   }
 
   &.hasSelectedGroups {

@@ -77,10 +77,6 @@ export default function Console() {
     return consoleCtx.refreshParties();
   }
 
-  function onLogout() {
-    consoleCtx.logout();
-  }
-
   const disableNewTab = storeDocs.getNodeDocuments().length > 0;
   const $docs = documents.map(doc => (
     <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
@@ -110,7 +106,6 @@ export default function Console() {
               onNew={onTabNew}
             />
             <ActionBar
-              onLogout={onLogout}
               latencyIndicator={
                 activeDoc?.kind === 'terminal'
                   ? {

@@ -94,6 +94,8 @@ type Config struct {
 	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
+	SPIFFEFederations       cache.SPIFFEFederationReader
+	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
 	UserLoginStates         services.UserLoginStates
@@ -184,6 +186,8 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
+		SPIFFEFederations:       cfg.SPIFFEFederations,
+		StaticHostUsers:         cfg.StaticHostUsers,
 		Trust:                   cfg.Trust,
 		UserGroups:              cfg.UserGroups,
 		UserLoginStates:         cfg.UserLoginStates,

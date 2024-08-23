@@ -186,6 +186,7 @@ func StatementForEKSAccess() *Statement {
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
 			"eks:AssociateAccessPolicy",
+			"eks:TagResource",
 		},
 		Resources: allResources,
 	}
@@ -410,6 +411,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:GetBucketPolicy",
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
+			"s3:GetBucketTagging",
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",

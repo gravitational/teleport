@@ -104,7 +104,7 @@ class TeleportContext implements types.Context {
       !storageService.getOnboardDiscover()
     ) {
       const hasResource =
-        await userService.checkUserHasAccessToRegisteredResource();
+        await userService.checkUserHasAccessToAnyRegisteredResource();
       storageService.setOnboardDiscover({ hasResource });
     }
 
@@ -147,7 +147,12 @@ class TeleportContext implements types.Context {
         userContext.getIntegrationsAccess().list ||
         userContext.hasDiscoverAccess() ||
         userContext.getDeviceTrustAccess().list ||
-        userContext.getLockAccess().list
+        userContext.getLockAccess().list ||
+        userContext.getAccessListAccess().list ||
+        userContext.getAccessGraphAccess().list ||
+        hasAccessMonitoringAccess() ||
+        userContext.getTokenAccess().create ||
+        userContext.getBotsAccess().list
       );
     }
 

@@ -26,11 +26,15 @@ import { ResourceKind } from '../Shared/ResourceKind';
 
 import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 
-const baseDatabaseKeywords = 'db database databases';
-const awsKeywords = baseDatabaseKeywords + 'aws amazon web services';
-const gcpKeywords = baseDatabaseKeywords + 'gcp google cloud provider';
-const selfhostedKeywords = baseDatabaseKeywords + 'self hosted self-hosted';
-const azureKeywords = baseDatabaseKeywords + 'microsoft azure';
+const baseDatabaseKeywords = ['db', 'database', 'databases'];
+const awsKeywords = [...baseDatabaseKeywords, 'aws', 'amazon web services'];
+const gcpKeywords = [...baseDatabaseKeywords, 'gcp', 'google cloud platform'];
+const selfhostedKeywords = [
+  ...baseDatabaseKeywords,
+  'self hosted',
+  'self-hosted',
+];
+const azureKeywords = [...baseDatabaseKeywords, 'microsoft azure'];
 
 function getDbAccessDocLink(guide: string) {
   return `https://goteleport.com/docs/database-access/guides/${guide}`;
@@ -42,7 +46,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy PostgreSQL',
-    keywords: awsKeywords + 'rds proxy postgresql',
+    keywords: [...awsKeywords, 'rds', 'proxy', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink: getDbAccessDocLink('rds-proxy-postgres'),
@@ -52,7 +56,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy SQL Server',
-    keywords: awsKeywords + 'rds proxy sql server sqlserver',
+    keywords: [...awsKeywords, 'rds', 'proxy', 'sql server', 'sqlserver'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink: getDbAccessDocLink('rds-proxy-sqlserver'),
@@ -62,7 +66,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
     name: 'RDS Proxy MariaDB/MySQL',
-    keywords: awsKeywords + 'rds proxy mariadb mysql',
+    keywords: [...awsKeywords, 'rds', 'proxy', 'mariadb', 'mysql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink: getDbAccessDocLink('rds-proxy-mysql'),
@@ -72,7 +76,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.TODO, engine: DatabaseEngine.Doc },
     name: 'High Availability',
-    keywords: baseDatabaseKeywords + 'high availability ha',
+    keywords: [...baseDatabaseKeywords, 'high availability', 'ha'],
     kind: ResourceKind.Database,
     icon: 'database',
     unguidedLink: getDbAccessDocLink('ha'),
@@ -81,7 +85,7 @@ export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.TODO, engine: DatabaseEngine.Doc },
     name: 'Dynamic Registration',
-    keywords: baseDatabaseKeywords + 'dynamic registration',
+    keywords: [...baseDatabaseKeywords, 'dynamic registration'],
     kind: ResourceKind.Database,
     icon: 'database',
     unguidedLink: getDbAccessDocLink('dynamic-registration'),
@@ -93,7 +97,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.DynamoDb },
     name: 'DynamoDB',
-    keywords: awsKeywords + 'dynamodb',
+    keywords: [...awsKeywords, 'dynamodb'],
     kind: ResourceKind.Database,
     icon: 'dynamo',
     unguidedLink: getDbAccessDocLink('aws-dynamodb'),
@@ -102,7 +106,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redis },
     name: 'ElastiCache & MemoryDB',
-    keywords: awsKeywords + 'elasticache memorydb redis',
+    keywords: [...awsKeywords, 'elasticache', 'memorydb', 'redis'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink: getDbAccessDocLink('redis-aws'),
@@ -114,7 +118,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Cassandra,
     },
     name: 'Keyspaces (Apache Cassandra)',
-    keywords: awsKeywords + 'keyspaces apache cassandra',
+    keywords: [...awsKeywords, 'keyspaces', 'apache', 'cassandra'],
     kind: ResourceKind.Database,
     icon: 'aws',
     unguidedLink: getDbAccessDocLink('aws-cassandra-keyspaces'),
@@ -123,7 +127,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift PostgreSQL',
-    keywords: awsKeywords + 'redshift postgresql',
+    keywords: [...awsKeywords, 'redshift', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
     unguidedLink: getDbAccessDocLink('postgres-redshift'),
@@ -132,7 +136,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift Serverless',
-    keywords: awsKeywords + 'redshift serverless postgresql',
+    keywords: [...awsKeywords, 'redshift', 'serverless', 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'redshift',
     unguidedLink: getDbAccessDocLink('redshift-serverless'),
@@ -141,7 +145,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.Redis },
     name: 'Cache for Redis',
-    keywords: azureKeywords + 'cache redis',
+    keywords: [...azureKeywords, 'cache', 'redis'],
     kind: ResourceKind.Database,
     icon: 'azure',
     unguidedLink: getDbAccessDocLink('azure-redis'),
@@ -153,7 +157,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Postgres,
     },
     name: 'PostgreSQL',
-    keywords: azureKeywords + 'postgresql',
+    keywords: [...azureKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'azure',
     unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
@@ -162,7 +166,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.MySql },
     name: 'MySQL',
-    keywords: azureKeywords + 'mysql',
+    keywords: [...azureKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'azure',
     unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
@@ -174,8 +178,14 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.SqlServer,
     },
     name: 'SQL Server',
-    keywords:
-      azureKeywords + 'active directory ad sql server sqlserver preview',
+    keywords: [
+      ...azureKeywords,
+      'active directory',
+      'ad',
+      'sql server',
+      'sqlserver',
+      'preview',
+    ],
     kind: ResourceKind.Database,
     icon: 'azure',
     unguidedLink: getDbAccessDocLink('azure-sql-server-ad'),
@@ -188,9 +198,15 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.SqlServer,
     },
     name: 'SQL Server',
-    keywords:
-      baseDatabaseKeywords +
-      'microsoft active directory ad sql server sqlserver preview',
+    keywords: [
+      ...baseDatabaseKeywords,
+      'microsoft',
+      'active directory',
+      'ad',
+      'sql server',
+      'sqlserver',
+      'preview',
+    ],
     kind: ResourceKind.Database,
     icon: 'windows',
     unguidedLink: getDbAccessDocLink('sql-server-ad'),
@@ -200,7 +216,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Gcp, engine: DatabaseEngine.MySql },
     name: 'Cloud SQL MySQL',
-    keywords: gcpKeywords + 'mysql',
+    keywords: [...gcpKeywords, 'mysql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
     unguidedLink: getDbAccessDocLink('mysql-cloudsql'),
@@ -209,7 +225,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Gcp, engine: DatabaseEngine.Postgres },
     name: 'Cloud SQL PostgreSQL',
-    keywords: gcpKeywords + 'postgresql',
+    keywords: [...gcpKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'googlecloud',
     unguidedLink: getDbAccessDocLink('postgres-cloudsql'),
@@ -221,7 +237,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.MongoDb,
     },
     name: 'MongoDB Atlas',
-    keywords: baseDatabaseKeywords + 'mongodb atlas',
+    keywords: [...baseDatabaseKeywords, 'mongodb atlas'],
     kind: ResourceKind.Database,
     icon: 'mongo',
     unguidedLink: getDbAccessDocLink('mongodb-atlas'),
@@ -233,7 +249,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Cassandra,
     },
     name: 'Cassandra & ScyllaDB',
-    keywords: selfhostedKeywords + 'cassandra scylladb',
+    keywords: [...selfhostedKeywords, 'cassandra scylladb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink: getDbAccessDocLink('cassandra-self-hosted'),
@@ -245,7 +261,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.CoackroachDb,
     },
     name: 'CockroachDB',
-    keywords: selfhostedKeywords + 'cockroachdb',
+    keywords: [...selfhostedKeywords, 'cockroachdb'],
     kind: ResourceKind.Database,
     icon: 'cockroach',
     unguidedLink: getDbAccessDocLink('cockroachdb-self-hosted'),
@@ -257,7 +273,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.ElasticSearch,
     },
     name: 'Elasticsearch',
-    keywords: selfhostedKeywords + 'elasticsearch',
+    keywords: [...selfhostedKeywords, 'elasticsearch', 'es'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink: getDbAccessDocLink('elastic'),
@@ -269,7 +285,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.MongoDb,
     },
     name: 'MongoDB',
-    keywords: selfhostedKeywords + 'mongodb',
+    keywords: [...selfhostedKeywords, 'mongodb'],
     kind: ResourceKind.Database,
     icon: 'mongo',
     unguidedLink: getDbAccessDocLink('mongodb-self-hosted'),
@@ -281,7 +297,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Redis,
     },
     name: 'Redis',
-    keywords: selfhostedKeywords + 'redis',
+    keywords: [...selfhostedKeywords, 'redis'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink: getDbAccessDocLink('redis'),
@@ -293,7 +309,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Redis,
     },
     name: 'Redis Cluster',
-    keywords: selfhostedKeywords + 'redis cluster',
+    keywords: [...selfhostedKeywords, 'redis cluster'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     unguidedLink: getDbAccessDocLink('redis-cluster'),
@@ -305,7 +321,7 @@ export const DATABASES_UNGUIDED: ResourceSpec[] = [
       engine: DatabaseEngine.Snowflake,
     },
     name: 'Snowflake',
-    keywords: baseDatabaseKeywords + 'snowflake preview',
+    keywords: [...baseDatabaseKeywords, 'snowflake preview'],
     kind: ResourceKind.Database,
     icon: 'snowflake',
     unguidedLink: getDbAccessDocLink('snowflake'),
@@ -320,7 +336,7 @@ export const DATABASES: ResourceSpec[] = [
       engine: DatabaseEngine.Postgres,
     },
     name: 'RDS PostgreSQL',
-    keywords: awsKeywords + 'rds postgresql',
+    keywords: [...awsKeywords, 'rds postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -331,7 +347,7 @@ export const DATABASES: ResourceSpec[] = [
       engine: DatabaseEngine.AuroraPostgres,
     },
     name: 'Aurora PostgreSQL',
-    keywords: awsKeywords + 'aurora postgresql',
+    keywords: [...awsKeywords, 'aurora postgresql'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabasePostgresRds,
@@ -339,7 +355,7 @@ export const DATABASES: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.MySql },
     name: 'RDS MySQL/MariaDB',
-    keywords: awsKeywords + 'rds mysql mariadb',
+    keywords: [...awsKeywords, 'rds mysql mariadb'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,
@@ -350,7 +366,7 @@ export const DATABASES: ResourceSpec[] = [
       engine: DatabaseEngine.AuroraMysql,
     },
     name: 'Aurora MySQL/MariaDB',
-    keywords: awsKeywords + 'aurora mysql mariadb',
+    keywords: [...awsKeywords, 'aurora mysql mariadb'],
     kind: ResourceKind.Database,
     icon: 'aws',
     event: DiscoverEventResource.DatabaseMysqlRds,
@@ -361,7 +377,7 @@ export const DATABASES: ResourceSpec[] = [
       engine: DatabaseEngine.Postgres,
     },
     name: 'PostgreSQL',
-    keywords: selfhostedKeywords + 'postgresql',
+    keywords: [...selfhostedKeywords, 'postgresql'],
     kind: ResourceKind.Database,
     icon: 'postgres',
     event: DiscoverEventResource.DatabasePostgresSelfHosted,
@@ -372,7 +388,7 @@ export const DATABASES: ResourceSpec[] = [
       engine: DatabaseEngine.MySql,
     },
     name: 'MySQL/MariaDB',
-    keywords: selfhostedKeywords + 'mysql mariadb',
+    keywords: [...selfhostedKeywords, 'mysql mariadb'],
     kind: ResourceKind.Database,
     icon: 'selfhosted',
     event: DiscoverEventResource.DatabaseMysqlSelfHosted,
