@@ -65,6 +65,9 @@ type App struct {
 	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	Integration string `json:"integration,omitempty"`
+
+	// PermissionSets holds the permission sets that this app grants access to
+	PermissionSets []IdentityCenterPermissionSet `json:"permission_sets,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -128,6 +131,18 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		description = oktaDescription
 	}
 
+	var permissionSets []IdentityCenterPermissionSet
+	if icAcct := app.GetIdentityCenter(); icAcct != nil {
+		permissionSets = make([]IdentityCenterPermissionSet, len(icAcct.PermissionSets))
+		for i, ps := range icAcct.PermissionSets {
+			permissionSets[i] = IdentityCenterPermissionSet{
+				Name:            ps.Name,
+				ARN:             ps.ARN,
+				RequiresRequest: ps.RequireRequest,
+			}
+		}
+	}
+
 	resultApp := App{
 		Kind:            types.KindApp,
 		Name:            app.GetName(),
@@ -143,6 +158,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
 		Integration:     app.GetIntegration(),
+		PermissionSets:  permissionSets,
 	}
 
 	if app.IsAWSConsole() {
@@ -174,6 +190,12 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 	}
 
 	return resultApp
+}
+
+type IdentityCenterPermissionSet struct {
+	Name            string `json:"name"`
+	ARN             string `json:"arn"`
+	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
 // MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.

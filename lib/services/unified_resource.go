@@ -21,6 +21,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -925,20 +926,50 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
-		acct := unwrapper.Unwrap()
+		acct := unwrapper.Unwrap().Account
+
+		fmt.Printf(">>>> Acct.Spec.PermissionSets: %#v\n", acct.Spec.PermissionSets)
+
+		pss := make([]*types.IdentityCenterPermissionSet, len(acct.Spec.PermissionSets))
+		for i, ps := range acct.Spec.PermissionSets {
+			pss[i] = &types.IdentityCenterPermissionSet{
+				ARN:  ps.Arn,
+				Name: ps.Name,
+			}
+		}
+
 		protoResource = &proto.PaginatedResource{
-			Resource: &proto.PaginatedResource_IdentityCenterAccount{
-				IdentityCenterAccount: &proto.IdentityCenterAccount{
-					Kind:        acct.Kind,
-					SubKind:     acct.SubKind,
-					Metadata:    resource.GetMetadata(),
-					ID:          acct.Spec.Id,
-					ARN:         acct.Spec.Arn,
-					Description: acct.Spec.Description,
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: &types.AppServerV3{
+					Kind:     types.KindAppServer,
+					Version:  types.V3,
+					Metadata: resource.GetMetadata(),
+					Spec: types.AppServerSpecV3{
+						App: &types.AppV3{
+							Kind:    types.KindApp,
+							SubKind: "SubKindIdentityCenterAccount",
+							Version: types.V3,
+							Metadata: types.Metadata{
+								Name:        acct.Spec.Name,
+								Description: acct.Spec.Description,
+								Labels:      acct.Metadata.Labels,
+							},
+							Spec: types.AppSpecV3{
+								URI: "https://example.aws.com/#start",
+								AWS: &types.AppAWS{
+									ExternalID: acct.Spec.Id,
+								},
+								IdentityCenter: &types.AppIdentityCenter{
+									PermissionSets: pss,
+								},
+							},
+						},
+					},
 				},
 			},
 			RequiresRequest: requiresRequest,
 		}
+
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}

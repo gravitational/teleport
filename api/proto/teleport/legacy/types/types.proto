@@ -970,6 +970,18 @@ message AppSpecV3 {
   // Only applicable to AWS App Access.
   // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
   string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
+
+  AppIdentityCenter IdentityCenter = 10 [(gogoproto.jsontag) = "identity_center,omitempty"];
+}
+
+message IdentityCenterPermissionSet {
+  string ARN = 1 [(gogoproto.jsontag) = "arn,omitempty"];
+  string Name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  bool RequireRequest = 3 [(gogoproto.jsontag) = "requireRequest,omitempty"];
+}
+
+message AppIdentityCenter {
+  repeated IdentityCenterPermissionSet PermissionSets = 1 [(gogoproto.jsontag) = "permission_sets,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).

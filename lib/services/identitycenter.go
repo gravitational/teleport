@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"maps"
+	"slices"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
@@ -42,10 +43,11 @@ func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
 				Revision:    a.Metadata.Revision,
 			},
 			Spec: &identitycenterv1.AccountSpec{
-				Id:          a.Spec.Id,
-				Arn:         a.Spec.Arn,
-				Name:        a.Spec.Name,
-				Description: a.Spec.Description,
+				Id:             a.Spec.Id,
+				Arn:            a.Spec.Arn,
+				Name:           a.Spec.Name,
+				Description:    a.Spec.Description,
+				PermissionSets: slices.Clone(a.Spec.PermissionSets),
 			},
 		},
 	}

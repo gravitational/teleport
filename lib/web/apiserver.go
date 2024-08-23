@@ -2993,9 +2993,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			kube := ui.MakeKubeCluster(r.GetCluster(), accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
 
-		case *proto.IdentityCenterAccount:
-			acct := ui.MakeIdentityCenterAccount(r, accessChecker, enriched.RequiresRequest)
-			unifiedResources = append(unifiedResources, acct)
+		// case *proto.IdentityCenterAccount:
+		// 	acct := ui.MakeIdentityCenterAccount(r, accessChecker, enriched.RequiresRequest)
+		// 	unifiedResources = append(unifiedResources, acct)
 
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", enriched)

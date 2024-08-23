@@ -33,9 +33,7 @@ message AccountPermissionSet {
 
 // AccountStatus represents holds any commonly-changing data about an Identity
 // Center account.
-message AccountStatus {
-  repeated AccountPermissionSet permission_sets = 1;
-}
+message AccountStatus {}
 
 // Account is an AWS account
 message Account {
@@ -60,6 +58,12 @@ message AccountSpec {
 
   // Description is a heman-readable description of the AWS Permission Set
   string description = 4;
+
+  // StartUrl is the address of the AWS start page
+  string start_url = 5;
+
+  // PermissionSets...
+  repeated AccountPermissionSet permission_sets = 6;
 }
 
 // PermissionSet identifies a single permission set by name and ARN
