@@ -285,15 +285,10 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svcIdentity)
 
 			svc := &SPIFFEWorkloadAPIService{
-				botClient:             b.botIdentitySvc.GetClient(),
-				svcIdentity:           clientCredential,
-				botCfg:                b.cfg,
-				cfg:                   svcCfg,
-				resolver:              resolver,
-				rootReloadBroadcaster: reloadBroadcaster,
-				trustBundleBroadcast: &channelBroadcaster{
-					chanSet: map[chan struct{}]struct{}{},
-				},
+				svcIdentity: clientCredential,
+				botCfg:      b.cfg,
+				cfg:         svcCfg,
+				resolver:    resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),

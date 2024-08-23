@@ -78,13 +78,13 @@ func (b *BundleSet) Equal(other *BundleSet) bool {
 	return true
 }
 
-// trustBundleToRawCerts converts a trust bundle's certs to raw bytes.
+// MarshalX509Bundle converts a trust bundle's certs to raw bytes.
 // What's particularly special is that the certs are not pem encoded and
 // are appended directly to one another. This is the way that the SPIFFE
 // workload API clients expect.
-func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
+func MarshalX509Bundle(b *x509bundle.Bundle) []byte {
 	out := []byte{}
-	for _, cert := range bundle.X509Authorities() {
+	for _, cert := range b.X509Authorities() {
 		out = append(out, cert.Raw...)
 	}
 	return out
@@ -93,10 +93,10 @@ func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
 func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 	bundles := make(map[string][]byte)
 	if includeLocal {
-		bundles[b.Local.TrustDomain().IDString()] = trustBundleToRawCerts(b.Local.X509Bundle())
+		bundles[b.Local.TrustDomain().IDString()] = MarshalX509Bundle(b.Local.X509Bundle())
 	}
 	for _, v := range b.Federated {
-		bundles[v.TrustDomain().IDString()] = trustBundleToRawCerts(v.X509Bundle())
+		bundles[v.TrustDomain().IDString()] = MarshalX509Bundle(v.X509Bundle())
 	}
 	return bundles
 }

@@ -32,7 +32,6 @@ import (
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
@@ -70,12 +69,11 @@ type spiffeSDSHandler struct {
 	botCfg           *config.BotConfig
 	trustBundleCache *spiffe.TrustBundleCache
 
-	clientAuthenticator         func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
-	trustBundleGetter           func() *x509bundle.Bundle
-	trustBundleUpdateSubscriber func() (ch chan struct{}, unsubscribe func())
-	svidFetcher                 func(
+	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
+	svidFetcher         func(
 		ctx context.Context,
 		log *slog.Logger,
+		localBundle *spiffebundle.Bundle,
 		svidRequests []config.SVIDRequest,
 	) ([]*workloadpb.X509SVID, error)
 }
@@ -118,11 +116,18 @@ func (s *spiffeSDSHandler) FetchSecrets(
 	// TODO: If no value is available within the first X seconds, should we drop
 	// the client rather than keeping them waiting.
 
-	return s.generateResponse(
+	// Filter SVIDs down to those accessible to this workload
+	svids, err := s.svidFetcher(
 		ctx,
 		log,
-		creds,
+		bundleSet.Local, filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds))
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching X509 SVIDs")
+	}
+
+	return s.generateResponse(
 		bundleSet,
+		svids,
 		req,
 	)
 }
@@ -182,8 +187,6 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
 
-	renewCh, unsubRenew := s.trustBundleUpdateSubscriber()
-	defer unsubRenew()
 	bundleSetCh, unsubBundleSet := s.trustBundleCache.Subscribe()
 	defer unsubBundleSet()
 
@@ -221,11 +224,15 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	renewalTimer.Stop()
 	defer renewalTimer.Stop()
 
+	// Filter SVIDs down to those accessible to this workload
+	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
+
 	// Track the last response and last request to allow us to handle ACK/NACK
 	// and versioning.
 	var (
 		lastResp *discoveryv3pb.DiscoveryResponse
 		lastReq  *discoveryv3pb.DiscoveryRequest
+		svids    []*workloadpb.X509SVID
 	)
 	for {
 		select {
@@ -294,19 +301,28 @@ func (s *spiffeSDSHandler) StreamSecrets(
 				continue
 			}
 
-		case <-renewCh:
-			// If there's been a CA rotation, we need to send a new response.
-		case bundleSet = <-bundleSetCh:
-			// TODO(noah): This really shouldn't trigger a full blown renewal
-			// but this PR is going to be big enough, a second PR will introduce
-			// the SVIDManager w/ similar functionality to TrustBundleCache.
+		case newBundleSet := <-bundleSetCh:
+			if !newBundleSet.Local.Equal(bundleSet.Local) {
+				// If the "local" trust domain's CA has changed, we need to
+				// reissue the SVIDs.
+				svids = nil
+			}
+			bundleSet = newBundleSet
 		case <-renewalTimer.C:
 			// Handle renewal time!
 			log.DebugContext(ctx, "Renewing SVIDs for StreamSecrets stream")
 		}
 
+		// Fetch the SVIDs if necessary
+		if svids == nil {
+			svids, err = s.svidFetcher(ctx, log, bundleSet.Local, availableSVIDs)
+			if err != nil {
+				return trace.Wrap(err, "fetching X509 SVIDs")
+			}
+		}
+
 		resp, err := s.generateResponse(
-			ctx, log, creds, bundleSet, lastReq,
+			bundleSet, svids, lastReq,
 		)
 		if err != nil {
 			return trace.Wrap(err, "generating response")
@@ -357,10 +373,8 @@ func elementsMatch(a, b []string) bool {
 }
 
 func (s *spiffeSDSHandler) generateResponse(
-	ctx context.Context,
-	log *slog.Logger,
-	attest workloadattest.Attestation,
 	bundleSet *spiffe.BundleSet,
+	svids []*workloadpb.X509SVID,
 	req *discoveryv3pb.DiscoveryRequest,
 ) (*discoveryv3pb.DiscoveryResponse, error) {
 	// names holds all names requested by the client
@@ -377,14 +391,6 @@ func (s *spiffeSDSHandler) generateResponse(
 	returnAll := len(names) == 0
 
 	var resources []*anypb.Any
-
-	// Filter SVIDs down to those accessible to this workload
-	availableSVIDs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, attest)
-	// Fetch the SVIDs and convert them into the SDS cert type.
-	svids, err := s.svidFetcher(ctx, log, availableSVIDs)
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching X509 SVIDs")
-	}
 	for i, svid := range svids {
 		// Now we need to filter the SVIDs down to those requested by the
 		// client.
