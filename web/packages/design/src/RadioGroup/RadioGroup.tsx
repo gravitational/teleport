@@ -18,8 +18,11 @@
 
 import React, { ReactNode } from 'react';
 
+import { FieldRadio } from 'shared/components/FieldRadio';
+
 import { Flex } from 'design';
-import { RadioButton } from 'design/RadioButton/RadioButton';
+import { RadioButton, RadioButtonSize } from 'design/RadioButton/RadioButton';
+import { FlexProps } from 'design/Flex';
 
 interface RadioObjectOption {
   value: string;
@@ -29,7 +32,7 @@ interface RadioObjectOption {
 
 type RadioOption = RadioObjectOption | string;
 
-interface RadioGroupProps {
+interface RadioGroupProps extends FlexProps {
   options: RadioOption[];
   onChange?: (value: string) => void;
   value?: string;
@@ -37,8 +40,7 @@ interface RadioGroupProps {
   autoFocus?: boolean;
   /** The name property of radio input elements */
   name: string;
-
-  [styles: string]: any;
+  size?: RadioButtonSize;
 }
 
 export function RadioGroup({
@@ -47,20 +49,30 @@ export function RadioGroup({
   onChange,
   autoFocus,
   name,
+  size,
   ...styles
 }: RadioGroupProps) {
   return (
-    <Flex flexDirection="column" {...styles}>
+    <Flex gap={3} flexDirection="column" {...styles}>
       {options.map((option, index) => {
         const optionValue = isRadioObjectOption(option) ? option.value : option;
+        const optionLabel = isRadioObjectOption(option) ? option.label : option;
+        const optionDisabled = isRadioObjectOption(option)
+          ? option.disabled
+          : undefined;
         return (
-          <Radio
-            onChange={onChange}
-            autoFocus={index === 0 && autoFocus}
+          <FieldRadio
             key={optionValue}
-            option={option}
             name={name}
+            label={optionLabel}
+            //helperText={...}
             checked={value !== undefined ? value === optionValue : undefined}
+            disabled={optionDisabled}
+            size={size}
+            value={optionValue}
+            autoFocus={index === 0 && autoFocus}
+            onChange={() => onChange?.(optionValue)}
+            mb={0}
           />
         );
       })}

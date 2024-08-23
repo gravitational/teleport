@@ -72,6 +72,7 @@ export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
 );
 
 const OuterWrapper = styled.span`
+  display: inline-block;
   line-height: 0;
   margin: 3px;
 `;
