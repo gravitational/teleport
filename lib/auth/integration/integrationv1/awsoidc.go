@@ -495,13 +495,20 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	features := modules.GetModules().Features()
 
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
-		Region:             req.Region,
-		ClusterNames:       req.GetEksClusterNames(),
-		EnableAppDiscovery: req.EnableAppDiscovery,
-		EnableAutoUpgrades: features.AutomaticUpgrades,
-		IsCloud:            features.Cloud,
-		AgentVersion:       req.AgentVersion,
+		Region:              req.Region,
+		ClusterNames:        req.GetEksClusterNames(),
+		EnableAppDiscovery:  req.EnableAppDiscovery,
+		EnableAutoUpgrades:  features.AutomaticUpgrades,
+		IsCloud:             features.Cloud,
+		AgentVersion:        req.AgentVersion,
+		TeleportClusterName: clusterName.GetClusterName(),
+		IntegrationName:     req.Integration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
