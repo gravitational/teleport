@@ -947,8 +947,7 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
-	// Prepending the protocol ensures that url.Parse works even if the integration name only contains digits (eg aws account id).
-	publicAddr := "https://" + libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
+	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
 
 	appServer, err := types.NewAppServerForAWSOIDCIntegration(integrationName, h.cfg.HostUUID, publicAddr)
 	if err != nil {
