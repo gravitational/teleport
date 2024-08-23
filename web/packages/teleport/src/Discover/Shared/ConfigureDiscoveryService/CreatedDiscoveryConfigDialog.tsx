@@ -30,7 +30,7 @@ import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
-export type AutoEnrollDialog = {
+export type CreatedDiscoveryConfigDialog = {
   attempt: Attempt;
   retry(): void;
   close(): void;
@@ -43,14 +43,14 @@ export type AutoEnrollDialog = {
   notifyAboutDelay: boolean;
 };
 
-export function AutoEnrollDialog({
+export function CreatedDiscoveryConfigDialog({
   attempt,
   retry,
   close,
   next,
   region,
   notifyAboutDelay,
-}: AutoEnrollDialog) {
+}: CreatedDiscoveryConfigDialog) {
   let content: JSX.Element;
   if (attempt.status === 'failed') {
     content = (
@@ -59,11 +59,11 @@ export function AutoEnrollDialog({
           <Icons.Warning size="large" ml={1} mr={2} color="error.main" />
           <Text>{attempt.statusText}</Text>
         </Flex>
-        <Flex>
-          <ButtonPrimary mr={3} width="50%" onClick={retry}>
+        <Flex gap={3} width="100%">
+          <ButtonPrimary style={{ flex: 1 }} onClick={retry}>
             Retry
           </ButtonPrimary>
-          <ButtonSecondary width="50%" onClick={close}>
+          <ButtonSecondary style={{ flex: 1 }} onClick={close}>
             Close
           </ButtonSecondary>
         </Flex>

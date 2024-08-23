@@ -22,6 +22,7 @@
 package integration
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -30,12 +31,16 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
@@ -421,4 +426,102 @@ func TestRootHostUsers(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestRootLoginAsHostUser(t *testing.T) {
+	utils.RequireRoot(t)
+	// Create test instance.
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	instance := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: helpers.Site,
+		HostID:      uuid.New().String(),
+		NodeName:    Host,
+		Priv:        privateKey,
+		Pub:         publicKey,
+		Log:         utils.NewLoggerForTests(),
+	})
+
+	// Create a user that can create a host user.
+	username := "test-user"
+	login := utils.GenerateLocalUsername(t)
+	groups := []string{"foo", "bar"}
+	role, err := types.NewRole("ssh-host-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{login},
+			HostGroups: groups,
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	instance.Secrets.Users[username] = &helpers.User{
+		Username:      username,
+		AllowedLogins: []string{login},
+		Roles:         []types.Role{role},
+	}
+
+	require.NoError(t, instance.Create(t, nil, true, nil))
+	require.NoError(t, instance.Start())
+	t.Cleanup(func() {
+		require.NoError(t, instance.StopAll())
+	})
+
+	tests := []struct {
+		name      string
+		command   []string
+		stdinText string
+	}{
+		{
+			name:    "non-interactive session",
+			command: []string{"whoami"},
+		},
+		{
+			name:      "interactive session",
+			stdinText: "whoami\nexit\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stdin := bytes.NewBufferString(tc.stdinText)
+			stdout := utils.NewSyncBuffer()
+			t.Cleanup(func() {
+				require.NoError(t, stdout.Close())
+			})
+
+			client, err := instance.NewClient(helpers.ClientConfig{
+				TeleportUser: username,
+				Login:        login,
+				Cluster:      helpers.Site,
+				Host:         Host,
+				Port:         helpers.Port(t, instance.SSH),
+				Stdin:        stdin,
+				Stdout:       stdout,
+			})
+			require.NoError(t, err)
+
+			// Run an SSH session to completion.
+			t.Cleanup(cleanupUsersAndGroups([]string{login}, groups))
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			t.Cleanup(cancel)
+			err = client.SSH(ctx, tc.command)
+			require.NoError(t, err)
+			// Check for correct result from whoami command.
+			require.Contains(t, stdout.String(), login)
+
+			// Verify that a host user was created.
+			u, err := user.Lookup(login)
+			require.NoError(t, err)
+			createdGroups, err := u.GroupIds()
+			require.NoError(t, err)
+			for _, group := range createdGroups {
+				_, err := user.LookupGroupId(group)
+				require.NoError(t, err)
+			}
+		})
+	}
 }
