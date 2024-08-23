@@ -160,6 +160,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
             },
           ]}
         />
+        <Text mb={1}>Restart the database server to apply the configuration.</Text>
       </Box>
     );
   }
@@ -248,6 +249,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
+                  <Text mb={1}>Restart the database server to apply the configuration.</Text>
                   <Text mt={2}>
                     See{' '}
                     <Link
@@ -278,6 +280,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                       },
                     ]}
                   />
+                  <Text mb={1}>Restart the database server to apply the configuration.</Text>
                   <Text mt={2}>
                     See{' '}
                     <Link
