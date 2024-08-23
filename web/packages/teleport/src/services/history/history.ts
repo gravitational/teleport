@@ -100,13 +100,15 @@ const history = {
 
   _canPush(route: string) {
     const knownRoutes = this.getRoutes();
+    const nonExactRoutes = cfg.getNonExactRoutes();
+
     const { pathname } = new URL(this.ensureBaseUrl(route));
 
     const match = (known: string) =>
       // only match against pathname
       matchPath(pathname, {
         path: known,
-        exact: true,
+        exact: !nonExactRoutes.includes(known),
       });
 
     return knownRoutes.some(match);
