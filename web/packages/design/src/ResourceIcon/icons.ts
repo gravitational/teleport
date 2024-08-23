@@ -283,6 +283,8 @@ import vercelLight from './assets/vercel-light.svg';
 import weavegitops from './assets/weavegitops.svg';
 import windowsDark from './assets/windows-dark.svg';
 import windowsLight from './assets/windows-light.svg';
+import wizDark from './assets/wiz-dark.svg';
+import wizLight from './assets/wiz-light.svg';
 import workshopDark from './assets/workshop-dark.svg';
 import workshopLight from './assets/workshop-light.svg';
 import youtube from './assets/youtube.svg';
@@ -560,6 +562,8 @@ export {
   weavegitops,
   windowsDark,
   windowsLight,
+  wizDark,
+  wizLight,
   workshopDark,
   workshopLight,
   youtube,
