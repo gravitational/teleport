@@ -543,7 +543,7 @@ ORDER BY
 Run custom audit query using `tctl audit query exec` command:
 
 ```code
-$ tctl audit query exec 'select event_time,identity_user from cert_create order by event_date limit 1;'
+$ tctl audit query exec 'select event_time,identity_user from cert_create order by event_date limit 1;' --days 7
 [
     {
         "data": [
