@@ -25,16 +25,14 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -88,7 +86,7 @@ func TestGetStaticHostUser(t *testing.T) {
 		name      string
 		key       string
 		assertErr assert.ErrorAssertionFunc
-		wantObj   *userprovisioningpb.StaticHostUser
+		wantObj   *userprovisioning.StaticHostUser
 	}{
 		{
 			name: "object does not exist",
@@ -99,7 +97,7 @@ func TestGetStaticHostUser(t *testing.T) {
 		},
 		{
 			name:      "success",
-			key:       getStaticHostUser(0).GetMetadata().GetName(),
+			key:       getStaticHostUser(0).GetMetadata().Name,
 			assertErr: assert.NoError,
 			wantObj:   getStaticHostUser(0),
 		},
@@ -113,8 +111,7 @@ func TestGetStaticHostUser(t *testing.T) {
 				assert.Nil(t, obj)
 			} else {
 				cmpOpts := []cmp.Option{
-					protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-					protocmp.Transform(),
+					cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 				}
 				require.Equal(t, "", cmp.Diff(tc.wantObj, obj, cmpOpts...))
 			}
@@ -129,10 +126,10 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := clock.Now().UTC().Add(30 * time.Minute)
 
 	// Fetch the object from the backend so the revision is populated.
-	key := getStaticHostUser(0).GetMetadata().GetName()
+	key := getStaticHostUser(0).GetMetadata().Name
 	obj, err := service.GetStaticHostUser(ctx, key)
 	require.NoError(t, err)
 	obj.Metadata.Expires = expiry
@@ -153,7 +150,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := clock.Now().UTC().Add(30 * time.Minute)
 
 	obj := getStaticHostUser(0)
 	obj.Metadata.Expires = expiry
@@ -184,7 +181,7 @@ func TestDeleteStaticHostUser(t *testing.T) {
 		},
 		{
 			name:      "success",
-			key:       getStaticHostUser(0).GetMetadata().GetName(),
+			key:       getStaticHostUser(0).GetMetadata().Name,
 			assertErr: require.NoError,
 		},
 	}
@@ -216,8 +213,7 @@ func TestListStaticHostUsers(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-						protocmp.Transform(),
+						cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 					}
 					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
@@ -225,7 +221,7 @@ func TestListStaticHostUsers(t *testing.T) {
 
 			t.Run("paginated", func(t *testing.T) {
 				// Fetch a paginated list of objects
-				elements := make([]*userprovisioningpb.StaticHostUser, 0)
+				elements := make([]*userprovisioning.StaticHostUser, 0)
 				nextToken := ""
 				for {
 					out, token, err := service.ListStaticHostUsers(ctx, 2, nextToken)
@@ -240,8 +236,7 @@ func TestListStaticHostUsers(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-						protocmp.Transform(),
+						cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
 					}
 					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
@@ -262,9 +257,11 @@ func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 	return service
 }
 
-func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
+func getStaticHostUser(index int) *userprovisioning.StaticHostUser {
 	name := fmt.Sprintf("obj%v", index)
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+	return userprovisioning.NewStaticHostUser(header.Metadata{
+		Name: name,
+	}, userprovisioning.Spec{
 		Login:  "alice",
 		Groups: []string{"foo", "bar"},
 		Uid:    "1234",

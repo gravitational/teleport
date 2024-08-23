@@ -23,33 +23,17 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
-	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 func TestValidateStaticHostUser(t *testing.T) {
 	t.Parallel()
 
-	nodeLabels := func(labels map[string]string) *wrappers.LabelValues {
-		if len(labels) == 0 {
-			return nil
-		}
-		values := &wrappers.LabelValues{
-			Values: make(map[string]wrappers.StringValues, len(labels)),
-		}
-		for k, v := range labels {
-			values.Values[k] = wrappers.StringValues{
-				Values: []string{v},
-			}
-		}
-		return values
-	}
-
 	tests := []struct {
 		name     string
-		hostUser *userprovisioningpb.StaticHostUser
+		hostUser *userprovisioning.StaticHostUser
 		assert   require.ErrorAssertionFunc
 	}{
 		{
@@ -58,32 +42,27 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "no name",
-			hostUser: userprovisioning.NewStaticHostUser("", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{}, userprovisioning.Spec{
 				Login: "alice",
 			}),
 			assert: require.Error,
 		},
 		{
-			name:     "no spec",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", nil),
-			assert:   require.Error,
-		},
-		{
 			name:     "missing login",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{}),
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{}),
 			assert:   require.Error,
 		},
 		{
 			name: "invalid node labels",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
-				NodeLabels: nodeLabels(map[string]string{types.Wildcard: "bar"}),
+				NodeLabels: types.Labels{types.Wildcard: {"bar"}},
 			}),
 			assert: require.Error,
 		},
 		{
 			name: "invalid node labels expression",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:                "alice",
 				NodeLabelsExpression: "foo bar xyz",
 			}),
@@ -91,45 +70,42 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "valid wildcard labels",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
-				Login: "alice",
-				NodeLabels: nodeLabels(map[string]string{
-					"foo":          types.Wildcard,
-					types.Wildcard: types.Wildcard,
-				}),
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+				Login:      "alice",
+				NodeLabels: types.Labels{"foo": {types.Wildcard}, types.Wildcard: {types.Wildcard}},
 			}),
 			assert: require.NoError,
 		},
 		{
 			name: "non-numeric uid",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				Groups:     []string{"foo", "bar"},
 				Uid:        "abcd",
 				Gid:        "1234",
-				NodeLabels: nodeLabels(map[string]string{"foo": "bar"}),
+				NodeLabels: types.Labels{"foo": {"bar"}},
 			}),
 			assert: require.Error,
 		},
 		{
 			name: "non-numeric gid",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				Groups:     []string{"foo", "bar"},
 				Uid:        "1234",
 				Gid:        "abcd",
-				NodeLabels: nodeLabels(map[string]string{"foo": "bar"}),
+				NodeLabels: types.Labels{"foo": {"bar"}},
 			}),
 			assert: require.Error,
 		},
 		{
 			name: "ok",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:                "alice",
 				Groups:               []string{"foo", "bar"},
 				Uid:                  "1234",
 				Gid:                  "5678",
-				NodeLabels:           nodeLabels(map[string]string{"foo": "bar"}),
+				NodeLabels:           types.Labels{"foo": {"bar"}},
 				NodeLabelsExpression: `labels["env"] == "staging" || labels["env"] == "test"`,
 			}),
 			assert: require.NoError,

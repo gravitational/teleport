@@ -24,6 +24,8 @@ import (
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
+	convertv1 "github.com/gravitational/teleport/api/types/userprovisioning/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -41,9 +43,9 @@ type ServiceConfig struct {
 // Cache is a subset of the service interface for reading items from the cache.
 type Cache interface {
 	// ListStaticHostUsers lists static host users.
-	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
+	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioning.StaticHostUser, string, error)
 	// GetStaticHostUser returns a static host user by name.
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+	GetStaticHostUser(ctx context.Context, name string) (*userprovisioning.StaticHostUser, error)
 }
 
 // Service implements the static host user RPC service.
@@ -90,8 +92,12 @@ func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioning
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	userProtos := make([]*userprovisioningpb.StaticHostUser, 0, len(users))
+	for _, u := range users {
+		userProtos = append(userProtos, convertv1.ToProto(u))
+	}
 	return &userprovisioningpb.ListStaticHostUsersResponse{
-		Users:         users,
+		Users:         userProtos,
 		NextPageToken: nextToken,
 	}, nil
 }
@@ -113,7 +119,10 @@ func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb
 	}
 
 	out, err := s.cache.GetStaticHostUser(ctx, req.Name)
-	return out, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return convertv1.ToProto(out), nil
 }
 
 // CreateStaticHostUser creates a static host user.
@@ -129,8 +138,15 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.CreateStaticHostUser(ctx, req.User)
-	return out, trace.Wrap(err)
+	hostUser, err := convertv1.FromProto(req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := s.backend.CreateStaticHostUser(ctx, hostUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return convertv1.ToProto(out), trace.Wrap(err)
 }
 
 // UpdateStaticHostUser updates a static host user.
@@ -146,8 +162,15 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.UpdateStaticHostUser(ctx, req.User)
-	return out, trace.Wrap(err)
+	hostUser, err := convertv1.FromProto(req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := s.backend.UpdateStaticHostUser(ctx, hostUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return convertv1.ToProto(out), trace.Wrap(err)
 }
 
 // UpsertStaticHostUser upserts a static host user.
@@ -163,8 +186,15 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.UpsertStaticHostUser(ctx, req.User)
-	return out, trace.Wrap(err)
+	hostUser, err := convertv1.FromProto(req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := s.backend.UpsertStaticHostUser(ctx, hostUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return convertv1.ToProto(out), trace.Wrap(err)
 }
 
 // DeleteStaticHostUser deletes a static host user. Note that this does not

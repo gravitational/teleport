@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -36,17 +36,18 @@ const (
 
 // StaticHostUserService manages host users that should be created on SSH nodes.
 type StaticHostUserService struct {
-	svc *generic.ServiceWrapper[*userprovisioningpb.StaticHostUser]
+	svc *generic.Service[*userprovisioning.StaticHostUser]
 }
 
 // NewStaticHostUserService creates a new static host user service.
 func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error) {
-	svc, err := generic.NewServiceWrapper(
-		bk,
-		types.KindStaticHostUser,
-		staticHostUserPrefix,
-		services.MarshalProtoResource[*userprovisioningpb.StaticHostUser],
-		services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser],
+	svc, err := generic.NewService(&generic.ServiceConfig[*userprovisioning.StaticHostUser]{
+		Backend:       bk,
+		ResourceKind:  types.KindStaticHostUser,
+		BackendPrefix: staticHostUserPrefix,
+		MarshalFunc:   services.MarshalStaticHostUser,
+		UnmarshalFunc: services.UnmarshalStaticHostUser,
+	},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -57,7 +58,7 @@ func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error
 }
 
 // ListStaticHostUsers lists static host users.
-func (s *StaticHostUserService) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+func (s *StaticHostUserService) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioning.StaticHostUser, string, error) {
 	out, nextToken, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -66,13 +67,13 @@ func (s *StaticHostUserService) ListStaticHostUsers(ctx context.Context, pageSiz
 }
 
 // GetStaticHostUser returns a static host user by name.
-func (s *StaticHostUserService) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+func (s *StaticHostUserService) GetStaticHostUser(ctx context.Context, name string) (*userprovisioning.StaticHostUser, error) {
 	out, err := s.svc.GetResource(ctx, name)
 	return out, trace.Wrap(err)
 }
 
 // CreateStaticHostUser creates a static host user.
-func (s *StaticHostUserService) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (s *StaticHostUserService) CreateStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	if err := services.ValidateStaticHostUser(in); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,7 +82,7 @@ func (s *StaticHostUserService) CreateStaticHostUser(ctx context.Context, in *us
 }
 
 // UpdateStaticHostUser updates a static host user.
-func (s *StaticHostUserService) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (s *StaticHostUserService) UpdateStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	if err := services.ValidateStaticHostUser(in); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,7 +91,7 @@ func (s *StaticHostUserService) UpdateStaticHostUser(ctx context.Context, in *us
 }
 
 // UpsertStaticHostUser upserts a static host user.
-func (s *StaticHostUserService) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (s *StaticHostUserService) UpsertStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	if err := services.ValidateStaticHostUser(in); err != nil {
 		return nil, trace.Wrap(err)
 	}

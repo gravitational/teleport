@@ -20,6 +20,8 @@ import (
 	"github.com/gravitational/trace"
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
+	convertv1 "github.com/gravitational/teleport/api/types/userprovisioning/convert/v1"
 )
 
 // Client is a StaticHostUser client.
@@ -35,7 +37,7 @@ func NewClient(grpcClient userprovisioningpb.StaticHostUsersServiceClient) *Clie
 }
 
 // ListStaticHostUsers lists static host users.
-func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioning.StaticHostUser, string, error) {
 	resp, err := c.grpcClient.ListStaticHostUsers(ctx, &userprovisioningpb.ListStaticHostUsersRequest{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,
@@ -43,42 +45,66 @@ func (c *Client) ListStaticHostUsers(ctx context.Context, pageSize int, pageToke
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp.Users, resp.NextPageToken, nil
+	hostUsers := make([]*userprovisioning.StaticHostUser, 0, len(resp.Users))
+	for _, hostUserProto := range resp.Users {
+		hostUser, err := convertv1.FromProto(hostUserProto)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		hostUsers = append(hostUsers, hostUser)
+	}
+	return hostUsers, resp.NextPageToken, nil
 }
 
 // GetStaticHostUser returns a static host user by name.
-func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+func (c *Client) GetStaticHostUser(ctx context.Context, name string) (*userprovisioning.StaticHostUser, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing name")
 	}
 	out, err := c.grpcClient.GetStaticHostUser(ctx, &userprovisioningpb.GetStaticHostUserRequest{
 		Name: name,
 	})
-	return out, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostUser, err := convertv1.FromProto(out)
+	return hostUser, trace.Wrap(err)
 }
 
 // CreateStaticHostUser creates a static host user.
-func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (c *Client) CreateStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	out, err := c.grpcClient.CreateStaticHostUser(ctx, &userprovisioningpb.CreateStaticHostUserRequest{
-		User: in,
+		User: convertv1.ToProto(in),
 	})
-	return out, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostUser, err := convertv1.FromProto(out)
+	return hostUser, trace.Wrap(err)
 }
 
 // UpdateStaticHostUser updates a static host user.
-func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (c *Client) UpdateStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	out, err := c.grpcClient.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
-		User: in,
+		User: convertv1.ToProto(in),
 	})
-	return out, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostUser, err := convertv1.FromProto(out)
+	return hostUser, trace.Wrap(err)
 }
 
 // UpsertStaticHostUser upserts a static host user.
-func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioningpb.StaticHostUser) (*userprovisioningpb.StaticHostUser, error) {
+func (c *Client) UpsertStaticHostUser(ctx context.Context, in *userprovisioning.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	out, err := c.grpcClient.UpsertStaticHostUser(ctx, &userprovisioningpb.UpsertStaticHostUserRequest{
-		User: in,
+		User: convertv1.ToProto(in),
 	})
-	return out, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hostUser, err := convertv1.FromProto(out)
+	return hostUser, trace.Wrap(err)
 }
 
 // DeleteStaticHostUser deletes a static host user. Note that this does not

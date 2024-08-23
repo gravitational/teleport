@@ -27,8 +27,9 @@ import (
 
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
-	"github.com/gravitational/teleport/api/types/wrappers"
+	convertv1 "github.com/gravitational/teleport/api/types/userprovisioning/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -43,17 +44,15 @@ func staticHostUserName(i int) string {
 
 func makeStaticHostUser(i int) *userprovisioningpb.StaticHostUser {
 	name := staticHostUserName(i)
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+	return convertv1.ToProto(userprovisioning.NewStaticHostUser(header.Metadata{
+		Name: name,
+	}, userprovisioning.Spec{
 		Login:  name,
 		Groups: []string{"foo", "bar"},
-		NodeLabels: &wrappers.LabelValues{
-			Values: map[string]wrappers.StringValues{
-				"foo": {
-					Values: []string{"bar"},
-				},
-			},
+		NodeLabels: types.Labels{
+			"foo": {"bar"},
 		},
-	})
+	}))
 }
 
 func authorizeWithVerbs(verbs []string, mfaVerified bool) authorizerFactory {
@@ -123,7 +122,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 				}
 				hostUser.Spec.Login = "bob"
 				_, err = svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
-					User: hostUser,
+					User: convertv1.ToProto(hostUser),
 				})
 				return err
 			},
@@ -360,7 +359,10 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		_, err := localResourceService.CreateStaticHostUser(ctx, makeStaticHostUser(i))
+		hostUser := makeStaticHostUser(i)
+		hostUserProto, err := convertv1.FromProto(hostUser)
+		require.NoError(t, err)
+		_, err = localResourceService.CreateStaticHostUser(ctx, hostUserProto)
 		require.NoError(t, err)
 	}
 
