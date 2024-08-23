@@ -25,6 +25,7 @@ import (
 	"log/slog"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -34,7 +35,6 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -105,21 +105,18 @@ type eventsWatcher interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
-// TrustDomainCache
-// It fetches trust bundles based on:
-//   - The "spiffe" CA of the connected Teleport cluster
-//   - The SPIFFEFederation resources that are configured in the connected
-//     Teleport cluster
+// TrustBundleCache maintains a local, subscribable cache of trust domains and
+// their trust bundles. It can be shared by multiple services within tbot and
+// can leverage the main bot identity.
 //
 // This code should place a priority on continuance of service to subscribed
 // workloads over strict correctness. If a confusing event is received, it is
 // preferable to serve the last-good value than to disrupt subscribed workloads
 // ability to communicate.
-type TrustDomainCache struct {
+type TrustBundleCache struct {
 	federationClient machineidv1pb.SPIFFEFederationServiceClient
 	trustClient      trustv1.TrustServiceClient
 	eventsClient     eventsWatcher
-	allClient        *authclient.Client
 	clusterName      string
 
 	logger *slog.Logger
@@ -129,18 +126,64 @@ type TrustDomainCache struct {
 	subscribers map[chan<- struct{}]struct{}
 }
 
-type TrustDomainCacheConfig struct {
+type TrustBundleCacheConfig struct {
+	FederationClient machineidv1pb.SPIFFEFederationServiceClient
+	TrustClient      trustv1.TrustServiceClient
+	EventsClient     eventsWatcher
+	ClusterName      string
+	Logger           *slog.Logger
 }
 
-func NewTrustDomainCache(_ TrustDomainCacheConfig) *TrustDomainCache {
-	return &TrustDomainCache{}
+// NewTrustBundleCache creates a new TrustBundleCache.
+func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) {
+	switch {
+	case cfg.FederationClient == nil:
+		return nil, trace.BadParameter("missing FederationClient")
+	case cfg.TrustClient == nil:
+		return nil, trace.BadParameter("missing TrustClient")
+	case cfg.EventsClient == nil:
+		return nil, trace.BadParameter("missing EventsClient")
+	case cfg.ClusterName == "":
+		return nil, trace.BadParameter("missing ClusterName")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("missing Logger")
+	}
+	return &TrustBundleCache{
+		federationClient: cfg.FederationClient,
+		trustClient:      cfg.TrustClient,
+		eventsClient:     cfg.EventsClient,
+		clusterName:      cfg.ClusterName,
+		logger:           cfg.Logger,
+	}, nil
 }
 
-func (m *TrustDomainCache) Run(ctx context.Context) error {
-	return m.watch(ctx)
+func (m *TrustBundleCache) Run(ctx context.Context) error {
+	for {
+		m.logger.InfoContext(
+			ctx,
+			"Initializing cache",
+		)
+		if err := m.watch(ctx); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			m.logger.ErrorContext(
+				ctx,
+				"Cache failed, will attempt to re-initialize",
+				"error", err,
+			)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(5 * time.Second):
+			// TODO: Less bad here pls
+			continue
+		}
+	}
 }
 
-func (m *TrustDomainCache) watch(ctx context.Context) error {
+func (m *TrustBundleCache) watch(ctx context.Context) error {
 	// TODO: We should be able to go unhealthy and healthy again if the
 	// watcher fails.
 	watcher, err := m.eventsClient.NewWatcher(ctx, types.Watch{
@@ -191,10 +234,11 @@ func (m *TrustDomainCache) watch(ctx context.Context) error {
 
 	// Now that we know our watcher is streaming events, we can fetch the
 	// current point-in-time list of resources.
-	spiffeCA, err := m.allClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: m.clusterName,
-	}, false)
+	spiffeCA, err := m.trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+		Type:       string(types.SPIFFECA),
+		Domain:     m.clusterName,
+		IncludeKey: true,
+	})
 	if err != nil {
 		return trace.Wrap(err, "fetching spiffe CA")
 	}
@@ -235,7 +279,7 @@ func (m *TrustDomainCache) watch(ctx context.Context) error {
 	}
 }
 
-func (m *TrustDomainCache) getBundleSet() *BundleSet {
+func (m *TrustBundleCache) getBundleSet() *BundleSet {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	if m.bundleSet == nil {
@@ -246,7 +290,7 @@ func (m *TrustDomainCache) getBundleSet() *BundleSet {
 	return m.bundleSet.Clone()
 }
 
-func (m *TrustDomainCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
+func (m *TrustBundleCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
 	// TODO: We could clone the bundleSet here to avoid the caller mutating it.
 	m.mu.Lock()
 	m.bundleSet = bundleSet
@@ -267,7 +311,7 @@ func (m *TrustDomainCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
 //   - We didn't want to block the broadcaster if a consumer was slow.
 //   - We don't care if a consumer misses an intermediate state, just that they
 //     know the state has changed and that they receive the latest state.
-func (m *TrustDomainCache) Subscribe() (<-chan *BundleSet, func()) {
+func (m *TrustBundleCache) Subscribe() (<-chan *BundleSet, func()) {
 	stopCh := make(chan struct{})
 	notifyCh := make(chan struct{}, 1)
 	m.mu.Lock()
@@ -308,7 +352,7 @@ func (m *TrustDomainCache) Subscribe() (<-chan *BundleSet, func()) {
 	}
 }
 
-func (m *TrustDomainCache) processEvent(ctx context.Context, event types.Event) {
+func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) {
 	// TODO(noah): Since we're only calling this from one goroutine, we could
 	// probably use the previously modified value rather than rlocking and
 	// cloning again.
