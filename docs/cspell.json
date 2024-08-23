@@ -425,6 +425,7 @@
     "disableexcludes",
     "disablerepo",
     "disablesse",
+    "discoverability",
     "distros",
     "dockerhost",
     "dockerized",
