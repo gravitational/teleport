@@ -6900,6 +6900,10 @@ func (a *Server) validateMFAAuthResponseInternal(
 			return nil, trace.Wrap(err)
 		}
 
+		if err := a.DeleteUserToken(ctx, res.TokenID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &authz.MFAAuthData{
 			User:       user,
 			SSO:        true,
