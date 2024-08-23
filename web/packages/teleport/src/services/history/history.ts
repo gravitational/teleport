@@ -91,7 +91,7 @@ const history = {
   },
 
   getRoutes() {
-    return Object.getOwnPropertyNames(cfg.routes).map(p => cfg.routes[p]);
+    return collectAllValues(cfg.routes);
   },
 
   getLocation() {
@@ -118,6 +118,24 @@ const history = {
     window.location.href = this.ensureBaseUrl(route);
   },
 };
+
+interface RouteRecord {
+  [key: string]: string | RouteRecord;
+}
+
+function collectAllValues(record: RouteRecord) {
+  const result: string[] = [];
+
+  for (const key in record) {
+    if (typeof record[key] === 'string') {
+      result.push(record[key]);
+    } else {
+      result.push(...collectAllValues(record[key]));
+    }
+  }
+
+  return result;
+}
 
 export default history;
 
