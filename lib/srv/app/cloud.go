@@ -60,6 +60,11 @@ type AWSSigninRequest struct {
 	Identity *tlsca.Identity
 	// App is the AWS application requested for access.
 	App types.Application
+
+	// federationURL overwrites federation URL mapped to the AWS app. Used in testing.
+	federationURL string
+	// assumeRoleOptions are extra assume role options. Used in testing.
+	assumeRoleOptions []func(*stscreds.AssumeRoleProvider)
 }
 
 // CheckAndSetDefaults validates the request.
@@ -144,14 +149,16 @@ func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWS
 		return nil, trace.Wrap(err)
 	}
 
-	federationURL := getFederationURL(req.App.GetURI())
-	signinURL, err := url.Parse(federationURL)
+	if req.federationURL == "" {
+		req.federationURL = getFederationURL(req.App.GetURI())
+	}
+	signinToken, err := c.getAWSSigninToken(ctx, &req)
 	if err != nil {
 		c.emitAudit(ctx, req, err)
 		return nil, trace.Wrap(err)
 	}
 
-	signinToken, err := c.getAWSSigninToken(ctx, &req, federationURL)
+	signinURL, err := url.Parse(req.federationURL)
 	if err != nil {
 		c.emitAudit(ctx, req, err)
 		return nil, trace.Wrap(err)
@@ -173,7 +180,7 @@ func (c *cloud) GetAWSSigninURL(ctx context.Context, req AWSSigninRequest) (*AWS
 // getAWSSigninToken gets the signin token required for the AWS sign in URL.
 //
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html
-func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, endpoint string, options ...func(*stscreds.AssumeRoleProvider)) (token string, err error) {
+func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest) (token string, err error) {
 	// It is stated in the user guide linked above:
 	// When you use DurationSeconds in an AssumeRole* operation, you must call
 	// it as an IAM user with long-term credentials. Otherwise, the call to the
@@ -202,7 +209,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		return "", trace.Wrap(err)
 	}
 
-	options = append(options, func(creds *stscreds.AssumeRoleProvider) {
+	options := append(req.assumeRoleOptions, func(creds *stscreds.AssumeRoleProvider) {
 		// Setting role session name to Teleport username will allow to
 		// associate CloudTrail events with the Teleport user.
 		creds.RoleSessionName = req.roleSessionName()
@@ -231,7 +238,7 @@ func (c *cloud) getAWSSigninToken(ctx context.Context, req *AWSSigninRequest, en
 		return "", trace.Wrap(err)
 	}
 
-	tokenURL, err := url.Parse(endpoint)
+	tokenURL, err := url.Parse(req.federationURL)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

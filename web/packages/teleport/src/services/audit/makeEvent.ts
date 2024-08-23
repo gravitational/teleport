@@ -660,7 +660,7 @@ export const formatters: Formatters = {
     type: 'app.session.start',
     desc: 'App Session Started',
     format: event => {
-      const { user, app_name} = event;
+      const { user, app_name } = event;
       return `User [${user}] has connected to application [${app_name}]`;
     },
   },
@@ -695,14 +695,14 @@ export const formatters: Formatters = {
     type: 'app.session.aws_console.request',
     desc: 'App Session AWS Console Request',
     format: ({ user, app_name }) => {
-       return `User [${user}] has connected to AWS console [${app_name}]`;
+      return `User [${user}] has connected to AWS console [${app_name}]`;
     },
   },
   [eventCodes.APP_SESSION_AWS_CONSOLE_REQUEST_FAILURE]: {
     type: 'app.session.aws_console.request',
     desc: 'App Session AWS Console Request failed',
     format: ({ user, app_name, error }) => {
-       return `User [${user}] AWS console [${app_name}] request failed [${error}]`;
+      return `User [${user}] AWS console [${app_name}] request failed [${error}]`;
     },
   },
   [eventCodes.SUBSYSTEM]: {

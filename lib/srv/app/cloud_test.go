@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -36,6 +37,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -160,6 +164,8 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			c, err := NewCloud(CloudConfig{
 				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
 				Clock:         clockwork.NewFakeClockAt(now),
+				Emitter:       events.NewDiscardEmitter(),
+				HostID:        "example-host-id",
 			})
 			require.NoError(t, err)
 
@@ -173,7 +179,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 					},
 					Expires: test.expiresAt,
 				},
-				Issuer: "test",
+				App: makeAWSapp(t),
 			}
 
 			actualDuration, err := cloud.getFederationDuration(req, test.temporarySession)
@@ -194,7 +200,7 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	})
 }
 
-func TestCloudGetAWSSigninToken(t *testing.T) {
+func TestCloudGetAWSSigninURL(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
@@ -204,6 +210,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 		expectedToken           string
 		expectedErrorIs         func(error) bool
 		expectedError           bool
+		expectedEventCode       string
 	}{
 		{
 			name:               "get failed",
@@ -211,7 +218,8 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 			}),
-			expectedErrorIs: trace.IsBadParameter,
+			expectedErrorIs:   trace.IsBadParameter,
+			expectedEventCode: events.AppSessionAWSConsoleRequestFailureCode,
 		},
 		{
 			name:               "bad response",
@@ -219,7 +227,8 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte("not valid json"))
 			}),
-			expectedError: true,
+			expectedError:     true,
+			expectedEventCode: events.AppSessionAWSConsoleRequestFailureCode,
 		},
 		{
 			name:               "validate URL parameters",
@@ -231,7 +240,8 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.Equal(t, "43200", values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
-			expectedToken: "generated-token",
+			expectedToken:     "generated-token",
+			expectedEventCode: events.AppSessionAWSConsoleRequestCode,
 		},
 		{
 			name:               "validate URL parameters temporary session",
@@ -243,7 +253,8 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.Equal(t, "", values.Get("SessionDuration"))
 				w.Write([]byte(`{"SigninToken":"generated-token"}`))
 			}),
-			expectedToken: "generated-token",
+			expectedToken:     "generated-token",
+			expectedEventCode: events.AppSessionAWSConsoleRequestCode,
 		},
 	}
 
@@ -266,6 +277,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			mockFedurationServer := httptest.NewServer(test.federationServerHandler)
 			t.Cleanup(mockFedurationServer.Close)
 
+			emitter := &eventstest.MockRecorderEmitter{}
 			awsSession := &awssession.Session{
 				Config: &aws.Config{
 					Credentials: test.sessionCredentials,
@@ -274,31 +286,46 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			}
 			c, err := NewCloud(CloudConfig{
 				SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
+				Emitter:       emitter,
+				HostID:        "example-host-id",
 			})
 			require.NoError(t, err)
 
 			cloud, ok := c.(*cloud)
 			require.True(t, ok)
 
-			req := &AWSSigninRequest{
+			req := AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
 						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: time.Now().Add(24 * time.Hour),
 				},
-				Issuer: "test",
+				App:               makeAWSapp(t),
+				federationURL:     mockFedurationServer.URL,
+				assumeRoleOptions: []func(*stscreds.AssumeRoleProvider){mockProviderClient},
 			}
 
-			actualToken, err := cloud.getAWSSigninToken(ctx, req, mockFedurationServer.URL, mockProviderClient)
+			response, err := cloud.GetAWSSigninURL(ctx, req)
 			if test.expectedErrorIs != nil {
 				require.True(t, test.expectedErrorIs(err))
 			} else if test.expectedError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.expectedToken, actualToken)
+
+				parsedURL, err := url.Parse(response.SigninURL)
+				require.NoError(t, err)
+				require.Equal(t, "login", parsedURL.Query().Get("Action"))
+				require.Equal(t, constants.AWSConsoleURL, parsedURL.Query().Get("Destination"))
+				require.Equal(t, test.expectedToken, parsedURL.Query().Get("SigninToken"))
 			}
+
+			// Validate event
+			event := emitter.LastEvent()
+			require.NotNil(t, event)
+			require.Equal(t, events.AppSessionAWSConsoleRequestEvent, event.GetType())
+			require.Equal(t, test.expectedEventCode, event.GetCode())
 		})
 	}
 }
@@ -331,4 +358,17 @@ func TestCloudGetFederationURL(t *testing.T) {
 			require.Equal(t, test.expectedFederationURL, getFederationURL(test.inputTargetURL))
 		})
 	}
+}
+
+func makeAWSapp(t *testing.T) types.Application {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
+	return app
 }
