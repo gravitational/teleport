@@ -66,7 +66,7 @@ impl NetworkClient {
             .await
             .map_err(|e| {
                 error!("KDC connection failed: {:?}", e);
-                reason_err!("Network Level Authentication", "connection to Key Distribution Center failed")
+                reason_err!("NLA", "connection to Key Distribution Center failed")
             })?;
 
         stream
@@ -74,7 +74,7 @@ impl NetworkClient {
             .await
             .map_err(|e| {
                 error!("KDC send failed: {:?}", e);
-                reason_err!("Network Level Authentication", "sending data to Key Distribution Center failed")
+                reason_err!("NLA", "sending data to Key Distribution Center failed")
             })?;
 
         let len = stream
@@ -82,7 +82,7 @@ impl NetworkClient {
             .await
             .map_err(|e| {
                 error!("KDC length read failed: {:?}", e);
-                reason_err!("Network Level Authentication", "reading data from Key Distribution Center failed")
+                reason_err!("NLA", "reading data from Key Distribution Center failed")
             })?;
 
         let mut buf = vec![0; len as usize + 4];
@@ -93,7 +93,7 @@ impl NetworkClient {
             .await
             .map_err(|e| {
                 error!("KDC read failed: {:?}", e);
-                reason_err!("Network Level Authentication", "reading data from Key Distribution Center failed")
+                reason_err!("NLA", "reading data from Key Distribution Center failed")
             })?;
 
         Ok(buf)

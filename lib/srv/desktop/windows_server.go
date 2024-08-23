@@ -868,6 +868,9 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
 			return trace.Wrap(err)
 		}
+		if len(net.ParseIP(computerName)) != 0 {
+			computerName = "missing.computer.name"
+		}
 	}
 
 	kdcAddr := s.cfg.KDCAddr
