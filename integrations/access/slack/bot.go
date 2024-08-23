@@ -278,6 +278,10 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	}, nil
 }
 
+func (b Bot) FetchOncallUsers(ctx context.Context, reqData pd.AccessRequestData) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}
+
 // slackAccessListReminderMsgSection builds an access list reminder Slack message section (obeys markdown).
 func (b Bot) slackAccessListReminderMsgSection(accessList *accesslist.AccessList) []BlockItem {
 	nextAuditDate := accessList.Spec.Audit.NextAuditDate

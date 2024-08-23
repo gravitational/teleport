@@ -36,6 +36,7 @@ import discordIcon from 'design/assets/images/icons/discord.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
 import msteamIcon from 'design/assets/images/icons/msteams.svg';
 import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
+import datadogIcon from 'design/assets/images/icons/datadog.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -351,6 +352,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'entra-id':
         formattedText = 'Microsoft Entra ID';
         icon = <IconContainer src={entraIdIcon} />;
+        break;
+      case 'datadog':
+        formattedText = 'Datadog';
+        icon = <IconContainer src={datadogIcon} />;
         break;
     }
   } else {

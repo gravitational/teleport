@@ -519,6 +519,10 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	}, nil
 }
 
+func (b Bot) FetchOncallUsers(ctx context.Context, reqData pd.AccessRequestData) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}
+
 func userResult(resp *resty.Response) (User, error) {
 	result := resp.Result()
 	ptr, ok := result.(*User)

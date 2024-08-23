@@ -231,3 +231,7 @@ func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Re
 		Data: nil,
 	}, nil
 }
+
+func (b DiscordBot) FetchOncallUsers(ctx context.Context, reqData pd.AccessRequestData) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
+}

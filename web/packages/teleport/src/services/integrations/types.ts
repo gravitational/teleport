@@ -141,7 +141,9 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
-  | 'entra-id';
+  | 'entra-id'
+  | 'datadog';
+
 
 export type PluginStatus<S = any> = {
   name: string;
@@ -182,6 +184,10 @@ export type PluginMattermostSpec = {
 export type PluginOpsgenieSpec = {
   defaultSchedules: string[];
 };
+
+export type PluginDatadogSpec = {
+    team: string;
+}
 
 export type IntegrationCreateRequest = {
   name: string;

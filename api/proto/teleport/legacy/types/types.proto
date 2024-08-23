@@ -5878,6 +5878,8 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
+    // Settings for the Datadog plugin
+    PluginDatadogSettings datadog = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6121,6 +6123,14 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
+}
+
+// PluginDatadogSettings defines the settings for a Datadog integration plugin
+message PluginDatadogSettings {
+  option (gogoproto.equal) = true;
+
+  // APIEndpoint is the address of Datadog API.
+  string api_endpoint = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
