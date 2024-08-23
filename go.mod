@@ -538,6 +538,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
+require github.com/alecthomas/kingpin v2.2.6+incompatible
+
+require github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc // indirect
+
 // Update also `ignore` in .github/dependabot.yml.
 replace (
 	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
