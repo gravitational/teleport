@@ -21,7 +21,7 @@ use std::pin::Pin;
 
 use ironrdp_connector::sspi::generator::NetworkRequest;
 use ironrdp_connector::sspi::network_client::NetworkProtocol;
-use ironrdp_connector::{general_err, ConnectorResult, reason_err};
+use ironrdp_connector::{general_err, reason_err, ConnectorResult};
 use ironrdp_tokio::AsyncNetworkClient;
 use log::error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -62,39 +62,28 @@ impl NetworkClient {
             url.port().unwrap_or(DEFAULT_KERBEROS_PORT)
         );
 
-        let mut stream = TcpStream::connect(addr)
-            .await
-            .map_err(|e| {
-                error!("KDC connection failed: {:?}", e);
-                reason_err!("NLA", "connection to Key Distribution Center failed")
-            })?;
+        let mut stream = TcpStream::connect(addr).await.map_err(|e| {
+            error!("KDC connection failed: {:?}", e);
+            reason_err!("NLA", "connection to Key Distribution Center failed")
+        })?;
 
-        stream
-            .write(data)
-            .await
-            .map_err(|e| {
-                error!("KDC send failed: {:?}", e);
-                reason_err!("NLA", "sending data to Key Distribution Center failed")
-            })?;
+        stream.write(data).await.map_err(|e| {
+            error!("KDC send failed: {:?}", e);
+            reason_err!("NLA", "sending data to Key Distribution Center failed")
+        })?;
 
-        let len = stream
-            .read_u32()
-            .await
-            .map_err(|e| {
-                error!("KDC length read failed: {:?}", e);
-                reason_err!("NLA", "reading data from Key Distribution Center failed")
-            })?;
+        let len = stream.read_u32().await.map_err(|e| {
+            error!("KDC length read failed: {:?}", e);
+            reason_err!("NLA", "reading data from Key Distribution Center failed")
+        })?;
 
         let mut buf = vec![0; len as usize + 4];
         buf[0..4].copy_from_slice(&(len.to_be_bytes()));
 
-        stream
-            .read_exact(&mut buf[4..])
-            .await
-            .map_err(|e| {
-                error!("KDC read failed: {:?}", e);
-                reason_err!("NLA", "reading data from Key Distribution Center failed")
-            })?;
+        stream.read_exact(&mut buf[4..]).await.map_err(|e| {
+            error!("KDC read failed: {:?}", e);
+            reason_err!("NLA", "reading data from Key Distribution Center failed")
+        })?;
 
         Ok(buf)
     }

@@ -144,7 +144,7 @@ impl Client {
             RDP_CONNECT_TIMEOUT,
             TokioTcpStream::connect(&server_socket_addr),
         )
-            .await
+        .await
         {
             Ok(stream) => stream?,
             Err(_) => return Err(ClientError::Tcp(IoError::from(IoErrorKind::TimedOut))),
@@ -174,7 +174,7 @@ impl Client {
             )),
             "Teleport".to_string(), // directories will show up as "<directory> on Teleport"
         )
-            .with_smartcard(SCARD_DEVICE_ID);
+        .with_smartcard(SCARD_DEVICE_ID);
 
         if params.allow_directory_sharing {
             debug!("creating rdpdr client with directory sharing enabled");
@@ -237,7 +237,7 @@ impl Client {
             Some(&mut network_client),
             kerberos_config,
         )
-            .await?;
+        .await?;
 
         // Register the RDP channels with the browser client.
         Self::send_connection_activated(
@@ -456,7 +456,7 @@ impl Client {
                                 &mut write_stream,
                                 pending_resize.clone(),
                             )
-                                .await?;
+                            .await?;
                         }
                         ClientFunction::HandleTdpSdAnnounce(sda) => {
                             Client::handle_tdp_sd_announce(
@@ -464,7 +464,7 @@ impl Client {
                                 x224_processor.clone(),
                                 sda,
                             )
-                                .await?;
+                            .await?;
                         }
                         ClientFunction::HandleTdpSdInfoResponse(res) => {
                             Client::handle_tdp_sd_info_response(x224_processor.clone(), res)
@@ -541,7 +541,7 @@ impl Client {
                 None,
                 Some((width, height)),
             )?
-                .into();
+            .into();
             return Ok(vec![Box::new(pdu)]);
         }
 
@@ -714,7 +714,7 @@ impl Client {
             x224_processor,
             SvcProcessorMessages::<Rdpdr>::new(vec![SvcMessage::from(pdu)]),
         )
-            .await?;
+        .await?;
 
         // Write the RDPDR PDU to the RDP server.
         write_stream.write_all(&encoded).await?;
@@ -768,7 +768,7 @@ impl Client {
                 width,
                 height,
             )
-                .await;
+            .await;
         }
 
         Ok(())
@@ -809,7 +809,7 @@ impl Client {
             x224_processor,
             SvcProcessorMessages::<DrdynvcClient>::new(messages),
         )
-            .await?;
+        .await?;
         debug!("Writing resize to [{:?}x{:?}]", width, height);
         write_stream.write_all(&encoded).await?;
 
@@ -828,7 +828,7 @@ impl Client {
             x224_processor,
             RdpdrPdu::ClientDeviceListAnnounce(pdu),
         )
-            .await?;
+        .await?;
         Ok(())
     }
 
@@ -1426,7 +1426,7 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
                     csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
                     private_key: params.key_der.clone(),
                 }
-                    .into()
+                .into()
             }),
             pin,
         },
