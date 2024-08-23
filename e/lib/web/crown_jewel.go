@@ -20,11 +20,15 @@ type createCrownJewelRequest struct {
 	TeleportMatcher *crownjewelv1.TeleportMatcher `json:"teleport_matcher"`
 	AwsMatcher      *crownjewelv1.AWSMatcher      `json:"aws_matcher"`
 	Query           string                        `json:"query"`
+	Description     string                        `json:"description"`
 }
 
 func (c *createCrownJewelRequest) CheckAndSetDefaults() error {
 	if c.TeleportMatcher == nil && c.AwsMatcher == nil && c.Query == "" {
 		return trace.BadParameter("at least one matcher must be set")
+	}
+	if len(c.Description) > 255 {
+		return trace.BadParameter("description must be less than 255 characters")
 	}
 	return nil
 }
@@ -141,14 +145,17 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 		return nil, trace.BadParameter("incorrect crown jewel resource: %v", err)
 	}
 
+	if req.Description != "" {
+		resource.Metadata.Description = req.Description
+	}
+
 	p.Log.Debug("Creating crown jewel", "id", resourceID)
+
 	ctx := r.Context()
 	resp, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, resource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	p.Log.Debug("Crown jewel created", "resp", resp)
 
 	return ui.ToCrownJewel(resp), nil
 }
@@ -161,13 +168,12 @@ func (p *Plugin) deleteCrownJewel(_ http.ResponseWriter, r *http.Request, params
 
 	crownJewelName := params.ByName("name")
 	p.Log.Debug("Deleting crown jewel", "name", crownJewelName)
+
 	ctx := r.Context()
 	err = authClient.CrownJewelServiceClient().DeleteCrownJewel(ctx, crownJewelName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	p.Log.Debug("Crown jewel deleted", "name", crownJewelName)
 
 	return nil, nil
 }

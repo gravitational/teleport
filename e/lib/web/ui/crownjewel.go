@@ -11,6 +11,8 @@ import (
 type CrownJewel struct {
 	// Name is the name of the Crown Jewel.
 	Name string `json:"name"`
+	// Description is the description of the Crown Jewel.
+	Description string `json:"description"`
 	// Spec is the specification of the Crown Jewel.
 	Spec CrownJewelSpec `json:"spec"`
 }
@@ -48,7 +50,8 @@ type AWSMatcher struct {
 // ToCrownJewel converts a Crown Jewel to a UI representation.
 func ToCrownJewel(cj *crownjewelv1.CrownJewel) *CrownJewel {
 	return &CrownJewel{
-		Name: cj.Metadata.Name,
+		Name:        cj.Metadata.Name,
+		Description: cj.Metadata.Description,
 		Spec: CrownJewelSpec{
 			Query:            cj.Spec.Query,
 			TeleportMatchers: ToTeleportMatchers(cj.Spec.TeleportMatchers),
