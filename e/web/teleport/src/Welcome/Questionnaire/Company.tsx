@@ -1,11 +1,10 @@
 import React from 'react';
-import { Option } from 'shared/components/Select';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 
-import { EmployeeSelectOptions } from './constants';
-import { CompanyProps, EmployeeOption } from './types';
+import { EmployeeSelectOption, EmployeeSelectOptions } from './constants';
+import { CompanyProps } from './types';
 
 export const Company = ({
   updateFields,
@@ -24,11 +23,11 @@ export const Company = ({
         updateFields({ companyName: e.target.value });
       }}
     />
-    <FieldSelect
+    <FieldSelect<EmployeeSelectOption>
       label="Number of Employees"
       rule={requiredField('Number of Employees is required')}
       placeholder="Select Company Size"
-      onChange={(e: Option<EmployeeOption>) =>
+      onChange={(e: EmployeeSelectOption) =>
         updateFields({ employeeCount: e.value })
       }
       value={

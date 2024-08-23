@@ -92,10 +92,8 @@ export function SelectIntegration() {
           <Box width="300px" mb={2}>
             <Select
               isDisabled={currentStep !== Step.SelectIntegration}
-              label="AWS Integrations"
               placeholder="Select the AWS Integration to Use"
               isSearchable
-              isSimpleValue
               value={selectedOption}
               onChange={setSelected}
               options={awsIntegrations}

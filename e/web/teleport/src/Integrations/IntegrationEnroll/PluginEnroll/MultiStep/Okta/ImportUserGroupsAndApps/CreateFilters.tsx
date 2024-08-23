@@ -1,5 +1,5 @@
 import React from 'react';
-import { components, MultiValueGenericProps } from 'react-select';
+import { components } from 'react-select';
 import { useTheme } from 'styled-components';
 import { Box, Flex, Text } from 'design';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -7,6 +7,8 @@ import { Theme } from 'design/theme/themes/types';
 
 import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 import { Validator } from 'shared/components/Validation';
+
+import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 
 import { FormDataField } from '../types';
 
@@ -80,7 +82,9 @@ const filterCreateCss = (theme: Theme) => ({
   },
 });
 
-const MultiValueContainer = (props: MultiValueGenericProps) => {
+const MultiValueContainer = (
+  props: CustomSelectComponentProps<{ lastFilter: string }, Option>
+) => {
   const lastFilter = props.selectProps.customProps.lastFilter;
   const currFilter = props.data.value;
 

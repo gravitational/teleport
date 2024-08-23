@@ -16,6 +16,8 @@ import cfg from 'teleport/config';
 import * as Main from 'teleport/Main/Main';
 import { dryRunResponse } from 'shared/components/AccessRequests/fixtures';
 
+import selectEvent from 'react-select-event';
+
 import ecfg from 'e-teleport/config';
 import TeleportContextE from 'e-teleport/teleportContextE';
 
@@ -118,12 +120,10 @@ test('add and remove a resource from table', async () => {
   render(Component);
 
   // Initial render is a resource table so we select roles
-  const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
-    'textbox'
+  await selectEvent.select(
+    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
+    'roles'
   );
-  fireEvent.change(inputEl, { target: { value: 'role' } });
-  fireEvent.focus(inputEl);
-  fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
   await screen.findByText('Proceed to Request');
   let rows = screen.getAllByText(/role-/i);
@@ -169,13 +169,10 @@ test('clicking on a resource label constructs predicate query', async () => {
   render(Component);
 
   // We will use node to test predicate (it will be same for all other agents).
-  const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
-    'textbox'
+  await selectEvent.select(
+    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
+    'resources'
   );
-
-  fireEvent.change(inputEl, { target: { value: 'resource' } });
-  fireEvent.focus(inputEl);
-  fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
   // Click on a label.
   fireEvent.click(await screen.findByText(/test: node1/i));
@@ -231,12 +228,10 @@ test('select all nodes hostnames in checkout', async () => {
 test('select all buttons work properly', async () => {
   render(Component);
 
-  const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
-    'textbox'
+  await selectEvent.select(
+    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
+    'resources'
   );
-  fireEvent.change(inputEl, { target: { value: 'resource' } });
-  fireEvent.focus(inputEl);
-  fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
   expect(screen.getByText('Resources Added (0)')).toBeInTheDocument();
   const selectAll = await screen.findByTestId('select_all');
@@ -330,12 +325,10 @@ test('created requests specifiable fields are respected on checkout (not overwri
   ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 0 };
   render(Component);
 
-  const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
-    'textbox'
+  await selectEvent.select(
+    within(screen.getByTestId('resource-selector')).getByRole('combobox'),
+    'resources'
   );
-  fireEvent.change(inputEl, { target: { value: 'resource' } });
-  fireEvent.focus(inputEl);
-  fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
 
   // Select a resource.
   await screen.findAllByText('node1-addr');

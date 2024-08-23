@@ -4,7 +4,7 @@ import React from 'react';
 
 import Validation from 'shared/components/Validation';
 
-import { RoleProps, TeamOption } from './types';
+import { RoleProps } from './types';
 import { Role } from './Role';
 
 const makeProps = (): RoleProps => {
@@ -29,7 +29,7 @@ test('hides custom team input for explicit fields', () => {
 
 test('shows custom team input', () => {
   const props = makeProps();
-  props.team = 'OTHER' as TeamOption;
+  props.team = 'OTHER';
   render(
     <Validation>
       <Role {...props} />

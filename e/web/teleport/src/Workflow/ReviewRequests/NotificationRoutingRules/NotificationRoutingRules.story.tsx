@@ -166,6 +166,26 @@ const createRule = http.post(
   }
 );
 
+const getRoles = http.get(cfg.oss.api.listRolesPath.split('?')[0], () => {
+  return HttpResponse.json({
+    startKey: '',
+    items: [
+      {
+        id: 'role:access',
+        kind: 'role',
+        name: 'access',
+        content: '',
+      },
+      {
+        id: 'role:editor',
+        kind: 'role',
+        name: 'editor',
+        content: '',
+      },
+    ],
+  });
+});
+
 export const CreateAndViewValidRule = () => {
   return <Component />;
 };
@@ -176,6 +196,7 @@ CreateAndViewValidRule.parameters = {
       withPlugins,
       deleteRule,
       createRule,
+      getRoles,
       http.post(cfg.oss.api.yaml.parse, () =>
         HttpResponse.json({
           resource: validRuleObjectSlack,

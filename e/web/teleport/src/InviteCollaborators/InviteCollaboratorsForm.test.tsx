@@ -96,7 +96,9 @@ describe('invite form', () => {
     let validator = null;
     const Button = () => {
       validator = useValidation();
-      return <button role="button" onClick={() => validator.validate()} />;
+      return (
+        <button data-testid="validate" onClick={() => validator.validate()} />
+      );
     };
 
     render(
@@ -109,7 +111,7 @@ describe('invite form', () => {
     );
     await waitFor(() => expect(props.fetchRoles).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByTestId('validate'));
 
     expect(validator.valid).toBe(true);
   });
@@ -147,7 +149,9 @@ describe('invite form', () => {
     let validator = null;
     const Button = () => {
       validator = useValidation();
-      return <button role="button" onClick={() => validator.validate()} />;
+      return (
+        <button data-testid="validate" onClick={() => validator.validate()} />
+      );
     };
 
     render(
@@ -159,7 +163,7 @@ describe('invite form', () => {
       </Validation>
     );
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.click(screen.getByTestId('validate'));
 
     expect(validator.valid).toBe(false);
     expect(
@@ -173,7 +177,9 @@ describe('invite form', () => {
     let validator = null;
     const Button = () => {
       validator = useValidation();
-      return <button role="button" onClick={() => validator.validate()} />;
+      return (
+        <button data-testid="validate" onClick={() => validator.validate()} />
+      );
     };
 
     render(
@@ -185,7 +191,7 @@ describe('invite form', () => {
       </Validation>
     );
 
-    await userEvent.click(screen.getByRole('button'));
+    await userEvent.click(screen.getByTestId('validate'));
 
     expect(validator.valid).toBe(false);
     expect(screen.getByText('Email is invalid: alice')).toBeInTheDocument();

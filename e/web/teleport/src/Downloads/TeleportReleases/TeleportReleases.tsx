@@ -111,7 +111,7 @@ export const TeleportReleases = ({
               <>
                 <Flex alignItems="center" mt={2}>
                   <Box width="210px">
-                    <Select
+                    <Select<KindOption>
                       isSearchable={false}
                       options={availableOptions}
                       onChange={option =>

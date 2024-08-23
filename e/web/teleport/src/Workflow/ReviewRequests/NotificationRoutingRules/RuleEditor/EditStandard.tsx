@@ -1,5 +1,5 @@
 import React from 'react';
-import { components, MultiValueGenericProps } from 'react-select';
+import { components } from 'react-select';
 import { Box, Text, Mark } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import { State as Attempt } from 'shared/hooks/useAttemptNext';
@@ -9,7 +9,7 @@ import {
   FieldSelect,
 } from 'shared/components/FieldSelect';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import { Option } from 'shared/components/Select';
+import { CustomSelectComponentProps, Option } from 'shared/components/Select';
 import { FieldSelectCreatableAsync } from 'shared/components/FieldSelect/FieldSelectCreatable';
 import useTeleport from 'teleport/useTeleport';
 import { Plugin } from 'teleport/services/integrations';
@@ -219,7 +219,7 @@ export const EditStandard = ({
                   isDisabled={attempt.status === 'processing'}
                   placeholder="Select an integration"
                   mb={1}
-                  rule={requiredField('An integration is required')}
+                  rule={requiredField<Option>('An integration is required')}
                 />
                 <FieldSelectCreatable
                   inputId="recipients"
@@ -272,7 +272,7 @@ const SelectCreateRoles = ({
   ruleCondition,
   isDisabled,
 }: {
-  getLastFilter(): void;
+  getLastFilter(): string;
   fetchRoleOptions(s: string): Promise<Option[]>;
   onChangeRuleConditionValues(values: Option[]): void;
   ruleCondition: RuleCondition;
@@ -327,7 +327,9 @@ function getRecipientToolTipInfo(pluginName: string) {
   }
 }
 
-const MultiValueContainer = (props: MultiValueGenericProps) => {
+const MultiValueContainer = (
+  props: CustomSelectComponentProps<{ lastFilter: string }>
+) => {
   const lastFilter = props.selectProps.customProps.lastFilter;
   const currFilter = props.data.value;
 

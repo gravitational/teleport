@@ -15,21 +15,27 @@ import {
   TitleOption,
 } from './types';
 
-export const EmployeeSelectOptions: Option<string, EmployeeOption>[] =
-  Object.keys(EmployeeOption).map(key => ({
-    value: EmployeeOption[key],
-    label: EmployeeOption[key],
-  }));
+export type EmployeeSelectOption = Option<EmployeeOption, EmployeeOption>;
+export const EmployeeSelectOptions: EmployeeSelectOption[] = Object.keys(
+  EmployeeOption
+).map(key => ({
+  value: EmployeeOption[key],
+  label: EmployeeOption[key],
+}));
 
-export const teamSelectOptions: Option<string, TeamOption>[] = (
-  Object.keys(TeamOption) as Array<keyof typeof TeamOption>
+export type TeamSelectOptionValue = keyof typeof TeamOption;
+export type TeamSelectOption = Option<TeamSelectOptionValue, TeamOption>;
+export const teamSelectOptions: TeamSelectOption[] = (
+  Object.keys(TeamOption) as Array<TeamSelectOptionValue>
 ).map(key => ({
   value: key,
   label: TeamOption[key],
 }));
 
-export const titleSelectOptions: Option<string, TitleOption>[] = (
-  Object.keys(TitleOption) as Array<keyof typeof TitleOption>
+export type TitleSelectOptionValue = keyof typeof TitleOption;
+export type TitleSelectOption = Option<TitleSelectOptionValue, TitleOption>;
+export const titleSelectOptions: TitleSelectOption[] = (
+  Object.keys(TitleOption) as Array<TitleSelectOptionValue>
 ).map(key => ({
   value: key,
   label: TitleOption[key],

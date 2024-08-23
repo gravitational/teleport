@@ -1,3 +1,8 @@
+import type {
+  TeamSelectOptionValue,
+  TitleSelectOptionValue,
+} from './constants';
+
 // Note: QuestionnaireProps is duplicated in OSS (teleport/Welcome/NewCredentials)
 export type QuestionnaireProps = {
   // Onboard indicates if the questionnaire is being shown during onboarding (true) or
@@ -20,8 +25,8 @@ export type CompanyProps = QuestionProps & {
 };
 
 export type RoleProps = QuestionProps & {
-  role: TitleOption;
-  team: TeamOption;
+  role: TitleSelectOptionValue;
+  team: TeamSelectOptionValue;
   teamName: string;
 };
 
@@ -74,8 +79,8 @@ export enum ResourceOption {
 export type QuestionnaireFormFields = {
   companyName: string;
   employeeCount: EmployeeOption;
-  role: TitleOption;
-  team: TeamOption;
+  role: TitleSelectOptionValue;
+  team: TeamSelectOptionValue;
   resources: ResourceOption[];
   teamName: string;
 };

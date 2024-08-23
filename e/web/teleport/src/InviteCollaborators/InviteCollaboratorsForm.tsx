@@ -4,7 +4,7 @@ import React, {
   KeyboardEvent,
   FocusEventHandler,
 } from 'react';
-import { useTheme } from 'styled-components';
+import { CSSProp, useTheme } from 'styled-components';
 import { Text } from 'design';
 import {
   FieldSelectAsync,
@@ -100,7 +100,7 @@ const RoleOptionComponent = (props: OptionProps<RoleOption>) => {
     isFocused,
     isSelected,
     innerProps,
-    value,
+    data: { value },
   } = props;
 
   const theme = useTheme();
@@ -108,7 +108,11 @@ const RoleOptionComponent = (props: OptionProps<RoleOption>) => {
   return (
     <div
       ref={innerRef}
-      css={getStyles('option', props)}
+      // Note: There is a slight incompatibility between the return type of
+      // `getStyles` and both `css` and `styles` props. It's difficult to solve,
+      // and the code has been working so far, so I'm leaving it as is and doing
+      // a type cast.
+      css={getStyles('option', props) as CSSProp}
       className={cx(
         {
           option: true,
@@ -222,7 +226,7 @@ export function InviteCollaboratorsForm({
         inputValue={recipientsInput}
         value={recipientsValue}
         onInputChange={v => setRecipientsInput(v)}
-        onChange={v => handleRecipientsValueChange(v as Option[] | null)}
+        onChange={handleRecipientsValueChange}
         onKeyDown={handleRecipientsKeyDown}
         onBlur={handleRecipientsBlur}
         stylesConfig={recipientStyles(users, recipientsValue, theme)}
@@ -236,14 +240,10 @@ export function InviteCollaboratorsForm({
         placeholder="Click to select roles"
         isSearchable
         isMulti
-        isSimpleValue
         isClearable={false}
         value={selectedRoles}
-        onChange={values => onChangeRoles(values as RoleOption[])}
-        loadOptions={async input => {
-          const roles = await fetchRoles(input);
-          return roles as unknown as Option[];
-        }}
+        onChange={onChangeRoles}
+        loadOptions={input => fetchRoles(input)}
         noOptionsMessage={() => 'No roles found'}
         elevated={true}
         stylesConfig={roleStyles(theme)}

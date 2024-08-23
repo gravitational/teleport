@@ -27,7 +27,9 @@ export type InviteCollaboratorsFormProps = {
   recipientsValue: Option[];
   setRecipientsValue: (recipientsValue: React.SetStateAction<Option[]>) => void;
   selectedRoles: RoleOption[];
-  setSelectedRoles: (selectedRoles: React.SetStateAction<RoleOption[]>) => void;
+  setSelectedRoles: (
+    selectedRoles: React.SetStateAction<readonly RoleOption[]>
+  ) => void;
   onClose?: (users?: User[]) => void;
   hidden?: boolean;
 };

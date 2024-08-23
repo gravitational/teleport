@@ -1,19 +1,23 @@
 import React from 'react';
-import { Option } from 'shared/components/Select';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 
 import { RoleProps, TeamOption, TitleOption } from './types';
-import { teamSelectOptions, titleSelectOptions } from './constants';
+import {
+  TeamSelectOption,
+  teamSelectOptions,
+  TitleSelectOption,
+  titleSelectOptions,
+} from './constants';
 
 export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
   <>
-    <FieldSelect
+    <FieldSelect<TeamSelectOption>
       label="Which Team are you on?"
       rule={requiredField('Team is required')}
       placeholder="Select Team"
-      onChange={(e: Option<TeamOption>) => updateFields({ team: e.value })}
+      onChange={e => updateFields({ team: e.value })}
       options={teamSelectOptions}
       value={
         team
@@ -36,11 +40,11 @@ export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
         value={teamName}
       />
     )}
-    <FieldSelect
+    <FieldSelect<TitleSelectOption>
       label="Job Title"
       rule={requiredField('Job Title is required')}
       placeholder="Select Job Title"
-      onChange={(e: Option<TitleOption>) => updateFields({ role: e.value })}
+      onChange={e => updateFields({ role: e.value })}
       options={titleSelectOptions}
       value={
         role

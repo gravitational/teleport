@@ -461,7 +461,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             width="250px"
             label="API Endpoint"
             name="apiEndpoint" // must be the same name as expected by the backend as form value
-            rule={requiredField('API Endpoint Required')}
+            rule={requiredField<Option>('API Endpoint Required')}
             value={apiEndpoint}
             onChange={o => setApiEndpoint(o as Option)}
             autoFocus

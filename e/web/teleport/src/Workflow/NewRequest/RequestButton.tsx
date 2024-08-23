@@ -2,7 +2,7 @@ import React from 'react';
 import { ButtonPrimary, ButtonBorder, Flex, Text } from 'design';
 import styled from 'styled-components';
 import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
-import { components } from 'react-select';
+import { components, OptionProps } from 'react-select';
 import Select, { Option as BaseOption } from 'shared/components/Select';
 import { App } from 'teleport/services/apps';
 
@@ -70,7 +70,7 @@ export const RequestButton = ({
   );
 };
 
-const OptionComponent = (props: { data: Option }) => {
+const OptionComponent = (props: OptionProps<Option> & { data: Option }) => {
   const { data } = props;
   return (
     <components.Option {...props}>
@@ -136,7 +136,7 @@ export function AppRequestButton({
       Boolean(addedResources.user_group[userGroup.name])
     );
 
-  const options = agent.userGroups.map(user_group => ({
+  const options: Option[] = agent.userGroups.map(user_group => ({
     label: user_group.description,
     value: user_group.name,
     isAdded: Boolean(addedResources.user_group[user_group.name]),
