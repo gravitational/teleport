@@ -4,7 +4,7 @@ import cfg from 'e-teleport/config';
 
 import {
   CreateSamlIdpServiceProviderRequest,
-  SAMLIdPMetadataResponse,
+  SamlIdpMetadataResponse,
 } from './types';
 
 import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
@@ -26,7 +26,7 @@ export class IdpService {
   deleteSamlIdpServiceProvider(name: string): Promise<void> {
     return api.delete(cfg.api.samlIdpPath + `/${name}`);
   }
-  getIdPMetadataValues(): Promise<SAMLIdPMetadataResponse> {
+  getIdPMetadataValues(): Promise<SamlIdpMetadataResponse> {
     return api.get(cfg.api.samlIdPMetadataValuesPath);
   }
 

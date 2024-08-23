@@ -17,7 +17,7 @@ import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
   samlIdpServiceProvider,
   idpMetadata,
-} from 'e-teleport/Discover/SamlApplication/shared/fixtures';
+} from 'e-teleport/SamlApplication/fixtures';
 
 import { UnifiedResourcesE } from './UnifiedResourcesE';
 

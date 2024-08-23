@@ -1,43 +1,28 @@
 import React, { useState, useEffect } from 'react';
-
 import { Box, ButtonBorder, Link, Text, Toggle, Flex } from 'design';
-
-import { Danger } from 'design/Alert';
-
 import cfg from 'teleport/config';
-
 import {
   ActionButtons,
   Header,
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-
 import FieldInput from 'shared/components/FieldInput';
 import { ToolTipInfo } from 'shared/components/ToolTip';
-
 import Validation, { Validator } from 'shared/components/Validation';
 import {
   requiredAll,
   requiredField,
   Rule,
 } from 'shared/components/Validation/rules';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-
-import { useAttemptNext } from 'shared/hooks';
-
 import {
   useDiscover,
   AgentMeta,
   type SamlMeta,
 } from 'teleport/Discover/useDiscover';
 
-import useTeleportE from 'e-teleport/useTeleportE';
-
-import { ConfigureServiceProvider } from 'e-teleport/Discover/SamlApplication/Generic/DownloadMetadata/DownloadMetadata';
-
-import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
+import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
 
 export function Container() {
   const { prevStep, nextStep, agentMeta, updateAgentMeta, isUpdateFlow } =
@@ -50,8 +35,6 @@ export function Container() {
     ? agentMeta
     : defaultSamlMetaForGcpWorkforce;
 
-  const { idpService } = useTeleportE();
-
   return (
     <ConfigurePool
       /**
@@ -60,7 +43,6 @@ export function Container() {
        */
       prevStep={isUpdateFlow ? null : prevStep}
       nextStep={nextStep}
-      fetchMetadata={idpService.getIdPMetadataValues}
       agentMeta={samlMeta}
       updateAgentMeta={updateAgentMeta}
     />
@@ -79,7 +61,6 @@ export const defaultSamlMetaForGcpWorkforce: SamlMeta = {
 export type ConfigurePoolProps = {
   nextStep: () => void;
   prevStep: () => void;
-  fetchMetadata: () => Promise<SAMLIdPMetadataResponse>;
   agentMeta: SamlMeta;
   updateAgentMeta?: (meta: AgentMeta) => void;
 };
@@ -89,16 +70,7 @@ export function ConfigurePool({
   nextStep,
   agentMeta,
   updateAgentMeta,
-  fetchMetadata,
 }: ConfigurePoolProps) {
-  const { attempt, setAttempt } = useAttemptNext('processing');
-  const [samlIdPMetadata, setSAMLIdPMetadata] =
-    useState<SAMLIdPMetadataResponse>({
-      entityID: '',
-      ssoURL: '',
-      x509PEM: '',
-    });
-
   const [autoConfig, setAutoConfig] = useState<boolean>(
     agentMeta?.samlGcpWorkforce?.isAutoConfig
   );
@@ -111,19 +83,6 @@ export function ConfigurePool({
         isAutoConfig: autoConfig,
       },
     });
-  }, [autoConfig]);
-
-  useEffect(() => {
-    if (!autoConfig) {
-      fetchMetadata()
-        .then(resp => {
-          setAttempt({ status: 'success' });
-          setSAMLIdPMetadata(resp);
-        })
-        .catch((err: Error) => {
-          setAttempt({ status: 'failed', statusText: err.message });
-        });
-    }
   }, [autoConfig]);
 
   const [scriptUrl, setScriptUrl] = useState('');
@@ -178,8 +137,6 @@ export function ConfigurePool({
         </Toggle>
       </Box>
 
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
-
       {autoConfig ? (
         <>
           <ScriptGenInput
@@ -190,7 +147,7 @@ export function ConfigurePool({
           {scriptUrl && <Script scriptUrl={scriptUrl} />}
         </>
       ) : (
-        <ConfigureServiceProvider samlIdPMetadata={samlIdPMetadata} />
+        <IdpMetadata />
       )}
       <ActionButtons onProceed={nextStep} onPrev={prevStep} />
     </>

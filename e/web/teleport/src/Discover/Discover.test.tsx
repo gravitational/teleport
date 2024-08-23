@@ -12,6 +12,7 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 
 import { Discover } from './Discover';
 
@@ -22,6 +23,7 @@ const renderDiscover = () => {
     makeTestUserContext({ preferences: defaultPref })
   );
   const ctx = createTeleportContextE({ customAcl: getAcl() });
+  ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
   ctx.storeAccessRequests.getSessionExpiry = () => Promise.resolve(null);
 
   // TODO(sshah): update Discover flow to use "cfg.edition" instead of "cfg.isEnterprise"
@@ -50,7 +52,11 @@ test('displays all resources by default', () => {
   const samlGenericEl = screen.getByText('SAML Application (Generic)');
   expect(samlGenericEl).toBeInTheDocument();
   fireEvent.click(samlGenericEl);
-  expect(screen.getByText(`Teleport SAML IdP Metadata`)).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      `Configure Service Provider with Teleport's Identity Provider Metadata`
+    )
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 
   const samlGcpWorkforceEl = screen.getByText('Workforce Identity Federation');

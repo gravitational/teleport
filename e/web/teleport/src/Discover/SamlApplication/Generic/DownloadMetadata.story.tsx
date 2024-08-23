@@ -1,44 +1,35 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import {
   DiscoverProvider,
   DiscoverContextState,
-  SamlMeta,
 } from 'teleport/Discover/useDiscover';
-import { ContextProvider } from 'teleport';
 
+import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
 
-import { ConfigurePool, ConfigurePoolProps } from './ConfigureWorkforcePool';
+import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
 
 export default {
-  title: 'TeleportE/Discover/SAML Application/GCP Workforce',
+  title: 'TeleportE/Discover/SAML Application',
 };
 
-export const ConfigureWorkforcePool = () => {
-  const [agentMeta, setAgentMeta] = useState<SamlMeta>({
-    samlGcpWorkforce: {
-      isAutoConfig: true,
-      orgId: '',
-      poolName: '',
-      poolProviderName: '',
-    },
-  });
-
+export const DownloadMetadata = () => {
+  const ctx = createTeleportContextE();
+  ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
   return (
     <Provider>
-      <ConfigurePool
-        agentMeta={agentMeta}
-        {...props}
-        updateAgentMeta={setAgentMeta}
-      />
+      <DownloadMetadataComponent />
     </Provider>
   );
 };
 
 const Provider = props => {
   const ctx = createTeleportContextE({ customAcl: props.customAcl });
+  ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
   const discoverCtx: DiscoverContextState = {
     ...props,
     currentStep: 0,
@@ -60,17 +51,12 @@ const Provider = props => {
       ]}
     >
       <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          {props.children}
-        </DiscoverProvider>
+        <SamlApplicationProvider>
+          <DiscoverProvider mockCtx={discoverCtx}>
+            {props.children}
+          </DiscoverProvider>
+        </SamlApplicationProvider>
       </ContextProvider>
     </MemoryRouter>
   );
-};
-
-const props: ConfigurePoolProps = {
-  nextStep: () => null,
-  prevStep: () => null,
-  updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
-  agentMeta: {},
 };

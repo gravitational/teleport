@@ -3,7 +3,9 @@ import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
-import { DownloadMetadata, AddServiceProvider } from './Generic';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
+
+import { AddServiceProvider, DownloadMetadata } from './Generic';
 import { Finished } from './Finished';
 
 import { DownloadMetadataGrafana, AddGrafanaSaml } from './Grafana';
@@ -14,6 +16,9 @@ import {
 
 export const SamlApplicationResource: ResourceViewConfig = {
   kind: ResourceKind.SamlApplication,
+  wrapper: children => (
+    <SamlApplicationProvider>{children}</SamlApplicationProvider>
+  ),
   views(resource) {
     let configureResourceViews;
     let title;

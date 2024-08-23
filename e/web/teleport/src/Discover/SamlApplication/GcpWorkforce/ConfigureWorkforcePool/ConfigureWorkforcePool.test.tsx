@@ -1,20 +1,17 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-
 import { ContextProvider } from 'teleport';
-
 import {
   DiscoverContextState,
   DiscoverProvider,
 } from 'teleport/Discover/useDiscover';
-
 import cfg from 'teleport/config';
-
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
+import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 
 import {
   ConfigurePool,
@@ -23,12 +20,12 @@ import {
   defaultSamlMetaForGcpWorkforce,
 } from './ConfigureWorkforcePool';
 
-import type { SAMLIdPMetadataResponse } from 'e-teleport/services/idp/types';
 import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
 
 describe('Configure GCP workforce pool', () => {
   const Provider = props => {
     const ctx = createTeleportContextE({ customAcl: props.customAcl });
+    ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
     const discoverCtx: DiscoverContextState = {
       nextStep: () => null,
       prevStep: () => null,
@@ -56,7 +53,7 @@ describe('Configure GCP workforce pool', () => {
       >
         <ContextProvider ctx={ctx}>
           <DiscoverProvider mockCtx={discoverCtx}>
-            {props.children}
+            <SamlApplicationProvider>{props.children}</SamlApplicationProvider>
           </DiscoverProvider>
         </ContextProvider>
       </MemoryRouter>
@@ -64,19 +61,12 @@ describe('Configure GCP workforce pool', () => {
   };
 
   test('Toggle on and off enables and disables auto config flow', async () => {
-    const mockFetchMetadata = jest.fn().mockResolvedValue({
-      entityID: '',
-      ssoURL: '',
-      x509PEM: '',
-    } as SAMLIdPMetadataResponse);
-
     render(
       <Provider>
         <ConfigurePool
           agentMeta={defaultSamlMetaForGcpWorkforce}
           updateAgentMeta={jest.fn()}
           prevStep={() => null}
-          fetchMetadata={mockFetchMetadata}
           nextStep={() => null}
         />
       </Provider>
