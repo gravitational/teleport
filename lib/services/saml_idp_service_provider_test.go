@@ -159,6 +159,26 @@ func TestValidateAssertionConsumerServicesEndpoint(t *testing.T) {
 			location:  "javascript://sptest.iamshowcase.com/acs",
 			assertion: require.Error,
 		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs"`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs<`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs>`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs!`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs;`,
+			assertion: require.Error,
+		},
 	}
 
 	for _, test := range cases {

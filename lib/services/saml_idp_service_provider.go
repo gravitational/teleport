@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
@@ -164,9 +165,17 @@ func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 	return nil
 }
 
+// invalidSAMLIdPACSURLChars contains low hanging HTML tag characters that are more
+// commonly used in xss payload. This is not a comprehensive list but is only
+// meant to increase the ost of xss payload.
+const invalidSAMLIdPACSURLChars = `<>"!;`
+
 // ValidateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
 // is a valid HTTPS endpoint.
 func ValidateAssertionConsumerServicesEndpoint(acs string) error {
+	if acs == "" {
+		return nil
+	}
 	endpoint, err := url.Parse(acs)
 	switch {
 	case err != nil:
@@ -175,5 +184,8 @@ func ValidateAssertionConsumerServicesEndpoint(acs string) error {
 		return trace.BadParameter("invalid scheme %q in acs location endpoint %q (must be 'https')", endpoint.Scheme, acs)
 	}
 
+	if strings.ContainsAny(acs, invalidSAMLIdPACSURLChars) {
+		return trace.BadParameter("acs location endpoint contains an unsupported character")
+	}
 	return nil
 }
