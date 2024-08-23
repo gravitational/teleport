@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -264,6 +265,31 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		reloadBroadcaster: reloadBroadcaster,
 	})
 
+	// We only want to create this service if it's needed by a dependent
+	// service.
+	var trustBundleCache *spiffe.TrustBundleCache
+	setupTrustBundleCache := func() (*spiffe.TrustBundleCache, error) {
+		if trustBundleCache != nil {
+			return trustBundleCache, nil
+		}
+
+		var err error
+		trustBundleCache, err = spiffe.NewTrustBundleCache(spiffe.TrustBundleCacheConfig{
+			FederationClient: b.botIdentitySvc.GetClient().SPIFFEFederationServiceClient(),
+			TrustClient:      b.botIdentitySvc.GetClient().TrustClient(),
+			EventsClient:     b.botIdentitySvc.GetClient(),
+			ClusterName:      b.botIdentitySvc.GetIdentity().ClusterName,
+			Logger: b.log.With(
+				teleport.ComponentKey, teleport.Component(componentTBot, "spiffe-trust-bundle-cache"),
+			),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		services = append(services, trustBundleCache)
+		return trustBundleCache, nil
+	}
+
 	// Append any services configured by the user
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
@@ -284,11 +310,17 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			)
 			services = append(services, svcIdentity)
 
+			tbCache, err := setupTrustBundleCache()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			svc := &SPIFFEWorkloadAPIService{
-				svcIdentity: clientCredential,
-				botCfg:      b.cfg,
-				cfg:         svcCfg,
-				resolver:    resolver,
+				svcIdentity:      clientCredential,
+				botCfg:           b.cfg,
+				cfg:              svcCfg,
+				resolver:         resolver,
+				trustBundleCache: tbCache,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
