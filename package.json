@@ -82,10 +82,10 @@
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@9.7.0",
   "msw": {
     "workerDirectory": [
       "web/.storybook/public"
     ]
-  }
+  },
+  "packageManager": "pnpm@9.8.0"
 }
