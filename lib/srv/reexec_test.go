@@ -85,8 +85,8 @@ func TestStartNewParker(t *testing.T) {
 			newOsPack: func(t *testing.T) (*osWrapper, func()) {
 				return &osWrapper{
 					LookupGroup: func(name string) (*user.Group, error) {
-						require.Equal(t, types.TeleportServiceGroup, name)
-						return nil, user.UnknownGroupError(types.TeleportServiceGroup)
+						require.Equal(t, types.TeleportDropGroup, name)
+						return nil, user.UnknownGroupError(types.TeleportDropGroup)
 					},
 				}, func() {}
 			},
@@ -97,7 +97,7 @@ func TestStartNewParker(t *testing.T) {
 			newOsPack: func(t *testing.T) (*osWrapper, func()) {
 				return &osWrapper{
 					LookupGroup: func(name string) (*user.Group, error) {
-						require.Equal(t, types.TeleportServiceGroup, name)
+						require.Equal(t, types.TeleportDropGroup, name)
 						return &user.Group{Gid: "1234"}, nil
 					},
 					CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
@@ -123,7 +123,7 @@ func TestStartNewParker(t *testing.T) {
 
 				return &osWrapper{
 						LookupGroup: func(name string) (*user.Group, error) {
-							require.Equal(t, types.TeleportServiceGroup, name)
+							require.Equal(t, types.TeleportDropGroup, name)
 							return &user.Group{Gid: currentUser.Gid}, nil
 						},
 						CommandContext: func(ctx context.Context, name string, arg ...string) *exec.Cmd {
