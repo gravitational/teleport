@@ -1,0 +1,512 @@
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package spiffe
+
+import (
+	"context"
+	"crypto/x509"
+	"encoding/pem"
+	"log/slog"
+	"reflect"
+	"sync"
+
+	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+type BundleSet struct {
+	// Local is the trust bundle for the local trust domain.
+	Local *spiffebundle.Bundle
+	// Federated is a map of trust domains to trust bundles.
+	// It is keyed by the trust domain name
+	// (the name of the SPIFFEFederation resource) and excludes the spiffe://
+	// prefix.
+	Federated map[string]*spiffebundle.Bundle
+}
+
+func (b *BundleSet) Clone() *BundleSet {
+	clone := &BundleSet{
+		Local:     b.Local.Clone(),
+		Federated: make(map[string]*spiffebundle.Bundle),
+	}
+	for k, v := range b.Federated {
+		clone.Federated[k] = v.Clone()
+	}
+	return clone
+}
+
+func (b *BundleSet) Equal(other *BundleSet) bool {
+	if len(b.Federated) != len(other.Federated) {
+		return false
+	}
+	for k, v := range b.Federated {
+		otherBundle, ok := other.Federated[k]
+		if !ok {
+			return false
+		}
+		if !v.Equal(otherBundle) {
+			return false
+		}
+	}
+	if !b.Local.Equal(other.Local) {
+		return false
+	}
+	return true
+}
+
+// trustBundleToRawCerts converts a trust bundle's certs to raw bytes.
+// What's particularly special is that the certs are not pem encoded and
+// are appended directly to one another. This is the way that the SPIFFE
+// workload API clients expect.
+func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
+	out := []byte{}
+	for _, cert := range bundle.X509Authorities() {
+		out = append(out, cert.Raw...)
+	}
+	return out
+}
+
+func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
+	bundles := make(map[string][]byte)
+	if includeLocal {
+		bundles[b.Local.TrustDomain().IDString()] = trustBundleToRawCerts(b.Local.X509Bundle())
+	}
+	for _, v := range b.Federated {
+		bundles[v.TrustDomain().IDString()] = trustBundleToRawCerts(v.X509Bundle())
+	}
+	return bundles
+}
+
+type eventsWatcher interface {
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
+// TrustDomainCache
+// It fetches trust bundles based on:
+//   - The "spiffe" CA of the connected Teleport cluster
+//   - The SPIFFEFederation resources that are configured in the connected
+//     Teleport cluster
+//
+// This code should place a priority on continuance of service to subscribed
+// workloads over strict correctness. If a confusing event is received, it is
+// preferable to serve the last-good value than to disrupt subscribed workloads
+// ability to communicate.
+type TrustDomainCache struct {
+	federationClient machineidv1pb.SPIFFEFederationServiceClient
+	trustClient      trustv1.TrustServiceClient
+	eventsClient     eventsWatcher
+	allClient        *authclient.Client
+	clusterName      string
+
+	logger *slog.Logger
+
+	mu          sync.RWMutex
+	bundleSet   *BundleSet
+	subscribers map[chan<- struct{}]struct{}
+}
+
+type TrustDomainCacheConfig struct {
+}
+
+func NewTrustDomainCache(_ TrustDomainCacheConfig) *TrustDomainCache {
+	return &TrustDomainCache{}
+}
+
+func (m *TrustDomainCache) Run(ctx context.Context) error {
+	return m.watch(ctx)
+}
+
+func (m *TrustDomainCache) watch(ctx context.Context) error {
+	// TODO: We should be able to go unhealthy and healthy again if the
+	// watcher fails.
+	watcher, err := m.eventsClient.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				// Only watch our local cert authority, we rely on the
+				// SPIFFEFederation resource for all non-local clusters.
+				Kind:        types.KindCertAuthority,
+				LoadSecrets: false,
+				Filter: types.CertAuthorityFilter{
+					types.SPIFFECA: m.clusterName,
+				}.IntoMap(),
+			},
+			{
+				Kind:        types.KindSPIFFEFederation,
+				LoadSecrets: false,
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err, "establishing watcher")
+	}
+	defer func() {
+		if err := watcher.Close(); err != nil {
+			m.logger.ErrorContext(
+				ctx,
+				"Failed to close watcher",
+				"error", err,
+			)
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case event := <-watcher.Events():
+		if event.Type == types.OpInit {
+			break
+		}
+		return trace.BadParameter("unexpected event type: %v", event.Type)
+	case <-watcher.Done():
+		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
+	}
+
+	bundleSet := &BundleSet{
+		Federated: make(map[string]*spiffebundle.Bundle),
+	}
+
+	// Now that we know our watcher is streaming events, we can fetch the
+	// current point-in-time list of resources.
+	spiffeCA, err := m.allClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: m.clusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err, "fetching spiffe CA")
+	}
+	bundleSet.Local, err = convertSPIFFECAToBundle(spiffeCA)
+	if err != nil {
+		return trace.Wrap(err, "converting SPIFFE CA to trust bundle")
+	}
+
+	spiffeFederations, err := listAllSPIFFEFederations(ctx, m.federationClient)
+	if err != nil {
+		return trace.Wrap(err, "fetching SPIFFE federations")
+	}
+	for _, federation := range spiffeFederations {
+		bundle, err := convertSPIFFEFederationToBundle(federation)
+		if err != nil {
+			m.logger.WarnContext(
+				ctx,
+				"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
+				"error", err,
+			)
+			continue
+		}
+		bundleSet.Federated[federation.Metadata.Name] = bundle
+	}
+
+	// The initial state of the bundleSet is now complete, we can set it.
+	m.setAndBroadcastBundleSet(bundleSet)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case evt := <-watcher.Events():
+			m.processEvent(ctx, evt)
+		case <-watcher.Done():
+			return trace.Wrap(watcher.Error(), "watcher closed")
+		}
+	}
+}
+
+func (m *TrustDomainCache) getBundleSet() *BundleSet {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.bundleSet == nil {
+		return nil
+	}
+	// Clone so a receiver cannot mutate the current state without calling
+	// setAndBroadcastBundleSet.
+	return m.bundleSet.Clone()
+}
+
+func (m *TrustDomainCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
+	// TODO: We could clone the bundleSet here to avoid the caller mutating it.
+	m.mu.Lock()
+	m.bundleSet = bundleSet
+	for sub := range m.subscribers {
+		select {
+		case sub <- struct{}{}:
+		default:
+		}
+	}
+	m.mu.Unlock()
+}
+
+// Subscribe returns a channel which will receive the latest state of the
+// bundle set. If the cache is initialized, the current state will be sent
+// immediately.
+//
+// The implementation here is a little "odd":
+//   - We didn't want to block the broadcaster if a consumer was slow.
+//   - We don't care if a consumer misses an intermediate state, just that they
+//     know the state has changed and that they receive the latest state.
+func (m *TrustDomainCache) Subscribe() (<-chan *BundleSet, func()) {
+	stopCh := make(chan struct{})
+	notifyCh := make(chan struct{}, 1)
+	m.mu.Lock()
+	m.subscribers[notifyCh] = struct{}{}
+	m.mu.Unlock()
+	outCh := make(chan *BundleSet)
+	go func() {
+		unsent := m.getBundleSet() // can be nil i.e not yet initialized
+		for {
+			// We only want to try and send to outCh if we have a value to send.
+			var maybeOutCh chan *BundleSet
+			if unsent != nil {
+				maybeOutCh = outCh
+			}
+			select {
+			case maybeOutCh <- unsent:
+				// If we have a value to send, and, another goroutine
+				// (the consumer) is ready to receive, send it, and then clear
+				// unsent to indicate that the consumer has received the latest
+				// state.
+				// It's worth highlighting that outCh is unbuffered!
+				unsent = nil
+			case <-notifyCh:
+				// The broadcaster has flagged that new state is available, so
+				// we grab a local copy for our "unsent" value.
+				unsent = m.getBundleSet()
+			case <-stopCh:
+				// The consumer has indicated they no longer want to receive
+				// updates, we can exit.
+				return
+			}
+		}
+	}()
+	return outCh, func() {
+		m.mu.Lock()
+		delete(m.subscribers, notifyCh)
+		m.mu.Unlock()
+	}
+}
+
+func (m *TrustDomainCache) processEvent(ctx context.Context, event types.Event) {
+	// TODO(noah): Since we're only calling this from one goroutine, we could
+	// probably use the previously modified value rather than rlocking and
+	// cloning again.
+	bundleSet := m.getBundleSet()
+
+	log := m.logger.With("event.type", event.Type)
+	if event.Resource != nil {
+		log = log.With(
+			"event.resource.kind", event.Resource.GetKind(),
+			"event.resource.name", event.Resource.GetName(),
+		)
+	}
+
+	switch event.Type {
+	case types.OpDelete:
+		switch event.Resource.GetKind() {
+		case types.KindCertAuthority:
+			// We don't expect this to ever happen under normal circumstances.
+			// We'll simply ignore this since it would put consumers into a
+			// weird state to not have a trust bundle for the local trust domain
+			// available.
+			log.WarnContext(
+				ctx,
+				"Ignoring event indicating CA deletion",
+			)
+		case types.KindSPIFFEFederation:
+			_, ok := bundleSet.Federated[event.Resource.GetName()]
+			if !ok {
+				// Doesn't exist locally so nothing to change...
+				return
+			}
+			log.InfoContext(
+				ctx, "Processed deletion for federated trust bundle",
+			)
+			delete(bundleSet.Federated, event.Resource.GetName())
+			m.setAndBroadcastBundleSet(bundleSet)
+		}
+	case types.OpPut:
+		switch event.Resource.GetKind() {
+		case types.KindCertAuthority:
+			ca, ok := event.Resource.(types.CertAuthority)
+			if !ok {
+				log.WarnContext(
+					ctx,
+					"Event did not contain expected resource type",
+					"got", reflect.TypeOf(event.Resource),
+				)
+				return
+			}
+			if ca.GetType() != types.SPIFFECA {
+				// Safeguard against receiving an event not for the SPIFFE CA.
+				log.WarnContext(
+					ctx,
+					"Ignoring event for non-SPIFFE CA",
+					"type", ca.GetType(),
+				)
+				return
+			}
+			if ca.GetClusterName() != m.clusterName {
+				// Safeguard against receiving an event for a different cluster.
+				log.WarnContext(
+					ctx,
+					"Ignoring event for different cluster",
+					"cluster", ca.GetClusterName(),
+				)
+				return
+			}
+
+			bundle, err := convertSPIFFECAToBundle(ca)
+			if err != nil {
+				// This is "bad". Ideally, this situation should never occur,
+				// but if it does, it's preferable that subscribed workloads
+				// continue to use the last good bundle.
+				log.WarnContext(
+					ctx,
+					"Failed to convert SPIFFE CA to trust bundle",
+					"error", err,
+				)
+				return
+			}
+
+			if bundleSet.Local.Equal(bundle) {
+				log.DebugContext(
+					ctx,
+					"Event resulted in no change to local trust bundle, ignoring",
+				)
+				return
+			}
+			log.InfoContext(ctx, "Processed update for local trust bundle")
+			bundleSet.Local = bundle
+			m.setAndBroadcastBundleSet(bundleSet)
+		case types.KindSPIFFEFederation:
+			r153, ok := event.Resource.(types.Resource153Unwrapper)
+			if !ok {
+				log.WarnContext(
+					ctx,
+					"Event did not contain a 153 style resource",
+					"got", reflect.TypeOf(event.Resource),
+				)
+				return
+			}
+			federation, ok := r153.Unwrap().(*machineidv1pb.SPIFFEFederation)
+			if !ok {
+				log.WarnContext(
+					ctx,
+					"Event did not contain expected type",
+					"got", reflect.TypeOf(event.Resource),
+				)
+				return
+			}
+			bundle, err := convertSPIFFEFederationToBundle(federation)
+			if err != nil {
+				// TODO: Should we match the behaviour for the local trust
+				// bundle that's derived from the CA - i.e continue to use the
+				// last good bundle, or, should we remove this from our local
+				// set and tell workloads to start ignoring this trust domain?
+				log.WarnContext(
+					ctx,
+					"Failed to convert SPIFFEFederation to trust bundle",
+					"error", err,
+				)
+				return
+			}
+
+			if existingBundle, ok := bundleSet.Federated[federation.Metadata.Name]; ok && existingBundle.Equal(bundle) {
+				log.DebugContext(
+					ctx,
+					"Event resulted in no change to federated trust bundle, ignoring",
+				)
+				return
+			}
+			log.InfoContext(
+				ctx, "Processed update for federated trust bundle",
+			)
+			bundleSet.Federated[federation.Metadata.Name] = bundle
+			m.setAndBroadcastBundleSet(bundleSet)
+		}
+	default:
+		log.WarnContext(ctx, "Ignoring unexpected event type")
+	}
+}
+
+func listAllSPIFFEFederations(ctx context.Context, client machineidv1pb.SPIFFEFederationServiceClient) ([]*machineidv1pb.SPIFFEFederation, error) {
+	var spiffeFeds []*machineidv1pb.SPIFFEFederation
+	var token string
+	for {
+		res, err := client.ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+			PageSize:  100,
+			PageToken: token,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "listing SPIFFEFederations")
+		}
+		spiffeFeds = append(spiffeFeds, res.SpiffeFederations...)
+		if res.NextPageToken == "" {
+			break
+		}
+		token = res.NextPageToken
+	}
+	return spiffeFeds, nil
+}
+
+func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, error) {
+	td, err := spiffeid.TrustDomainFromString(ca.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing trust domain name")
+	}
+
+	bundle := spiffebundle.New(td)
+	for _, certBytes := range services.GetTLSCerts(ca) {
+		block, _ := pem.Decode(certBytes)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing cert")
+		}
+		bundle.AddX509Authority(cert)
+	}
+
+	return bundle, nil
+}
+
+func convertSPIFFEFederationToBundle(federation *machineidv1pb.SPIFFEFederation) (*spiffebundle.Bundle, error) {
+	if federation.Status == nil {
+		return nil, trace.BadParameter("federation missing status")
+	}
+	if federation.Status.CurrentBundle == "" {
+		return nil, trace.BadParameter("federation missing status.current_bundle")
+	}
+
+	td, err := spiffeid.TrustDomainFromString(federation.Metadata.Name)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing trust domain name")
+	}
+
+	bundle, err := spiffebundle.Parse(td, []byte(federation.Status.CurrentBundle))
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing bundle")
+	}
+
+	return bundle, nil
+}
