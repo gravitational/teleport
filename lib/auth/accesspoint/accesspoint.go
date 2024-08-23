@@ -103,7 +103,7 @@ type Config struct {
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
-	AutoupdateService       services.AutoupdateService
+	AutoupdateService       services.AutoupdateServiceGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {

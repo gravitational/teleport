@@ -361,44 +361,6 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
-// UpsertAutoupdateConfig sets autoupdate configuration.
-func (c *Client) UpsertAutoupdateConfig(ctx context.Context, config *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// GetAutoupdateConfig gets the autoupdate configuration from the backend.
-func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
-	config, err := c.APIClient.GetAutoupdateConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return config, nil
-}
-
-// DeleteAutoupdateVersion deletes types.AutoupdateVersion from the backend.
-func (c *Client) DeleteAutoupdateVersion(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertAutoupdateVersion sets autoupdate version.
-func (c *Client) UpsertAutoupdateVersion(ctx context.Context, config *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// GetAutoupdateVersion gets the autoupdate version from the backend.
-func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
-	config, err := c.APIClient.GetAutoupdateVersion(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return config, nil
-}
-
-// DeleteAutoupdateConfig deletes types.AutoupdateConfig from the backend.
-func (c *Client) DeleteAutoupdateConfig(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1564,7 +1526,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
-	services.AutoupdateService
+	services.AutoupdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession

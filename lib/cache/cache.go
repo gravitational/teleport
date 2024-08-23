@@ -645,8 +645,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
-	// AutoupdateService is a autoupdate service
-	AutoupdateService services.AutoupdateService
+	// AutoupdateService is an autoupdate service.
+	AutoupdateService services.AutoupdateServiceGetter
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
 	// Users is a users service

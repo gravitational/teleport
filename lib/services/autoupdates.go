@@ -24,7 +24,8 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 
-type AutoupdateGetter interface {
+// AutoupdateServiceGetter defines only read-only service methods.
+type AutoupdateServiceGetter interface {
 	// GetAutoupdateConfig gets the autoupdate configuration from the backend.
 	GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error)
 
@@ -34,7 +35,7 @@ type AutoupdateGetter interface {
 
 // AutoupdateService stores the autoupdate service.
 type AutoupdateService interface {
-	AutoupdateGetter
+	AutoupdateServiceGetter
 
 	// UpsertAutoupdateConfig sets autoupdate configuration.
 	UpsertAutoupdateConfig(ctx context.Context, c *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
