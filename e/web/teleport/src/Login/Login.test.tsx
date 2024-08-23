@@ -11,6 +11,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
 });
 
 test('basic rendering', () => {
