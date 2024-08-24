@@ -1028,8 +1028,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								OrganizationName: "foo",
 								OrganizationID:   "foo-id",
@@ -1053,8 +1053,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								OrganizationName: "foo",
 								OrganizationID:   "foo-id",
@@ -1078,8 +1078,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								WorkspaceName: "foo",
 							},
@@ -1098,8 +1098,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								OrganizationName: "foo",
 							},
@@ -1118,8 +1118,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								OrganizationName: "foo",
 								ProjectName:      "bar",
@@ -1140,8 +1140,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{
 							{
 								OrganizationID: "foo",
 								ProjectID:      "bar",
@@ -1162,8 +1162,8 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
 					JoinMethod: JoinMethodTerraformCloud,
-					Terraform: &ProvisionTokenSpecV2Terraform{
-						Allow: []*ProvisionTokenSpecV2Terraform_Rule{},
+					TerraformCloud: &ProvisionTokenSpecV2TerraformCloud{
+						Allow: []*ProvisionTokenSpecV2TerraformCloud_Rule{},
 					},
 				},
 			},
