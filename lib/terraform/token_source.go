@@ -35,6 +35,7 @@ type IDTokenSource struct {
 	getEnv envGetter
 }
 
+// GetIDToken fetches a Terraform Cloud JWT from the local node's environment
 func (its *IDTokenSource) GetIDToken() (string, error) {
 	name := "TFC_WORKLOAD_IDENTITY_TOKEN"
 	if its.audienceTag != "" {
@@ -57,6 +58,8 @@ func (its *IDTokenSource) GetIDToken() (string, error) {
 	return tok, nil
 }
 
+// NewIDTokenSource creates a new TFC ID token source with the given audience
+// tag.
 func NewIDTokenSource(audienceTag string, getEnv envGetter) *IDTokenSource {
 	return &IDTokenSource{
 		audienceTag,

@@ -450,22 +450,22 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"organization_id": {
-									Description: "OrganizationID is the ID of the HCP Terraform organization",
+									Description: "OrganizationID is the ID of the HCP Terraform organization. At least one organization value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"organization_name": {
-									Description: "OrganizationName is the human-readable name of the HCP Terraform organization",
+									Description: "OrganizationName is the human-readable name of the HCP Terraform organization. At least one organization value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"project_id": {
-									Description: "ProjectID is the ID of the HCP Terraform project",
+									Description: "ProjectID is the ID of the HCP Terraform project. At least one project or workspace value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"project_name": {
-									Description: "ProjectName is the human-readable name for the HCP Terraform project",
+									Description: "ProjectName is the human-readable name for the HCP Terraform project. At least one project or workspace value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -475,12 +475,12 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"workspace_id": {
-									Description: "WorkspaceID is the ID of the HCP Terraform workspace",
+									Description: "WorkspaceID is the ID of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"workspace_name": {
-									Description: "WorkspaceName is the human-readable name of the HCP Terraform workspace",
+									Description: "WorkspaceName is the human-readable name of the HCP Terraform workspace. At least one project or workspace value is required, either ID or name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -489,7 +489,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 						},
 						"audience": {
-							Description: "Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name.",
+							Description: "Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

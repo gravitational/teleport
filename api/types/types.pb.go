@@ -5094,6 +5094,9 @@ type ProvisionTokenSpecV2Terraform struct {
 	// Audience is the JWT audience as configured in the
 	// TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
 	// unset, defaults to the Teleport cluster name.
+	// For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+	// Terraform Cloud, this value should be `foo`. If the variable is set to
+	// match the cluster name, it does not need to be set here.
 	Audience             string   `protobuf:"bytes,2,opt,name=Audience,proto3" json:"audience,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -5136,19 +5139,27 @@ var xxx_messageInfo_ProvisionTokenSpecV2Terraform proto.InternalMessageInfo
 // Rule is a set of properties the Terraform-issued token might have to be
 // allowed to use this ProvisionToken.
 type ProvisionTokenSpecV2Terraform_Rule struct {
-	// OrganizationID is the ID of the HCP Terraform organization
+	// OrganizationID is the ID of the HCP Terraform organization. At least
+	// one organization value is required, either ID or name.
 	OrganizationID string `protobuf:"bytes,1,opt,name=OrganizationID,proto3" json:"organization_id,omitempty"`
-	// OrganizationName is the human-readable name of the HCP Terraform organization
+	// OrganizationName is the human-readable name of the HCP Terraform
+	// organization. At least one organization value is required, either ID or
+	// name.
 	OrganizationName string `protobuf:"bytes,2,opt,name=OrganizationName,proto3" json:"organization_name,omitempty"`
-	// ProjectID is the ID of the HCP Terraform project
+	// ProjectID is the ID of the HCP Terraform project. At least one project or
+	// workspace value is required, either ID or name.
 	ProjectID string `protobuf:"bytes,3,opt,name=ProjectID,proto3" json:"project_id,omitempty"`
-	// ProjectName is the human-readable name for the HCP Terraform project
+	// ProjectName is the human-readable name for the HCP Terraform project. At
+	// least one project or workspace value is required, either ID or name.
 	ProjectName string `protobuf:"bytes,4,opt,name=ProjectName,proto3" json:"project_name,omitempty"`
-	// WorkspaceID is the ID of the HCP Terraform workspace
+	// WorkspaceID is the ID of the HCP Terraform workspace. At least one
+	// project or workspace value is required, either ID or name.
 	WorkspaceID string `protobuf:"bytes,5,opt,name=WorkspaceID,proto3" json:"workspace_id,omitempty"`
-	// WorkspaceName is the human-readable name of the HCP Terraform workspace
+	// WorkspaceName is the human-readable name of the HCP Terraform workspace.
+	// At least one project or workspace value is required, either ID or name.
 	WorkspaceName string `protobuf:"bytes,6,opt,name=WorkspaceName,proto3" json:"workspace_name,omitempty"`
-	// RunPhase is the phase of the run the token was issued for, e.g. `plan` or `apply`
+	// RunPhase is the phase of the run the token was issued for, e.g. `plan` or
+	// `apply`
 	RunPhase             string   `protobuf:"bytes,7,opt,name=RunPhase,proto3" json:"run_phase,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

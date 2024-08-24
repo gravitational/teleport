@@ -371,7 +371,11 @@ spec:
                   audience:
                     description: Audience is the JWT audience as configured in the
                       TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform
-                      Cloud. If unset, defaults to the Teleport cluster name.
+                      Cloud. If unset, defaults to the Teleport cluster name. For
+                      example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is
+                      set in Terraform Cloud, this value should be `foo`. If the variable
+                      is set to match the cluster name, it does not need to be set
+                      here.
                     type: string
                 type: object
               tpm:
