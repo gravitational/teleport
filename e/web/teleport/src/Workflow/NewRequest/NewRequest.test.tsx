@@ -283,10 +283,32 @@ test('enabled and limited renders usage info', async () => {
   });
 
   let usageInfo = screen.getByTestId('usage-info');
-  expect(usageInfo).toHaveTextContent(`3 access requests`);
   expect(usageInfo).toHaveTextContent(
-    `allocation of 5 access requests per month`
+    `allocation of ${ecfg.oss.entitlements.AccessRequests.limit} access requests per month`
   );
+});
+
+test('enabled and limited renders allocation info', async () => {
+  const noBillingPermission = {
+    ...defaultUserInfo,
+    userAcl: {
+      billing: { list: false, read: false },
+    },
+  };
+  ctx.storeUser.setState(makeUserContext(noBillingPermission));
+
+  ecfg.oss.entitlements.AccessRequests = { enabled: true, limit: 30 };
+
+  render(Component);
+  await waitFor(() => {
+    expect(screen.getByTestId('usage-info')).toBeInTheDocument();
+  });
+
+  let usageInfo = screen.getByTestId('usage-info');
+  expect(usageInfo).toHaveTextContent(
+    `Your cluster has an allocation of ${ecfg.oss.entitlements.AccessRequests.limit} access requests per month.`
+  );
+  expect(usageInfo).not.toHaveTextContent(`been created this month`);
 });
 
 test('limited: displays upsell link and button when access request limit is reached', async () => {
@@ -388,7 +410,7 @@ test('created requests specifiable fields are respected on checkout (not overwri
   });
 }, 8000);
 
-const userContext = makeUserContext({
+const defaultUserInfo = {
   cluster: {
     name: 'im-a-cluster-name',
     lastConnected: '2020-11-04T19:07:50.693Z',
@@ -409,7 +431,9 @@ const userContext = makeUserContext({
       list: true,
     },
   },
-});
+};
+
+const userContext = makeUserContext(defaultUserInfo);
 
 const nodesResponse = [
   {

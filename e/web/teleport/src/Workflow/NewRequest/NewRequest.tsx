@@ -271,8 +271,12 @@ function NewRequest(props: State) {
       {dryRunAttempt.status === 'failed' && selectedResource !== 'role' && (
         <Info>{dryRunAttempt.statusText}</Info>
       )}
-      {usage && <UsageInfo {...usage} />}
-      {!usage && cfg.entitlements.AccessMonitoring.limit > 0 && <LimitedInfo />}
+
+      <UsageInfo
+        used={usage?.used}
+        limit={cfg.entitlements.AccessRequests.limit}
+      />
+
       <Flex justifyContent="space-between" alignItems="center" mb={4}>
         <Box width="150px" data-testid="resource-selector">
           <Select
@@ -483,16 +487,14 @@ const StyledWrapper = styled.div`
   border-radius: 8px;
 `;
 
-function UsageInfo(usage: { limit: number; used: number }) {
+function UsageInfo(usage: { limit: number; used?: number }) {
   const ctx = useTeleportE();
   // limit will be 0 if not using usage-based billing
   if (!usage.limit) {
     return null;
   }
 
-  const limitReached = usageLimitReached(usage);
-
-  // TODO
+  // TODO(kimlisa)
   // Does not emit event, like it automatically does when using ButtonLockedFeature component
   const getSalesLink = () => {
     const version = ctx.storeUser.state.cluster.authVersion;
@@ -503,9 +505,9 @@ function UsageInfo(usage: { limit: number; used: number }) {
     <UsageNotice data-testid="usage-info">
       <InfoIcon color="info" px={3} />
       <P1>
-        {limitReached ? (
+        {usage.used && usage.used >= usage.limit ? (
           <>
-            Your cluster has reached its allocation of {usage.used} access
+            Your cluster has reached its allocation of {usage.limit} access
             requests per month, but{' '}
             <Link href={getSalesLink()} target="_blank">
               you can get unlimited access requests with Teleport Identity.
@@ -513,24 +515,22 @@ function UsageInfo(usage: { limit: number; used: number }) {
           </>
         ) : (
           <>
-            Your cluster has an allocation of {usage.limit} access requests per
-            month. {usage.used}{' '}
-            {usage.used == 1 ? 'access request has' : 'access requests have'}{' '}
-            been created this month.
+            <>
+              Your cluster has an allocation of {usage.limit} access requests
+              per month.
+            </>
+            {usage.used && (
+              <>
+                {' '}
+                {usage.used}{' '}
+                {usage.used == 1
+                  ? 'access request has'
+                  : 'access requests have'}{' '}
+                been created this month.
+              </>
+            )}
           </>
         )}
-      </P1>
-    </UsageNotice>
-  );
-}
-
-function LimitedInfo() {
-  return (
-    <UsageNotice data-testid="usage-info">
-      <InfoIcon color="info" px={3} />
-      <P1>
-        Your cluster has an allocation of{' '}
-        {cfg.entitlements.AccessRequests.limit} access requests per month.
       </P1>
     </UsageNotice>
   );
@@ -548,10 +548,6 @@ const UsageNotice = styled(Flex)`
   margin-top: ${p => p.theme.space[2]}px;
   margin-bottom: ${p => p.theme.space[4]}px;
 `;
-
-function usageLimitReached({ limit, used }: { limit: number; used: number }) {
-  return used >= limit;
-}
 
 type ResourceOption = {
   value: ResourceKind;
