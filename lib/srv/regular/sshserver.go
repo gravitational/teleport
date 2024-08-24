@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -852,7 +851,7 @@ func New(
 	}
 	s.srv = server
 
-	if !s.proxyMode && secscanconstants.Enabled {
+	if !s.proxyMode {
 		if err := s.startAuthorizedKeysManager(ctx, auth); err != nil {
 			log.WithError(err).Infof("Failed to start authorized keys manager.")
 		}
