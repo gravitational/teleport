@@ -76,6 +76,18 @@ func parseReviewFrequency(input string) ReviewFrequency {
 	return 0
 }
 
+// MaxAllowedDepth is the maximum allowed depth for nested access lists.
+const MaxAllowedDepth = 10
+
+var (
+	// MembershipKindUnspecified is the unspecified membership kind.
+	MembershipKindUnspecified = accesslistv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED.String()
+	// MembershipKindUser is the user membership kind.
+	MembershipKindUser        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+	// MembershipKindList is the list membership kind.
+	MembershipKindList        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+)
+
 // ReviewDayOfMonth is the day of month the review should be repeated on.
 type ReviewDayOfMonth int
 
@@ -169,7 +181,7 @@ type Owner struct {
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
-	// Kind is the kind of owner, either list or user
+	// MembershipKind is the kind of owner, either list or user
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
@@ -300,7 +312,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 			return trace.BadParameter("owner name is missing")
 		}
 		if owner.MembershipKind == "" {
-			owner.MembershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+			owner.MembershipKind = MembershipKindUser
 		}
 
 		if _, ok := ownerMap[owner.Name]; ok {

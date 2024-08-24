@@ -82,7 +82,7 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 
 	var membershipKind accesslistv1.MembershipKind
 	if enumVal, ok := accesslistv1.MembershipKind_value[member.Spec.MembershipKind]; ok {
-		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		membershipKind = accesslistv1.MembershipKind(enumVal)
 	}
 
 	return &accesslistv1.Member{

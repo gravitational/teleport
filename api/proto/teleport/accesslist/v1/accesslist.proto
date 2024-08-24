@@ -207,7 +207,7 @@ message MemberSpec {
 
 //.MembershipKind represents the different kinds of list membership
 enum MembershipKind {
-  // MEMBERSHIP_KIND_USER represents list members that are of
+  // MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
   // unknown membership kind, defaulting to _USER
   MEMBERSHIP_KIND_UNSPECIFIED = 0;
   // MEMBERSHIP_KIND_USER represents list members that are normal

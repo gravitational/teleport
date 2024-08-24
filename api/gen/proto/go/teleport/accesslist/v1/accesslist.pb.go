@@ -151,7 +151,7 @@ func (ReviewDayOfMonth) EnumDescriptor() ([]byte, []int) {
 type MembershipKind int32
 
 const (
-	// MEMBERSHIP_KIND_USER represents list members that are of
+	// MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
 	// unknown membership kind, defaulting to _USER
 	MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED MembershipKind = 0
 	// MEMBERSHIP_KIND_USER represents list members that are normal

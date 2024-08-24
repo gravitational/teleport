@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -163,9 +162,9 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 	var membershipKind string
 	switch c.memberKind {
 	case memberKindList:
-		membershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+		membershipKind = accesslist.MembershipKindList
 	case "", memberKindUser:
-		membershipKind = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+		membershipKind = accesslist.MembershipKindUser
 	}
 
 	member, err := accesslist.NewAccessListMember(header.Metadata{
@@ -237,7 +236,7 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 		}
 		fmt.Printf("Members of %s:\n", c.accessListName)
 		for _, member := range allMembers {
-			if member.Spec.MembershipKind == accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String() {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
 				fmt.Printf("- (Access List) %s \n", member.Spec.Name)
 			} else {
 				fmt.Printf("- %s\n", member.Spec.Name)

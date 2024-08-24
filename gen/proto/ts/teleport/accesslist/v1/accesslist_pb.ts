@@ -493,7 +493,7 @@ export enum ReviewDayOfMonth {
  */
 export enum MembershipKind {
     /**
-     * MEMBERSHIP_KIND_USER represents list members that are of
+     * MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
      * unknown membership kind, defaulting to _USER
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_UNSPECIFIED = 0;
