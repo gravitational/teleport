@@ -1,0 +1,255 @@
+---
+title: Authenticating with Machine ID on Terraform Cloud
+description: How to use Machine ID to authenticate the Teleport Terraform provider on Terraform Cloud
+---
+
+When running the Teleport Terraform provider on Terraform Cloud, you can use its
+built-in Machine ID support to dynamically authenticate to your Teleport cluster
+without any shared secrets.
+
+Run when in this configuration, the Terraform provider proves its identity to
+the Teleport Auth Service using Terraform Cloud's [Workload Identity] tokens.
+
+[Workload Identity]: https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens
+
+While following this guide, you'll configure your Teleport cluster to accept
+join requests from Terraform Cloud runs and configure the provider to
+authenticate using the Terraform Cloud join method.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- [Terraform >= (=terraform.version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform.version=)
+  ```
+
+  To import existing Teleport resources as Terraform resources, you must have
+  Terraform version `v1.5.0` or above.
+- A Terraform Cloud account and project.
+- The Teleport Terraform provider, v16.3.0 or later
+
+[//]: # (TODO: verify which Teleport release will contain the TF Cloud method)
+
+## Step 1/4: Configure Terraform Cloud joining
+
+To start, the Teleport Auth Service needs to be configured to accept join
+requests from Terraform Cloud runs.
+
+1. Create a folder called `teleport-terraform` to hold temporary files:
+
+   ```code
+   $ mkdir -p teleport-terraform
+   $ cd teleport-terraform
+   ```
+1. The Terraform provider needs a role allowing it to manage Teleport resources.
+   Create a file named `terraform_role.yaml` with this content:
+
+   ```yaml
+   kind: role
+   metadata:
+     name: terraform
+   spec:
+     allow:
+       db_labels:
+         '*': '*'
+       app_labels:
+         '*': '*'
+       node_labels:
+         '*': '*'
+       rules:
+         - resources:
+           - app
+           - bot
+           - cluster_auth_preference
+           - cluster_networking_config
+           - db
+           - device
+           - github
+           - login_rule
+           - oidc
+           - okta_import_rule
+           - role
+           - saml
+           - session_recording_config
+           - token
+           - trusted_cluster
+           - user
+           - access_list
+           - node
+           verbs: ['list','create','read','update','delete']
+   version: v7
+   ```
+1. Create the role:
+
+   ```code
+   $ tctl create -f terraform_role.yaml
+   role 'terraform' has been created
+   ```
+
+1. The Terraform provider uses Machine ID to authenticate, so a Bot needs to be
+   defined on the cluster, and needs to be allowed to use the role you just
+   created. Create a file named `terraform_bot.yaml` with this content:
+
+   ```yaml
+   kind: bot
+   metadata:
+     name: terraform
+   spec:
+     roles:
+     - terraform
+   version: v1
+   ```
+
+1. Create the bot from the new YAML manifest:
+
+   ```code
+   $ tctl create -f terraform_bot.yaml
+   bot 'terraform' has been created
+   ```
+
+1. Finally, the new bot needs to be allowed to authenticate with Terraform Cloud
+   Workload Identity credentials. Create a file named `terraform_token.yaml`
+   with this content:
+
+   ```yaml
+   kind: token
+   version: v2
+   metadata:
+     name: terraform
+   spec:
+     roles: [Bot]
+     join_method: terraform_cloud
+     bot_name: terraform
+     terraform:
+       allow:
+         - organization_name: ExampleOrganization
+           project_name: example-project
+           workspace_name: example-workspace
+   ```
+
+   This token, named `terraform`, allows Terraform Cloud runs to authenticate
+   with Teleport when all 3 of the values allowed in the token match those
+   of the job run by Terraform Cloud.
+
+   Make sure to replace the organization, project, and workspace names to match
+   your Terraform Cloud project or projects. If desired, the fields
+   `organization_id`, `project_id`, and `workspace_id` can be used as well to
+   specify †he exact resource IDs. The values must exactly match those shown in
+   the Terraform Cloud dashboard.
+
+   Note that each `allow` rule must specify at least an `organization_name` or
+   `organization_id`, and at least one other option (workspace and/or project).
+   If desired, all workspaces under a project can be allowed by leaving
+   `workspace_name` (or `workspace_id`) unset. You can specify as many `allow`
+   rules as you want, and at least one must match for a run to be able to join.
+
+1. Lastly, create the token:
+
+   ```code
+   $ tctl create -f terraform_token.yaml
+   token 'terraform' has been created
+   ```
+
+
+## Step 2/4: Configure Terraform Cloud to issue Workload Identity tokens
+
+Terraform Cloud needs to be configured to issue JWTs during runs. This only
+requires that an environment variable is set in the Terraform Cloud dashboard.
+To do so:
+
+1. Navigate to https://app.terraform.io/
+1. Navigate to your desired organization, project, and workspace
+1. From the workspace sidebar, select "Variables"
+1. Under "Workspace Variables", click the "Add variable" button
+1. Select the "Environment variable" ("env") category
+1. For the key, enter: `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT`
+1. For the value, enter your Teleport cluster name. If using Teleport Cloud,
+   this would look like `example.teleport.sh`.
+1. If desired, enter a description. For example, "Workload identity token
+   request for Teleport"
+
+The end result should look like this:
+
+![Terraform Cloud Dashboard Example](../../../../img/machine-id/terraform-cloud-variables.png)
+
+Once this variable is set, all subsequent runs in this workspace will be issued
+JWTs.
+
+## Step 3/4: Configure the Terraform Provider
+
+In your `provider.tf` or similar, configure the `teleport` provider:
+
+```terraform
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+  join_method = "terraform_cloud"
+  join_token = "terraform"
+  audience_tag = "teleport"
+}
+```
+
+Critically, these parameters should be set:
+* `addr` should match the public hostname and port of your Teleport cluster
+* `join_method` should be `terraform_cloud`
+* `join_token` should match the name of the `token` resource created in Step #2
+* `audience_tag` should match the suffix on the key of the variable created in
+  the Terraform Cloud dashboard. For example, given the variable key
+  `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT`, the audience tag should be
+  `teleport`.
+
+For a complete example, consider this minimal `provider.tf`:
+
+```terraform
+terraform {
+  cloud {
+    organization = "ExampleOrganization"
+
+    workspaces {
+      name = "example-workspace"
+    }
+  }
+
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "17.0.0-dev.1"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "example.teleport.sh:443"
+  join_method = "terraform_cloud"
+  join_token = "terraform"
+  audience_tag = "teleport"
+}
+
+resource "teleport_role" "test" {
+  version = "v7"
+  metadata = {
+    name        = "test"
+    description = "Dummy role to validate Terraform Provider setup"
+    labels = {
+      test = "yes"
+    }
+  }
+}
+```
+
+## Step 4/4: Run Terraform
+
+You should now be able to perform a Terraform `plan` or `apply`. Both the CLI
+and API/Git triggers are supported.
+
+Assuming your local `terraform` is authenticated to Terraform Cloud, try:
+```code
+$ terraform plan
+```
+
+The workflow should successfully execute, depending on your Terraform
+configuration.
