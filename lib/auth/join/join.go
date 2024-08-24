@@ -47,7 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/spacelift"
-	"github.com/gravitational/teleport/lib/terraform"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -239,7 +239,7 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodTerraform:
-		params.IDToken, err = terraform.NewIDTokenSource(params.TerraformAudienceTag, os.Getenv).GetIDToken()
+		params.IDToken, err = terraformcloud.NewIDTokenSource(params.TerraformAudienceTag, os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

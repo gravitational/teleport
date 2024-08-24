@@ -27,16 +27,16 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/terraform"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 )
 
 type terraformIDTokenValidator interface {
 	Validate(
 		ctx context.Context, audience string, token string,
-	) (*terraform.IDTokenClaims, error)
+	) (*terraformcloud.IDTokenClaims, error)
 }
 
-func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraform.IDTokenClaims, error) {
+func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraformcloud.IDTokenClaims, error) {
 	if req.IDToken == "" {
 		return nil, trace.BadParameter("id_token not provided for terraform join request")
 	}
@@ -82,7 +82,7 @@ func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.Regis
 	return claims, trace.Wrap(checkTerraformAllowRules(token, claims))
 }
 
-func checkTerraformAllowRules(token *types.ProvisionTokenV2, claims *terraform.IDTokenClaims) error {
+func checkTerraformAllowRules(token *types.ProvisionTokenV2, claims *terraformcloud.IDTokenClaims) error {
 	for _, rule := range token.Spec.Terraform.Allow {
 		if rule.OrganizationID != "" && claims.OrganizationID != rule.OrganizationID {
 			continue

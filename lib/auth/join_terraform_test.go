@@ -30,16 +30,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/terraform"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 )
 
 type mockTerraformTokenValidator struct {
-	tokens map[string]terraform.IDTokenClaims
+	tokens map[string]terraformcloud.IDTokenClaims
 }
 
 func (m *mockTerraformTokenValidator) Validate(
 	_ context.Context, audience string, token string,
-) (*terraform.IDTokenClaims, error) {
+) (*terraformcloud.IDTokenClaims, error) {
 	if audience != "test.localhost" {
 		return nil, fmt.Errorf("bad audience: %s", audience)
 	}
@@ -55,7 +55,7 @@ func (m *mockTerraformTokenValidator) Validate(
 func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockTerraformTokenValidator{
-		tokens: map[string]terraform.IDTokenClaims{
+		tokens: map[string]terraformcloud.IDTokenClaims{
 			validIDToken: {
 				Sub:              "organization:example-organization:project:example-project:workspace:example-workspace:run_phase:apply",
 				OrganizationName: "example-organization",
