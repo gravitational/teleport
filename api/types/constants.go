@@ -1038,6 +1038,8 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
 
 	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
 	NotificationDefaultInformationalSubKind = "default-informational"
@@ -1273,10 +1275,14 @@ var KubernetesClusterWideResourceKinds = []string{
 }
 
 const (
-	// TeleportServiceGroup is a default group that users of the
-	// teleport automated user provisioning system get added to so
-	// already existing users are not deleted
-	TeleportServiceGroup = "teleport-system"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
 )
 
 const (

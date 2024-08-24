@@ -243,7 +243,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if origNumPrefixes != redundantNumPrefixes {
 		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
 		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
-		// backend.Key in your parser.
+		// backend.NewKey in your parser.
 		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
 	}
 
@@ -388,7 +388,7 @@ func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAut
 	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
-		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(authoritiesPrefix)),
 		filter:      caFilter,
 	}
 }
@@ -435,7 +435,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 
 func newProvisionTokenParser() *provisionTokenParser {
 	return &provisionTokenParser{
-		baseParser: newBaseParser(backend.Key(tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tokensPrefix)),
 	}
 }
 
@@ -463,7 +463,7 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 
 func newStaticTokensParser() *staticTokensParser {
 	return &staticTokensParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, staticTokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, staticTokensPrefix)),
 	}
 }
 
@@ -496,7 +496,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 
 func newClusterAuditConfigParser() *clusterAuditConfigParser {
 	return &clusterAuditConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, auditPrefix)),
 	}
 }
 
@@ -530,7 +530,7 @@ func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, e
 
 func newClusterNetworkingConfigParser() *clusterNetworkingConfigParser {
 	return &clusterNetworkingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, networkingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, networkingPrefix)),
 	}
 }
 
@@ -564,7 +564,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 
 func newAuthPreferenceParser() *authPreferenceParser {
 	return &authPreferenceParser{
-		baseParser: newBaseParser(backend.Key(authPrefix, preferencePrefix, generalPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authPrefix, preferencePrefix, generalPrefix)),
 	}
 }
 
@@ -598,7 +598,7 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 
 func newUIConfigParser() *uiConfigParser {
 	return &uiConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, uiPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, uiPrefix)),
 	}
 }
 
@@ -632,7 +632,7 @@ func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
 	return &sessionRecordingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, sessionRecordingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix)),
 	}
 }
 
@@ -666,7 +666,7 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 
 func newClusterNameParser() *clusterNameParser {
 	return &clusterNameParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, namePrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, namePrefix)),
 	}
 }
 
@@ -698,9 +698,9 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 }
 
 func newNamespaceParser(name string) *namespaceParser {
-	prefix := backend.Key(namespacesPrefix)
+	prefix := backend.NewKey(namespacesPrefix)
 	if name != "" {
-		prefix = backend.Key(namespacesPrefix, name, paramsPrefix)
+		prefix = backend.NewKey(namespacesPrefix, name, paramsPrefix)
 	}
 	return &namespaceParser{
 		baseParser: newBaseParser(prefix),
@@ -739,7 +739,7 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newRoleParser() *roleParser {
 	return &roleParser{
-		baseParser: newBaseParser(backend.Key(rolesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(rolesPrefix)),
 	}
 }
 
@@ -772,8 +772,8 @@ func newAccessRequestParser(m map[string]string) (*accessRequestParser, error) {
 	}
 	return &accessRequestParser{
 		filter:      filter,
-		matchPrefix: backend.Key(accessRequestsPrefix),
-		matchSuffix: backend.Key(paramsPrefix),
+		matchPrefix: backend.NewKey(accessRequestsPrefix),
+		matchSuffix: backend.NewKey(paramsPrefix),
 	}, nil
 }
 
@@ -817,7 +817,7 @@ func (p *accessRequestParser) parse(event backend.Event) (types.Resource, error)
 
 func newUserParser() *userParser {
 	return &userParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, usersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, usersPrefix)),
 	}
 }
 
@@ -853,7 +853,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.Key(nodesPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(nodesPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -867,7 +867,7 @@ func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 
 func newProxyParser() *proxyParser {
 	return &proxyParser{
-		baseParser: newBaseParser(backend.Key(proxiesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(proxiesPrefix)),
 	}
 }
 
@@ -881,7 +881,7 @@ func (p *proxyParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuthServerParser() *authServerParser {
 	return &authServerParser{
-		baseParser: newBaseParser(backend.Key(authServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authServersPrefix)),
 	}
 }
 
@@ -895,7 +895,7 @@ func (p *authServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newTunnelConnectionParser() *tunnelConnectionParser {
 	return &tunnelConnectionParser{
-		baseParser: newBaseParser(backend.Key(tunnelConnectionsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tunnelConnectionsPrefix)),
 	}
 }
 
@@ -935,7 +935,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 
 func newReverseTunnelParser() *reverseTunnelParser {
 	return &reverseTunnelParser{
-		baseParser: newBaseParser(backend.Key(reverseTunnelsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(reverseTunnelsPrefix)),
 	}
 }
 
@@ -963,7 +963,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.Key(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -999,7 +999,7 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1011,7 +1011,7 @@ func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 
 func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(snowflakePrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1023,7 +1023,7 @@ func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 
 func newAppSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(appsPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1035,7 +1035,7 @@ func newAppSessionParser(loadSecrets bool) *webSessionParser {
 
 func newWebSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(webPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1074,7 +1074,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 
 func newWebTokenParser() *webTokenParser {
 	return &webTokenParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, tokensPrefix)),
 	}
 }
 
@@ -1102,7 +1102,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
 	}
 }
 
@@ -1139,7 +1139,7 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseServerParser() *databaseServerParser {
 	return &databaseServerParser{
-		baseParser: newBaseParser(backend.Key(dbServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(dbServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -1176,7 +1176,7 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 
 func newDatabaseServiceParser() *databaseServiceParser {
 	return &databaseServiceParser{
-		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseServicePrefix)),
 	}
 }
 
@@ -1201,7 +1201,7 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 
 func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
 	}
 }
 
@@ -1225,7 +1225,7 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 
 func newCrownJewelParser() *crownJewelParser {
 	return &crownJewelParser{
-		baseParser: newBaseParser(backend.Key(crownJewelsKey)),
+		baseParser: newBaseParser(backend.NewKey(crownJewelsKey)),
 	}
 }
 
@@ -1253,7 +1253,7 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAppParser() *appParser {
 	return &appParser{
-		baseParser: newBaseParser(backend.Key(appPrefix)),
+		baseParser: newBaseParser(backend.NewKey(appPrefix)),
 	}
 }
 
@@ -1277,7 +1277,7 @@ func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseParser() *databaseParser {
 	return &databaseParser{
-		baseParser: newBaseParser(backend.Key(databasesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databasesPrefix)),
 	}
 }
 
@@ -1301,7 +1301,7 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseObjectParser() *databaseObjectParser {
 	return &databaseObjectParser{
-		baseParser: newBaseParser(backend.Key(databaseObjectPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseObjectPrefix)),
 	}
 }
 
@@ -1349,7 +1349,7 @@ func parseServer(event backend.Event, kind string) (types.Resource, error) {
 
 func newRemoteClusterParser() *remoteClusterParser {
 	return &remoteClusterParser{
-		matchPrefix: backend.Key(remoteClustersPrefix),
+		matchPrefix: backend.NewKey(remoteClustersPrefix),
 	}
 }
 
@@ -1385,7 +1385,7 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 
 func newLockParser() *lockParser {
 	return &lockParser{
-		baseParser: newBaseParser(backend.Key(locksPrefix)),
+		baseParser: newBaseParser(backend.NewKey(locksPrefix)),
 	}
 }
 
@@ -1410,7 +1410,7 @@ func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNetworkRestrictionsParser() *networkRestrictionsParser {
 	return &networkRestrictionsParser{
-		matchPrefix: backend.Key(restrictionsPrefix, network),
+		matchPrefix: backend.NewKey(restrictionsPrefix, network),
 	}
 }
 
@@ -1446,7 +1446,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1471,7 +1471,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopsPrefix, "")),
 	}
 }
 
@@ -1512,7 +1512,7 @@ type installerParser struct {
 
 func newInstallerParser() *installerParser {
 	return &installerParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
 	}
 }
 
@@ -1545,7 +1545,7 @@ type pluginParser struct {
 
 func newPluginParser(loadSecrets bool) *pluginParser {
 	return &pluginParser{
-		baseParser:  newBaseParser(backend.Key(pluginsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(pluginsPrefix)),
 		loadSecrets: loadSecrets,
 	}
 }
@@ -1574,7 +1574,7 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
 	return &samlIDPServiceProviderParser{
-		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
+		baseParser: newBaseParser(backend.NewKey(samlIDPServiceProviderPrefix)),
 	}
 }
 
@@ -1598,7 +1598,7 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 
 func newUserGroupParser() *userGroupParser {
 	return &userGroupParser{
-		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+		baseParser: newBaseParser(backend.NewKey(userGroupPrefix)),
 	}
 }
 
@@ -1622,7 +1622,7 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 
 func newOktaImportRuleParser() *oktaImportRuleParser {
 	return &oktaImportRuleParser{
-		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaImportRulePrefix)),
 	}
 }
 
@@ -1646,7 +1646,7 @@ func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error
 
 func newOktaAssignmentParser() *oktaAssignmentParser {
 	return &oktaAssignmentParser{
-		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaAssignmentPrefix)),
 	}
 }
 
@@ -1670,7 +1670,7 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 
 func newIntegrationParser() *integrationParser {
 	return &integrationParser{
-		baseParser: newBaseParser(backend.Key(integrationsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(integrationsPrefix)),
 	}
 }
 
@@ -1694,7 +1694,7 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDiscoveryConfigParser() *discoveryConfigParser {
 	return &discoveryConfigParser{
-		baseParser: newBaseParser(backend.Key(discoveryConfigPrefix)),
+		baseParser: newBaseParser(backend.NewKey(discoveryConfigPrefix)),
 	}
 }
 
@@ -1723,7 +1723,7 @@ func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticati
 	}
 
 	return &headlessAuthenticationParser{
-		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
+		baseParser: newBaseParser(backend.NewKey(headlessAuthenticationPrefix)),
 		filter:     filter,
 	}, nil
 }
@@ -1777,7 +1777,7 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuditQueryParser() *auditQueryParser {
 	return &auditQueryParser{
-		baseParser: newBaseParser(backend.Key(AuditQueryPrefix)),
+		baseParser: newBaseParser(backend.NewKey(AuditQueryPrefix)),
 	}
 }
 
@@ -1800,7 +1800,7 @@ func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSecurityReportParser() *securityReportParser {
 	return &securityReportParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportPrefix)),
+		baseParser: newBaseParser(backend.NewKey(SecurityReportPrefix)),
 	}
 }
 
@@ -1823,7 +1823,7 @@ func (p *securityReportParser) parse(event backend.Event) (types.Resource, error
 
 func newSecurityReportStateParser() *securityReportStateParser {
 	return &securityReportStateParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportStatePrefix)),
+		baseParser: newBaseParser(backend.NewKey(SecurityReportStatePrefix)),
 	}
 }
 
@@ -1846,7 +1846,7 @@ func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, 
 
 func newUserLoginStateParser() *userLoginStateParser {
 	return &userLoginStateParser{
-		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
+		baseParser: newBaseParser(backend.NewKey(userLoginStatePrefix)),
 	}
 }
 
@@ -1942,7 +1942,7 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 
 func newKubeWaitingContainerParser() *kubeWaitingContainerParser {
 	return &kubeWaitingContainerParser{
-		baseParser: newBaseParser(backend.Key(kubeWaitingContPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeWaitingContPrefix)),
 	}
 }
 
@@ -2025,7 +2025,7 @@ func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource,
 
 func newUserNotificationParser() *userNotificationParser {
 	return &userNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsUserSpecificPrefix)),
+		baseParser: newBaseParser(backend.NewKey(notificationsUserSpecificPrefix)),
 	}
 }
 
@@ -2073,7 +2073,7 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 
 func newGlobalNotificationParser() *globalNotificationParser {
 	return &globalNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsGlobalPrefix)),
+		baseParser: newBaseParser(backend.NewKey(notificationsGlobalPrefix)),
 	}
 }
 
@@ -2124,7 +2124,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 
 func newInstanceParser() *instanceParser {
 	return &instanceParser{
-		baseParser: newBaseParser(backend.Key(instancePrefix)),
+		baseParser: newBaseParser(backend.NewKey(instancePrefix)),
 	}
 }
 
@@ -2216,7 +2216,7 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 
 func newDeviceParser() *deviceParser {
 	return &deviceParser{
-		baseParser: newBaseParser(backend.Key(devicetrust.DevicesIDPrefix...)),
+		baseParser: newBaseParser(backend.NewKey(devicetrust.DevicesIDPrefix...)),
 	}
 }
 
@@ -2260,7 +2260,7 @@ func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAccessGraphSecretPrivateKeyParser() *accessGraphSecretPrivateKeyParser {
 	return &accessGraphSecretPrivateKeyParser{
-		baseParser: newBaseParser(backend.Key(privateKeysPrefix)),
+		baseParser: newBaseParser(backend.NewKey(privateKeysPrefix)),
 	}
 }
 
@@ -2304,7 +2304,7 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 
 func newAccessGraphSecretAuthorizedKeyParser() *accessGraphSecretAuthorizedKeyParser {
 	return &accessGraphSecretAuthorizedKeyParser{
-		baseParser: newBaseParser(backend.Key(authorizedKeysPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authorizedKeysPrefix)),
 	}
 }
 
@@ -2384,7 +2384,7 @@ func baseTwoKeys(key []byte) (string, string, error) {
 
 func newSPIFFEFederationParser() *spiffeFederationParser {
 	return &spiffeFederationParser{
-		baseParser: newBaseParser(backend.Key(spiffeFederationPrefix)),
+		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
 	}
 }
 
@@ -2412,7 +2412,7 @@ func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, err
 
 func newAccessGraphSettingsParser() *accessGraphSettingsParser {
 	return &accessGraphSettingsParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix)),
 	}
 }
 

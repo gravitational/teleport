@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
@@ -121,7 +122,7 @@ func ValidateAssertionConsumerService(acs saml.IndexedEndpoint) error {
 		return trace.BadParameter("acs location endpoint is missing or could not be decoded for %q binding", acs.Binding)
 	}
 
-	return trace.Wrap(ValidateAssertionConsumerServicesEndpoint(acs.Location))
+	return trace.Wrap(validateAssertionConsumerServicesEndpoint(acs.Location))
 }
 
 // FilterSAMLEntityDescriptor performs a filter in place to remove unsupported and/or insecure fields from
@@ -157,15 +158,39 @@ func FilterSAMLEntityDescriptor(ed *saml.EntityDescriptor, quiet bool) error {
 	return nil
 }
 
-// ValidateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
+// invalidSAMLIdPACSURLChars contains low hanging HTML tag characters that are more
+// commonly used in xss payload. This is not a comprehensive list but is only
+// meant to increase the ost of xss payload.
+const invalidSAMLIdPACSURLChars = `<>"!;`
+
+// validateAssertionConsumerServicesEndpoint ensures that the Assertion Consumer Service location
 // is a valid HTTPS endpoint.
-func ValidateAssertionConsumerServicesEndpoint(acs string) error {
+func validateAssertionConsumerServicesEndpoint(acs string) error {
 	endpoint, err := url.Parse(acs)
 	switch {
 	case err != nil:
 		return trace.BadParameter("acs location endpoint %q could not be parsed: %v", acs, err)
 	case endpoint.Scheme != "https":
 		return trace.BadParameter("invalid scheme %q in acs location endpoint %q (must be 'https')", endpoint.Scheme, acs)
+	}
+
+	if strings.ContainsAny(acs, invalidSAMLIdPACSURLChars) {
+		return trace.BadParameter("acs location endpoint contains an unsupported character")
+	}
+	return nil
+}
+
+// ValidateSAMLIdPACSURLAndRelayStateInputs performs validation on SAML IdP Service Provider
+// ACS URL and Relay State fields.
+func ValidateSAMLIdPACSURLAndRelayStateInputs(sp types.SAMLIdPServiceProvider) error {
+	if sp.GetACSURL() != "" {
+		if err := validateAssertionConsumerServicesEndpoint(sp.GetACSURL()); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if strings.ContainsAny(sp.GetRelayState(), invalidSAMLIdPACSURLChars) {
+		return trace.BadParameter("relay state contains an unsupported character")
 	}
 
 	return nil
