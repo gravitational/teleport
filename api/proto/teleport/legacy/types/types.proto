@@ -1296,8 +1296,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
   // TPM allows the configuration of options specific to the "tpm" join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
-  // Terraform allows the configuration of options specific to the "terraform" join method.
-  ProvisionTokenSpecV2Terraform Terraform = 16 [(gogoproto.jsontag) = "terraform,omitempty"];
+  // Terraform allows the configuration of options specific to the "terraform_cloud" join method.
+  ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1584,7 +1584,7 @@ message ProvisionTokenSpecV2GCP {
 
 // ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the
 // ProvisionTokenSpecV2.
-message ProvisionTokenSpecV2Terraform {
+message ProvisionTokenSpecV2TerraformCloud {
   // Rule is a set of properties the Terraform-issued token might have to be
   // allowed to use this ProvisionToken.
   message Rule {

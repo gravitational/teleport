@@ -483,7 +483,7 @@ func (CredentialsFromNativeMachineID) IsActive(config providerData) (bool, strin
 func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	joinMethod := stringFromConfigOrEnv(config.JoinMethod, constants.EnvVarTerraformJoinMethod, "")
 	joinToken := stringFromConfigOrEnv(config.JoinToken, constants.EnvVarTerraformJoinToken, "")
-	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformJoinAudienceTag, "")
+	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformCloudJoinAudienceTag, "")
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
 

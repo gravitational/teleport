@@ -44,7 +44,7 @@ Optional:
 - `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
 - `suggested_agent_matcher_labels` (Map of List of String)
 - `suggested_labels` (Map of List of String)
-- `terraform` (Attributes) Terraform allows the configuration of options specific to the "terraform" join method. (see [below for nested schema](#nested-schema-for-specterraform))
+- `terraform_cloud` (Attributes) Terraform allows the configuration of options specific to the "terraform_cloud" join method. (see [below for nested schema](#nested-schema-for-specterraform_cloud))
 - `tpm` (Attributes) TPM allows the configuration of options specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
 
 ### Nested Schema for `spec.allow`
@@ -198,14 +198,14 @@ Optional:
 
 
 
-### Nested Schema for `spec.terraform`
+### Nested Schema for `spec.terraform_cloud`
 
 Optional:
 
-- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specterraformallow))
+- `allow` (Attributes List) Allow is a list of Rules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specterraform_cloudallow))
 - `audience` (String) Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.
 
-### Nested Schema for `spec.terraform.allow`
+### Nested Schema for `spec.terraform_cloud.allow`
 
 Optional:
 

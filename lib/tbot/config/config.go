@@ -59,7 +59,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
-	string(types.JoinMethodTerraform),
+	string(types.JoinMethodTerraformCloud),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)

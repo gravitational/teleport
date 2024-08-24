@@ -30,15 +30,15 @@ import (
 	"github.com/gravitational/teleport/lib/terraformcloud"
 )
 
-type terraformIDTokenValidator interface {
+type terraformCloudIDTokenValidator interface {
 	Validate(
 		ctx context.Context, audience string, token string,
 	) (*terraformcloud.IDTokenClaims, error)
 }
 
-func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraformcloud.IDTokenClaims, error) {
+func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*terraformcloud.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return nil, trace.BadParameter("id_token not provided for terraform join request")
+		return nil, trace.BadParameter("id_token not provided for terraform_cloud join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
@@ -47,17 +47,17 @@ func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.Regis
 
 	token, ok := pt.(*types.ProvisionTokenV2)
 	if !ok {
-		return nil, trace.BadParameter("terraform join method only supports ProvisionTokenV2, '%T' was provided", pt)
+		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
 	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, fmt.Errorf(
-			"terraform joining: %w",
+			"terraform_cloud joining: %w",
 			ErrRequiresEnterprise,
 		)
 	}
 
-	aud := token.Spec.Terraform.Audience
+	aud := token.Spec.TerraformCloud.Audience
 	if aud == "" {
 		clusterName, err := a.GetClusterName()
 		if err != nil {
@@ -77,13 +77,13 @@ func (a *Server) checkTerraformJoinRequest(ctx context.Context, req *types.Regis
 	log.WithFields(logrus.Fields{
 		"claims": claims,
 		"token":  pt.GetName(),
-	}).Info("Terraform run trying to join cluster")
+	}).Info("Terraform Cloud run trying to join cluster")
 
-	return claims, trace.Wrap(checkTerraformAllowRules(token, claims))
+	return claims, trace.Wrap(checkTerraformCloudAllowRules(token, claims))
 }
 
-func checkTerraformAllowRules(token *types.ProvisionTokenV2, claims *terraformcloud.IDTokenClaims) error {
-	for _, rule := range token.Spec.Terraform.Allow {
+func checkTerraformCloudAllowRules(token *types.ProvisionTokenV2, claims *terraformcloud.IDTokenClaims) error {
+	for _, rule := range token.Spec.TerraformCloud.Allow {
 		if rule.OrganizationID != "" && claims.OrganizationID != rule.OrganizationID {
 			continue
 		}

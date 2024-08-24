@@ -965,7 +965,7 @@ type Server struct {
 	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
 	// validated by the auth server using a known JWKS. It can be overridden for
 	// the purpose of tests.
-	terraformIDTokenValidator terraformIDTokenValidator
+	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool

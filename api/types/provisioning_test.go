@@ -1027,7 +1027,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1052,7 +1052,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1077,7 +1077,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1097,7 +1097,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1117,7 +1117,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1139,7 +1139,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{
 							{
@@ -1161,7 +1161,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 				Spec: ProvisionTokenSpecV2{
 					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodTerraform,
+					JoinMethod: JoinMethodTerraformCloud,
 					Terraform: &ProvisionTokenSpecV2Terraform{
 						Allow: []*ProvisionTokenSpecV2Terraform_Rule{},
 					},

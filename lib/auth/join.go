@@ -289,8 +289,8 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodTerraform:
-		claims, err := a.checkTerraformJoinRequest(ctx, req)
+	case types.JoinMethodTerraformCloud:
+		claims, err := a.checkTerraformCloudJoinRequest(ctx, req)
 		if claims != nil {
 			joinAttributeSrc = claims
 		}

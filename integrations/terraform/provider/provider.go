@@ -259,7 +259,7 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinAudienceTag),
+				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCloudJoinAudienceTag),
 			},
 		},
 	}, nil

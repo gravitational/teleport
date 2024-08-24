@@ -92,8 +92,8 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 		}
 	}
 
-	allowRule := func(modifier func(*types.ProvisionTokenSpecV2Terraform_Rule)) *types.ProvisionTokenSpecV2Terraform_Rule {
-		rule := &types.ProvisionTokenSpecV2Terraform_Rule{
+	allowRule := func(modifier func(*types.ProvisionTokenSpecV2TerraformCloud_Rule)) *types.ProvisionTokenSpecV2TerraformCloud_Rule {
+		rule := &types.ProvisionTokenSpecV2TerraformCloud_Rule{
 			OrganizationName: "example-organization",
 			OrganizationID:   "example-organization-id",
 			ProjectName:      "example-project",
@@ -125,10 +125,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "success with all attributes",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						allowRule(nil),
 					},
 				},
@@ -140,10 +140,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "missing enterprise",
 			setEnterprise: false,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationName: "example-organization",
 							ProjectName:      "example-project",
@@ -160,10 +160,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "multiple allow rules",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationName: "other-organization",
 							ProjectName:      "other-project",
@@ -186,11 +186,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect organization id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.OrganizationID = "foo"
 						}),
 					},
@@ -203,11 +203,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect organization name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.OrganizationName = "foo"
 						}),
 					},
@@ -220,11 +220,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect project name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.ProjectName = "foo"
 						}),
 					},
@@ -237,11 +237,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect project id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.ProjectID = "foo"
 						}),
 					},
@@ -254,11 +254,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect workspace name",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.WorkspaceName = "foo"
 						}),
 					},
@@ -271,11 +271,11 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect workspace id",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
-						allowRule(func(rule *types.ProvisionTokenSpecV2Terraform_Rule) {
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						allowRule(func(rule *types.ProvisionTokenSpecV2TerraformCloud_Rule) {
 							rule.WorkspaceID = "foo"
 						}),
 					},
@@ -288,10 +288,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect run_phase",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationID: "example-organization-id",
 							WorkspaceID:    "example-workspace-id",
@@ -307,10 +307,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "invalid token",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationID: "example-organization-id",
 							WorkspaceID:    "example-workspace-id",
@@ -327,10 +327,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "correct explicit audience",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationID: "example-organization-id",
 							WorkspaceID:    "example-workspace-id",
@@ -346,10 +346,10 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			name:          "incorrect audience",
 			setEnterprise: true,
 			tokenSpec: types.ProvisionTokenSpecV2{
-				JoinMethod: types.JoinMethodTerraform,
+				JoinMethod: types.JoinMethodTerraformCloud,
 				Roles:      []types.SystemRole{types.RoleNode},
-				Terraform: &types.ProvisionTokenSpecV2Terraform{
-					Allow: []*types.ProvisionTokenSpecV2Terraform_Rule{
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
 						{
 							OrganizationID: "example-organization-id",
 							WorkspaceID:    "example-workspace-id",

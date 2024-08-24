@@ -71,9 +71,9 @@ const (
 	// JoinMethodTPM indicates that the node will join with the TPM join method.
 	// The core implementation of this join method can be found in lib/tpm.
 	JoinMethodTPM JoinMethod = "tpm"
-	// JoinMethodTerraform indicates that the node will join using the Terraform
-	// join method. See lib/terraform for more.
-	JoinMethodTerraform JoinMethod = "terraform"
+	// JoinMethodTerraformCloud indicates that the node will join using the Terraform
+	// join method. See lib/terraformcloud for more.
+	JoinMethodTerraformCloud JoinMethod = "terraform_cloud"
 )
 
 var JoinMethods = []JoinMethod{
@@ -88,7 +88,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodSpacelift,
 	JoinMethodToken,
 	JoinMethodTPM,
-	JoinMethodTerraform,
+	JoinMethodTerraformCloud,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -352,16 +352,16 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.validate(); err != nil {
 			return trace.Wrap(err, "spec.tpm: failed validation")
 		}
-	case JoinMethodTerraform:
-		providerCfg := p.Spec.Terraform
+	case JoinMethodTerraformCloud:
+		providerCfg := p.Spec.TerraformCloud
 		if providerCfg == nil {
 			return trace.BadParameter(
-				"spec.terraform: must be configured for the join method %q",
-				JoinMethodTerraform,
+				"spec.terraform_cloud: must be configured for the join method %q",
+				JoinMethodTerraformCloud,
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.terraform: failed validation")
+			return trace.Wrap(err, "spec.terraform_cloud: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -833,9 +833,9 @@ func (a *ProvisionTokenSpecV2TPM) validate() error {
 	return nil
 }
 
-func (a *ProvisionTokenSpecV2Terraform) checkAndSetDefaults() error {
+func (a *ProvisionTokenSpecV2TerraformCloud) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
-		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodTerraform)
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodTerraformCloud)
 	}
 
 	// Note: an empty audience will fall back to the cluster name.

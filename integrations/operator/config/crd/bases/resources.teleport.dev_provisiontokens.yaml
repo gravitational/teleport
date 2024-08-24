@@ -341,9 +341,9 @@ spec:
                   set when using this token to enroll themselves in the cluster. Currently,
                   only node-join scripts create a configuration according to the suggestion.
                 type: object
-              terraform:
+              terraform_cloud:
                 description: Terraform allows the configuration of options specific
-                  to the "terraform" join method.
+                  to the "terraform_cloud" join method.
                 nullable: true
                 properties:
                   allow:

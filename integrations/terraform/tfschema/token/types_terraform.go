@@ -445,7 +445,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 				},
 				"suggested_agent_matcher_labels": GenSchemaLabels(ctx),
 				"suggested_labels":               GenSchemaLabels(ctx),
-				"terraform": {
+				"terraform_cloud": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -494,7 +494,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "Terraform allows the configuration of options specific to the \"terraform\" join method.",
+					Description: "Terraform allows the configuration of options specific to the \"terraform_cloud\" join method.",
 					Optional:    true,
 				},
 				"tpm": {
@@ -2167,48 +2167,48 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 						}
 					}
 					{
-						a, ok := tf.Attrs["terraform"]
+						a, ok := tf.Attrs["terraform_cloud"]
 						if !ok {
-							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform"})
+							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud"})
 						} else {
 							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 							} else {
-								obj.Terraform = nil
+								obj.TerraformCloud = nil
 								if !v.Null && !v.Unknown {
 									tf := v
-									obj.Terraform = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Terraform{}
-									obj := obj.Terraform
+									obj.TerraformCloud = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2TerraformCloud{}
+									obj := obj.TerraformCloud
 									{
 										a, ok := tf.Attrs["allow"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow"})
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow", "github.com/hashicorp/terraform-plugin-framework/types.List"})
 											} else {
-												obj.Allow = make([]*github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Terraform_Rule, len(v.Elems))
+												obj.Allow = make([]*github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2TerraformCloud_Rule, len(v.Elems))
 												if !v.Null && !v.Unknown {
 													for k, a := range v.Elems {
 														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
-															diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+															diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
 														} else {
-															var t *github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Terraform_Rule
+															var t *github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2TerraformCloud_Rule
 															if !v.Null && !v.Unknown {
 																tf := v
-																t = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2Terraform_Rule{}
+																t = &github_com_gravitational_teleport_api_types.ProvisionTokenSpecV2TerraformCloud_Rule{}
 																obj := t
 																{
 																	a, ok := tf.Attrs["organization_id"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationID"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationID"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2221,11 +2221,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["organization_name"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationName"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationName"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2238,11 +2238,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["project_id"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectID"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectID"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2255,11 +2255,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["project_name"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectName"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectName"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2272,11 +2272,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["workspace_id"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceID"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceID"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2289,11 +2289,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["workspace_name"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceName"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceName"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2306,11 +2306,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 																{
 																	a, ok := tf.Attrs["run_phase"]
 																	if !ok {
-																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.RunPhase"})
+																		diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.RunPhase"})
 																	} else {
 																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.RunPhase", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.RunPhase", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		} else {
 																			var t string
 																			if !v.Null && !v.Unknown {
@@ -2331,11 +2331,11 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 									{
 										a, ok := tf.Attrs["audience"]
 										if !ok {
-											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.Terraform.Audience"})
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Audience"})
 										} else {
 											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											} else {
 												var t string
 												if !v.Null && !v.Unknown {
@@ -4879,15 +4879,15 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 						}
 					}
 					{
-						a, ok := tf.AttrTypes["terraform"]
+						a, ok := tf.AttrTypes["terraform_cloud"]
 						if !ok {
-							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform"})
+							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud"})
 						} else {
 							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 							if !ok {
-								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+								diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
 							} else {
-								v, ok := tf.Attrs["terraform"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								v, ok := tf.Attrs["terraform_cloud"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 								if !ok {
 									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4899,19 +4899,19 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
 									}
 								}
-								if obj.Terraform == nil {
+								if obj.TerraformCloud == nil {
 									v.Null = true
 								} else {
-									obj := obj.Terraform
+									obj := obj.TerraformCloud
 									tf := &v
 									{
 										a, ok := tf.AttrTypes["allow"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow"})
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow"})
 										} else {
 											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
 											if !ok {
-												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+												diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
 											} else {
 												c, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.List)
 												if !ok {
@@ -4952,17 +4952,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["organization_id"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationID"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationID"})
 																} else {
 																	v, ok := tf.Attrs["organization_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationID", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationID", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.OrganizationID) == ""
 																	}
@@ -4974,17 +4974,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["organization_name"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationName"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationName"})
 																} else {
 																	v, ok := tf.Attrs["organization_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationName", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationName", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.OrganizationName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.OrganizationName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.OrganizationName) == ""
 																	}
@@ -4996,17 +4996,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["project_id"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectID"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectID"})
 																} else {
 																	v, ok := tf.Attrs["project_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectID", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectID", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.ProjectID) == ""
 																	}
@@ -5018,17 +5018,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["project_name"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectName"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectName"})
 																} else {
 																	v, ok := tf.Attrs["project_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectName", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectName", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.ProjectName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.ProjectName) == ""
 																	}
@@ -5040,17 +5040,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["workspace_id"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceID"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceID"})
 																} else {
 																	v, ok := tf.Attrs["workspace_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceID", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceID", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceID", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.WorkspaceID) == ""
 																	}
@@ -5062,17 +5062,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["workspace_name"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceName"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceName"})
 																} else {
 																	v, ok := tf.Attrs["workspace_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceName", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceName", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.WorkspaceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.WorkspaceName", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.WorkspaceName) == ""
 																	}
@@ -5084,17 +5084,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 															{
 																t, ok := tf.AttrTypes["run_phase"]
 																if !ok {
-																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Allow.RunPhase"})
+																	diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.RunPhase"})
 																} else {
 																	v, ok := tf.Attrs["run_phase"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
-																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Allow.RunPhase", err})
+																			diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Allow.RunPhase", err})
 																		}
 																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
-																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Allow.RunPhase", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Allow.RunPhase", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
 																		v.Null = string(obj.RunPhase) == ""
 																	}
@@ -5119,17 +5119,17 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 									{
 										t, ok := tf.AttrTypes["audience"]
 										if !ok {
-											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.Terraform.Audience"})
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Audience"})
 										} else {
 											v, ok := tf.Attrs["audience"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
-													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.Terraform.Audience", err})
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Audience", err})
 												}
 												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.Terraform.Audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
 												v.Null = string(obj.Audience) == ""
 											}
@@ -5140,7 +5140,7 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 									}
 								}
 								v.Unknown = false
-								tf.Attrs["terraform"] = v
+								tf.Attrs["terraform_cloud"] = v
 							}
 						}
 					}
