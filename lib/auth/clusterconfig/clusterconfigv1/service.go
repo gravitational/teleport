@@ -31,7 +31,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
@@ -939,13 +938,11 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 	}
 
 	var sshScanEnabled bool
-	if secscanconstants.Enabled {
-		switch obj, err := s.readOnlyCache.GetReadOnlyAccessGraphSettings(ctx); {
-		case err != nil && !trace.IsNotFound(err):
-			return nil, trace.Wrap(err)
-		case err == nil:
-			sshScanEnabled = obj.SecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
-		}
+	switch obj, err := s.readOnlyCache.GetReadOnlyAccessGraphSettings(ctx); {
+	case err != nil && !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	case err == nil:
+		sshScanEnabled = obj.SecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 	}
 
 	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
