@@ -42,7 +42,7 @@ type scanCommand struct {
 }
 
 func newScanCommand(app *kingpin.Application) scanCommand {
-	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport")
+	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport.")
 	cmd := scanCommand{
 		keys: newScanKeysCommand(scan),
 	}
