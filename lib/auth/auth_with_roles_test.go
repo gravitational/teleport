@@ -581,6 +581,93 @@ func TestGithubAuthRequest(t *testing.T) {
 	}
 }
 
+// TestGithubAuthCompat attempts to test github SSO authentication from the
+// perspective of a Proxy service connecting to the Auth service. The Auth
+// service on major version N should support proxies on version N and N-1, which
+// may send a single user public key or split SSH and TLS public keys.
+//
+// The proxy originally sends the user public keys via gPRC
+// CreateGithubAuthRequest, and later retrieves the request via HTTP
+// github/requests/validate which must have the same format as the requested
+// keys to support both old and new proxies.
+func TestGithubAuthCompat(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	connector, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToLogins: []types.TeamMapping{
+			{
+				Organization: "octocats",
+				Team:         "idp-admin",
+				Logins:       []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
+	require.NoError(t, err)
+
+	user, _, err := CreateUserAndRole(srv.Auth(), "alice", nil /*logins*/, []types.Rule{{
+		Resources: []string{types.KindGithubRequest},
+		Verbs:     []string{types.VerbCreate},
+	}})
+	require.NoError(t, err)
+	clt, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+	_, sshPub, _, tlsPub := newSSHAndTLSKeyPairs(t)
+
+	for _, tc := range []struct {
+		desc                            string
+		publicKey, sshPubKey, tlsPubKey []byte
+	}{
+		{
+			desc:      "single key",
+			publicKey: sshPub,
+		},
+		{
+			desc:      "split keys",
+			sshPubKey: sshPub,
+			tlsPubKey: tlsPub,
+		},
+		{
+			desc:      "only ssh",
+			sshPubKey: sshPub,
+		},
+		{
+			desc:      "only tls",
+			tlsPubKey: tlsPub,
+		},
+	} {
+		// Create the request over gRPC, this simulates to proxy creating the
+		// initial request.
+		req, err := clt.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+			ConnectorID:  connector.GetName(),
+			Type:         constants.Github,
+			PublicKey:    tc.publicKey,
+			SshPublicKey: tc.sshPubKey,
+			TlsPublicKey: tc.tlsPubKey,
+			CertTTL:      apidefaults.MinCertDuration,
+		})
+		require.NoError(t, err)
+
+		// Simulate the response to the request callback validation. There's no
+		// good way to actually test the HTTP endpoint without mocking out all
+		// the relevant code, so here we just directly get the original request
+		// from the backend and translate it to the JSON-marshallable struct
+		// type that would be returned.
+		req, err = srv.Auth().GetGithubAuthRequest(ctx, req.StateToken)
+		require.NoError(t, err)
+		jsonReq := GithubAuthRequestFromProto(req)
+		require.Equal(t, tc.publicKey, jsonReq.PublicKey) //nolint:staticcheck // SA1019. Testing deprecated sent by older proxy clients.
+		require.Equal(t, tc.sshPubKey, jsonReq.SSHPubKey)
+		require.Equal(t, tc.tlsPubKey, jsonReq.TLSPubKey)
+	}
+}
+
 func TestSSODiagnosticInfo(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)

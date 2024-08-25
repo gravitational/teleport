@@ -413,7 +413,9 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
 	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
+		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -734,9 +736,32 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
+	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SshPublicKey,
+		req.TlsPublicKey,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		keys.AttestationStatementFromProto(req.SshAttestationStatement),
+		keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+	)
+	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
+		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
+			UserState:               userState,
+			SessionTTL:              params.SessionTTL,
+			SSHPubKey:               sshPublicKey,
+			TLSPubKey:               tlsPublicKey,
+			SSHAttestationStatement: sshAttestationStatement,
+			TLSAttestationStatement: tlsAttestationStatement,
+			Compatibility:           req.Compatibility,
+			RouteToCluster:          req.RouteToCluster,
+			KubernetesCluster:       req.KubernetesCluster,
+			LoginIP:                 req.ClientLoginIP,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}

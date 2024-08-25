@@ -212,14 +212,17 @@ func (rd *Redirector) Start() error {
 	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
 
 	req := SSOLoginConsoleReq{
-		RedirectURL:          u.String(),
-		PublicKey:            rd.PubKey,
-		CertTTL:              rd.TTL,
-		ConnectorID:          rd.ConnectorID,
-		Compatibility:        rd.Compatibility,
-		RouteToCluster:       rd.RouteToCluster,
-		KubernetesCluster:    rd.KubernetesCluster,
-		AttestationStatement: rd.AttestationStatement,
+		RedirectURL: u.String(),
+		SSOUserPublicKeys: SSOUserPublicKeys{
+			// TODO(nklaassen): split keys on client side.
+			PublicKey:            rd.PubKey,
+			AttestationStatement: rd.AttestationStatement,
+		},
+		CertTTL:           rd.TTL,
+		ConnectorID:       rd.ConnectorID,
+		Compatibility:     rd.Compatibility,
+		RouteToCluster:    rd.RouteToCluster,
+		KubernetesCluster: rd.KubernetesCluster,
 	}
 
 	response, err := rd.SSOLoginConsoleRequestFn(req)

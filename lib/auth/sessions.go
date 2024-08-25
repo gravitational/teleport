@@ -679,13 +679,71 @@ func (a *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+// SessionCertsRequest is a request for new user session certs.
+type SessionCertsRequest struct {
+	UserState               services.UserState
+	SessionTTL              time.Duration
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	SSHAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *keys.AttestationStatement
+	Compatibility           string
+	RouteToCluster          string
+	KubernetesCluster       string
+	LoginIP                 string
+}
+
+// CreateSessionCerts returns new user certs. The user must already be
+// authenticated.
+func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsRequest) ([]byte, []byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
+	accessInfo := services.AccessInfoFromUserState(req.UserState)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateUserCert(ctx, certRequest{
+		user:                             req.UserState,
+		ttl:                              req.SessionTTL,
+		sshPublicKey:                     req.SSHPubKey,
+		tlsPublicKey:                     req.TLSPubKey,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
+		compatibility:                    req.Compatibility,
+		checker:                          checker,
+		traits:                           req.UserState.GetTraits(),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		loginIP:                          req.LoginIP,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return certs.SSH, certs.TLS, nil
+}
+
+// CreateSessionCerts returns new user certs. The user must already be
+// authenticated.
+//
+// TODO(nklaassen): delete the after refs are removed from e. Replaced by
+// CreateSessionCerts.
+func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
+	// It's safe to extract the access info directly from services.User because
+	// this occurs during the initial login before the first certs have been
+	// generated, so there's no possibility of any active access requests.
 	accessInfo := services.AccessInfoFromUserState(userState)
 	clusterName, err := a.GetClusterName()
 	if err != nil {
