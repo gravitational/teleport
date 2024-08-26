@@ -570,9 +570,9 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return nil
 	}
 
-	group, err := o.LookupGroup(types.TeleportServiceGroup)
+	group, err := o.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, types.TeleportServiceGroup) {
+		if isUnknownGroupError(err, types.TeleportDropGroup) {
 			// The service group doesn't exist. Auto-provision is disabled, do nothing.
 			return nil
 		}
@@ -593,7 +593,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	if !found {
-		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// Check if the new user guid matches the TeleportDropGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
 	}

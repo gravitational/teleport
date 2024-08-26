@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -137,9 +138,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 		return clt
 	}
 	baseRequest := EnrollEKSClustersRequest{
-		Region:             "us-east-1",
-		AgentVersion:       "1.2.3",
-		EnableAppDiscovery: true,
+		Region:              "us-east-1",
+		AgentVersion:        "1.2.3",
+		EnableAppDiscovery:  true,
+		IntegrationName:     "my-integration",
+		TeleportClusterName: "my-teleport-cluster",
 	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -251,9 +254,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
-				IsCloud:      true,
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IsCloud:             true,
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
@@ -278,8 +283,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
@@ -360,8 +367,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 		mockClt, ok := client.(*mockEnrollEKSClusterClient)
 		require.True(t, ok)
 		createCalled, deleteCalled := false, false
+		createTags := make(map[string]string)
 		mockClt.createAccessEntry = func(ctx context.Context, input *eks.CreateAccessEntryInput, f ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
 			createCalled = true
+			createTags = maps.Clone(input.Tags)
 			return nil, nil
 		}
 		mockClt.deleteAccessEntry = func(ctx context.Context, input *eks.DeleteAccessEntryInput, f ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
@@ -375,6 +384,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
+		require.Equal(t, map[string]string{
+			"teleport.dev/cluster":     "my-teleport-cluster",
+			"teleport.dev/integration": "my-integration",
+			"teleport.dev/origin":      "integration_awsoidc",
+		}, createTags)
 		require.True(t, deleteCalled)
 	})
 }

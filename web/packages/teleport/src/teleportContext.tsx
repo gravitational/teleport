@@ -104,7 +104,7 @@ class TeleportContext implements types.Context {
       !storageService.getOnboardDiscover()
     ) {
       const hasResource =
-        await userService.checkUserHasAccessToRegisteredResource();
+        await userService.checkUserHasAccessToAnyRegisteredResource();
       storageService.setOnboardDiscover({ hasResource });
     }
 
