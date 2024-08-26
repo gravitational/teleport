@@ -27,6 +27,7 @@ import session from 'teleport/services/websession';
 import { storageService } from 'teleport/services/storageService';
 import { ApiError } from 'teleport/services/api/parseError';
 import { StyledIndicator } from 'teleport/Main';
+import { TrustedDeviceRequirement } from 'teleport/DeviceTrust/types';
 
 import { ErrorDialog } from './ErrorDialogue';
 
@@ -61,6 +62,9 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
         const result = await session.validateCookieAndSession();
         if (result.hasDeviceExtensions) {
           session.setIsDeviceTrusted();
+        }
+        if (result.requiresDeviceTrust === TrustedDeviceRequirement.REQUIRED) {
+          session.setDeviceTrustRequired();
         }
         setAttempt({ status: 'success' });
       } catch (e) {

@@ -523,7 +523,7 @@ export class FeatureTrust implements TeleportFeature {
   section = ManagementSection.Clusters;
 
   route = {
-    title: 'Trusted Clusters',
+    title: 'Trusted Root Clusters',
     path: cfg.routes.trustedClusters,
     component: TrustedClusters,
   };

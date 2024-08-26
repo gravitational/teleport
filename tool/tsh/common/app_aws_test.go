@@ -222,6 +222,9 @@ func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, app
 	cfg.Apps.Enabled = true
 	cfg.Apps.Apps = apps
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	return runTeleport(t, cfg)
 }

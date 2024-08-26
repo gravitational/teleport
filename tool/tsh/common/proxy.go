@@ -230,6 +230,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
+			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 		}
 		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
@@ -240,7 +241,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
-		).GetConnectCommandAlternatives()
+		).GetConnectCommandAlternatives(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -394,6 +395,11 @@ func onProxyCommandApp(cf *CLIConf) error {
 	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Proxying connections to %s on %v\n", cf.AppName, proxyApp.GetAddr())
+	if cf.LocalProxyPort == "" {
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
 	defer func() {

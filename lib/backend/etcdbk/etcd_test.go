@@ -219,7 +219,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	buckets := make(map[int64]struct{})
 	for i := 0; i < count; i++ {
-		key := backend.Key(pfx, fmt.Sprintf("%d", i))
+		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
 			Value:   []byte(fmt.Sprintf("val-%d", i)),
@@ -234,7 +234,7 @@ func TestLeaseBucketing(t *testing.T) {
 		time.Sleep(time.Millisecond * 200)
 	}
 
-	start := backend.Key(pfx, "")
+	start := backend.NewKey(pfx, "")
 
 	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
 	require.NoError(t, err)

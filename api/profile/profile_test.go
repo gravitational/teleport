@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 )
 
@@ -74,6 +75,10 @@ func TestProfileBasics(t *testing.T) {
 	name, err := profile.GetCurrentProfileName(dir)
 	require.NoError(t, err)
 	require.Equal(t, p.Name(), name)
+
+	// Update the dial timeout because when the profile is loaded, an
+	// empty timeout is implicitly set to match the default value.
+	p.SSHDialTimeout = defaults.DefaultIOTimeout
 
 	// load and verify current profile
 	clone, err := profile.FromDir(dir, "")

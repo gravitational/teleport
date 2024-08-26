@@ -222,9 +222,11 @@ type Config struct {
 	// Log optionally specifies the logger.
 	// Deprecated: use Logger instead.
 	Log utils.Logger
+
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
+
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
 
@@ -592,6 +594,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
+
+	// Debug service defaults.
+	cfg.DebugService.Enabled = true
 }
 
 // FileDescriptor is a file descriptor associated

@@ -48,6 +48,10 @@ import {
 } from 'teleport/services/discovery';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { ActionButtons, Header, StyledBox } from '../../Shared';
 
@@ -58,8 +62,14 @@ import { DiscoveryConfigCreatedDialog } from './DiscoveryConfigCreatedDialog';
 const IAM_POLICY_NAME = 'EC2DiscoverWithSSM';
 
 export function DiscoveryConfigSsm() {
-  const { agentMeta, emitErrorEvent, nextStep, updateAgentMeta, prevStep } =
-    useDiscover();
+  const {
+    agentMeta,
+    emitErrorEvent,
+    nextStep,
+    updateAgentMeta,
+    prevStep,
+    emitEvent,
+  } = useDiscover();
 
   const { arnResourceName, awsAccountId } = splitAwsIamArn(
     agentMeta.awsIntegration.spec.roleArn
@@ -111,6 +121,13 @@ export function DiscoveryConfigSsm() {
           ],
         });
 
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
+
         updateAgentMeta({
           ...agentMeta,
           awsRegion: selectedRegion,
@@ -132,6 +149,7 @@ export function DiscoveryConfigSsm() {
       iamRoleName: arnResourceName,
       region: selectedRegion,
       ssmDocument: ssmDocumentName,
+      integrationName: agentMeta.awsIntegration.name,
     });
     setScriptUrl(scriptUrl);
   }

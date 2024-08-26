@@ -497,6 +497,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetEditorRoleName,
 		teleport.PresetAccessRoleName,
 		teleport.PresetAuditorRoleName,
+		teleport.PresetTerraformProviderRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
@@ -903,6 +904,22 @@ func TestPresets(t *testing.T) {
 			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
 	})
+}
+
+func TestGetPresetUsers(t *testing.T) {
+	// no preset users for OSS
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildOSS,
+	})
+	require.Empty(t, getPresetUsers())
+
+	// preset user @teleport-access-approval-bot on enterprise
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	require.Equal(t, []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}, getPresetUsers())
 }
 
 type mockUserManager struct {

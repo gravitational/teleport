@@ -92,6 +92,8 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		IntegrationRole: params.RoleName,
 		SSMDocumentName: params.SSMDocumentName,
 		ProxyPublicURL:  params.ProxyPublicURL,
+		ClusterName:     params.ClusterName,
+		IntegrationName: params.IntegrationName,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
