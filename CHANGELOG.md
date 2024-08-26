@@ -1,5 +1,44 @@
 # Changelog
 
+## 14.3.28 (08/26/24)
+
+### Security fix
+
+#### [High] Stored XSS in SAML IdP
+
+When registering a service provider with SAML IdP, Teleport did not sufficiently
+validate the ACS endpoint. This could allow a Teleport administrator with
+permissions to write saml_idp_service_provider resources to configure a
+malicious service provider with an XSS payload and compromise session of users
+who would access that service provider.
+
+Note: This vulnerability is only applicable when Teleport itself is acting as
+the identity provider. If you only use SAML to connect to an upstream identity
+provider you are not impacted. You can use the tctl get
+saml_idp_service_provider command to verify if you have any Service Provider
+applications registered and Teleport acts as an IdP.
+
+For self-hosted Teleport customers that use Teleport as SAML Identity Provider,
+we recommend upgrading auth and proxy servers. Teleport agents (SSH, Kubernetes,
+desktop, application, database and discovery) are not impacted and do not need
+to be updated.
+
+### Other fixes and improvements
+
+* Fixed an issue where Teleport could modify group assignments for users not managed by Teleport. This will require a migration of host users created with create_host_user_mode: keep in order to maintain Teleport management. More info can be found at [Migrating unmanaged users](./docs/pages/enroll-resources/server-access/guides/host-user-creation.mdx#migrating-unmanaged-users). [#45796](https://github.com/gravitational/teleport/pull/45796)
+* Fixed host user creation for tsh scp. [#45682](https://github.com/gravitational/teleport/pull/45682)
+* Fixed an issue AWS access fails when the username is longer than 64 characters. [#45657](https://github.com/gravitational/teleport/pull/45657)
+* Remove empty tcp app session recordings. [#45647](https://github.com/gravitational/teleport/pull/45647)
+* Fixed an issue where users created in keep mode could effectively become insecure_drop and get cleaned up as a result. [#45607](https://github.com/gravitational/teleport/pull/45607)
+* Prevent RBAC bypass for new Postgres connections. [#45556](https://github.com/gravitational/teleport/pull/45556)
+* Fixed an issue that could cause auth servers to panic when their backend connectivity was interrupted. [#45494](https://github.com/gravitational/teleport/pull/45494)
+* Improve the output of `tsh sessions ls`. [#45454](https://github.com/gravitational/teleport/pull/45454)
+
+Enterprise:
+* Fixed issue in Okta Sync that spuriously deletes Okta Applications due to connectivity errors.
+* Fixed an issue in the SAML IdP session which prevented SAML IdP sessions to be consistently updated when users assumed or switched back from the roles granted in the access request.
+* Fixed a stored Cross-Site Scripting (XSS) issue in the SAML IdP authentication flow where a Teleport administrator with a create and update privilege on `saml_idp_service_provider` resource could configure a malicious service provider with an XSS payload and compromise session of users who would access that service provider.
+
 ## 14.3.23 (08/08/24)
 
 * Updated Go toolchain to `1.22.6`. [#45196](https://github.com/gravitational/teleport/pull/45196)
