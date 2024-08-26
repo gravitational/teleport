@@ -87,6 +87,7 @@ type IdentityCenterPrincipalAssignments interface {
 	GetPrincipalAssignment(context.Context, PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error)
 	UpdatePrincipalAssignment(context.Context, *identitycenterv1.PrincipalAssignment) (*identitycenterv1.PrincipalAssignment, error)
 	DeletePrincipalAssignment(context.Context, PrincipalAssignmentID) error
+	DeleteAllPrincipalAssignments(context.Context) error
 }
 
 // MarshalPrincipalAssignment marshals the assignment state object into a JSON byte array.

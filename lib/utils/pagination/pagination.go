@@ -14,6 +14,11 @@ type PageRequestToken string
 // page of data to be returned starts.
 type NextPageToken string
 
+// AsRequestToken converts a NextPageToken into a PageRequest Token
+func (t NextPageToken) AsRequestToken() PageRequestToken {
+	return PageRequestToken(t)
+}
+
 const (
 	EndOfList NextPageToken = ""
 )

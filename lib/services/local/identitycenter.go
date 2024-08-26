@@ -258,6 +258,10 @@ func (svc *IdentityCenterService) DeletePrincipalAssignment(ctx context.Context,
 	return trace.Wrap(svc.assignments.DeleteResource(ctx, string(name)))
 }
 
+func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context) error {
+	return trace.Wrap(svc.assignments.DeleteAllResources(ctx))
+}
+
 func (svc *IdentityCenterService) ListPermissionSets(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.PermissionSet, pagination.NextPageToken, error) {
 	resp, nextPage, err := svc.permissionSets.ListResources(ctx, identityCenterPageSize, string(page))
 	if err != nil {
