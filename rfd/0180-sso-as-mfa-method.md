@@ -25,7 +25,7 @@ Delegating MFA checks to a registered IdP has several benefits:
 directly through an IdP.
 - Teleport can integrate with custom MFA mechanisms and devices through an IdP.
 - Improves UX for SSO users without an MFA device registered.
-- Allows SSO users to add their first MFA device securely with sso-as-mfa.
+- Allows SSO users to add their first MFA device securely.
 
 ## Details
 
@@ -34,7 +34,7 @@ directly through an IdP.
 This feature will improve the UX of performing MFA checks for SSO users by
 removing the requirement to add an MFA device. The primary UX concerns for
 this feature are:
-- Adding too many options without clarity (OTP, Webauthn, SSO).
+- Adding too many options without clarity (OTP, Webauthn, and SSO).
 - Locking users into SSO MFA in cases where WebAuthn may be preferred.
 - Automatically opening browser windows when WebAuthn may be preferred.
 
@@ -43,7 +43,6 @@ this feature are:
 > I am a new Teleport user logging in to the cluster for the first time
 > I want to connect to a resource protected by per-session MFA
 > I have not registered through Teleport, my company uses an IdP provider for login
-
 
 **Old behavior**
 
@@ -73,7 +72,7 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
 ```
 
-If SSO is not the preferred MFA method in the cluster, the user will also be
+If SSO is not the required MFA method in the cluster, the user will also be
 notified of how to add an MFA device for future MFA checks. The SSO login
 browser will not be opened automatically in order to draw attention to the
 output. The link can still be clicked for easy UX.
@@ -117,25 +116,22 @@ or with SSO.
 ```console
 > tsh ssh server01
 MFA is required to access Node "server01"
-Complete an auth check in your local web browser:
-If browser window does not open automatically, open it by clicking on the link:
+Complete an auth check in your local web browser. Open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
 Or tap any security key
 ```
 
-If the user re-authenticates with MFA, the web browser should be closed
+If the user re-authenticates with security key, the web browser should be closed
 automatically.
 
-As in the case above, if SSO is not the preferred MFA method for the cluster,
-the browser will not be opened automatically, but the user can still click the
-link to proceed with SSO.
+If SSO is the required MFA method, the security key prompt would be skipped and
+the browser opened automatically.
 
 ```console
 > tsh ssh server01
 Re-authentication is required to access this node.
-Complete an auth check in your local web browser. Open it by clicking on the link:
+If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
-Or tap any security key
 ```
 
 #### Teleport Connect
@@ -295,36 +291,6 @@ a privilege token generated for the user.
 Note: As is the case with normal SSO login, the login response is encrypted
 using a secret key owned by the client so that the token can not be intercepted
 in a man in the middle attack.
-
-#### OIDC ACR Values
-
-ACR values can be provided to an OIDC provider in an auth request to specify a
-specific type of authentication to perform. This can be useful for Teleport to
-specify to the IdP that MFA authentication is required.
-
-However, there are no common ACR values supported by all OIDC providers. Each
-provider will support its own arbitrary list of ACR values, if any at all.
-
-For example, Okta supports a phishing resistant (phr) acr value that would
-require Fido2/WebAuthn authentication to satisfy the requirement.
-
-Since this will vary between providers and configurations, Teleport will not
-use and ACR values by default, though we will document how to set `acr_values`
-in the OIDC connector in cases where it is useful.
-
-#### SAML RequestedAuthnContext
-
-A SAML client can provide `RequestedAuthnContext` to request a specific type of
-authentication. Similar to ACR values, the supported values vary between
-providers and configurations, so Teleport cannot make direct use of them.
-
-Once we find a SAML provider with a supported `RequestedAuthnContext` similar to
-Okta's phr ACR value, we may add a `requested_authn_context` field to the SAML
-connector resource to support it in certain configurations.
-
-Note: When using ADFS or JumpCloud as a SAML IdP, Teleport requires password
-auth by setting `PasswordProtectedTransport` as a minimum `RequestedAuthnContext`.
-This minimum will be skipped when the SAML connector is enabled for MFA only.
 
 #### Forced Re-authentication
 
@@ -498,8 +464,8 @@ message MFADeviceMetadata {
 #### Privilege Tokens
 
 When a privilege token is created, the context of its creation is lost. This
-would make it difficult to tie audit event between the SSO login that creates
-the token and the Per-session MFA certificate issuance that consumes the token.
+makes it difficult to tie audit event between the SSO login that creates the
+token and the Per-session MFA certificate issuance that consumes the token.
 
 To amend this, we will store the details of the MFA device used to create the
 privilege token in the backend token resource. This data can then be included
@@ -530,3 +496,33 @@ and other edge cases.
 
 For now, users will always be prompted to use the default MFA SSO connector,
 as configured in the cluster auth preference.
+
+#### OIDC ACR Values
+
+ACR values can be provided to an OIDC provider in an auth request to specify a
+specific type of authentication to perform. This can be useful for Teleport to
+specify to the IdP that MFA authentication is required.
+
+However, there are no common ACR values supported by all OIDC providers. Each
+provider will support its own arbitrary list of ACR values, if any at all.
+
+For example, Okta supports a phishing resistant (phr) acr value that would
+require Fido2/WebAuthn authentication to satisfy the requirement.
+
+Since this will vary between providers and configurations, Teleport will not
+use and ACR values by default, though we will document how to set `acr_values`
+in the OIDC connector in cases where it is useful.
+
+#### SAML RequestedAuthnContext
+
+A SAML client can provide `RequestedAuthnContext` to request a specific type of
+authentication. Similar to ACR values, the supported values vary between
+providers and configurations, so Teleport cannot make direct use of them.
+
+Once we find a SAML provider with a supported `RequestedAuthnContext` similar to
+Okta's phr ACR value, we may add a `requested_authn_context` field to the SAML
+connector resource to support it in certain configurations.
+
+Note: When using ADFS or JumpCloud as a SAML IdP, Teleport requires password
+auth by setting `PasswordProtectedTransport` as a minimum `RequestedAuthnContext`.
+This minimum will be skipped when the SAML connector is enabled for MFA only.
