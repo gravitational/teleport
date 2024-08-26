@@ -1296,7 +1296,7 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
   // TPM allows the configuration of options specific to the "tpm" join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
-  // Terraform allows the configuration of options specific to the "terraform_cloud" join method.
+  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
