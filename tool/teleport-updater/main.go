@@ -48,6 +48,7 @@ Find out more at https://goteleport.com/docs/updater`
 const (
 	templateEnvVar    = "TELEPORT_URL_TEMPLATE"
 	proxyServerEnvVar = "TELEPORT_PROXY"
+	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -62,6 +63,7 @@ type cliConfig struct {
 	Debug bool
 
 	ProxyServer string
+	Group       string
 	Template    string
 
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
@@ -81,6 +83,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
 	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
+	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').Envar(updateGroupEnvVar).StringVar(&cf.Group)
 	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").Short('t').Envar(templateEnvVar).StringVar(&cf.Template)
 
 	updateCmd := app.Command("update", "Update agent to the latest version, if a new version is available.")
@@ -144,6 +147,7 @@ type UpdatesConfig struct {
 	Kind    string `yaml:"kind"`
 	Spec    struct {
 		Proxy         string `yaml:"proxy"`
+		Group         string `yaml:"group"`
 		Enabled       bool   `yaml:"enabled"`
 		ActiveVersion string `yaml:"active_version"`
 	} `yaml:"spec"`
