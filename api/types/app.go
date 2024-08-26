@@ -366,7 +366,15 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	default:
 		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
 	}
-	url, err := url.Parse(a.Spec.PublicAddr)
+	publicAddr := a.Spec.PublicAddr
+	// If the public addr has digits in a sub-host and a port, it might cause url.Parse to fail.
+	// Eg of a failing url: 123.teleport.example.com:3080
+	// This is not a valid URL, but we have been using it as such.
+	// To prevent this from failing, we add the `//`.
+	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
+		publicAddr = "//" + publicAddr
+	}
+	url, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}
