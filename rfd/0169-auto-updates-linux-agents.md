@@ -385,6 +385,7 @@ For air-gapped Teleport installs, the agent may be configured with a custom tarb
 ```shell
 $ teleport-update enable --proxy example.teleport.sh --template 'https://example.com/teleport-{{ .Edition }}-{{ .Version }}-{{ .Arch }}.tgz'
 ```
+(Checksum will use template path + `.sha256`)
 
 ### Filesystem
 
