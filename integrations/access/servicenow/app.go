@@ -64,7 +64,7 @@ type App struct {
 
 	PluginName string
 	teleport   teleport.Client
-	serviceNow ServicenowClient
+	serviceNow ServiceNowClient
 	mainJob    lib.ServiceJob
 	conf       Config
 }
