@@ -1,5 +1,48 @@
 # Changelog
 
+## 16.2.0 (08/26/24)
+
+### NLA Support
+
+Teleport now supports Network Level Authentication (NLA) when connecting to
+Windows hosts that are part of an Active Directory domain, eliminating the need
+for administrators to disable NLA when setting up Teleport.
+
+### DocumentDB IAM authentication support
+
+Teleport now supports authenticating to DocumentDB with IAM users and roles
+[recently released](https://aws.amazon.com/about-aws/whats-new/2024/06/amazon-documentdb-iam-database-authentication/)
+by AWS.
+
+### Join Tokens in the Web UI
+
+Teleport now allows users to manage join tokens in the web UI as an alternative
+to the tctl tokens commands.
+
+### Database Access Controls in Access Graph
+
+Database Access users are now able to see database objects and their access
+paths in Access Graph.
+
+### Logrotate support
+
+Teleport now integrates with logrotate by automatically reopening log files when
+detecting that they were renamed.
+
+### Other improvements and fixes
+
+* Failure to share a local directory in a Windows desktop session is no longer considered a fatal error. [#45852](https://github.com/gravitational/teleport/pull/45852)
+* Add `teleport.dev/project-id` label for auto-enrolled instances in GCP. [#45820](https://github.com/gravitational/teleport/pull/45820)
+* Fix an issue that prevented the creation of AWS App Access for an Integration that used digits only (eg, AWS Account ID). [#45819](https://github.com/gravitational/teleport/pull/45819)
+* Slack plugin now lists logins permitted by requested roles. [#45759](https://github.com/gravitational/teleport/pull/45759)
+* For new EKS Cluster auto-enroll configurations, the temporary Access Entry is tagged with `teleport.dev/` namespaced tags. For existing set ups, please add the `eks:TagResource` action to the Integration IAM Role to get the same behavior. [#45725](https://github.com/gravitational/teleport/pull/45725)
+* Added support for importing S3 Bucket Tags into Teleport Policy's Access Graph. For existing configurations, ensure that the `s3:GetBucketTagging` permission is manually included in the Teleport Access Graph integration role. [#45551](https://github.com/gravitational/teleport/pull/45551)
+* Add a `tctl terraform env` command to simplify running the Teleport Terraform provider locally. [#44690](https://github.com/gravitational/teleport/pull/44690)
+* Add native MachineID support to the Terraform provider. Environments with delegated joining methods such as GitHub Actions, GitLab CI, CircleCI, GCP, or AWS can run the Terraform provider without having to setup `tbot`. [#44690](https://github.com/gravitational/teleport/pull/44690)
+* The Terraform Provider now sequentially tries every credential source and provide more actionable error messages if it cannot connect. [#44690](https://github.com/gravitational/teleport/pull/44690)
+* When the Terraform provider finds expired credentials it will now fail fast with a clear error instead of hanging for 30 seconds and sending potentially misleading error about certificates being untrusted. [#44690](https://github.com/gravitational/teleport/pull/44690)
+* Fix a bug that caused some enterprise clusters to incorrectly display a message that the cluster had a monthly allocation of 0 access requests. [#4923](https://github.com/gravitational/teleport.e/pull/4923)
+
 ## 16.1.8 (08/23/24)
 
 ### Security fix
