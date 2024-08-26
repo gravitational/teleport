@@ -27,7 +27,7 @@ import (
 )
 
 type mockServicenow struct {
-	ServicenowClient
+	ServiceNowClient
 
 	responses map[string][]string
 }
