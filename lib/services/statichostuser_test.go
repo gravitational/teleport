@@ -23,8 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 )
 
@@ -42,19 +42,19 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "no name",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{}, userprovisioning.Spec{
 				Login: "alice",
 			}),
 			assert: require.Error,
 		},
 		{
 			name:     "missing login",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{}),
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{}),
 			assert:   require.Error,
 		},
 		{
 			name: "invalid node labels",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				NodeLabels: types.Labels{types.Wildcard: {"bar"}},
 			}),
@@ -62,7 +62,7 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "invalid node labels expression",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:                "alice",
 				NodeLabelsExpression: "foo bar xyz",
 			}),
@@ -70,7 +70,7 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "valid wildcard labels",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				NodeLabels: types.Labels{"foo": {types.Wildcard}, types.Wildcard: {types.Wildcard}},
 			}),
@@ -78,7 +78,7 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "non-numeric uid",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				Groups:     []string{"foo", "bar"},
 				Uid:        "abcd",
@@ -89,7 +89,7 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "non-numeric gid",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:      "alice",
 				Groups:     []string{"foo", "bar"},
 				Uid:        "1234",
@@ -100,7 +100,7 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "ok",
-			hostUser: userprovisioning.NewStaticHostUser(header.Metadata{Name: "alice_user"}, userprovisioning.Spec{
+			hostUser: userprovisioning.NewStaticHostUser(&headerv1.Metadata{Name: "alice_user"}, userprovisioning.Spec{
 				Login:                "alice",
 				Groups:               []string{"foo", "bar"},
 				Uid:                  "1234",

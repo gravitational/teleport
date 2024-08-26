@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -1711,6 +1712,18 @@ func (c *spiffeFederationCollection) resources() []types.Resource {
 	return r
 }
 
+type staticHostUserCollection struct {
+	items []*userprovisioning.StaticHostUser
+}
+
+func (c *staticHostUserCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
 func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Last synced at"}
 
@@ -1729,6 +1742,25 @@ func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error 
 	t := asciitable.MakeTable(headers, rows...)
 
 	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *staticHostUserCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+		rows = append(rows, []string{
+			item.GetMetadata().Name,
+			item.Spec.Login,
+			strings.Join(item.Spec.Groups, ","),
+			item.Spec.Uid,
+			item.Spec.Gid,
+			printNodeLabels(item.Spec.NodeLabels),
+		})
+	}
+	headers := []string{"Name", "Login", "Groups", "Uid", "Gid", "Node Labels"}
+	t := asciitable.MakeTable(headers, rows...)
 	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

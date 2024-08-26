@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
@@ -53,7 +54,7 @@ func MarshalStaticHostUser(hostUser *userprovisioning.StaticHostUser, opts ...Ma
 	}
 	if !cfg.PreserveRevision {
 		copy := *hostUser
-		copy.SetRevision("")
+		copy.GetMetadata().Revision = ""
 		hostUser = &copy
 	}
 	return utils.FastMarshal(hostUser)
@@ -72,10 +73,10 @@ func UnmarshalStaticHostUser(data []byte, opts ...MarshalOption) (*userprovision
 		return nil, trace.BadParameter(err.Error())
 	}
 	if cfg.Revision != "" {
-		hostUser.SetRevision(cfg.Revision)
+		hostUser.GetMetadata().Revision = cfg.Revision
 	}
 	if !cfg.Expires.IsZero() {
-		hostUser.SetExpiry(cfg.Expires)
+		hostUser.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return &hostUser, nil
 }

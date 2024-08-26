@@ -3,7 +3,6 @@ package v1
 import (
 	userprovisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/trace"
 )
@@ -26,7 +25,7 @@ func FromProto(msg *userprovisioningv1.StaticHostUser) (*userprovisioning.Static
 		}
 	}
 
-	return userprovisioning.NewStaticHostUser(headerv1.FromMetadataProto(msg.GetMetadata()), userprovisioning.Spec{
+	u := userprovisioning.NewStaticHostUser(msg.GetMetadata(), userprovisioning.Spec{
 		Login:                msg.Spec.Login,
 		Groups:               msg.Spec.Groups,
 		Sudoers:              msg.Spec.Sudoers,
@@ -34,15 +33,16 @@ func FromProto(msg *userprovisioningv1.StaticHostUser) (*userprovisioning.Static
 		Gid:                  msg.Spec.Gid,
 		NodeLabels:           labels,
 		NodeLabelsExpression: msg.Spec.NodeLabelsExpression,
-	}), nil
+	})
+	return u, nil
 }
 
 func ToProto(hostUser *userprovisioning.StaticHostUser) *userprovisioningv1.StaticHostUser {
-	return &userprovisioningv1.StaticHostUser{
+	u := &userprovisioningv1.StaticHostUser{
 		Kind:     hostUser.GetKind(),
 		SubKind:  hostUser.GetSubKind(),
 		Version:  hostUser.GetVersion(),
-		Metadata: headerv1.ToMetadataProto(hostUser.Metadata),
+		Metadata: hostUser.GetMetadata(),
 		Spec: &userprovisioningv1.StaticHostUserSpec{
 			Login:                hostUser.Spec.Login,
 			Groups:               hostUser.Spec.Groups,
@@ -53,4 +53,5 @@ func ToProto(hostUser *userprovisioning.StaticHostUser) *userprovisioningv1.Stat
 			NodeLabelsExpression: hostUser.Spec.NodeLabelsExpression,
 		},
 	}
+	return u
 }

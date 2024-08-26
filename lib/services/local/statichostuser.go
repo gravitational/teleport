@@ -36,18 +36,17 @@ const (
 
 // StaticHostUserService manages host users that should be created on SSH nodes.
 type StaticHostUserService struct {
-	svc *generic.Service[*userprovisioning.StaticHostUser]
+	svc *generic.ServiceWrapper[*userprovisioning.StaticHostUser]
 }
 
 // NewStaticHostUserService creates a new static host user service.
 func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error) {
-	svc, err := generic.NewService(&generic.ServiceConfig[*userprovisioning.StaticHostUser]{
-		Backend:       bk,
-		ResourceKind:  types.KindStaticHostUser,
-		BackendPrefix: staticHostUserPrefix,
-		MarshalFunc:   services.MarshalStaticHostUser,
-		UnmarshalFunc: services.UnmarshalStaticHostUser,
-	},
+	svc, err := generic.NewServiceWrapper(
+		bk,
+		types.KindStaticHostUser,
+		staticHostUserPrefix,
+		services.MarshalStaticHostUser,
+		services.UnmarshalStaticHostUser,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

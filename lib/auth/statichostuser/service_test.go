@@ -25,9 +25,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	convertv1 "github.com/gravitational/teleport/api/types/userprovisioning/convert/v1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -44,7 +44,7 @@ func staticHostUserName(i int) string {
 
 func makeStaticHostUser(i int) *userprovisioningpb.StaticHostUser {
 	name := staticHostUserName(i)
-	return convertv1.ToProto(userprovisioning.NewStaticHostUser(header.Metadata{
+	return convertv1.ToProto(userprovisioning.NewStaticHostUser(&headerv1.Metadata{
 		Name: name,
 	}, userprovisioning.Spec{
 		Login:  name,

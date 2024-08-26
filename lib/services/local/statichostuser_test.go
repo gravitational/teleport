@@ -31,8 +31,9 @@ import (
 	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/types/header"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -111,7 +112,8 @@ func TestGetStaticHostUser(t *testing.T) {
 				assert.Nil(t, obj)
 			} else {
 				cmpOpts := []cmp.Option{
-					cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+					cmpopts.IgnoreUnexported(headerv1.ResourceHeader{}, headerv1.Metadata{}),
+					cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 				}
 				require.Equal(t, "", cmp.Diff(tc.wantObj, obj, cmpOpts...))
 			}
@@ -126,7 +128,7 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := clock.Now().UTC().Add(30 * time.Minute)
+	expiry := timestamppb.New(clock.Now().UTC().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	key := getStaticHostUser(0).GetMetadata().Name
@@ -150,7 +152,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := clock.Now().UTC().Add(30 * time.Minute)
+	expiry := timestamppb.New(clock.Now().UTC().Add(30 * time.Minute))
 
 	obj := getStaticHostUser(0)
 	obj.Metadata.Expires = expiry
@@ -213,7 +215,8 @@ func TestListStaticHostUsers(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+						cmpopts.IgnoreUnexported(headerv1.ResourceHeader{}, headerv1.Metadata{}),
+						cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 					}
 					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
@@ -236,7 +239,8 @@ func TestListStaticHostUsers(t *testing.T) {
 
 				for i := 0; i < count; i++ {
 					cmpOpts := []cmp.Option{
-						cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+						cmpopts.IgnoreUnexported(headerv1.ResourceHeader{}, headerv1.Metadata{}),
+						cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
 					}
 					require.Equal(t, "", cmp.Diff(getStaticHostUser(i), elements[i], cmpOpts...))
 				}
@@ -259,7 +263,7 @@ func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 
 func getStaticHostUser(index int) *userprovisioning.StaticHostUser {
 	name := fmt.Sprintf("obj%v", index)
-	return userprovisioning.NewStaticHostUser(header.Metadata{
+	return userprovisioning.NewStaticHostUser(&headerv1.Metadata{
 		Name: name,
 	}, userprovisioning.Spec{
 		Login:  "alice",

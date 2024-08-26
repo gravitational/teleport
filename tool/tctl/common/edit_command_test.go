@@ -30,7 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -72,6 +74,10 @@ func TestEditResources(t *testing.T) {
 		{
 			kind: types.KindSessionRecordingConfig,
 			edit: testEditSessionRecordingConfig,
+		},
+		{
+			kind: types.KindStaticHostUser,
+			edit: testEditStaticHostUser,
 		},
 	}
 
@@ -484,4 +490,46 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", "connector/saml"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected := userprovisioning.NewStaticHostUser(&headerv1.Metadata{
+		Name: "test-host-user",
+	}, userprovisioning.Spec{
+		Login: "alice",
+		NodeLabels: types.Labels{
+			"foo": {"bar"},
+		},
+	})
+	created, err := clt.StaticHostUserClient().CreateStaticHostUser(ctx, expected)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.GetMetadata().Revision = created.GetMetadata().Revision
+		expected.Spec.Login = "bob"
+
+		collection := &staticHostUserCollection{items: []*userprovisioning.StaticHostUser{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/test-host-user"}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.StaticHostUserClient().GetStaticHostUser(ctx, expected.GetMetadata().Name)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual,
+		cmpopts.IgnoreUnexported(headerv1.ResourceHeader{}, headerv1.Metadata{}),
+		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+	))
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/test-host-user"}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "unexpected error: %v", err)
 }

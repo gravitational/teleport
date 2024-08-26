@@ -21,12 +21,10 @@ package userprovisioning
 import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
-	convertv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
 type StaticHostUser struct {
-	header.ResourceHeader
+	headerv1.ResourceHeader
 
 	Spec Spec
 }
@@ -42,19 +40,13 @@ type Spec struct {
 }
 
 // NewStaticHostUser creates a new host user to be applied to matching SSH nodes.
-func NewStaticHostUser(metadata header.Metadata, spec Spec) *StaticHostUser {
+func NewStaticHostUser(metadata *headerv1.Metadata, spec Spec) *StaticHostUser {
 	return &StaticHostUser{
-		ResourceHeader: header.ResourceHeader{
+		ResourceHeader: headerv1.ResourceHeader{
 			Kind:     types.KindStaticHostUser,
 			Version:  types.V1,
 			Metadata: metadata,
 		},
 		Spec: spec,
 	}
-}
-
-// GetMetadata returns metadata. This is specifically for conforming to the
-// ResourceMetadata interface.
-func (u *StaticHostUser) GetMetadata() *headerv1.Metadata {
-	return convertv1.ToMetadataProto(u.Metadata)
 }
