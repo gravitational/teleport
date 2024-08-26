@@ -24,3 +24,7 @@ Download the current release of Teleport plugins from the links below.
 * Jira [Linux amd64](https://cdn.teleport.dev/teleport-access-jira-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-jira-v16.0.1-linux-arm64-bin.tar.gz)
 * Email [Linux amd64](https://cdn.teleport.dev/teleport-access-email-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-email-v16.0.1-linux-arm64-bin.tar.gz)
 * Microsoft Teams [Linux amd64](https://cdn.teleport.dev/teleport-access-msteams-v16.0.1-linux-amd64-bin.tar.gz) | [Linux arm64](https://cdn.teleport.dev/teleport-access-msteams-v16.0.1-linux-arm64-bin.tar.gz)
+
+---
+
+labels: security-patch=yes, security-patch-alts=v16.0.0,v16.0.1
