@@ -314,7 +314,8 @@ endif
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
-	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
 	cbindgen --quiet --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
 endif
@@ -324,7 +325,7 @@ endif
 teleport-fips-check:
 	@if [ "$(FIPS)" != "" ]; then \
 		echo "FIPS mode requested, pre-compiling and checking binary for BoringCrypto symbols."; \
-		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
+		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" $(BUILDFLAGS) -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
 		if go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep boringcrypto; then \
 			echo "BoringCrypto appears enabled."; \
 		else \
