@@ -866,7 +866,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
 	if !ok {
 		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
-			return trace.BadParameter("invalid desktop address: %v", desktop.GetAddr())
+			return trace.Wrap(err, "DNS host name is not specified and desktop address is invalid")
 		}
 		// sspi-rs returns misleading error when IP is used as a computer name,
 		// so we replace it with host name that will still not match anything
@@ -880,7 +880,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	kdcAddr := s.cfg.KDCAddr
 	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
 		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "KDC address is unspecified and LDAP address is invalid")
 		}
 	}
 
