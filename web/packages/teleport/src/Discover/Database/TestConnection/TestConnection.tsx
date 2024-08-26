@@ -168,7 +168,6 @@ export function TestConnection() {
               <LabelInput htmlFor={'select'}>Database Name</LabelInput>
               <Select
                 data-testid="select-db-name"
-                label="Database Name"
                 placeholder={
                   nameOpts.length === 0
                     ? 'No database names defined'

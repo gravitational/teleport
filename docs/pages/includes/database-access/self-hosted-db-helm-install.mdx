@@ -36,10 +36,10 @@ To configure the Teleport Database Service to trust a custom CA:
 
    ```diff
      roles: db
-     proxyAddr: <Var name="example.teleport.sh" />
+     proxyAddr: example.teleport.sh
      # Set to false if using Teleport Community Edition
      enterprise: true
-     authToken: <Var name="JOIN_TOKEN" />
+     authToken: JOIN_TOKEN
      databases:
        - name: {{ dbName }}
          uri: {{ databaseAddress }}

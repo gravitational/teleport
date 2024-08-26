@@ -235,65 +235,70 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-func (s *SessionRegistry) TryWriteSudoersFile(ctx *ServerContext) error {
+// TryWriteSudoersFile tries to write the needed sudoers entry to the sudoers
+// file, if any. If the returned closer is not nil, it must be called at the
+// end of the session to cleanup the sudoers file.
+func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
 	if s.sudoers == nil {
-		return nil
+		return nil, nil
 	}
 
-	sudoers, err := ctx.Identity.AccessChecker.HostSudoers(ctx.srv.GetInfo())
+	sudoers, err := identityContext.AccessChecker.HostSudoers(s.Srv.GetInfo())
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if len(sudoers) == 0 {
 		// not an error, sudoers may not be configured.
-		return nil
+		return nil, nil
 	}
-	if err := s.sudoers.WriteSudoers(ctx.Identity.Login, sudoers); err != nil {
-		return trace.Wrap(err)
+	if err := s.sudoers.WriteSudoers(identityContext.Login, sudoers); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	s.sessionsByUser.add(ctx.Identity.Login)
-	ctx.AddCloser(&sudoersCloser{
-		username:     ctx.Identity.Login,
+	s.sessionsByUser.add(identityContext.Login)
+
+	return &sudoersCloser{
+		username:     identityContext.Login,
 		userSessions: s.sessionsByUser,
 		cleanup:      s.sudoers.RemoveSudoers,
-	})
-
-	return nil
+	}, nil
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
-	if !ctx.srv.GetCreateHostUser() || s.users == nil {
+// TryCreateHostUser attempts to create a local user on the host if needed.
+// If the returned closer is not nil, it must be called at the end of the
+// session to clean up the local user.
+func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (created bool, closer io.Closer, err error) {
+	if !s.Srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
-		return nil // not an error to not be able to create host users
+		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
+	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			return nil
+			log.Warnf("Unable to create host users: %v", err)
+			return false, nil, nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
-		return trace.Wrap(err)
+		return false, nil, trace.Wrap(err)
 	}
 
-	existsErr := s.users.UserExists(ctx.Identity.Login)
+	existsErr := s.users.UserExists(identityContext.Login)
 	if trace.IsAccessDenied(err) && existsErr != nil {
-		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
-	}
-	userCloser, err := s.users.UpsertUser(ctx.Identity.Login, ui)
-	if userCloser != nil {
-		ctx.AddCloser(userCloser)
-	}
-	if err != nil && !trace.IsAlreadyExists(err) {
-		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return trace.Wrap(err)
+		return false, nil, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
 
-	// Indicate that the user was created by Teleport.
-	ctx.UserCreatedByTeleport = true
+	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
+	if err != nil && !trace.IsAlreadyExists(err) && !errors.Is(err, unmanagedUserErr) {
+		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
+		return false, nil, trace.Wrap(err)
+	}
 
-	return nil
+	if errors.Is(err, unmanagedUserErr) {
+		log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+	}
+
+	return true, userCloser, nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.
@@ -1333,19 +1338,19 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
 		}
 
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
-		}
-
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
 		select {
 		case <-time.After(defaults.WaitCopyTimeout):
-			s.log.Error("Timed out waiting for PTY copy to finish, session data  may be missing.")
+			s.log.Debug("Timed out waiting for PTY copy to finish, session data may be missing.")
 		case <-s.doneCh:
+		}
+
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
 		}
 
 		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
@@ -1514,8 +1519,11 @@ func (s *session) broadcastResult(r ExecResult) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	payload := ssh.Marshal(struct{ C uint32 }{C: uint32(r.Code)})
 	for _, p := range s.parties {
-		p.ctx.SendExecResult(r)
+		if _, err := p.ch.SendRequest("exit-status", false, payload); err != nil {
+			s.log.Infof("Failed to send exit status for %v: %v", r.Command, err)
+		}
 	}
 }
 

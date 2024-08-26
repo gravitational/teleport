@@ -43,9 +43,9 @@ func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 		return trace.BadParameter("headless authentication resource state must be specified")
 	case h.Version != types.V1:
 		return trace.BadParameter("unsupported headless authentication resource version %q, current supported version is %s", h.Version, types.V1)
-	case h.PublicKey == nil:
-		return trace.BadParameter("headless authentication resource must have non-empty publicKey")
-	case h.Metadata.Name != NewHeadlessAuthenticationID(h.PublicKey):
+	case len(h.SshPublicKey) == 0:
+		return trace.BadParameter("headless authentication resource must have non-empty SSH public key")
+	case h.Metadata.Name != NewHeadlessAuthenticationID(h.SshPublicKey):
 		return trace.BadParameter("headless authentication authentication resource name must be derived from public key")
 	}
 

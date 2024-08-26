@@ -27,7 +27,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -53,11 +52,11 @@ var (
 // scanning enabled, the watcher will hold until the feature is enabled.
 type Watcher struct {
 	// client is the client to use to communicate with the cluster.
-	client           ClusterClient
-	logger           *slog.Logger
-	clock            clockwork.Clock
-	hostID           string
-	usersAccountFile string
+	client       ClusterClient
+	logger       *slog.Logger
+	clock        clockwork.Clock
+	hostID       string
+	getHostUsers func() ([]user.User, error)
 }
 
 // ClusterClient is the client to use to communicate with the cluster.
@@ -79,17 +78,19 @@ type WatcherConfig struct {
 	// getRuntimeOS returns the runtime operating system.
 	// used for testing purposes.
 	getRuntimeOS func() string
-	// etcPasswdFile is the path to the file that contains the users account information on the system.
-	// This file is used to get the list of users on the system and their home directories.
-	// Value is set to "/etc/passwd" by default.
-	etcPasswdFile string
+	// getHostUsers is a function that returns the list of users on the system.
+	// used for testing purposes. When nil, it uses the default implementation
+	// that leverages getpwent.
+	getHostUsers func() ([]user.User, error)
 }
 
 // NewWatcher creates a new Watcher instance.
 // Returns [ErrUnsupportedPlatform] if the operating system is not supported.
 func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 
-	if getOS(config) != constants.LinuxOS {
+	switch platform := getOS(config); platform {
+	case constants.LinuxOS, constants.DarwinOS:
+	default:
 		return nil, trace.Wrap(ErrUnsupportedPlatform)
 	}
 
@@ -105,19 +106,16 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 	if config.Clock == nil {
 		config.Clock = clockwork.NewRealClock()
 	}
-	if config.etcPasswdFile == "" {
-		// etcPasswordPath is the path to the password file.
-		// This file is used to get the list of users on the system and their home directories.
-		const etcPasswordPath = "/etc/passwd"
-		config.etcPasswdFile = etcPasswordPath
+	if config.getHostUsers == nil {
+		config.getHostUsers = getHostUsers
 	}
 
 	w := &Watcher{
-		client:           config.Client,
-		logger:           config.Logger,
-		clock:            config.Clock,
-		hostID:           config.HostID,
-		usersAccountFile: config.etcPasswdFile,
+		client:       config.Client,
+		logger:       config.Logger,
+		clock:        config.Clock,
+		hostID:       config.HostID,
+		getHostUsers: config.getHostUsers,
 	}
 
 	return w, nil
@@ -180,7 +178,8 @@ func (w *Watcher) start(ctx context.Context) error {
 		}
 	}()
 
-	if err := fileWatcher.Add(w.usersAccountFile); err != nil {
+	const etcPasswd = "/etc/passwd"
+	if err := fileWatcher.Add(etcPasswd); err != nil {
 		w.logger.WarnContext(ctx, "Failed to add watcher for file", "error", err)
 	}
 
@@ -239,7 +238,7 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 	stream accessgraphsecretsv1pb.SecretsScannerService_ReportAuthorizedKeysClient,
 	fileWatcher *fsnotify.Watcher,
 ) error {
-	users, err := userList(ctx, w.logger, w.usersAccountFile)
+	users, err := w.getHostUsers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -292,47 +291,6 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// userList retrieves all users on the system
-func userList(ctx context.Context, log *slog.Logger, filePath string) ([]user.User, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.DebugContext(ctx, "Failed to close file", "error", err, "file", filePath)
-		}
-	}()
-
-	var users []user.User
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Skip empty lines and comments
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// username:password:uid:gid:gecos:home:shell
-		parts := strings.Split(line, ":")
-		if len(parts) < 7 {
-			continue
-		}
-		users = append(users, user.User{
-			Username: parts[0],
-			Uid:      parts[2],
-			Gid:      parts[3],
-			Name:     parts[4],
-			HomeDir:  parts[5],
-		})
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return users, nil
 }
 
 func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, authorizedKeysPath string) ([]*accessgraphsecretsv1pb.AuthorizedKey, error) {

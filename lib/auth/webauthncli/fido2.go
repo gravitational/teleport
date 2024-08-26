@@ -25,6 +25,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -220,7 +221,7 @@ func fido2Login(
 		if uv {
 			opts.UV = libfido2.True
 		}
-		assertions, err := dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+		assertions, err := devAssertion(dev, info, actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		if errors.Is(err, libfido2.ErrUnsupportedOption) && uv && pin != "" {
 			// Try again if we are getting "unsupported option" and the PIN is set.
 			// Happens inconsistently in some authenticator series (YubiKey 5).
@@ -228,7 +229,7 @@ func fido2Login(
 			// authenticator will set the UV bit regardless of it being requested.
 			log.Debugf("FIDO2: Device %v: retrying assertion without UV", info.path)
 			opts.UV = libfido2.Default
-			assertions, err = dev.Assertion(actualRPID, ccdHash[:], allowedCreds, pin, opts)
+			assertions, err = devAssertion(dev, info, actualRPID, ccdHash[:], allowedCreds, pin, opts)
 		}
 		if errors.Is(err, libfido2.ErrNoCredentials) {
 			// U2F devices error instantly with ErrNoCredentials.
@@ -312,11 +313,73 @@ func usesAppID(dev FIDODevice, info *deviceInfo, ccdHash []byte, allowedCreds []
 
 	isRegistered := func(id string) bool {
 		const pin = "" // Not necessary here.
-		_, err := dev.Assertion(id, ccdHash, allowedCreds, pin, opts)
+		_, err := devAssertion(dev, info, id, ccdHash, allowedCreds, pin, opts)
 		return err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired))
 	}
 
 	return isRegistered(appID) && !isRegistered(rpID)
+}
+
+func devAssertion(
+	dev FIDODevice,
+	info *deviceInfo,
+	rpID string,
+	ccdHash []byte,
+	allowedCreds [][]byte,
+	pin string,
+	opts *libfido2.AssertionOpts,
+) ([]*libfido2.Assertion, error) {
+	// Handle U2F devices separately when there is more than one allowed
+	// credential.
+	// This avoids "internal errors" on older Yubikey models (eg, FIDO U2F
+	// Security Key firmware 4.1.8).
+	if !info.fido2 && len(allowedCreds) > 1 {
+		cred, ok := findFirstKnownCredential(dev, info, rpID, ccdHash, allowedCreds)
+		if ok {
+			isCredentialCheck := pin == "" && opts != nil && opts.UP == libfido2.False
+			if isCredentialCheck {
+				// No need to assert again, reply as the U2F authenticator would.
+				return nil, trace.Wrap(libfido2.ErrUserPresenceRequired)
+			}
+
+			if log.IsLevelEnabled(log.DebugLevel) {
+				credPrefix := hex.EncodeToString(cred)
+				const prefixLen = 10
+				if len(credPrefix) > prefixLen {
+					credPrefix = credPrefix[:prefixLen]
+				}
+				log.Debugf("FIDO2: Device %v: Using credential %v...", info.path, credPrefix)
+			}
+
+			allowedCreds = [][]byte{cred}
+		}
+	}
+
+	assertion, err := dev.Assertion(rpID, ccdHash, allowedCreds, pin, opts)
+	return assertion, trace.Wrap(err)
+}
+
+func findFirstKnownCredential(
+	dev FIDODevice,
+	info *deviceInfo,
+	rpID string,
+	ccdHash []byte,
+	allowedCreds [][]byte,
+) ([]byte, bool) {
+	const pin = ""
+	opts := &libfido2.AssertionOpts{
+		UP: libfido2.False,
+	}
+	for _, cred := range allowedCreds {
+		_, err := dev.Assertion(rpID, ccdHash, [][]byte{cred}, pin, opts)
+		// FIDO2 devices return err=nil on up=false queries; U2F devices return
+		// libfido2.ErrUserPresenceRequired.
+		// https://github.com/Yubico/libfido2/blob/03c18d396eb209a42bbf62f5f4415203cba2fc50/src/u2f.c#L787-L791.
+		if err == nil || (!info.fido2 && errors.Is(err, libfido2.ErrUserPresenceRequired)) {
+			return cred, true
+		}
+	}
+	return nil, false
 }
 
 func pickAssertion(
@@ -452,7 +515,7 @@ func fido2Register(
 
 		// Does the device hold an excluded credential?
 		const pin = "" // not required to filter
-		switch _, err := dev.Assertion(rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
+		switch _, err := devAssertion(dev, info, rp.ID, ccdHash[:], excludeList, pin, &libfido2.AssertionOpts{
 			UP: libfido2.False,
 		}); {
 		case errors.Is(err, libfido2.ErrNoCredentials):

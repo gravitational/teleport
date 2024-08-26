@@ -56,6 +56,8 @@ type AccessRequestCacheConfig struct {
 	Events types.Events
 	// Getter is an access request getter client.
 	Getter AccessRequestGetter
+	// MaxRetryPeriod is the maximum retry period on failed watches.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults valides the config and provides reasonable defaults for optional fields.
@@ -87,8 +89,12 @@ type AccessRequestCache struct {
 	primaryCache *sortcache.SortCache[*types.AccessRequestV3]
 	ttlCache     *utils.FnCache
 	initC        chan struct{}
+	initOnce     sync.Once
 	closeContext context.Context
 	cancel       context.CancelFunc
+	// onInit is a callback used in tests to detect
+	// individual initializations.
+	onInit func()
 }
 
 // NewAccessRequestCache sets up a new [AccessRequestCache] instance based on the supplied
@@ -120,8 +126,9 @@ func NewAccessRequestCache(cfg AccessRequestCacheConfig) (*AccessRequestCache, e
 	}
 
 	if _, err := newResourceWatcher(ctx, c, ResourceWatcherConfig{
-		Component: "access-request-cache",
-		Client:    cfg.Events,
+		Component:      "access-request-cache",
+		Client:         cfg.Events,
+		MaxRetryPeriod: cfg.MaxRetryPeriod,
 	}); err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -352,8 +359,20 @@ func (c *AccessRequestCache) getResourcesAndUpdateCurrent(ctx context.Context) e
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.primaryCache = cache
-	close(c.initC)
+	c.initOnce.Do(func() {
+		close(c.initC)
+	})
+	if c.onInit != nil {
+		c.onInit()
+	}
 	return nil
+}
+
+// SetInitCallback is used in tests that care about cache inits.
+func (c *AccessRequestCache) SetInitCallback(cb func()) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+	c.onInit = cb
 }
 
 // processEventsAndUpdateCurrent is part of the resourceCollector interface and is used to update the
@@ -395,6 +414,7 @@ func (c *AccessRequestCache) notifyStale() {
 	}
 	c.primaryCache = nil
 	c.initC = make(chan struct{})
+	c.initOnce = sync.Once{}
 }
 
 // initializationChan is part of the resourceCollector interface and gets the channel

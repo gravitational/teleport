@@ -53,22 +53,40 @@ const history = {
     window.location.reload();
   },
 
-  goToLogin(rememberLocation = false) {
-    let url = cfg.routes.login;
+  goToLogin({
+    rememberLocation = false,
+    withAccessChangedMessage = false,
+  } = {}) {
+    const params: string[] = [];
+
+    // withAccessChangedMessage determines whether the login page the user is redirected to should include a notice that
+    // they were logged out due to their roles having changed.
+    if (withAccessChangedMessage) {
+      params.push('access_changed');
+    }
+
     if (rememberLocation) {
       const { search, pathname } = _inst.location;
       const knownRoute = this.ensureKnownRoute(pathname);
       const knownRedirect = this.ensureBaseUrl(knownRoute);
       const query = search ? encodeURIComponent(search) : '';
-
-      url = `${url}?redirect_uri=${knownRedirect}${query}`;
+      params.push(`redirect_uri=${knownRedirect}${query}`);
     }
+
+    const queryString = params.join('&');
+    const url = queryString
+      ? `${cfg.routes.login}?${queryString}`
+      : cfg.routes.login;
 
     this._pageRefresh(url);
   },
 
   getRedirectParam() {
     return getUrlParameter('redirect_uri', this.original().location.search);
+  },
+
+  hasAccessChangedParam() {
+    return hasUrlParameter('access_changed', this.original().location.search);
   },
 
   ensureKnownRoute(route = '') {
@@ -123,4 +141,9 @@ export function getUrlParameter(name = '', path = '') {
   const params = new URLSearchParams(path);
   const value = params.get(name);
   return value || '';
+}
+
+function hasUrlParameter(name = '', path = '') {
+  const params = new URLSearchParams(path);
+  return params.has(name);
 }

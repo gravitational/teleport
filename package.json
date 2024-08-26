@@ -52,9 +52,10 @@
     "msw-storybook-addon": "^2.0.3",
     "playwright": "^1.46.0",
     "prettier": "^3.3.3",
+    "react-select-event": "^5.5.1",
     "storybook": "^8.2.7",
     "typescript": "^5.5.4",
-    "vite": "^5.3.5"
+    "vite": "^5.4.1"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.17.0",
@@ -79,16 +80,16 @@
     "react-is": "^18.3.1",
     "react-router": "5.3.4",
     "react-router-dom": "5.3.4",
-    "react-select": "^3.0.8",
+    "react-select": "^5.8.0",
     "react-transition-group": "^4.4.5",
     "styled-components": "^6.1.12",
     "tslib": "^2.6.3",
     "whatwg-fetch": "^3.6.20"
   },
-  "packageManager": "pnpm@9.5.0",
   "msw": {
     "workerDirectory": [
       "web/.storybook/public"
     ]
-  }
+  },
+  "packageManager": "pnpm@9.8.0"
 }

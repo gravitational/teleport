@@ -1073,6 +1073,25 @@ export interface UIDiscoverCreateNodeEvent {
     status?: DiscoverStepStatus;
 }
 /**
+ * UIDiscoverCreateAppServerEvent is emitted when an app server is created.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIDiscoverCreateAppServerEvent
+ */
+export interface UIDiscoverCreateAppServerEvent {
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
+     */
+    metadata?: DiscoverMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverResourceMetadata resource = 2;
+     */
+    resource?: DiscoverResourceMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverStepStatus status = 3;
+     */
+    status?: DiscoverStepStatus;
+}
+/**
  * UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
  *
  * @generated from protobuf message prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent
@@ -2826,6 +2845,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
          */
         uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent;
+    } | {
+        oneofKind: "uiDiscoverCreateAppServerEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85;
+         */
+        uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent;
     } | {
         oneofKind: undefined;
     };
@@ -5794,6 +5819,66 @@ class UIDiscoverCreateNodeEvent$Type extends MessageType<UIDiscoverCreateNodeEve
  * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateNodeEvent
  */
 export const UIDiscoverCreateNodeEvent = new UIDiscoverCreateNodeEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIDiscoverCreateAppServerEvent$Type extends MessageType<UIDiscoverCreateAppServerEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIDiscoverCreateAppServerEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => DiscoverMetadata },
+            { no: 2, name: "resource", kind: "message", T: () => DiscoverResourceMetadata },
+            { no: 3, name: "status", kind: "message", T: () => DiscoverStepStatus }
+        ]);
+    }
+    create(value?: PartialMessage<UIDiscoverCreateAppServerEvent>): UIDiscoverCreateAppServerEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UIDiscoverCreateAppServerEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIDiscoverCreateAppServerEvent): UIDiscoverCreateAppServerEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoverMetadata metadata */ 1:
+                    message.metadata = DiscoverMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.DiscoverResourceMetadata resource */ 2:
+                    message.resource = DiscoverResourceMetadata.internalBinaryRead(reader, reader.uint32(), options, message.resource);
+                    break;
+                case /* prehog.v1alpha.DiscoverStepStatus status */ 3:
+                    message.status = DiscoverStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIDiscoverCreateAppServerEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoverMetadata metadata = 1; */
+        if (message.metadata)
+            DiscoverMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverResourceMetadata resource = 2; */
+        if (message.resource)
+            DiscoverResourceMetadata.internalBinaryWrite(message.resource, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverStepStatus status = 3; */
+        if (message.status)
+            DiscoverStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateAppServerEvent
+ */
+export const UIDiscoverCreateAppServerEvent = new UIDiscoverCreateAppServerEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UIDiscoverDatabaseConfigureIAMPolicyEvent$Type extends MessageType<UIDiscoverDatabaseConfigureIAMPolicyEvent> {
     constructor() {
@@ -8929,7 +9014,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 81, name: "database_user_created", kind: "message", oneof: "event", T: () => DatabaseUserCreatedEvent },
             { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
             { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent },
-            { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent }
+            { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent },
+            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9437,6 +9523,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverKubeEksEnrollEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event */ 85:
+                    message.event = {
+                        oneofKind: "uiDiscoverCreateAppServerEvent",
+                        uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateAppServerEvent)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9698,6 +9790,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84; */
         if (message.event.oneofKind === "uiDiscoverKubeEksEnrollEvent")
             UIDiscoverKubeEKSEnrollEvent.internalBinaryWrite(message.event.uiDiscoverKubeEksEnrollEvent, writer.tag(84, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85; */
+        if (message.event.oneofKind === "uiDiscoverCreateAppServerEvent")
+            UIDiscoverCreateAppServerEvent.internalBinaryWrite(message.event.uiDiscoverCreateAppServerEvent, writer.tag(85, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

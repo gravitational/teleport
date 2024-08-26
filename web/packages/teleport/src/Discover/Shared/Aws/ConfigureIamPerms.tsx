@@ -111,6 +111,7 @@ export function ConfigureIamPerms({
         "eks:CreateAccessEntry",
         "eks:DeleteAccessEntry",
         "eks:AssociateAccessPolicy",
+        "eks:TagResource"
       ],
       "Resource": "*"
     }
