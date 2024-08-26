@@ -4151,7 +4151,7 @@ type ProvisionTokenSpecV2 struct {
 	Spacelift *ProvisionTokenSpecV2Spacelift `protobuf:"bytes,14,opt,name=Spacelift,proto3" json:"spacelift,omitempty"`
 	// TPM allows the configuration of options specific to the "tpm" join method.
 	TPM *ProvisionTokenSpecV2TPM `protobuf:"bytes,15,opt,name=TPM,proto3" json:"tpm,omitempty"`
-	// Terraform allows the configuration of options specific to the "terraform_cloud" join method.
+	// TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
 	TerraformCloud       *ProvisionTokenSpecV2TerraformCloud `protobuf:"bytes,16,opt,name=TerraformCloud,proto3" json:"terraform_cloud,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}                            `json:"-"`
 	XXX_unrecognized     []byte                              `json:"-"`

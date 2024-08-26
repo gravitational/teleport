@@ -342,7 +342,7 @@ spec:
                   only node-join scripts create a configuration according to the suggestion.
                 type: object
               terraform_cloud:
-                description: Terraform allows the configuration of options specific
+                description: TerraformCloud allows the configuration of options specific
                   to the "terraform_cloud" join method.
                 nullable: true
                 properties:

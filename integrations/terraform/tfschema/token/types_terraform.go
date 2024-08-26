@@ -494,7 +494,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "Terraform allows the configuration of options specific to the \"terraform_cloud\" join method.",
+					Description: "TerraformCloud allows the configuration of options specific to the \"terraform_cloud\" join method.",
 					Optional:    true,
 				},
 				"tpm": {
