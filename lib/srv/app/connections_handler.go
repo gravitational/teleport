@@ -384,25 +384,9 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		newAudit: func(ctx context.Context, sessionID string) (common.Audit, error) {
-			// Audit stream is using server context, not session context,
-			// to make sure that session is uploaded even after it is closed.
-			rec, err := c.newSessionRecorder(c.closeContext, c.sessionStartTime(ctx), sessionID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			audit, err := common.NewAudit(common.AuditConfig{
-				Emitter:  c.cfg.Emitter,
-				Recorder: rec,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return audit, nil
-		},
-		hostID: c.cfg.HostID,
-		log:    c.log,
+		emitter: c.cfg.Emitter,
+		hostID:  c.cfg.HostID,
+		log:     c.log,
 	}, nil
 }
 

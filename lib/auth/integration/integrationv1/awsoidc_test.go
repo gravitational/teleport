@@ -325,6 +325,15 @@ func TestRBAC(t *testing.T) {
 					return err
 				},
 			},
+			{
+				name: "Ping",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
+						Integration: integrationName,
+					})
+					return err
+				},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				err := tt.fn()
@@ -410,6 +419,13 @@ func TestRBAC(t *testing.T) {
 						Integration: integrationName,
 						Region:      "my-region",
 					})
+					return err
+				},
+			},
+			{
+				name: "Ping",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{})
 					return err
 				},
 			},

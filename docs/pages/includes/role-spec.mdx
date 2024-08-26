@@ -42,6 +42,10 @@ spec:
     device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
+    # mfa_verification_interval optionally defines the maximum duration that can elapse between successive MFA verifications.
+    # This variable is used to ensure that users are periodically prompted to verify their identity, enhancing
+    # security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives.
+    mfa_verification_interval: 1h
     # lock sets locking mode for user of this role,
     # valid values are 'strict' or 'best_effort'
     lock: strict

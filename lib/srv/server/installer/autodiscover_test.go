@@ -29,11 +29,13 @@ import (
 	"testing"
 
 	"github.com/buildkite/bintest/v3"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
+	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/utils/packagemanager"
 )
 
@@ -85,6 +87,16 @@ func setupDirsForTest(t *testing.T, testTempDir string, distroConfig map[string]
 			require.NoError(t, os.WriteFile(path.Join(testTempDir, fileName), []byte(contents), fs.ModePerm))
 		}
 	}
+}
+
+type mockGCPInstanceGetter struct{}
+
+func (m *mockGCPInstanceGetter) GetInstance(ctx context.Context, req *gcp.InstanceRequest) (*gcp.Instance, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func (m *mockGCPInstanceGetter) GetInstanceTags(ctx context.Context, req *gcp.InstanceRequest) (map[string]string, error) {
+	return nil, trace.NotImplemented("not implemented")
 }
 
 func TestAutoDiscoverNode(t *testing.T) {
@@ -281,6 +293,91 @@ func TestAutoDiscoverNode(t *testing.T) {
 		}
 		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
 		require.FileExists(t, testTempDir+"/etc/teleport.yaml.discover")
+	})
+
+	t.Run("gcp adds a label with the project id", func(t *testing.T) {
+		distroConfig := wellKnownOS["ubuntu"]["24.04"]
+
+		testTempDir := t.TempDir()
+
+		setupDirsForTest(t, testTempDir, distroConfig)
+
+		mockIMDSProviders := []func(ctx context.Context) (imds.Client, error){
+			func(ctx context.Context) (imds.Client, error) {
+				return gcp.NewInstanceMetadataClient(
+					&mockGCPInstanceGetter{},
+					gcp.WithMetadataClient(func(ctx context.Context, path string) (string, error) {
+						switch path {
+						case "instance/id":
+							return "123", nil
+						case "instance/name":
+							return "my-name", nil
+						case "instance/zone":
+							return "my-zone", nil
+						case "project/project-id":
+							return "my-project", nil
+						}
+						return "", trace.BadParameter("path %q not found in metadata", path)
+					}),
+				)
+			},
+		}
+
+		installerConfig := &AutoDiscoverNodeInstallerConfig{
+			RepositoryChannel: "stable/rolling",
+			AutoUpgrades:      false,
+			ProxyPublicAddr:   "proxy.example.com",
+			TeleportPackage:   "teleport",
+			TokenName:         "my-token",
+
+			fsRootPrefix:         testTempDir,
+			imdsProviders:        mockIMDSProviders,
+			binariesLocation:     binariesLocation,
+			aptPublicKeyEndpoint: mockRepoKeys.URL,
+		}
+
+		teleportInstaller, err := NewAutoDiscoverNodeInstaller(installerConfig)
+		require.NoError(t, err)
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		// create an existing teleport.yaml configuration file
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml", []byte("has wrong config"), 0o644))
+		// create a teleport.yaml.discover to indicate that this host is controlled by the discover flow
+		require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.discover", []byte(""), 0o644))
+
+		// package manager is not called in this scenario because teleport binary already exists in the system
+		require.FileExists(t, mockBins["teleport"].Path)
+
+		mockBins["teleport"].Expect("node",
+			"configure",
+			"--output=file://"+testTempDir+"/etc/teleport.yaml.new",
+			"--proxy=proxy.example.com",
+			"--join-method=gcp",
+			"--token=my-token",
+			"--labels=teleport.dev/project-id=my-project,teleport.internal/name=my-name,teleport.internal/project-id=my-project,teleport.internal/zone=my-zone",
+		).AndCallFunc(func(c *bintest.Call) {
+			// create a teleport.yaml configuration file
+			require.NoError(t, os.WriteFile(testTempDir+"/etc/teleport.yaml.new", []byte("teleport.yaml configuration bytes"), 0o644))
+			c.Exit(0)
+		})
+
+		mockBins["systemctl"].Expect("enable", "teleport")
+		mockBins["systemctl"].Expect("restart", "teleport")
+
+		require.NoError(t, teleportInstaller.Install(ctx))
+
+		for binName, mockBin := range mockBins {
+			require.True(t, mockBin.Check(t), "mismatch between expected invocations and actual calls for %q", binName)
+		}
+
+		require.NoFileExists(t, testTempDir+"/etc/teleport.yaml.new")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml")
+		require.FileExists(t, testTempDir+"/etc/teleport.yaml.discover")
+		bs, err := os.ReadFile(testTempDir + "/etc/teleport.yaml")
+		require.NoError(t, err)
+		require.Equal(t, "teleport.yaml configuration bytes", string(bs))
 	})
 
 	t.Run("fails when imds server is not available", func(t *testing.T) {

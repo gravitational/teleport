@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -607,12 +605,14 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Try to login as an unknown user.
 	_, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username: user,
-			Pass:     &authclient.PassCreds{Password: pass},
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+	var accessDeniedErr *trace.AccessDeniedError
+	require.ErrorAs(t, err, &accessDeniedErr)
 
 	// Create the user.
 	_, role, err := CreateUserAndRole(s.a, user, []string{user}, nil)
@@ -895,13 +895,6 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	dev2, err := RegisterTestDevice(ctx, userClient, "dev2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, dev1 /* authenticator */)
 	require.NoError(t, err, "RegisterTestDevice")
 
-	// Prepare an SSH public key for testing.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "GenerateKey")
-	signer, err := ssh.NewSignerFromSigner(privKey)
-	require.NoError(t, err, "NewSignerFromSigner")
-	pubKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
-
 	// Users initially authenticate via Proxy, as there isn't a userClient before
 	// authn.
 	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
@@ -927,8 +920,9 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 
 		return proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-				Username:  user,
-				PublicKey: pubKey,
+				Username:     user,
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
@@ -2383,17 +2377,13 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 		"UpsertPassword",
 	)
 
-	// Generate underlying keys for SSH and TLS.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "GenerateKey")
-	pubKeySSH, err := ssh.NewPublicKey(privKey.Public())
-	require.NoError(t, err, "NewPublicKey")
-	user.pubKey = ssh.MarshalAuthorizedKey(pubKeySSH)
+	user.pubKey = []byte(sshPubKey)
 
 	// Prepare a WebSession to be augmented.
 	authnReq := authclient.AuthenticateUserRequest{
-		Username:  user.user,
-		PublicKey: user.pubKey,
+		Username:     user.user,
+		SSHPublicKey: user.pubKey,
+		TLSPublicKey: []byte(tlsPubKey),
 		Pass: &authclient.PassCreds{
 			Password: user.pass,
 		},

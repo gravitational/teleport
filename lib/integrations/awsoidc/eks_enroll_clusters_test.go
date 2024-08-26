@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -81,7 +82,6 @@ func TestEnrollEKSClusters(t *testing.T) {
 
 	ctx := context.Background()
 	proxyAddr := "https://example.com"
-	credsProvider := &mockCredentialsProvider{}
 	awsAccountID := "880713328506"
 	awsUserID := "AIDAJQABLZS4A3QDU576Q"
 	clustersBaseArn := "arn:aws:eks:us-east-1:880713328506:cluster/EKS"
@@ -137,9 +137,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 		return clt
 	}
 	baseRequest := EnrollEKSClustersRequest{
-		Region:             "us-east-1",
-		AgentVersion:       "1.2.3",
-		EnableAppDiscovery: true,
+		Region:              "us-east-1",
+		AgentVersion:        "1.2.3",
+		EnableAppDiscovery:  true,
+		IntegrationName:     "my-integration",
+		TeleportClusterName: "my-teleport-cluster",
 	}
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
@@ -251,9 +253,11 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
-				IsCloud:      true,
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IsCloud:             true,
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
@@ -278,8 +282,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 				},
 			},
 			request: EnrollEKSClustersRequest{
-				Region:       "us-east-1",
-				AgentVersion: "1.2.3",
+				Region:              "us-east-1",
+				AgentVersion:        "1.2.3",
+				IntegrationName:     "my-integration",
+				TeleportClusterName: "my-teleport-cluster",
 			},
 			requestClusterNames: []string{"EKS3"},
 			responseCheck: func(t *testing.T, response *EnrollEKSClusterResponse) {
@@ -346,7 +352,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			}
 
 			response, err := EnrollEKSClusters(
-				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, tc.enrollClient(t, tc.eksClusters), req)
+				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
 			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
@@ -360,8 +366,10 @@ func TestEnrollEKSClusters(t *testing.T) {
 		mockClt, ok := client.(*mockEnrollEKSClusterClient)
 		require.True(t, ok)
 		createCalled, deleteCalled := false, false
+		createTags := make(map[string]string)
 		mockClt.createAccessEntry = func(ctx context.Context, input *eks.CreateAccessEntryInput, f ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
 			createCalled = true
+			createTags = maps.Clone(input.Tags)
 			return nil, nil
 		}
 		mockClt.deleteAccessEntry = func(ctx context.Context, input *eks.DeleteAccessEntryInput, f ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
@@ -370,24 +378,27 @@ func TestEnrollEKSClusters(t *testing.T) {
 		}
 
 		response, err := EnrollEKSClusters(
-			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, credsProvider, mockClt, req)
+			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, mockClt, req)
 		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
 		require.True(t, createCalled)
+		require.Equal(t, map[string]string{
+			"teleport.dev/cluster":     "my-teleport-cluster",
+			"teleport.dev/integration": "my-integration",
+			"teleport.dev/origin":      "integration_awsoidc",
+		}, createTags)
 		require.True(t, deleteCalled)
 	})
 }
 
 func TestGetKubeClientGetter(t *testing.T) {
-	credsProvider := &mockCredentialsProvider{}
 	testCAData := "VGVzdENBREFUQQ=="
 
 	testCases := []struct {
 		endpoint      string
 		region        string
 		caData        string
-		timestamp     time.Time
 		expectedToken string
 		errorCheck    require.ErrorAssertionFunc
 	}{
@@ -395,35 +406,30 @@ func TestGetKubeClientGetter(t *testing.T) {
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9N2RiNWZlMWNjNDBhNzc4MTQ2MWJkMzkzMmE2NzBhNmVhNDFhNDNlZjEwZWQxZjMzNDE3NjI1ZDhkMTQ1Njg4NQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test2.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9N2RiNWZlMWNjNDBhNzc4MTQ2MWJkMzkzMmE2NzBhNmVhNDFhNDNlZjEwZWQxZjMzNDE3NjI1ZDhkMTQ1Njg4NQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-2",
 			caData:        testCAData,
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjMwMTAxJTJGdXMtZWFzdC0yJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMzAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9ZmE2MGNiYjRlMGNkYTNhMDU5ZmRlNWMwNjgzMGZlYTc4NTVkNTcwMTg4MWE4MzMzNmIwYjg0MjliYWIyMGYwNQ",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        testCAData,
-			timestamp:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-			expectedToken: "k8s-aws-v1.aHR0cHM6Ly9zdHMuYW1hem9uYXdzLmNvbS8_QWN0aW9uPUdldENhbGxlcklkZW50aXR5JlZlcnNpb249MjAxMS0wNi0xNSZYLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPSUyRjIwMjIwMTAxJTJGdXMtZWFzdC0xJTJGc3RzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyMjAxMDFUMDAwMDAwWiZYLUFtei1FeHBpcmVzPTYwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCUzQngtazhzLWF3cy1pZCZYLUFtei1TaWduYXR1cmU9YmE3ZTA5ZTcyZTUzNDIzNjRiNDZlZmQzOTViNmU1MjU5YWU1YmFjMTY1YmViYWVmNDMyZDA5MmVmZWI0ZDBkOA",
+			expectedToken: "k8s-aws-v1.cHJlc2lnbmVkVVJM",
 		},
 		{
 			endpoint:      "https://test.example.com",
 			region:        "us-east-1",
 			caData:        "badCA",
-			timestamp:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 			expectedToken: "",
 			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "illegal base64 data")
@@ -433,7 +439,7 @@ func TestGetKubeClientGetter(t *testing.T) {
 
 	for c, tc := range testCases {
 		t.Run(fmt.Sprintf("test#%d", c), func(t *testing.T) {
-			config, err := getKubeClientGetter(context.Background(), tc.timestamp, credsProvider, "EKS1", tc.region, tc.caData, tc.endpoint)
+			config, err := getKubeClientGetter("presignedURL", tc.caData, tc.endpoint)
 
 			if tc.errorCheck == nil {
 				cfg, err := config.ToRESTConfig()
@@ -496,26 +502,17 @@ func TestGetAccessEntryPrincipalArn(t *testing.T) {
 	}
 }
 
-// mockCredentialsProvider mocks AWS credentials.Provider interface.
-type mockCredentialsProvider struct {
-	retrieveValue aws.Credentials
-	retrieveError error
-}
-
-func (m *mockCredentialsProvider) Retrieve(ctx context.Context) (aws.Credentials, error) {
-	return m.retrieveValue, m.retrieveError
-}
-
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
-	createToken                func(ctx context.Context, token types.ProvisionToken) error
+	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
+	createToken                 func(ctx context.Context, token types.ProvisionToken) error
+	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -579,6 +576,13 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 		return m.createToken(ctx, token)
 	}
 	return nil
+}
+
+func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	if m.presignGetCallerIdentityURL != nil {
+		return m.presignGetCallerIdentityURL(ctx, clusterName)
+	}
+	return "", nil
 }
 
 var _ EnrollEKSCLusterClient = &mockEnrollEKSClusterClient{}

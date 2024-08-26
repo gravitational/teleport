@@ -34,6 +34,7 @@ import (
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	github_com_hashicorp_terraform_plugin_framework_types "github.com/hashicorp/terraform-plugin-framework/types"
 	github_com_hashicorp_terraform_plugin_go_tftypes "github.com/hashicorp/terraform-plugin-go/tftypes"
+	_ "google.golang.org/protobuf/types/known/durationpb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 	_ "google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -1036,6 +1037,11 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 				},
 				"session_control_timeout": {
 					Description: "SessionControlTimeout is the session control lease expiry and defines the upper limit of how long a node may be out of contact with the auth server before it begins terminating controlled sessions.",
+					Optional:    true,
+					Type:        DurationType{},
+				},
+				"ssh_dial_timeout": {
+					Description: "SSHDialTimeout is a custom dial timeout used when establishing SSH connections. If not set, the default timeout of 30s will be used.",
 					Optional:    true,
 					Type:        DurationType{},
 				},
@@ -2387,6 +2393,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Description: "MaxSessions defines the maximum number of concurrent sessions per connection.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+						},
+						"mfa_verification_interval": {
+							Description: "MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.",
+							Optional:    true,
+							Type:        DurationType{},
 						},
 						"permit_x11_forwarding": {
 							Description: "PermitX11Forwarding authorizes use of X11 forwarding.",
@@ -11154,6 +11165,23 @@ func CopyClusterNetworkingConfigV2FromTerraform(_ context.Context, tf github_com
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["ssh_dial_timeout"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Spec.SSHDialTimeout"})
+						} else {
+							v, ok := a.(DurationValue)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.SSHDialTimeout", "DurationValue"})
+							} else {
+								var t github_com_gravitational_teleport_api_types.Duration
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_types.Duration(v.Value)
+								}
+								obj.SSHDialTimeout = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -11818,6 +11846,28 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 							v.Value = bool(obj.CaseInsensitiveRouting)
 							v.Unknown = false
 							tf.Attrs["case_insensitive_routing"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["ssh_dial_timeout"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"ClusterNetworkingConfigV2.Spec.SSHDialTimeout"})
+						} else {
+							v, ok := tf.Attrs["ssh_dial_timeout"].(DurationValue)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"ClusterNetworkingConfigV2.Spec.SSHDialTimeout", err})
+								}
+								v, ok = i.(DurationValue)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"ClusterNetworkingConfigV2.Spec.SSHDialTimeout", "DurationValue"})
+								}
+								v.Null = false
+							}
+							v.Value = time.Duration(obj.SSHDialTimeout)
+							v.Unknown = false
+							tf.Attrs["ssh_dial_timeout"] = v
 						}
 					}
 				}
@@ -15132,6 +15182,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 													t = github_com_gravitational_teleport_api_types.CreateDatabaseUserMode(v.Value)
 												}
 												obj.CreateDatabaseUserMode = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["mfa_verification_interval"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.MFAVerificationInterval"})
+										} else {
+											v, ok := a.(DurationValue)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.MFAVerificationInterval", "DurationValue"})
+											} else {
+												var t time.Duration
+												if !v.Null && !v.Unknown {
+													t = time.Duration(v.Value)
+												}
+												obj.MFAVerificationInterval = t
 											}
 										}
 									}
@@ -19869,6 +19936,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = int64(obj.CreateDatabaseUserMode)
 											v.Unknown = false
 											tf.Attrs["create_db_user_mode"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["mfa_verification_interval"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.MFAVerificationInterval"})
+										} else {
+											v, ok := tf.Attrs["mfa_verification_interval"].(DurationValue)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Options.MFAVerificationInterval", err})
+												}
+												v, ok = i.(DurationValue)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.MFAVerificationInterval", "DurationValue"})
+												}
+												v.Null = false
+											}
+											v.Value = time.Duration(obj.MFAVerificationInterval)
+											v.Unknown = false
+											tf.Attrs["mfa_verification_interval"] = v
 										}
 									}
 								}

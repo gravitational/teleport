@@ -325,8 +325,9 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
   securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
 };
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.

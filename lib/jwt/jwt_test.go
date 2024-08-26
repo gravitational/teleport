@@ -61,6 +61,13 @@ func TestSignAndVerify(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			//decode the signed token
+			decodedToken, err := josejwt.ParseSigned(token)
+			require.NoError(t, err)
+
+			// verify that the kid header is present, and not empty
+			require.NotEmpty(t, decodedToken.Headers[0].KeyID)
+
 			// Verify that the token can be validated and values match expected values.
 			claims, err := key.Verify(VerifyParams{
 				Username: "foo@example.com",
