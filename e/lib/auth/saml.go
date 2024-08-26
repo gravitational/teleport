@@ -245,13 +245,13 @@ func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth
 	warnings, p.Roles = services.TraitsToRoles(connector.GetTraitMappings(), p.Traits)
 	if len(p.Roles) == 0 {
 		if len(warnings) != 0 {
-			log.WithField("connector", connector).Warnf("No roles mapped from claims. Warnings: %q", warnings)
+			log.WithField("connector", connector.WithoutSecrets()).Warnf("No roles mapped from claims. Warnings: %q", warnings)
 			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message:  "No roles mapped for the user",
 				Warnings: warnings,
 			}
 		} else {
-			log.WithField("connector", connector).Warnf("No roles mapped from claims.")
+			log.WithField("connector", connector.WithoutSecrets()).Warnf("No roles mapped from claims.")
 			diagCtx.Info.SAMLAttributesToRolesWarnings = &types.SSOWarnings{
 				Message: "No roles mapped for the user. The mappings may contain typos.",
 			}
