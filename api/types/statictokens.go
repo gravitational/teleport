@@ -113,7 +113,7 @@ func (c *StaticTokensV2) SetStaticTokens(s []ProvisionToken) {
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
 func (c *StaticTokensV2) GetStaticTokens() []ProvisionToken {
-	return ProvisionTokensFromV1(c.Spec.StaticTokens)
+	return ProvisionTokensFromStatic(c.Spec.StaticTokens)
 }
 
 // setStaticFields sets static resource header and metadata fields.
