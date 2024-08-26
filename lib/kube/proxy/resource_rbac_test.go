@@ -326,7 +326,7 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "list pods in every namespace for user with default namespace traitsck",
+			name: "list pods in every namespace for user with default namespace traits",
 			args: args{
 				user:      userWithTraits,
 				namespace: metav1.NamespaceAll,

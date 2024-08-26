@@ -1018,6 +1018,41 @@ func TestValidateRole(t *testing.T) {
 				"unsupported function: email.localz",
 			},
 		},
+
+		{
+			name: "unsupported syntax in kubernetes_resources",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: "{{external.namespace",
+							Name:      "{{email.localz(external.email)}}",
+							Verbs:     []string{"{{external.verbs"},
+						},
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: "{{external.namespace",
+							Name:      "{{email.localz(external.email)}}",
+							Verbs:     []string{"{{external.verbs"},
+						},
+					},
+				},
+			},
+			expectWarnings: []string{
+				"parsing allow.kubernetes_resources.namespace expression",
+				"parsing allow.kubernetes_resources.name expression",
+				"parsing allow.kubernetes_resources.verbs expression",
+				"parsing deny.kubernetes_resources.namespace expression",
+				"parsing deny.kubernetes_resources.name expression",
+				"parsing deny.kubernetes_resources.verbs expression",
+				"unsupported function: email.localz",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1028,7 +1063,7 @@ func TestValidateRole(t *testing.T) {
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Version: types.V3,
+				Version: types.V7,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err

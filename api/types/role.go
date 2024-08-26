@@ -1757,7 +1757,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		}
 
 		for _, verb := range kubeResource.Verbs {
-			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
 			}
 			if verb == Wildcard && len(kubeResource.Verbs) > 1 {

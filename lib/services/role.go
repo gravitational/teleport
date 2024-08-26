@@ -314,6 +314,26 @@ func validateRoleExpressions(r types.Role) error {
 			}
 		}
 
+		for _, ks := range r.GetKubeResources(condition.condition) {
+			_, err := parse.NewTraitsTemplateExpression(ks.Namespace)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			_, err = parse.NewTraitsTemplateExpression(ks.Name)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			for _, verb := range ks.Verbs {
+				_, err = parse.NewTraitsTemplateExpression(verb)
+				if err != nil {
+					err = trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err)
+					errs = append(errs, err)
+				}
+			}
+		}
+
 		for _, labels := range []struct {
 			name string
 			kind string

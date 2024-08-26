@@ -453,8 +453,7 @@ func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testin
 		nil,
 		auth.WithUserMutator(func(user types.User) {
 			user.SetTraits(userTraits)
-		},
-		),
+		}),
 	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
