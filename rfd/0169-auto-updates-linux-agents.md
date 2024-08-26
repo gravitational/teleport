@@ -57,16 +57,16 @@ The version and edition served from that endpoint will be configured using new `
 
 Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
 - The `host=[uuid]` parameter sent to `/v1/webapi/find`
+- The `group=[name]` parameter sent to `/v1/webapi/find`
 - The schedule defined in the new `autoupdate_config` resource
 - The status of past agent upgrades for the given version
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
-Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID.
+Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
 
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `teleport.yaml` file.
-```
-teleport:
-  upgrade_group: staging
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/updates.yaml` file, which is written via `teleport-updater enable`:
+```shell
+$ teleport-updater enable --proxy teleport.example.com --group staging
 ```
 
 At the start of a group rollout, the Teleport auth server captures the desired group of hosts to update in the backend.
@@ -176,7 +176,7 @@ Upgrading all agents generates the following additional backend write load:
 
 ### REST Endpoints
 
-`/v1/webapi/find?host=[host_uuid]`
+`/v1/webapi/find?host=[host_uuid]&group=[name]`
 ```json
 {
   "server_edition": "enterprise",
@@ -189,6 +189,7 @@ Notes:
 - Agents will only upgrade if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 - The host UUID is read from `/var/lib/teleport/host_uuid` by the updater.
+- The group name is read from `/var/lib/teleport/versions/updates.yaml` by the updater.
 
 ### Teleport Resources
 
@@ -202,11 +203,11 @@ spec:
   # agent updates are in place.
   agent_autoupdate: true|false
 
-  # agent_group_schedules contains both "regular" and "critical" schedules.
+  # agent_schedules contains both "regular" and "critical" schedules.
   # The schedule used is determined by the agent_version_schedule associated
   # with the version in autoupdate_version.
   # Groups are not configurable with the "immediate" schedule.
-  agent_group_schedules:
+  agent_schedules:
     # schedule is "regular" or "critical"
     regular:
       # name of the group
@@ -256,44 +257,7 @@ After 24 hours, the upgrade is halted in-place, and the group is considered fail
 Changing the version or schedule completely resets progress.
 Releasing new client versions multiple times a week has the potential to starve dependent groups from updates.
 
-Note the MVP version of this resource will not support host UUIDs, groups, or backpressure, and will use the following simplified UX with `agent_default_schedules` field.
-This field will remain indefinitely to cover connected agents that are not matched to a group.
-
-```yaml
-kind: autoupdate_config
-spec:
-  # agent_autoupdate allows turning agent updates on or off at the
-  # cluster level. Only turn agent automatic updates off if self-managed
-  # agent updates are in place.
-  agent_autoupdate: true|false
-
-  # agent_default_schedules contains "regular," "critical," and "immediate" schedules.
-  # These schedules apply to agents not scheduled by agent_group_schedules.
-  # The schedule used is determined by the agent_version_schedule associated
-  # with the agent_version in the autoupdate_version resource.
-  agent_default_schedules:
-    # The immediate schedule results in all agents updating simultaneously.
-    # Only client-side jitter is configurable.
-    immediate:
-      # jitter_seconds specifies a maximum jitter duration after the start hour.
-      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
-      #  default: 0
-      jitter_seconds: 0-60
-    regular: # or "critical"
-      # days specifies the days of the week when the group may be upgraded.
-      #  default: ["*"] (all days)
-      days: [“Sun”, “Mon”, ... | "*"]
-      # start_hour specifies the hour when the group may start upgrading.
-      #  default: 0
-      start_hour: 0-23
-      # jitter_seconds specifies a maximum jitter duration after the start hour.
-      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
-      #  default: 0
-      jitter_seconds: 0-60
-  # ...
-```
-
-To allow `agent_default_schedules` and `agent_group_schedules` to co-exist, a reserved `agent_rollout_plan` named `default` will be employed.
+Note that the `default` schedule applies to agents that do not specify a group name.
 
 ```shell
 # configuration
@@ -383,17 +347,13 @@ Notes:
 
 ### Version Promotion
 
-Maintaining the version of different groups of agents is out-of-scope for this RFD.
+This RFD only proposed a mechanism to signal when agent auto-updates should occur.
+Advertising different target Teleport versions for different groups of agents is out-of-scope for this RFD.
 This means that groups which employ auto-scaling or ephemeral resources will slowly converge to the latest Teleport version.
 
 **This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.**
 
-To solve this in the future, we can add an additional `--group` flag to `teleport-update`:
-```shell
-$ teleport-update enable --proxy example.teleport.sh --group staging-group
-```
-
-This group name could be provided as a parameter to `/v1/webapi/find`, so that newly added resources may install at the group's designated version.
+To solve this in the future, we can use the group name (provided to `/v1/webapi/find` and specified via `teleport-updater enable`) to determine which version should be served.
 
 This will require tracking the desired version of groups in the backend, which will add additional complexity to the rollout logic.
 
@@ -414,6 +374,11 @@ $ teleport-update enable --proxy example.teleport.sh
 
 # if not enabled already, configure teleport and:
 $ systemctl enable teleport
+```
+
+For grouped upgrades, a group identifier may be configured:
+```shell
+$ teleport-update enable --proxy example.teleport.sh --group staging
 ```
 
 For air-gapped Teleport installs, the agent may be configured with a custom tarball path template:
@@ -470,6 +435,8 @@ kind: agent_versions
 spec:
   # proxy specifies the Teleport proxy address to retrieve the agent version and update configuration from.
   proxy: mytenant.teleport.sh
+  # group specifies the update group
+  group: staging
   # enabled specifies whether auto-updates are enabled, i.e., whether teleport-updater update is allowed to update the agent.
   enabled: true
   # active_version specifies the active (symlinked) deployment of the telepport agent.
@@ -499,7 +466,7 @@ $ teleport-updater update
 
 After it is installed, the `update` subcommand will no-op when executed until configured with the `teleport-updater` command:
 ```shell
-$ teleport-updater enable --proxy mytenant.teleport.sh
+$ teleport-updater enable --proxy mytenant.teleport.sh --group staging
 ```
 
 If the proxy address is not provided with `--proxy`, the current proxy address from `teleport.yaml` is used.
@@ -525,7 +492,7 @@ The `enable` subcommand will:
 13. Remove and purge any `teleport` package if installed.
 14. Verify the symlinks to the active version still exists.
 15. Remove all stored versions of the agent except the current version and last working version.
-16. Configure `updates.yaml` with the current proxy address and set `enabled` to true.
+16. Configure `updates.yaml` with the current proxy address and group, and set `enabled` to true.
 
 The `disable` subcommand will:
 1. Configure `updates.yaml` to set `enabled` to false.
@@ -783,41 +750,12 @@ message AutoupdateConfig {
 message AutoupdateConfigSpec {
   // agent_autoupdate specifies whether agent autoupdates are enabled.
   bool agent_autoupdate = 1;
-  // agent_default_schedules specifies schedules for upgrades of agents.
-  //   not scheduled by agent_group_schedules.
-  AgentAutoupdateDefaultSchedules agent_default_schedules = 2;
-  // agent_group_schedules specifies schedules for upgrades of grouped agents.
-  AgentAutoupdateGroupSchedules agent_group_schedules = 3;
+  // agent_schedules specifies schedules for upgrades of grouped agents.
+  AgentAutoupdateSchedules agent_schedules = 3;
 }
 
-// AgentAutoupdateDefaultSchedules specifies the default update schedules for non-grouped agent.
-message AgentAutoupdateDefaultSchedules {
-  // regular schedule for non-critical versions.
-  AgentAutoupdateSchedule regular = 1;
-  // critical schedule for urgently needed versions.
-  AgentAutoupdateSchedule critical = 2;
-  // immediate schedule for versions that must be deployed with no delay.
-  AgentAutoupdateImmediateSchedule immediate = 3;
-}
-
-// AgentAutoupdateSchedule specifies a default schedule for non-grouped agents.
-message AgentAutoupdateSchedule {
-  // days to run update
-  repeated Day days = 2;
-  // start_hour to initiate update
-  int32 start_hour = 3;
-  // jitter_seconds to introduce before update as rand([0, jitter_seconds]).
-  int32 jitter_seconds = 4;
-}
-
-// AgentAutoupdateSchedule specifies a default schedule for non-grouped agents on the immediate scehdule.
-message AgentAutoupdateImmediateSchedule {
-  // jitter to introduce before update as rand([0, jitter_seconds]).
-  int32 jitter_seconds = 4;
-}
-
-// AgentAutoupdateGroupSchedules specifies update scheduled for grouped agents.
-message AgentAutoupdateGroupSchedules {
+// AgentAutoupdateSchedules specifies update scheduled for grouped agents.
+message AgentAutoupdateSchedules {
   // regular schedules for non-critical versions.
   repeated AgentAutoupdateGroup regular = 1;
   // critical schedules for urgently needed versions.
@@ -975,14 +913,13 @@ message AgentRolloutPlanHost {
 
 ## Execution Plan
 
-1. Implement Teleport APIs for new scheduling system (without groups and backpressure)
-2. Implement new auto-updater in Go.
+1. Implement Teleport APIs for new scheduling system (without backpressure)
+2. Implement new Linux server auto-updater in Go.
 3. Implement changes to Kubernetes auto-updater.
 4. Test extensively on all supported Linux distributions.
 5. Prep documentation changes.
 6. Release new updater via teleport-ent-updater package.
 7. Release documentation changes.
-8. Communicate to select Cloud customers that they must update their updater, starting with lower ARR customers.
-9. Communicate to all Cloud customers that they must update their updater.
-10. Deprecate old auto-updater endpoints.
-11. Add groups and backpressure features.
+8. Communicate to users that they should update their updater.
+9. Deprecate old auto-updater endpoints.
+10. Add groups and backpressure features.
