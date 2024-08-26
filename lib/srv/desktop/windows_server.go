@@ -866,15 +866,19 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
 	if !ok {
 		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
-			return trace.Wrap(err)
+			return trace.BadParameter("invalid desktop address: %v", desktop.GetAddr())
 		}
+		// sspi-rs returns misleading error when IP is used as a computer name,
+		// so we replace it with host name that will still not match anything
+		// in KDC registry but error returned will be more consistent with other
+		// similar cases
 		if len(net.ParseIP(computerName)) != 0 {
 			computerName = "missing.computer.name"
 		}
 	}
 
 	kdcAddr := s.cfg.KDCAddr
-	if kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
+	if !desktop.NonAD() && kdcAddr == "" && s.cfg.LDAPConfig.Addr != "" {
 		if kdcAddr, err = utils.Host(s.cfg.LDAPConfig.Addr); err != nil {
 			return trace.Wrap(err)
 		}
