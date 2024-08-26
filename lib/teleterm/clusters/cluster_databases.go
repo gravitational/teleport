@@ -53,7 +53,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 	dbName := dbURI.GetDbName()
 	err := AddMetadataToRetryableError(ctx, func() error {
 		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, &proto.ListResourcesRequest{
-			Namespace:           c.clusterClient.Namespace,
+			Namespace:           defaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
 		})
