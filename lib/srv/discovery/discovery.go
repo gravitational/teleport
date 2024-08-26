@@ -1135,9 +1135,9 @@ func (s *Server) handleAzureDiscovery() {
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) {
 	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
-		_, projectIDOK := labels[types.ProjectIDLabel]
-		_, zoneOK := labels[types.ZoneLabel]
-		_, nameOK := labels[types.NameLabel]
+		_, projectIDOK := labels[types.ProjectIDLabelDiscovery]
+		_, zoneOK := labels[types.ZoneLabelDiscovery]
+		_, nameOK := labels[types.NameLabelDiscovery]
 		return projectIDOK && zoneOK && nameOK
 	})
 	var filtered []*gcpimds.Instance
@@ -1145,9 +1145,9 @@ outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {
 			match := types.MatchLabels(node, map[string]string{
-				types.ProjectIDLabel: inst.ProjectID,
-				types.ZoneLabel:      inst.Zone,
-				types.NameLabel:      inst.Name,
+				types.ProjectIDLabelDiscovery: inst.ProjectID,
+				types.ZoneLabelDiscovery:      inst.Zone,
+				types.NameLabelDiscovery:      inst.Name,
 			})
 			if match {
 				continue outer
