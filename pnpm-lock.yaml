@@ -281,6 +281,9 @@ importers:
       cross-env:
         specifier: 5.0.5
         version: 5.0.5
+      csstype:
+        specifier: ^3.0.2
+        version: 3.0.10
       styled-system:
         specifier: ^3.1.11
         version: 3.2.1
