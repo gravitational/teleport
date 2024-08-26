@@ -42,7 +42,7 @@ const (
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
 
-type ServicenowClient interface {
+type ServiceNowClient interface {
 	// CreateIncident creates an servicenow incident.
 	CreateIncident(ctx context.Context, reqID string, reqData RequestData) (Incident, error)
 	// PostReviewNote posts a note once a new request review appears.
