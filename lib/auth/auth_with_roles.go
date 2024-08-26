@@ -1312,8 +1312,6 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 
 	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
-		log.Debug("No base checker")
-
 		if err := c.accessChecker.CanAccess(resource); err != nil {
 			log.WithField("error", err).Debug("Access denied by access checker")
 			if trace.IsAccessDenied(err) {
@@ -1353,9 +1351,6 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
-	fmt.Println(">>>> Entering ServerWithRoles.ListUnifiedResources()")
-	defer fmt.Println("<<<< Exiting ServerWithRoles.ListUnifiedResources()")
-
 	filter := services.MatchResourceFilter{
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,

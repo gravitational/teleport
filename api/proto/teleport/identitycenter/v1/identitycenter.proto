@@ -20,10 +20,11 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
 
-// AccountPermissionSet represents a permission set that is available on a given
+// PermissionSetRef represents a permission set that is available on a given
 // account. This is not intended to be a complete description of a PermissionSet,
-// but just enough to identify it for cross-referencing.
-message AccountPermissionSet {
+// but just enough to identify it for cross-referencing when included in an
+// Account record.
+message PermissionSetRef {
   // Arn is the unique ARN for this permission set
   string arn = 1;
 
@@ -53,7 +54,7 @@ message AccountSpec {
   // Arn is the unique ARN for this permission set
   string arn = 2;
 
-  // Title is the human-readable name of the permission set
+  // Name is the human-readable name of the permission set
   string name = 3;
 
   // Description is a heman-readable description of the AWS Permission Set
@@ -63,7 +64,7 @@ message AccountSpec {
   string start_url = 5;
 
   // PermissionSets...
-  repeated AccountPermissionSet permission_sets = 6;
+  repeated PermissionSetRef permission_sets = 6;
 }
 
 // PermissionSet identifies a single permission set by name and ARN
@@ -81,7 +82,7 @@ message PermissionSetSpec {
   // Arn is the unique ARN for this permission set
   string arn = 1;
 
-  // Title is the human-readable name of the permission set
+  // Name is the human-readable name of the permission set
   string name = 2;
 
   // Description is a human-readable description of the AWS Permission Set
@@ -97,6 +98,33 @@ message PrincipalAssignment {
   teleport.header.v1.Metadata metadata = 4;
   PrincipalAssignmentSpec spec = 5;
   PrincipalAssignmentStatus status = 6;
+}
+
+// PermissionSetBinding captures the relationship between a PermissionSet
+// and an Identity Center Account. This is the primary requestable resource
+// for user. A user having access to a PermissionSetAssignment resource implies
+// that there is a corresponding Account Assignment in AWS Identity Center that
+// grants that user the Permission Set specified in that resource, on the
+// AWS Account specified in that resource.
+//
+// The name "binding" was chosen to evoke the idea of binding parameters in a 
+// function (inspired by stc::bind in C++) and to avoid using the word "assignment"
+// which is implies an existing relationship - whereas this type only captures
+// two thirds of a potential Identity Center Account Assignment.
+message PermissionSetBinding {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  PermissionSetBindingSpec spec = 5;
+}
+
+// PermissionSetBindingSpec...
+message PermissionSetBindingSpec {
+  string display = 1;
+  PermissionSetRef permission_set = 2;
+  string account_name = 3;
+  string account_id = 4;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalAssignment

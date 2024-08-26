@@ -751,10 +751,10 @@ type Config struct {
 	// if delete events have not been received from the backend.
 	EnableRelativeExpiry bool
 
-        // IdentityCenter POC additions below
+	// IdentityCenter POC additions below
 
 	ProvisioningStates services.ProvisioningStates
-	IdentityCenter services.IdentityCenter
+	IdentityCenter     services.IdentityCenter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1184,7 +1184,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Logger.Warnf("Re-init the cache on error: %v", err)
+			c.Logger.WithError(err).Warnf("Re-init the cache on error: %v", err)
 		}
 
 		// events cache should be closed as well

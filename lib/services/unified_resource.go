@@ -21,7 +21,6 @@ package services
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -703,8 +703,9 @@ func (c *UnifiedResourceCache) ProcessEventsAndUpdateCurrent(ctx context.Context
 			r := event.Resource
 			if u, ok := r.(types.Resource153Unwrapper); ok {
 				switch unwrapped := u.Unwrap().(type) {
-				case IdentityCenterAccount:
-					r = resource153Adapter[IdentityCenterAccount]{inner: unwrapped}
+				case *identitycenterv1.Account:
+					wrappedAccount := IdentityCenterAccount{Account: unwrapped}
+					r = resource153Adapter[IdentityCenterAccount]{inner: wrappedAccount}
 				default:
 					c.log.
 						WithField("type", reflect.TypeOf(unwrapped)).
@@ -927,8 +928,6 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 		acct := unwrapper.Unwrap().Account
-
-		fmt.Printf(">>>> Acct.Spec.PermissionSets: %#v\n", acct.Spec.PermissionSets)
 
 		pss := make([]*types.IdentityCenterPermissionSet, len(acct.Spec.PermissionSets))
 		for i, ps := range acct.Spec.PermissionSets {

@@ -548,6 +548,8 @@ const (
 
 	KindIdentityCenterPrincipalAssignment = "aws_iam_ic_principal_assignment"
 
+	KindIdentityCenterPermissionSetBinding = "aws_iam_ic_permission_set_binding"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
