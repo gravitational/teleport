@@ -47,7 +47,7 @@ func Test_generateReleaseNotes(t *testing.T) {
 		{
 			name:           "with labels",
 			releaseVersion: "16.0.1",
-			labels:         "security-path=yes, security-patch-alts=v16.0.0,v16.0.1",
+			labels:         "security-patch=yes, security-patch-alts=v16.0.0,v16.0.1",
 			clFile:         mustOpen(t, "test-changelog.md"),
 			want:           mustRead(t, "expected-with-labels.md"),
 			wantErr:        false,

@@ -27,4 +27,4 @@ Download the current release of Teleport plugins from the links below.
 
 ---
 
-labels: security-path=yes, security-patch-alts=v16.0.0,v16.0.1
+labels: security-patch=yes, security-patch-alts=v16.0.0,v16.0.1
