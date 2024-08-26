@@ -278,6 +278,12 @@ var (
 		},
 		authBoundary: stsActions,
 	}
+	// docdbActions contains IAM actions for types.AWSMatcherDocumentDB.
+	docdbActions = databaseActions{
+		discovery:    []string{"rds:DescribeDBClusters"},
+		metadata:     []string{"rds:DescribeDBClusters"},
+		authBoundary: stsActions,
+	}
 )
 
 // awsConfigurator defines the AWS database configurator.
@@ -732,6 +738,9 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	if hasOpenSearchDatabases(flags, targetCfg) {
 		allActions = append(allActions, opensearchActions)
 	}
+	if hasDocumentDBDatabases(flags, targetCfg) {
+		allActions = append(allActions, docdbActions)
+	}
 
 	dbOption := makeDatabaseActionsBuildOption(flags, targetCfg, boundary)
 	for _, dbActions := range allActions {
@@ -885,6 +894,16 @@ func hasOpenSearchDatabases(flags configurators.BootstrapFlags, targetCfg target
 		findDatabaseIs(targetCfg.databases, func(db *servicecfg.Database) bool {
 			return db.Protocol == defaults.ProtocolOpenSearch
 		})
+}
+
+// hasDocumentDBDatabases checks if the agent needs permission for DocumentDB
+// databases.
+func hasDocumentDBDatabases(flags configurators.BootstrapFlags, targetCfg targetConfig) bool {
+	if flags.ForceDocumentDBPermissions {
+		return true
+	}
+	return isAutoDiscoveryEnabledForMatcher(types.AWSMatcherDocumentDB, targetCfg.awsMatchers) ||
+		findEndpointIs(targetCfg.databases, apiawsutils.IsDocumentDBEndpoint)
 }
 
 // hasAWSKeyspacesDatabases checks if the agent needs permission for AWS Keyspaces.
