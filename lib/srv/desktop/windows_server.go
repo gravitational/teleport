@@ -863,7 +863,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, recorder, delay, tdpConn, audit)
 	width, height := desktop.GetScreenSize()
 
-	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsDNSHostName)
+	computerName, ok := desktop.GetLabel(types.DiscoveryLabelWindowsComputerName)
 	if !ok {
 		if computerName, err = utils.Host(desktop.GetAddr()); err != nil {
 			return trace.Wrap(err, "DNS host name is not specified and desktop address is invalid")
