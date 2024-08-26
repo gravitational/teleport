@@ -211,7 +211,7 @@ exports[`default error message 1`] = `
       class="c4"
       kind="danger"
     >
-      unable to login, please check Teleport's log for details
+      Unable to log in, please check Teleport's log for details.
     </div>
      
     <div
