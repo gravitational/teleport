@@ -1,5 +1,63 @@
 # Changelog
 
+## 16.1.8 (08/23/24)
+
+### Security fix
+
+#### [High] Stored XSS in SAML IdP
+
+When registering a service provider with SAML IdP, Teleport did not sufficiently
+validate the ACS endpoint. This could allow a Teleport administrator with
+permissions to write saml_idp_service_provider resources to configure a
+malicious service provider with an XSS payload and compromise session of users
+who would access that service provider.
+
+Note: This vulnerability is only applicable when Teleport itself is acting as
+the identity provider. If you only use SAML to connect to an upstream identity
+provider you are not impacted. You can use the tctl get
+saml_idp_service_provider command to verify if you have any Service Provider
+applications registered and Teleport acts as an IdP.
+
+For self-hosted Teleport customers that use Teleport as SAML Identity Provider,
+we recommend upgrading auth and proxy servers. Teleport agents (SSH, Kubernetes,
+desktop, application, database and discovery) are not impacted and do not need
+to be updated.
+
+### Other fixes and improvements
+
+* Fixed an issue where Teleport could modify group assignments for users not managed by Teleport. This will require a migration of host users created with create_host_user_mode: keep in order to maintain Teleport management. [#45791](https://github.com/gravitational/teleport/pull/45791)
+* The terminal shell can now be changed in Teleport Connect by right-clicking on a terminal tab. This allows using WSL (`wsl.exe`) if it is installed. Also, the default shell on Windows has been changed to `pwsh.exe` (instead of `powershell.exe`). [#45734](https://github.com/gravitational/teleport/pull/45734)
+* Improve web UI enroll RDS flow where VPC, subnets, and security groups are now selectable. [#45688](https://github.com/gravitational/teleport/pull/45688)
+* Allow to limit duration of local tsh proxy certificates with a new MFAVerificationInterval option. [#45686](https://github.com/gravitational/teleport/pull/45686)
+* Fixed host user creation for tsh scp. [#45680](https://github.com/gravitational/teleport/pull/45680)
+* Fixed an issue AWS access fails when the username is longer than 64 characters. [#45658](https://github.com/gravitational/teleport/pull/45658)
+* Permit setting a cluster wide SSH connection dial timeout. [#45650](https://github.com/gravitational/teleport/pull/45650)
+* Improve performance of host resolution performed via tsh ssh when connecting via labels or proxy templates. [#45644](https://github.com/gravitational/teleport/pull/45644)
+* Remove empty tcp app session recordings. [#45643](https://github.com/gravitational/teleport/pull/45643)
+* Fixed bug causing FeatureHiding flag to not hide the "Access Management" section in the UI as intended. [#45608](https://github.com/gravitational/teleport/pull/45608)
+* Fixed an issue where users created in `keep` mode could effectively become `insecure_drop` and get cleaned up as a result. [#45594](https://github.com/gravitational/teleport/pull/45594)
+* Prevent RBAC bypass for new Postgres connections. [#45554](https://github.com/gravitational/teleport/pull/45554)
+* tctl allows cluster administrators to create custom notifications targeting Teleport users. [#45503](https://github.com/gravitational/teleport/pull/45503)
+* Fixed debug service not enabled by default when not using a configuration file. [#45480](https://github.com/gravitational/teleport/pull/45480)
+* Introduce support for Envoy SDS into the Machine ID spiffe-workload-api service. [#45460](https://github.com/gravitational/teleport/pull/45460)
+* Improve the output of `tsh sessions ls`. [#45452](https://github.com/gravitational/teleport/pull/45452)
+* Fix access entry handling permission error when EKS auto-discovery was set up in the Discover UI. [#45442](https://github.com/gravitational/teleport/pull/45442)
+* Fix showing error message when enrolling EKS clusters in the Discover UI. [#45415](https://github.com/gravitational/teleport/pull/45415)
+* Fixed the "Create A Bot" flow for GitHub Actions and SSH. It now correctly grants the bot the role created during the flow, and the example YAML is now correctly formatted. [#45409](https://github.com/gravitational/teleport/pull/45409)
+* Mark authenticators used for passwordless as a passkey, if not previously marked as such. [#45395](https://github.com/gravitational/teleport/pull/45395)
+* Prevents a panic caused by AWS STS client not being initialized when assuming an AWS Role. [#45382](https://github.com/gravitational/teleport/pull/45382)
+* Update teleport debug commands to handle data dir not set. [#45341](https://github.com/gravitational/teleport/pull/45341)
+* Fix `tctl get all` not returning SAML or OIDC auth connectors. [#45319](https://github.com/gravitational/teleport/pull/45319)
+* The Opsgenie plugin recipients can now be dynamically configured by creating Access Monitoring Rules resources with the required Opsgenie notify schedules. [#45307](https://github.com/gravitational/teleport/pull/45307)
+* Improve discoverability of the source or rejected connections due to unsupported versions. [#45278](https://github.com/gravitational/teleport/pull/45278)
+* Improved copy and paste behavior in the terminal in Teleport Connect. On Windows and Linux, Ctrl+Shift+C/V now copies and pastes text (these shortcuts can be changed with `keymap.terminalCopy`/`keymap.terminalPaste`).  A mouse right click (`terminal.rightClick`) can copy/paste text too (enabled by default on Windows). [#45265](https://github.com/gravitational/teleport/pull/45265)
+* Fixed an issue that could cause auth servers to panic when their backend connectivity was interrupted. [#45225](https://github.com/gravitational/teleport/pull/45225)
+* Adds SPIFFE compatible federation bundle endpoint to the Proxy API, allowing other workload identity platforms to federate with the Teleport cluster. [#44998](https://github.com/gravitational/teleport/pull/44998)
+* Add 'Download CSV' button to Access Monitoring Query results. [#4899](https://github.com/gravitational/teleport.e/pull/4899)
+* Fixed issue in Okta Sync that spuriously deletes Okta Applications due to connectivity errors. [#4885](https://github.com/gravitational/teleport.e/pull/4885)
+* Fixed bug in Okta Sync that mistakenly removes Apps and Groups on connectivity failure. [#4883](https://github.com/gravitational/teleport.e/pull/4883)
+* Fixed bug that caused some enterprise clusters to incorrectly display a message that the cluster had a monthly allocation of 0 access requests. [#4923](https://github.com/gravitational/teleport.e/pull/4923)
+
 ## 16.1.4 (08/07/24)
 
 * Improved `tsh ssh` performance for concurrent execs. [#45162](https://github.com/gravitational/teleport/pull/45162)

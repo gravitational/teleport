@@ -3889,7 +3889,8 @@ func TestSerializeDatabases(t *testing.T) {
         "memorydb": {},
         "opensearch": {},
         "rdsproxy": {},
-        "redshift_serverless": {}
+        "redshift_serverless": {},
+        "docdb": {}
       },
       "mysql": {},
       "oracle": {
@@ -3921,7 +3922,8 @@ func TestSerializeDatabases(t *testing.T) {
         "memorydb": {},
         "opensearch": {},
         "rdsproxy": {},
-        "redshift_serverless": {}
+        "redshift_serverless": {},
+        "docdb": {}
       },
       "azure": {
 	    "redis": {}
@@ -5100,19 +5102,8 @@ func TestShowSessions(t *testing.T) {
         "sid": "",
         "db_protocol": "postgres",
         "db_uri": "",
-        "db_name": "db-name",
         "session_start": "0001-01-01T00:00:00Z",
         "session_stop": "0001-01-01T00:00:00Z"
-    },
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID5",
-        "time": "0001-01-01T00:00:00Z",
-        "user": "someUser",
-        "sid": "",
-        "server_id": "",
-        "app_name": "app-name"
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -5148,23 +5139,10 @@ func TestShowSessions(t *testing.T) {
 				User: "someUser",
 			},
 			DatabaseMetadata: events.DatabaseMetadata{
-				DatabaseName:     "db-name",
 				DatabaseProtocol: "postgres",
 			},
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
-		},
-		&events.AppSessionEnd{
-			Metadata: events.Metadata{
-				ID:   "someID5",
-				Time: time.Time{},
-			},
-			UserMetadata: events.UserMetadata{
-				User: "someUser",
-			},
-			AppMetadata: events.AppMetadata{
-				AppName: "app-name",
-			},
 		},
 	}
 	var buf bytes.Buffer

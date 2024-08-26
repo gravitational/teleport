@@ -16,5 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { AutoEnrollDialog } from './AutoEnrollDialog';
-export { SelfHostedAutoDiscoverDirections } from './SelfHostedAutoDiscoverDirections';
+export { ConfigureDiscoveryService } from './ConfigureDiscoveryService';
+export { ConfigureDiscoveryServiceDirections } from './ConfigureDiscoveryServiceDirections';
+export { CreatedDiscoveryConfigDialog } from './CreatedDiscoveryConfigDialog';

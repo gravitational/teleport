@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
  *
@@ -16,8 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package constants
-
-// Enabled is a constant that is used to enable or disable the feature.
-// TODO(tigrato): remove this constant and use a feature flag instead.
-const Enabled = false
+export { SubnetIdPicker } from './SubnetIdPicker';

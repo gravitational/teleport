@@ -204,7 +204,6 @@ const cfg = {
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
-    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
@@ -314,12 +313,16 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
+    awsDatabaseVpcsPath:
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+    awsSubnetListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
     awsAppAccessPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
@@ -634,13 +637,6 @@ const cfg = {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
-  getCheckAccessToRegisteredResourceUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.checkAccessToRegisteredResource, {
-      clusterId,
-    });
-  },
-
   getUserContextUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.userContextPath, { clusterId });
@@ -900,6 +896,13 @@ const cfg = {
     });
   },
 
+  getAwsDatabaseVpcsUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsDatabaseVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getAwsRdsDbsDeployServicesUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -999,6 +1002,13 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsSecurityGroupsListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsSubnetListUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsSubnetListPath, {
       clusterId,
       name: integrationName,
     });
