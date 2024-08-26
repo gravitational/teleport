@@ -40,7 +40,7 @@ utf16string = "0.2.0"
 uuid = { version = "1.10.0", features = ["v4"] }
 
 [build-dependencies]
-cbindgen = "0.26.0"
+cbindgen = "0.27.0"
 tempfile = "3.12.0"
 
 [features]
