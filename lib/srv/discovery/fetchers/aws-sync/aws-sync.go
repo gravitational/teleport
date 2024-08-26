@@ -67,6 +67,7 @@ type awsFetcher struct {
 	Config
 	lastError               error
 	lastDiscoveredResources uint64
+	lastResult              *Resources
 }
 
 // AWSSync is the interface for fetching AWS resources.
@@ -151,7 +152,8 @@ func (r *Resources) count() int {
 // NewAWSFetcher creates a new AWS fetcher.
 func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 	a := &awsFetcher{
-		Config: cfg,
+		Config:     cfg,
+		lastResult: &Resources{},
 	}
 	accountID, err := a.getAccountId(context.Background())
 	if err != nil {
@@ -167,6 +169,7 @@ func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 // if some resources were fetched successfully and some were not.
 func (a *awsFetcher) Poll(ctx context.Context, features Features) (*Resources, error) {
 	result, err := a.poll(ctx, features)
+	deduplicateResources(result)
 	a.storeReport(result, err)
 	return result, trace.Wrap(err)
 }
@@ -176,6 +179,7 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 	if rec == nil {
 		return
 	}
+	a.lastResult = rec
 	a.lastDiscoveredResources = uint64(rec.count())
 }
 
@@ -204,7 +208,7 @@ func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, e
 	// - attached policies
 	// - user groups they are members of
 	if features.Users {
-		eGroup.Go(a.pollAWSUsers(ctx, result, collectErr))
+		eGroup.Go(a.pollAWSUsers(ctx, result, a.lastResult, collectErr))
 	}
 
 	// fetch AWS groups and their associated resources.
