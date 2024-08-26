@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -306,6 +307,9 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -439,11 +443,13 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
-	g.Go(func() error {
-		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
-		defer span.End()
-		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
-	})
+	if secscanconstants.Enabled {
+		g.Go(func() error {
+			ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+			defer span.End()
+			return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+		})
+	}
 
 	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
@@ -1044,12 +1050,23 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
+// getPresetUsers returns a list of all preset users expected to be available on
+// this cluster.
+func getPresetUsers() []types.User {
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+
+	// Certain `New$FooUser()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
+}
+
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}
+	users := getPresetUsers()
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped

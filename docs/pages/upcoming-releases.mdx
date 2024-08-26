@@ -9,7 +9,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date               |
 |---------|--------------------|
-| 16.2.0  | August 15, 2024    |
+| 16.2.0  | August 26, 2024    |
 | 16.3.0  | September 12, 2024 |
 | 17.0.0  | October 13, 2024   |
 
@@ -32,25 +32,17 @@ by AWS.
 Teleport will allow users to manage join tokens in the web UI as an alternative
 to the `tctl tokens` commands.
 
+#### Database Access Controls in Access Graph
+
+[Database Access](./enroll-resources/database-access/rbac.mdx)
+users will be able to see database objects and their access paths in Access Graph.
+
 ### 16.3.0
 
 #### Machine ID for Terraform Cloud
 
 Teleport will support secure joining via Terraform Cloud, allowing Machine ID
 workflows to run on Terraform Cloud without shared secrets.
-
-#### Nested Access Lists
-
-Teleport admins and Access List owners will be able to add Access Lists as
-members in other Access Lists.
-
-*Delayed from Teleport 16.2.0.*
-
-#### Hardware Key support for Teleport Connect
-
-Teleport's support for [hardware-backed private
-keys](access-controls/guides/hardware-key-support.mdx) will be extended to
-Teleport Connect.
 
 ### 17.0.0
 
@@ -77,6 +69,21 @@ Cluster administrators will be able to configure Teleport's `ssh_service` to
 ensure that certain host users exist on the machine without the need to start
 an SSH session.
 
+#### Hardware Key support for Teleport Connect
+
+Teleport's support for [hardware-backed private
+keys](admin-guides/access-controls/guides/hardware-key-support.mdx) will be extended to
+Teleport Connect.
+
+*Delayed from Teleport 16.3.0.*
+
+#### Nested Access Lists
+
+Teleport admins and Access List owners will be able to add Access Lists as
+members in other Access Lists.
+
+*Delayed from Teleport 16.2.0.*
+
 ## Teleport Policy
 
 | Version | Date           |
@@ -90,11 +97,10 @@ an SSH session.
 Access Graph will include navigation updates to enhance the usability and
 scalability of the web UI.
 
-### Crown Jewels
+#### Crown Jewels
 
 Access Graph will allow marking the most critical resources as "Crown Jewels,"
 providing enhanced traceability and auditing capabilities for them.
-
 
 ## Teleport Cloud
 

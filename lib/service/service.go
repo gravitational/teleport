@@ -138,6 +138,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -2405,6 +2406,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.SAMLIdPSession = services.Identity
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
+	cfg.SPIFFEFederations = services.SPIFFEFederations
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
 	cfg.UserLoginStates = services.UserLoginStates
@@ -4292,10 +4294,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		proxySettings := &proxySettings{
-			cfg:          cfg,
-			proxySSHAddr: proxySSHAddr,
-			accessPoint:  accessPoint,
+		proxySettings := &web.ProxySettings{
+			ServiceConfig: cfg,
+			ProxySSHAddr:  proxySSHAddr.String(),
+			AccessPoint:   accessPoint,
 		}
 
 		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
@@ -6320,7 +6322,7 @@ func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBa
 // loadHostIDFromKubeSecret reads the host_uuid from the Kubernetes secret with
 // the expected key: `/host_uuid`.
 func loadHostIDFromKubeSecret(ctx context.Context, kubeBackend kubernetesBackend) (string, error) {
-	item, err := kubeBackend.Get(ctx, backend.Key(utils.HostUUIDFile))
+	item, err := kubeBackend.Get(ctx, backend.NewKey(utils.HostUUIDFile))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -6333,7 +6335,7 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend,
 	_, err := kubeBackend.Put(
 		ctx,
 		backend.Item{
-			Key:   backend.Key(utils.HostUUIDFile),
+			Key:   backend.NewKey(utils.HostUUIDFile),
 			Value: []byte(id),
 		},
 	)
@@ -6379,18 +6381,19 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
-	accessGraphProxySvc, err := secretsscannerproxy.New(
-		secretsscannerproxy.ServiceConfig{
-			AuthClient: conn.Client,
-			Log:        process.logger,
-		})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if secscanconstants.Enabled {
+		accessGraphProxySvc, err := secretsscannerproxy.New(
+			secretsscannerproxy.ServiceConfig{
+				AuthClient: conn.Client,
+				Log:        process.logger,
+			})
+		if err != nil {
+			return nil, trace.Wrap(err)
 
+		}
+
+		accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
 	}
-
-	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
-
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())
 		return trace.Wrap(server.Serve(listener))

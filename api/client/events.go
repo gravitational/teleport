@@ -86,6 +86,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_BotInstance{
 				BotInstance: r,
 			}
+		case *machineidv1.SPIFFEFederation:
+			out.Resource = &proto.Event_SPIFFEFederation{
+				SPIFFEFederation: r,
+			}
 		case *clusterconfigpb.AccessGraphSettings:
 			out.Resource = &proto.Event_AccessGraphSettings{
 				AccessGraphSettings: r,
@@ -522,6 +526,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetBotInstance(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetSPIFFEFederation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAccessGraphSettings(); r != nil {

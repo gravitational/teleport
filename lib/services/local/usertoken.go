@@ -71,7 +71,7 @@ func (s *IdentityService) DeleteUserToken(ctx context.Context, tokenID string) e
 
 // GetUserToken returns a token by its ID.
 func (s *IdentityService) GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error) {
-	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, paramsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(userTokenPrefix, tokenID, paramsPrefix))
 	switch {
 	case trace.IsNotFound(err):
 		return nil, trace.NotFound("user token(%s) not found", backend.MaskKeyName(tokenID))
@@ -99,7 +99,7 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 	}
 
 	item := backend.Item{
-		Key:     backend.Key(userTokenPrefix, token.GetName(), paramsPrefix),
+		Key:     backend.NewKey(userTokenPrefix, token.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: token.Expiry(),
 	}
@@ -113,7 +113,7 @@ func (s *IdentityService) CreateUserToken(ctx context.Context, token types.UserT
 
 // GetUserTokenSecrets returns token secrets.
 func (s *IdentityService) GetUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	item, err := s.Get(ctx, backend.Key(userTokenPrefix, tokenID, secretsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(userTokenPrefix, tokenID, secretsPrefix))
 	switch {
 	case trace.IsNotFound(err):
 		return nil, trace.NotFound("user token(%s) secrets not found", backend.MaskKeyName(tokenID))
@@ -140,7 +140,7 @@ func (s *IdentityService) UpsertUserTokenSecrets(ctx context.Context, secrets ty
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(userTokenPrefix, secrets.GetName(), secretsPrefix),
+		Key:     backend.NewKey(userTokenPrefix, secrets.GetName(), secretsPrefix),
 		Value:   value,
 		Expires: secrets.Expiry(),
 	}

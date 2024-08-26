@@ -821,6 +821,7 @@ var (
 	// recorings.
 	SessionRecordingEvents = []string{
 		SessionEndEvent,
+		AppSessionEndEvent,
 		WindowsDesktopSessionEndEvent,
 		DatabaseSessionEndEvent,
 	}
