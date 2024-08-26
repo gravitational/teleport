@@ -1519,7 +1519,7 @@ impl Display for ClientError {
                     write!(f, "CredSSP {:?}: {}", e.error_type, e.description)
                 }
                 ConnectorErrorKind::Custom => {
-                    write!(f, "CredSSP: {}", e.context)?;
+                    write!(f, "Error: {}", e.context)?;
                     if let Some(src) = e.source() {
                         write!(f, " ({})", src)
                     } else {
