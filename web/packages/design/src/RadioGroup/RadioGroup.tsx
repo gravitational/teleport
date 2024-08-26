@@ -65,7 +65,6 @@ export function RadioGroup({
             key={optionValue}
             name={name}
             label={optionLabel}
-            //helperText={...}
             checked={value !== undefined ? value === optionValue : undefined}
             disabled={optionDisabled}
             size={size}
