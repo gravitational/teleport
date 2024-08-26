@@ -990,10 +990,6 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": [
-    "hte"
-  ],
-  "ignorePaths": [
-    "**/reference/terraform-provider/**"
-  ]
+  "flagWords": ["hte"],
+  "ignorePaths": ["**/reference/terraform-provider/**"]
 }
