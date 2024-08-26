@@ -1,0 +1,206 @@
+Usage: tshUsage: tsh [<flags>] <command> [<args> ...]
+
+Teleport Command Line Client
+
+Flags:
+ [<flags>] <command> [<args> ...]
+
+Teleport Command Line Client
+
+Flags:
+  -l, --login                    Remote host login
+      --proxy                    Teleport proxy address
+      --user                     Teleport user, defaults to current local user
+      --ttl                      Minutes to live for a session
+  -i, --identity                 Identity file
+      --cert-format              SSH certificate format
+      --[no-]insecure            Do not verify server's certificate and host
+                                 name. Use only in test environments
+      --auth                     Specify the name of authentication connector to
+                                 use.
+      --[no-]skip-version-check  Skip version checking between server and
+                                 client.
+  -d, --[no-]debug               Verbose logging to stdout
+  -k, --add-keys-to-agent        Controls how keys are handled. Valid values are
+                                 [auto no yes only].
+      --[no-]enable-escape-sequences  
+                                 Enable support for SSH escape sequences. Type
+                                 '~?' during an SSH session to list supported
+                                 sequences. Default is enabled.
+      --bind-addr                Override host:port used when opening a browser
+                                 for cluster logins
+      --callback                 Override the base URL (host:port) of the
+                                 link shown when opening a browser for cluster
+                                 logins. Must be used with --bind-addr.
+      --mfa-mode                 Preferred mode for MFA and Passwordless
+                                 assertions (auto, cross-platform, platform,
+                                 otp)
+      --[no-]headless            Use headless login. Shorthand for
+                                 --auth=headless.
+      --mlock                    Determines whether process memory will be
+                                 locked and whether failure to do so will be
+                                 accepted (off, auto, best_effort, strict).
+      --piv-slot                 Specify a PIV slot key to use for Hardware Key
+                                 support instead of the default. Ex: "9d"
+  -J, --jumphost                 SSH jumphost
+
+Commands:
+  -l, --login                    Remote host login
+      --proxy                    Teleport proxy address
+      --user                     Teleport user, defaults to current local user
+      --ttl                      Minutes to live for a session
+  -i, --identity                 Identity file
+      --cert-format              SSH certificate format
+      --[no-]insecure            Do not verify server's certificate and host
+                                 name. Use only in test environments
+      --auth                     Specify the name of authentication connector to
+                                 use.
+      --[no-]skip-version-check  Skip version checking between server and
+                                 client.
+  -d, --[no-]debug               Verbose logging to stdout
+  -k, --add-keys-to-agent        Controls how keys are handled. Valid values are
+                                 [auto no yes only].
+      --[no-]enable-escape-sequences  
+                                 Enable support for SSH escape sequences. Type
+                                 '~?' during an SSH session to list supported
+                                 sequences. Default is enabled.
+      --bind-addr                Override host:port used when opening a browser
+                                 for cluster logins
+      --callback                 Override the base URL (host:port) of the
+                                 link shown when opening a browser for cluster
+                                 logins. Must be used with --bind-addr.
+      --mfa-mode                 Preferred mode for MFA and Passwordless
+                                 assertions (auto, cross-platform, platform,
+                                 otp)
+      --[no-]headless            Use headless login. Shorthand for
+                                 --auth=headless.
+      --mlock                    Determines whether process memory will be
+                                 locked and whether failure to do so will be
+                                 accepted (off, auto, best_effort, strict).
+      --piv-slot                 Specify a PIV slot key to use for Hardware Key
+                                 support instead of the default. Ex: "9d"
+  -J, --jumphost                 SSH jumphost
+
+Commands:
+  help          help         Show help.
+  version       Show help.
+  version      Print the tsh client and Proxy server versions for the current context.
+  ssh         Print the tsh client and Proxy server versions for the current context.
+  ssh          Run shell or execute a command on a remote SSH node.
+   Run shell or execute a command on a remote SSH node.
+  aws          Access AWS API.
+aws          Access AWS API.
+  az           Access Azure API.  az           Access Azure API.
+
+  gcloud         gcloud       Access GCP API with the gcloud command.
+  gsutil      Access GCP API with the gcloud command.
+  gsutil       Access Google Cloud Storage with the gsutil command.
+  apps ls      Access Google Cloud Storage with the gsutil command.
+  apps ls      List available applications.
+   List available applications.
+  apps login   Retrieve short-lived certificate for an app.
+  apps login   Retrieve short-lived certificate for an app.
+  apps logout  Remove app certificate.
+apps logout  Remove app certificate.
+  apps config  Print app connection information.  apps config  Print app connection information.
+  recordings ls 
+  recordings ls List recorded sessions.
+  recordings exportList recorded sessions.
+  recordings export Export recorded desktop sessions to video.
+   Export recorded desktop sessions to video.
+  proxy ssh    Start local TLS proxy for ssh connections when using Teleport in single-port mode.
+  proxy ssh    Start local TLS proxy for ssh connections when using Teleport in single-port mode.
+  proxy db     Start local TLS proxy for database connections when using Teleport in single-port mode.
+proxy db     Start local TLS proxy for database connections when using Teleport in single-port mode.
+  proxy app    Start local TLS proxy for app connection when using Teleport in single-port mode.  proxy app    Start local TLS proxy for app connection when using Teleport in single-port mode.
+  proxy aws    
+  proxy aws    Start local proxy for AWS access.
+  proxy azure Start local proxy for AWS access.
+  proxy azure  Start local proxy for Azure access.
+   Start local proxy for Azure access.
+  proxy gcloud Start local proxy for GCP access.
+  proxy gcloud Start local proxy for GCP access.
+  proxy kube   Start local proxy for Kubernetes access.
+proxy kube   Start local proxy for Kubernetes access.
+  db ls        List all available databases.
+  db ls        List all available databases.
+  db login       db login     Retrieve credentials for a database.
+  db logout   Retrieve credentials for a database.
+  db logout    Remove database credentials.
+   Remove database credentials.
+  db env       Print environment variables for the configured database.
+db env       Print environment variables for the configured database.
+  db config    Print database connection information. Useful when configuring GUI clients.
+  db config    Print database connection information. Useful when configuring GUI clients.
+  db connect   Connect to a database.  db connect   Connect to a database.
+  join         
+  join         Join the active SSH or Kubernetes session.
+  play        Join the active SSH or Kubernetes session.
+  play         Replay the recorded session (SSH, Kubernetes, App, DB).
+   Replay the recorded session (SSH, Kubernetes, App, DB).
+  scp          Transfer files to a remote SSH node.
+  scp          Transfer files to a remote SSH node.
+  ls           List remote SSH nodes.
+ls           List remote SSH nodes.
+  clusters     List available Teleport clusters.
+  clusters     List available Teleport clusters.
+  sessions ls  List active sessions.
+  login        Log in to a cluster and retrieve the session certificate.
+  logout        sessions ls  List active sessions.
+  login        Log in to a cluster and retrieve the session certificate.
+  logout       Delete a cluster certificate.
+   Delete a cluster certificate.
+  latency ssh  Measure latency to a particular SSH host.
+latency ssh  Measure latency to a particular SSH host.
+  status        status       Display the list of proxy servers and retrieved certificates.
+  env          Display the list of proxy servers and retrieved certificates.
+  env          Print commands to set Teleport session environment variables.
+   Print commands to set Teleport session environment variables.
+  request ls   List access requests.
+  request ls   List access requests.
+  request show Show request details.
+request show Show request details.
+  request create Create a new access request.  request create Create a new access request.
+  request review 
+  request review Review an access request.
+  request searchReview an access request.
+  request search Search for resources to request access to.
+   Search for resources to request access to.
+  request drop Drop one more access requests from current identity.
+  request drop Drop one more access requests from current identity.
+  headless approve Approve a headless authentication request.
+headless approve Approve a headless authentication request.
+    kubectl      Runs a kubectl command on a Kubernetes cluster.
+kubectl      Runs a kubectl command on a Kubernetes cluster.
+  kube ls      Get a list of Kubernetes clusters.  kube ls      Get a list of Kubernetes clusters.
+  kube login   
+  kube login   Login to a Kubernetes cluster.
+  Login to a Kubernetes cluster.
+  kube sessions Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)
+kube sessions Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)
+  kube exec    Execute a command in a Kubernetes pod.
+  kube exec    Execute a command in a Kubernetes pod.
+  kube join    Join an active Kubernetes session.  kube join    Join an active Kubernetes session.
+  mfa ls       
+  mfa ls       Get a list of registered MFA devices.
+  mfa add     Get a list of registered MFA devices.
+  mfa add      Add a new MFA device.
+   Add a new MFA device.
+  mfa rm       Remove a MFA device.
+  mfa rm       Remove a MFA device.
+  scan keys    Scan the local machine for SSH private keys and report findings to Teleport
+scan keys    Scan the local machine for SSH private keys and report findings to Teleport
+  config       Print OpenSSH configuration details.
+  config       Print OpenSSH configuration details.
+  device enroll  device enroll Enroll this device as a trusted device. Requires Teleport Enterprise.
+ Enroll this device as a trusted device. Requires Teleport Enterprise.
+  svid issue     svid issue   Issue a SPIFFE SVID using Teleport Workload Identity and write it to a local directory.
+  vnet        Issue a SPIFFE SVID using Teleport Workload Identity and write it to a local directory.
+  vnet         Start Teleport VNet, a virtual network for TCP application access.
+
+Try ' Start Teleport VNet, a virtual network for TCP application access.
+
+Try 'tsh help [command]' to get help for a given command.
+
+tsh help [command]' to get help for a given command.
+
