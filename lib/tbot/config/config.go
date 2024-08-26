@@ -250,12 +250,6 @@ func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
 }
 
-// RenewableJoinMethod indicates that certificate renewal should be used with
-// this join method rather than rejoining each time.
-func (conf *OnboardingConfig) RenewableJoinMethod() bool {
-	return conf.JoinMethod == types.JoinMethodToken
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // In the case of the token value pointing to a file, this allows us to
