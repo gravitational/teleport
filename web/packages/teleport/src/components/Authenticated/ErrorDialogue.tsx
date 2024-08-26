@@ -42,7 +42,11 @@ export function ErrorDialog({ errMsg }: { errMsg: string }) {
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary
-          onClick={() => history.goToLogin(true /* rememberLocation */)}
+          onClick={() =>
+            history.goToLogin({
+              rememberLocation: true,
+            })
+          }
         >
           Go to Login
         </ButtonSecondary>
