@@ -540,7 +540,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 		}
 
 		return trace.ConnectionProblem(nil, "upload stream terminated unexpectedly")
-	case <-stream.Status():
+	case status := <-stream.Status():
+		if err := up.writeStatus(status); err != nil {
+			// all other stream status writes are optimistic, but we want to make sure the initial
+			// status is written to disk so that we don't create orphaned multipart uploads.
+			return trace.Errorf("failed to write initial stream status: %v", err)
+		}
 	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
