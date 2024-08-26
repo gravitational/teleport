@@ -145,7 +145,6 @@ func (s *Service) runWithLock(ctx context.Context) error {
 					SemaphoreKind: types.KindPlugin,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
-					Expires:       s.clock.Now().Add(semaphoreExpiration),
 					Holder:        s.hostID,
 				},
 				Expiry: semaphoreExpiration,
