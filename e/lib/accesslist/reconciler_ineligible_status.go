@@ -103,16 +103,23 @@ const (
 
 // Run runs the reconciliation loop.
 func (r *IneligibleStatusReconciler) Run(ctx context.Context) error {
+	drainAndResetTimer := func(t clockwork.Timer, timeout time.Duration) {
+		if !t.Stop() {
+			// drain the channel if it's not empty
+			// draining an already fired timer results in a deadlock
+			// so we need to wrap it in a select
+			select {
+			case <-t.Chan():
+			default:
+			}
+		}
+		t.Reset(timeout)
+	}
+
 	t := r.clock.NewTimer(neverDuration)
 	// forceReconcile is a timer that will force a reconciliation to happen
 	// after a certain amount of time has passed.
 	forceReconcile := r.clock.NewTimer(forceReconcileDuration)
-	drainAndResetTimer := func(t clockwork.Timer, timeout time.Duration) {
-		if !t.Stop() {
-			<-t.Chan()
-		}
-		t.Reset(timeout)
-	}
 	// reconcile is a blocking channel that will be used to signal that
 	// a reconciliation must happen.
 	// It must be unbuffered to ensure that we don't re-reconcile if we
