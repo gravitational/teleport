@@ -1,6 +1,6 @@
 ---
-title: Database Access with AWS OpenSearch
-description: How to access AWS OpenSearch with Teleport database access
+title: Database Access with Amazon OpenSearch
+description: How to access Amazon OpenSearch with Teleport database access
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Amazon OpenSearch" dbConfigure="via REST API with IAM Authentication"!)
@@ -29,8 +29,8 @@ requests with AWS credentials, and forwards them to the OpenSearch API.
 
 ## Prerequisites
 
-- AWS OpenSearch domain.
-- [Enabled AWS OpenSearch Service fine-grained access
+- Amazon OpenSearch domain.
+- [Enabled Amazon OpenSearch Service fine-grained access
   control](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html#fgac-enabling)
 - IAM permissions to create IAM roles.
 - [opensearchsql](https://github.com/opensearch-project/sql-cli)  Command Line
@@ -105,7 +105,7 @@ Finally, click **Create Role**.
 
 ### Configure Cluster Fine-grained access control IAM Role mapping in Amazon OpenSearch Managed Custer
 
-Teleport AWS OpenSearch service integration leverages the OpenSearch Fine-grained
+Teleport Amazon OpenSearch service integration leverages the OpenSearch Fine-grained
 access control
 where the IAM role or user is mapped to the OpenSearch role.
 
@@ -280,7 +280,7 @@ resources, see: [Dynamic Registration](../guides/dynamic-registration.mdx).
 
 ## Step 4/4. Connect
 
-Once the Database Service has started and joined the cluster, you can start accessing AWS OpenSearch API:
+Once the Database Service has started and joined the cluster, you can start accessing Amazon OpenSearch API:
 
 Create a proxy tunnel:
 
@@ -303,7 +303,7 @@ Use one of the following commands to connect to the database or to the address a
   $ curl http://localhost:8000/
 ```
 
-You can now interact with AWS OpenSearch API via local tunnel created by the `tsh proxy db` command:
+You can now interact with Amazon OpenSearch API via local tunnel created by the `tsh proxy db` command:
 
 ```code
 $ curl http://localhost:8000/movies/_search \
