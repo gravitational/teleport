@@ -23,7 +23,7 @@ import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
 
 import Validation, { Validator } from 'shared/components/Validation';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { Attempt } from 'shared/hooks/useAsync';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -167,18 +167,27 @@ export default function RequestReview({
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
                         <HorizontalLine />
-                        <FieldSelect
+                        <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
                           label={`Select a suggested Access List to add ${request.user} as a member to:`}
                           rule={requiredField('Required')}
                           value={
-                            selectedAccessList
+                            // TODO(bl-nero): The type casting here is a hack.
+                            // This code actually works, but it doesn't work in
+                            // a way supported by type bindings. The type of
+                            // this value is deliberately different from the
+                            // options array element type. This is because we
+                            // want to visualize the options differently on the
+                            // option face and inside the options list. The
+                            // correct way of doing it would be to provide a
+                            // custom option component.
+                            (selectedAccessList
                               ? {
-                                  value: selectedAccessList,
+                                  value: selectedAccessList.value,
                                   label: selectedAccessList.value.title,
                                 }
-                              : undefined
+                              : undefined) as any as SuggestedAcessListOption
                           }
                           onChange={(o: SuggestedAcessListOption) =>
                             setSelectedAccessList(o)

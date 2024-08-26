@@ -33,14 +33,12 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -497,7 +495,8 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
-	ha.PublicKey = req.PublicKey
+	ha.SshPublicKey = req.SSHPublicKey
+	ha.TlsPublicKey = req.TLSPublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
 		return nil, trace.Wrap(err)
@@ -534,8 +533,11 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
-	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-		return nil, trace.AccessDenied("headless authentication public key mismatch")
+	if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+		return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
+	}
+	if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+		return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 	}
 
 	return approvedHeadlessAuthn.MfaDevice, nil
@@ -648,6 +650,9 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
@@ -697,32 +702,19 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := req.AttestationStatement
-	tlsPublicKeyAttestationStatement := req.AttestationStatement
-
 	certReq := certRequest{
 		user:                             user,
 		ttl:                              req.TTL,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKey:                     req.SSHPublicKey,
+		tlsPublicKey:                     req.TLSPublicKey,
 		compatibility:                    req.CompatibilityMode,
 		checker:                          checker,
 		traits:                           user.GetTraits(),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,
 		loginIP:                          clientIP,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
@@ -731,8 +723,11 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-			return nil, trace.AccessDenied("headless authentication public key mismatch")
+		if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+			return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
+		}
+		if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 		}
 		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
 		certReq.ttl = time.Minute

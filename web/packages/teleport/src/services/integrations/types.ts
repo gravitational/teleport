@@ -143,6 +143,13 @@ export type PluginKind =
   | 'jamf'
   | 'entra-id';
 
+export type PluginStatus<S = any> = {
+  name: string;
+  type: PluginKind;
+  statusCode: IntegrationStatusCode;
+  stats?: S;
+};
+
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
   // to authenticate SCIM requests
@@ -318,8 +325,9 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
   securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
 };
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
@@ -385,7 +393,7 @@ export type EnrollEksClustersResponse = {
   results: {
     clusterName: string;
     resourceId: string;
-    error: { message: string };
+    error: string;
   }[];
 };
 

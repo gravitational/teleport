@@ -17,7 +17,15 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Box, ButtonPrimary, ButtonText, Link, Text, Toggle } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonText,
+  Flex,
+  Link,
+  Text,
+  Toggle,
+} from 'design';
 import styled from 'styled-components';
 import { FetchStatus } from 'design/DataTable/types';
 import { Danger } from 'design/Alert';
@@ -54,6 +62,10 @@ import {
   ConfigureDiscoveryServiceDirections,
   CreatedDiscoveryConfigDialog,
 } from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { ActionButtons, Header } from '../../Shared';
 
@@ -88,7 +100,8 @@ type EKSClusterEnrollmentState = {
 };
 
 export function EnrollEksCluster(props: AgentStepProps) {
-  const { agentMeta, updateAgentMeta, emitErrorEvent } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent, emitEvent } =
+    useDiscover();
   const { attempt: fetchClustersAttempt, setAttempt: setFetchClustersAttempt } =
     useAttempt('');
 
@@ -105,7 +118,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       status: 'notStarted',
     });
   const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] = useState(true);
-  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(true);
+  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(false);
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
@@ -237,6 +250,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
           }
         );
         setAutoDiscoveryCfg(discoveryConfig);
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
       } catch (err) {
         const message = getErrMessage(err);
         setAutoDiscoverAttempt({
@@ -285,7 +304,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         );
       } else if (
         result.error &&
-        !result.error.message.includes(
+        !result.error.includes(
           'teleport-kube-agent is already installed on the cluster'
         )
       ) {
@@ -447,27 +466,29 @@ export function EnrollEksCluster(props: AgentStepProps) {
           {!isAutoDiscoveryEnabled && (
             <StyledBox mb={5} mt={5}>
               <Text mb={2}>Automatically enroll selected EKS cluster</Text>
-              <ButtonPrimary
-                width="215px"
-                type="submit"
-                onClick={enroll}
-                disabled={enrollmentNotAllowed}
-                mt={2}
-                mb={2}
-              >
-                Enroll EKS Cluster
-              </ButtonPrimary>
-              <Box>
-                <ButtonText
+              <Flex alignItems="center" flexDirection="column" width="200px">
+                <ButtonPrimary
+                  width="215px"
+                  type="submit"
+                  onClick={enroll}
                   disabled={enrollmentNotAllowed}
-                  onClick={() => {
-                    setIsManualHelmDialogShown(b => !b);
-                  }}
-                  pl={0}
+                  mt={2}
+                  mb={2}
                 >
-                  Or enroll manually
-                </ButtonText>
-              </Box>
+                  Enroll EKS Cluster
+                </ButtonPrimary>
+                <Box>
+                  <ButtonText
+                    width="215px"
+                    disabled={enrollmentNotAllowed}
+                    onClick={() => {
+                      setIsManualHelmDialogShown(b => !b);
+                    }}
+                  >
+                    Or enroll manually
+                  </ButtonText>
+                </Box>
+              </Flex>
             </StyledBox>
           )}
           {isAutoDiscoveryEnabled && (

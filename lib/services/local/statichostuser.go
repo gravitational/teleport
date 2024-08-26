@@ -104,7 +104,7 @@ func (s *StaticHostUserService) DeleteStaticHostUser(ctx context.Context, name s
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-// DeleteStaticHostUser deletes a static host user. Note that this does not
+// DeleteAllStaticHostUsers deletes all static host users. Note that this does not
 // remove any host users created on nodes from the resources.
 func (s *StaticHostUserService) DeleteAllStaticHostUsers(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))

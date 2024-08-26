@@ -1290,6 +1290,15 @@ func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListRes
 	return &proto.ListResourcesResponse{Resources: out}, nil
 }
 
+func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
 func TestGetTargetNodes(t *testing.T) {
 	tests := []struct {
 		name      string

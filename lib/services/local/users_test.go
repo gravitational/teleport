@@ -1305,7 +1305,7 @@ func TestCompareAndSwapUser(t *testing.T) {
 	require.NoError(err)
 	require.True(services.UsersEquals(currentBob, bob2))
 
-	item, err := identity.Backend.Get(ctx, backend.Key(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
+	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)
 	var m map[string]any
 	require.NoError(json.Unmarshal(item.Value, &m))
