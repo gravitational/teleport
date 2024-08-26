@@ -17,7 +17,7 @@
  */
 
 import Box from 'design/Box';
-import { CheckboxSize, CheckboxInput } from 'design/Checkbox';
+import { RadioButtonSize, RadioButton } from 'design/RadioButton';
 import Flex from 'design/Flex';
 import LabelInput from 'design/LabelInput';
 import Text from 'design/Text';
@@ -25,19 +25,21 @@ import { SpaceProps } from 'design/system';
 import React, { forwardRef } from 'react';
 import styled from 'styled-components';
 
-interface FieldCheckboxProps extends SpaceProps {
+interface FieldRadioProps extends SpaceProps {
   name?: string;
   label?: React.ReactNode;
   helperText?: React.ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
   disabled?: boolean;
-  size?: CheckboxSize;
+  size?: RadioButtonSize;
+  value?: string;
+  autoFocus?: boolean;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-/** Renders a checkbox with an associated label and an optional helper text. */
-export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
+/** Renders a radio button with an associated label and an optional helper text. */
+export const FieldRadio = forwardRef<HTMLInputElement, FieldRadioProps>(
   (
     {
       name,
@@ -47,6 +49,8 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
       defaultChecked,
       disabled,
       size,
+      value,
+      autoFocus,
       onChange,
       ...styles
     },
@@ -60,16 +64,18 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
       <Box mb={3} lineHeight={0} {...styles}>
         <StyledLabel disabled={disabled}>
           <Flex flexDirection="row" gap={2}>
-            {/* Nudge the small-size checkbox to better align with the
+            {/* Nudge the small-size radio button to better align with the
                 label. */}
             <Box mt={size === 'small' ? '2px' : '0px'}>
-              <CheckboxInput
+              <RadioButton
                 size={size}
                 ref={ref}
                 checked={checked}
                 defaultChecked={defaultChecked}
                 disabled={disabled}
                 name={name}
+                value={value}
+                autoFocus={autoFocus}
                 onChange={onChange}
               />
             </Box>
@@ -90,8 +96,8 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
 
 const StyledLabel = styled(LabelInput)<{ disabled?: boolean }>`
   // Typically, a short label in a wide container means a lot of whitespace that
-  // acts as a click target for a checkbox. To avoid this, we use inline-flex to
-  // wrap the label around its content.
+  // acts as a click target for a radio button. To avoid this, we use
+  // inline-flex to wrap the label around its content.
   display: inline-flex;
   width: auto;
   gap: ${props => props.theme.space[2]}px;
