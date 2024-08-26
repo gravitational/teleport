@@ -271,7 +271,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 					SemaphoreKind: types.KindAccessGraph,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
-					Expires:       s.clock.Now().Add(semaphoreExpiration),
 					Holder:        s.Config.ServerID,
 				},
 				Expiry: semaphoreExpiration,
