@@ -70,6 +70,9 @@ type GenerateAWSOIDCTokenRequest struct {
 
 // CheckAndSetDefaults checks the request params.
 func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
+	if g.Integration == "" {
+		return trace.BadParameter("integration missing")
+	}
 	if g.Username == "" {
 		return trace.BadParameter("username missing")
 	}
@@ -83,46 +86,43 @@ func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
-func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager KeyStoreManager, req GenerateAWSOIDCTokenRequest) (string, error) {
-	var integration types.Integration
-	var err error
-	var issuer string
-
-	// Clients in v15 or lower might not send the Integration
-	// All v16+ clients will send the Integration
-	// For V17.0, if the Integration is empty, an error must be returned.
-	// TODO(marco) DELETE IN v17.0
-	if req.Integration != "" {
-		integration, err = cacheClt.GetIntegration(ctx, req.Integration)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-
-		if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-			return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-		}
-
-		if integration.GetAWSOIDCIntegrationSpec() == nil {
-			return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-		}
-
-		issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
-		if issuerS3URI != "" {
-			issuerS3URL, err := url.Parse(issuerS3URI)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-			prefix := strings.TrimLeft(issuerS3URL.Path, "/")
-			issuer = fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix)
-		}
+func issuerForIntegration(ctx context.Context, integration types.Integration, cacheClt Cache) (string, error) {
+	issuerS3URI := integration.GetAWSOIDCIntegrationSpec().IssuerS3URI
+	if issuerS3URI == "" {
+		issuer, err := oidc.IssuerForCluster(ctx, cacheClt)
+		return issuer, trace.Wrap(err)
 	}
 
-	if issuer == "" {
-		issuer, err = oidc.IssuerForCluster(ctx, cacheClt)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+	issuerS3URL, err := url.Parse(issuerS3URI)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	prefix := strings.TrimLeft(issuerS3URL.Path, "/")
+	return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", issuerS3URL.Host, prefix), nil
+}
+
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager KeyStoreManager, req GenerateAWSOIDCTokenRequest) (string, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	integration, err := cacheClt.GetIntegration(ctx, req.Integration)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+	}
+
+	if integration.GetAWSOIDCIntegrationSpec() == nil {
+		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+	}
+
+	issuer, err := issuerForIntegration(ctx, integration, cacheClt)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	clusterName, err := cacheClt.GetClusterName()
