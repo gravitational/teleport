@@ -3524,6 +3524,9 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
@@ -3569,6 +3572,9 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
@@ -5096,8 +5102,19 @@ func TestShowSessions(t *testing.T) {
         "sid": "",
         "db_protocol": "postgres",
         "db_uri": "",
+        "db_name": "db-name",
         "session_start": "0001-01-01T00:00:00Z",
         "session_stop": "0001-01-01T00:00:00Z"
+    },
+    {
+        "ei": 0,
+        "event": "",
+        "uid": "someID5",
+        "time": "0001-01-01T00:00:00Z",
+        "user": "someUser",
+        "sid": "",
+        "server_id": "",
+        "app_name": "app-name"
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -5133,10 +5150,23 @@ func TestShowSessions(t *testing.T) {
 				User: "someUser",
 			},
 			DatabaseMetadata: events.DatabaseMetadata{
+				DatabaseName:     "db-name",
 				DatabaseProtocol: "postgres",
 			},
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
+		},
+		&events.AppSessionEnd{
+			Metadata: events.Metadata{
+				ID:   "someID5",
+				Time: time.Time{},
+			},
+			UserMetadata: events.UserMetadata{
+				User: "someUser",
+			},
+			AppMetadata: events.AppMetadata{
+				AppName: "app-name",
+			},
 		},
 	}
 	var buf bytes.Buffer

@@ -50,13 +50,16 @@ import { Kube } from 'teleport/services/kube';
 
 import { JoinToken } from 'teleport/services/joinToken';
 import cfg from 'teleport/config';
-
 import {
-  ActionButtons,
-  Header,
-  SelfHostedAutoDiscoverDirections,
-  AutoEnrollDialog,
-} from '../../Shared';
+  ConfigureDiscoveryServiceDirections,
+  CreatedDiscoveryConfigDialog,
+} from 'teleport/Discover/Shared/ConfigureDiscoveryService';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
+
+import { ActionButtons, Header } from '../../Shared';
 
 import { ClustersList } from './EksClustersList';
 import ManualHelmDialog from './ManualHelmDialog';
@@ -89,7 +92,8 @@ type EKSClusterEnrollmentState = {
 };
 
 export function EnrollEksCluster(props: AgentStepProps) {
-  const { agentMeta, updateAgentMeta, emitErrorEvent } = useDiscover();
+  const { agentMeta, updateAgentMeta, emitErrorEvent, emitEvent } =
+    useDiscover();
   const { attempt: fetchClustersAttempt, setAttempt: setFetchClustersAttempt } =
     useAttempt('');
 
@@ -106,7 +110,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
       status: 'notStarted',
     });
   const [isAppDiscoveryEnabled, setAppDiscoveryEnabled] = useState(true);
-  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(true);
+  const [isAutoDiscoveryEnabled, setAutoDiscoveryEnabled] = useState(false);
   const [isAgentWaitingDialogShown, setIsAgentWaitingDialogShown] =
     useState(false);
   const [isManualHelmDialogShown, setIsManualHelmDialogShown] = useState(false);
@@ -238,6 +242,12 @@ export function EnrollEksCluster(props: AgentStepProps) {
           }
         );
         setAutoDiscoveryCfg(discoveryConfig);
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          {
+            eventName: DiscoverEvent.CreateDiscoveryConfig,
+          }
+        );
       } catch (err) {
         const message = getErrMessage(err);
         setAutoDiscoverAttempt({
@@ -286,7 +296,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         );
       } else if (
         result.error &&
-        !result.error.message.includes(
+        !result.error.includes(
           'teleport-kube-agent is already installed on the cluster'
         )
       ) {
@@ -439,7 +449,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
             />
           )}
           {!cfg.isCloud && isAutoDiscoveryEnabled && (
-            <SelfHostedAutoDiscoverDirections
+            <ConfigureDiscoveryServiceDirections
               clusterPublicUrl={ctx.storeUser.state.cluster.publicURL}
               discoveryGroupName={discoveryGroupName}
               setDiscoveryGroupName={setDiscoveryGroupName}
@@ -534,7 +544,7 @@ export function EnrollEksCluster(props: AgentStepProps) {
         />
       )}
       {autoDiscoverAttempt.status !== '' && (
-        <AutoEnrollDialog
+        <CreatedDiscoveryConfigDialog
           attempt={autoDiscoverAttempt}
           next={props.nextStep}
           close={() => setAutoDiscoverAttempt({ status: '' })}

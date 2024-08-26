@@ -174,9 +174,9 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   }
 
   return {
-    getStarted: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
+    getStarted: withUTM(`https://goteleport.com/docs${docVer}`),
     tshGuide: withUTM(
-      `https://goteleport.com/docs${docVer}/server-access/guides/tsh`
+      `https://goteleport.com/docs${docVer}/connect-your-client/tsh/`
     ),
     adminGuide: withUTM(
       `https://goteleport.com/docs${docVer}/management/admin/`

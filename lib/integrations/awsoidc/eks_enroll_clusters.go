@@ -52,6 +52,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -224,6 +225,14 @@ type EnrollEKSClustersRequest struct {
 	// ClusterNames is name of the EKS cluster to enroll.
 	ClusterNames []string
 
+	// TeleportClusterName is the name of the Teleport cluster.
+	// Used to tag resources created during enrollment.
+	TeleportClusterName string
+
+	// IntegrationName is the name of the integration.
+	// Used to tag resources created during enrollment.
+	IntegrationName string
+
 	// EnableAppDiscovery specifies if we should enable Kubernetes App Discovery inside the enrolled EKS cluster.
 	EnableAppDiscovery bool
 
@@ -249,6 +258,14 @@ func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
 
 	if e.AgentVersion == "" {
 		return trace.BadParameter("agent version is required")
+	}
+
+	if e.TeleportClusterName == "" {
+		return trace.BadParameter("teleport cluster name is required")
+	}
+
+	if e.IntegrationName == "" {
+		return trace.BadParameter("integration name is required")
 	}
 
 	return nil
@@ -312,12 +329,19 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", trace.BadParameter(`can't enroll EKS cluster %q - expected "ACTIVE" state, got %q.`, clusterName, eksCluster.Status)
 	}
 
+	// We can't discover private EKS clusters for cloud clients, since we know that auth server is running in our VPC.
+	if req.IsCloud && !eksCluster.ResourcesVpcConfig.EndpointPublicAccess {
+		return "", trace.AccessDenied(`can't enroll %q because it is not accessible from Teleport Cloud, please enable endpoint public access in your EKS cluster and try again.`, clusterName)
+	}
+
 	principalArn, err := getAccessEntryPrincipalArn(ctx, clt.GetCallerIdentity)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	wasAdded, err := maybeAddAccessEntry(ctx, clusterName, principalArn, clt)
+	ownershipTags := tags.DefaultResourceCreationTags(req.TeleportClusterName, req.IntegrationName)
+
+	wasAdded, err := maybeAddAccessEntry(ctx, log, clusterName, principalArn, clt, ownershipTags)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -394,7 +418,7 @@ func getAccessEntryPrincipalArn(ctx context.Context, identityGetter IdentityGett
 
 // maybeAddAccessEntry checks list of access entries for the EKS cluster and adds one for Teleport if it's missing.
 // If access entry was added by this function it will return true as a first value.
-func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt EnrollEKSCLusterClient) (bool, error) {
+func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, roleArn string, clt EnrollEKSCLusterClient, ownershipTags tags.AWSTags) (bool, error) {
 	entries, err := clt.ListAccessEntries(ctx, &eks.ListAccessEntriesInput{
 		ClusterName: aws.String(clusterName),
 	})
@@ -408,10 +432,31 @@ func maybeAddAccessEntry(ctx context.Context, clusterName, roleArn string, clt E
 		}
 	}
 
-	_, err = clt.CreateAccessEntry(ctx, &eks.CreateAccessEntryInput{
+	createAccessEntryReq := &eks.CreateAccessEntryInput{
 		ClusterName:  aws.String(clusterName),
 		PrincipalArn: aws.String(roleArn),
-	})
+		Tags:         ownershipTags.ToMap(),
+	}
+
+	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
+	if err != nil {
+		convertedError := awslib.ConvertIAMv2Error(err)
+		if !trace.IsAccessDenied(convertedError) {
+			return false, trace.Wrap(err)
+		}
+		// Adding tags requires the `eks:TagResource` action.
+		// This action is now part of the added policies, for previous set ups we didn't include the tag resource action in the policy document.
+		// See lib/cloud/aws.StatementForEKSAccess
+		// Instead of failing with an error, the Access Entry is created anyway without tags.
+		// This resource is meant to be deleted right after the teleport agent is installed.
+		createAccessEntryReq.Tags = nil
+
+		log.WarnContext(ctx, "Failed to tag EKS Access Entry, please add eks:TagResource action in IAM Role. Continuing without tags.",
+			"principal", roleArn,
+			"cluster", clusterName,
+		)
+		_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
+	}
 	return err == nil, trace.Wrap(err)
 }
 

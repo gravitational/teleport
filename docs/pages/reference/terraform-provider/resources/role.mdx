@@ -447,6 +447,7 @@ Optional:
 - `max_kubernetes_connections` (Number) MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.
 - `max_session_ttl` (String) MaxSessionTTL defines how long a SSH session can last for.
 - `max_sessions` (Number) MaxSessions defines the maximum number of concurrent sessions per connection.
+- `mfa_verification_interval` (String) MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.
 - `permit_x11_forwarding` (Boolean) PermitX11Forwarding authorizes use of X11 forwarding.
 - `pin_source_ip` (Boolean) PinSourceIP forces the same client IP for certificate generation and usage
 - `port_forwarding` (Boolean)

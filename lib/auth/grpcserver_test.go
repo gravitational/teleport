@@ -1331,6 +1331,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
@@ -4482,9 +4486,10 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	user, _, err := CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
 	positiveResponse := &clusterconfigpb.AccessGraphConfig{
-		Enabled: true,
-		Ca:      []byte("ca"),
-		Address: "addr",
+		Enabled:           true,
+		Ca:                []byte("ca"),
+		Address:           "addr",
+		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
 	}
 
 	tests := []struct {

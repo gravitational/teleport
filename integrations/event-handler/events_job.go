@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	limiter "github.com/sethvargo/go-limiter"
@@ -91,6 +92,11 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 
 	evtCh, errCh := j.app.EventWatcher.Events(ctx)
 
+	logTicker := time.NewTicker(time.Minute)
+	defer logTicker.Stop()
+
+	var eventsProcessed int
+
 	for {
 		select {
 		case err := <-errCh:
@@ -107,6 +113,10 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 				return trace.Wrap(err)
 			}
 
+			eventsProcessed++
+		case <-logTicker.C:
+			log.WithField("events_per_minute", eventsProcessed).Info("event processing rate")
+			eventsProcessed = 0
 		case <-ctx.Done():
 			return ctx.Err()
 		}

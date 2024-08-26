@@ -20,6 +20,7 @@ COPY lib/ lib/
 COPY api/ api/
 COPY gen/ gen/
 COPY build.assets/ build.assets/
+COPY entitlements/ entitlements/
 COPY *.go ./
 COPY Makefile Makefile
 COPY darwin-signing.mk darwin-signing.mk
