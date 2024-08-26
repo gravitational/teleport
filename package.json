@@ -13,7 +13,7 @@
     "package-term": "pnpm --filter=@gravitational/teleterm package",
     "storybook": "./web/scripts/run-storybook.sh",
     "storybook-smoke-test": "storybook dev -p 9002 -c web/.storybook --ci --smoke-test",
-    "test-storybook": "NODE_TLS_REJECT_UNAUTHORIZED=0 test-storybook -c web/.storybook --url https://localhost:9002 --skipTags=skip-test",
+    "test-storybook": "NODE_TLS_REJECT_UNAUTHORIZED=0 test-storybook -c web/.storybook --url https://localhost:9002 --skipTags=skip-test --browsers=chromium",
     "test": "jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
     "test-update-snapshot": "pnpm run test --updateSnapshot",
