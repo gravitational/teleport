@@ -1741,8 +1741,9 @@ changelog: $(CHANGELOG)
 # For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
 .PHONY: create-github-release
 create-github-release: LATEST = false
+create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release: $(RELEASE_NOTES_GEN)
-	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \
