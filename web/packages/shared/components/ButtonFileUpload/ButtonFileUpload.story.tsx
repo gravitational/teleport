@@ -17,6 +17,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Box } from 'design';
 
 import { ButtonFileUpload as ButtonFileUploadComponent } from './ButtonFileUpload';
 
@@ -34,20 +35,43 @@ export const ButtonFileUpload = () => {
   }, [selectedFile]);
   return (
     <>
-      <ButtonFileUploadComponent
-        onFileSelect={setSelectedFile}
-        text="Click me to upload a file"
-        errorMessage="No files selected."
-        accept=".txt"
-        disabled={false}
-      />
-      <br />
-      {content && (
-        <p>
-          <b>File content:</b> <br />
-          <code>{content}</code>
-        </p>
-      )}
+      <Box mb={4}>
+        <ButtonFileUploadComponent
+          onFileSelect={setSelectedFile}
+          text="Click me to upload a file "
+          errorMessage="No files selected."
+          accept=".txt"
+          disabled={false}
+        />
+        {content && (
+          <>
+            <br />
+            <p>
+              <b>File content:</b> <br />
+              <code>{content}</code>
+            </p>
+          </>
+        )}
+      </Box>
+      <Box mb={4}>
+        <ButtonFileUploadComponent
+          onFileSelect={setSelectedFile}
+          text="Click me to upload a file (disabled)"
+          errorMessage=""
+          accept=".txt"
+          disabled={true}
+        />
+      </Box>
+      <Box>
+        <ButtonFileUploadComponent
+          onFileSelect={setSelectedFile}
+          text="Click me to upload a file (error)"
+          showValidationError={true}
+          errorMessage="Error rendered"
+          accept=".txt"
+          disabled={false}
+        />
+      </Box>
     </>
   );
 };
