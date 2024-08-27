@@ -63,8 +63,10 @@ const StyledIcon = styled.span`
   ${borderRadius};
 `;
 
+export type IconSize = 'small' | 'medium' | 'large' | 'extraLarge' | number;
+
 export type IconProps = {
-  size?: 'small' | 'medium' | 'large' | 'extraLarge' | number;
+  size?: IconSize;
   color?: string;
   title?: string;
   m?: number | string;
