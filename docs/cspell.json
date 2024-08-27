@@ -364,6 +364,7 @@
     "clientcmd",
     "clientid",
     "clis",
+    "cloudallow",
     "cloudbuild",
     "cloudflared",
     "cloudhsmv2",

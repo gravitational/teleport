@@ -457,6 +457,10 @@ func botIdentityFromToken(
 		}
 	}
 
+	if params.JoinMethod == types.JoinMethodTerraformCloud {
+		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
+	}
+
 	certs, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
