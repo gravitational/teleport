@@ -554,7 +554,7 @@ ORDER BY
 Run custom audit query using `tctl audit query exec` command:
 
 ```code
-$ tctl audit query exec 'select event_time,identity_user from cert_create order by event_date limit 1;' --days 7
+$ tctl audit query exec 'select event_time,identity_user from cert_create order by event_date limit 1;'
 [
     {
         "data": [
@@ -571,4 +571,5 @@ $ tctl audit query exec 'select event_time,identity_user from cert_create order 
 ]
 ```
 
-The query result is returned as a JSON array of arrays. The first array contains the column names, and the subsequent arrays contain the query results.
+The query result is returned as a JSON array of arrays. The first array contains the column names, and the subsequent arrays contain the query results. By default, tctl audit query exec will search over the past 7 days.
+You can specify an alternate timeframe with the --days=N flag.
