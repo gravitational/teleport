@@ -944,6 +944,20 @@ message AppV3 {
   ];
 }
 
+// CORS defines the CORS policy for AppSpecV3
+message CORS {
+  // AllowedOrigins specifies which origins are allowed to access the app.
+  repeated string AllowedOrigins = 1 [(gogoproto.jsontag) = "allowed_origins,omitempty"];
+  // AllowedMethods specifies which methods are allowed when accessing the app.
+  repeated string AllowedMethods = 2 [(gogoproto.jsontag) = "allowed_methods,omitempty"];
+  // AllowedHeaders specifies which headers can be used when accessing the app.
+  repeated string AllowedHeaders = 3 [(gogoproto.jsontag) = "allowed_headers,omitempty"];
+  // AllowCredentials indicates whether credentials are allowed.
+  bool AllowCredentials = 4 [(gogoproto.jsontag) = "allow_credentials,omitempty"];
+  // MaxAge indicates how long (in seconds) the results of a preflight request can be cached.
+  int32 MaxAge = 5 [(gogoproto.jsontag) = "max_age,omitempty"];
+}
+
 // AppSpecV3 is the AppV3 resource spec.
 message AppSpecV3 {
   // URI is the web app endpoint.
@@ -972,6 +986,8 @@ message AppSpecV3 {
   // RequiredApps is a list of app names that are required for this app to function. Any app listed here will
   // be part of the authentication redirect flow and authenticate along side this app.
   repeated string RequiredApps = 10 [(gogoproto.jsontag) = "required_apps,omitempty"];
+  // CORS defines the Cross-Origin Resource Sharing settings for the app.
+  CORS CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).

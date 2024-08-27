@@ -84,6 +84,8 @@ type Application interface {
 	GetIntegration() string
 	// GetRequiredApps will return a list of required apps public addrs that should be authenticated during this apps authentication process.
 	GetRequiredApps() []string
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORS
 }
 
 // NewAppV3 creates a new app resource.
@@ -323,6 +325,10 @@ func (a *AppV3) Copy() *AppV3 {
 
 func (a *AppV3) GetRequiredApps() []string {
 	return a.Spec.RequiredApps
+}
+
+func (a *AppV3) GetCORS() *CORS {
+	return a.Spec.CORS
 }
 
 // MatchSearch goes through select field values and tries to

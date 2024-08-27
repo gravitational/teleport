@@ -91,6 +91,32 @@ type App struct {
 	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
 	// be part of the authentication redirect flow and authenticate along side this app.
 	RequiredApps []string
+
+	// CORS defines the Cross-Origin Resource Sharing configuration for the app,
+	// controlling how resources are shared across different origins.
+	CORS *CORS
+}
+
+type CORS struct {
+	// AllowedOrigins specifies the list of origins that are allowed to access the app.
+	// Example: "https://client.teleport.example.com:3080"
+	AllowedOrigins []string `yaml:"allowed_origins"`
+
+	// AllowedMethods specifies the HTTP methods that are allowed when accessing the app.
+	// Example: "POST", "GET", "OPTIONS", "PUT", "DELETE"
+	AllowedMethods []string `yaml:"allowed_methods"`
+
+	// AllowedHeaders specifies the HTTP headers that can be used when making requests to the app.
+	// Example: "Content-Type", "Authorization", "X-Custom-Header"
+	AllowedHeaders []string `yaml:"allowed_headers"`
+
+	// AllowCredentials indicates whether credentials such as cookies or authorization headers
+	// are allowed to be included in the requests.
+	AllowCredentials bool `yaml:"allow_credentials"`
+
+	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
+	// Example: 86400 (which equals 24 hours)
+	MaxAge int `yaml:"max_age"`
 }
 
 // CheckAndSetDefaults validates an application.

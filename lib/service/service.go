@@ -5710,6 +5710,7 @@ func (process *TeleportProcess) initApps() {
 				AWS:                aws,
 				Cloud:              app.Cloud,
 				RequiredApps:       app.RequiredApps,
+				CORS:               makeApplicationCORS(app.CORS),
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6509,6 +6510,21 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 		return web.NewXForwardedForMiddleware
 	}
 	return utils.NoopHTTPMiddleware
+}
+
+// makeApplicationCORS converts a servicecfg.CORS to a types.CORS.
+func makeApplicationCORS(c *servicecfg.CORS) *types.CORS {
+	if c == nil {
+		return nil
+	}
+
+	return &types.CORS{
+		AllowedOrigins:   c.AllowedOrigins,
+		AllowedMethods:   c.AllowedMethods,
+		AllowedHeaders:   c.AllowedHeaders,
+		AllowCredentials: c.AllowCredentials,
+		MaxAge:           int32(c.MaxAge),
+	}
 }
 
 func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*externalauditstorage.Configurator, error) {

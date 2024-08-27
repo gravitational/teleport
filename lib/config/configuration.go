@@ -1988,6 +1988,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			Cloud:              application.Cloud,
 			RequiredApps:       application.RequiredApps,
 		}
+
+		if application.CORS != nil {
+			app.CORS = &servicecfg.CORS{
+				AllowedOrigins:   application.CORS.AllowedOrigins,
+				AllowedMethods:   application.CORS.AllowedMethods,
+				AllowedHeaders:   application.CORS.AllowedHeaders,
+				AllowCredentials: application.CORS.AllowCredentials,
+				MaxAge:           application.CORS.MaxAge,
+			}
+		}
+
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
 			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)
