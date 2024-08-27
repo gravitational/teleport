@@ -125,6 +125,9 @@ const (
 	IncludedResourceModeRequestable = "requestable"
 	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
 	IncludedResourceModeAll = "all"
+	// DefaultLicenseWatchInterval is the default time in which the license watcher
+	// should ping the auth server for new cluster features
+	DefaultLicenseWatchInterval = time.Second * 1 // time.Minute * 2
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -154,12 +157,12 @@ type Handler struct {
 	// userConns tracks amount of current active connections with user certificates.
 	userConns atomic.Int32
 
-	// ClusterFeatures contain flags for supported and unsupported features.
+	// clusterFeatures contain flags for supported and unsupported features.
 	// Note: This field can become stale since it's only set on initial proxy
 	// startup. To get the latest feature flags you'll need to ping from the
 	// auth server.
 	// https://github.com/gravitational/teleport/issues/39161
-	ClusterFeatures proto.Features
+	clusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
@@ -172,6 +175,10 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
+
+	// featureWatcherStop is a channel used to emit a stop signal to the
+	// license watcher goroutine
+	featureWatcherStop chan struct{}
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -315,6 +322,10 @@ type Config struct {
 
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
+
+	// LicenseWatchInterval is the interval between pings to the auth server
+	// to fetch new cluster features
+	LicenseWatchInterval time.Duration
 }
 
 // SetDefaults ensures proper default values are set if
@@ -328,6 +339,10 @@ func (c *Config) SetDefaults() {
 
 	if c.PresenceChecker == nil {
 		c.PresenceChecker = client.RunPresenceTask
+	}
+
+	if c.LicenseWatchInterval == 0 {
+		c.LicenseWatchInterval = DefaultLicenseWatchInterval
 	}
 }
 
@@ -452,10 +467,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
-		ClusterFeatures:      cfg.ClusterFeatures,
+		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
+		featureWatcherStop:   make(chan struct{}),
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -1689,14 +1705,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.ClusterFeatures
-	// ping server to get cluster features since h.ClusterFeatures may be stale
-	pingResponse, err := h.GetProxyClient().Ping(r.Context())
-	if err != nil {
-		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
-	} else {
-		clusterFeatures = *pingResponse.ServerFeatures
-	}
+	clusterFeatures := h.clusterFeatures
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""

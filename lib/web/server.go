@@ -98,6 +98,7 @@ func (s *Server) Serve(l net.Listener) error {
 	if closed {
 		return trace.Errorf("serve called on previously closed server")
 	}
+	go s.cfg.Handler.handler.startFeaturesWatcher()
 	return trace.Wrap(s.cfg.Server.Serve(l))
 }
 
@@ -131,6 +132,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		err = s.ln.Close()
 	}
 	s.mu.Unlock()
+	s.cfg.Handler.handler.stopFeaturesWatcher()
 
 	activeConnections := s.cfg.Handler.handler.userConns.Load()
 	if activeConnections == 0 {
