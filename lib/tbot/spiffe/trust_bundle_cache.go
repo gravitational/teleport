@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"log/slog"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -232,14 +233,39 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		}
 	}()
 
+	authSupportsSPIFFEFederation := false
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case event := <-watcher.Events():
-		if event.Type == types.OpInit {
-			break
+		if event.Type != types.OpInit {
+			return trace.BadParameter("unexpected event type: %v", event.Type)
 		}
-		return trace.BadParameter("unexpected event type: %v", event.Type)
+
+		// Check whether the SPIFFEFederation kind was successfully watched.
+		// If not, we can assume that the Auth Server is too old and disable
+		// other functionality related to SPIFFEFederations.
+		// TODO(noah): DELETE IN V17.0.0
+		watchStatus, ok := event.Resource.(types.WatchStatus)
+		if !ok {
+			return trace.BadParameter(
+				"expected WatchStatus in Init event, got %T", event.Resource,
+			)
+		}
+		authSupportsSPIFFEFederation = slices.ContainsFunc(watchStatus.GetKinds(), func(kind types.WatchKind) bool {
+			return kind.Kind == types.KindSPIFFEFederation
+		})
+		if authSupportsSPIFFEFederation {
+			m.logger.DebugContext(
+				ctx,
+				"Initialization indicates support for SPIFFEFederation resource",
+			)
+		} else {
+			m.logger.WarnContext(
+				ctx,
+				"Initialization indicates the auth server does not support the SPIFFEFederation resource. You will need to upgrade your Auth Server if you wish to use Workload Identity Federation features",
+			)
+		}
 	case <-watcher.Done():
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
@@ -263,21 +289,26 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		return trace.Wrap(err, "converting SPIFFE CA to trust bundle")
 	}
 
-	spiffeFederations, err := listAllSPIFFEFederations(ctx, m.federationClient)
-	if err != nil {
-		return trace.Wrap(err, "fetching SPIFFE federations")
-	}
-	for _, federation := range spiffeFederations {
-		bundle, err := convertSPIFFEFederationToBundle(federation)
+	if authSupportsSPIFFEFederation {
+		spiffeFederations, err := listAllSPIFFEFederations(
+			ctx, m.federationClient,
+		)
 		if err != nil {
-			m.logger.WarnContext(
-				ctx,
-				"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
-				"error", err,
-			)
-			continue
+			return trace.Wrap(err, "fetching SPIFFE federations")
 		}
-		bundleSet.Federated[federation.Metadata.Name] = bundle
+		for _, federation := range spiffeFederations {
+			bundle, err := convertSPIFFEFederationToBundle(federation)
+			if err != nil {
+				m.logger.WarnContext(
+					ctx,
+					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
+					"error", err,
+				)
+				continue
+			}
+			bundleSet.Federated[federation.Metadata.Name] = bundle
+		}
+
 	}
 
 	// The initial state of the bundleSet is now complete, we can set it.
@@ -513,7 +544,10 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 	}
 }
 
-func listAllSPIFFEFederations(ctx context.Context, client machineidv1pb.SPIFFEFederationServiceClient) ([]*machineidv1pb.SPIFFEFederation, error) {
+func listAllSPIFFEFederations(
+	ctx context.Context,
+	client machineidv1pb.SPIFFEFederationServiceClient,
+) ([]*machineidv1pb.SPIFFEFederation, error) {
 	var spiffeFeds []*machineidv1pb.SPIFFEFederation
 	var token string
 	for {
@@ -552,7 +586,9 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 	return bundle, nil
 }
 
-func convertSPIFFEFederationToBundle(federation *machineidv1pb.SPIFFEFederation) (*spiffebundle.Bundle, error) {
+func convertSPIFFEFederationToBundle(
+	federation *machineidv1pb.SPIFFEFederation,
+) (*spiffebundle.Bundle, error) {
 	if federation.Status == nil {
 		return nil, trace.BadParameter("federation missing status")
 	}
