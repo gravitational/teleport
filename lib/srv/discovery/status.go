@@ -39,8 +39,9 @@ import (
 // - AWS EC2 Auto Discover status
 func (s *Server) updateDiscoveryConfigStatus(discoveryConfigName string) {
 	discoveryConfigStatus := discoveryconfig.Status{
-		State:        discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
-		LastSyncTime: s.clock.Now(),
+		State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
+		LastSyncTime:                   s.clock.Now(),
+		IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
 	}
 
 	// Merge AWS Sync (TAG) status
@@ -222,13 +223,17 @@ func (ars *awsResourcesStatus) mergeEC2IntoGlobalStatus(discoveryConfigName stri
 		// Update global discovered resources count.
 		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(groupResult.found)
 
-		// Update counters specific to AWS resources discovered.
-		existingStatus.AWSEC2InstancesDiscovered = append(existingStatus.AWSEC2InstancesDiscovered, &discoveryconfigv1.AWSResourcesDiscoveredSummary{
-			Integration: group.integration,
-			Found:       uint64(groupResult.found),
-			Enrolled:    uint64(groupResult.enrolled),
-			Failed:      uint64(groupResult.failed),
-		})
+		// Update counters specific to AWS EC2 resources discovered.
+		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
+		if !ok {
+			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+		}
+		existingIntegrationResources.AwsEc2 = &discoveryconfigv1.ResourcesDiscoveredSummary{
+			Found:    uint64(groupResult.found),
+			Enrolled: uint64(groupResult.enrolled),
+			Failed:   uint64(groupResult.failed),
+		}
+		existingStatus.IntegrationDiscoveredResources[group.integration] = existingIntegrationResources
 	}
 
 	return existingStatus
