@@ -1236,14 +1236,23 @@ tag-build: CLOUD_ONLY = $(if $(IS_CLOUD_SEMVER),true,false)
 tag-build: ENVIRONMENT = $(if $(IS_PROD_SEMVER),build-prod,build-stage)
 tag-build:
 	@which gh >/dev/null 2>&1 || { echo 'gh command needed. https://github.com/cli/cli'; exit 1; }
-	gh workflow run tag-build.yaml \
+	gh workflow run tag-build-teleport.yaml \
 		--repo gravitational/teleport.e \
 		--ref "v$(VERSION)" \
 		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
 		-f "oss-teleport-ref=v$(VERSION)" \
 		-f "cloud-only=$(CLOUD_ONLY)" \
 		-f "environment=$(ENVIRONMENT)"
-	@echo See runs at: https://github.com/gravitational/teleport.e/actions/workflows/tag-build.yaml
+	gh workflow run tag-build-other.yaml \
+		--repo gravitational/teleport.e \
+		--ref "v$(VERSION)" \
+		-f "oss-teleport-repo=$(shell gh repo view --json nameWithOwner --jq .nameWithOwner)" \
+		-f "oss-teleport-ref=v$(VERSION)" \
+		-f "cloud-only=$(CLOUD_ONLY)" \
+		-f "environment=$(ENVIRONMENT)"
+	@echo See runs at:
+	@echo "  https://github.com/gravitational/teleport.e/actions/workflows/tag-build-teleport.yaml"
+	@echo "  https://github.com/gravitational/teleport.e/actions/workflows/tag-build-other.yaml"
 
 # Publishes a tag build.
 # Starts a tag publish run using e/.github/workflows/tag-publish.yaml
