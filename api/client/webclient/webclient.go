@@ -295,6 +295,8 @@ type PingResponse struct {
 	Proxy ProxySettings `json:"proxy"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
+	// ServerVersion is the version of Teleport that is running.
+	ServerEdition string `json:"server_edition"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
 	// AutoUpdateSettings contains the auto update settings.
@@ -305,6 +307,10 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+
+	AgentAutoupdate          bool `json:"agent_autoupdate"`
+	AgentVersion             bool `json:"agent_version"`
+	AgentUpdateJitterSeconds int  `json:"agent_update_jitter_seconds"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.

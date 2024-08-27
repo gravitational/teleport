@@ -183,6 +183,13 @@ func doEnable(ctx context.Context, cf *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if resp.AgentVersion != cfg.Spec.ActiveVersion {
+
+		cfg.Spec.ActiveVersion = resp.AgentVersion
+	}
+	if cf.Group !=
+	cfg.Spec.Group = cf.Group
+	cfg.Spec.Enabled = true
 
 }
 
