@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { PropsWithChildren, useRef, useState } from 'react';
 
 import { ButtonPrimary } from '../Button';
 import Box from '../Box';
@@ -32,7 +32,7 @@ export default {
 };
 
 export const PlacementExample = () => (
-  <Flex justifyContent="space-between">
+  <Flex m={3} gap={8} flexWrap="wrap">
     <SimpleMenu text="Menu to right">
       <MenuItem>Test</MenuItem>
       <MenuItem>Test2</MenuItem>
@@ -100,41 +100,39 @@ export const IconExample = () => (
   </Menu>
 );
 
-class SimpleMenu extends React.Component {
-  state = {
-    anchorEl: null,
+const SimpleMenu = (
+  props: PropsWithChildren<{
+    text: string;
+    anchorOrigin?: any;
+    transformOrigin?: any;
+  }>
+) => {
+  const anchorElRef = useRef(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const open = () => {
+    setIsOpen(true);
+  };
+  const close = () => {
+    setIsOpen(false);
   };
 
-  handleClickListItem = event => {
-    this.setState({ anchorEl: event.currentTarget });
-  };
+  const { text, anchorOrigin, transformOrigin, children } = props;
 
-  handleMenuItemClick = () => {
-    this.setState({ anchorEl: null });
-  };
-
-  handleClose = () => {
-    this.setState({ anchorEl: null });
-  };
-
-  render() {
-    const { text, anchorOrigin, transformOrigin, children } = this.props;
-    const { anchorEl } = this.state;
-    return (
-      <Box m={11} textAlign="center">
-        <ButtonPrimary size="small" onClick={this.handleClickListItem}>
-          {text}
-        </ButtonPrimary>
-        <Menu
-          anchorOrigin={anchorOrigin}
-          transformOrigin={transformOrigin}
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={this.handleClose}
-        >
-          {children}
-        </Menu>
-      </Box>
-    );
-  }
-}
+  return (
+    <Box textAlign="center">
+      <ButtonPrimary size="small" setRef={anchorElRef} onClick={open}>
+        {text}
+      </ButtonPrimary>
+      <Menu
+        anchorOrigin={anchorOrigin}
+        transformOrigin={transformOrigin}
+        anchorEl={anchorElRef.current}
+        open={isOpen}
+        onClose={close}
+      >
+        {children}
+      </Menu>
+    </Box>
+  );
+};
