@@ -204,6 +204,10 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 
 func (m *TrustBundleCache) watch(ctx context.Context) error {
 	watcher, err := m.eventsClient.NewWatcher(ctx, types.Watch{
+		// AllowPartialSuccess is set to true to account for the possibility that
+		// the Auth Server is too old to support the SPIFFEFederation resource.
+		// TODO(noah): DELETE IN V17.0.0
+		AllowPartialSuccess: true,
 		Kinds: []types.WatchKind{
 			{
 				// Only watch our local cert authority, we rely on the
