@@ -166,7 +166,7 @@ func genRandomPassword(length int) (string, error) {
 }
 
 // newSecretStore create a new secrets store helper for provided database.
-func newSecretStore(ctx context.Context, database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
+func newSecretStore(ctx context.Context, database types.Database, clients cloud.Clients, clusterName string) (secrets.Secrets, error) {
 	secretStoreConfig := database.GetSecretStore()
 
 	meta := database.GetAWS()
@@ -179,8 +179,9 @@ func newSecretStore(ctx context.Context, database types.Database, clients cloud.
 	}
 
 	return secrets.NewAWSSecretsManager(secrets.AWSSecretsManagerConfig{
-		KeyPrefix: secretStoreConfig.KeyPrefix,
-		KMSKeyID:  secretStoreConfig.KMSKeyID,
-		Client:    client,
+		KeyPrefix:   secretStoreConfig.KeyPrefix,
+		KMSKeyID:    secretStoreConfig.KMSKeyID,
+		Client:      client,
+		ClusterName: clusterName,
 	})
 }
