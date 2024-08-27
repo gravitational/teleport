@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
 
@@ -37,11 +36,23 @@ type AutoupdateServiceGetter interface {
 type AutoupdateService interface {
 	AutoupdateServiceGetter
 
+	// CreateAutoupdateConfig creates a AutoupdateConfig.
+	CreateAutoupdateConfig(ctx context.Context, config *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
+
+	// UpdateAutoupdateConfig updates a AutoupdateConfig.
+	UpdateAutoupdateConfig(ctx context.Context, config *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
+
 	// UpsertAutoupdateConfig sets autoupdate configuration.
 	UpsertAutoupdateConfig(ctx context.Context, c *autoupdate.AutoupdateConfig) (*autoupdate.AutoupdateConfig, error)
 
 	// DeleteAutoupdateConfig deletes types.AutoupdateConfig from the backend.
 	DeleteAutoupdateConfig(ctx context.Context) error
+
+	// CreateAutoupdateVersion creates a AutoupdateVersion.
+	CreateAutoupdateVersion(ctx context.Context, config *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error)
+
+	// UpdateAutoupdateVersion updates a AutoupdateVersion.
+	UpdateAutoupdateVersion(ctx context.Context, config *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error)
 
 	// UpsertAutoupdateVersion sets autoupdate version.
 	UpsertAutoupdateVersion(ctx context.Context, c *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error)

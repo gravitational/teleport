@@ -71,6 +71,30 @@ func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 	}, nil
 }
 
+// CreateAutoupdateConfig creates autoupdate configuration singleton.
+func (s *AutoupdateService) CreateAutoupdateConfig(
+	ctx context.Context,
+	c *autoupdate.AutoupdateConfig,
+) (*autoupdate.AutoupdateConfig, error) {
+	if err := update.ValidateAutoupdateConfig(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config, err := s.config.CreateResource(ctx, c)
+	return config, trace.Wrap(err)
+}
+
+// UpdateAutoupdateConfig update autoupdate configuration singleton.
+func (s *AutoupdateService) UpdateAutoupdateConfig(
+	ctx context.Context,
+	c *autoupdate.AutoupdateConfig,
+) (*autoupdate.AutoupdateConfig, error) {
+	if err := update.ValidateAutoupdateConfig(c); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config, err := s.config.UpdateResource(ctx, c)
+	return config, trace.Wrap(err)
+}
+
 // UpsertAutoupdateConfig sets autoupdate configuration.
 func (s *AutoupdateService) UpsertAutoupdateConfig(
 	ctx context.Context,
@@ -94,8 +118,35 @@ func (s *AutoupdateService) DeleteAutoupdateConfig(ctx context.Context) error {
 	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoupdateConfig))
 }
 
+// CreateAutoupdateVersion creates autoupdate version resource.
+func (s *AutoupdateService) CreateAutoupdateVersion(
+	ctx context.Context,
+	v *autoupdate.AutoupdateVersion,
+) (*autoupdate.AutoupdateVersion, error) {
+	if err := update.ValidateAutoupdateVersion(v); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	version, err := s.version.CreateResource(ctx, v)
+	return version, trace.Wrap(err)
+}
+
+// UpdateAutoupdateVersion updates autoupdate version resource.
+func (s *AutoupdateService) UpdateAutoupdateVersion(
+	ctx context.Context,
+	v *autoupdate.AutoupdateVersion,
+) (*autoupdate.AutoupdateVersion, error) {
+	if err := update.ValidateAutoupdateVersion(v); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	version, err := s.version.UpdateResource(ctx, v)
+	return version, trace.Wrap(err)
+}
+
 // UpsertAutoupdateVersion sets autoupdate version resource.
-func (s *AutoupdateService) UpsertAutoupdateVersion(ctx context.Context, v *autoupdate.AutoupdateVersion) (*autoupdate.AutoupdateVersion, error) {
+func (s *AutoupdateService) UpsertAutoupdateVersion(
+	ctx context.Context,
+	v *autoupdate.AutoupdateVersion,
+) (*autoupdate.AutoupdateVersion, error) {
 	if err := update.ValidateAutoupdateVersion(v); err != nil {
 		return nil, trace.Wrap(err)
 	}

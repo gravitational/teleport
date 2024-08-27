@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -1730,6 +1731,42 @@ func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error 
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoupdateConfigCollection struct {
+	config *autoupdate.AutoupdateConfig
+}
+
+func (c *autoupdateConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.config)}
+}
+
+func (c *autoupdateConfigCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Tools Autoupdate Enabled"})
+	t.AddRow([]string{
+		c.config.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.config.GetSpec().GetToolsAutoupdate()),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoupdateVersionCollection struct {
+	version *autoupdate.AutoupdateVersion
+}
+
+func (c *autoupdateVersionCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.version)}
+}
+
+func (c *autoupdateVersionCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Tools Autoupdate Version"})
+	t.AddRow([]string{
+		c.version.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.version.GetSpec().GetToolsVersion()),
+	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

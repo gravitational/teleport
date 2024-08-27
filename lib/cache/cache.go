@@ -496,7 +496,7 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfiguration
-	autoupdateCache              services.AutoupdateService
+	autoupdateCache              *local.AutoupdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access

@@ -95,7 +95,7 @@ func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 	serviceClient := client.AutoupdateServiceClient()
 
 	if c.toolsAutoupdate != "" {
-		config, err := serviceClient.GetAutoupdateConfig(ctx, &autoupdate.GetAutoupdateConfigRequest{})
+		config, err := serviceClient.GetAutoupdateConfig(ctx)
 		if trace.IsNotFound(err) {
 			if config, err = update.NewAutoupdateConfig(&autoupdate.AutoupdateConfigSpec{}); err != nil {
 				return trace.Wrap(err)
@@ -106,16 +106,14 @@ func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 		isEnabled := c.toolsAutoupdate == "on"
 		if isEnabled != config.Spec.ToolsAutoupdate {
 			config.Spec.ToolsAutoupdate = isEnabled
-			if _, err := serviceClient.UpsertAutoupdateConfig(ctx, &autoupdate.UpsertAutoupdateConfigRequest{
-				Config: config,
-			}); err != nil {
+			if _, err := serviceClient.UpsertAutoupdateConfig(ctx, config); err != nil {
 				return trace.Wrap(err)
 			}
 			fmt.Println("autoupdate_config has been upserted")
 		}
 	}
 
-	version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
+	version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx)
 	if trace.IsNotFound(err) {
 		if version, err = update.NewAutoupdateVersion(&autoupdate.AutoupdateVersionSpec{}); err != nil {
 			return trace.Wrap(err)
@@ -125,9 +123,7 @@ func (c *AutoupdateCommand) Upsert(ctx context.Context, client *authclient.Clien
 	}
 	if version.Spec.ToolsVersion != c.toolsAutoupdateVersion {
 		version.Spec.ToolsVersion = c.toolsAutoupdateVersion
-		if _, err := serviceClient.UpsertAutoupdateVersion(ctx, &autoupdate.UpsertAutoupdateVersionRequest{
-			Version: version,
-		}); err != nil {
+		if _, err := serviceClient.UpsertAutoupdateVersion(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Println("autoupdate_version has been upserted")
@@ -194,7 +190,7 @@ func (c *AutoupdateCommand) get(ctx context.Context, client *authclient.Client) 
 		}
 		response.ToolsVersion = find.ToolsVersion
 	} else {
-		version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
+		version, err := client.AutoupdateServiceClient().GetAutoupdateVersion(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

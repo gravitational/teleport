@@ -26,6 +26,12 @@ service AutoupdateService {
   // GetAutoupdateConfig gets the current autoupdate config singleton.
   rpc GetAutoupdateConfig(GetAutoupdateConfigRequest) returns (AutoupdateConfig);
 
+  // CreateAutoupdateConfig creates a new AutoupdateConfig.
+  rpc CreateAutoupdateConfig(CreateAutoupdateConfigRequest) returns (AutoupdateConfig);
+
+  // CreateAutoupdateConfig updates AutoupdateConfig singleton.
+  rpc UpdateAutoupdateConfig(UpdateAutoupdateConfigRequest) returns (AutoupdateConfig);
+
   // UpsertAutoupdateConfig creates a new AutoupdateConfig or replaces an existing AutoupdateConfig.
   rpc UpsertAutoupdateConfig(UpsertAutoupdateConfigRequest) returns (AutoupdateConfig);
 
@@ -34,6 +40,12 @@ service AutoupdateService {
 
   // GetAutoupdateVersion gets the current autoupdate version singleton.
   rpc GetAutoupdateVersion(GetAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // CreateAutoupdateVersion creates a new AutoupdateVersion.
+  rpc CreateAutoupdateVersion(CreateAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // UpdateAutoupdateVersion updates AutoupdateVersion singleton.
+  rpc UpdateAutoupdateVersion(UpdateAutoupdateVersionRequest) returns (AutoupdateVersion);
 
   // UpsertAutoupdateVersion creates a new AutoupdateVersion or replaces an existing AutoupdateVersion.
   rpc UpsertAutoupdateVersion(UpsertAutoupdateVersionRequest) returns (AutoupdateVersion);
@@ -45,6 +57,16 @@ service AutoupdateService {
 // Request for GetAutoupdateConfig.
 message GetAutoupdateConfigRequest {}
 
+// Request for CreateAutoupdateConfig.
+message CreateAutoupdateConfigRequest {
+  AutoupdateConfig config = 1;
+}
+
+// Request for UpdateAutoupdateConfig.
+message UpdateAutoupdateConfigRequest {
+  AutoupdateConfig config = 1;
+}
+
 // Request for UpsertAutoupdateConfig.
 message UpsertAutoupdateConfigRequest {
   AutoupdateConfig config = 1;
@@ -55,6 +77,16 @@ message DeleteAutoupdateConfigRequest {}
 
 // Request for GetAutoupdateVersion.
 message GetAutoupdateVersionRequest {}
+
+// Request for CreateAutoupdateVersion.
+message CreateAutoupdateVersionRequest {
+  AutoupdateVersion version = 1;
+}
+
+// Request for UpdateAutoupdateConfig.
+message UpdateAutoupdateVersionRequest {
+  AutoupdateVersion version = 1;
+}
 
 // Request for UpsertAutoupdateVersion.
 message UpsertAutoupdateVersionRequest {

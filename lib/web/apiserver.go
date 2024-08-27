@@ -1457,16 +1457,16 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	autoupdateConfig, err := h.GetAccessPoint().GetAutoupdateConfig(r.Context())
-	if !trace.IsNotFound(err) && err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
-	} else if !trace.IsNotFound(err) {
+	} else if err == nil {
 		response.ToolsAutoupdate = autoupdateConfig.GetSpec().GetToolsAutoupdate()
 	}
 
 	autoupdateVersion, err := h.GetAccessPoint().GetAutoupdateVersion(r.Context())
-	if !trace.IsNotFound(err) && err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
-	} else if !trace.IsNotFound(err) {
+	} else if err == nil {
 		response.ToolsVersion = autoupdateVersion.GetSpec().GetToolsVersion()
 	}
 

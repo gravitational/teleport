@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/autoupdate"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -66,7 +67,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -892,8 +893,8 @@ func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 }
 
 // AutoupdateServiceClient returns an unadorned client for the Autoupdate service.
-func (c *Client) AutoupdateServiceClient() autoupdate.AutoupdateServiceClient {
-	return autoupdate.NewAutoupdateServiceClient(c.conn)
+func (c *Client) AutoupdateServiceClient() *autoupdate.Client {
+	return autoupdate.NewClient(autoupdatepb.NewAutoupdateServiceClient(c.conn))
 }
 
 // Ping gets basic info about the auth server.
@@ -2870,8 +2871,8 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 }
 
 // GetAutoupdateConfig gets autoupdate configuration.
-func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.AutoupdateConfig, error) {
-	resp, err := c.AutoupdateServiceClient().GetAutoupdateConfig(ctx, &autoupdate.GetAutoupdateConfigRequest{})
+func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdatepb.AutoupdateConfig, error) {
+	resp, err := c.AutoupdateServiceClient().GetAutoupdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2879,8 +2880,8 @@ func (c *Client) GetAutoupdateConfig(ctx context.Context) (*autoupdate.Autoupdat
 }
 
 // GetAutoupdateVersion gets autoupdate version.
-func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdate.AutoupdateVersion, error) {
-	resp, err := c.AutoupdateServiceClient().GetAutoupdateVersion(ctx, &autoupdate.GetAutoupdateVersionRequest{})
+func (c *Client) GetAutoupdateVersion(ctx context.Context) (*autoupdatepb.AutoupdateVersion, error) {
+	resp, err := c.AutoupdateServiceClient().GetAutoupdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

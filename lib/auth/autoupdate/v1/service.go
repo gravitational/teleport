@@ -57,6 +57,44 @@ func (s *Service) GetAutoupdateConfig(ctx context.Context, req *autoupdate.GetAu
 	return config, nil
 }
 
+// CreateAutoupdateConfig creates autoupdate config singleton.
+func (s *Service) CreateAutoupdateConfig(ctx context.Context, req *autoupdate.CreateAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateConfig, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := s.storage.CreateAutoupdateConfig(ctx, req.Config)
+	return config, trace.Wrap(err)
+}
+
+// UpdateAutoupdateConfig updates autoupdate config singleton.
+func (s *Service) UpdateAutoupdateConfig(ctx context.Context, req *autoupdate.UpdateAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateConfig, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config, err := s.storage.UpdateAutoupdateConfig(ctx, req.Config)
+	return config, trace.Wrap(err)
+}
+
 // UpsertAutoupdateConfig updates or creates autoupdate config singleton.
 func (s *Service) UpsertAutoupdateConfig(ctx context.Context, req *autoupdate.UpsertAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -105,6 +143,44 @@ func (s *Service) GetAutoupdateVersion(ctx context.Context, req *autoupdate.GetA
 	}
 
 	return version, nil
+}
+
+// CreateAutoupdateVersion creates autoupdate version singleton.
+func (s *Service) CreateAutoupdateVersion(ctx context.Context, req *autoupdate.CreateAutoupdateVersionRequest) (*autoupdate.AutoupdateVersion, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateVersion, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoupdateVersion, err := s.storage.CreateAutoupdateVersion(ctx, req.Version)
+	return autoupdateVersion, trace.Wrap(err)
+}
+
+// UpdateAutoupdateVersion updates autoupdate version singleton.
+func (s *Service) UpdateAutoupdateVersion(ctx context.Context, req *autoupdate.UpdateAutoupdateVersionRequest) (*autoupdate.AutoupdateVersion, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoupdateVersion, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoupdateVersion, err := s.storage.UpdateAutoupdateVersion(ctx, req.Version)
+	return autoupdateVersion, trace.Wrap(err)
 }
 
 // UpsertAutoupdateVersion updates or creates autoupdate version singleton.
