@@ -59,6 +59,10 @@ const (
 	envoyAllBundlesName = "ALL"
 )
 
+type trustBundleSubscriber interface {
+	Subscribe() (<-chan *spiffe.BundleSet, func())
+}
+
 // spiffeSDSHandler implements an Envoy SDS API.
 //
 // This effectively replaces the Workload API for Envoy, but functions in a
@@ -67,7 +71,7 @@ type spiffeSDSHandler struct {
 	log              *slog.Logger
 	cfg              *config.SPIFFEWorkloadAPIService
 	botCfg           *config.BotConfig
-	trustBundleCache *spiffe.TrustBundleCache
+	trustBundleCache trustBundleSubscriber
 
 	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
 	svidFetcher         func(

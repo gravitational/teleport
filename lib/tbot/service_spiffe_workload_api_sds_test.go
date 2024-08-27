@@ -36,7 +36,7 @@ import (
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/assert"
@@ -50,11 +50,22 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+type mockTrustBundleCache struct {
+	currentBundle *spiffe.BundleSet
+}
+
+func (m *mockTrustBundleCache) Subscribe() (<-chan *spiffe.BundleSet, func()) {
+	ch := make(chan *spiffe.BundleSet, 1)
+	ch <- m.currentBundle
+	return ch, func() {}
+}
 
 // TestSDS_FetchSecrets performs a unit-test over the FetchSecrets method.
 // It tests the generation of the DiscoveryResponses and that authentication
@@ -82,19 +93,20 @@ func TestSDS_FetchSecrets(t *testing.T) {
 		}, nil
 	}
 
-	bundle := x509bundle.New(td)
+	bundle := spiffebundle.New(td)
 	bundle.AddX509Authority(ca)
-	trustBundleGetter := func() *x509bundle.Bundle {
-		return bundle
-	}
-	trustBundleUpdateSubscriber := func() (ch chan struct{}, unsubscribe func()) {
-		return nil, func() {}
+
+	mockBundleCache := &mockTrustBundleCache{
+		currentBundle: &spiffe.BundleSet{
+			Local:     bundle,
+			Federated: make(map[string]*spiffebundle.Bundle),
+		},
 	}
 	svidFetcher := func(
 		ctx context.Context,
 		log *slog.Logger,
-		svidRequests []config.SVIDRequest,
-	) ([]*workloadpb.X509SVID, error) {
+		localBundle *spiffebundle.Bundle,
+		svidRequests []config.SVIDRequest) ([]*workloadpb.X509SVID, error) {
 		if len(svidRequests) != 2 {
 			return nil, trace.BadParameter("expected 2 svids requested")
 		}
@@ -103,11 +115,13 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				SpiffeId:    "spiffe://example.com/default",
 				X509Svid:    []byte("CERT-spiffe://example.com/default"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/default"),
+				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 			{
 				SpiffeId:    "spiffe://example.com/second",
 				X509Svid:    []byte("CERT-spiffe://example.com/second"),
 				X509SvidKey: []byte("KEY-spiffe://example.com/second"),
+				Bundle:      spiffe.MarshalX509Bundle(localBundle.X509Bundle()),
 			},
 		}, nil
 	}
@@ -197,6 +211,7 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				envoyAllBundlesName,
 			},
 		},
+		// TODO(noah): Add test cases for federated bundles!!.
 		{
 			name:          "no results",
 			resourceNames: []string{"spiffe://example.com/not-matching"},
@@ -211,10 +226,9 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				cfg:    cfg,
 				botCfg: botConfig,
 
-				clientAuthenticator:         clientAuthenticator,
-				trustBundleGetter:           trustBundleGetter,
-				trustBundleUpdateSubscriber: trustBundleUpdateSubscriber,
-				svidFetcher:                 svidFetcher,
+				trustBundleCache:    mockBundleCache,
+				clientAuthenticator: clientAuthenticator,
+				svidFetcher:         svidFetcher,
 			}
 
 			req := &discoveryv3pb.DiscoveryRequest{
