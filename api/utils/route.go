@@ -136,6 +136,11 @@ func (m *SSHRouteMatcher) RouteToServerScore(server RouteableServer) (score int)
 		return directMatch
 	}
 
+	// TODO do it properly
+	if server.GetAddr() == "github.com:22" && server.GetHostname() == m.cfg.Host {
+		return directMatch
+	}
+
 	hostnameMatch := m.routeToHostname(server.GetHostname())
 
 	// if the server has connected over a reverse tunnel

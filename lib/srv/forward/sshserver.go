@@ -36,15 +36,18 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -623,6 +626,16 @@ func (s *Server) Serve() {
 
 			s.agentlessSigner = sshSigner
 		}
+		if s.targetServer.GetSubKind() == types.SubKindOpenSSHGitHub {
+			sshSigner, err := s.getSSHSignerForGitHub(ctx)
+			if err != nil {
+				sconn.Close()
+				s.log.Warnf("Unable to generate GitHub user cert for user %v server %v: %v", s.identityContext.TeleportUser, s.targetServer.GetName(), err)
+				return
+			}
+
+			s.agentlessSigner = sshSigner
+		}
 	}
 
 	// Connect and authenticate to the remote node.
@@ -668,6 +681,32 @@ func (s *Server) Serve() {
 	go s.handleConnection(ctx, chans, reqs)
 }
 
+// TODO how to keep a cache for this
+func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) {
+	spec := s.targetServer.GetGitHub()
+	if spec == nil || spec.Integration == "" {
+		return nil, trace.BadParameter("GitHub server %s missing integration", s.targetServer)
+	}
+
+	// generate a new key pair
+	priv, err := native.GeneratePrivateKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := s.authClient.GenerateGitHubUserCert(ctx, &integrationv1.GenerateGitHubUserCertRequest{
+		Integration: spec.Integration,
+		PublicKey:   priv.MarshalSSHPublicKey(),
+		Login:       s.identityContext.Login,
+		KeyId:       s.identityContext.TeleportUser,
+		Ttl:         durationpb.New(10 * time.Duration(time.Minute)),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, err := sshutils.NewSigner(priv.PrivateKeyPEM(), resp.AuthorizedKey)
+	return signer, trace.Wrap(err)
+}
+
 func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, error) {
 	awsInfo := s.targetServer.GetAWSInfo()
 	if awsInfo == nil {
@@ -679,7 +718,7 @@ func (s *Server) sendSSHPublicKeyToTarget(ctx context.Context) (ssh.Signer, erro
 		return nil, trace.BadParameter("failed to generate aws token: %v", err)
 	}
 
-	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration)
+	integration, err := s.authClient.GetIntegration(ctx, awsInfo.Integration, false)
 	if err != nil {
 		return nil, trace.BadParameter("failed to fetch integration details: %v", err)
 	}
@@ -745,6 +784,13 @@ func (s *Server) Close() error {
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
+	// What?
+	hostKeyCallback := s.authHandlers.HostKeyAuth
+	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHGitHub {
+		hostKeyCallback = ssh.InsecureIgnoreHostKey()
+		systemLogin = "git"
+	}
+
 	// the proxy will use the agentless signer as the auth method when
 	// connecting to the remote host if it is available, otherwise the
 	// forwarded agent is used
@@ -765,7 +811,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
-		HostKeyCallback: s.authHandlers.HostKeyAuth,
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
 

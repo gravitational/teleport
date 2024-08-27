@@ -81,15 +81,42 @@ func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	/* TODO fix cache?
+	for _, ig := range igs {
+		switch ig.GetSubKind() {
+		case types.IntegrationSubKindGitHub:
+			if ig.GetGitHubIntegrationSpec().Proxy != nil {
+				cas := ig.GetGitHubIntegrationSpec().Proxy.CertAuthority
+				for _, ca := range cas {
+					ca.PrivateKey = nil
+				}
+				ig.SetGitHubSSHCertAuthority(cas)
+			}
+		}
+	}
+	*/
 
 	return igs, nextKey, nil
 }
 
 // GetIntegration returns the specified Integration resource.
-func (s *IntegrationsService) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (s *IntegrationsService) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
 	ig, err := s.svc.GetResource(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if !withSecrets {
+		switch ig.GetSubKind() {
+		case types.IntegrationSubKindGitHub:
+			if ig.GetGitHubIntegrationSpec().Proxy != nil {
+				cas := ig.GetGitHubIntegrationSpec().Proxy.CertAuthority
+				for _, ca := range cas {
+					ca.PrivateKey = nil
+				}
+				ig.SetGitHubSSHCertAuthority(cas)
+			}
+		}
 	}
 
 	return ig, nil

@@ -21,11 +21,14 @@ package integrationv1
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -33,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -57,6 +61,10 @@ type Cache interface {
 type KeyStoreManager interface {
 	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
 	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
+	// NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
+	NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error)
+	// TODO
+	GetSSHSignerForKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -175,10 +183,23 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
+	readVerb := types.VerbReadNoSecrets
+	if req.WithSecrets {
+		readVerb = types.VerbRead
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integration, err := s.cache.GetIntegration(ctx, req.GetName())
+
+	// Require admin MFA to read secrets.
+	if req.WithSecrets {
+		if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	integration, err := s.cache.GetIntegration(ctx, req.GetName(), req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -202,7 +223,21 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
+	// TODO move to a helper?
+	reqIg := req.GetIntegration()
+	if reqIg.GetSubKind() == types.IntegrationSubKindGitHub {
+		// TODO make your own purpose?
+		ca, err := s.keyStoreManager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// TODO(greedy52) support per auth CA like HSM.
+		if err := reqIg.SetGitHubSSHCertAuthority([]*types.SSHKeyPair{ca}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	ig, err := s.backend.CreateIntegration(ctx, reqIg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +327,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.cache.GetIntegration(ctx, req.GetName())
+	ig, err := s.cache.GetIntegration(ctx, req.GetName(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -339,6 +374,10 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 			TenantID: ig.GetAzureOIDCIntegrationSpec().TenantID,
 			ClientID: ig.GetAzureOIDCIntegrationSpec().ClientID,
 		}
+	case types.IntegrationSubKindGitHub:
+		igMeta.GitHub = &apievents.GitHubIntegrationMetadata{
+			Organization: ig.GetGitHubIntegrationSpec().Organization,
+		}
 	default:
 		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
 	}
@@ -350,4 +389,58 @@ func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata
 // DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
 	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
+}
+
+func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.GenerateGitHubUserCertRequest) (*integrationpb.GenerateGitHubUserCertResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		return nil, trace.AccessDenied("GenerateGitHubUserCert is only available to proxy services")
+	}
+
+	key, _, _, _, err := ssh.ParseAuthorizedKey(in.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integration, err := s.cache.GetIntegration(ctx, in.Integration, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	spec := integration.GetGitHubIntegrationSpec()
+	if !spec.Proxy.Enabled {
+		return nil, trace.BadParameter("GitHub Proxy for integration %s is disabled", in.Integration)
+	}
+
+	caSigner, err := s.keyStoreManager.GetSSHSignerForKeySet(ctx, types.CAKeySet{
+		SSH: spec.Proxy.CertAuthority,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO clockwork?
+	now := time.Now()
+	validAfter := now.Add(-time.Minute)
+	expires := now.Add(in.Ttl.AsDuration())
+	newSSHCert := &ssh.Certificate{
+		Key:         key,
+		CertType:    ssh.UserCert,
+		KeyId:       in.KeyId,
+		ValidAfter:  uint64(validAfter.Unix()),
+		ValidBefore: uint64(expires.Unix()),
+	}
+	newSSHCert.Extensions = map[string]string{
+		"login@github.com": in.Login,
+	}
+	if err := newSSHCert.SignCert(rand.Reader, caSigner); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &integrationpb.GenerateGitHubUserCertResponse{
+		AuthorizedKey: ssh.MarshalAuthorizedKey(newSSHCert),
+	}, nil
 }

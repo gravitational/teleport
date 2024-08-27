@@ -49,6 +49,8 @@ type ExportAuthoritiesRequest struct {
 	AuthType                   string
 	ExportAuthorityFingerprint string
 	UseCompatVersion           bool
+	// TODO
+	Integration string
 }
 
 // ExportAuthorities returns the list of authorities in OpenSSH compatible formats as a string.

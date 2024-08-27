@@ -17,7 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"sort"
 	"strings"
@@ -101,6 +103,8 @@ type Server interface {
 	GetAWSInstanceID() string
 	// GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
 	GetAWSAccountID() string
+	// GetGitHub returns the GitHub server spec.
+	GetGitHub() *GitHubServerMetadata
 }
 
 // NewServer creates an instance of Server.
@@ -404,7 +408,7 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
-	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode || subkind == SubKindOpenSSHGitHub
 }
 
 // GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
@@ -427,6 +431,11 @@ func (s *ServerV2) GetAWSInstanceID() string {
 		awsInstanceID = awsMetadata.InstanceID
 	}
 	return awsInstanceID
+}
+
+// GetGitHub returns the GitHub server spec.
+func (s *ServerV2) GetGitHub() *GitHubServerMetadata {
+	return s.Spec.GitHub
 }
 
 // IsEICE returns whether the Node is an EICE instance.
@@ -492,6 +501,23 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+const gitHubAddress = "github.com:22"
+
+func (s *ServerV2) githubCheckAndSetDefaults() error {
+	switch s.Spec.Addr {
+	case gitHubAddress:
+	case "":
+		s.Spec.Addr = gitHubAddress
+	default:
+		slog.WarnContext(context.Background(), "invalid address for GitHub server. Address will be replaced with %q", gitHubAddress)
+		s.Spec.Addr = gitHubAddress
+	}
+	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // serverNameForEICE returns the deterministic Server's name for an EICE instance.
 // This name must comply with the expected format for EC2 Nodes as defined here: api/utils/aws.IsEC2NodeID
 // Returns an error if AccountID or InstanceID is not present.
@@ -529,6 +555,8 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			// if the server is a registered OpenSSH node, allow the name to be
 			// randomly generated
 			s.Metadata.Name = uuid.NewString()
+		case SubKindOpenSSHGitHub:
+			s.Metadata.Name = uuid.NewString()
 		}
 	}
 
@@ -553,6 +581,11 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 	case SubKindOpenSSHEICENode:
 		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+	case SubKindOpenSSHGitHub:
+		if err := s.githubCheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 

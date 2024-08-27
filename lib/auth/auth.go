@@ -68,6 +68,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -657,6 +658,11 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
+}
+
+// TODO
+func (r *Services) GenerateGitHubUserCert(ctx context.Context, in *integrationv1.GenerateGitHubUserCertRequest) (*integrationv1.GenerateGitHubUserCertResponse, error) {
+	return r.IntegrationsTokenGenerator.GenerateGitHubUserCert(ctx, in)
 }
 
 var (

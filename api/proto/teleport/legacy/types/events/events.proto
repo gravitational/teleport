@@ -4263,6 +4263,8 @@ message IntegrationMetadata {
   AWSOIDCIntegrationMetadata AWSOIDC = 2 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   // AzureOIDC contains metadata for Azure OIDC integrations.
   AzureOIDCIntegrationMetadata AzureOIDC = 3 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+  // GitHub contains metadata for GitHub integrations.
+  GitHubIntegrationMetadata GitHub = 4 [(gogoproto.jsontag) = "github,omitempty"];
 }
 
 // AWSOIDCIntegrationMetadata contains metadata for AWS OIDC integrations.
@@ -4409,6 +4411,12 @@ message PluginMetadata {
 
   // reuses_credentials indicates whether the plugin reuses credentials.
   bool reuses_credentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
+}
+
+// GitHubIntegrationMetadata contains metadata for GitHub integrations.
+message GitHubIntegrationMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service

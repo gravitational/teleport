@@ -147,7 +147,7 @@ type ExternalAuditStorageGetter interface {
 // integration by name.
 type IntegrationGetter interface {
 	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error)
 }
 
 // NewConfigurator returns a new Configurator set up with the current active
@@ -188,7 +188,7 @@ func newConfigurator(ctx context.Context, spec *externalauditstorage.ExternalAud
 	}
 
 	oidcIntegrationName := spec.IntegrationName
-	integration, err := integrationSvc.GetIntegration(ctx, oidcIntegrationName)
+	integration, err := integrationSvc.GetIntegration(ctx, oidcIntegrationName, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound(

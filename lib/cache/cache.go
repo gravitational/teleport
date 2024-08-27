@@ -167,7 +167,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
-		{Kind: types.KindIntegration},
+		{Kind: types.KindIntegration, LoadSecrets: true},
 		{Kind: types.KindHeadlessAuthentication},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
@@ -2853,7 +2853,7 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 }
 
 // GetIntegration returns the specified Integration resources.
-func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+func (c *Cache) GetIntegration(ctx context.Context, name string, withSecrets bool) (types.Integration, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
@@ -2862,7 +2862,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.GetIntegration(ctx, name)
+	return rg.reader.GetIntegration(ctx, name, withSecrets)
 }
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.

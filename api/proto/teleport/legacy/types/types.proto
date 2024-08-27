@@ -841,6 +841,10 @@ message ServerSpecV2 {
   // on, if any.
   CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
 
+  // GitHub contains info about GitHub proxies where each server represents a
+  // GitHub organization.
+  GitHubServerMetadata git_hub = 15 [(gogoproto.jsontag) = "github,omitempty"];
+
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
@@ -871,6 +875,13 @@ message AWSInfo {
 message CloudMetadata {
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+message GitHubServerMetadata {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+  // Integration is the integration that is associated with this Server.
+  string integration = 2 [(gogoproto.jsontag) = "integration,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -6857,6 +6868,8 @@ message IntegrationSpecV1 {
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
     // AzureOIDC contains the specific fields to handle the Azure OIDC Integration subkind
     AzureOIDCIntegrationSpecV1 AzureOIDC = 2 [(gogoproto.jsontag) = "azure_oidc,omitempty"];
+    // GitHub contains the specific fields to handle the GitHub integration subkind.
+    GitHubIntegrationSpecV1 GitHub = 3 [(gogoproto.jsontag) = "github,omitempty"];
   }
 }
 
@@ -6892,6 +6905,27 @@ message AzureOIDCIntegrationSpecV1 {
   // ClientID specifies the ID of Azure enterprise application (client)
   // that corresponds to this plugin.
   string ClientID = 2 [(gogoproto.jsontag) = "client_id,omitempty"];
+}
+
+// GitHubIntegrationSpecV1 contains the specific fields to handle the GitHub integration subkind.
+message GitHubIntegrationSpecV1 {
+  // Organization specifies the name of the organization for the GitHub integration.
+  string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+
+  // Proxy specifies GitHub proxy related settings.
+  GitHubProxy proxy = 2 [(gogoproto.jsontag) = "proxy,omitempty"];
+}
+
+// GitHubProxy specifies GitHub proxy related settings.
+message GitHubProxy {
+  // Enabled indicates GitHub proxy should be enabled.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+
+  // CertAuthority contains the active SSH CAs used between Teleport and
+  // GitHub. GitHub does not allow the same CA to be used for a different
+  // organization so the CA is defined per integration. TODO(greedy52) support
+  // rotation, HSM encryption.
+  repeated SSHKeyPair cert_authority = 2 [(gogoproto.jsontag) = "cert_authority,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

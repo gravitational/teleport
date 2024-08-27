@@ -271,6 +271,10 @@ func (m *Manager) GetAdditionalTrustedSSHSigner(ctx context.Context, ca types.Ce
 	return signer, trace.Wrap(err)
 }
 
+func (m *Manager) GetSSHSignerForKeySet(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
+	return m.getSSHSigner(ctx, keySet)
+}
+
 func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.Signer, error) {
 	for _, backend := range m.usableSigningBackends {
 		for _, keyPair := range keySet.SSH {

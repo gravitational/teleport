@@ -85,6 +85,7 @@ type AuthCommand struct {
 	password                   string
 	caType                     string
 	streamTarfile              bool
+	integration                string
 	identityWriter             identityfile.ConfigWriter
 
 	rotateGracePeriod time.Duration
@@ -204,6 +205,7 @@ var allowedCertificateTypes = []string{
 	"db-client-der",
 	"openssh",
 	"saml-idp",
+	"github",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can

@@ -163,6 +163,12 @@ const (
 	// It uses the private key created above to SSH into the host.
 	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
+	// SubKindOpenSSHGitHub is a virtual presentation of the GitHub server (per
+	// organization) for proxing Git protocol to GitHub over SSH.
+	//
+	// It uses a Teleport CA that is stored per GitHub integration.
+	SubKindOpenSSHGitHub = "openssh-github"
+
 	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
 	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
 	KindUnifiedResource = "unified_resource"

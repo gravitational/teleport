@@ -549,6 +549,13 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// GitUsername
+	GitUsername string
+	// GitServer
+	GitServer string
+	// GitURL
+	GitURL string
 }
 
 // Stdout returns the stdout writer.
@@ -1203,6 +1210,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
+	git := app.Command("git", "Git proxy commands.")
+	gitClone := git.Command("clone", "Git clone.")
+	gitClone.Flag("username", "Git username.").Required().StringVar(&cf.GitUsername)
+	gitClone.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
+
+	gitSSH := git.Command("ssh", "Proxy Git SSH.").Hidden()
+	gitSSH.Flag("username", "Git username.").Required().StringVar(&cf.GitUsername)
+	gitSSH.Flag("server", "Git proxy server.").Required().StringVar(&cf.GitServer)
+	gitSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	gitSSH.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
+	gitSSH.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
+
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
@@ -1572,6 +1591,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetAdminSetupCmd.run(&cf)
 	case vnetDaemonCmd.FullCommand():
 		err = vnetDaemonCmd.run(&cf)
+	case gitSSH.FullCommand():
+		err = onGitSSH(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {

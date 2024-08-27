@@ -1813,6 +1813,9 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
+
+	// TODO is there a better place for this?
+	GenerateGitHubUserCert(ctx context.Context, in *integrationv1.GenerateGitHubUserCertRequest) (*integrationv1.GenerateGitHubUserCertResponse, error)
 }
 
 type CreateAppSessionForV15Client interface {

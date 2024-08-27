@@ -20,10 +20,12 @@ package srv
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +35,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -381,9 +385,13 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 		return nil, trace.Wrap(err)
 	}
 
+	gitHubAuditor := &gitHubAuditor{
+		command: e.GetCommand(),
+	}
 	go func() {
+		defer gitHubAuditor.close()
 		// copy from the channel (client) into stdin of the process
-		if _, err := io.Copy(inputWriter, ch); err != nil {
+		if _, err := io.Copy(io.MultiWriter(inputWriter, gitHubAuditor), ch); err != nil {
 			e.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
 		}
 		inputWriter.Close()
@@ -395,6 +403,48 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	}
 
 	return nil, nil
+}
+
+type gitHubAuditor struct {
+	command string
+
+	// TODO avoid a copy, just pipe it to reader
+	cachedPayload []byte
+}
+
+func (a *gitHubAuditor) Write(p []byte) (int, error) {
+	a.cachedPayload = append(a.cachedPayload, p...)
+	return len(p), nil
+}
+
+func (a *gitHubAuditor) close() {
+	switch {
+	case strings.HasPrefix(a.command, gittransport.UploadPackServiceName):
+		slog.InfoContext(context.Background(), "[===AUDIT===] git fetch")
+	case strings.HasPrefix(a.command, gittransport.ReceivePackServiceName):
+		if len(a.cachedPayload) > 4 {
+			request := packp.NewReferenceUpdateRequest()
+			err := request.Decode(bytes.NewReader(a.cachedPayload))
+			if err != nil {
+				slog.InfoContext(context.Background(), "[===AUDIT===] git push, but error when decoding packp", "error", err)
+			} else {
+				for _, command := range request.Commands {
+					switch command.Action() {
+					case packp.Create:
+						slog.DebugContext(context.Background(), "[===AUDIT===] user created a new reference.", "reference", command.Name, "to", command.New)
+					case packp.Update:
+						slog.DebugContext(context.Background(), "[===AUDIT===] user updated a reference.", "reference", command.Name, "from", command.Old, "to", command.New)
+					case packp.Delete:
+						slog.DebugContext(context.Background(), "[===AUDIT===] user deleted a reference.", "reference", command.Name, "from", command.Old)
+					default:
+						slog.DebugContext(context.Background(), "unknown git action", "command", command.Action())
+					}
+				}
+			}
+		} else {
+			slog.InfoContext(context.Background(), "[===AUDIT===] git push but server up-to-update")
+		}
+	}
 }
 
 // Wait will block while the command executes.
