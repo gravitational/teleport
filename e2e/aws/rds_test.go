@@ -203,8 +203,6 @@ func testRDS(t *testing.T) {
 	})
 
 	t.Run("mysql", func(t *testing.T) {
-		t.Skip("Disabled for now due to https://github.com/gravitational/teleport/issues/45672")
-
 		t.Parallel()
 
 		// wait for the database to be discovered
