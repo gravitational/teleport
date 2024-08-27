@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from './Box';
+import 'styled-system';
 
-export default Box;
+declare module 'styled-system' {
+  export function style(args: LowLevelStylefunctionArguments): styleFn;
+
+  export interface styleFn {
+    (...args: any[]): any;
+    propTypes: React.WeakValidationMap<{ [string]: any }>;
+  }
+}

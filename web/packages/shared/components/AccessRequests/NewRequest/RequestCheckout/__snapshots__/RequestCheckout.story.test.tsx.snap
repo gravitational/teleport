@@ -1201,7 +1201,6 @@ exports[`failed state 1`] = `
               >
                 <label
                   class="c28"
-                  font-size="0"
                 >
                   Start Date
                 </label>
@@ -1237,7 +1236,6 @@ exports[`failed state 1`] = `
             <label
               class="c28"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
@@ -1348,7 +1346,6 @@ exports[`failed state 1`] = `
           </div>
           <label
             class="c28"
-            font-size="0"
           >
             Request Reason
             <textarea
@@ -2954,7 +2951,6 @@ exports[`loaded state 1`] = `
               >
                 <label
                   class="c36"
-                  font-size="0"
                 >
                   Start Date
                 </label>
@@ -2990,7 +2986,6 @@ exports[`loaded state 1`] = `
             <label
               class="c36"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
@@ -3101,7 +3096,6 @@ exports[`loaded state 1`] = `
           </div>
           <label
             class="c36"
-            font-size="0"
           >
             Request Reason
             <textarea

@@ -334,6 +334,28 @@ export const HardwareCredentialPrompt = () => {
   );
 };
 
+export const HardwareCredentialPromptProcessing = () => {
+  const props = makeProps();
+  props.loginAttempt.status = 'processing';
+  props.webauthnLogin = {
+    prompt: 'credential',
+    loginUsernames: [
+      'apple',
+      'banana',
+      'blueberry',
+      'carrot',
+      'durian',
+      'pumpkin',
+      'strawberry',
+    ],
+  };
+  props.webauthnLogin.processing = true;
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
 export const SsoPrompt = () => {
   const props = makeProps();
   props.loginAttempt.status = 'processing';
