@@ -794,6 +794,8 @@ func TestAWSOIDCRequiredVPCSHelper(t *testing.T) {
 			Labels: map[string]string{types.AWSOIDCAgentLabel: types.True},
 		}, types.DatabaseServiceSpecV1{
 			ResourceMatchers: matcher,
+		}, types.DatabaseServiceStatusV1{
+			Hostname: "my-hostname",
 		})
 		require.NoError(t, err)
 		_, err = env.server.Auth().UpsertDatabaseService(ctx, svc)

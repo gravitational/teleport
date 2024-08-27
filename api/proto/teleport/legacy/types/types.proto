@@ -5710,6 +5710,17 @@ message DatabaseServiceV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // Status is the resource status.
+  DatabaseServiceStatusV1 Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+}
+
+// DatabaseServiceStatusV1 is the DatabaseService Status.
+message DatabaseServiceStatusV1 {
+  // Hostname is the hostname where this service is running.
+  string Hostname = 1 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseServiceSpecV1 is the DatabaseService Spec.

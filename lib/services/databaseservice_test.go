@@ -39,6 +39,8 @@ func TestDatabaseServiceUnmarshal(t *testing.T) {
 				},
 			},
 		},
+	}, types.DatabaseServiceStatusV1{
+		Hostname: "my-hostname",
 	})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(dbServiceYAML))
@@ -61,6 +63,8 @@ func TestDatabaseServiceMarshal(t *testing.T) {
 				},
 			},
 		},
+	}, types.DatabaseServiceStatusV1{
+		Hostname: "my-hostname",
 	})
 	require.NoError(t, err)
 	data, err := MarshalDatabaseService(expected)

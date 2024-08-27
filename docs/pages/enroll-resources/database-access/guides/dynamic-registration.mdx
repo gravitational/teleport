@@ -36,6 +36,26 @@ resources:
     "engine": "mysql"
 ```
 
+To see the currently running Database Services, run `tctl get db_services`:
+
+```yaml
+kind: db_service
+metadata:
+  expires: "2024-08-27T11:38:10.207175Z"
+  name: 2b5207e3-a258-423e-a41d-e50ea2f0dfdc
+spec:
+  resources:
+  - labels:
+      env: prod
+      engine: postgres
+  - labels:
+      env: test
+      engine: mysql
+status:
+  hostname: my-host
+version: v1
+```
+
 Next define a database resource:
 
 ```yaml

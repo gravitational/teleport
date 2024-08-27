@@ -3353,6 +3353,8 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 				},
 			},
 		},
+	}, types.DatabaseServiceStatusV1{
+		Hostname: "my-hostname",
 	})
 	require.NoError(t, err)
 
@@ -3367,6 +3369,8 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 				},
 			},
 		},
+	}, types.DatabaseServiceStatusV1{
+		Hostname: "my-hostname",
 	})
 	require.NoError(t, err)
 

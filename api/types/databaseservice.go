@@ -37,12 +37,13 @@ type DatabaseService interface {
 }
 
 // NewDatabaseServiceV1 creates a new DatabaseService instance.
-func NewDatabaseServiceV1(meta Metadata, spec DatabaseServiceSpecV1) (*DatabaseServiceV1, error) {
+func NewDatabaseServiceV1(meta Metadata, spec DatabaseServiceSpecV1, status DatabaseServiceStatusV1) (*DatabaseServiceV1, error) {
 	s := &DatabaseServiceV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: meta,
 		},
-		Spec: spec,
+		Spec:   spec,
+		Status: status,
 	}
 
 	if err := s.CheckAndSetDefaults(); err != nil {
