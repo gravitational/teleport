@@ -632,7 +632,7 @@ func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.Pro
 			Organization: []string{"Teleport"},
 		},
 		Signer:      keyRing.PrivateKey.Signer,
-		DNSNames:    []string{"localhost"},
+		DNSNames:    []string{"localhost", "host.docker.internal"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,
 	})
