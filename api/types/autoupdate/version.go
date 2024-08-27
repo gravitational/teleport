@@ -19,6 +19,7 @@
 package autoupdate
 
 import (
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -58,6 +59,8 @@ func ValidateAutoupdateVersion(v *autoupdate.AutoupdateVersion) error {
 
 	if v.Spec.ToolsVersion == "" {
 		return trace.BadParameter("ToolsVersion is unset")
+	} else if _, err := semver.NewVersion(v.Spec.ToolsVersion); err != nil {
+		return trace.BadParameter("ToolsVersion is not a valid semantic version")
 	}
 
 	return nil
