@@ -969,6 +969,9 @@ message AppSpecV3 {
   // Only applicable to AWS App Access.
   // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
   string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
+  // RequiredApps is a list of app public_addr that are required for this app to function. Any app listed here will
+  // be part of the authentication redirect flow and authenticate along side this app.
+  repeated string RequiredApps = 10 [(gogoproto.jsontag) = "required_apps,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
