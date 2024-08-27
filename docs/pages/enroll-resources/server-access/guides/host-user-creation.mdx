@@ -261,6 +261,13 @@ the potential impacts.
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
 
+## Migrating unmanaged users
+
+Host users created with `create_host_user_mode: keep` prior to `v14.3.24`, `v15.4.16`, and `v16.1.8`
+will not be managed by later versions of Teleport. In order to migrate these users automatically on their next
+session, you can add `teleport-keep` to your role's `host_groups`. Host users can also be migrated manually by adding
+them to the `teleport-keep` group directly on the hosts you wish to migrate.
+
 ## Next steps
 
 - Configure automatic user provisioning for [Database Access](../../database-access/auto-user-provisioning.mdx).
