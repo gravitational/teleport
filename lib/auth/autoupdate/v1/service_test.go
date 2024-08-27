@@ -83,6 +83,24 @@ func TestServiceAccess(t *testing.T) {
 		disallowedStates []authz.AdminActionAuthState
 	}{
 		{
+			name: "CreateAutoupdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
+		},
+		{
+			name: "UpdateAutoupdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
+		{
 			name: "UpsertAutoupdateConfig",
 			allowedStates: []authz.AdminActionAuthState{
 				authz.AdminActionAuthNotRequired,
@@ -103,6 +121,24 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs:  []string{types.VerbDelete},
 		},
 		// Autoupdate version check.
+		{
+			name: "CreateAutoupdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbCreate},
+		},
+		{
+			name: "UpdateAutoupdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbUpdate},
+		},
 		{
 			name: "UpsertAutoupdateVersion",
 			allowedStates: []authz.AdminActionAuthState{
