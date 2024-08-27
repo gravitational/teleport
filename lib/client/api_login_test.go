@@ -392,8 +392,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
 			},
-			// TODO(nklaassen): split SSH private key from TLS key.
-			SSHSigner: keyRing.PrivateKey,
+			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
@@ -468,7 +467,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
 			},
-			SSHSigner: keyRing.PrivateKey,
+			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")

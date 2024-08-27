@@ -122,6 +122,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	clusterName := facade.Get().ClusterName
 
 	// generate a keypair
+	// TODO(nklaassen): get away from RSA here.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
@@ -129,7 +130,7 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         keyRing.PrivateKey.MarshalSSHPublicKey(),
+		Key:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  s.cfg.Principals,

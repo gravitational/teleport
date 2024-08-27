@@ -114,10 +114,12 @@ func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (
 		KeyRingIndex: client.KeyRingIndex{
 			ClusterName: ident.ClusterName,
 		},
-		PrivateKey:   pk,
-		Cert:         ident.CertBytes,
-		TLSCert:      ident.TLSCertBytes,
-		TrustedCerts: authclient.AuthoritiesToTrustedCerts(hostCAs),
+		// tobt identities use a single private key for SSH and TLS.
+		SSHPrivateKey: pk,
+		TLSPrivateKey: pk,
+		Cert:          ident.CertBytes,
+		TLSCert:       ident.TLSCertBytes,
+		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
 
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted
@@ -233,8 +235,8 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 
 // generateKeys generates TLS and SSH keypairs.
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
-	// TODO(nklaassen): split SSH and TLS keys, support configurable key
-	// algorithms.
+	// TODO(nklaassen): consider splitting SSH and TLS keys, support
+	// configurable key algorithms.
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
@@ -325,7 +327,8 @@ func generateIdentity(
 	// Generate a fresh keypair for the impersonated identity. We don't care to
 	// reuse keys here: impersonated certs might not be as well-protected so
 	// constantly rotating private keys
-	// TODO(nklaassen): split SSH and TLS keys, support configurable algorithms.
+	// TODO(nklaassen): consider splitting SSH and TLS keys, support
+	// configurable algorithms.
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	if err != nil {
 		return nil, trace.Wrap(err)

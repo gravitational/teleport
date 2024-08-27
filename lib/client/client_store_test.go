@@ -69,11 +69,13 @@ func newTestAuthority(t *testing.T) testAuthority {
 
 // makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
 func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
-	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
 	require.NoError(t, err)
-	keyPEM, err := keys.MarshalPrivateKey(signer)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	require.NoError(t, err)
-	priv, err := keys.NewPrivateKey(signer, keyPEM)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
 
 	allowedLogins := []string{idx.Username, "root"}
@@ -82,8 +84,6 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		ttl = -ttl
 	}
 
-	// reuse the same keys for SSH and TLS keys
-	// TODO(nklaassen): don't reuse these keys.
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
@@ -93,7 +93,7 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: tlsKey.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -104,7 +104,7 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 
 	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		PublicUserKey:         sshPriv.MarshalSSHPublicKey(),
 		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
@@ -113,15 +113,14 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	})
 	require.NoError(t, err)
 
-	keyRing := NewKeyRing(priv)
+	keyRing := NewKeyRing(sshPriv, tlsPriv)
 	keyRing.KeyRingIndex = idx
-	keyRing.PrivateKey = priv
 	keyRing.Cert = cert
 	keyRing.TLSCert = tlsCert
 	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
 	keyRing.DBTLSCredentials["example-db"] = TLSCredential{
 		Cert:       tlsCert,
-		PrivateKey: priv,
+		PrivateKey: tlsPriv,
 	}
 	return keyRing
 }
@@ -412,7 +411,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			Username:    "tester",
 			ClusterName: "teleportcluster",
 		},
-		PrivateKey:         privateKey,
+		TLSPrivateKey:      privateKey,
 		TLSCert:            certPEM,
 		KubeTLSCredentials: make(map[string]TLSCredential, 10),
 	}

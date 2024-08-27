@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
@@ -363,12 +364,13 @@ func TestWithRsync(t *testing.T) {
 					}
 					defer conn.Close()
 
-					// the child will send the public key
-					key := make([]byte, 512)
-					_, err = conn.Read(key)
-					if !assert.NoError(t, err) {
-						return
-					}
+					// the child will send the SSH public key and then the TLS
+					// public key, with a 0 byte after key as a delimiter
+					reader := bufio.NewReader(conn)
+					sshPubKey, err := reader.ReadBytes(0)
+					require.NoError(t, err)
+					tlsPubKey, err := reader.ReadBytes(0)
+					require.NoError(t, err)
 
 					// generate certificates for our user
 					clusterName, err := asrv.GetClusterName()
@@ -376,7 +378,8 @@ func TestWithRsync(t *testing.T) {
 						return
 					}
 					sshCert, tlsCert, err := asrv.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-						Key:            key,
+						SSHPubKey:      sshPubKey,
+						TLSPubKey:      tlsPubKey,
 						Username:       s.user.GetName(),
 						TTL:            time.Hour,
 						Compatibility:  constants.CertificateFormatStandard,
@@ -1528,6 +1531,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// TODO(nklaassen): get away from RSA here.
 	keyRing, err := client.GenerateRSAKeyRing()
 	require.NoError(t, err)
 	keyRing.ClusterName = clusterName
@@ -1536,8 +1540,11 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	// with `tsh app login`, this is intended to match Machine ID-type certs
 	// which are not usage restricted to apps only; this is required for tsh to
 	// make other auth API calls beyond just accessing the app.
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	require.NoError(t, err)
 	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            keyRing.PrivateKey.MarshalSSHPublicKey(),
+		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		TLSPubKey:      tlsPub,
 		Username:       userName,
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,

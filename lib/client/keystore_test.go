@@ -135,7 +135,9 @@ func TestListKeys(t *testing.T) {
 		skeyRing, err := keyStore.GetKeyRing(samIdx, WithSSHCerts{})
 		require.NoError(t, err)
 		require.Equal(t, samKeyRing.Cert, skeyRing.Cert)
-		require.Equal(t, samKeyRing.PrivateKey.MarshalSSHPublicKey(), skeyRing.PrivateKey.MarshalSSHPublicKey())
+		require.Equal(t, samKeyRing.TLSCert, skeyRing.TLSCert)
+		require.Equal(t, samKeyRing.SSHPrivateKey.MarshalSSHPublicKey(), skeyRing.SSHPrivateKey.MarshalSSHPublicKey())
+		require.Equal(t, samKeyRing.TLSPrivateKey.MarshalSSHPublicKey(), skeyRing.TLSPrivateKey.MarshalSSHPublicKey())
 	})
 }
 

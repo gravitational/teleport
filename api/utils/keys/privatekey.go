@@ -57,7 +57,8 @@ type PrivateKey struct {
 	keyPEM []byte
 }
 
-// NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
+// NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
+// pre-marshalled private key PEM, which may be a special PIV key PEM.
 func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -71,14 +72,40 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	}, nil
 }
 
-// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
+// NewSoftwarePrivateKey returns a new PrivateKey for a crypto.Signer.
+// [signer] must be an *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey.
+func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
+	sshPub, err := ssh.NewPublicKey(signer.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyPEM, err := MarshalPrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &PrivateKey{
+		Signer: signer,
+		sshPub: sshPub,
+		keyPEM: keyPEM,
+	}, nil
+}
+
+// SSHPublicKey returns the ssh.PublicKey representation of the public key.
 func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
 }
 
-// SSHPublicKey returns the ssh.PublicKey representiation of the public key.
+// SSHPublicKey returns the public key marshaled to SSH authorized_keys format.
 func (k *PrivateKey) MarshalSSHPublicKey() []byte {
 	return ssh.MarshalAuthorizedKey(k.sshPub)
+}
+
+// MarshalTLSPublicKey returns a PEM encoding of the public key. Encodes RSA keys
+// in PKCS1 format for backward compatibility. All other key types are encoded
+// in PKIX, ASN.1 DER form. Only supports *rsa.PublicKey, *ecdsa.PublicKey, and
+// ed25519.PublicKey.
+func (k *PrivateKey) MarshalTLSPublicKey() ([]byte, error) {
+	return MarshalPublicKey(k.Signer.Public())
 }
 
 // PrivateKeyPEM returns PEM encoded private key data. This may be data necessary

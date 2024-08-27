@@ -107,9 +107,14 @@ func NewFSKeyStore(dirPath string) *FSKeyStore {
 	}
 }
 
-// userKeyPath returns the private key path for the given KeyRingIndex.
-func (fs *FSKeyStore) userKeyPath(idx KeyRingIndex) string {
-	return keypaths.UserKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+// userSSHKeyPath returns the SSH private key path for the given KeyRingIndex.
+func (fs *FSKeyStore) userSSHKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserSSHKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
+// userTLSKeyPath returns the TLS private key path for the given KeyRingIndex.
+func (fs *FSKeyStore) userTLSKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserTLSKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // tlsCertPath returns the TLS certificate path given KeyRingIndex.
@@ -177,20 +182,23 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 
 	// Store TLS key and cert.
 	if err := fs.writeTLSCredential(TLSCredential{
-		PrivateKey: keyRing.PrivateKey,
+		PrivateKey: keyRing.TLSPrivateKey,
 		Cert:       keyRing.TLSCert,
-	}, fs.userKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
+	}, fs.userTLSKeyPath(keyRing.KeyRingIndex), fs.tlsCertPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Store SSH public key (it currently matches the same private key as the TLS cert).
-	if err := fs.writeBytes(keyRing.PrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
+	// Store SSH private and public key.
+	if err := fs.writeBytes(keyRing.SSHPrivateKey.PrivateKeyPEM(), fs.userSSHKeyPath(keyRing.KeyRingIndex)); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(keyRing.SSHPrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
-		ppkFile, err := keyRing.PrivateKey.PPKFile()
+		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		// PPKFile can only be generated from an RSA private key. If the key is in a different
 		// format, a BadParameter error is returned and we can skip PPK generation.
 		if err != nil && !trace.IsBadParameter(err) {
@@ -296,6 +304,10 @@ func readTLSCredentialFiles(keyPath, certPath string) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, trace.ConvertSystemError(err)
 	}
+	if len(keyPEM) == 0 {
+		// Acquiring the read lock can end up creating an empty file.
+		return nil, nil, trace.NotFound("%s is empty", keyPath)
+	}
 	certPEM, err := os.ReadFile(certPath)
 	if err != nil {
 		return nil, nil, trace.ConvertSystemError(err)
@@ -389,10 +401,11 @@ func (fs *FSKeyStore) writeBytes(bytes []byte, fp string) error {
 	return trace.ConvertSystemError(err)
 }
 
-// DeleteKeyRing deletes the user's key with all its certs.
+// DeleteKeyRing deletes all the user's keys and certs.
 func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	files := []string{
-		fs.userKeyPath(idx),
+		fs.userSSHKeyPath(idx),
+		fs.userTLSKeyPath(idx),
 		fs.publicKeyPath(idx),
 		fs.tlsCertPath(idx),
 	}
@@ -481,20 +494,19 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCertFile := fs.tlsCertPath(idx)
-	tlsCert, err := os.ReadFile(tlsCertFile)
+	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := keys.LoadKeyPair(fs.userKeyPath(idx), fs.publicKeyPath(idx))
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-
-	keyRing := NewKeyRing(priv)
+	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
 	keyRing.KeyRingIndex = idx
-	keyRing.TLSCert = tlsCert
+	keyRing.TLSCert = tlsCred.Cert
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, keyRing); err != nil && !trace.IsNotFound(err) {
@@ -773,7 +785,7 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRin
 		return nil, trace.NotFound("key ring for %+v not found", idx)
 	}
 
-	retKeyRing := NewKeyRing(keyRing.PrivateKey)
+	retKeyRing := NewKeyRing(keyRing.SSHPrivateKey, keyRing.TLSPrivateKey)
 	retKeyRing.KeyRingIndex = idx
 	retKeyRing.TLSCert = keyRing.TLSCert
 	for _, o := range opts {

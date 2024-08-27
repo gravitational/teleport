@@ -69,13 +69,12 @@ var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBo
 
 // Identity is collection of raw key and certificate data as well as the
 // parsed equivalents that make up a Teleport identity.
-// TODO(nklaassen): split SSH and TLS keys.
 type Identity struct {
 	// PrivateKeyBytes is a PEM encoded private key
 	PrivateKeyBytes []byte
 	// PublicKeyBytes contains bytes of the original SSH public key
 	PublicKeyBytes []byte
-	// CertBytes is a PEM encoded SSH host cert
+	// CertBytes is a PEM encoded SSH user cert
 	CertBytes []byte
 	// TLSCertBytes is a PEM encoded TLS x509 client certificate
 	TLSCertBytes []byte
