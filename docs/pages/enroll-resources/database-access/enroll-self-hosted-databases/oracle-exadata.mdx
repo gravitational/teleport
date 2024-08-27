@@ -25,82 +25,80 @@ description: How to configure Teleport database access with Oracle Exadata.
 - Oracle Exadata server instance 19c or later.
 - The `sqlcl` [Oracle client](https://www.oracle.com/pl/database/sqldeveloper/technologies/sqlcl/) installed and added to your system's `PATH` environment variable or any GUI client that supports JDBC
   Oracle thin client.
+- (!docs/pages/includes/tctl.mdx!)
 
 
-## Step 1/6. Create a Teleport token and user
-
-(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
-
-<Admonition type="tip">
-
-To modify an existing user to provide access to the Database Service, see [Database Access Controls](../../database-access/rbac.mdx)
-
-</Admonition>
-
-Create a local Teleport user with the built-in `access` and `requester` roles:
-
-```code
-$ tctl users add \
-  --roles=access,requester \
-  --db-users=\* \
-  --db-names=\* \
-  alice
-```
-
-| Flag         | Description                                                                                                                              |
-|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `--roles`    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
-| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-
-<Admonition type="warning">
-  Database names are only enforced for PostgreSQL and MongoDB databases.
-</Admonition>
-
-For more detailed information about database access controls and how to restrict
-access see [RBAC](../../database-access/rbac.mdx) documentation.
-
-## Step 2/6. Configure Oracle Exadata
+## Step 1/6. Configure Oracle Exadata
 
 <Admonition type="note">
 
 This guide assumes default configuration of the Oracle Exadata system. In particular:
 - Preconfigured TCPS listener.
 - An existing database certificate in the grid wallet.
-- A single Oracle Exadata VM is accessible to the `opc` user through ssh with a hostname `demodb-vm`. Repeat the steps to configure additional VMs.
-- The SCAN DNS name is `demodb-vm-scan.exadatadomain.oke.oraclevcn.com`
+- A single Oracle Exadata VM is accessible to the `opc` user through ssh with a hostname `<Var name="demodb-vm" />`. Repeat the steps to configure additional VMs.
+- The SCAN DNS name is `<Var name="demodb-vm-scan.exadatadomain.oke.oraclevcn.com" />`.
 
 Adjust the commands to match your configuration.
 
 </Admonition>
 
-Teleport uses mutual TLS authentication with Exadata. It must be configured with Teleport's certificate authority to be able to verify client certificates.
+### Update per-database configuration
 
-Login to Teleport on your machine.
+Connect to the Oracle Exadata VM by logging in as the `opc` user and then switch to the `oracle` user:
 
-```code
-$ tsh login --proxy=<Var name="example.teleport.sh" /> --user=alice
+```bash
+$ ssh opc@<Var name="demodb-vm" />
+$ sudo su - oracle
 ```
 
-Export the database client CA and copy it to target machine.
+For each database-specific Oracle home, update the `$ORACLE_HOME/network/admin/sqlnet.ora` file with the following entries:
+
+```
+SSL_CLIENT_AUTHENTICATION = TRUE
+SQLNET.AUTHENTICATION_SERVICES = (ALL)
+```
+
+For example, if there is a database named `spark`, the `oracle` user should have access to the automatically generated `/home/oracle/spark.env` file, which contains database-specific environment variables. After sourcing this file, the path `$ORACLE_HOME/network/admin/sqlnet.ora` will point to the `sqlnet.ora` file for the `spark` database and its associated Oracle home.
+
+```code
+# Load environment variables for the 'spark' database
+$ . spark.env 
+
+# Edit the configuration file at $ORACLE_HOME/network/admin/sqlnet.ora
+...
+```
+
+Repeat these steps for each additional database or database home as required.
+
+### Configure Oracle user account
+
+Your Oracle user accounts must be configured to require a valid client certificate. 
+
+```sql
+ALTER USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
+```
+
+If you're creating a new user:
+
+```sql
+CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
+GRANT CREATE SESSION TO alice;
+```
+
+### Trust Teleport Database Client CA
+
+Teleport uses mutual TLS authentication with Oracle Exadata. It must be configured with Teleport's certificate authority to be able to verify client certificates.
+
+Export the Teleport Database Client CA on your local machine and copy it to target Oracle Exadata VM.
 
 ```code
 # Export Teleport's database client certificate authority
 $ tctl auth export --type=db-client > teleport-db-client-ca.crt
 # Copy the CA to the Oracle Exadata VM
-$ scp teleport-db-client-ca.crt opc@demodb-vm:/tmp/teleport-db-client-ca.crt
+$ scp teleport-db-client-ca.crt opc@<Var name="demodb-vm" />:/tmp/teleport-db-client-ca.crt
 ```
 
-Login to the target machine and switch to `grid` user.
-
-```code
-# Connect to the VM
-$ ssh opc@demodb-vm
-# Switch to grid user
-$ sudo su - grid
-```
-
-Update the TCPS wallet to trust the Teleport User Database CA.
+As the `grid` user, update the grid TCPS wallet to trust the Teleport User Database CA.
 
 ```code
 # Read the wallet password
@@ -110,62 +108,35 @@ grid_tcps_wallet_passwd = <wallet password>
 $ orapki wallet add -wallet "/var/opt/oracle/dbaas_acfs/grid/tcps_wallets" -trusted_cert -cert /tmp/teleport-db-client-ca.crt
 ```
 
-Enable TLS auth for grid listener by editing the configuration.
+### Enable TLS auth for grid listener
 
-```code
-# Edit listener.ora to read
-# SSL_CLIENT_AUTHENTICATION = TRUE
-$ vi $ORACLE_HOME/network/admin/listener.ora
-...
+Adjust your grid listener configuration at `$ORACLE_HOME/network/admin/listener.ora` to enable TLS auth with the following entry:
+
+```
+SSL_CLIENT_AUTHENTICATION = TRUE
 ```
 
-For each database, update the configuration in the database home. Assuming a single database called `spark`:
+### Restart the listener
 
-```code
-# Switch to oracle user
-$ sudo su - oracle
-# Load env file for database 'spark'
-$ . spark.env 
-# Edit listener.ora to read
-# SSL_CLIENT_AUTHENTICATION = TRUE
-# SQLNET.AUTHENTICATION_SERVICES = (ALL)
-$ vi $ORACLE_HOME/network/admin/sqlnet.ora
-...
-```
-
-Repeat for additional databases as needed.
-
-Once finished, restart the listener using the `grid` user.
+Once finished, restart the listener.
 
 ```code
 $ lsnrctl stop
 $ lsnrctl start
 ```
 
-Additionally, your Oracle Database user accounts must be configured to require a valid client certificate. If you're creating a new user:
+## Step 2/6. Collect database configuration data.
 
-```sql
-CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
-GRANT CREATE SESSION TO alice;
-```
-
-## Step 3/6. Configure Teleport.
-
-Export the database certificate from Oracle. Teleport will expect this certificate when connecting to the database.
+Export the built-in database certificate from Oracle. Teleport will use this certificate to verify the database connection.
 
 ```code
-# Connect to the VM
-$ ssh opc@demodb-vm
-# Switch to grid user
-$ sudo su - grid
 # Export the database certificate. Update the "-dn" parameter to match your actual setup.
-$ orapki wallet export -wallet "/var/opt/oracle/dbaas_acfs/grid/tcps_wallets" -dn "CN=demodb-vm-scan.exadatadomain.oke.oraclevcn.com"  -cert /tmp/oracle-server-certificate.crt
+$ orapki wallet export -wallet "/var/opt/oracle/dbaas_acfs/grid/tcps_wallets" -dn "CN=<Var name="demodb-vm-scan.exadatadomain.oke.oraclevcn.com" />" -cert /tmp/oracle-server-certificate.crt
 ```
 
-Save the `/tmp/oracle-server-certificate.crt` file to a suitable location. It will be used by the Database service when connectiong to the Oracle database. 
-The final location for this file depends on the Teleport installation method and will be explained in the next step.
+Save the `/tmp/oracle-server-certificate.crt` file to a temporary location. The final location depends on the Teleport installation method, which will be detailed in the next step.
 
-As the `grid` user, check the TCPS address of local listener. This will be the address that Teleport will use for connecting. In the example below, that address is <Var name="10.20.30.40:2484" />.
+Check the TCPS address of the local listener. This address will be used by Teleport for the connection. In the example below, the address is `<Var name="10.20.30.40:2484" />`.
 
 ```code
 $ sqlplus / as sysdba
@@ -178,7 +149,14 @@ $ sqlplus / as sysdba
 # .                       (ADDRESS=(PROTOCOL=TCPS)(HOST=10.20.30.40)(PORT=2484))
 ```
 
-## Step 4/6. Configure and Start the Database Service
+## Step 3/6. Configure and Start the Database Service
+
+### Create Teleport join token
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
+
+### Teleport Database Service
+
 Install and configure Teleport where you will run the Teleport Database Service:
 
 <Tabs>
@@ -294,7 +272,7 @@ Make sure that the Teleport agent pod is running. You should see one
 </Tabs>
 
 
-## Step 5/6. (Optional) Configure Teleport to pull audit logs from Oracle Audit Trail
+## Step 4/6. (Optional) Configure Teleport to pull audit logs from Oracle Audit Trail
 
 Teleport can pull audit logs from Oracle Audit Trail.
 In order to enable this feature, you will need to configure Oracle Audit Trail and create a dedicated Teleport
@@ -358,6 +336,11 @@ spec:
 Teleport doesn't clean up audit trail events from Oracle Audit Trail.
 Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out of disk space.
 
+
+## Step 5/6. Create a Teleport user
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
 ## Step 6/6. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
@@ -373,7 +356,7 @@ $ tsh db ls
 
 Connect to the `"<Var name="oracle" />"` database. Pass the correct service name as the `--db-name` parameter.
 
-You can check the service names by inspecting the database configuration on the Oracle server.
+You can check the service names by inspecting the database configuration on the Oracle Exadata VM.
 
 ```code
 > lsnrctl services | grep paas
