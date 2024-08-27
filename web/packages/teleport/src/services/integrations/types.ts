@@ -325,8 +325,9 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
   securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
 };
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
@@ -392,7 +393,7 @@ export type EnrollEksClustersResponse = {
   results: {
     clusterName: string;
     resourceId: string;
-    error: { message: string };
+    error: string;
   }[];
 };
 

@@ -416,8 +416,8 @@ func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
-	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event after 1 second")
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event in time")
 	}
 	return nil
 }
@@ -463,8 +463,8 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 				continue
 			}
 			return event
-		case <-time.After(time.Second):
-			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event after 1 second", code)
+		case <-time.After(3 * time.Second):
+			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event in time", code)
 		}
 	}
 }

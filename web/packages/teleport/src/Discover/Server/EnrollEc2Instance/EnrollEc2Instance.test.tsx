@@ -120,11 +120,7 @@ describe('test EnrollEc2Instance.tsx', () => {
       .mockResolvedValue({ agents: mockFetchedNodes });
 
     renderEc2Instances(ctx, discoverCtx);
-    await selectARegion({ waitForSelfHosted: true });
-
-    // toggle off auto enroll, to test the table.
-    await userEvent.click(screen.getByText(/auto-enroll all/i));
-    await screen.findAllByText(/My EC2 Box 1/i);
+    await selectARegion({ waitForTable: true });
 
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
     expect(ctx.nodeService.fetchNodes).toHaveBeenCalledTimes(1);
@@ -154,11 +150,7 @@ describe('test EnrollEc2Instance.tsx', () => {
       .mockResolvedValue({ instances: mockEc2Instances });
 
     renderEc2Instances(ctx, discoverCtx);
-    await selectARegion({ waitForSelfHosted: true });
-
-    // toggle off auto enroll
-    await userEvent.click(screen.getByText(/auto-enroll all/i));
-    await screen.findAllByText(/My EC2 Box 1/i);
+    await selectARegion({ waitForTable: true });
 
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
     expect(ctx.nodeService.fetchNodes).toHaveBeenCalledTimes(1);
@@ -179,23 +171,18 @@ describe('test EnrollEc2Instance.tsx', () => {
       .mockResolvedValue({ instances: mockEc2Instances });
 
     renderEc2Instances(ctx, discoverCtx);
-    await selectARegion({ waitForSelfHosted: true });
+    await selectARegion({ waitForTable: true });
 
-    // default toggler should be checked.
-    expect(screen.getByTestId('toggle')).toBeChecked();
-    expect(screen.queryByText(/My EC2 Box 1/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
-
-    // toggle off auto enroll, should render table.
-    await userEvent.click(screen.getByText(/auto-enroll all/i));
+    // default toggler should not be checked.
     expect(screen.getByTestId('toggle')).not.toBeChecked();
     expect(screen.getByText(/next/i, { selector: 'button' })).toBeDisabled();
 
-    await screen.findAllByText(/My EC2 Box 1/i);
-
-    // toggle it back on.
+    // toggle on auto enroll, should render table.
     await userEvent.click(screen.getByText(/auto-enroll all/i));
     expect(screen.getByTestId('toggle')).toBeChecked();
+    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
+    expect(screen.queryByText(/My EC2 Box 1/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/create a join token/i)).toBeInTheDocument();
   });
 
   test('cloud, auto discover toggling', async () => {
@@ -210,20 +197,12 @@ describe('test EnrollEc2Instance.tsx', () => {
     renderEc2Instances(ctx, discoverCtx);
     await selectARegion({ waitForTable: true });
 
-    // default toggler should be checked.
-    expect(screen.queryByText(/create a join token/i)).not.toBeInTheDocument();
-    expect(screen.getByTestId('toggle')).toBeChecked();
-    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
-
-    // toggle off auto enroll
-    await userEvent.click(screen.getByText(/auto-enroll all/i));
-    await screen.findAllByText(/My EC2 Box 1/i);
+    // default toggler should be off.
     expect(screen.getByTestId('toggle')).not.toBeChecked();
-    expect(screen.getByText(/next/i, { selector: 'button' })).toBeDisabled();
 
-    // toggle it back on.
     await userEvent.click(screen.getByText(/auto-enroll all/i));
-    expect(screen.getByTestId('toggle')).toBeChecked();
+    expect(screen.getByText(/next/i, { selector: 'button' })).toBeEnabled();
+    expect(screen.queryByText(/create a join token/i)).not.toBeInTheDocument();
   });
 
   test('self-hosted, auto discover without existing endpoints', async () => {
@@ -246,7 +225,10 @@ describe('test EnrollEc2Instance.tsx', () => {
       });
 
     renderEc2Instances(ctx, discoverCtx);
-    await selectARegion({ waitForSelfHosted: true });
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
 
     await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
@@ -278,7 +260,10 @@ describe('test EnrollEc2Instance.tsx', () => {
     });
 
     renderEc2Instances(ctx, discoverCtx);
-    await selectARegion({ waitForSelfHosted: true });
+    await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
 
     await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledTimes(1);
@@ -321,6 +306,9 @@ describe('test EnrollEc2Instance.tsx', () => {
 
     renderEc2Instances(ctx, discoverCtx);
     await selectARegion({ waitForTable: true });
+
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
 
     await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
@@ -388,6 +376,9 @@ describe('test EnrollEc2Instance.tsx', () => {
     renderEc2Instances(ctx, discoverCtx);
     await selectARegion({ waitForTable: true });
 
+    // Toggle on.
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+
     await userEvent.click(screen.getByText(/next/i, { selector: 'button' }));
     expect(integrationService.fetchAwsEc2Instances).toHaveBeenCalledWith(
       discoverCtx.agentMeta.awsIntegration.name,
@@ -409,7 +400,6 @@ describe('test EnrollEc2Instance.tsx', () => {
 
   test('cloud, with partially created endpoints, with already set discovery config', async () => {
     cfg.isCloud = true;
-    jest.useFakeTimers();
 
     const { ctx, discoverCtx } = getMockedContexts(
       true /* withAutoDiscovery */
@@ -469,7 +459,11 @@ describe('test EnrollEc2Instance.tsx', () => {
     renderEc2Instances(ctx, discoverCtx);
     await selectARegion({ waitForTable: true });
 
+    await userEvent.click(screen.getByText(/auto-enroll all/i));
+    expect(screen.getByTestId('toggle')).toBeChecked();
+
     // Test it's polling.
+    jest.useFakeTimers();
     fireEvent.click(screen.getByText(/next/i, { selector: 'button' }));
     await screen.findByText(/this may take a few minutes/i);
 

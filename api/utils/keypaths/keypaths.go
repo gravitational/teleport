@@ -34,8 +34,11 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	// fileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
 	fileExtTLSCertLegacy = "-x509.pem"
-	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
-	fileExtTLSCert = ".crt"
+	// FileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
+	FileExtTLSCert = ".crt"
+	// FileExtKubeCred is the suffix/extension of a file where a kubernetes
+	// credential is stored (TLS key and cert combined in a single file).
+	FileExtKubeCred = ".cred"
 	// fileExtTLSKey is the suffix/extension of a file where a TLS private key is stored.
 	fileExtTLSKey = ".key"
 	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
@@ -111,13 +114,13 @@ const (
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   ├── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
 //    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
 //    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
+//    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
 //    |   └── cas                       --> Trusted clusters certificates
 //    |        ├── root.pem             --> TLS CA for teleport cluster "root"
 //    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -250,7 +253,7 @@ func AppCredentialDir(baseDir, proxy, username, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.crt
 func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
-	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+FileExtTLSCert)
 }
 
 // AppKeyPath returns the path to the user's private key for the given proxy,
@@ -290,7 +293,7 @@ func DatabaseCredentialDir(baseDir, proxy, username, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.crt
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+FileExtTLSCert)
 }
 
 // DatabaseKeyPath returns the path to the user's TLS private key
@@ -316,20 +319,20 @@ func KubeDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+kubeDirSuffix)
 }
 
-// KubeCertDir returns the path to the user's kube cert directory
+// KubeCredentialDir returns the path to the user's kube credential directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>
-func KubeCertDir(baseDir, proxy, username, cluster string) string {
+func KubeCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(KubeDir(baseDir, proxy, username), cluster)
 }
 
-// KubeCertPath returns the path to the user's TLS certificate
-// for the given proxy, cluster, and kube cluster.
+// KubeCredPath returns the path to the user's TLS credential for the given
+// proxy, cluster, and kube cluster.
 //
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-x509.pem
-func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+fileExtTLSCertLegacy)
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.cred
+func KubeCredPath(baseDir, proxy, username, cluster, kubename string) string {
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+FileExtKubeCred)
 }
 
 // KubeConfigPath returns the path to the user's standalone kubeconfig
@@ -337,7 +340,7 @@ func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-kubeconfig
 func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
 }
 
 // KubeCredLockfilePath returns the kube credentials lock file for given proxy
@@ -369,7 +372,7 @@ func IdentitySSHCertPath(path string) string {
 // TrimCertPathSuffix returns the given path with any cert suffix/extension trimmed off.
 func TrimCertPathSuffix(path string) string {
 	trimmedPath := strings.TrimSuffix(path, fileExtTLSCertLegacy)
-	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtTLSCert)
+	trimmedPath = strings.TrimSuffix(trimmedPath, FileExtTLSCert)
 	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
 	return trimmedPath
 }

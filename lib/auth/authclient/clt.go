@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -680,6 +681,11 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }
 
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
+}
+
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1267,8 +1273,16 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// PublicKey is a public key in ssh authorized_keys format.
+	// Soon to be deprecated in favor of SSHPublicKey, TLSPublicKey
+	PublicKey []byte `json:"public_key,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -1301,6 +1315,27 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
+	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
+	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
+	}
+	if len(a.PublicKey) > 0 {
+		// Normalize by splitting PublicKey to SSHPublicKey and TLSPublicKey to
+		// reduce special case handling elsewhere. PublicKey will be deprecated
+		// in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		a.SSHPublicKey = a.PublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(a.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.TLSPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.PublicKey = nil
 	}
 	return nil
 }
@@ -1337,8 +1372,17 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	// Soon to be deprecated in favor of SSHAttestationStatement, TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1346,8 +1390,23 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	switch {
+	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
+	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
+	}
+	if a.AttestationStatement != nil {
+		// Normalize by splitting AttestationStatement to SSHAttestationStatement
+		// and TLSAttestationStatement to reduce special case handling
+		// elsewhere. AttestingStatement will be deprecated in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated attestation statements.
+		a.SSHAttestationStatement = a.AttestationStatement
+		a.TLSAttestationStatement = a.AttestationStatement
+		a.AttestationStatement = nil
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
@@ -1713,6 +1772,11 @@ type ClientI interface {
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1768,7 +1832,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 

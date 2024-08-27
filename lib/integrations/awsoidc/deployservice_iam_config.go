@@ -228,6 +228,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForRDSDBConnect(),
+		awslib.StatementForRDSMetadata(),
 		awslib.StatementForWritingLogs(),
 	).Marshal()
 	if err != nil {

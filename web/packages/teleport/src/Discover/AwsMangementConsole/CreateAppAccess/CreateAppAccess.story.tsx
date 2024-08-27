@@ -106,7 +106,7 @@ const Component = () => {
       name: '',
       kind: ResourceKind.Application,
       icon: null,
-      keywords: '',
+      keywords: [],
       event: DiscoverEventResource.ApplicationHttp,
       appMeta: {
         awsConsole: true,

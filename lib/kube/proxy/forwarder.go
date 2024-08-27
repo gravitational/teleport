@@ -2109,8 +2109,9 @@ func isRelevantWebsocketError(err error) bool {
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	isWSSupported := false
 	if sess.noAuditEvents {
-		// We're forwarding it to another kube_service, check if it supports new protocol.
-		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
+		// We're forwarding it to another Teleport kube_service,
+		// which supports the websocket protocol.
+		isWSSupported = true
 	} else {
 		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
 		f.rwMutexDetails.RLock()

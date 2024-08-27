@@ -88,15 +88,40 @@ type DownstreamSender interface {
 	Done() <-chan struct{}
 }
 
+type downstreamHandleOptions struct {
+	metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
+}
+
+func (options *downstreamHandleOptions) SetDefaults() {
+	if options.metadataGetter == nil {
+		options.metadataGetter = metadata.Get
+	}
+}
+
+type DownstreamHandleOption func(c *downstreamHandleOptions)
+
+func withMetadataGetter(getter func(ctx context.Context) (*metadata.Metadata, error)) DownstreamHandleOption {
+	return func(opts *downstreamHandleOptions) {
+		opts.metadataGetter = getter
+	}
+}
+
 // NewDownstreamHandle creates a new downstream inventory control handle which will create control streams via the
 // supplied create func and manage hello exchange with the supplied upstream hello.
-func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
+func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello, opts ...DownstreamHandleOption) DownstreamHandle {
+	var options downstreamHandleOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+	options.SetDefaults()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:        make(chan DownstreamSender),
+		pingHandlers:   make(map[uint64]DownstreamPingHandler),
+		closeContext:   ctx,
+		cancel:         cancel,
+		metadataGetter: options.metadataGetter,
 	}
 	go handle.run(fn, hello)
 	go handle.autoEmitMetadata()
@@ -112,18 +137,17 @@ type downstreamHandle struct {
 	closeContext      context.Context
 	cancel            context.CancelFunc
 	upstreamSSHLabels map[string]string
+	metadataGetter    func(ctx context.Context) (*metadata.Metadata, error)
 }
 
 func (h *downstreamHandle) closing() bool {
 	return h.closeContext.Err() != nil
 }
 
-var metadataGetter = metadata.Get
-
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	md, err := metadataGetter(h.CloseContext())
+	md, err := h.metadataGetter(h.CloseContext())
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			log.Warnf("Failed to get agent metadata: %v", err)
