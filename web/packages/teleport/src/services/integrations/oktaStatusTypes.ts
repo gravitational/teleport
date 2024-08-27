@@ -36,12 +36,26 @@ export enum PluginOktaSyncStatusCode {
   Error = 2,
 }
 
-export type PluginStatusOkta = {
+export type PluginStatusOkta = PluginOktaDetails & {
+  // the type of plugin this structure represents, included so that a
+  // client differentiate between different plugin status structures
+  // type: string;
+  // the current status code of the plugin
+  // statusCode: PluginOktaSyncStatusCode;
+  // the fully-qualified URL of the organization that the plugin is
+  // interacting with
   orgUrl: string;
-  accessListSyncEnabled: boolean;
-  details?: PluginOktaDetails;
+  // the SAML connector used by the plugin for SSO login
+  samlConnector: string;
+  // the set of usernames that the integration assigns as
+  // owners to any Access Lists that it creates
+  defaultOwners: string[];
 };
 
+/**
+ * Contains statistics about the various sub-services in the Okta
+ * integration
+ */
 export type PluginOktaDetails = {
   ssoDetails?: OktaSsoDetails;
   appGroupSyncDetails?: OktaAppGroupSyncDetails;

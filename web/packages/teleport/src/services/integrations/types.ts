@@ -33,19 +33,29 @@ import { Node } from '../nodes';
  * while "plugin" resource is only supported in enterprise. Plugin
  * type exists in OS for easier typing when combining the resources
  * into one list.
+ *
+ * Generics:
+ *  T is resource type "integration" or "plugin"
+ *  K is the kind of integration (eg: aws-oidc) or plugin (eg: okta)
+ *  SP is the provider-specific spec of integration or plugin
+ *  SD is the provider-specific status containing status details
+ *   - currently only defined for plugin resource
  */
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc,
+  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+  SD extends Record<string, any> = null,
 > = {
   resourceType: T;
   kind: K;
-  spec?: S;
+  spec?: SP;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
+  status?: SD;
 };
+
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
 // resource's subKind field.
@@ -118,7 +128,24 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type Plugin<SP = any, D = any> = Integration<
+  'plugin',
+  PluginKind,
+  SP,
+  PluginStatus<D>
+>;
+
+export type PluginStatus<D = any> = {
+  // the status code of the plugin
+  code: IntegrationStatusCode;
+  // the time the plugin was last run
+  lastRun: Date;
+  // the last error message from the plugin
+  errorMessage: string;
+  // contains provider-specific status information
+  details?: D;
+};
+
 export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
@@ -142,13 +169,6 @@ export type PluginKind =
   | 'servicenow'
   | 'jamf'
   | 'entra-id';
-
-export type PluginStatus<S = any> = {
-  name: string;
-  type: PluginKind;
-  statusCode: IntegrationStatusCode;
-  stats?: S;
-};
 
 export type PluginOktaSpec = {
   // scimBearerToken is the plain text of the bearer token that Okta will use
