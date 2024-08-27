@@ -37,6 +37,9 @@ type DatabaseService interface {
 
 	// GetHostname returns the hostname where this Database Service is running.
 	GetHostname() string
+
+	// GetProxiedDatabases returns the list of databases that are being proxied.
+	GetProxiedDatabases() []*DatabaseServiceSpecV1ProxiedDatabase
 }
 
 // NewDatabaseServiceV1 creates a new DatabaseService instance.
@@ -74,6 +77,11 @@ func (s *DatabaseServiceV1) GetResourceMatchers() []*DatabaseResourceMatcher {
 // GetHostname returns the hostname where this Database Service is running.
 func (s *DatabaseServiceV1) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// GetProxiedDatabases returns the list of databases that are being proxied.
+func (s *DatabaseServiceV1) GetProxiedDatabases() []*DatabaseServiceSpecV1ProxiedDatabase {
+	return s.Spec.ProxiedDatabases
 }
 
 // GetNamespace returns the resource namespace.

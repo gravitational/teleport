@@ -5718,6 +5718,8 @@ message DatabaseServiceSpecV1 {
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
   // Hostname is the hostname where this service is running.
   string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
+  // ProxiedDatabases is a list of databases that are being proxied by this Database Service.
+  repeated DatabaseServiceSpecV1ProxiedDatabase ProxiedDatabases = 3 [(gogoproto.jsontag) = "proxied_databases"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.
@@ -5738,6 +5740,12 @@ message ResourceMatcherAWS {
   string AssumeRoleARN = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
   // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
   string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
+}
+
+// DatabaseServiceSpecV1ProxiedDatabase contains some information about proxied database connections.
+message DatabaseServiceSpecV1ProxiedDatabase {
+  // Name is the database name.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist

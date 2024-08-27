@@ -308,6 +308,8 @@ type Server struct {
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds heartbeats for database servers.
 	heartbeats map[string]*srv.Heartbeat
+	// serviceHeartbeat is the DatabaseService heartbeat
+	serviceHeartbeat *srv.Heartbeat
 	// watcher monitors changes to database resources.
 	watcher *services.DatabaseWatcher
 	// proxiedDatabases contains databases this server currently is proxying.
@@ -838,6 +840,15 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 
 	getDatabaseServiceServerInfo := func() (types.Resource, error) {
 		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+
+		allProxiedDatabases := s.monitoredDatabases.get()
+		proxiedDatabases := make([]*types.DatabaseServiceSpecV1ProxiedDatabase, 0, len(allProxiedDatabases))
+		for dbName := range allProxiedDatabases {
+			proxiedDatabases = append(proxiedDatabases, &types.DatabaseServiceSpecV1ProxiedDatabase{
+				Name: dbName,
+			})
+		}
+
 		resource, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name:      s.cfg.HostID,
 			Namespace: apidefaults.Namespace,
@@ -846,6 +857,7 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 		}, types.DatabaseServiceSpecV1{
 			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
 			Hostname:         s.cfg.Hostname,
+			ProxiedDatabases: proxiedDatabases,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -869,6 +881,7 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.serviceHeartbeat = heartbeat
 
 	go func() {
 		if err := heartbeat.Run(); err != nil {
@@ -956,6 +969,7 @@ func (s *Server) Wait() error {
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
 func (s *Server) ForceHeartbeat() error {
+	s.serviceHeartbeat.ForceSend(time.Second)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for name, heartbeat := range s.heartbeats {

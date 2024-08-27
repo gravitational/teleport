@@ -119,6 +119,9 @@ func TestServersCompare(t *testing.T) {
 				ResourceMatchers: []*types.DatabaseResourceMatcher{
 					{Labels: &types.Labels{"env": []string{"stg"}}},
 				},
+				ProxiedDatabases: []*types.DatabaseServiceSpecV1ProxiedDatabase{
+					{Name: "my-db"},
+				},
 			},
 		}
 		service.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
@@ -135,6 +138,13 @@ func TestServersCompare(t *testing.T) {
 		service2 = *service
 		service2.Spec.ResourceMatchers = []*types.DatabaseResourceMatcher{
 			{Labels: &types.Labels{"env": []string{"stg", "qa"}}},
+		}
+		require.Equal(t, Different, CompareServers(service, &service2))
+
+		// Number of proxied databases has changed
+		service2.Spec.ProxiedDatabases = []*types.DatabaseServiceSpecV1ProxiedDatabase{
+			{Name: "my-db"},
+			{Name: "another-db"},
 		}
 		require.Equal(t, Different, CompareServers(service, &service2))
 	})

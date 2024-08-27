@@ -438,6 +438,15 @@ func TestShutdown(t *testing.T) {
 			require.Len(t, dbServers, 1)
 			require.Equal(t, dbServers[0].GetDatabase(), db0)
 
+			// Validate that database is in the ProxiedDatabases in the DatabaseService
+			listResp, err := testCtx.authServer.ListResources(ctx, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+			require.NoError(t, err)
+			dbServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+			require.NoError(t, err)
+			require.Len(t, dbServices, 1)
+			require.Len(t, dbServices[0].GetProxiedDatabases(), 1)
+			require.Equal(t, &types.DatabaseServiceSpecV1ProxiedDatabase{Name: db0.GetName()}, dbServices[0].GetProxiedDatabases()[0])
+
 			// Shutdown should not return error.
 			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 			t.Cleanup(cancel)

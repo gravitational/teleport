@@ -171,6 +171,12 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
 		return Different
 	}
+	if a.GetHostname() != b.GetHostname() {
+		return Different
+	}
+	if !cmp.Equal(a.GetProxiedDatabases(), b.GetProxiedDatabases()) {
+		return Different
+	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
