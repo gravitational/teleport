@@ -456,6 +456,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 		t.Run(backendDesc.name, func(t *testing.T) {
 			authPrefGetter := &fakeAuthPreferenceGetter{suite}
 			backendDesc.opts.AuthPreferenceGetter = authPrefGetter
+			currentSuiteGetter := cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter)
 			manager, err := NewManager(ctx, &backendDesc.config, backendDesc.opts)
 			require.NoError(t, err)
 
@@ -469,7 +470,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			sshPubKey, _, _, _, err := ssh.ParseAuthorizedKey(sshKeyPair.PublicKey)
 			require.NoError(t, err)
 			sshPub := sshPubKey.(ssh.CryptoPublicKey).CryptoPublicKey()
-			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.UserCASSH)
+			expectedAlgorithm, err := cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.UserCASSH)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, sshPub)
 
@@ -477,7 +478,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			tlsCert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.DatabaseClientCATLS)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.DatabaseClientCATLS)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, tlsCert.PublicKey)
 
@@ -485,7 +486,7 @@ func testAlgorithmSuite(t *testing.T, ctx context.Context, pack *testPack, suite
 			require.NoError(t, err)
 			jwtPubKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
 			require.NoError(t, err)
-			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, authPrefGetter, cryptosuites.JWTCAJWT)
+			expectedAlgorithm, err = cryptosuites.AlgorithmForKey(ctx, currentSuiteGetter, cryptosuites.JWTCAJWT)
 			require.NoError(t, err)
 			assertKeyAlgorithm(t, expectedAlgorithm, jwtPubKey)
 		})
