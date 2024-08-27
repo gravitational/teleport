@@ -183,7 +183,7 @@ func (s *ServiceNowSuiteOSS) TestMessagePostingWithAMR() {
 	require.Equal(t, "someReviewer", incident.AssignedTo)
 
 	assert.Equal(t, incident.IncidentID, pluginData.IncidentID)
-	
+
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-servicenow-amr"))
 }
