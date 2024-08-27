@@ -285,7 +285,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 				u.log.Debugf("Recording %v was uploaded by another process.", fi.Name())
 				continue
 			}
-			if isSessionError(err) {
+			if isSessionError(err) || trace.IsBadParameter(err) {
 				u.log.WithError(err).Warningf("Skipped session recording %v.", fi.Name())
 				stats.Corrupted++
 				continue
