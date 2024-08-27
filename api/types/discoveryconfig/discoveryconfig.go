@@ -83,8 +83,8 @@ type Status struct {
 	DiscoveredResources uint64 `json:"discovered_resources" yaml:"discovered_resources"`
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
-	// AWSEC2InstancesDiscovered contains the list of AWS EC2 discovered instances.
-	AWSEC2InstancesDiscovered []*discoveryconfigv1.AWSResourcesDiscoveredSummary `json:"aws_ec2_instances_discovered,omitempty" yaml:"aws_ec2_instances_discovered,omitempty"`
+	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
+	IntegrationDiscoveredResources map[string]*discoveryconfigv1.IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.

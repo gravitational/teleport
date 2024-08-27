@@ -526,12 +526,15 @@ func TestDiscoveryServer(t *testing.T) {
 				ErrorMessage:        nil,
 				DiscoveredResources: 1,
 				LastSyncTime:        fakeClock.Now().UTC(),
-				AWSEC2InstancesDiscovered: []*discoveryconfigv1.AWSResourcesDiscoveredSummary{{
-					Integration: "my-integration",
-					Found:       1,
-					Enrolled:    0,
-					Failed:      0,
-				}},
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    1,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
 			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
@@ -630,7 +633,7 @@ func TestDiscoveryServer(t *testing.T) {
 				require.Eventually(t, func() bool {
 					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
 					require.NoError(t, err)
-					if len(storedDiscoveryConfig.Status.AWSEC2InstancesDiscovered) == 0 {
+					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
 						return false
 					}
 					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
