@@ -840,6 +840,7 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 			Labels:    labels,
 		}, types.DatabaseServiceSpecV1{
 			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
+			Hostname:         s.cfg.Hostname,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
