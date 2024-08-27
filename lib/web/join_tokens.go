@@ -377,7 +377,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 func (h *Handler) getAutoUpgrades(ctx context.Context) (bool, string, error) {
 	var autoUpgradesVersion string
 	var err error
-	autoUpgrades := automaticUpgrades(h.ClusterFeatures)
+	autoUpgrades := automaticUpgrades(h.GetClusterFeatures())
 	if autoUpgrades {
 		autoUpgradesVersion, err = h.cfg.AutomaticUpgradesChannels.DefaultVersion(ctx)
 		if err != nil {
