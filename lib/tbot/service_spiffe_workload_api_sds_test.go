@@ -96,10 +96,15 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	bundle := spiffebundle.New(td)
 	bundle.AddX509Authority(ca)
 
+	federatedBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("federated.example.com"))
+	federatedBundle.AddX509Authority(ca)
+
 	mockBundleCache := &mockTrustBundleCache{
 		currentBundle: &spiffe.BundleSet{
-			Local:     bundle,
-			Federated: make(map[string]*spiffebundle.Bundle),
+			Local: bundle,
+			Federated: map[string]*spiffebundle.Bundle{
+				"federated.example.com": federatedBundle,
+			},
 		},
 	}
 	svidFetcher := func(
@@ -191,6 +196,12 @@ func TestSDS_FetchSecrets(t *testing.T) {
 			name: "specific ca",
 			resourceNames: []string{
 				"spiffe://example.com",
+			},
+		},
+		{
+			name: "specific ca federated",
+			resourceNames: []string{
+				"spiffe://federated.example.com",
 			},
 		},
 		{

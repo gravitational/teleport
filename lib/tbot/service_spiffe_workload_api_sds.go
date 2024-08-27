@@ -464,31 +464,42 @@ func (s *spiffeSDSHandler) generateResponse(
 		delete(names, envoyAllBundlesName)
 	}
 
-	// For any remaining names, see if they match any federated trust bundles.
-	for _, name := range maps.Keys(names) {
-		var found *spiffebundle.Bundle
+	if returnAll {
 		for _, bundle := range bundleSet.Federated {
-			if name == bundle.TrustDomain().IDString() {
-				found = bundle
-				break
-			}
-		}
-		if found != nil {
 			validator, err := newTLSV3ValidationContext(
 				[]*spiffebundle.Bundle{
-					found,
-				}, envoyAllBundlesName,
+					bundle,
+				}, bundle.TrustDomain().IDString(),
 			)
 			if err != nil {
 				return nil, trace.Wrap(err, "creating TLS validation context")
 			}
 			resources = append(resources, validator)
-			delete(names, name)
+		}
+	} else {
+		// For any remaining names, see if they match any federated trust bundles.
+		for _, name := range maps.Keys(names) {
+			var found *spiffebundle.Bundle
+			for _, bundle := range bundleSet.Federated {
+				if name == bundle.TrustDomain().IDString() {
+					found = bundle
+					break
+				}
+			}
+			if found != nil {
+				validator, err := newTLSV3ValidationContext(
+					[]*spiffebundle.Bundle{
+						found,
+					}, found.TrustDomain().IDString(),
+				)
+				if err != nil {
+					return nil, trace.Wrap(err, "creating TLS validation context")
+				}
+				resources = append(resources, validator)
+				delete(names, name)
+			}
 		}
 	}
-
-	// TODO: When federation support is added, return any federated bundles
-	// if named or returnAll.
 
 	// If any names are left-over, we've not been able to service them so
 	// we should return an explicit error rather than omitting data.
