@@ -70,8 +70,8 @@ message DiscoveryConfigStatus {
   reserved 5;
   reserved "aws_ec2_instances_discovered";
 
-  // AWSEC2ResourcesDiscovered contains all the AWS EC2 instances discovered.
-  repeated AWSResourcesDiscoveredSummary aws_ec2_resources_discovered = 6;
+  // IntegrationDiscoveredResources maps an integration to discovered resources summary.
+  map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -87,16 +87,19 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
 }
 
-// AWSResourcesDiscoveredSummary represents the AWS resources that were discovered.
-message AWSResourcesDiscoveredSummary {
-  // Integration is the Integration name used to fetch the resource.
-  // Integration is empty if using ambient credentials.
-  string integration = 1;
+// IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
+message IntegrationDiscoveredSummary {
+  // AWSEC2 contains the summary for the AWS EC2 discovered instances.
+  ResourcesDiscoveredSummary aws_ec2 = 1;
+}
+
+// ResourcesDiscoveredSummary represents the AWS resources that were discovered.
+message ResourcesDiscoveredSummary {
   // Found holds the count of resources found.
   // After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.
-  uint64 found = 2;
+  uint64 found = 1;
   // Enrolled holds the count of the resources that were successfully enrolled.
-  uint64 enrolled = 3;
+  uint64 enrolled = 2;
   // Failed holds the count of the resources that failed to enroll.
-  uint64 failed = 4;
+  uint64 failed = 3;
 }
