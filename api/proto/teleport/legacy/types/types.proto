@@ -1296,6 +1296,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
   // TPM allows the configuration of options specific to the "tpm" join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1578,6 +1580,55 @@ message ProvisionTokenSpecV2GCP {
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2TerraformCloud {
+  // Rule is a set of properties the Terraform-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // OrganizationID is the ID of the HCP Terraform organization. At least
+    // one organization value is required, either ID or name.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+    // OrganizationName is the human-readable name of the HCP Terraform
+    // organization. At least one organization value is required, either ID or
+    // name.
+    string OrganizationName = 2 [(gogoproto.jsontag) = "organization_name,omitempty"];
+
+    // ProjectID is the ID of the HCP Terraform project. At least one project or
+    // workspace value is required, either ID or name.
+    string ProjectID = 3 [(gogoproto.jsontag) = "project_id,omitempty"];
+
+    // ProjectName is the human-readable name for the HCP Terraform project. At
+    // least one project or workspace value is required, either ID or name.
+    string ProjectName = 4 [(gogoproto.jsontag) = "project_name,omitempty"];
+
+    // WorkspaceID is the ID of the HCP Terraform workspace. At least one
+    // project or workspace value is required, either ID or name.
+    string WorkspaceID = 5 [(gogoproto.jsontag) = "workspace_id,omitempty"];
+
+    // WorkspaceName is the human-readable name of the HCP Terraform workspace.
+    // At least one project or workspace value is required, either ID or name.
+    string WorkspaceName = 6 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+
+    // RunPhase is the phase of the run the token was issued for, e.g. `plan` or
+    // `apply`
+    string RunPhase = 7 [(gogoproto.jsontag) = "run_phase,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is the JWT audience as configured in the
+  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
+  // For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+  // Terraform Cloud, this value should be `foo`. If the variable is set to
+  // match the cluster name, it does not need to be set here.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
