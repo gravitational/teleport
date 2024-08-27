@@ -48,6 +48,7 @@ type BundleSet struct {
 	Federated map[string]*spiffebundle.Bundle
 }
 
+// Clone returns a deep copy of the BundleSet.
 func (b *BundleSet) Clone() *BundleSet {
 	clone := &BundleSet{
 		Local:     b.Local.Clone(),
@@ -59,6 +60,7 @@ func (b *BundleSet) Clone() *BundleSet {
 	return clone
 }
 
+// Equal returns true if the two BundleSets are equal.
 func (b *BundleSet) Equal(other *BundleSet) bool {
 	if len(b.Federated) != len(other.Federated) {
 		return false
@@ -72,6 +74,7 @@ func (b *BundleSet) Equal(other *BundleSet) bool {
 			return false
 		}
 	}
+	// go-spiffe's Equal method correctly handles nils of either value.
 	if !b.Local.Equal(other.Local) {
 		return false
 	}
@@ -90,6 +93,10 @@ func MarshalX509Bundle(b *x509bundle.Bundle) []byte {
 	return out
 }
 
+// EncodedX509Bundles returns a map of trust domain names to their trust bundles
+// encoded as raw bytes. If includeLocal is true, the local trust domain will be
+// included in the output. Uses MarshalX509Bundle to encode the bundles for
+// compatability with the SPIFFE workload API specification.
 func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 	bundles := make(map[string][]byte)
 	if includeLocal {
@@ -126,10 +133,13 @@ type TrustBundleCache struct {
 	subscribers map[chan<- struct{}]struct{}
 }
 
+// String returns a string representation of the TrustBundleCache. Implements
+// the tbot Service interface and fmt.Stringer interface.
 func (m *TrustBundleCache) String() string {
 	return "spiffe-trust-bundle-cache"
 }
 
+// TrustBundleCacheConfig is the configuration for a TrustBundleCache.
 type TrustBundleCacheConfig struct {
 	FederationClient machineidv1pb.SPIFFEFederationServiceClient
 	TrustClient      trustv1.TrustServiceClient
@@ -162,6 +172,9 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 	}, nil
 }
 
+// Run initializes the cache and begins watching for events. It will block until
+// the context is cancelled, at which point it will return nil.
+// Implements the tbot Service interface.
 func (m *TrustBundleCache) Run(ctx context.Context) error {
 	for {
 		m.logger.InfoContext(
@@ -295,9 +308,10 @@ func (m *TrustBundleCache) getBundleSet() *BundleSet {
 }
 
 func (m *TrustBundleCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
-	// TODO: We could clone the bundleSet here to avoid the caller mutating it.
 	m.mu.Lock()
-	m.bundleSet = bundleSet
+	// Clone the bundle set to avoid the caller mutating the state after it has
+	// been set.
+	m.bundleSet = bundleSet.Clone()
 	for sub := range m.subscribers {
 		select {
 		case sub <- struct{}{}:
