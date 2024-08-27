@@ -23,20 +23,32 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// StaticHostUser is a resource that represents host users that should be
+// created on matching nodes.
 type StaticHostUser struct {
 	headerv1.ResourceHeader
-
+	// Spec is the static host user spec.
 	Spec Spec
 }
 
+// Spec is the static host user spec.
 type Spec struct {
-	Login                string       `json:"login"`
-	Groups               []string     `json:"groups"`
-	Sudoers              []string     `json:"sudoers"`
-	Uid                  string       `json:"uid"`
-	Gid                  string       `json:"gid"`
-	NodeLabels           types.Labels `json:"node_labels"`
-	NodeLabelsExpression string       `json:"node_labels_expression"`
+	// Login is the login to create on the node.
+	Login string `json:"login"`
+	// Groups is a list of additional groups to add the user to.
+	Groups []string `json:"groups"`
+	// Sudoers is a list of sudoer entries to add.
+	Sudoers []string `json:"sudoers"`
+	// Uid is the new user's uid.
+	Uid string `json:"uid"`
+	// Gid is the new user's gid.
+	Gid string `json:"gid"`
+	// NodeLabels is a map of node labels that will create a user from this
+	// resource.
+	NodeLabels types.Labels `json:"node_labels"`
+	// NodeLabelsExpression is a predicate expression to create a user from
+	// this resource.
+	NodeLabelsExpression string `json:"node_labels_expression"`
 }
 
 // NewStaticHostUser creates a new host user to be applied to matching SSH nodes.

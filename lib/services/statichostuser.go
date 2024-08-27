@@ -47,6 +47,7 @@ type StaticHostUser interface {
 	DeleteStaticHostUser(ctx context.Context, name string) error
 }
 
+// MarshalStaticHostUser marshals the StaticHostUser object into a JSON byte array.
 func MarshalStaticHostUser(hostUser *userprovisioning.StaticHostUser, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -60,6 +61,8 @@ func MarshalStaticHostUser(hostUser *userprovisioning.StaticHostUser, opts ...Ma
 	return utils.FastMarshal(hostUser)
 }
 
+// UnmarshalStaticHostUser unmarshals the StaticHostUser object from a JSON
+// byte array.
 func UnmarshalStaticHostUser(data []byte, opts ...MarshalOption) (*userprovisioning.StaticHostUser, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing static host user data")

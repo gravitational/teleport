@@ -25,7 +25,6 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
@@ -35,6 +34,8 @@ import (
 	secreprotsv1conv "github.com/gravitational/teleport/api/types/secreports/convert/v1"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	userloginstatev1conv "github.com/gravitational/teleport/api/types/userloginstate/convert/v1"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
+	userprovisioningv1conv "github.com/gravitational/teleport/api/types/userprovisioning/convert/v1"
 )
 
 // EventToGRPC converts types.Event to proto.Event.
@@ -95,9 +96,9 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_SPIFFEFederation{
 				SPIFFEFederation: r,
 			}
-		case *userprovisioningpb.StaticHostUser:
+		case *userprovisioning.StaticHostUser:
 			out.Resource = &proto.Event_StaticHostUser{
-				StaticHostUser: r,
+				StaticHostUser: userprovisioningv1conv.ToProto(r),
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -540,7 +541,11 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetStaticHostUser(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
+		hostUser, err := userprovisioningv1conv.FromProto(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out.Resource = types.Resource153ToLegacy(hostUser)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)

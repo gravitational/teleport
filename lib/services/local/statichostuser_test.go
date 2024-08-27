@@ -128,7 +128,7 @@ func TestUpdateStaticHostUser(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().UTC().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	key := getStaticHostUser(0).GetMetadata().Name
@@ -152,7 +152,7 @@ func TestUpdateStaticHostUserMissingRevision(t *testing.T) {
 	service := getStaticHostUserService(t)
 	prepopulateStaticHostUsers(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().UTC().Add(30 * time.Minute))
+	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
 
 	obj := getStaticHostUser(0)
 	obj.Metadata.Expires = expiry

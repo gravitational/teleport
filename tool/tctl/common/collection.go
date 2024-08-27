@@ -1712,18 +1712,6 @@ func (c *spiffeFederationCollection) resources() []types.Resource {
 	return r
 }
 
-type staticHostUserCollection struct {
-	items []*userprovisioning.StaticHostUser
-}
-
-func (c *staticHostUserCollection) resources() []types.Resource {
-	r := make([]types.Resource, 0, len(c.items))
-	for _, resource := range c.items {
-		r = append(r, types.Resource153ToLegacy(resource))
-	}
-	return r
-}
-
 func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error {
 	headers := []string{"Name", "Last synced at"}
 
@@ -1745,6 +1733,18 @@ func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error 
 	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type staticHostUserCollection struct {
+	items []*userprovisioning.StaticHostUser
+}
+
+func (c *staticHostUserCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
 }
 
 func (c *staticHostUserCollection) writeText(w io.Writer, verbose bool) error {

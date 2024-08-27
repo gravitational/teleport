@@ -49,7 +49,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -2695,19 +2694,19 @@ func TestStaticHostUsers(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs153[*userprovisioningpb.StaticHostUser]{
-		newResource: func(name string) (*userprovisioningpb.StaticHostUser, error) {
+	testResources153(t, p, testFuncs153[*userprovisioning.StaticHostUser]{
+		newResource: func(name string) (*userprovisioning.StaticHostUser, error) {
 			return newStaticHostUser(t, name), nil
 		},
-		create: func(ctx context.Context, item *userprovisioningpb.StaticHostUser) error {
+		create: func(ctx context.Context, item *userprovisioning.StaticHostUser) error {
 			_, err := p.staticHostUsers.CreateStaticHostUser(ctx, item)
 			return trace.Wrap(err)
 		},
-		list: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+		list: func(ctx context.Context) ([]*userprovisioning.StaticHostUser, error) {
 			items, _, err := p.staticHostUsers.ListStaticHostUsers(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
-		cacheList: func(ctx context.Context) ([]*userprovisioningpb.StaticHostUser, error) {
+		cacheList: func(ctx context.Context) ([]*userprovisioning.StaticHostUser, error) {
 			items, _, err := p.cache.ListStaticHostUsers(ctx, 0, "")
 			return items, trace.Wrap(err)
 		},
@@ -3820,9 +3819,11 @@ func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonito
 	return notification
 }
 
-func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHostUser {
+func newStaticHostUser(t *testing.T, name string) *userprovisioning.StaticHostUser {
 	t.Helper()
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+	return userprovisioning.NewStaticHostUser(&headerv1.Metadata{
+		Name: name,
+	}, userprovisioning.Spec{
 		Login:  "foo",
 		Groups: []string{"bar", "baz"},
 	})

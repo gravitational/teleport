@@ -43,7 +43,6 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2310,7 +2310,7 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 }
 
 // ListStaticHostUsers lists static host users.
-func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioning.StaticHostUser, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListStaticHostUsers")
 	defer span.End()
 
@@ -2323,7 +2323,7 @@ func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken
 }
 
 // GetStaticHostUser returns a static host user by name.
-func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovisioning.StaticHostUser, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticHostUser")
 	defer span.End()
 

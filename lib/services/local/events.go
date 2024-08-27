@@ -35,7 +35,6 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2219,7 +2218,7 @@ func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error
 	case types.OpDelete:
 		return resourceHeader(event, types.KindStaticHostUser, types.V1, 0)
 	case types.OpPut:
-		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+		resource, err := services.UnmarshalStaticHostUser(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),

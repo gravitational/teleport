@@ -35,13 +35,13 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -717,7 +717,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.StaticHostUsers == nil {
 				return nil, trace.BadParameter("missing parameter StaticHostUsers")
 			}
-			collections.staticHostUsers = &genericCollection[*userprovisioningpb.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
+			collections.staticHostUsers = &genericCollection[*userprovisioning.StaticHostUser, staticHostUserGetter, staticHostUserExecutor]{
 				cache: c,
 				watch: watch,
 			}
@@ -2338,10 +2338,10 @@ var _ executor[*kubewaitingcontainerpb.KubernetesWaitingContainer, kubernetesWai
 
 type staticHostUserExecutor struct{}
 
-func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioningpb.StaticHostUser, error) {
+func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*userprovisioning.StaticHostUser, error) {
 	var (
 		startKey string
-		allUsers []*userprovisioningpb.StaticHostUser
+		allUsers []*userprovisioning.StaticHostUser
 	)
 	for {
 		users, nextKey, err := cache.StaticHostUsers.ListStaticHostUsers(ctx, 0, startKey)
@@ -2359,7 +2359,7 @@ func (staticHostUserExecutor) getAll(ctx context.Context, cache *Cache, loadSecr
 	return allUsers, nil
 }
 
-func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioningpb.StaticHostUser) error {
+func (staticHostUserExecutor) upsert(ctx context.Context, cache *Cache, resource *userprovisioning.StaticHostUser) error {
 	_, err := cache.staticHostUsersCache.UpsertStaticHostUser(ctx, resource)
 	return trace.Wrap(err)
 }
@@ -2369,10 +2369,10 @@ func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error
 }
 
 func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	var hostUser *userprovisioningpb.StaticHostUser
+	var hostUser *userprovisioning.StaticHostUser
 	r, ok := resource.(types.Resource153Unwrapper)
 	if ok {
-		hostUser, ok = r.Unwrap().(*userprovisioningpb.StaticHostUser)
+		hostUser, ok = r.Unwrap().(*userprovisioning.StaticHostUser)
 		if ok {
 			err := cache.staticHostUsersCache.DeleteStaticHostUser(ctx, hostUser.Metadata.Name)
 			return trace.Wrap(err)
@@ -2391,8 +2391,8 @@ func (staticHostUserExecutor) getReader(cache *Cache, cacheOK bool) staticHostUs
 }
 
 type staticHostUserGetter interface {
-	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error)
-	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+	ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioning.StaticHostUser, string, error)
+	GetStaticHostUser(ctx context.Context, name string) (*userprovisioning.StaticHostUser, error)
 }
 
 type crownJewelsExecutor struct{}

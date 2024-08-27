@@ -1,12 +1,28 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package v1
 
 import (
+	"github.com/gravitational/trace"
+
 	userprovisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
-	"github.com/gravitational/trace"
 )
 
+// FromProto converts a v1 static host user into an internal static host user.
 func FromProto(msg *userprovisioningv1.StaticHostUser) (*userprovisioning.StaticHostUser, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("static host user message is missing")
@@ -37,6 +53,7 @@ func FromProto(msg *userprovisioningv1.StaticHostUser) (*userprovisioning.Static
 	return u, nil
 }
 
+// ToProto converts an internal static host user into a v1 static host user.
 func ToProto(hostUser *userprovisioning.StaticHostUser) *userprovisioningv1.StaticHostUser {
 	u := &userprovisioningv1.StaticHostUser{
 		Kind:     hostUser.GetKind(),
