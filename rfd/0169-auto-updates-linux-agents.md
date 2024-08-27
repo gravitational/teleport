@@ -131,24 +131,24 @@ Losing auth:
 The rollout logic is progressed by instance heartbeat backend writes, as changes can only occur on these events.
 
 The following data related to the rollout are stored in each instance heartbeat:
-- `agent_upgrade_start_time`: timestamp of individual agent's upgrade time
-- `agent_upgrade_version`: current agent version
+- `agent_update_start_time`: timestamp of individual agent's upgrade time
+- `agent_update_version`: current agent version
 
-Expiration time of the heartbeat is extended to 24 hours when `agent_upgrade_start_time` is written.
+Expiration time of the heartbeat is extended to 24 hours when `agent_update_start_time` is written.
 
 Additionally, an in-memory data structure is maintained based on the cache, and kept up-to-date by a background process.
 This data structure contains the number of unfinished (pending and ongoing) upgrades preceding each instance heartbeat in the rollout plan.
-Instance heartbeats are considered completed when either `agent_upgrade_version` matches the plan version, or `agent_upgrade_start_time` is past the expiration time.
+Instance heartbeats are considered completed when either `agent_update_version` matches the plan version, or `agent_update_start_time` is past the expiration time.
 ```golang
 unfinished := make(map[Rollout][UUID]int)
 ```
 
 On each instance heartbeat write, the auth server looks at the data structure to determine if the associated agent should begin upgrading.
 This determination is made by comparing the stored number of unfinished upgrades to `max_in_flight % x len(hosts)`.
-If the stored number is fewer, `agent_upgrade_start_time` is updated to the current time when the heartbeat is written.
+If the stored number is fewer, `agent_update_start_time` is updated to the current time when the heartbeat is written.
 
 The auth server writes the following keys to `/autoupdate/[name of group]/status` (e.g., `/autoupdate/staging/status`):
-- `last_active_host_index`: index of the last host allowed to upgrade
+- `last_active_host_index`: index of the last host allowed to update
 - `failed_host_count`: failed host count
 - `timeout_host_count`: timed-out host count
 
@@ -168,10 +168,10 @@ upgrading := make(map[UUID]bool)
 ```
 Proxies watch for changes to the plan and update the map accordingly.
 
-When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]`, the proxies query the map to determine the value of `agent_auto_upgrade: true`.
+When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]`, the proxies query the map to determine the value of `agent_autoupdate: true`.
 
-Upgrading all agents generates the following additional backend write load:
-- One write per page of the rollout plan per upgrade group.
+Updating all agents generates the following additional backend write load:
+- One write per page of the rollout plan per update group.
 - One write per auth server every 10 seconds, during rollouts.
 
 ### REST Endpoints
@@ -186,7 +186,7 @@ Upgrading all agents generates the following additional backend write load:
 }
 ```
 Notes:
-- Agents will only upgrade if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
+- Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 - The host UUID is read from `/var/lib/teleport/host_uuid` by the updater.
 - The group name is read from `/var/lib/teleport/versions/updates.yaml` by the updater.
@@ -212,25 +212,25 @@ spec:
     regular:
       # name of the group
     - name: staging-group
-      # days specifies the days of the week when the group may be upgraded.
+      # days specifies the days of the week when the group may be updated.
       #  default: ["*"] (all days)
       days: [“Sun”, “Mon”, ... | "*"]
       # start_hour specifies the hour when the group may start upgrading.
       #  default: 0
       start_hour: 0-23
       # jitter_seconds specifies a maximum jitter duration after the start hour.
-      # The agent upgrader client will pick a random time within this duration to wait to upgrade.
+      # The agent updater client will pick a random time within this duration to wait to update.
       #  default: 0
       jitter_seconds: 0-60
       # timeout_seconds specifies the amount of time, after the specified jitter, after which
-      # an agent upgrade will be considered timed out if the version does not change.
+      # an agent update will be considered timed out if the version does not change.
       #  default: 60
       timeout_seconds: 30-900
-      # failure_seconds specifies the amount of time after which an agent upgrade will be considered
-      # failed if the agent heartbeat stops before the upgrade is complete.
+      # failure_seconds specifies the amount of time after which an agent update will be considered
+      # failed if the agent heartbeat stops before the update is complete.
       #  default: 0
       failure_seconds: 0-900
-      # max_in_flight specifies the maximum number of agents that may be upgraded at the same time.
+      # max_in_flight specifies the maximum number of agents that may be updated at the same time.
       #  default: 100%
       max_in_flight: 0-100%
       # max_timeout_before_halt specifies the percentage of clients that may time out before this group
@@ -251,8 +251,8 @@ Dependency cycles are rejected.
 Dependency chains longer than a week will be rejected.
 Otherwise, updates could take up to 7 weeks to propagate.
 
-The updater will receive `agent_autoupdate: true` from the time is it designated for upgrade until the version changes in `autoupdate_version`.
-After 24 hours, the upgrade is halted in-place, and the group is considered failed if unfinished.
+The updater will receive `agent_autoupdate: true` from the time is it designated for update until the version changes in `autoupdate_version`.
+After 24 hours, the update is halted in-place, and the group is considered failed if unfinished.
 
 Changing the version or schedule completely resets progress.
 Releasing new client versions multiple times a week has the potential to starve dependent groups from updates.
@@ -288,7 +288,7 @@ Status: succeeded
 Date: 2024-01-03 23:43:22 UTC
 Requires: (none)
 
-Upgraded: 230 (95%)
+Updated: 230 (95%)
 Unchanged: 10 (2%)
 Failed: 15 (3%)
 Timed-out: 0
@@ -361,7 +361,7 @@ This will require tracking the desired version of groups in the backend, which w
 
 We will ship a new auto-updater package for Linux servers written in Go that does not interface with the system package manager.
 It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually.
-It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified upgrade plan.
+It will read the unauthenticated `/v1/webapi/find` endpoint from the Teleport proxy, parse new fields on that endpoint, and install the specified agent version according to the specified update plan.
 It will download the correct version of Teleport as a tarball, unpack it in `/var/lib/teleport`, and ensure it is symlinked from `/usr/local/bin`.
 
 Source code for the updater will live in the main Teleport repository, with the updater binary built from `tools/teleport-update`.
@@ -376,7 +376,7 @@ $ teleport-update enable --proxy example.teleport.sh
 $ systemctl enable teleport
 ```
 
-For grouped upgrades, a group identifier may be configured:
+For grouped updates, a group identifier may be configured:
 ```shell
 $ teleport-update enable --proxy example.teleport.sh --group staging
 ```
@@ -481,7 +481,7 @@ The `enable` subcommand will:
 1. Query the `/v1/webapi/find` endpoint.
 2. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, jump to (16).
 3. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (13).
-4. Ensure there is enough free disk space to upgrade Teleport via `df .` and `content-length` header from `HEAD` request.
+4. Ensure there is enough free disk space to update Teleport via `df .` and `content-length` header from `HEAD` request.
 5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 6. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 7. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
@@ -504,7 +504,7 @@ When `update` subcommand is otherwise executed, it will:
 3. Check that `agent_autoupdates` is true, quit otherwise.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
-6. Ensure there is enough free disk space to upgrade Teleport via `df .` and `content-length` header from `HEAD` request.
+6. Ensure there is enough free disk space to update Teleport via `df .` and `content-length` header from `HEAD` request.
 7. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 8. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 9. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
@@ -531,13 +531,13 @@ To ensure that backups are consistent, the updater will use the [SQLite backup A
 
 If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
 
-If `teleport-updater` itself fails with an error, and an older version of `teleport-updater` is available, the upgrade will retry with the older version.
+If `teleport-updater` itself fails with an error, and an older version of `teleport-updater` is available, the update will retry with the older version.
 
-Known failure conditions caused by intentional configuration (e.g., upgrades disabled) will not trigger retry logic.
+Known failure conditions caused by intentional configuration (e.g., updates disabled) will not trigger retry logic.
 
 #### Status
 
-To retrieve known information about agent upgrades, the `status` subcommand will return the following:
+To retrieve known information about agent updates, the `status` subcommand will return the following:
 ```json
 {
   "agent_version_installed": "15.1.1",
@@ -567,8 +567,8 @@ When Teleport is downgraded to a previous version that has a backup of `sqlite.d
 Downgrades are applied with `teleport-updater update`, just like upgrades.
 The above steps modulate the standard workflow in the section above.
 If the downgraded version is already present, the uncompressed version is used to ensure fast recovery of the exact state before the failed upgrade.
-To ensure that the target version is was not corrupted by incomplete extraction, the downgrade checks for the existance of `/var/lib/teleport/versions/TARGET-VERSION/sha256` before downgrading.
-To ensure that the DB backup was not corrupted by incomplete copying, the downgrade checks for the existance of `/var/lib/teleport/versions/TARGET-VERSION/backup/backup.yaml` before restoring.
+To ensure that the target version is was not corrupted by incomplete extraction, the downgrade checks for the existence of `/var/lib/teleport/versions/TARGET-VERSION/sha256` before downgrading.
+To ensure that the DB backup was not corrupted by incomplete copying, the downgrade checks for the existence of `/var/lib/teleport/versions/TARGET-VERSION/backup/backup.yaml` before restoring.
 
 Teleport must be fully-stopped to safely replace `sqlite.db`.
 When restarting the agent during an upgrade, `SIGHUP` is used.
@@ -584,7 +584,7 @@ Given that rollbacks may fail, we must maintain the following invariants:
 
 When rolling forward, the backup of the newer version's `sqlite.db` is only restored if that exact version is the roll-forward version.
 Otherwise, the older, rollback version of `sqlite.db` is preserved (i.e., the newer version's backup is not used).
-This ensures that a version upgrade which broke the database can be recovered with a rollback and a new patch.
+This ensures that a version update which broke the database can be recovered with a rollback and a new patch.
 It also ensures that a broken rollback is always recoverable by reversing the rollback.
 
 Example: Given v1, v2, v3 versions of Teleport, where v2 is broken:
@@ -609,7 +609,7 @@ The following install scripts will be updated to install the latest updater and 
 
 Eventually, additional logic from the scripts could be added to `teleport-updater`, such that `teleport-updater` can configure teleport.
 
-Moving additional logic into the upgrader is out-of-scope for this proposal.
+Moving additional logic into the updater is out-of-scope for this proposal.
 
 To create pre-baked VM or container images that reduce the complexity of the cluster joining operation, two workflows are permitted:
 - Install the `teleport-updater` package and defer `teleport-updater enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
@@ -628,7 +628,7 @@ Documentation should be created covering the above workflows.
 
 ### Documentation
 
-The following documentation will need to be updated to cover the new upgrader workflow:
+The following documentation will need to be updated to cover the new updater workflow:
 - https://goteleport.com/docs/choose-an-edition/teleport-cloud/downloads
 - https://goteleport.com/docs/installation
 - https://goteleport.com/docs/upgrading/self-hosted-linux
@@ -640,7 +640,7 @@ Additionally, the Cloud dashboard tenants downloads tab will need to be updated 
 
 The Kubernetes agent updater will be updated for compatibility with the new scheduling system.
 
-This means that it will stop reading upgrade windows using the authenticated connection to the proxy, and instead upgrade when indicated by the `/v1/webapi/find` endpoint.
+This means that it will stop reading update windows using the authenticated connection to the proxy, and instead update when indicated by the `/v1/webapi/find` endpoint.
 
 Rollbacks for the Kubernetes updater, as well as packaging changes to improve UX and compatibility, will be covered in a future RFD.
 
@@ -659,10 +659,10 @@ administrators concerned with the authenticity of assets served from the
 download server can use self-managed updates with system package managers which
 are signed.
 
-The Upgrade Framework (TUF) will be used to implement secure updates in the future.
+The Update Framework (TUF) will be used to implement secure updates in the future.
 
-Anyone who possesses a host UUID can determine when that host is scheduled to upgrade by repeatedly querying the public `/v1/webapi/find` endpoint.
-It is not possible to discover the current version of that host, only the designated upgrade window.
+Anyone who possesses a host UUID can determine when that host is scheduled to update by repeatedly querying the public `/v1/webapi/find` endpoint.
+It is not possible to discover the current version of that host, only the designated update window.
 
 ## Logging
 
@@ -751,7 +751,7 @@ message AutoupdateConfig {
 message AutoupdateConfigSpec {
   // agent_autoupdate specifies whether agent autoupdates are enabled.
   bool agent_autoupdate = 1;
-  // agent_schedules specifies schedules for upgrades of grouped agents.
+  // agent_schedules specifies schedules for updates of grouped agents.
   AgentAutoupdateSchedules agent_schedules = 3;
 }
 
@@ -777,7 +777,7 @@ message AgentAutoupdateGroup {
   int32 timeout_seconds = 5;
   // failure_seconds before an agent is considered failed (loses connection)
   int32 failure_seconds = 6;
-  // max_in_flight specifies agents that can be upgraded at the same time, by percent.
+  // max_in_flight specifies agents that can be updated at the same time, by percent.
   string max_in_flight = 7;
   // max_timeout_before_halt specifies agents that can timeout before the rollout is halted, by percent.
   string max_timeout_before_halt = 8;
