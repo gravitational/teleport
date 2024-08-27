@@ -63,6 +63,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare workspace
+        id: prepare
         uses: ./.github/actions/prepare-workspace
 
       - name: Mount debugfs
