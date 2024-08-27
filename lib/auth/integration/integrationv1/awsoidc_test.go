@@ -80,7 +80,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 			}},
 		}, localClient)
 
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 	})
 
@@ -95,7 +95,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
 			require.NoError(t, err)
 		}
 	})
@@ -124,22 +124,11 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("without integration (old clients)", func(t *testing.T) {
-		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
-		require.NoError(t, err)
-
-		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-			RawToken: resp.GetToken(),
-			Issuer:   publicURL,
-		})
-		require.NoError(t, err)
-		// Fails if the issuer is different
-		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
-			RawToken: resp.GetToken(),
-			Issuer:   publicURL + "3",
-		})
+	t.Run("without integration (v15 and lower clients) returns an error", func(t *testing.T) {
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
 		require.Error(t, err)
 	})
+
 	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
 		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithoutIssuer,

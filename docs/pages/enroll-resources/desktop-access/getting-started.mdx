@@ -175,9 +175,9 @@ following for the Windows Desktop Service:
    ```diff
    version: v3
    teleport:
-     nodename: <Var name="windows.teleport.example.com" />
-     proxy_server: <Var name="teleport.example.com:443" />
-     auth_token: <Var name="/tmp/token" />
+     nodename: windows.teleport.example.com
+     proxy_server: teleport.example.com:443
+     auth_token: /tmp/token
    windows_desktop_service:
      enabled: yes
      static_hosts:
