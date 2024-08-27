@@ -79,7 +79,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	autoupd "github.com/gravitational/teleport/lib/auth/autoupdate/v1"
+	autoupdatev1 "github.com/gravitational/teleport/lib/auth/autoupdate/v1"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
@@ -5435,11 +5435,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	userprovisioningpb.RegisterStaticHostUsersServiceServer(server, staticHostUserServer)
 
-	autoupdateStorage, err := local.NewAutoupdateService(cfg.AuthServer.bk)
+	autoupdateServiceServer, err := autoupdatev1.NewService(autoupdatev1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	autoupdateServiceServer := autoupd.NewService(autoupdateStorage, cfg.Authorizer)
 	autoupdate.RegisterAutoupdateServiceServer(server, autoupdateServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds

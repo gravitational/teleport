@@ -260,5 +260,11 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 		}, nil
 	})
 
-	return NewService(storage, authorizer)
+	service, err := NewService(ServiceConfig{
+		Authorizer: authorizer,
+		Backend:    storage,
+		Cache:      storage,
+	})
+	require.NoError(t, err)
+	return service
 }

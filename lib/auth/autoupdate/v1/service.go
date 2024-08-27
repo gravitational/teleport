@@ -30,26 +30,46 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// ServiceConfig holds configuration options for the autoupdate gRPC service.
+type ServiceConfig struct {
+	// Authorizer is the authorizer used to check access to resources.
+	Authorizer authz.Authorizer
+	// Backend is the backend used to store autoupdate resources.
+	Backend services.AutoupdateService
+	// Cache is the cache used to store autoupdate resources.
+	Cache services.AutoupdateServiceGetter
+}
+
 // Service implements the gRPC API layer for the Autoupdate.
 type Service struct {
 	// Opting out of forward compatibility, this service must implement all service methods.
 	autoupdate.UnsafeAutoupdateServiceServer
 
-	storage    services.AutoupdateService
 	authorizer authz.Authorizer
+	backend    services.AutoupdateService
+	cache      services.AutoupdateServiceGetter
 }
 
 // NewService returns a new Autoupdate API service using the given storage layer and authorizer.
-func NewService(storage services.AutoupdateService, authorizer authz.Authorizer) *Service {
-	return &Service{
-		storage:    storage,
-		authorizer: authorizer,
+func NewService(cfg ServiceConfig) (*Service, error) {
+	switch {
+	case cfg.Backend == nil:
+		return nil, trace.BadParameter("backend is required")
+	case cfg.Authorizer == nil:
+		return nil, trace.BadParameter("authorizer is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
+	return &Service{
+		authorizer: cfg.Authorizer,
+		backend:    cfg.Backend,
+		cache:      cfg.Cache,
+	}, nil
 }
 
 // GetAutoupdateConfig gets the current autoupdate config singleton.
 func (s *Service) GetAutoupdateConfig(ctx context.Context, req *autoupdate.GetAutoupdateConfigRequest) (*autoupdate.AutoupdateConfig, error) {
-	config, err := s.storage.GetAutoupdateConfig(ctx)
+	config, err := s.cache.GetAutoupdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,7 +92,7 @@ func (s *Service) CreateAutoupdateConfig(ctx context.Context, req *autoupdate.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.storage.CreateAutoupdateConfig(ctx, req.Config)
+	config, err := s.backend.CreateAutoupdateConfig(ctx, req.Config)
 	return config, trace.Wrap(err)
 }
 
@@ -91,7 +111,7 @@ func (s *Service) UpdateAutoupdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.storage.UpdateAutoupdateConfig(ctx, req.Config)
+	config, err := s.backend.UpdateAutoupdateConfig(ctx, req.Config)
 	return config, trace.Wrap(err)
 }
 
@@ -110,7 +130,7 @@ func (s *Service) UpsertAutoupdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.storage.UpsertAutoupdateConfig(ctx, req.Config)
+	config, err := s.backend.UpsertAutoupdateConfig(ctx, req.Config)
 	return config, trace.Wrap(err)
 }
 
@@ -129,7 +149,7 @@ func (s *Service) DeleteAutoupdateConfig(ctx context.Context, req *autoupdate.De
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.storage.DeleteAutoupdateConfig(ctx); err != nil {
+	if err := s.backend.DeleteAutoupdateConfig(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -137,7 +157,7 @@ func (s *Service) DeleteAutoupdateConfig(ctx context.Context, req *autoupdate.De
 
 // GetAutoupdateVersion gets the current autoupdate version singleton.
 func (s *Service) GetAutoupdateVersion(ctx context.Context, req *autoupdate.GetAutoupdateVersionRequest) (*autoupdate.AutoupdateVersion, error) {
-	version, err := s.storage.GetAutoupdateVersion(ctx)
+	version, err := s.cache.GetAutoupdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,7 +180,7 @@ func (s *Service) CreateAutoupdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.storage.CreateAutoupdateVersion(ctx, req.Version)
+	autoupdateVersion, err := s.backend.CreateAutoupdateVersion(ctx, req.Version)
 	return autoupdateVersion, trace.Wrap(err)
 }
 
@@ -179,7 +199,7 @@ func (s *Service) UpdateAutoupdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.storage.UpdateAutoupdateVersion(ctx, req.Version)
+	autoupdateVersion, err := s.backend.UpdateAutoupdateVersion(ctx, req.Version)
 	return autoupdateVersion, trace.Wrap(err)
 }
 
@@ -198,7 +218,7 @@ func (s *Service) UpsertAutoupdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.storage.UpsertAutoupdateVersion(ctx, req.Version)
+	autoupdateVersion, err := s.backend.UpsertAutoupdateVersion(ctx, req.Version)
 	return autoupdateVersion, trace.Wrap(err)
 }
 
@@ -217,7 +237,7 @@ func (s *Service) DeleteAutoupdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.storage.DeleteAutoupdateVersion(ctx); err != nil {
+	if err := s.backend.DeleteAutoupdateVersion(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

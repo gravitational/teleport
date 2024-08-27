@@ -1448,7 +1448,6 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
