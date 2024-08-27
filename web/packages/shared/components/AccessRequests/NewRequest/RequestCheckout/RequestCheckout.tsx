@@ -21,6 +21,7 @@ import styled from 'styled-components';
 import {
   Alert,
   Box,
+  ButtonBorder,
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
@@ -485,14 +486,25 @@ function ResourceRequestRoles({
             border-color: ${props => props.theme.colors.spotBackground[1]};
           `}
         >
-          <Flex flexDirection="column" width="100%">
-            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
-              Roles
-            </LabelInput>
-            <Text typography="subtitle2" mb={2}>
-              {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
-              selected
-            </Text>
+          <Flex alignItems="center" gap={2}>
+            <Flex flexDirection="column" width="100%">
+              <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+                Roles
+              </LabelInput>
+              <Text typography="body4" mb={2}>
+                {selectedRoles.length} role
+                {selectedRoles.length !== 1 ? 's' : ''} selected
+              </Text>
+            </Flex>
+            {selectedRoles.length ? (
+              <ButtonBorder
+                onClick={() => setSelectedRoles([])}
+                size="small"
+                width="50px"
+              >
+                Clear
+              </ButtonBorder>
+            ) : null}
           </Flex>
           {fetchAttempt.status === 'processing' ? (
             <Flex
