@@ -20,7 +20,8 @@ package main
 
 import (
 	"context"
-	"io"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -54,7 +55,7 @@ const (
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 func main() {
-	if err := Run(os.Args[1:], os.Stdout); err != nil {
+	if err := Run(os.Args[1:]); err != nil {
 		utils.FatalError(err)
 	}
 }
@@ -71,7 +72,7 @@ type cliConfig struct {
 	LogFormat string
 }
 
-func Run(args []string, stdout io.Writer) error {
+func Run(args []string) error {
 	var cf cliConfig
 	ctx := context.Background()
 
@@ -97,7 +98,7 @@ func Run(args []string, stdout io.Writer) error {
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
 	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
-		return trace.Wrap(err, "setting up logger")
+		return trace.Errorf("setting up logger")
 	}
 
 	err = validate(&cf)
@@ -114,7 +115,7 @@ func Run(args []string, stdout io.Writer) error {
 		err = outputVersion(ctx)
 	default:
 		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
+		err = trace.Errorf("command %q not configured", command)
 	}
 
 	return err
@@ -130,7 +131,7 @@ func setupLogger(debug bool, format string) error {
 	case utils.LogFormatJSON:
 	case utils.LogFormatText, "":
 	default:
-		return trace.BadParameter("unsupported log format %q", format)
+		return trace.Errorf("unsupported log format %q", format)
 	}
 
 	utils.InitLogger(utils.LoggingForDaemon, level, utils.WithLogFormat(format))
@@ -140,6 +141,11 @@ func setupLogger(debug bool, format string) error {
 var (
 	versionsDir = filepath.Join(defaults.DataDir, "versions")
 	updatesYAML = filepath.Join(versionsDir, "updates.yaml")
+)
+
+const (
+	updatesVersion = "v1"
+	updatesKind    = "agent_versions"
 )
 
 type UpdatesConfig struct {
@@ -155,13 +161,19 @@ type UpdatesConfig struct {
 
 func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 	f, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &UpdatesConfig{
+			Version: updatesVersion,
+			Kind:    updatesKind,
+		}, nil
+	}
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to open updates.yaml")
+		return nil, trace.Errorf("failed to open updates.yaml: %w", err)
 	}
 	defer f.Close()
 	var cfg UpdatesConfig
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, trace.Wrap(err, "failed to parse updates.yaml")
+		return nil, trace.Errorf("failed to parse updates.yaml: %w", err)
 	}
 	return &cfg, nil
 }
@@ -169,7 +181,7 @@ func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 func doEnable(ctx context.Context, cf *cliConfig) error {
 	addr, err := utils.ParseAddr(cf.ProxyServer)
 	if err != nil {
-		return trace.Wrap(err, "failed to parse proxy server address")
+		return trace.Errorf("failed to parse proxy server address: %w", err)
 	}
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
@@ -177,18 +189,28 @@ func doEnable(ctx context.Context, cf *cliConfig) error {
 		Timeout:   30 * time.Second,
 	})
 	if err != nil {
-		return trace.Wrap(err, "failed to request version from proxy")
+		return trace.Errorf("failed to request version from proxy: %w", err)
 	}
 	cfg, err := readUpdatesConfig(updatesYAML)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if resp.AgentVersion != cfg.Spec.ActiveVersion {
+	if k := cfg.Kind; k != updatesKind {
+		return trace.Errorf("updates.yaml contains invalid kind %q", k)
+	}
+	if v := cfg.Version; v != updatesVersion {
+		return trace.Errorf("updates.yaml contains invalid version %q", v)
+	}
+	if cfg.Spec.ActiveVersion != resp.AgentVersion {
 
 		cfg.Spec.ActiveVersion = resp.AgentVersion
 	}
-	if cf.Group !=
-	cfg.Spec.Group = cf.Group
+	if cf.ProxyServer != "" {
+		cfg.Spec.Proxy = cf.ProxyServer
+	}
+	if cf.Group != "" {
+		cfg.Spec.Group = cf.Group
+	}
 	cfg.Spec.Enabled = true
 
 }
