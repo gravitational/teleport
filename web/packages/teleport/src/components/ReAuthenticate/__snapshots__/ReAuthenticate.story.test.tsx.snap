@@ -447,7 +447,6 @@ exports[`render failed state for re-authentication dialog 1`] = `
             >
               <label
                 class="c14"
-                font-size="0"
                 for="select"
               >
                 Two-factor Type
@@ -952,7 +951,6 @@ exports[`render re-authentication dialog 1`] = `
             >
               <label
                 class="c13"
-                font-size="0"
                 for="select"
               >
                 Two-factor Type

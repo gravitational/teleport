@@ -17,31 +17,39 @@
  */
 
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 
-import { space } from 'design/system';
+import {
+  alignItems,
+  AlignItemsProps,
+  justifyContent,
+  JustifyContentProps,
+  flexWrap,
+  FlexWrapProps,
+  flexDirection,
+  FlexDirectionProps,
+  gap,
+  GapProps,
+} from 'design/system';
 
-const LabelInput = styled.label`
-  color: ${props =>
-    props.hasError
-      ? props.theme.colors.error.main
-      : props.theme.colors.text.main};
-  display: block;
-  font-size: ${p => p.theme.fontSizes[1]}px;
-  width: 100%;
-  ${space}
+import Box, { BoxProps } from '../Box';
+
+interface FlexProps
+  extends BoxProps,
+    AlignItemsProps,
+    JustifyContentProps,
+    FlexWrapProps,
+    FlexDirectionProps,
+    GapProps {}
+
+const Flex = styled(Box)<FlexProps>`
+  display: flex;
+  ${alignItems}
+  ${justifyContent}
+  ${flexWrap}
+  ${flexDirection}
+  ${gap};
 `;
 
-LabelInput.propTypes = {
-  hasError: PropTypes.bool,
-};
+Flex.displayName = 'Flex';
 
-LabelInput.defaultProps = {
-  hasError: false,
-  fontSize: 0,
-  mb: 1,
-};
-
-LabelInput.displayName = 'LabelInput';
-
-export default LabelInput;
+export default Flex;

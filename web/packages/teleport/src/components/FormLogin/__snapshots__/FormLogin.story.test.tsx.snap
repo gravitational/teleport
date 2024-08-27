@@ -233,7 +233,6 @@ exports[`auth2faType: off 1`] = `
             >
               <label
                 class="c10"
-                font-size="0"
               >
                 Username
                 <input
@@ -255,7 +254,6 @@ exports[`auth2faType: off 1`] = `
               >
                 <label
                   class="c10"
-                  font-size="0"
                 >
                   Password
                   <input
@@ -699,7 +697,6 @@ exports[`auth2faType: optional rendering 1`] = `
             >
               <label
                 class="c10"
-                font-size="0"
               >
                 Username
                 <input
@@ -721,7 +718,6 @@ exports[`auth2faType: optional rendering 1`] = `
               >
                 <label
                   class="c10"
-                  font-size="0"
                 >
                   Password
                   <input
@@ -748,7 +744,6 @@ exports[`auth2faType: optional rendering 1`] = `
                 >
                   <label
                     class="c15"
-                    font-size="0"
                     for="select"
                   >
                     Multi-factor Type
@@ -1245,7 +1240,6 @@ exports[`auth2faType: otp rendering 1`] = `
             >
               <label
                 class="c10"
-                font-size="0"
               >
                 Username
                 <input
@@ -1267,7 +1261,6 @@ exports[`auth2faType: otp rendering 1`] = `
               >
                 <label
                   class="c10"
-                  font-size="0"
                 >
                   Password
                   <input
@@ -1294,7 +1287,6 @@ exports[`auth2faType: otp rendering 1`] = `
                 >
                   <label
                     class="c15"
-                    font-size="0"
                     for="select"
                   >
                     Multi-factor Type
@@ -1359,7 +1351,6 @@ exports[`auth2faType: otp rendering 1`] = `
                 >
                   <label
                     class="c10"
-                    font-size="0"
                   >
                     Authenticator Code
                     <input
@@ -1804,7 +1795,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
             >
               <label
                 class="c10"
-                font-size="0"
               >
                 Username
                 <input
@@ -1826,7 +1816,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
               >
                 <label
                   class="c10"
-                  font-size="0"
                 >
                   Password
                   <input
@@ -1853,7 +1842,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 >
                   <label
                     class="c15"
-                    font-size="0"
                     for="select"
                   >
                     Multi-factor Type
@@ -2424,7 +2412,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
             >
               <label
                 class="c10"
-                font-size="0"
               >
                 Username
                 <input
@@ -2446,7 +2433,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
               >
                 <label
                   class="c10"
-                  font-size="0"
                 >
                   Password
                   <input
@@ -2484,7 +2470,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 >
                   <label
                     class="c20"
-                    font-size="0"
                     for="select"
                   >
                     Multi-factor Type
@@ -2914,7 +2899,6 @@ exports[`server error rendering 1`] = `
             >
               <label
                 class="c11"
-                font-size="0"
               >
                 Username
                 <input
@@ -2936,7 +2920,6 @@ exports[`server error rendering 1`] = `
               >
                 <label
                   class="c11"
-                  font-size="0"
                 >
                   Password
                   <input
