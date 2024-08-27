@@ -30,8 +30,6 @@ export function makeRecording(event: any): Recording {
     return makeDesktopRecording(event);
   } else if (event.code === eventCodes.DATABASE_SESSION_ENDED) {
     return makeDatabaseRecording(event);
-  } else if (event.code === eventCodes.APP_SESSION_END) {
-    return makeAppRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
@@ -159,24 +157,6 @@ function makeDatabaseRecording({
     description,
     recordingType: 'database',
     playable: description === 'play',
-  } as Recording;
-}
-
-function makeAppRecording({ time, user, sid, app_name }) {
-  // App recordings all not playable from the webUI, but we still want to display
-  // them as they can be viewed through `tsh play --format=json`.
-  const description = 'non-interactive';
-
-  return {
-    duration: 0,
-    durationText: '-',
-    sid,
-    createdDate: time,
-    users: user,
-    hostname: app_name,
-    description,
-    recordingType: 'app',
-    playable: false,
   } as Recording;
 }
 

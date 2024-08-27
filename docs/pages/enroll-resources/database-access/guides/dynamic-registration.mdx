@@ -36,6 +36,27 @@ resources:
     "engine": "mysql"
 ```
 
+To see the currently running Database Services, run `tctl get db_services`:
+
+```yaml
+kind: db_service
+metadata:
+  expires: "2024-08-27T11:38:10.207175Z"
+  name: 2b5207e3-a258-423e-a41d-e50ea2f0dfdc
+spec:
+  hostname: my-host
+  resources:
+  - labels:
+      env: prod
+      engine: postgres
+  - labels:
+      env: test
+      engine: mysql
+version: v1
+```
+
+The `name` within a `db_service` matches to the host ID of the agent running the Teleport Database Service.
+
 Next define a database resource:
 
 ```yaml

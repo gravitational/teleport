@@ -78,8 +78,10 @@ const (
 	// to pid 1 and "live forever". Killing the shell should not prevent processes
 	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
 	TerminateFile
-	// PTYFile is a PTY the parent process passes to the child process.
-	PTYFile
+	// PTYFileDeprecated is a placeholder for the unused PTY file that
+	// was passed to the child process. The PTY should only be used in the
+	// the parent process but was left here for compatibility purposes.
+	PTYFileDeprecated
 	// TTYFile is a TTY the parent process passes to the child process.
 	TTYFile
 
@@ -266,17 +268,15 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}()
 
 	var tty *os.File
-	var pty *os.File
 	uaccEnabled := false
 
-	// If a terminal was requested, file descriptors 6 and 7 always point to the
-	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
+	// If a terminal was requested, file descriptor 7 always points to the
+	// TTY. Extract it and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(PTYFile, fdName(PTYFile))
 		tty = os.NewFile(TTYFile, fdName(TTYFile))
-		if pty == nil || tty == nil {
-			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
+		if tty == nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("tty not found")
 		}
 		errorWriter = tty
 	}
@@ -353,7 +353,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	// Build the actual command that will launch the shell.
-	cmd, err := buildCommand(&c, localUser, tty, pty, pamEnvironment)
+	cmd, err := buildCommand(&c, localUser, tty, pamEnvironment)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
@@ -491,9 +491,9 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 		return nil
 	}
 
-	group, err := o.LookupGroup(types.TeleportServiceGroup)
+	group, err := o.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, types.TeleportServiceGroup) {
+		if isUnknownGroupError(err, types.TeleportDropGroup) {
 			// The service group doesn't exist. Auto-provision is disabled, do nothing.
 			return nil
 		}
@@ -514,7 +514,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	}
 
 	if !found {
-		// Check if the new user guid matches the TeleportServiceGroup. If not
+		// Check if the new user guid matches the TeleportDropGroup. If not
 		// this user hasn't been created by Teleport, and we don't need the parker.
 		return nil
 	}
@@ -930,7 +930,7 @@ func IsReexec() bool {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, _ *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 	isReexec := false
 
