@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.23
+VERSION=14.3.28
 
 DOCKER_IMAGE ?= teleport
 
@@ -799,6 +799,25 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 endif
+
+# Runs benchmarks once to make sure they pass.
+# This is intended to run in CI during unit testing to make sure benchmarks don't break.
+# To limit noise and improve speed this will only run on packages that have benchmarks.
+# Race detection is not enabled because it significantly slows down benchmarks.
+# todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
+.PHONY: test-go-bench
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
+test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
+
+test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
+test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Runs ci tsh tests
 .PHONY: test-go-tsh
