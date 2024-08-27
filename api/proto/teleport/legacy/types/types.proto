@@ -5696,6 +5696,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.
