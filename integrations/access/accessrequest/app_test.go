@@ -22,11 +22,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 )
 
 func TestOpsGenieGetMessageRecipients(t *testing.T) {
@@ -115,4 +117,58 @@ func (testBot) FetchRecipient(ctx context.Context, recipient string) (*common.Re
 		Name: recipient,
 		ID:   recipient,
 	}, nil
+}
+
+type mockTeleportClient struct {
+	mock.Mock
+	teleport.Client
+}
+
+func (m *mockTeleportClient) GetRole(ctx context.Context, name string) (types.Role, error) {
+	args := m.Called(ctx, name)
+	return args.Get(0).(types.Role), args.Error(1)
+}
+
+func TestGetLoginsByRole(t *testing.T) {
+	teleportClient := &mockTeleportClient{}
+	teleportClient.On("GetRole", mock.Anything, "admin").Return(&types.RoleV6{
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{"root", "foo", "bar"},
+			},
+		},
+	}, (error)(nil))
+	teleportClient.On("GetRole", mock.Anything, "foo").Return(&types.RoleV6{
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{"foo"},
+			},
+		},
+	}, (error)(nil))
+	teleportClient.On("GetRole", mock.Anything, "dev").Return(&types.RoleV6{
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins: []string{},
+			},
+		},
+	}, (error)(nil))
+
+	app := App{
+		apiClient: teleportClient,
+	}
+	ctx := context.Background()
+	loginsByRole, err := app.getLoginsByRole(ctx, &types.AccessRequestV3{
+		Spec: types.AccessRequestSpecV3{
+			Roles: []string{"admin", "foo", "dev"},
+		},
+	})
+	require.NoError(t, err)
+
+	expected := map[string][]string{
+		"admin": {"root", "foo", "bar"},
+		"foo":   {"foo"},
+		"dev":   {},
+	}
+	require.Equal(t, expected, loginsByRole)
+	teleportClient.AssertNumberOfCalls(t, "GetRole", 3)
 }
