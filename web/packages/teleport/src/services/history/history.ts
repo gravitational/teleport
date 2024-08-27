@@ -109,7 +109,7 @@ const history = {
   },
 
   getRoutes() {
-    return Object.getOwnPropertyNames(cfg.routes).map(p => cfg.routes[p]);
+    return collectAllValues(cfg.routes);
   },
 
   getLocation() {
@@ -118,13 +118,15 @@ const history = {
 
   _canPush(route: string) {
     const knownRoutes = this.getRoutes();
+    const nonExactRoutes = cfg.getNonExactRoutes();
+
     const { pathname } = new URL(this.ensureBaseUrl(route));
 
     const match = (known: string) =>
       // only match against pathname
       matchPath(pathname, {
         path: known,
-        exact: true,
+        exact: !nonExactRoutes.includes(known),
       });
 
     return knownRoutes.some(match);
@@ -134,6 +136,24 @@ const history = {
     window.location.href = this.ensureBaseUrl(route);
   },
 };
+
+interface RouteRecord {
+  [key: string]: string | RouteRecord;
+}
+
+function collectAllValues(record: RouteRecord) {
+  const result: string[] = [];
+
+  for (const key in record) {
+    if (typeof record[key] === 'string') {
+      result.push(record[key]);
+    } else {
+      result.push(...collectAllValues(record[key]));
+    }
+  }
+
+  return result;
+}
 
 export default history;
 

@@ -42,7 +42,7 @@ type scanCommand struct {
 }
 
 func newScanCommand(app *kingpin.Application) scanCommand {
-	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport")
+	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport.")
 	cmd := scanCommand{
 		keys: newScanKeysCommand(scan),
 	}
@@ -56,7 +56,7 @@ type scanKeysCommand struct {
 }
 
 func newScanKeysCommand(parent *kingpin.CmdClause) *scanKeysCommand {
-	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport")}
+	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport.")}
 	c.Flag("dirs", "Directories to scan.").Default(defaultDirValues()).StringsVar(&c.dirs)
 	c.Flag("skip-paths", "Paths to directories or files to skip. Supports for matching patterns.").StringsVar(&c.skipPaths)
 	return c

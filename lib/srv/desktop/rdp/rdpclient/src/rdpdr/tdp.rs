@@ -700,6 +700,7 @@ pub(crate) fn to_windows_time(tdp_time_ms: u64) -> i64 {
 /// A generic error type that can contain any arbitrary error message.
 ///
 /// TODO: This is a temporary solution until we can figure out a better error handling system.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TdpHandlingError(pub String);
 

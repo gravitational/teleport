@@ -66,7 +66,7 @@ export const Default = () => {
       <Box>
         <h4>With a disabled value</h4>
         <RadioGroup
-          name="example3"
+          name="example4"
           options={[
             { value: '1', label: 'First option' },
             {
