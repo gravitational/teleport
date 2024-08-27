@@ -6115,6 +6115,11 @@ message PluginOktaSyncSettings {
   //   ^app.*$
   //   ^.*service.*$
   repeated string app_filters = 7;
+
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. May be missing for old Okta integration installs.
+  string app_name = 8;
 }
 
 // Defines a set of discord channel IDs
