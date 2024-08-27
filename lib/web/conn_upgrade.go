@@ -305,6 +305,11 @@ func (c *websocketALPNServerConn) readLocked(b []byte) (int, error) {
 			return 0, trace.Wrap(err)
 		}
 
+		// All client frames should be masked.
+		if frame.Header.Masked {
+			frame = ws.UnmaskFrame(frame)
+		}
+
 		c.logger.Log(c.logContext, logutils.TraceLevel, "Read websocket frame.", "op", frame.Header.OpCode, "payload_len", len(frame.Payload))
 
 		switch frame.Header.OpCode {
@@ -325,7 +330,7 @@ func (c *websocketALPNServerConn) writeFrame(frame ws.Frame) error {
 	c.writeMutex.Lock()
 	defer c.writeMutex.Unlock()
 
-	frame.Header.Masked = true
+	// There is no need to mask from server to client.
 	return trace.Wrap(ws.WriteFrame(c.Conn, frame))
 }
 
