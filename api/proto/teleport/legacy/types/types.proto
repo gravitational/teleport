@@ -5710,23 +5710,14 @@ message DatabaseServiceV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
-  // Status is the resource status.
-  DatabaseServiceStatusV1 Status = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "status"
-  ];
-}
-
-// DatabaseServiceStatusV1 is the DatabaseService Status.
-message DatabaseServiceStatusV1 {
-  // Hostname is the hostname where this service is running.
-  string Hostname = 1 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseServiceSpecV1 is the DatabaseService Spec.
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.

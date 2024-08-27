@@ -272,9 +272,6 @@ func TestDatabaseServiceResource(t *testing.T) {
 				{Labels: &types.Labels{"env": []string{"prod"}}},
 			},
 		},
-		types.DatabaseServiceStatusV1{
-			Hostname: "my-hostname",
-		},
 	)
 	require.NoError(t, err)
 

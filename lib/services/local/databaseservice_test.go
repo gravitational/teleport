@@ -55,9 +55,6 @@ func TestDatabaseServices(t *testing.T) {
 				},
 			},
 		},
-		types.DatabaseServiceStatusV1{
-			Hostname: "my-hostname",
-		},
 	)
 	require.NoError(t, err)
 	_, err = service.UpsertDatabaseService(ctx, ds1)
@@ -73,9 +70,6 @@ func TestDatabaseServices(t *testing.T) {
 					},
 				},
 			},
-		},
-		types.DatabaseServiceStatusV1{
-			Hostname: "my-hostname",
 		},
 	)
 	require.NoError(t, err)

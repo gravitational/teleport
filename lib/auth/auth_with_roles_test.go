@@ -3586,8 +3586,6 @@ func TestListDatabaseServices(t *testing.T) {
 					},
 				},
 			},
-		}, types.DatabaseServiceStatusV1{
-			Hostname: "my-hostname",
 		})
 		require.NoError(t, err)
 
@@ -3658,8 +3656,6 @@ func TestListDatabaseServices(t *testing.T) {
 				},
 			},
 		},
-	}, types.DatabaseServiceStatusV1{
-		Hostname: "my-hostname",
 	})
 	require.NoError(t, err)
 	_, err = clt.UpsertDatabaseService(ctx, extraDatabaseService)

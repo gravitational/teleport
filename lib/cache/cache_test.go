@@ -1962,8 +1962,6 @@ func TestDatabaseServices(t *testing.T) {
 				ResourceMatchers: []*types.DatabaseResourceMatcher{
 					{Labels: &types.Labels{"env": []string{"prod"}}},
 				},
-			}, types.DatabaseServiceStatusV1{
-				Hostname: "my-hostname",
 			})
 		},
 		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
