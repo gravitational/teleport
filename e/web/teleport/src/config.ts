@@ -148,6 +148,16 @@ const cfg = {
       '/webapi/scripts/integrations/configure/azureoidc.sh?authConnectorName=:authConnectorName',
   },
 
+  getNonExactRoutes() {
+    // These routes will not be exact matched when deciding if it is a valid route
+    // to redirect to when a user is unauthenticated.
+    // This is useful for routes that can be infinitely nested, e.g. `
+    // /web/accessgraph` and `/web/accessgraph/integrations/new`
+    // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
+
+    return [this.routes.accessGraph];
+  },
+
   getTrustedDevicesUrl(params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.devices, { ...params });
   },
@@ -354,7 +364,12 @@ const cfg = {
 
   init(json: object) {
     // this will apply server config by merging it with oss cfg
-    ossCfg.init({ isEnterprise: true, routes: cfg.routes, ...json });
+    ossCfg.init({
+      isEnterprise: true,
+      routes: cfg.routes,
+      nonExactRoutes: this.getNonExactRoutes(),
+      ...json,
+    });
   },
 };
 
