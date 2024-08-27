@@ -64,9 +64,9 @@ Whether the Teleport updater querying the endpoint is instructed to upgrade (via
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
 Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
 
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/updates.yaml` file, which is written via `teleport-updater enable`:
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/updates.yaml` file, which is written via `teleport-update enable`:
 ```shell
-$ teleport-updater enable --proxy teleport.example.com --group staging
+$ teleport-update enable --proxy teleport.example.com --group staging
 ```
 
 At the start of a group rollout, the Teleport auth server captures the desired group of hosts to update in the backend.
@@ -353,7 +353,7 @@ This means that groups which employ auto-scaling or ephemeral resources will slo
 
 **This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.**
 
-To solve this in the future, we can use the group name (provided to `/v1/webapi/find` and specified via `teleport-updater enable`) to determine which version should be served.
+To solve this in the future, we can use the group name (provided to `/v1/webapi/find` and specified via `teleport-update enable`) to determine which version should be served.
 
 This will require tracking the desired version of groups in the backend, which will add additional complexity to the rollout logic.
 
@@ -398,7 +398,7 @@ $ tree /var/lib/teleport
    │  │  ├── tsh
    │  │  ├── tbot
    │  │  ├── ... # other binaries
-   │  │  ├── teleport-updater
+   │  │  ├── teleport-update
    │  │  └── teleport
    │  ├── etc
    │  │  └── systemd
@@ -411,7 +411,7 @@ $ tree /var/lib/teleport
    │  │  ├── tsh
    │  │  ├── tbot
    │  │  ├── ... # other binaries
-   │  │  ├── teleport-updater
+   │  │  ├── teleport-update
    │  │  └── teleport
    │  └── etc
    │     └── systemd
@@ -423,8 +423,8 @@ $ ls -l /usr/local/bin/tbot
 /usr/local/bin/tbot -> /var/lib/teleport/versions/15.0.0/bin/tbot
 $ ls -l /usr/local/bin/teleport
 /usr/local/bin/teleport -> /var/lib/teleport/versions/15.0.0/bin/teleport
-$ ls -l /usr/local/bin/teleport-updater
-/usr/local/bin/teleport-updater -> /var/lib/teleport/versions/15.0.0/bin/teleport-updater
+$ ls -l /usr/local/bin/teleport-update
+/usr/local/bin/teleport-update -> /var/lib/teleport/versions/15.0.0/bin/teleport-update
 $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
 ```
@@ -438,7 +438,7 @@ spec:
   proxy: mytenant.teleport.sh
   # group specifies the update group
   group: staging
-  # enabled specifies whether auto-updates are enabled, i.e., whether teleport-updater update is allowed to update the agent.
+  # enabled specifies whether auto-updates are enabled, i.e., whether teleport-update update is allowed to update the agent.
   enabled: true
   # active_version specifies the active (symlinked) deployment of the telepport agent.
   active_version: 15.1.1
@@ -462,12 +462,12 @@ spec:
 The agent-updater will run as a periodically executing systemd service which runs every 10 minutes.
 The systemd service will run:
 ```shell
-$ teleport-updater update
+$ teleport-update update
 ```
 
-After it is installed, the `update` subcommand will no-op when executed until configured with the `teleport-updater` command:
+After it is installed, the `update` subcommand will no-op when executed until configured with the `teleport-update` command:
 ```shell
-$ teleport-updater enable --proxy mytenant.teleport.sh --group staging
+$ teleport-update enable --proxy mytenant.teleport.sh --group staging
 ```
 
 If the proxy address is not provided with `--proxy`, the current proxy address from `teleport.yaml` is used.
@@ -515,12 +515,12 @@ When `update` subcommand is otherwise executed, it will:
 14. Replace the old symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
 15. Remove all stored versions of the agent except the current version and last working version.
 
-To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-updater` at that version if present and different.
-The `/usr/local/bin/teleport-updater` symlink will take precedence to avoid reexec in most scenarios.
+To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-update` at that version if present and different.
+The `/usr/local/bin/teleport-update` symlink will take precedence to avoid reexec in most scenarios.
 
-To ensure that SELinux permissions do not prevent the `teleport-updater` binary from installing/removing Teleport versions, the updater package will configure SELinux contexts to allow changes to all required paths.
+To ensure that SELinux permissions do not prevent the `teleport-update` binary from installing/removing Teleport versions, the updater package will configure SELinux contexts to allow changes to all required paths.
 
-To ensure that `teleport` package removal does not interfere with `teleport-updater`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
+To ensure that `teleport` package removal does not interfere with `teleport-update`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
 Failure to do this could result in `/etc/teleport.yaml` being removed when an operator runs `apt purge` at a later date.
 
 To ensure that `teleport` package removal does not lead to a hard restart of Teleport, the updater will ensure that the package is removed without triggering needrestart or similar services.
@@ -531,7 +531,7 @@ To ensure that backups are consistent, the updater will use the [SQLite backup A
 
 If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
 
-If `teleport-updater` itself fails with an error, and an older version of `teleport-updater` is available, the update will retry with the older version.
+If `teleport-update` itself fails with an error, and an older version of `teleport-update` is available, the update will retry with the older version.
 
 Known failure conditions caused by intentional configuration (e.g., updates disabled) will not trigger retry logic.
 
@@ -564,7 +564,7 @@ When Teleport is downgraded to a previous version that has a backup of `sqlite.d
 2. If the backup is valid, Teleport is fully stopped, the backup is restored along with symlinks, and the downgraded version of Teleport is started.
 3. If the backup is invalid, we refuse to downgrade.
 
-Downgrades are applied with `teleport-updater update`, just like upgrades.
+Downgrades are applied with `teleport-update update`, just like upgrades.
 The above steps modulate the standard workflow in the section above.
 If the downgraded version is already present, the uncompressed version is used to ensure fast recovery of the exact state before the failed upgrade.
 To ensure that the target version is was not corrupted by incomplete extraction, the downgrade checks for the existence of `/var/lib/teleport/versions/TARGET-VERSION/sha256` before downgrading.
@@ -593,29 +593,29 @@ Example: Given v1, v2, v3 versions of Teleport, where v2 is broken:
 
 ### Manual Workflow
 
-For use cases that fall outside of the functionality provided by `teleport-updater`, we provide an alternative manual workflow using the `/v1/webapi/find` endpoint.
-This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-updater` because they use their own automation for updates (e.g., JamF or Ansible).
+For use cases that fall outside of the functionality provided by `teleport-update`, we provide an alternative manual workflow using the `/v1/webapi/find` endpoint.
+This workflow supports customers that cannot use the auto-update mechanism provided by `teleport-update` because they use their own automation for updates (e.g., JamF or Ansible).
 
 Cluster administrators that want to self-manage agent updates may manually query the `/v1/webapi/find` endpoint using the host UUID, and implement auto-updates with their own automation.
 
 ### Installers
 
-The following install scripts will be updated to install the latest updater and run `teleport-updater enable` with the proxy address:
+The following install scripts will be updated to install the latest updater and run `teleport-update enable` with the proxy address:
 - [/api/types/installers/agentless-installer.sh.tmpl](https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/agentless-installer.sh.tmpl)
 - [/api/types/installers/installer.sh.tmpl](https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/api/types/installers/installer.sh.tmpl)
 - [/lib/web/scripts/oneoff/oneoff.sh](https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/lib/web/scripts/oneoff/oneoff.sh)
 - [/lib/web/scripts/node-join/install.sh](https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/lib/web/scripts/node-join/install.sh)
 - [/assets/aws/files/install-hardened.sh](https://github.com/gravitational/teleport/blob/d0a68fd82412b48cb54f664ae8500f625fb91e48/assets/aws/files/install-hardened.sh)
 
-Eventually, additional logic from the scripts could be added to `teleport-updater`, such that `teleport-updater` can configure teleport.
+Eventually, additional logic from the scripts could be added to `teleport-update`, such that `teleport-update` can configure teleport.
 
 Moving additional logic into the updater is out-of-scope for this proposal.
 
 To create pre-baked VM or container images that reduce the complexity of the cluster joining operation, two workflows are permitted:
-- Install the `teleport-updater` package and defer `teleport-updater enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
+- Install the `teleport-ent-updater` package and defer `teleport-update enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
   This allows both the proxy address and token to be injected at VM initialization. The VM image may be used with any Teleport cluster.
   Installers scripts will continue to function, as the package install operation will no-op.
-- Install the `teleport-updater` package and run `teleport-updater enable` before the image is baked, but defer final Teleport configuration and `systemctl enable teleport` to cloud-init scripts.
+- Install the `teleport-ent-updater` package and run `teleport-update enable` before the image is baked, but defer final Teleport configuration and `systemctl enable teleport` to cloud-init scripts.
   This allows the proxy address to be pre-set in the image. `teleport.yaml` can be partially configured during image creation. At minimum, the token must be injected via cloud-init scripts.
   Installers scripts would be skipped in favor of the `teleport configure` command.
 
