@@ -262,7 +262,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		if authSupportsSPIFFEFederation {
 			m.logger.DebugContext(
 				ctx,
-				"Initialization indicates support for SPIFFEFederation resource",
+				"Initialization indicates auth server support for SPIFFEFederation resource",
 			)
 		} else {
 			m.logger.WarnContext(
@@ -306,6 +306,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 				m.logger.WarnContext(
 					ctx,
 					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
+					"trust_domain", federation.GetMetadata().Name,
 					"error", err,
 				)
 				continue
