@@ -158,6 +158,7 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 		eventsClient:     cfg.EventsClient,
 		clusterName:      cfg.ClusterName,
 		logger:           cfg.Logger,
+		subscribers:      map[chan<- struct{}]struct{}{},
 	}, nil
 }
 
@@ -188,8 +189,6 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 }
 
 func (m *TrustBundleCache) watch(ctx context.Context) error {
-	// TODO: We should be able to go unhealthy and healthy again if the
-	// watcher fails.
 	watcher, err := m.eventsClient.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
@@ -241,7 +240,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	spiffeCA, err := m.trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
 		Type:       string(types.SPIFFECA),
 		Domain:     m.clusterName,
-		IncludeKey: true,
+		IncludeKey: false,
 	})
 	if err != nil {
 		return trace.Wrap(err, "fetching spiffe CA")
@@ -271,6 +270,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	// The initial state of the bundleSet is now complete, we can set it.
 	m.setAndBroadcastBundleSet(bundleSet)
 
+	m.logger.InfoContext(ctx, "Successfully initialized trust bundle cache")
 	for {
 		select {
 		case <-ctx.Done():
