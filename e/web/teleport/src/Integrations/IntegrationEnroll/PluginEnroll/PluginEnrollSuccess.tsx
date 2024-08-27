@@ -23,8 +23,10 @@ export function PluginEnrollSuccess(props: State) {
       </Box>
 
       <Flex gap="2" my="3">
-        <Link to={cfg.oss.routes.integrations}>
-          <ButtonPrimary>Go to Integration List</ButtonPrimary>
+        <Link to={props.primaryButtonUrl || cfg.oss.routes.integrations}>
+          <ButtonPrimary>
+            {props.primaryButtonText || 'Go to Integration List'}
+          </ButtonPrimary>
         </Link>
         <Link to={cfg.oss.getIntegrationEnrollRoute(null)}>
           <ButtonSecondary>Add Another Integration</ButtonSecondary>
@@ -37,4 +39,6 @@ export function PluginEnrollSuccess(props: State) {
 type State = {
   plugin: CloudHostablePlugin;
   oauthSuccessData?: OAuthPluginRegistered;
+  primaryButtonText?: string | null;
+  primaryButtonUrl?: string | null;
 };

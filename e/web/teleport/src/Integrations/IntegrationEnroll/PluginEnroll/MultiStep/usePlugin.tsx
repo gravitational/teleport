@@ -1,17 +1,27 @@
-import React, { useContext, useState, useEffect, createContext } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import { Plugin } from 'teleport/services/integrations';
 
 import {
-  userEventService,
   IntegrationEnrollEvent,
+  userEventService,
 } from 'teleport/services/userEvent';
 import {
   addIndexToViews,
   findViewAtIndex,
 } from 'teleport/components/Wizard/flow';
 
+import { useLocation } from 'react-router';
+
 import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+
+import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
 
 import type { View, CloudHostablePlugin } from 'e-teleport/services/plugins';
 
@@ -25,7 +35,11 @@ export interface PluginContextState<T = any> {
   indexedViews: View[];
   eventId: string;
   formData: FormData;
+
   setFormData(f: FormData): void;
+
+  successPrimaryButtonUrl: string | null;
+  successPrimaryButtonText: string | null;
 }
 
 const pluginContext = createContext<PluginContextState>(null);
@@ -47,6 +61,13 @@ export function PluginProvider<T>({
   // This is used to later look up views by target index.
   const [indexedViews] = useState<View[] | null>(() =>
     selectedPlugin.views ? addIndexToViews(selectedPlugin.views()) : null
+  );
+
+  const location = useLocation();
+
+  const { successPrimaryButtonText, successPrimaryButtonUrl } = useMemo(
+    () => getSuccessPrimaryButtonState(location.search),
+    [location.search]
   );
 
   useEffect(() => {
@@ -100,6 +121,8 @@ export function PluginProvider<T>({
     indexedViews,
     selectedPlugin,
     eventId,
+    successPrimaryButtonUrl,
+    successPrimaryButtonText,
   };
 
   return (

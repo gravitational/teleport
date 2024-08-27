@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useParams } from 'react-router';
 import {
   IntegrationEnrollEvent,
   userEventService,
@@ -7,6 +7,7 @@ import {
 import { Plugin, PluginKind } from 'teleport/services/integrations';
 
 import { pluginTypeToIntegrationEnrollKind } from 'e-teleport/services/plugins';
+import { getSuccessPrimaryButtonState } from 'e-teleport/Integrations/IntegrationEnroll/PluginEnroll/redirect';
 
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
@@ -22,6 +23,13 @@ export function PluginEnrollSingleStep({
   const [eventId] = useState(() => crypto.randomUUID());
 
   const [enrollResponse, setEnrollResponse] = useState<Plugin>();
+
+  const location = useLocation();
+
+  const { successPrimaryButtonText, successPrimaryButtonUrl } = useMemo(
+    () => getSuccessPrimaryButtonState(location.search),
+    [location.search]
+  );
 
   function setStaticPluginResponse(registeredPlugin: Plugin) {
     setEnrollResponse(registeredPlugin);
@@ -49,7 +57,13 @@ export function PluginEnrollSingleStep({
   }, []);
 
   if (enrollResponse) {
-    return <PluginEnrollSuccess plugin={plugin} />;
+    return (
+      <PluginEnrollSuccess
+        plugin={plugin}
+        primaryButtonUrl={successPrimaryButtonUrl}
+        primaryButtonText={successPrimaryButtonText}
+      />
+    );
   }
 
   return (

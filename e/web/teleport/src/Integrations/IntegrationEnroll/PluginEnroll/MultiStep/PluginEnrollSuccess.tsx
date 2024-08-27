@@ -11,7 +11,12 @@ import { PluginEnrollSuccess as Component } from '../PluginEnrollSuccess';
 import { usePlugin } from './usePlugin';
 
 export function PluginEnrollSuccess() {
-  const { selectedPlugin, eventId } = usePlugin();
+  const {
+    selectedPlugin,
+    eventId,
+    successPrimaryButtonUrl,
+    successPrimaryButtonText,
+  } = usePlugin();
 
   useEffect(() => {
     userEventService.captureIntegrationEnrollEvent({
@@ -25,5 +30,11 @@ export function PluginEnrollSuccess() {
     // Only send an event ID once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return <Component plugin={selectedPlugin} />;
+  return (
+    <Component
+      plugin={selectedPlugin}
+      primaryButtonUrl={successPrimaryButtonUrl}
+      primaryButtonText={successPrimaryButtonText}
+    />
+  );
 }
