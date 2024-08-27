@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type suite struct {
@@ -89,6 +90,7 @@ func createSuite(t *testing.T) *suite {
 		pluginStaticCredentialsService: pluginStaticCredentialsService,
 		pluginAuthorizers:              pluginAuthorizers,
 		svc: &Service{
+			emitter:                        authServer.AuthServer,
 			authorizer:                     authorizer,
 			authServer:                     authServer.AuthServer,
 			pluginService:                  pluginService,
@@ -114,6 +116,10 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 	}
 
 	return &authz.Context{
+		Identity: &authz.LocalUser{
+			Username: "test-user",
+			Identity: tlsca.Identity{},
+		},
 		Checker: f.checker,
 	}, nil
 }

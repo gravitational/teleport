@@ -16,12 +16,14 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -90,6 +92,7 @@ type Service struct {
 
 	authorizer                     authz.Authorizer
 	authServer                     *auth.Server
+	emitter                        apievents.Emitter
 	pluginAuthorizers              *plugins.AuthorizerSet
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
@@ -106,6 +109,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	return &Service{
 		authorizer:                     cfg.Authorizer,
 		authServer:                     cfg.AuthServer,
+		emitter:                        cfg.AuthServer,
 		pluginAuthorizers:              cfg.PluginAuthorizers,
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
@@ -190,6 +194,31 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
+	resource := req.Plugin.WithoutSecrets()
+	out, ok := resource.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", req.Plugin, out)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.PluginCreate{
+		Metadata: apievents.Metadata{
+			Type: events.PluginCreateEvent,
+			Code: events.PluginCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: plugin.GetName(),
+		},
+		PluginMetadata: apievents.PluginMetadata{
+			PluginType:     string(plugin.GetType()),
+			HasCredentials: staticCreds != nil,
+			Plugin:         out,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit plugin create event.", "error", err)
+	}
+
 	s.logger.InfoContext(ctx, "Plugin created.", logPluginAttr(req.Plugin)...)
 
 	return &emptypb.Empty{}, nil
@@ -240,6 +269,27 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	if !ok {
 		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", updatedPlugin, out)
 	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.PluginUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.PluginUpdateEvent,
+			Code: events.PluginUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: out.GetName(),
+		},
+		PluginMetadata: apievents.PluginMetadata{
+			PluginType:        string(out.GetType()),
+			HasCredentials:    inPlugin.Credentials != nil,
+			ReusesCredentials: inPlugin.Credentials == nil,
+			Plugin:            out,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit plugin update event.", "error", err)
+	}
+
 	return out, nil
 }
 
@@ -468,6 +518,30 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 
 	if err := s.pluginService.DeletePlugin(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	resource := plugin.WithoutSecrets()
+	out, ok := resource.(*types.PluginV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", plugin, out)
+	}
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.PluginDelete{
+		Metadata: apievents.Metadata{
+			Type: events.PluginDeleteEvent,
+			Code: events.PluginDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+		PluginMetadata: apievents.PluginMetadata{
+			PluginType:     string(plugin.GetType()),
+			HasCredentials: staticCredsRef != nil,
+			Plugin:         out,
+		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit plugin delete event.", "error", err)
 	}
 
 	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.Name)
