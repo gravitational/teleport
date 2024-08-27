@@ -303,7 +303,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the database enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -339,7 +339,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the EC2 enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EC2 enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -372,7 +372,7 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to use AWS App Access.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use AWS App Access.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -437,7 +437,7 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to finish the EC2 auto discover set up.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to finish the EC2 auto discover set up.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -472,7 +472,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the EKS enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the EKS enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1121,7 +1121,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to use the integration with AWS.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to use the integration with AWS.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1156,7 +1156,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the Database enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Database enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1196,7 +1196,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
-		SuccessMessage: "Success! You can now go back to the browser to complete the Access Graph AWS Sync enrollment.",
+		SuccessMessage: "Success! You can now go back to the Teleport Web UI to complete the Access Graph AWS Sync enrollment.",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
