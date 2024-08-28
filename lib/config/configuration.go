@@ -2930,7 +2930,7 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	creds, err := fc.Jamf.toJamfCredentials()
+	creds, err := fc.Jamf.readJamfCredentials()
 	if err != nil {
 		return trace.Wrap(err)
 	}
