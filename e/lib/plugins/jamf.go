@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/services"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // jamfInstanceFactory creates a Jamf service based on the plugin specification.
@@ -28,19 +29,22 @@ func jamfInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}
 
 	jamfSettings := plugin.Spec.GetJamf()
-	if jamfSettings == nil {
+	if jamfSettings == nil || jamfSettings.JamfSpec == nil {
 		return nil, trace.BadParameter("field Spec.Jamf must be present")
 	}
 
 	// Assign credential to a new variable so that the parent plugin instance (without credential) remains unchanged.
 	jamfSpec := *jamfSettings.JamfSpec
-	jamfSpec.Username = username
-	jamfSpec.Password = password
-	jamfSpec.ClientId = clientID
-	jamfSpec.ClientSecret = clientSecret
+
+	creds := &servicecfg.JamfCredentials{
+		Username:     username,
+		Password:     password,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+	}
 
 	return func() error {
-		closeEvent, err := services.JamfPluginInit(deps.lifetime, deps.parentProcess, deps.HTTPClient, deps.statusSink, &jamfSpec)
+		closeEvent, err := services.JamfPluginInit(deps.lifetime, deps.parentProcess, deps.HTTPClient, deps.statusSink, &jamfSpec, creds)
 		if err != nil {
 			return trace.Wrap(err)
 		}

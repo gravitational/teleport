@@ -123,6 +123,10 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := servicecfg.ValidateJamfCredentials(cfg.Credentials); err != nil {
+		return nil, trace.Wrap(err, "invalid Jamf credentials")
+	}
+
 	// Create scheduler (and early detect empty schedules).
 	logger := opts.Logger
 	scheduler, err := newJamfScheduler(cfg.Spec)
@@ -144,10 +148,10 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 		Logger:       logger,
 		HTTPClient:   opts.HTTPClient,
 		APIURL:       spec.ApiEndpoint,
-		Username:     spec.Username,
-		Password:     spec.Password,
-		ClientID:     spec.ClientId,
-		ClientSecret: spec.ClientSecret,
+		Username:     cfg.Credentials.Username,
+		Password:     cfg.Credentials.Password,
+		ClientID:     cfg.Credentials.ClientID,
+		ClientSecret: cfg.Credentials.ClientSecret,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

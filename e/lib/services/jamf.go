@@ -141,14 +141,15 @@ func startJamfService(ctx context.Context, process *service.TeleportProcess, htt
 // JamfPluginInit initializes hosted Jamf service (hosted plugin).
 // Use [JamfStandaloneInit] to run the Jamf service as a standalone service.
 // Returns immediately.
-func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, jamfSpec *types.JamfSpecV1) (string, error) {
+func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client, statusSink common.StatusSink, jamfSpec *types.JamfSpecV1, credentials *servicecfg.JamfCredentials) (string, error) {
 	if process == nil {
 		return "", trace.BadParameter("process required")
 	}
 
 	// Add Jamf spec to process config.
 	process.Config.Jamf = servicecfg.JamfConfig{
-		Spec: jamfSpec,
+		Spec:        jamfSpec,
+		Credentials: credentials,
 	}
 
 	// Set the expected instance role for this identity event since it's unique to this plugin.

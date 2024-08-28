@@ -362,8 +362,6 @@ func TestInstanceFactory(t *testing.T) {
 						Jamf: &types.PluginJamfSettings{
 							JamfSpec: &types.JamfSpecV1{
 								ApiEndpoint: jamfEnv.APIEndpoint,
-								Username:    testenv.DefaultUsers[0].Username,
-								Password:    testenv.DefaultUsers[0].Password,
 							},
 						},
 					},

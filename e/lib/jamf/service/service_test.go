@@ -146,8 +146,10 @@ func TestNew_errors(t *testing.T) {
 			Spec: &types.JamfSpecV1{
 				Enabled:     true,
 				ApiEndpoint: env.APIEndpoint,
-				Username:    testenv.DefaultUsers[0].Username,
-				Password:    testenv.DefaultUsers[0].Password,
+			},
+			Credentials: &servicecfg.JamfCredentials{
+				Username: testenv.DefaultUsers[0].Username,
+				Password: testenv.DefaultUsers[0].Password,
 			},
 		},
 		DevicesClient: env.DevicesClient,
@@ -186,9 +188,11 @@ func TestNew_errors(t *testing.T) {
 				opts := baseOpts
 				opts.Config = &servicecfg.JamfConfig{
 					Spec: &types.JamfSpecV1{
-						Enabled:  true,
-						Username: baseOpts.Config.Spec.Username,
-						Password: baseOpts.Config.Spec.Password,
+						Enabled: true,
+					},
+					Credentials: &servicecfg.JamfCredentials{
+						Username: baseOpts.Config.Credentials.Username,
+						Password: baseOpts.Config.Credentials.Password,
 					},
 				}
 				return opts
@@ -204,14 +208,16 @@ func TestNew_errors(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: baseOpts.Config.Spec.ApiEndpoint,
-						Username:    baseOpts.Config.Spec.Username,
-						Password:    baseOpts.Config.Spec.Password,
 						Inventory: []*types.JamfInventoryEntry{
 							{
 								SyncPeriodPartial: -1, // disabled
 								SyncPeriodFull:    -1, // disabled
 							},
 						},
+					},
+					Credentials: &servicecfg.JamfCredentials{
+						Username: baseOpts.Config.Credentials.Username,
+						Password: baseOpts.Config.Credentials.Password,
 					},
 				}
 				return opts
@@ -724,11 +730,11 @@ func TestS_Run_clientCredentials(t *testing.T) {
 
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
 		// Use API credentials instead of username+password.
-		spec := opts.Config.Spec
-		spec.Username = ""
-		spec.Password = ""
-		spec.ClientId = clientID
-		spec.ClientSecret = clientSecret
+		creds := opts.Config.Credentials
+		creds.Username = ""
+		creds.Password = ""
+		creds.ClientID = clientID
+		creds.ClientSecret = clientSecret
 
 		// Stop after first sync.
 		opts.Config.ExitOnSync = true
@@ -975,8 +981,10 @@ func serviceFromEnv(t testing.TB, env *testenv.E, modifyOpts func(opts *jamfserv
 				Enabled:     true,
 				SyncDelay:   -1, // always sync immediately
 				ApiEndpoint: env.APIEndpoint,
-				Username:    testenv.DefaultUsers[0].Username,
-				Password:    testenv.DefaultUsers[0].Password,
+			},
+			Credentials: &servicecfg.JamfCredentials{
+				Username: testenv.DefaultUsers[0].Username,
+				Password: testenv.DefaultUsers[0].Password,
 			},
 		},
 		DevicesClient: env.DevicesClient,
