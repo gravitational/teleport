@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex } from 'design';
+import { useEffect, useRef } from 'react';
+import { Flex, H3 } from 'design';
+import styled from 'styled-components';
 
 import { MenuLogin } from './MenuLogin';
 import { MenuLoginHandle } from './types';
@@ -31,44 +32,57 @@ export const MenuLoginStory = () => <MenuLoginExamples />;
 function MenuLoginExamples() {
   return (
     <Flex
-      width="400px"
-      height="100px"
-      alignItems="center"
-      justifyContent="space-around"
+      inline
+      p={4}
+      gap="128px"
+      justifyContent="flex-start"
       bg="levels.surface"
     >
+      <Example>
+        <H3>No logins</H3>
       <MenuLogin
         getLoginItems={() => []}
         onSelect={() => null}
         placeholder="Please provide user name…"
       />
+      </Example>
+      <Example>
+        <H3>Processing state</H3>
       <MenuLogin
         getLoginItems={() => new Promise(() => {})}
         placeholder="MenuLogin in processing state"
         onSelect={() => null}
       />
+      </Example>
+      <Example>
+        <H3>With logins</H3>
       <SampleMenu />
+      </Example>
     </Flex>
   );
 }
 
-class SampleMenu extends React.Component {
-  menuRef = React.createRef<MenuLoginHandle>();
+const Example = styled(Flex).attrs({
+  gap: 2,
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+})``;
 
-  componentDidMount() {
-    this.menuRef.current.open();
-  }
+const SampleMenu = () => {
+  const menuRef = useRef<MenuLoginHandle>();
 
-  render() {
+  useEffect(() => {
+    menuRef.current.open();
+  }, []);
+
     return (
       <MenuLogin
-        ref={this.menuRef}
+      ref={menuRef}
         getLoginItems={() => loginItems}
         onSelect={() => null}
       />
     );
-  }
-}
+};
 
 const loginItems = ['root', 'jazrafiba', 'evubale', 'ipizodu'].map(login => ({
   url: '',
