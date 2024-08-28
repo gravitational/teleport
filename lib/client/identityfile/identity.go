@@ -182,7 +182,7 @@ type WriteConfig struct {
 	OutputPath string
 	// KeyRing contains the credentials to write to the identity file.
 	KeyRing *client.KeyRing
-	// WindowsDesktopCert contains windows desktop certs to write.
+	// WindowsDesktopCerts contains windows desktop certs to write.
 	WindowsDesktopCerts map[string][]byte
 	// Format is the output format for the identity file.
 	Format Format
