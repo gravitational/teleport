@@ -203,8 +203,9 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 			return
 		}
 
+		eventsCh := make(chan types.Event)
 		states[trustDomain] = trustDomainSyncState{
-			eventsCh: make(chan types.Event),
+			eventsCh: eventsCh,
 		}
 
 		wg.Add(1)
@@ -215,7 +216,7 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 				mu.Unlock()
 				wg.Done()
 			}()
-			s.syncTrustDomainLoop(ctx, trustDomain, states[trustDomain].eventsCh)
+			s.syncTrustDomainLoop(ctx, trustDomain, eventsCh)
 		}()
 	}
 
