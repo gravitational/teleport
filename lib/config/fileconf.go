@@ -2576,7 +2576,7 @@ type JamfInventoryEntry struct {
 	PageSize int32 `yaml:"page_size,omitempty"`
 }
 
-func (j *JamfService) toJamfSpecV1(creds *servicecfg.JamfCredentials) (*types.JamfSpecV1, error) {
+func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	switch {
 	case j == nil:
 		return nil, trace.BadParameter("jamf_service is nil")
@@ -2601,11 +2601,6 @@ func (j *JamfService) toJamfSpecV1(creds *servicecfg.JamfCredentials) (*types.Ja
 		SyncDelay:   types.Duration(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
-		// TODO(tigrato): DELETE once we remove the fields from the config.
-		Username:     creds.Username,
-		Password:     creds.Password,
-		ClientId:     creds.ClientID,
-		ClientSecret: creds.ClientSecret,
 	}
 
 	// Validate.
