@@ -24,7 +24,7 @@ If the output parameter is not defined or set as empty, `stderr` (aliases `err` 
 Other available options for defining the output include `stdout` (aliases `out` or `1`), `syslog` for writing
 to the syslog file, or a filepath for direct writing to a log file destination.
 
-Severity has several levels, which are sorted by increasing priority (means that if `info` is selected, `warn` and `err` also applied):
+Severity has several levels, which are sorted by decreasing priority (means that if `info` is selected, `warn` and `err` also applied):
  - `err`, `error` - used for errors that should definitely be noted.
  - `warn`, `warning` - non-critical entries that deserve attention.
  - `info` or empty value - general operational entries about what's going on inside the application.
