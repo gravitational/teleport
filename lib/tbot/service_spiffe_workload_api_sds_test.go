@@ -222,7 +222,6 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				envoyAllBundlesName,
 			},
 		},
-		// TODO(noah): Add test cases for federated bundles!!.
 		{
 			name:          "no results",
 			resourceNames: []string{"spiffe://example.com/not-matching"},
