@@ -19,11 +19,24 @@
 package spiffe
 
 import (
+	"context"
+	"crypto/x509/pkix"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestBundleSet_Clone(t *testing.T) {
@@ -125,4 +138,345 @@ func TestBundleSet_Equal(t *testing.T) {
 			require.Equal(t, tt.equal, tt.a.Equal(tt.b))
 		})
 	}
+}
+
+func makeSPIFFEBundle(t *testing.T, td string) *spiffebundle.Bundle {
+	bundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(td))
+
+	_, certPem, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, []string{}, time.Hour)
+	require.NoError(t, err)
+
+	ca, err := tlsca.ParseCertificatePEM(certPem)
+	require.NoError(t, err)
+	bundle.AddX509Authority(ca)
+	return bundle
+}
+
+func TestTrustBundleCache_Run(t *testing.T) {
+	logger := utils.NewSlogLoggerForTests()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mockWatcher := newMockWatcher([]types.WatchKind{
+		{
+			Kind: types.KindCertAuthority,
+		},
+		{
+			Kind: types.KindSPIFFEFederation,
+		},
+	})
+	mockEventsClient := &mockEventsClient{
+		watcher: &mockWatcher,
+	}
+
+	// Initialize CA prior to cache start
+	caKey, caCertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, []string{}, time.Hour)
+	require.NoError(t, err)
+	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+	require.NoError(t, err)
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.SPIFFECA,
+		ClusterName: "example.com",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert: caCertPEM,
+					Key:  caKey,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	mockTrustClient := &mockTrustClient{
+		t:  t,
+		ca: ca.(*types.CertAuthorityV2),
+	}
+	// Initialize one SPIFFEFederation prior to cache start
+	preInitFed := makeSPIFFEBundle(t, "pre-init-federated.example.com")
+	marshaledPreInitFed, err := preInitFed.Marshal()
+	require.NoError(t, err)
+	mockFederationClient := &mockFederationClient{
+		t: t,
+		spiffeFed: &machineidv1pb.SPIFFEFederation{
+			Metadata: &v1.Metadata{
+				Name: preInitFed.TrustDomain().Name(),
+			},
+			Status: &machineidv1pb.SPIFFEFederationStatus{
+				CurrentBundle: string(marshaledPreInitFed),
+			},
+		},
+	}
+
+	cache, err := NewTrustBundleCache(TrustBundleCacheConfig{
+		EventsClient:     mockEventsClient,
+		TrustClient:      mockTrustClient,
+		FederationClient: mockFederationClient,
+		Logger:           logger,
+		ClusterName:      "example.com",
+	})
+	require.NoError(t, err)
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := cache.Run(ctx)
+		assert.NoError(t, err)
+		errCh <- err
+	}()
+
+	subscription, stop := cache.Subscribe()
+	t.Cleanup(stop)
+
+	// Fetch the first bundle, we expect to see the Local bundle and the one
+	// pre-initialized federated bundle.
+	var gotBundleSet *BundleSet
+	select {
+	case gotBundleSet = <-subscription:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for bundle set")
+	case <-ctx.Done():
+		t.Fatalf("context cancelled waiting for bundle set")
+	}
+	require.NotNil(t, gotBundleSet)
+	// Check the local bundle
+	require.NotNil(t, gotBundleSet.Local)
+	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
+	require.Len(t, gotBundleSet.Local.X509Authorities(), 1)
+	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	// Check the federated bundle
+	gotFederatedBundle, ok := gotBundleSet.Federated["pre-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(preInitFed))
+
+	// Update the local bundle with a new additional cert
+	additionalCAKey, additionalCACertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, []string{}, time.Hour)
+	require.NoError(t, err)
+	additionalCACert, err := tlsca.ParseCertificatePEM(additionalCACertPEM)
+	require.NoError(t, err)
+	err = ca.SetAdditionalTrustedKeys(types.CAKeySet{
+		TLS: []*types.TLSKeyPair{
+			{
+				Cert: additionalCACertPEM,
+				Key:  additionalCAKey,
+			},
+		},
+	})
+	require.NoError(t, err)
+	mockWatcher.events <- types.Event{
+		Type:     types.OpPut,
+		Resource: ca,
+	}
+	// Check we receive a bundle with the updated local CA
+	select {
+	case gotBundleSet = <-subscription:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for bundle set")
+	case <-ctx.Done():
+		t.Fatalf("context cancelled waiting for bundle set")
+	}
+	require.NotNil(t, gotBundleSet)
+	// Check the local bundle
+	require.NotNil(t, gotBundleSet.Local)
+	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
+	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
+	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.True(t, gotBundleSet.Local.X509Authorities()[1].Equal(additionalCACert))
+	// Check the federated bundle
+	gotFederatedBundle, ok = gotBundleSet.Federated["pre-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(preInitFed))
+
+	// Update the federated bundle with a new cert
+	preInitFed = makeSPIFFEBundle(t, "pre-init-federated.example.com")
+	marshaledPreInitFed, err = preInitFed.Marshal()
+	require.NoError(t, err)
+	mockWatcher.events <- types.Event{
+		Type: types.OpPut,
+		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+			Kind: types.KindSPIFFEFederation,
+			Metadata: &v1.Metadata{
+				Name: preInitFed.TrustDomain().Name(),
+			},
+			Status: &machineidv1pb.SPIFFEFederationStatus{
+				CurrentBundle: string(marshaledPreInitFed),
+			},
+		}),
+	}
+	// Check we receive a bundle with the updated federated bundle
+	select {
+	case gotBundleSet = <-subscription:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for bundle set")
+	case <-ctx.Done():
+		t.Fatalf("context cancelled waiting for bundle set")
+	}
+	require.NotNil(t, gotBundleSet)
+	// Check the local bundle
+	require.NotNil(t, gotBundleSet.Local)
+	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
+	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
+	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.True(t, gotBundleSet.Local.X509Authorities()[1].Equal(additionalCACert))
+	// Check the federated bundle
+	gotFederatedBundle, ok = gotBundleSet.Federated["pre-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(preInitFed))
+
+	// Add a new federated bundle
+	afterInitFed := makeSPIFFEBundle(t, "after-init-federated.example.com")
+	marshaledAfterInitFed, err := afterInitFed.Marshal()
+	require.NoError(t, err)
+	mockWatcher.events <- types.Event{
+		Type: types.OpPut,
+		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+			Kind: types.KindSPIFFEFederation,
+			Metadata: &v1.Metadata{
+				Name: afterInitFed.TrustDomain().Name(),
+			},
+			Status: &machineidv1pb.SPIFFEFederationStatus{
+				CurrentBundle: string(marshaledAfterInitFed),
+			},
+		}),
+	}
+	// Check we receive a bundle with the new federated bundle
+	select {
+	case gotBundleSet = <-subscription:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for bundle set")
+	case <-ctx.Done():
+		t.Fatalf("context cancelled waiting for bundle set")
+	}
+	// Check the local bundle
+	require.NotNil(t, gotBundleSet.Local)
+	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
+	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
+	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.True(t, gotBundleSet.Local.X509Authorities()[1].Equal(additionalCACert))
+	// Check the pre-init federated bundle
+	gotFederatedBundle, ok = gotBundleSet.Federated["pre-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(preInitFed))
+	// Check the after-init federated bundle
+	gotFederatedBundle, ok = gotBundleSet.Federated["after-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(afterInitFed))
+
+	// Delete the newly added federated bundle
+	mockWatcher.events <- types.Event{
+		Type: types.OpDelete,
+		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+			Kind: types.KindSPIFFEFederation,
+			Metadata: &v1.Metadata{
+				Name: afterInitFed.TrustDomain().Name(),
+			},
+		}),
+	}
+	// Check we receive a bundle with the new federated bundle deleted
+	select {
+	case gotBundleSet = <-subscription:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for bundle set")
+	case <-ctx.Done():
+		t.Fatalf("context cancelled waiting for bundle set")
+	}
+	// Check the local bundle
+	require.NotNil(t, gotBundleSet.Local)
+	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
+	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
+	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.True(t, gotBundleSet.Local.X509Authorities()[1].Equal(additionalCACert))
+	// Check the pre-init federated bundle
+	gotFederatedBundle, ok = gotBundleSet.Federated["pre-init-federated.example.com"]
+	require.True(t, ok)
+	require.True(t, gotFederatedBundle.Equal(preInitFed))
+	// Check the after-init federated bundle is gone
+	gotFederatedBundle, ok = gotBundleSet.Federated["after-init-federated.example.com"]
+	require.False(t, ok)
+
+	// Wait for the cache to exit.
+	cancel()
+	<-errCh
+}
+
+type mockTrustClient struct {
+	trustv1.TrustServiceClient
+	ca *types.CertAuthorityV2
+	t  *testing.T
+}
+
+func (m *mockTrustClient) GetCertAuthority(
+	ctx context.Context,
+	in *trustv1.GetCertAuthorityRequest,
+	opts ...grpc.CallOption,
+) (*types.CertAuthorityV2, error) {
+	if in.IncludeKey {
+		return nil, trace.BadParameter("unexpected include key")
+	}
+	if in.Type != string(types.SPIFFECA) {
+		return nil, trace.BadParameter("unexpected type")
+	}
+	if in.Domain != "example.com" {
+		return nil, trace.BadParameter("unexpected domain")
+	}
+	return m.ca, nil
+}
+
+type mockFederationClient struct {
+	machineidv1pb.SPIFFEFederationServiceClient
+	t         *testing.T
+	spiffeFed *machineidv1pb.SPIFFEFederation
+}
+
+func (m *mockFederationClient) ListSPIFFEFederations(
+	ctx context.Context,
+	in *machineidv1pb.ListSPIFFEFederationsRequest,
+	opts ...grpc.CallOption,
+) (*machineidv1pb.ListSPIFFEFederationsResponse, error) {
+	return &machineidv1pb.ListSPIFFEFederationsResponse{
+		SpiffeFederations: []*machineidv1pb.SPIFFEFederation{
+			m.spiffeFed,
+		},
+	}, nil
+}
+
+type mockEventsClient struct {
+	watcher *mockWatcher
+}
+
+func (c *mockEventsClient) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return c.watcher, nil
+}
+
+func newMockWatcher(kinds []types.WatchKind) mockWatcher {
+	ch := make(chan types.Event, 1)
+
+	ch <- types.Event{
+		Type:     types.OpInit,
+		Resource: types.NewWatchStatus(kinds),
+	}
+
+	return mockWatcher{events: ch}
+}
+
+type mockWatcher struct {
+	events chan types.Event
+}
+
+// Events returns a stream of events.
+func (w mockWatcher) Events() <-chan types.Event {
+	return w.events
+}
+
+// Done returns a completion channel.
+func (w mockWatcher) Done() <-chan struct{} {
+	return nil
+}
+
+// Close sends a termination signal to watcher.
+func (w mockWatcher) Close() error {
+	return nil
+}
+
+// Error returns a watcher error.
+func (w mockWatcher) Error() error {
+	return nil
 }
