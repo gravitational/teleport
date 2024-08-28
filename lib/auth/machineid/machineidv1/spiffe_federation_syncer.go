@@ -52,7 +52,9 @@ type eventsWatcher interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
 
-func listAllTrustDomains(ctx context.Context, store spiffeFederationStore) ([]*machineidv1.SPIFFEFederation, error) {
+func listAllTrustDomains(
+	ctx context.Context, store spiffeFederationStore,
+) ([]*machineidv1.SPIFFEFederation, error) {
 	var trustDomains []*machineidv1.SPIFFEFederation
 	var token string
 	for {
@@ -72,11 +74,17 @@ func listAllTrustDomains(ctx context.Context, store spiffeFederationStore) ([]*m
 // SPIFFEFederationSyncerConfig is the configuration for the SPIFFE federation
 // syncer.
 type SPIFFEFederationSyncerConfig struct {
-	Backend       backend.Backend
-	Store         spiffeFederationStore
+	// Backend should be a backend.Backend which can be used for obtaining the
+	// lock required to run the syncer.
+	Backend backend.Backend
+	// Store is where the SPIFFEFederation resources can be fetched and updated.
+	Store spiffeFederationStore
+	// EventsWatcher is used to watch for changes to SPIFFEFederations.
 	EventsWatcher eventsWatcher
-	Logger        *slog.Logger
-	Clock         clockwork.Clock
+	// Logger is the logger that the syncer will use.
+	Logger *slog.Logger
+	// Clock is the clock that the syncer will use.
+	Clock clockwork.Clock
 
 	// MinSyncInterval is the minimum interval between syncs. If an upstream
 	// trust domain specifies a refresh hint that is less than this value, this
@@ -98,6 +106,10 @@ type SPIFFEFederationSyncerConfig struct {
 	// retried.
 	SyncTimeout time.Duration
 
+	// SPIFFEFetchOptions are the options that will be used when fetching a
+	// trust bundle from a remote cluster. These options will be passed to the
+	// spiffebundle.FetchBundle function. This is usually used during testing
+	// to override the Web PKI CAs.
 	SPIFFEFetchOptions []federation.FetchOption
 }
 
@@ -108,8 +120,11 @@ type SPIFFEFederationSyncer struct {
 }
 
 const (
-	minRefreshInterval     = time.Minute * 1
-	maxRefreshInterval     = time.Hour * 24
+	minRefreshInterval = time.Minute * 1
+	maxRefreshInterval = time.Hour * 24
+	// SPIFFE Federation (4.1):
+	// > If not set, a reasonably low default value should apply - five minutes
+	// > is recommended
 	defaultRefreshInterval = time.Minute * 5
 	defaultSyncTimeout     = time.Second * 30
 )
@@ -144,17 +159,38 @@ func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederat
 }
 
 func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
-	// TODO: Should this go into a loop?
-	return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
-		// TODO: Evaluate sensible TTL/retry
-		LockConfiguration: backend.LockConfiguration{
-			Backend:       s.cfg.Backend,
-			LockName:      "spiffe_federation_syncer",
-			TTL:           time.Minute,
-			RetryInterval: time.Minute,
-		},
-		RefreshLockInterval: time.Second * 15,
-	}, s.runWhileLocked)
+	// Loop to retry if acquiring lock fails, with some backoff to avoid pinning
+	// the CPU.
+	waitWithJitter := retryutils.NewSeventhJitter()(time.Second * 10)
+	for {
+		err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:  s.cfg.Backend,
+				LockName: "spiffe_federation_syncer",
+				TTL:      time.Minute,
+				// It doesn't matter too much if the syncer isn't running for
+				// a short period of time so we can take a relaxed approach to
+				// retrying to grab the lock.
+				RetryInterval: time.Second * 30,
+			},
+		}, s.syncTrustDomains)
+		if ctx.Err() != nil {
+			return nil
+		}
+		if err != nil {
+			s.cfg.Logger.ErrorContext(
+				ctx,
+				"SPIFFEFederation syncer exited with an error",
+				"error", err,
+				"retry_after", waitWithJitter,
+			)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(waitWithJitter):
+		}
+	}
 }
 
 type trustDomainSyncState struct {
@@ -163,13 +199,13 @@ type trustDomainSyncState struct {
 	eventsCh chan types.Event
 }
 
-// runWhileLocked is the core loop of the syncer that runs on a single auth
+// syncTrustDomains is the core loop of the syncer that runs on a single auth
 // server.
 //
 // Its goal is to sync the contents of trust bundles from remote clusters to
 // the local cluster. It does this by creating a goroutine that manages each
 // federated cluster.
-func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
+func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 	s.cfg.Logger.InfoContext(
 		ctx,
 		"Obtained lock, SPIFFEFederation syncer is starting",
@@ -319,9 +355,9 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	eventsCh <-chan types.Event,
 ) {
 	log := s.cfg.Logger.With("trust_domain", name)
-	log.InfoContext(ctx, "Starting sync loop for trust domain", "trust_domain", name)
+	log.InfoContext(ctx, "Starting sync loop for trust domain")
 	defer func() {
-		log.InfoContext(ctx, "Stopped sync loop for trust domain", "trust_domain", name)
+		log.InfoContext(ctx, "Stopped sync loop for trust domain")
 	}()
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
@@ -416,7 +452,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		// If we've successfully synced, set the timer up for our next sync.
 		if nextSyncAt := synced.GetStatus().GetNextSyncAt().AsTime(); !nextSyncAt.IsZero() {
 			timeUntil := nextSyncAt.Sub(s.cfg.Clock.Now())
-			// Ensure the timer after /after/ the next sync time.
+			// Ensure the timer will tick /after/ the next sync time.
 			timeUntil = timeUntil + time.Second
 			nextSync.Reset(timeUntil)
 			log.InfoContext(
