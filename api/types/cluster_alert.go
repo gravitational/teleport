@@ -32,6 +32,7 @@ var matchAlertLabelKey = regexp.MustCompile(`^[a-z0-9\.\-\/]+$`).MatchString
 // matchAlertLabelVal is a slightly more permissive matcher for label values.
 var matchAlertLabelVal = regexp.MustCompile(`^[a-z0-9\.\-_\/:|]+$`).MatchString
 
+// matchAlertLabelCTAVal only allows alphanumeric characters and spaces.
 var matchAlertLabelCTAVal = regexp.MustCompile(`^[a-zA-Z0-9 ]+$`).MatchString
 
 const validLinkDestination = "goteleport.com"
