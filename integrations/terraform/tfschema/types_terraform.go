@@ -3389,7 +3389,7 @@ func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_p
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"script": {
 				Description: "Script represents the contents of a installer shell script",
-				Optional:    true,
+				Required:    true,
 				Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 			}}),
 			Description: "Spec is the resource spec.",
