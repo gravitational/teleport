@@ -483,10 +483,8 @@ const (
 	invalidProxyLineError                 = "invalid PROXY line"
 	invalidProxyV2LineError               = "invalid PROXY v2 line"
 	invalidProxySignatureError            = "could not verify PROXY signature for connection"
-	missingProxyLineError                 = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
-PROXY protocol line wasn't received. 
-Make sure you have correct configuration, only enable "proxy_protocol: on" in config if Teleport is running behind L4 
-load balancer with enabled PROXY protocol.`
+	missingProxyLineError                 = `connection (%s -> %s) rejected: PROXY protocol required, but PROXY protocol line not received. Please verify your configuration. 
+Enable "proxy_protocol: on" only if Teleport is behind an L4 load balancer with PROXY protocol enabled.`
 	unknownProtocolError     = "unknown protocol"
 	unexpectedPROXYLineError = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
 if Teleport is running behind L4 load balancer with enabled PROXY protocol you should explicitly set config field "proxy_protocol" to "on".
@@ -655,18 +653,17 @@ func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineRece
 		return trace.Wrap(err)
 	}
 
-	isInternalConn := unwrapMuxConn(conn)
-	if !selfConnection && !isInternalConn && !unsignedPROXYLineReceived {
+	if !selfConnection && !isInternalConn(conn) && !unsignedPROXYLineReceived {
 		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
-// unwrapMuxConn determines whether the connection is a multiplexer Conn or one originating from a websocket upgrade.
+// isInternalConn determines whether the connection is a multiplexer Conn or one originating from a websocket upgrade.
 // If the check is successful, it indicates that the connection was provided by another multiplexer listener or web API,
 // and that the unsigned PROXY protocol requirement has already been handled.
-func unwrapMuxConn(conn net.Conn) bool {
+func isInternalConn(conn net.Conn) bool {
 	type netConn interface {
 		NetConn() net.Conn
 	}
