@@ -127,7 +127,7 @@ const (
 	IncludedResourceModeAll = "all"
 	// DefaultLicenseWatchInterval is the default time in which the license watcher
 	// should ping the auth server for new cluster features
-	DefaultLicenseWatchInterval = time.Second * 1 // time.Minute * 2
+	DefaultLicenseWatchInterval = time.Minute * 5
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -179,6 +179,7 @@ type Handler struct {
 	// featureWatcherStop is a channel used to emit a stop signal to the
 	// license watcher goroutine
 	featureWatcherStop chan struct{}
+	featureWatcherOnce sync.Once
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -1705,7 +1706,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.clusterFeatures
+	clusterFeatures := h.GetClusterFeatures()
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
