@@ -3460,6 +3460,9 @@ message WindowsDesktopSessionStart {
   // AllowUserCreation indicates whether automatic local user creation
   // is allowed for this session.
   bool AllowUserCreation = 12 [(gogoproto.jsontag) = "allow_user_creation"];
+  // NLA indicates whether Teleport performed Network Level Authentication (NLA)
+  // when initiating this session.
+  bool NLA = 13 [(gogoproto.jsontag) = "nla"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
