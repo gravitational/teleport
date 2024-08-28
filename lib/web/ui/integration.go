@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -53,6 +54,13 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 	return nil
 }
 
+type IntegrationGitHub struct {
+	Organization string `json:"organization"`
+
+	PublicKeys   []string `json:"publicKeys,omitempty"`
+	Fingerprints []string `json:"fingerprints,omitempty"`
+}
+
 // Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
@@ -61,6 +69,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
+	// TODO
+	GitHub *IntegrationGitHub `json:"github,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -77,6 +87,13 @@ func (r *Integration) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	}
+
+	switch r.SubKind {
+	case types.IntegrationSubKindGitHub:
+		if r.GitHub == nil && r.GitHub.Organization == "" {
+			return trace.BadParameter("missing organization for GitHub integration")
 		}
 	}
 
@@ -150,6 +167,30 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			RoleARN:        ig.GetAWSOIDCIntegrationSpec().RoleARN,
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
+		}
+	case types.IntegrationSubKindGitHub:
+		github := ig.GetGitHubIntegrationSpec()
+		if github == nil {
+			return nil, trace.BadParameter("missing github spec from created integration %v", ig)
+		}
+
+		if github.Proxy == nil || len(github.Proxy.CertAuthority) == 0 {
+			return nil, trace.BadParameter("missing SSH certificate authorities from created integration %v", ig)
+		}
+
+		ret.GitHub = &IntegrationGitHub{
+			Organization: github.Organization,
+			PublicKeys:   make([]string, 0, len(github.Proxy.CertAuthority)),
+			Fingerprints: make([]string, 0, len(github.Proxy.CertAuthority)),
+		}
+
+		for _, ca := range github.Proxy.CertAuthority {
+			fingerprint, err := sshutils.AuthorizedKeyFingerprint(ca.PublicKey)
+			if err != nil {
+				return nil, trace.BadParameter("failed to parse public from created integration: %v", ig)
+			}
+			ret.GitHub.PublicKeys = append(ret.GitHub.PublicKeys, string(ca.PublicKey))
+			ret.GitHub.Fingerprints = append(ret.GitHub.Fingerprints, fingerprint)
 		}
 	}
 

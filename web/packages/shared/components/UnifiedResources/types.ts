@@ -60,6 +60,18 @@ export interface UnifiedResourceNode {
   requiresRequest?: boolean;
 }
 
+export interface UnifiedResourceGitServer {
+  kind: 'git_server';
+  id: string;
+  hostname: string;
+  labels: ResourceLabel[];
+  subKind: GitServerSubKind;
+  github?: {
+    organization: string;
+  };
+  requiresRequest?: boolean;
+}
+
 export interface UnifiedResourceKube {
   kind: 'kube_cluster';
   name: string;
@@ -96,6 +108,7 @@ export type SharedUnifiedResource = {
     | UnifiedResourceNode
     | UnifiedResourceKube
     | UnifiedResourceDesktop
+    | UnifiedResourceGitServer
     | UnifiedResourceUserGroup;
   ui: UnifiedResourceUi;
 };

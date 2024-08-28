@@ -166,6 +166,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
 		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
+		types.KindGitServer:                rc.createGitServer,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -1081,6 +1082,30 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client *authclient.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createGitServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	server, err := services.UnmarshalServer(raw.Raw, types.KindGitServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	name := server.GetName()
+	_, err = client.GetGitServer(ctx, name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("git_server %q already exists, use --force flag to override", name)
+	}
+
+	_, err = client.UpsertGitServer(ctx, server)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("git_server %q has been %s\n", name, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
 func (rc *ResourceCommand) createOIDCConnector(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	conn, err := services.UnmarshalOIDCConnector(raw.Raw)
 	if err != nil {
@@ -1440,6 +1465,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("node %v has been deleted\n", rc.ref.Name)
+	case types.KindGitServer:
+		if err = client.DeleteGitServer(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("git_server %v has been deleted\n", rc.ref.Name)
 	case types.KindUser:
 		if err = client.DeleteUser(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -2072,6 +2102,54 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		if len(collection.servers) == 0 && rc.ref.Name != "" {
 			return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+		}
+
+		return &collection, nil
+	case types.KindGitServer:
+		var search []string
+		if rc.ref.Name != "" {
+			search = []string{rc.ref.Name}
+		}
+
+		req := proto.ListUnifiedResourcesRequest{
+			Kinds:          []string{types.KindGitServer},
+			SearchKeywords: search,
+			SortBy:         types.SortBy{Field: types.ResourceKind},
+		}
+
+		var collection serverCollection
+		for {
+			page, next, err := apiclient.GetUnifiedResourcePage(ctx, client, &req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, r := range page {
+				srv, ok := r.ResourceWithLabels.(types.Server)
+				if !ok {
+					log.Warnf("expected types.Server but received unexpected type %T", r)
+					continue
+				}
+
+				if rc.ref.Name == "" {
+					collection.servers = append(collection.servers, srv)
+					continue
+				}
+
+				if srv.GetName() == rc.ref.Name || srv.GetHostname() == rc.ref.Name {
+					collection.servers = []types.Server{srv}
+					return &collection, nil
+				}
+			}
+
+			req.StartKey = next
+			if req.StartKey == "" {
+				break
+			}
+		}
+
+		if len(collection.servers) == 0 && rc.ref.Name != "" {
+			return nil, trace.NotFound("git_server with ID %q not found", rc.ref.Name)
 		}
 
 		return &collection, nil

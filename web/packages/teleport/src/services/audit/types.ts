@@ -308,6 +308,8 @@ export const eventCodes = {
   INTEGRATION_CREATE: 'IG001I',
   INTEGRATION_UPDATE: 'IG002I',
   INTEGRATION_DELETE: 'IG003I',
+  GIT_COMMAND: 'T3013I',
+  GIT_COMMAND_FAILURE: 'T3013E',
 } as const;
 
 /**
@@ -365,6 +367,12 @@ export type RawEvents = {
   [eventCodes.EXEC_FAILURE]: RawEvent<
     typeof eventCodes.EXEC_FAILURE,
     { exitError: string }
+  >;
+  [eventCodes.GIT_COMMAND]: RawEvent<
+    typeof eventCodes.GIT_COMMAND
+  >;
+  [eventCodes.GIT_COMMAND_FAILURE]: RawEvent<
+    typeof eventCodes.GIT_COMMAND_FAILURE
   >;
   [eventCodes.BILLING_CARD_CREATE]: RawEvent<
     typeof eventCodes.BILLING_CARD_CREATE

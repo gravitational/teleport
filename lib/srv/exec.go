@@ -340,9 +340,10 @@ func waitForSignal(fd *os.File, timeout time.Duration) error {
 
 // remoteExec is used to run an "exec" SSH request and return the result.
 type remoteExec struct {
-	command string
-	session *tracessh.Session
-	ctx     *ServerContext
+	command       string
+	session       *tracessh.Session
+	ctx           *ServerContext
+	gitHubAuditor *gitHubAuditor
 }
 
 // String describes this remote exec value
@@ -363,6 +364,8 @@ func (e *remoteExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
+	// TODO checkGitHub allowed by parsing path and compare the org
+
 	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
 		e.ctx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
 			Metadata: apievents.Metadata{
@@ -380,21 +383,28 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	// hook up stdout/err the channel so the user can interact with the command
 	e.session.Stdout = ch
 	e.session.Stderr = ch.Stderr()
-	inputWriter, err := e.session.StdinPipe()
+	inputWriterCloser, err := e.session.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	gitHubAuditor := &gitHubAuditor{
-		command: e.GetCommand(),
+	inputWriter := io.Writer(inputWriterCloser)
+
+	// Is there a better place?
+	switch e.ctx.ServerSubKind {
+	case types.SubKindGitHub:
+		e.gitHubAuditor = &gitHubAuditor{
+			isPush: strings.HasPrefix(e.GetCommand(), gittransport.ReceivePackServiceName),
+		}
+		inputWriter = io.MultiWriter(inputWriter, e.gitHubAuditor)
 	}
+
 	go func() {
-		defer gitHubAuditor.close()
 		// copy from the channel (client) into stdin of the process
-		if _, err := io.Copy(io.MultiWriter(inputWriter, gitHubAuditor), ch); err != nil {
+		if _, err := io.Copy(inputWriter, ch); err != nil {
 			e.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
 		}
-		inputWriter.Close()
+		inputWriterCloser.Close()
 	}()
 
 	err = e.session.Start(ctx, e.command)
@@ -406,22 +416,66 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 }
 
 type gitHubAuditor struct {
-	command string
-
+	isPush bool
 	// TODO avoid a copy, just pipe it to reader
 	cachedPayload []byte
 }
 
 func (a *gitHubAuditor) Write(p []byte) (int, error) {
-	a.cachedPayload = append(a.cachedPayload, p...)
+	if a.isPush {
+		a.cachedPayload = append(a.cachedPayload, p...)
+	}
 	return len(p), nil
 }
 
-func (a *gitHubAuditor) close() {
+func parseGitCommand(command string) (string, string, error) {
+	gitCommand, path, ok := strings.Cut(command, " '")
+	if !ok {
+		return "", "", trace.BadParameter("invalid git command %s", command)
+	}
+
+	if strings.HasSuffix(path, "'") {
+		path = strings.TrimSuffix(path, "'")
+	} else {
+		return "", "", trace.BadParameter("invalid git command %s", command)
+	}
+
+	return gitCommand, path, nil
+}
+
+func (a *gitHubAuditor) emit(ctx *ServerContext, cmd string, execErr error) {
+	code := events.GitCommandCode
+	commandMeta := apievents.CommandMetadata{
+		Command:  cmd,
+		ExitCode: strconv.Itoa(exitCode(execErr)),
+	}
+	if execErr != nil {
+		code = events.GitCommandFailureCode
+		commandMeta.Error = execErr.Error()
+	}
+
+	event := &apievents.GitCommand{
+		Metadata: apievents.Metadata{
+			Type:        events.GitCommandEvent,
+			Code:        code,
+			ClusterName: ctx.ClusterName,
+		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
+		},
+		SessionMetadata: ctx.GetSessionMetadata(),
+		ServerMetadata:  ctx.GetServerMetadata(),
+		CommandMetadata: commandMeta,
+	}
+	if service, path, err := parseGitCommand(cmd); err == nil {
+		event.Service = service
+		event.Path = path
+	}
+
 	switch {
-	case strings.HasPrefix(a.command, gittransport.UploadPackServiceName):
-		slog.InfoContext(context.Background(), "[===AUDIT===] git fetch")
-	case strings.HasPrefix(a.command, gittransport.ReceivePackServiceName):
+	case a.isPush:
 		if len(a.cachedPayload) > 4 {
 			request := packp.NewReferenceUpdateRequest()
 			err := request.Decode(bytes.NewReader(a.cachedPayload))
@@ -429,6 +483,13 @@ func (a *gitHubAuditor) close() {
 				slog.InfoContext(context.Background(), "[===AUDIT===] git push, but error when decoding packp", "error", err)
 			} else {
 				for _, command := range request.Commands {
+					event.Actions = append(event.Actions, &apievents.GitCommandAction{
+						Action:    string(command.Action()),
+						Reference: string(command.Name),
+						Old:       command.Old.String(),
+						New:       command.New.String(),
+					})
+
 					switch command.Action() {
 					case packp.Create:
 						slog.DebugContext(context.Background(), "[===AUDIT===] user created a new reference.", "reference", command.Name, "to", command.New)
@@ -444,6 +505,12 @@ func (a *gitHubAuditor) close() {
 		} else {
 			slog.InfoContext(context.Background(), "[===AUDIT===] git push but server up-to-update")
 		}
+	default:
+		slog.InfoContext(context.Background(), "[===AUDIT===] git fetch")
+	}
+
+	if err := ctx.session.emitAuditEvent(ctx.srv.Context(), event); err != nil {
+		log.WithError(err).Warn("Failed to emit exec event.")
 	}
 }
 
@@ -458,7 +525,11 @@ func (e *remoteExec) Wait() *ExecResult {
 	}
 
 	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(e.ctx, e.command, err)
+	if e.gitHubAuditor != nil {
+		e.gitHubAuditor.emit(e.ctx, e.command, err)
+	} else {
+		emitExecAuditEvent(e.ctx, e.command, err)
+	}
 
 	return &ExecResult{
 		Command: e.GetCommand(),

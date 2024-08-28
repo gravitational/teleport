@@ -412,9 +412,11 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 	}
 
 	spec := integration.GetGitHubIntegrationSpec()
+	/*TODO removed Enabled
 	if !spec.Proxy.Enabled {
 		return nil, trace.BadParameter("GitHub Proxy for integration %s is disabled", in.Integration)
 	}
+	*/
 
 	caSigner, err := s.keyStoreManager.GetSSHSignerForKeySet(ctx, types.CAKeySet{
 		SSH: spec.Proxy.CertAuthority,

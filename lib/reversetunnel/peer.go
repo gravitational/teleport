@@ -98,6 +98,14 @@ func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
 	return peer.NodeWatcher()
 }
 
+func (p *clusterPeers) GitServerWatcher() (*services.GitServerWatcher, error) {
+	peer, err := p.pickPeer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return peer.GitServerWatcher()
+}
+
 func (p *clusterPeers) GetClient() (authclient.ClientI, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
@@ -204,6 +212,10 @@ func (s *clusterPeer) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, e
 
 func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch node watcher, this proxy %v has not been discovered yet, try again later", s)
+}
+
+func (s *clusterPeer) GitServerWatcher() (*services.GitServerWatcher, error) {
+	return nil, trace.ConnectionProblem(nil, "unable to fetch git server watcher, this proxy %v has not been discovered yet, try again later", s)
 }
 
 func (s *clusterPeer) GetClient() (authclient.ClientI, error) {

@@ -20,6 +20,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Text, Box } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
+import { GitHubIcon } from 'design/SVGIcon';
 
 import cfg from 'teleport/config';
 import {
@@ -61,6 +62,34 @@ export function IntegrationTiles({
           Amazon Web Services
           <br />
           OIDC
+        </Text>
+        {!hasIntegrationAccess && (
+          <ToolTipNoPermBadge
+            children={
+              <div>
+                You don’t have sufficient permissions to create an integration.
+                Reach out to your Teleport administrator to request additional
+                permissions.
+              </div>
+            }
+          />
+        )}
+      </IntegrationTile>
+      <IntegrationTile
+        disabled={!hasIntegrationAccess}
+        as={hasIntegrationAccess ? Link : null}
+        to={
+          hasIntegrationAccess
+            ? cfg.getIntegrationEnrollRoute(IntegrationKind.GitHub)
+            : null
+        }
+        data-testid="tile-github"
+      >
+        <Box mt={3} mb={2}>
+          <GitHubIcon size={80} />
+        </Box>
+        <Text>
+          GitHub Organization
         </Text>
         {!hasIntegrationAccess && (
           <ToolTipNoPermBadge

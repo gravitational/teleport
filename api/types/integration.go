@@ -270,6 +270,9 @@ func (ig *IntegrationV1) SetGitHubSSHCertAuthority(cas []*SSHKeyPair) error {
 	}
 
 	spec := ig.Spec.GetGitHub()
+	if spec.Proxy == nil {
+		spec.Proxy = &GitHubProxy{}
+	}
 	spec.Proxy.CertAuthority = cas
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
 		GitHub: spec,

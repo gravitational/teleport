@@ -254,6 +254,7 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	gitServers               collectionReader[services.GitServersGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -394,6 +395,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.nodes
+		case types.KindGitServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections.gitServers = &genericCollection[types.Server, services.GitServersGetter, gitServerExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.gitServers
+
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -3359,3 +3370,33 @@ type accessGraphSettingsGetter interface {
 }
 
 var _ executor[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter] = accessGraphSettingsExecutor{}
+
+type gitServerExecutor struct{}
+
+func (gitServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
+	return cache.Presence.GetGitServers(ctx)
+}
+
+func (gitServerExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
+	_, err := cache.presenceCache.UpsertGitServer(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (gitServerExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.presenceCache.DeleteAllGitServers(ctx)
+}
+
+func (gitServerExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.presenceCache.DeleteGitServer(ctx, resource.GetName())
+}
+
+func (gitServerExecutor) isSingleton() bool { return false }
+
+func (gitServerExecutor) getReader(cache *Cache, cacheOK bool) services.GitServersGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
+
+var _ executor[types.Server, services.GitServersGetter] = gitServerExecutor{}

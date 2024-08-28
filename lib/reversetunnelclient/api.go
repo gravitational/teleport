@@ -124,6 +124,8 @@ type RemoteSite interface {
 	CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error)
 	// NodeWatcher returns the node watcher that maintains the node set for the site
 	NodeWatcher() (*services.NodeWatcher, error)
+	// TODO
+	GitServerWatcher() (*services.GitServerWatcher, error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

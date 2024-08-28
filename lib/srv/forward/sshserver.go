@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -510,6 +511,13 @@ func (s *Server) GetHostSudoers() srv.HostSudoers {
 
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() types.Server {
+	spec := types.ServerSpecV2{
+		Addr: s.AdvertiseAddr(),
+	}
+	if s.targetServer != nil {
+		spec.GitHub = s.targetServer.GetGitHub()
+	}
+
 	return &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
@@ -517,9 +525,7 @@ func (s *Server) GetInfo() types.Server {
 			Name:      s.ID(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: types.ServerSpecV2{
-			Addr: s.AdvertiseAddr(),
-		},
+		Spec: spec,
 	}
 }
 
@@ -626,16 +632,18 @@ func (s *Server) Serve() {
 
 			s.agentlessSigner = sshSigner
 		}
-		if s.targetServer.GetSubKind() == types.SubKindOpenSSHGitHub {
-			sshSigner, err := s.getSSHSignerForGitHub(ctx)
-			if err != nil {
-				sconn.Close()
-				s.log.Warnf("Unable to generate GitHub user cert for user %v server %v: %v", s.identityContext.TeleportUser, s.targetServer.GetName(), err)
-				return
-			}
-
-			s.agentlessSigner = sshSigner
+	}
+	if s.targetServer != nil &&
+		s.targetServer.GetKind() == types.KindGitServer &&
+		s.targetServer.GetSubKind() == types.SubKindGitHub {
+		sshSigner, err := s.getSSHSignerForGitHub(ctx)
+		if err != nil {
+			sconn.Close()
+			s.log.Warnf("Unable to generate GitHub user cert for user %v server %v: %v", s.identityContext.TeleportUser, s.targetServer.GetName(), err)
+			return
 		}
+
+		s.agentlessSigner = sshSigner
 	}
 
 	// Connect and authenticate to the remote node.
@@ -683,6 +691,7 @@ func (s *Server) Serve() {
 
 // TODO how to keep a cache for this
 func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) {
+	slog.DebugContext(ctx, "=== getSSHSignerForGitHub")
 	spec := s.targetServer.GetGitHub()
 	if spec == nil || spec.Integration == "" {
 		return nil, trace.BadParameter("GitHub server %s missing integration", s.targetServer)
@@ -693,10 +702,18 @@ func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	logins, err := s.identityContext.AccessChecker.GetAllowedLoginsForResource(s.targetServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(logins) == 0 {
+		return nil, trace.NotFound("no github login found")
+	}
 	resp, err := s.authClient.GenerateGitHubUserCert(ctx, &integrationv1.GenerateGitHubUserCertRequest{
 		Integration: spec.Integration,
 		PublicKey:   priv.MarshalSSHPublicKey(),
-		Login:       s.identityContext.Login,
+		Login:       logins[0],
 		KeyId:       s.identityContext.TeleportUser,
 		Ttl:         durationpb.New(10 * time.Duration(time.Minute)),
 	})
@@ -784,9 +801,11 @@ func (s *Server) Close() error {
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
-	// What?
+	// TODO(greedy52) beautify and add github host validation.
 	hostKeyCallback := s.authHandlers.HostKeyAuth
-	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHGitHub {
+	if s.targetServer != nil &&
+		s.targetServer.GetKind() == types.KindGitServer &&
+		s.targetServer.GetSubKind() == types.SubKindGitHub {
 		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 		systemLogin = "git"
 	}

@@ -22,6 +22,7 @@ import { makeDatabase } from '../databases/makeDatabase';
 import { makeDesktop } from '../desktops/makeDesktop';
 import makeKube from '../kube/makeKube';
 import makeNode from '../nodes/makeNode';
+import makeGitServer from '../gitservers/makeGitServer';
 
 export function makeUnifiedResource(json: any): UnifiedResource {
   json = json || {};
@@ -37,6 +38,8 @@ export function makeUnifiedResource(json: any): UnifiedResource {
       return makeNode(json);
     case 'windows_desktop':
       return makeDesktop(json);
+    case 'git_server':
+      return makeGitServer(json);
     default:
       throw new Error(`Unknown unified resource kind: "${json.kind}"`);
   }

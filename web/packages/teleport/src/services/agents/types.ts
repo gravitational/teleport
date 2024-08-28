@@ -23,6 +23,7 @@ import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop } from 'teleport/services/desktops';
+import { GitServer } from 'teleport/services/gitservers';
 
 import { UserGroup } from '../userGroups';
 
@@ -35,6 +36,7 @@ export type UnifiedResource =
   | Node
   | Kube
   | Desktop
+  | GitServer
   | UserGroup;
 
 export type UnifiedResourceKind = UnifiedResource['kind'];

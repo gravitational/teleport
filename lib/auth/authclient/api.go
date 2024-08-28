@@ -76,6 +76,9 @@ type Announcer interface {
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
+
+	// UpsertGitServer registers a Git server.
+	UpsertGitServer(context.Context, types.Server) (types.Server, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
@@ -306,6 +309,10 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// TODO
+	GetGitServer(ctx context.Context, name string) (types.Server, error)
+	GetGitServers(ctx context.Context) ([]types.Server, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -405,6 +412,10 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// TODO
+	GetGitServer(ctx context.Context, name string) (types.Server, error)
+	GetGitServers(ctx context.Context) ([]types.Server, error)
 }
 
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1189,6 +1200,8 @@ type Cache interface {
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
 	// GetStaticHostUser returns a static host user by name.
 	GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error)
+
+	services.GitServersGetter
 }
 
 type NodeWrapper struct {

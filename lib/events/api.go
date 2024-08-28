@@ -249,6 +249,9 @@ const (
 	ExecEventCode    = "exitCode"
 	ExecEventError   = "exitError"
 
+	// GitCommand is an exec command executed by `git`.
+	GitCommandEvent = "git.command"
+
 	// SubsystemEvent is the result of the execution of a subsystem.
 	SubsystemEvent = "subsystem"
 	SubsystemName  = "name"

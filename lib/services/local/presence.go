@@ -21,6 +21,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -369,6 +370,43 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
+}
+
+// TODO
+func (s *PresenceService) UpsertGitServer(ctx context.Context, server types.Server) (types.Server, error) {
+	// s.upsertGitServer calls serverv2.CheckAndSetDefaults.
+	err := s.upsertServer(ctx, gitServerPrefix, server)
+	return server, trace.Wrap(err)
+}
+
+// TODO is this really needed?
+func (s *PresenceService) GetGitServer(ctx context.Context, name string) (types.Server, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	item, err := s.Get(ctx, backend.NewKey(gitServerPrefix, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalServer(
+		item.Value,
+		types.KindGitServer,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+}
+func (s *PresenceService) GetGitServers(ctx context.Context) ([]types.Server, error) {
+	servers, err := s.getServers(ctx, types.KindGitServer, gitServerPrefix)
+	slog.DebugContext(ctx, "=== local.GetGitServers", "servers", servers, "error", err)
+	return servers, trace.Wrap(err)
+}
+func (s *PresenceService) DeleteGitServer(ctx context.Context, name string) error {
+	key := backend.NewKey(gitServerPrefix, name)
+	return s.Delete(ctx, key)
+}
+func (s *PresenceService) DeleteAllGitServers(ctx context.Context) error {
+	startKey := backend.ExactKey(gitServerPrefix)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
 // GetAuthServers returns a list of registered servers
@@ -1269,6 +1307,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindNode:
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
+	case types.KindGitServer:
+		keyPrefix = []string{gitServerPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindGitServer)
 	case types.KindWindowsDesktopService:
 		keyPrefix = []string{windowsDesktopServicesPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktopService
@@ -1358,6 +1399,18 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		servers := types.Servers(nodes)
+		if err := servers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = servers.AsResources()
+
+	case types.KindGitServer:
+		gitServers, err := s.GetGitServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		servers := types.Servers(gitServers)
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1690,4 +1743,5 @@ const (
 	loginTimePrefix              = "hostuser_interaction_time"
 	serverInfoPrefix             = "serverInfos"
 	cloudLabelsPrefix            = "cloudLabels"
+	gitServerPrefix              = "gitServers"
 )

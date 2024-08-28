@@ -55,6 +55,11 @@ type NodesStreamGetter interface {
 	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
 }
 
+type GitServersGetter interface {
+	GetGitServers(ctx context.Context) ([]types.Server, error)
+	GetGitServer(ctx context.Context, name string) (types.Server, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -195,6 +200,12 @@ type Presence interface {
 	DeleteWindowsDesktopService(ctx context.Context, name string) error
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
+
+	//TODO
+	GitServersGetter
+	UpsertGitServer(context.Context, types.Server) (types.Server, error)
+	DeleteGitServer(context.Context, string) error
+	DeleteAllGitServers(context.Context) error
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)

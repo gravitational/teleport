@@ -66,6 +66,9 @@ type UserCommand struct {
 	hostUserUIDProvided       bool
 	hostUserGID               string
 	hostUserGIDProvided       bool
+	gitHubUsername            string
+	gitHubUsernameProvided    bool
+	allowedGitHubOrgs         []string
 
 	ttl time.Duration
 
@@ -101,6 +104,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
 	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userAdd.Flag("github-username", "GitHub username to use for GitHub integrations").IsSetByUser(&u.gitHubUsernameProvided).StringVar(&u.gitHubUsername)
+	u.userAdd.Flag("github-orgs", "List of allowed GitHub organizations").StringsVar(&u.allowedGitHubOrgs)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
@@ -136,6 +141,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedGCPServiceAccounts)
 	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userUpdate.Flag("set-github-username", "GitHub username to use for GitHub integrations. Value can be reset by providing an empty string.").IsSetByUser(&u.gitHubUsernameProvided).StringVar(&u.gitHubUsername)
+	u.userUpdate.Flag("set-github-orgs", "List of allowed GitHub organizations").StringsVar(&u.allowedGitHubOrgs)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
@@ -275,18 +282,20 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	}
 
 	traits := map[string][]string{
-		constants.TraitLogins:             u.allowedLogins,
-		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
-		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
-		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
-		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
-		constants.TraitDBNames:            flattenSlice(u.allowedDatabaseNames),
-		constants.TraitDBRoles:            flattenSlice(u.allowedDatabaseRoles),
-		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
-		constants.TraitAzureIdentities:    azureIdentities,
-		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
-		constants.TraitHostUserUID:        {u.hostUserUID},
-		constants.TraitHostUserGID:        {u.hostUserGID},
+		constants.TraitLogins:              u.allowedLogins,
+		constants.TraitWindowsLogins:       u.allowedWindowsLogins,
+		constants.TraitKubeUsers:           flattenSlice(u.allowedKubeUsers),
+		constants.TraitKubeGroups:          flattenSlice(u.allowedKubeGroups),
+		constants.TraitDBUsers:             flattenSlice(u.allowedDatabaseUsers),
+		constants.TraitDBNames:             flattenSlice(u.allowedDatabaseNames),
+		constants.TraitDBRoles:             flattenSlice(u.allowedDatabaseRoles),
+		constants.TraitAWSRoleARNs:         flattenSlice(u.allowedAWSRoleARNs),
+		constants.TraitAzureIdentities:     azureIdentities,
+		constants.TraitGCPServiceAccounts:  gcpServiceAccounts,
+		constants.TraitHostUserUID:         {u.hostUserUID},
+		constants.TraitHostUserGID:         {u.hostUserGID},
+		constants.TraitGitHubUsername:      {u.gitHubUsername},
+		constants.TraitGitHubOrganizations: flattenSlice(u.allowedGitHubOrgs),
 	}
 
 	user, err := types.NewUser(u.login)
@@ -464,6 +473,15 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		}
 		user.SetHostUserGID(u.hostUserGID)
 		updateMessages["Host user GID"] = []string{u.hostUserGID}
+	}
+	if u.gitHubUsernameProvided {
+		user.SetGitHubUsername(u.gitHubUsername)
+		updateMessages["GitHub username"] = []string{u.gitHubUsername}
+	}
+	if len(u.allowedGitHubOrgs) > 0 {
+		allowedGitHubOrgs := flattenSlice(u.allowedGitHubOrgs)
+		user.SetGitHubOrganizations(allowedGitHubOrgs)
+		updateMessages["GitHub organizations"] = allowedGitHubOrgs
 	}
 
 	if len(updateMessages) == 0 {

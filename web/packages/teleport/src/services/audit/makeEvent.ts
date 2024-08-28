@@ -1908,6 +1908,39 @@ export const formatters: Formatters = {
       return `User [${user}] deleted an integration [${name}]`;
     },
   },
+  [eventCodes.GIT_COMMAND]: {
+    type: 'git.command',
+    desc: 'Git Command',
+    format: ({ user, service, path, actions }) => {
+      if (service === "git-upload-pack") {
+        return `User [${user}] has fetched from [${path}]`;
+      };
+      if (service === "git-receive-pack") {
+        if (actions && actions.length == 1) {
+          switch(actions[0].action) {
+          case "delete":
+              return `User [${user}] has deleted [${actions[0].reference}] from [${path}]`;
+          case "create":
+              return `User [${user}] has created [${actions[0].reference}] on [${path}]`;
+          case "update":
+              return `User [${user}] has updated [${actions[0].reference}] to [${actions[0].new.substring(0,7)}] on [${path}]`;
+          };
+        };
+        return `User [${user}] has attempted a push to [${path}]`;
+      }
+      if (service && path) {
+        return `User [${user}] has executed a Git Command [${service}] at [${path}]`;
+      }
+      return  `User [${user}] has executed a GitHub Command`;
+    },
+  },
+  [eventCodes.GIT_COMMAND_FAILURE]: {
+    type: 'git.command',
+    desc: 'Git Command Failed',
+    format: ({ user, exitError, org }) => {
+      return `User [${user}] git command on [${org}] failed [${exitError}]}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

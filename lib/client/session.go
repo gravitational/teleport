@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -170,8 +169,6 @@ func newSession(ctx context.Context,
 	}
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
-	slog.DebugContext(ctx, "=== are we here?")
-	ns.env["GIT_PROTOCOL"] = "version=2"
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)

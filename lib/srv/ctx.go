@@ -849,6 +849,12 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		return
 	}
 
+	// TODO(greedy52) Is there a better place?
+	switch c.ServerSubKind {
+	case types.SubKindGitHub:
+		return
+	}
+
 	// Get the TX and RX bytes.
 	txBytes, rxBytes := conn.Stat()
 

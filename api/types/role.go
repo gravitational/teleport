@@ -270,6 +270,10 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+
+	// TODO
+	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
 }
 
 // NewRole constructs new standard V7 role.
@@ -934,6 +938,20 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 		r.Spec.Allow.SPIFFE = cond
 	} else {
 		r.Spec.Deny.SPIFFE = cond
+	}
+}
+
+func (r *RoleV6) GetGitHubPermissions(rct RoleConditionType) []GitHubPermission {
+	if rct == Allow {
+		return r.Spec.Allow.GithubPermissions
+	}
+	return r.Spec.Deny.GithubPermissions
+}
+func (r *RoleV6) SetGitHubPermissions(rct RoleConditionType, perms []GitHubPermission) {
+	if rct == Allow {
+		r.Spec.Allow.GithubPermissions = perms
+	} else {
+		r.Spec.Deny.GithubPermissions = perms
 	}
 }
 
@@ -1844,8 +1862,23 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindGitServer:
+		// TODO alternative to fake a label?
+		return r.makeGitServerLabelMatchers(cond), nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
+}
+
+func (r *RoleV6) makeGitServerLabelMatchers(cond *RoleConditions) LabelMatchers {
+	var gitHubOrgs []string
+	for _, perm := range cond.GithubPermissions {
+		gitHubOrgs = append(gitHubOrgs, perm.Organizations...)
+	}
+	return LabelMatchers{
+		Labels: Labels{
+			"teleport.hidden/github_organization": gitHubOrgs,
+		},
+	}
 }
 
 // SetLabelMatchers sets the LabelMatchers that match labels of resources of

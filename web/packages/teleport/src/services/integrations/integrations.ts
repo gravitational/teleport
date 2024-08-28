@@ -409,7 +409,7 @@ export function makeIntegrations(json: any): Integration[] {
 
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, subKind, awsoidc } = json;
+  const { name, subKind, awsoidc, github } = json;
   return {
     resourceType: 'integration',
     name,
@@ -418,7 +418,11 @@ function makeIntegration(json: any): Integration {
       roleArn: awsoidc?.roleArn,
       issuerS3Bucket: awsoidc?.issuerS3Bucket,
       issuerS3Prefix: awsoidc?.issuerS3Prefix,
+      organization: github?.organization,
+      publicKeys: github?.publicKeys,
+      fingerprints: github?.fingerprints,
     },
+    details: github? "GitHub Organiztion \""+ github.organization +"\"": undefined,
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
     // integration resources together. As discussed, the only

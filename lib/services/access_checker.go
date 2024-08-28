@@ -258,7 +258,7 @@ type AccessChecker interface {
 	//
 	// Supports the following resource types:
 	//
-	// - types.Server with GetKind() == types.KindNode
+	// - types.Server with GetKind() == types.KindNode or types.KindGitServer
 	// - types.KindWindowsDesktop
 	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
@@ -766,10 +766,25 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 //
 // Supports the following resource types:
 //
-// - types.Server with GetKind() == types.KindNode
+// - types.Server with GetKind() == types.KindNode or types.KindGitServer
 // - types.KindWindowsDesktop
 // - types.KindApp with IsAWSConsole() == true
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	// Some logins are soly based on Traits instead of RoleSet.
+	switch resource.GetKind() {
+	case types.KindGitServer:
+
+		switch resource.GetSubKind() {
+		case types.SubKindGitHub:
+			if err := a.CheckAccess(resource, AccessState{MFAVerified: true}); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return a.info.Traits[constants.TraitGitHubUsername], nil
+		default:
+			return nil, trace.BadParameter("received unsupported subkind for git_server: %v", resource.GetSubKind())
+		}
+	}
+
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
 	// true otherwise.
@@ -795,6 +810,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			}
 
 			loginGetter = role.GetAWSRoleARNs
+		case types.KindGitServer:
+			continue
 		default:
 			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 		}
@@ -821,7 +838,7 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 
 	var newLoginMatcher func(login string) RoleMatcher
 	switch resource.GetKind() {
-	case types.KindNode:
+	case types.KindNode, types.KindGitServer:
 		newLoginMatcher = NewLoginMatcher
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher

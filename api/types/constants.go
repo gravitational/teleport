@@ -163,11 +163,15 @@ const (
 	// It uses the private key created above to SSH into the host.
 	SubKindOpenSSHEICENode = "openssh-ec2-ice"
 
-	// SubKindOpenSSHGitHub is a virtual presentation of the GitHub server (per
-	// organization) for proxing Git protocol to GitHub over SSH.
-	//
-	// It uses a Teleport CA that is stored per GitHub integration.
-	SubKindOpenSSHGitHub = "openssh-github"
+	/*
+		// SubKindOpenSSHGitHub is a virtual presentation of the GitHub server (per
+		// organization) for proxing Git protocol to GitHub over SSH.
+		//
+		// It uses a Teleport CA that is stored per GitHub integration.
+		SubKindOpenSSHGitHub = "openssh-github"
+	*/
+	KindGitServer = "git_server"
+	SubKindGitHub = "github"
 
 	// KindUnifiedResource is a meta Kind that is used for the unified resource search present on
 	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
@@ -1374,4 +1378,8 @@ const (
 	// SCIMBaseURLLabel defines a label indicating the base URL for
 	// interacting with a plugin via SCIM. Useful for diagnostic display.
 	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
+)
+
+const (
+	GitHubServerDomain = "github-organization"
 )

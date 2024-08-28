@@ -550,12 +550,11 @@ type CLIConf struct {
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
-	// GitUsername
-	GitUsername string
-	// GitServer
-	GitServer string
+	// GitHubOrg
+	GitHubOrg string
 	// GitURL
-	GitURL string
+	GitURL          string
+	GitConfigAction string
 }
 
 // Stdout returns the stdout writer.
@@ -1210,14 +1209,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
 	vnetDaemonCmd := newVnetDaemonCommand(app)
 
-	git := app.Command("git", "Git proxy commands.")
+	git := app.Command("git", "Git server commands.")
+	gitList := git.Command("ls", "List Git servers.")
+	// TODO(greedy52) support search keywords etc.
+
+	gitConfig := git.Command("config", "Check Teleport config of the working git dir.")
+	gitConfig.Arg("action", "Action to perform. Valid options: update or reset.").EnumVar(&cf.GitConfigAction, "", "update", "reset")
+
 	gitClone := git.Command("clone", "Git clone.")
-	gitClone.Flag("username", "Git username.").Required().StringVar(&cf.GitUsername)
 	gitClone.Arg("git-url", "Git URL").Required().StringVar(&cf.GitURL)
 
 	gitSSH := git.Command("ssh", "Proxy Git SSH.").Hidden()
-	gitSSH.Flag("username", "Git username.").Required().StringVar(&cf.GitUsername)
-	gitSSH.Flag("server", "Git proxy server.").Required().StringVar(&cf.GitServer)
+	gitSSH.Flag("github-org", "GitHub organization.").Required().StringVar(&cf.GitHubOrg)
 	gitSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	gitSSH.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	gitSSH.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
@@ -1593,6 +1596,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetDaemonCmd.run(&cf)
 	case gitSSH.FullCommand():
 		err = onGitSSH(&cf)
+	case gitClone.FullCommand():
+		err = onGitClone(&cf)
+	case gitList.FullCommand():
+		err = onGitList(&cf)
+	case gitConfig.FullCommand():
+		err = onGitConfig(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -3658,6 +3667,10 @@ func onSSH(cf *CLIConf) error {
 		fmt.Sprintf("%s@%s", tc.HostLogin, tc.Host),
 	)
 	// Exit with the same exit status as the failed command.
+	return trace.Wrap(convertSSHExitCode(tc, err))
+}
+
+func convertSSHExitCode(tc *client.TeleportClient, err error) error {
 	if tc.ExitStatus != 0 {
 		var exitErr *common.ExitCodeError
 		if errors.As(err, &exitErr) {

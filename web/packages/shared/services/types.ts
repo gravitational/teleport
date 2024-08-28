@@ -47,3 +47,5 @@ export type AuthProvider = {
 
 /** Values are taken from https://github.com/gravitational/teleport/blob/0460786b4c3afced1350dd9362ce761806e1c99d/api/types/constants.go#L140-L154 */
 export type NodeSubKind = 'teleport' | 'openssh' | 'openssh-ec2-ice';
+
+export type GitServerSubKind = 'github' ;

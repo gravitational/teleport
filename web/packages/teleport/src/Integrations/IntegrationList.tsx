@@ -36,6 +36,7 @@ import discordIcon from 'design/assets/images/icons/discord.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
 import msteamIcon from 'design/assets/images/icons/msteams.svg';
 import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
+import githubIcon from 'design/assets/images/icons/github-mark-white.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -356,6 +357,9 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   } else {
     // Default is integration.
     switch (item.kind) {
+      case IntegrationKind.GitHub:
+        icon = <IconContainer src={githubIcon} />;
+        break
       case IntegrationKind.AwsOidc:
       case IntegrationKind.ExternalAuditStorage:
         formattedText = item.name;

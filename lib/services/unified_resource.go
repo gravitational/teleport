@@ -48,6 +48,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindAppServer,
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
+	types.KindGitServer,
 }
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -351,6 +352,7 @@ type ResourceGetter interface {
 	WindowsDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
+	GitServersGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -383,7 +385,8 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	switch r := resource.(type) {
 	case types.Server:
 		name = r.GetHostname() + "/" + r.GetName()
-		kind = types.KindNode
+		//kind = types.KindNode
+		kind = r.GetKind()
 	case types.AppServer:
 		app := r.GetApp()
 		if app != nil {
@@ -454,6 +457,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newGitServers, err := c.getGitServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	// empty the trees
@@ -469,6 +477,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
+	putResources[types.Server](c, newGitServers)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -483,6 +492,15 @@ func (c *UnifiedResourceCache) getNodes(ctx context.Context) ([]types.Server, er
 	}
 
 	return newNodes, err
+}
+
+// TODO
+func (c *UnifiedResourceCache) getGitServers(ctx context.Context) ([]types.Server, error) {
+	servers, err := c.ResourceGetter.GetGitServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting git servers for unified resource watcher")
+	}
+	return servers, nil
 }
 
 // getDatabaseServers will get all database servers
@@ -782,6 +800,14 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 		}
 
 		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}, Logins: logins, RequiresRequest: requiresRequest}
+	case types.KindGitServer:
+		srv, ok := resource.(*types.ServerV2)
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+
+		// TODO logins
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_GitServer{GitServer: srv}, Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindKubeServer:
 		srv, ok := resource.(*types.KubernetesServerV3)
 		if !ok {

@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -197,6 +198,11 @@ func (s *localSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.srv.NodeWatcher, nil
 }
 
+// GitServerWatcher returns a services.GitServerWatcher for this cluster.
+func (s *localSite) GitServerWatcher() (*services.GitServerWatcher, error) {
+	return s.srv.GitServerWatcher, nil
+}
+
 // GetClient returns a client to the full Auth Server API.
 func (s *localSite) GetClient() (authclient.ClientI, error) {
 	return s.client, nil
@@ -250,6 +256,11 @@ func shouldDialAndForward(params reversetunnelclient.DialParams, recConfig types
 	}
 	// the node is an agentless node, the connection must be forwarded
 	if params.TargetServer != nil && params.TargetServer.IsOpenSSHNode() {
+		return true
+	}
+	// forward git servers
+	if params.TargetServer != nil && params.TargetServer.GetGitHub() != nil {
+		slog.DebugContext(context.Background(), "=== shouldDialAndForward", "github", params.TargetServer.GetGitHub().Organization)
 		return true
 	}
 	// proxy session recording mode is being used and an SSH session

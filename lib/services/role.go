@@ -77,6 +77,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
 	types.NewRule(types.KindSPIFFEFederation, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -305,6 +306,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
 			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
+			// TODO validate github orgs
 		} {
 			for _, value := range values.values {
 				_, err := parse.NewTraitsTemplateExpression(value)
@@ -489,6 +491,13 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
+		// apply templates to github permissions
+		gitHubPerms := r.GetGitHubPermissions(condition)
+		for i := range gitHubPerms {
+			gitHubPerms[i].Organizations = applyValueTraitsSlice(gitHubPerms[i].Organizations, traits, "github organization")
+		}
+		r.SetGitHubPermissions(condition, gitHubPerms)
+
 		for _, kind := range []string{
 			types.KindRemoteCluster,
 			types.KindNode,
@@ -628,7 +637,8 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, constants.TraitJWT:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT,
+				constants.TraitGitHubOrganizations:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
@@ -2491,6 +2501,7 @@ func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
+	GetSubKind() string
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)

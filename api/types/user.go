@@ -121,6 +121,10 @@ type User interface {
 	SetHostUserUID(uid string)
 	// SetHostUserGID sets the GID for host users
 	SetHostUserGID(gid string)
+	// SetGitHubUsername sets the GitHub username.
+	SetGitHubUsername(string)
+	// SetGitHubOrganizations sets the GitHub organizations.
+	SetGitHubOrganizations([]string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
@@ -406,6 +410,20 @@ func (u *UserV2) SetHostUserUID(uid string) {
 // SetHostUserGID sets the host user GID
 func (u *UserV2) SetHostUserGID(uid string) {
 	u.setTrait(constants.TraitHostUserGID, []string{uid})
+}
+
+// SetGitHubUsername sets the GitHub username.
+func (u *UserV2) SetGitHubUsername(username string) {
+	if username == "" {
+		u.setTrait(constants.TraitGitHubUsername, nil)
+	} else {
+		u.setTrait(constants.TraitGitHubUsername, []string{username})
+	}
+}
+
+// SetGitHubOrganizations sets the GitHub organizations.
+func (u *UserV2) SetGitHubOrganizations(orgs []string) {
+	u.setTrait(constants.TraitGitHubOrganizations, orgs)
 }
 
 // GetStatus returns login status of the user

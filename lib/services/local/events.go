@@ -229,6 +229,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSPIFFEFederationParser()
 		case types.KindStaticHostUser:
 			parser = newStaticHostUserParser()
+		case types.KindGitServer:
+			parser = newGitServerParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2528,4 +2530,18 @@ func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, err
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+}
+
+func newGitServerParser() *gitServerParser {
+	return &gitServerParser{
+		baseParser: newBaseParser(backend.NewKey(gitServerPrefix)),
+	}
+}
+
+type gitServerParser struct {
+	baseParser
+}
+
+func (p *gitServerParser) parse(event backend.Event) (types.Resource, error) {
+	return parseServer(event, types.KindGitServer)
 }

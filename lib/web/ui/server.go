@@ -61,6 +61,8 @@ type Server struct {
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+
+	GitHub *types.GitHubServerMetadata `json:"github,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -120,6 +122,7 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 		SubKind:         server.GetSubKind(),
 		RequiresRequest: requiresRequest,
 		SSHLogins:       logins,
+		GitHub:          server.GetGitHub(),
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {

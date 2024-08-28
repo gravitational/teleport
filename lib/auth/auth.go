@@ -2980,6 +2980,11 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
+	// Add git logins.
+	if githubUsername, ok := req.checker.Traits()[constants.TraitGitHubUsername]; ok {
+		allowedLogins = append(allowedLogins, githubUsername...)
+	}
+
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
 	if err != nil {
 		return nil, trace.Wrap(err)

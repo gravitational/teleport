@@ -786,6 +786,15 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		serverMeta:                     scx.srv.TargetMetadata(),
 	}
 
+	// TODO(greedy52) Is there a better way?
+	switch scx.srv.TargetMetadata().ServerSubKind {
+	case types.SubKindGitHub:
+		sess.emitter = &githubSessionEmitter{
+			emitter: sess.emitter,
+			discard: events.NewDiscardEmitter(),
+		}
+	}
+
 	sess.io.OnWriteError = sess.onWriteError
 
 	go func() {
@@ -816,6 +825,21 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	}
 
 	return sess, p, nil
+}
+
+// TODO
+type githubSessionEmitter struct {
+	emitter apievents.Emitter
+	discard apievents.Emitter
+}
+
+func (e *githubSessionEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	switch event.GetType() {
+	case events.GitCommandEvent:
+		return trace.Wrap(e.emitter.EmitAuditEvent(ctx, event))
+	default:
+		return trace.Wrap(e.discard.EmitAuditEvent(ctx, event))
+	}
 }
 
 // ID returns a string representation of the session ID.
@@ -1395,6 +1419,12 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionPreparerRecorder
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		s.log.WithField("session_id", s.ID()).Trace("session will be recorded at proxy")
+		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
+	}
+
+	// TODO(greedy52) Is there a better place?
+	switch s.serverMeta.ServerSubKind {
+	case types.SubKindGitHub:
 		return events.WithNoOpPreparer(events.NewDiscardRecorder()), nil
 	}
 

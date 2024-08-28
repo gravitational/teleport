@@ -408,7 +408,7 @@ func (s *ServerV2) IsOpenSSHNode() bool {
 // IsOpenSSHNodeSubKind returns whether the Node SubKind is from a server which accepts connections over the
 // OpenSSH daemon (instead of a Teleport Node).
 func IsOpenSSHNodeSubKind(subkind string) bool {
-	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode || subkind == SubKindOpenSSHGitHub
+	return subkind == SubKindOpenSSHNode || subkind == SubKindOpenSSHEICENode
 }
 
 // GetAWSAccountID returns the AWS Account ID if this node comes from an EC2 instance.
@@ -501,20 +501,32 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
-const gitHubAddress = "github.com:22"
+func MakeGitHubOrgServerDomain(org string) string {
+	return fmt.Sprintf("%s.%s", org, GitHubServerDomain)
+}
 
 func (s *ServerV2) githubCheckAndSetDefaults() error {
-	switch s.Spec.Addr {
-	case gitHubAddress:
+	if s.Spec.GitHub == nil || s.Spec.GitHub.Organization == "" {
+		return trace.BadParameter("missing github organization")
+	}
+	if s.Spec.GitHub.Integration == "" {
+		return trace.BadParameter("missing github integration")
+	}
+
+	hostname := MakeGitHubOrgServerDomain(s.Spec.GitHub.Organization)
+	switch s.Spec.Hostname {
+	case hostname:
 	case "":
-		s.Spec.Addr = gitHubAddress
+		s.Spec.Hostname = hostname
 	default:
-		slog.WarnContext(context.Background(), "invalid address for GitHub server. Address will be replaced with %q", gitHubAddress)
-		s.Spec.Addr = gitHubAddress
+		slog.WarnContext(context.Background(), "invalid hostname for GitHub server. Hostname will be replaced with %q", hostname)
+		s.Spec.Hostname = hostname
 	}
-	if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+
+	if s.Metadata.Labels == nil {
+		s.Metadata.Labels = make(map[string]string)
 	}
+	s.Metadata.Labels["teleport.hidden/github_organization"] = s.Spec.GitHub.Organization
 	return nil
 }
 
@@ -555,7 +567,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			// if the server is a registered OpenSSH node, allow the name to be
 			// randomly generated
 			s.Metadata.Name = uuid.NewString()
-		case SubKindOpenSSHGitHub:
+		case SubKindGitHub:
 			s.Metadata.Name = uuid.NewString()
 		}
 	}
@@ -564,33 +576,39 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if s.Kind == "" {
+	// TODO refactor
+	switch s.Kind {
+	case "":
 		return trace.BadParameter("server Kind is empty")
-	}
-	if s.Kind != KindNode && s.SubKind != "" {
-		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
-	}
+	case KindNode:
+		switch s.SubKind {
+		case "", SubKindTeleportNode:
+			// allow but do nothing
+		case SubKindOpenSSHNode:
+			if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
 
-	switch s.SubKind {
-	case "", SubKindTeleportNode:
-		// allow but do nothing
-	case SubKindOpenSSHNode:
-		if err := s.openSSHNodeCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+		case SubKindOpenSSHEICENode:
+			if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			return trace.BadParameter("invalid SubKind %q for %q", s.SubKind, s.Kind)
 		}
-
-	case SubKindOpenSSHEICENode:
-		if err := s.openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+	case KindGitServer:
+		switch s.SubKind {
+		case SubKindGitHub:
+			if err := s.githubCheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+		default:
+			return trace.BadParameter("invalid SubKind %q for %q with spec", s.SubKind, s.Kind, s)
 		}
-
-	case SubKindOpenSSHGitHub:
-		if err := s.githubCheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
 	default:
-		return trace.BadParameter("invalid SubKind %q", s.SubKind)
+		if s.SubKind != "" {
+			return trace.BadParameter(`server SubKind must only be set when Kind is "node" or "git_server"`)
+		}
 	}
 
 	for key := range s.Spec.CmdLabels {

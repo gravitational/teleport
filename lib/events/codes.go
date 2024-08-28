@@ -319,6 +319,11 @@ const (
 	// KubernetesClusterDeleteCode is the kube.delete event code.
 	KubernetesClusterDeleteCode = "T3012I"
 
+	// GitCommandCode is the git command event code
+	GitCommandCode = "T3013I"
+	// GitCommandCode is the git command feature event code.
+	GitCommandFailureCode = "T3013E"
+
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
 	SFTPOpenFailureCode     = "TS001E"

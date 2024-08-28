@@ -35,6 +35,7 @@ const traitsPreset = [
   'db_roles',
   'db_users',
   'gcp_service_accounts',
+  'github_username',
   'host_user_gid',
   'host_user_uid',
   'kubernetes_groups',

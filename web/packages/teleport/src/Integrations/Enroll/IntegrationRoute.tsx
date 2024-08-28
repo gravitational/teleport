@@ -23,6 +23,7 @@ import { Route } from 'teleport/components/Router';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
+import { GitHub } from './GitHub';
 
 export function getRoutesToEnrollIntegrations() {
   return [
@@ -31,6 +32,12 @@ export function getRoutesToEnrollIntegrations() {
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
       component={AwsOidc}
+    />,
+    <Route
+      key={IntegrationKind.GitHub}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.GitHub)}
+      component={GitHub}
     />,
   ];
 }

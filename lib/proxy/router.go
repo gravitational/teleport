@@ -23,8 +23,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -33,6 +35,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/rand"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -282,6 +285,10 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 					return nil, trace.Wrap(err)
 				}
 			}
+		} else if target.GetGitHub() != nil {
+			agentGetter = nil
+			isAgentlessNode = true
+			serverAddr = "github.com:22"
 		}
 
 	} else {
@@ -382,6 +389,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // for a reversetunnelclient.RemoteSite. It makes testing easier.
 type site interface {
 	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
+	GetGitServers(ctx context.Context, fn func(n services.GitServer) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 }
 
@@ -399,6 +407,16 @@ func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool)
 	}
 
 	return watcher.GetNodes(ctx, fn), nil
+}
+
+// GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.
+func (r remoteSite) GetGitServers(ctx context.Context, fn func(n services.GitServer) bool) ([]types.Server, error) {
+	watcher, err := r.site.GitServerWatcher()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return watcher.GetGitServers(ctx, fn), nil
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -420,12 +438,34 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
 
+func getGitHubServer(ctx context.Context, org string, site site) (types.Server, error) {
+	servers, err := site.GetGitServers(ctx, func(s services.GitServer) bool {
+		github := s.GetGitHub()
+		return github != nil && github.Organization == org
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	slog.DebugContext(ctx, "=== routing getGitServer", "servers", servers)
+	if len(servers) == 0 {
+		return nil, trace.NotFound("unable to locate github server for organization %s", org)
+	}
+
+	i := rand.Intn(len(servers))
+	return servers[i], nil
+}
+
 // getServerWithResolver attempts to locate a node matching the provided host and port in
 // the provided site. The resolver argument is used in certain tests to mock DNS resolution
 // and can generally be left nil.
 func getServerWithResolver(ctx context.Context, host, port string, site site, resolver apiutils.HostResolver) (types.Server, error) {
 	if site == nil {
 		return nil, trace.BadParameter("invalid remote site provided")
+	}
+
+	if strings.HasSuffix(host, "."+types.GitHubServerDomain) {
+		return getGitHubServer(ctx, strings.TrimSuffix(host, "."+types.GitHubServerDomain), site)
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH

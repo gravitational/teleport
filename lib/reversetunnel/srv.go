@@ -203,6 +203,9 @@ type Config struct {
 	// NodeWatcher is a node watcher.
 	NodeWatcher *services.NodeWatcher
 
+	// GitServerWatcher is a git server watcher
+	GitServerWatcher *services.GitServerWatcher
+
 	// CertAuthorityWatcher is a cert authority watcher.
 	CertAuthorityWatcher *services.CertAuthorityWatcher
 
@@ -271,6 +274,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.NodeWatcher == nil {
 		return trace.BadParameter("missing parameter NodeWatcher")
+	}
+	if cfg.GitServerWatcher == nil {
+		return trace.BadParameter("missing parameter GitServerWatcher")
 	}
 	if cfg.CertAuthorityWatcher == nil {
 		return trace.BadParameter("missing parameter CertAuthorityWatcher")
@@ -1222,6 +1228,19 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		return nil, trace.Wrap(err)
 	}
 	remoteSite.nodeWatcher = nodeWatcher
+	gitServerWatcher, err := services.NewGitServerWatcher(closeContext, services.GitServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Log:          srv.Log,
+			MaxStaleness: time.Minute,
+		},
+		GitServersGetter: accessPoint,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.gitServerWatcher = gitServerWatcher
 	// instantiate a cache of host certificates for the forwarding server. the
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate

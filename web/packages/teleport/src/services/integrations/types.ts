@@ -52,12 +52,21 @@ export type Integration<
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
   AzureOidc = 'azure-oidc',
+  GitHub = 'github',
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
-  roleArn: string;
+  roleArn?: string;
   issuerS3Prefix?: string;
   issuerS3Bucket?: string;
+  organization?: string;
+  publicKeys?: [string];
+  fingerprints?: [string];
+};
+export type IntegrationSpecGitHub = {
+  organization: string;
+  publicKeys?: [string];
+  fingerprints?: [string];
 };
 
 export enum IntegrationStatusCode {
@@ -187,6 +196,7 @@ export type IntegrationCreateRequest = {
   name: string;
   subKind: IntegrationKind;
   awsoidc?: IntegrationSpecAwsOidc;
+  github?: IntegrationSpecGitHub;
 };
 
 export type IntegrationListResponse = {

@@ -1502,6 +1502,13 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
+			} else if gitServer := r.GetGitServer(); gitServer != nil {
+				logins, err := checker.GetAllowedLoginsForResource(gitServer)
+				if err != nil {
+					log.WithError(err).WithField("resource", gitServer.GetName()).Warn("Unable to determine logins for git_server")
+					continue
+				}
+				r.Logins = logins
 			}
 		}
 	}
@@ -1715,6 +1722,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
+		types.KindGitServer,
 		types.KindSAMLIdPServiceProvider:
 
 	default:
@@ -1865,6 +1873,7 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindKubeServer,
 		types.KindUserGroup,
 		types.KindUnifiedResource,
+		types.KindGitServer,
 		types.KindSAMLIdPServiceProvider:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:

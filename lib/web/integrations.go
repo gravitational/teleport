@@ -69,6 +69,19 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.Wrap(err)
 		}
 
+	case types.IntegrationSubKindGitHub:
+		ig, err = types.NewIntegrationGitHub(
+			types.Metadata{
+				Name: req.Name,
+			},
+			&types.GitHubIntegrationSpecV1{
+				Organization: req.GitHub.Organization,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 	default:
 		return nil, trace.BadParameter("subkind %q is not supported", req.SubKind)
 	}

@@ -86,6 +86,8 @@ type remoteSite struct {
 
 	// nodeWatcher provides access the node set for the remote site
 	nodeWatcher *services.NodeWatcher
+	// gitServerWatcher provides access the git server set for the remote site
+	gitServerWatcher *services.GitServerWatcher
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -166,6 +168,11 @@ func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, er
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
 func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
 	return s.nodeWatcher, nil
+}
+
+// GitServerWatcher returns the services.GitServerWatcher for the remote cluster.
+func (s *remoteSite) GitServerWatcher() (*services.GitServerWatcher, error) {
+	return s.gitServerWatcher, nil
 }
 
 func (s *remoteSite) GetClient() (authclient.ClientI, error) {

@@ -74,11 +74,11 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	logger := slog.With("address", addr)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
-			logger.DebugContext(ctx, "No ALPN protocol is negotiated by the server.", "upgrade_required", true)
+			logger.WarnContext(ctx, "No ALPN protocol is negotiated by the server.", "upgrade_required", true)
 			return true
 		}
 		if isUnadvertisedALPNError(err) {
-			logger.DebugContext(ctx, "ALPN connection upgrade received an unadvertised ALPN protocol.", "error", err)
+			logger.WarnContext(ctx, "ALPN connection upgrade received an unadvertised ALPN protocol.", "error", err)
 			return true
 		}
 
@@ -93,7 +93,7 @@ func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, 
 	// Upgrade required when ALPN is not supported on the remote side so
 	// NegotiatedProtocol comes back as empty.
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
-	logger.DebugContext(ctx, "ALPN connection upgrade test complete", "upgrade_required", result)
+	logger.WarnContext(ctx, "ALPN connection upgrade test complete", "upgrade_required", result)
 	return result
 }
 
