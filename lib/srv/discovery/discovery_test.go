@@ -63,6 +63,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -222,6 +223,8 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
 
+	fakeClock := clockwork.NewFakeClock()
+
 	defaultDiscoveryGroup := "dc001"
 	defaultStaticMatcher := Matchers{
 		AWS: []types.AWSMatcher{{
@@ -269,13 +272,14 @@ func TestDiscoveryServer(t *testing.T) {
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
-		presentInstances       []types.Server
-		foundEC2Instances      []*ec2.Instance
-		ssm                    *mockSSMClient
-		emitter                *mockEmitter
-		discoveryConfig        *discoveryconfig.DiscoveryConfig
-		staticMatchers         Matchers
-		wantInstalledInstances []string
+		presentInstances          []types.Server
+		foundEC2Instances         []*ec2.Instance
+		ssm                       *mockSSMClient
+		emitter                   *mockEmitter
+		discoveryConfig           *discoveryconfig.DiscoveryConfig
+		staticMatchers            Matchers
+		wantInstalledInstances    []string
+		wantDiscoveryConfigStatus *discoveryconfig.Status
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -515,8 +519,23 @@ func TestDiscoveryServer(t *testing.T) {
 					}, ae)
 				},
 			},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        dcForEC2SSMWithIntegration,
+			staticMatchers:  Matchers{},
+			discoveryConfig: dcForEC2SSMWithIntegration,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 1,
+				LastSyncTime:        fakeClock.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    1,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
+			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 	}
@@ -569,6 +588,12 @@ func TestDiscoveryServer(t *testing.T) {
 				installedInstances: make(map[string]struct{}),
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
+
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
@@ -578,16 +603,12 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
+				clock:            fakeClock,
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
-
-			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
-				require.NoError(t, err)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
@@ -605,6 +626,20 @@ func TestDiscoveryServer(t *testing.T) {
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
+
+			// Discovery Config Status is updated accordingly
+			if tc.wantDiscoveryConfigStatus != nil {
+				// It can take a while for the status to be updated.
+				require.Eventually(t, func() bool {
+					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
+					require.NoError(t, err)
+					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
+						return false
+					}
+					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
+					return true
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			}
 		})
 	}
 }
@@ -899,19 +934,21 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			})
 			go discServer.Start()
 
-			require.Eventually(t, func() bool {
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				if err != nil || len(existingApps) != len(tt.expectedAppsToExistInAuth) {
-					return false
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, existingApps, len(tt.expectedAppsToExistInAuth)) {
+					return
 				}
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					if services.CompareResources(a1[k], a2[k]) != services.Equal {
-						return false
+					if !assert.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k])) {
+						return
 					}
 				}
-				return true
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
@@ -1527,18 +1564,14 @@ var eksMockClusters = []*eks.Cluster{
 func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
-	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	common.ApplyEKSNameSuffix(cluster)
-	cluster.SetOrigin(types.OriginCloud)
+	rewriteCloudResource(t, cluster, discoveryGroup, types.AWSMatcherEKS)
 	return cluster
 }
 
 func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
-	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	common.ApplyAKSNameSuffix(cluster)
-	cluster.SetOrigin(types.OriginCloud)
+	rewriteCloudResource(t, cluster, discoveryGroup, types.AzureMatcherKubernetes)
 	return cluster
 }
 
@@ -1561,6 +1594,7 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	require.NoError(t, err)
 	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
+	app.GetStaticLabels()[types.DiscoveryTypeLabel] = types.KubernetesMatchersApp
 	return app
 }
 
@@ -1620,9 +1654,7 @@ var gkeMockClusters = []gcp.GKECluster{
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
-	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	common.ApplyGKENameSuffix(cluster)
-	cluster.SetOrigin(types.OriginCloud)
+	rewriteCloudResource(t, cluster, discoveryGroup, types.GCPMatcherKubernetes)
 	return cluster
 }
 
@@ -2177,11 +2209,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	database.SetOrigin(types.OriginCloud)
-	staticLabels := database.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
+	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -2199,11 +2227,7 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 
 	database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
-	database.SetOrigin(types.OriginCloud)
-	staticLabels := database.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	database.SetStaticLabels(staticLabels)
-	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
+	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -2222,11 +2246,7 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := common.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	database.SetOrigin(types.OriginCloud)
-	staticLabels := database.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	database.SetStaticLabels(staticLabels)
-	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
+	rewriteCloudResource(t, database, discoveryGroup, types.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -3112,4 +3132,45 @@ func (m fakeWatcher) Close() error {
 
 func (m fakeWatcher) Error() error {
 	return nil
+}
+
+// rewriteCloudResource is a test helper func that rewrites an expected cloud
+// resource to include all the metadata we expect to be added by discovery.
+func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryGroup, matcherType string) {
+	r.SetOrigin(types.OriginCloud)
+	staticLabels := r.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	staticLabels[types.DiscoveryTypeLabel] = matcherType
+	r.SetStaticLabels(staticLabels)
+
+	switch r := r.(type) {
+	case types.Database:
+		cloudLabel, ok := r.GetLabel(types.CloudLabel)
+		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")
+		switch cloudLabel {
+		case types.CloudAWS:
+			common.ApplyAWSDatabaseNameSuffix(r, matcherType)
+		case types.CloudAzure:
+			common.ApplyAzureDatabaseNameSuffix(r, matcherType)
+		case types.CloudGCP:
+			require.FailNow(t, "GCP database discovery is not supported", cloudLabel)
+		default:
+			require.FailNow(t, "unknown cloud label %q", cloudLabel)
+		}
+	case types.KubeCluster:
+		cloudLabel, ok := r.GetLabel(types.CloudLabel)
+		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")
+		switch cloudLabel {
+		case types.CloudAWS:
+			common.ApplyEKSNameSuffix(r)
+		case types.CloudAzure:
+			common.ApplyAKSNameSuffix(r)
+		case types.CloudGCP:
+			common.ApplyGKENameSuffix(r)
+		default:
+			require.FailNow(t, "unknown cloud label %q", cloudLabel)
+		}
+	default:
+		require.FailNow(t, "unknown cloud resource type %T", r)
+	}
 }

@@ -2932,7 +2932,11 @@ func (process *TeleportProcess) initSSH() error {
 		// return a NOP struct that can be used to discard BPF data.
 		ebpf, err := bpf.New(cfg.SSH.BPF)
 		if err != nil {
-			return trace.Wrap(err)
+			// Check kernel version if the host can run BPF programs.
+			return trace.NewAggregate(
+				trace.Wrap(bpf.IsHostCompatible()),
+				trace.Wrap(err),
+			)
 		}
 		defer func() { warnOnErr(process.ExitContext(), ebpf.Close(restartingOnGracefulShutdown), logger) }()
 
@@ -6411,7 +6415,8 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 				types.JoinMethodGitLab,
 				types.JoinMethodAzure,
 				types.JoinMethodGCP,
-				types.JoinMethodTPM:
+				types.JoinMethodTPM,
+				types.JoinMethodTerraformCloud:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
