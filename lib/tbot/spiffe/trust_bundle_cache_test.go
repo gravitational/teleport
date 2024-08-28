@@ -236,7 +236,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for bundle set")
 	case <-ctx.Done():
-		t.Fatalf("context cancelled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set")
 	}
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
@@ -273,7 +273,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for bundle set")
 	case <-ctx.Done():
-		t.Fatalf("context cancelled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set")
 	}
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
@@ -309,7 +309,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for bundle set")
 	case <-ctx.Done():
-		t.Fatalf("context cancelled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set")
 	}
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
@@ -345,7 +345,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for bundle set")
 	case <-ctx.Done():
-		t.Fatalf("context cancelled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set")
 	}
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -378,7 +378,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatalf("timed out waiting for bundle set")
 	case <-ctx.Done():
-		t.Fatalf("context cancelled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set")
 	}
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -391,7 +391,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.True(t, ok)
 	require.True(t, gotFederatedBundle.Equal(preInitFed))
 	// Check the after-init federated bundle is gone
-	gotFederatedBundle, ok = gotBundleSet.Federated["after-init-federated.example.com"]
+	_, ok = gotBundleSet.Federated["after-init-federated.example.com"]
 	require.False(t, ok)
 
 	// Wait for the cache to exit.
