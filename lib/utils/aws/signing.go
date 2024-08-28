@@ -21,6 +21,8 @@ package aws
 import (
 	"bytes"
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"net/http"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,8 +105,8 @@ type SigningCtx struct {
 	Integration string
 }
 
-// Check checks signing context parameters.
-func (sc *SigningCtx) Check(clock clockwork.Clock) error {
+// CheckAndSetDefaults checks signing context parameters and set some defaults.
+func (sc *SigningCtx) CheckAndSetDefaults(clock clockwork.Clock) error {
 	switch {
 	case sc.SigningName == "":
 		return trace.BadParameter("missing AWS signing name")
@@ -120,7 +123,30 @@ func (sc *SigningCtx) Check(clock clockwork.Clock) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	sc.SessionName = MaybeHashRoleSessionName(sc.SessionName)
 	return nil
+}
+
+// MakeSessionMetadata returns common AWS session metadata.
+func (sc *SigningCtx) MakeSessionMetadata() events.AWSSessionMetadata {
+	if sc == nil {
+		return events.AWSSessionMetadata{}
+	}
+	return MakeSessionMetadata(sc.SessionName, sc.AWSExternalID, sc.SessionTags)
+}
+
+// MakeSessionMetadata returns common AWS session metadata.
+func MakeSessionMetadata(roleSessionName, externalID string, sessionTags map[string]string) events.AWSSessionMetadata {
+	e := events.AWSSessionMetadata{
+		RoleSessionName: roleSessionName,
+		SessionTags:     sessionTags,
+	}
+	if externalID != "" {
+		sum := sha1.Sum([]byte(externalID))
+		e.ExternalIdSha1 = hex.EncodeToString(sum[:])
+	}
+	return e
 }
 
 // SignRequest creates a new HTTP request and rewrites the header from the original request and returns a new
@@ -143,7 +169,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	if signCtx == nil {
 		return nil, trace.BadParameter("missing signing context")
 	}
-	if err := signCtx.Check(s.Clock); err != nil {
+	if err := signCtx.CheckAndSetDefaults(s.Clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	payload, err := utils.GetAndReplaceRequestBody(req)

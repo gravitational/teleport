@@ -53,6 +53,8 @@ export const eventCodes = {
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
+  APP_SESSION_AWS_CONSOLE_REQUEST: 'T2014I',
+  APP_SESSION_AWS_CONSOLE_REQUEST_FAILURE: 'T2014W',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -591,7 +593,6 @@ export type RawEvents = {
     typeof eventCodes.APP_SESSION_START,
     {
       sid: string;
-      aws_role_arn: string;
       app_name: string;
     }
   >;
@@ -606,7 +607,6 @@ export type RawEvents = {
     typeof eventCodes.APP_SESSION_CHUNK,
     {
       sid: string;
-      aws_role_arn: string;
       app_name: string;
     }
   >;
@@ -615,6 +615,21 @@ export type RawEvents = {
     {
       target: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_AWS_CONSOLE_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_AWS_CONSOLE_REQUEST,
+    {
+      target: string;
+      app_name: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_AWS_CONSOLE_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.APP_SESSION_AWS_CONSOLE_REQUEST_FAILURE,
+    {
+      target: string;
+      app_name: string;
+      error: string;
     }
   >;
   [eventCodes.SUBSYSTEM]: RawEvent<

@@ -2872,6 +2872,12 @@ message AppSessionRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // AWSSessionMetadata contains metadata of an assumed AWS STS session.
+  AWSSessionMetadata aws_session = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
@@ -2884,6 +2890,75 @@ message AWSRequestMetadata {
   string AWSHost = 3 [(gogoproto.jsontag) = "aws_host,omitempty"];
   // AWSAssumedRole is the assumed role that signed this request.
   string AWSAssumedRole = 4 [(gogoproto.jsontag) = "aws_assumed_role,omitempty"];
+}
+
+// AWSSessionMetadata contains metadata of an assumed AWS STS session.
+message AWSSessionMetadata {
+  // RoleSessionName is the role name of the STS session.
+  string role_session_name = 1 [(gogoproto.jsontag) = "role_session_name,omitempty"];
+  // ExternalIdSha1 is the sha1 hash of the external ID used.
+  string external_id_sha1 = 2 [(gogoproto.jsontag) = "external_id_sha1,omitempty"];
+  // SessionTags is a list of AWS STS session tags.
+  map<string, string> session_tags = 3 [(gogoproto.jsontag) = "session_tags,omitempty"];
+}
+
+// AppSessionAWSConsoleRequest is a request to genreate AWS console signin URL.
+message AppSessionAWSConsoleRequest {
+  // Metadata is a common event metadata request to genreate AWS console signin URL.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // App is a common application resource metadata.
+  AppMetadata app = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the request was successful or denied.
+  Status Status = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // AWSSessionMetadata contains metadata of an assumed AWS STS session.
+  AWSSessionMetadata aws_session = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // DatabaseMetadata contains common database information.
@@ -4586,6 +4661,7 @@ message OneOf {
     events.PluginCreate PluginCreate = 170;
     events.PluginUpdate PluginUpdate = 171;
     events.PluginDelete PluginDelete = 172;
+    events.AppSessionAWSConsoleRequest AppSessionAWSConsoleRequest = 173;
   }
 }
 
@@ -5473,6 +5549,12 @@ message DynamoDBRequest {
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // AWSSessionMetadata contains metadata of an assumed AWS STS session.
+  AWSSessionMetadata aws_session = 11 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // AppSessionDynamoDBRequest is emitted when a user executes a DynamoDB request via app access.
@@ -5522,6 +5604,12 @@ message AppSessionDynamoDBRequest {
   google.protobuf.Struct Body = 11 [
     (gogoproto.jsontag) = "body,omitempty",
     (gogoproto.casttype) = "Struct"
+  ];
+  // AWSSessionMetadata contains metadata of an assumed AWS STS session.
+  AWSSessionMetadata aws_session = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
   ];
 }
 

@@ -165,22 +165,22 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
-	signedReq, err := s.SignRequest(s.closeContext, unsignedReq,
-		&awsutils.SigningCtx{
-			SigningName:   re.SigningName,
-			SigningRegion: re.SigningRegion,
-			Expiry:        sessCtx.Identity.Expires,
-			SessionName:   sessCtx.Identity.Username,
-			AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
-			AWSExternalID: sessCtx.App.GetAWSExternalID(),
-			Integration:   sessCtx.App.GetIntegration(),
-		})
+	signingCtx := &awsutils.SigningCtx{
+		SigningName:   re.SigningName,
+		SigningRegion: re.SigningRegion,
+		Expiry:        sessCtx.Identity.Expires,
+		SessionName:   sessCtx.Identity.Username,
+		AWSRoleArn:    sessCtx.Identity.RouteToApp.AWSRoleARN,
+		AWSExternalID: sessCtx.App.GetAWSExternalID(),
+		Integration:   sessCtx.App.GetIntegration(),
+	}
+	signedReq, err := s.SignRequest(s.closeContext, unsignedReq, signingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, signedReq)
-	s.emitAudit(sessCtx, unsignedReq, uint32(recorder.Status()), re)
+	s.emitAudit(sessCtx, unsignedReq, uint32(recorder.Status()), re, signingCtx)
 	return nil
 }
 
@@ -204,16 +204,27 @@ func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext
 
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, req)
-	s.emitAudit(sessCtx, reqCloneForAudit, uint32(recorder.Status()), re)
+
+	// The request is signed on the client side so we don't have the signing
+	// context.
+	s.emitAudit(sessCtx, reqCloneForAudit, uint32(recorder.Status()), re, nil /* signingCtx */)
 	return nil
 }
 
-func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) {
+func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint, signingCtx *awsutils.SigningCtx) {
+	reqCtx := &common.RequestWithContext{
+		SessionContext:   sessCtx,
+		Request:          req,
+		Status:           status,
+		ResolvedEndpoint: re,
+		SigningCtx:       signingCtx,
+	}
+
 	var auditErr error
 	if isDynamoDBEndpoint(re) {
-		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, req, status, re)
+		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, reqCtx)
 	} else {
-		auditErr = sessCtx.Audit.OnRequest(s.closeContext, sessCtx, req, status, re)
+		auditErr = sessCtx.Audit.OnRequest(s.closeContext, reqCtx)
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
