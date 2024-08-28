@@ -43,28 +43,30 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 }
 
 func (h *Handler) startFeaturesWatcher() {
-	ticker := h.clock.NewTicker(h.cfg.LicenseWatchInterval)
-	h.log.WithField("interval", h.cfg.LicenseWatchInterval).Info("Proxy handler features watcher has started")
-	ctx := context.Background()
+	h.featureWatcherOnce.Do(func() {
+		ticker := h.clock.NewTicker(h.cfg.LicenseWatchInterval)
+		h.log.WithField("interval", h.cfg.LicenseWatchInterval).Info("Proxy handler features watcher has started")
+		ctx := context.Background()
 
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.Chan():
-			h.log.Info("Pinging auth server for features")
-			f, err := h.GetProxyClient().Ping(ctx)
-			if err != nil {
-				h.log.WithError(err).Error("Failed fetching features")
-				continue
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.Chan():
+				h.log.Info("Pinging auth server for features")
+				f, err := h.cfg.ProxyClient.Ping(ctx)
+				if err != nil {
+					h.log.WithError(err).Error("Auth server ping failed")
+					continue
+				}
+
+				h.SetClusterFeatures(*f.ServerFeatures)
+				h.log.Debug("Done updating proxy features")
+			case <-h.featureWatcherStop:
+				h.log.Info("Feature service has stopped")
+				return
 			}
-
-			h.SetClusterFeatures(*f.ServerFeatures)
-			h.log.WithField("features", f.ServerFeatures).Infof("Done updating proxy features: %+v", f)
-		case <-h.featureWatcherStop:
-			h.log.Info("Feature service has stopped")
-			return
 		}
-	}
+	})
 }
 
 func (h *Handler) stopFeaturesWatcher() {
