@@ -117,7 +117,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key starting with "/" into etcd via the
 	// _prefixed_ client...
 	item := backend.Item{
-		Key:   []byte("/foo"),
+		Key:   backend.Key("/foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -135,7 +135,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key that does _not_ start with a separator
 	// char (i.e. "/") into etcd via the _prefixed_ client...
 	item = backend.Item{
-		Key:   []byte("foo"),
+		Key:   backend.Key("foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)

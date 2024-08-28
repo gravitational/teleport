@@ -509,10 +509,10 @@ type webTokens struct {
 	log     logrus.FieldLogger
 }
 
-func webSessionKey(sessionID string) (key []byte) {
+func webSessionKey(sessionID string) backend.Key {
 	return backend.NewKey(webPrefix, sessionsPrefix, sessionID)
 }
 
-func webTokenKey(token string) (key []byte) {
+func webTokenKey(token string) backend.Key {
 	return backend.NewKey(webPrefix, tokensPrefix, token)
 }

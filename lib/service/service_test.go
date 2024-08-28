@@ -1209,7 +1209,7 @@ func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lea
 }
 
 // Get returns a single item or not found error
-func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (f *fakeKubeBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	return f.getData, f.getErr
 }
 

@@ -248,7 +248,7 @@ func itemToPluginData(item backend.Item) (types.PluginData, error) {
 	return data, nil
 }
 
-func pluginDataKey(kind string, name string) []byte {
+func pluginDataKey(kind string, name string) backend.Key {
 	return backend.NewKey(pluginDataPrefix, kind, name, paramsPrefix)
 }
 
