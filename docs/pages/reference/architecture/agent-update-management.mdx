@@ -67,22 +67,24 @@ instances, or use the `stable/rolling` channel.
 
 ### Teleport Cloud
 
-Teleport Cloud users can use Teleport Cloud's version server only if their
-instance is enrolled in automatic updates. This version server will always
+If you are using Teleport Cloud you can use Teleport Cloud's version server
+only if an instance is enrolled in automatic updates. This version server will always
 target the best version from a feature, compatibility, security and stability
 point of view.
 
-Teleport Cloud users whose control plane is not automatically updated must not use
-automatic agent updates. This is because their Teleport instance version might
+If your Teleport Cloud control plane is not automatically updated you must not use
+automatic agent updates. This is because your Teleport instance version might
 differ from the other Teleport Cloud instances and might not yet support the
 latest agent version.
 
 ### Self-hosted Teleport
 
-Self-hosted Teleport Enterprise users can set up automatic agent updates.
-They must host their version server and choose their target version. They
-are responsible for ensuring the targeted version is compatible with their
-current auth/proxy versions. They must also monitor the agent's health and
+If you are self-hosting Teleport Enterprise you can set up automatic agent updates.
+A version channel is required to provide agent target version
+which there is a default provided by the Teleport Proxy
+Service. You can add override the default version or set other channel versions.
+You are responsible for ensuring the targeted version is compatible with their
+current auth/proxy versions. You must also monitor the agent's health and
 rollout status to ensure every agent is healthy and running the correct version.
 
 ## Next steps
