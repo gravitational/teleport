@@ -153,6 +153,8 @@ func makeSPIFFEBundle(t *testing.T, td string) *spiffebundle.Bundle {
 }
 
 func TestTrustBundleCache_Run(t *testing.T) {
+	t.Parallel()
+
 	logger := utils.NewSlogLoggerForTests()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
