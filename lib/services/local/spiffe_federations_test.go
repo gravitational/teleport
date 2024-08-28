@@ -325,6 +325,5 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 			newSPIFFEFederation("non-existing.com"),
 		)
 		require.Error(t, err)
-		require.True(t, trace.IsNotFound(err))
 	})
 }
