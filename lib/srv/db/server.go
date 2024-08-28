@@ -249,9 +249,14 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 
 	if c.CloudUsers == nil {
+		clusterName, err := c.AuthClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		c.CloudUsers, err = users.NewUsers(users.Config{
-			Clients:    c.CloudClients,
-			UpdateMeta: c.CloudMeta.Update,
+			Clients:     c.CloudClients,
+			UpdateMeta:  c.CloudMeta.Update,
+			ClusterName: clusterName.GetClusterName(),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -840,6 +845,7 @@ func (s *Server) startServiceHeartbeat(ctx context.Context) error {
 			Labels:    labels,
 		}, types.DatabaseServiceSpecV1{
 			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
+			Hostname:         s.cfg.Hostname,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

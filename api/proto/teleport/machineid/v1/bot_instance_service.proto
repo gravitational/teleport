@@ -1,0 +1,86 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.machineid.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/machineid/v1/bot_instance.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
+
+// Request for GetBotInstance.
+message GetBotInstanceRequest {
+  // The name of the bot associated with the instance.
+  string bot_name = 1;
+  // The unique identifier of the bot instance to retrieve.
+  string instance_id = 2;
+}
+
+// Request for ListBotInstances.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list
+message ListBotInstancesRequest {
+  // The name of the Bot to list BotInstances for. If empty, all BotInstances
+  // will be listed.
+  string filter_bot_name = 1;
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 2;
+  // The page_token value returned from a previous ListBotInstances request, if
+  // any.
+  string page_token = 3;
+}
+
+// Response for ListBotInstances.
+message ListBotInstancesResponse {
+  // BotInstance that matched the search.
+  repeated BotInstance bot_instances = 1;
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results exist.
+  string next_page_token = 2;
+}
+
+// Request for DeleteBotInstance.
+message DeleteBotInstanceRequest {
+  // The name of the BotInstance to delete.
+  string bot_name = 1;
+  // The unique identifier of the bot instance to delete.
+  string instance_id = 2;
+}
+
+// The request for SubmitHeartbeat.
+message SubmitHeartbeatRequest {
+  // The heartbeat data to submit.
+  BotInstanceStatusHeartbeat heartbeat = 1;
+}
+
+// The response for SubmitHeartbeat.
+message SubmitHeartbeatResponse {
+  // Empty
+}
+
+// BotInstanceService provides functions to record and manage bot instances.
+service BotInstanceService {
+  // GetBotInstance returns the specified BotInstance resource.
+  rpc GetBotInstance(GetBotInstanceRequest) returns (BotInstance);
+  // ListBotInstances returns a page of BotInstance resources.
+  rpc ListBotInstances(ListBotInstancesRequest) returns (ListBotInstancesResponse);
+  // DeleteBotInstance hard deletes the specified BotInstance resource.
+  rpc DeleteBotInstance(DeleteBotInstanceRequest) returns (google.protobuf.Empty);
+  // SubmitHeartbeat submits a heartbeat for a BotInstance.
+  rpc SubmitHeartbeat(SubmitHeartbeatRequest) returns (SubmitHeartbeatResponse);
+}

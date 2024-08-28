@@ -65,6 +65,8 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
 	// KindSPIFFEFederation is a SPIFFE federation resource
 	KindSPIFFEFederation = "spiffe_federation"
 

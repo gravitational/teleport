@@ -21,6 +21,8 @@ import { Box, ButtonSecondary, ButtonPrimary, Text, Image, Flex } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 
+import styled from 'styled-components';
+
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
 import svgHardwareKey from './hardware.svg';
@@ -66,21 +68,7 @@ function PromptCredential({
       <Text mb={2} bold>
         Select the user for login:
       </Text>
-      <Box
-        disabled={processing}
-        css={`
-          overflow: auto;
-          height: 240px;
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #252c52;
-          border-radius: 4px;
-          &[disabled] {
-            pointer-events: none;
-            opacity: 0.5;
-          }
-        `}
-      >
+      <UsernamesContainer disabled={processing}>
         {loginUsernames.map((username, index) => {
           return (
             <button
@@ -109,11 +97,24 @@ function PromptCredential({
             </button>
           );
         })}
-      </Box>
+      </UsernamesContainer>
       <ActionButtons onCancel={onCancel} />
     </Box>
   );
 }
+
+const UsernamesContainer = styled(Box)<{ disabled?: boolean }>`
+  overflow: auto;
+  height: 240px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #252c52;
+  border-radius: 4px;
+  &[disabled] {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+`;
 
 function PromptPin({ onCancel, onUserResponse, processing }: Props) {
   const [pin, setPin] = useState('');

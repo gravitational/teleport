@@ -305,6 +305,9 @@ func publicKeyFromSSHAuthorizedKey(sshAuthorizedKey []byte) (crypto.PublicKey, e
 // toRSASHA512Signer forces an ssh.MultiAlgorithmSigner into using
 // "rsa-sha2-sha512" (instead of its SHA256 default).
 func toRSASHA512Signer(signer ssh.Signer) ssh.Signer {
+	if signer.PublicKey().Type() != ssh.KeyAlgoRSA {
+		return signer
+	}
 	ss, ok := signer.(ssh.MultiAlgorithmSigner)
 	if !ok {
 		return signer

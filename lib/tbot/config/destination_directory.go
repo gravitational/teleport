@@ -275,3 +275,7 @@ func (dm *DestinationDirectory) MarshalYAML() (interface{}, error) {
 	type raw DestinationDirectory
 	return withTypeHeader((*raw)(dm), DestinationDirectoryType)
 }
+
+func (dd *DestinationDirectory) IsPersistent() bool {
+	return true
+}

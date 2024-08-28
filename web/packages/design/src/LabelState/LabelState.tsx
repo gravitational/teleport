@@ -19,12 +19,38 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { fontSize, color, width, space } from 'design/system';
+import {
+  fontSize,
+  FontSizeProps,
+  color,
+  ColorProps,
+  width,
+  WidthProps,
+  space,
+  SpaceProps,
+} from 'design/system';
 import { fade } from 'design/theme/utils/colorManipulator';
+import { Theme } from 'design/theme/themes/types';
 
-const kinds = ({ theme, kind, shadow }) => {
+export type LabelKind =
+  | 'primary'
+  | 'secondary'
+  | 'warning'
+  | 'danger'
+  | 'success';
+
+interface KindsProps {
+  kind?: LabelKind;
+  shadow?: boolean;
+}
+
+interface ThemedKindsProps extends KindsProps {
+  theme: Theme;
+}
+
+const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
   // default is primary
-  const styles = {
+  const styles: { background: string; color: string; boxShadow?: string } = {
     background: theme.colors.brand,
     color: theme.colors.text.primaryInverse,
   };
@@ -59,7 +85,14 @@ const kinds = ({ theme, kind, shadow }) => {
   return styles;
 };
 
-const LabelState = styled.span`
+interface LabelStateProps
+  extends SpaceProps,
+    KindsProps,
+    WidthProps,
+    ColorProps,
+    FontSizeProps {}
+
+const LabelState = styled.span<LabelStateProps>`
   box-sizing: border-box;
   border-radius: 100px;
   display: inline-flex;
@@ -79,7 +112,6 @@ const LabelState = styled.span`
 `;
 LabelState.defaultProps = {
   fontSize: 0,
-  fontWeight: 'bold',
   shadow: false,
 };
 

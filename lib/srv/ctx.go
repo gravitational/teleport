@@ -280,6 +280,10 @@ type IdentityContext struct {
 	// with, if any.
 	BotName string
 
+	// BotInstanceID is the unique identifier of the Machine ID bot instance
+	// this identity is associated with, if any.
+	BotInstanceID string
+
 	// AllowedResourceIDs lists the resources this identity should be allowed to
 	// access
 	AllowedResourceIDs []types.ResourceID
@@ -1230,6 +1234,8 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		AccessRequests: id.ActiveRequests,
 		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 		UserKind:       userKind,
+		BotName:        id.BotName,
+		BotInstanceID:  id.BotInstanceID,
 	}
 }
 
@@ -1258,7 +1264,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	if session != nil {
 		if session.term != nil {
 			env.AddTrusted("TERM", session.term.GetTermType())
-			env.AddTrusted("SSH_TTY", session.term.TTY().Name())
+			env.AddTrusted("SSH_TTY", session.term.TTYName())
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))

@@ -19,9 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import PropTypes from 'prop-types';
-
-import { space } from 'design/system';
+import { space, SpaceProps } from 'design/system';
 
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
@@ -60,7 +58,13 @@ const kind = ({ kind, theme }) => {
   };
 };
 
-const Label = styled.div`
+type LabelKind = 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+
+interface LabelProps extends SpaceProps {
+  kind?: LabelKind;
+}
+
+const Label = styled.div<LabelProps>`
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -73,17 +77,6 @@ const Label = styled.div`
   ${kind}
   ${space}
 `;
-
-Label.propTypes = {
-  kind: PropTypes.oneOf([
-    'primary',
-    'secondary',
-    'warning',
-    'danger',
-    'success',
-  ]),
-  invert: PropTypes.oneOf([true, false]),
-};
 
 export default Label;
 export const Primary = props => <Label kind="primary" {...props} />;

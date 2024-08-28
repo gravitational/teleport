@@ -70,7 +70,7 @@ function renderGithubConnector(onCreate) {
         GitHub
       </Text>
       {
-        <Text mt={2} color="text.slightlyMuted" transform="none">
+        <Text mt={2} color="text.slightlyMuted">
           Sign in using your GitHub account
         </Text>
       }
@@ -96,7 +96,7 @@ function renderLockedItem(kind: AuthProviderType) {
         {desc}
       </Text>
       {info && (
-        <Text mt={2} color="text.primary" transform="none">
+        <Text mt={2} color="text.primary">
           {info}
         </Text>
       )}
