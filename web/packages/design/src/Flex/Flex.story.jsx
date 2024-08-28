@@ -18,10 +18,11 @@
 
 import React from 'react';
 
+import styled from 'styled-components';
+
 import Box from '../Box';
 
 import Flex from './Flex';
-import styled from 'styled-components';
 
 export default {
   title: 'Design/Flex',
