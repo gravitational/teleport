@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package statichostuser
+package v2
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
