@@ -53,8 +53,6 @@ func ValidateJamfCredentials(j *JamfCredentials) error {
 	hasUserPass := j.Username != "" && j.Password != ""
 	hasAPICreds := j.ClientID != "" && j.ClientSecret != ""
 	switch {
-	case hasUserPass && hasAPICreds:
-		return trace.BadParameter("both username+password and clientID+clientSecret are set, use one or the other")
 	case !hasUserPass && !hasAPICreds:
 		return trace.BadParameter("either username+password or clientID+clientSecret must be provided")
 	}
