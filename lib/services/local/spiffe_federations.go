@@ -118,6 +118,6 @@ func (b *SPIFFEFederationService) UpdateSPIFFEFederation(
 	if err := services.ValidateSPIFFEFederation(federation); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	updated, err := b.service.UpdateResource(ctx, federation)
+	updated, err := b.service.ConditionalUpdateResource(ctx, federation)
 	return updated, trace.Wrap(err)
 }
