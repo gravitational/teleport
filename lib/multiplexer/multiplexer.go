@@ -660,23 +660,16 @@ func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineRece
 	return nil
 }
 
-// isInternalConn determines whether the connection is a multiplexer Conn or one originating from a websocket upgrade.
-// If the check is successful, it indicates that the connection was provided by another multiplexer listener or web API,
+// isInternalConn determines if the connection is a multiplexer Conn.
+// If the check is successful, it indicates that the connection was provided by another multiplexer listener,
 // and that the unsigned PROXY protocol requirement has already been handled.
 func isInternalConn(conn net.Conn) bool {
 	type netConn interface {
 		NetConn() net.Conn
 	}
-	type connUpgradedFromWebsocket interface {
-		IsALPNUpgradedConn()
-	}
 
 	for {
 		if _, ok := conn.(*Conn); ok {
-			return true
-		}
-
-		if _, ok := conn.(connUpgradedFromWebsocket); ok {
 			return true
 		}
 
