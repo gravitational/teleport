@@ -31,7 +31,7 @@
     "@opentelemetry/resources": "1.25.1",
     "@opentelemetry/sdk-trace-base": "1.25.1",
     "@opentelemetry/sdk-trace-web": "1.25.1",
-    "@opentelemetry/semantic-conventions": "1.25.1",
+    "@opentelemetry/semantic-conventions": "1.26.0",
     "@xterm/xterm": "^5.5.0",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.10.0",
@@ -46,7 +46,6 @@
     "babel-plugin-transform-import-meta": "^2.2.0",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "jest-canvas-mock": "^2.5.2",
-    "jest-websocket-mock": "^2.5.0",
-    "react-select-event": "^5.5.1"
+    "jest-websocket-mock": "^2.5.0"
   }
 }

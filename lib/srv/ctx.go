@@ -1118,7 +1118,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	if session != nil {
 		if session.term != nil {
 			env.AddTrusted("TERM", session.term.GetTermType())
-			env.AddTrusted("SSH_TTY", session.term.TTY().Name())
+			env.AddTrusted("SSH_TTY", session.term.TTYName())
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))

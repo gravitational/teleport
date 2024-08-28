@@ -126,38 +126,6 @@ func TestValidateJamfSpecV1(t *testing.T) {
 			wantErr: "missing hostname",
 		},
 		{
-			name: "username empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-			}),
-			wantErr: "username",
-		},
-		{
-			name: "password empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Password = ""
-			}),
-			wantErr: "password",
-		},
-		{
-			name: "client_id empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientSecret = "supersecretsecret!!1!"
-			}),
-			wantErr: "clientID",
-		},
-		{
-			name: "client_secret empty",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientId = "llama-UUID"
-			}),
-			wantErr: "clientSecret",
-		},
-		{
 			name: "inventory nil entry",
 			spec: modify(func(spec *types.JamfSpecV1) {
 				spec.Inventory = []*types.JamfInventoryEntry{

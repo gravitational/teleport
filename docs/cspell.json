@@ -355,6 +355,7 @@
     "clientcmd",
     "clientid",
     "clis",
+    "cloudallow",
     "cloudbuild",
     "cloudflared",
     "cloudhsmv2",
@@ -748,6 +749,7 @@
     "ptrace",
     "puttyconfig",
     "pwgen",
+    "pwsh",
     "quicktime",
     "rabbitmq",
     "rangefeed",
@@ -760,6 +762,7 @@
     "readall",
     "readyz",
     "realmd",
+    "reauthenticates",
     "reauthentication",
     "recents",
     "reco",
@@ -891,6 +894,7 @@
     "specsigning",
     "specspacelift",
     "specspaceliftallow",
+    "specterraform",
     "specteams",
     "spectpm",
     "spectpmallow",
@@ -1046,6 +1050,10 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "flagWords": [
+    "hte"
+  ],
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }
