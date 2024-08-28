@@ -25,10 +25,11 @@ import (
 )
 
 func TestValidateJamfCredentials(t *testing.T) {
+	const expectedErr = "either username+password or clientID+clientSecret must be provided"
 	tests := []struct {
-		name         string
-		creds        *JamfCredentials
-		errAssertion require.ErrorAssertionFunc
+		name    string
+		creds   *JamfCredentials
+		wantErr string
 	}{
 		{
 			name: "valid credentials with username and password",
@@ -36,7 +37,6 @@ func TestValidateJamfCredentials(t *testing.T) {
 				Username: "username",
 				Password: "password",
 			},
-			errAssertion: require.NoError,
 		},
 		{
 			name: "valid credentials with client ID and client secret",
@@ -44,60 +44,53 @@ func TestValidateJamfCredentials(t *testing.T) {
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 			},
-			errAssertion: require.NoError,
 		},
 		{
-			name: "invalid credentials with all fields set",
+			name: "credentials with all fields set",
 			creds: &JamfCredentials{
 				Username:     "username",
 				Password:     "password",
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 			},
-			errAssertion: require.NoError,
 		},
 		{
 			name: "invalid credentials missing password",
 			creds: &JamfCredentials{
 				Username: "username",
 			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "either username+password or clientID+clientSecret must be provided")
-			},
+			wantErr: expectedErr,
 		},
 		{
 			name: "invalid credentials missing username",
 			creds: &JamfCredentials{
 				Password: "password",
 			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "either username+password or clientID+clientSecret must be provided")
-			},
+			wantErr: expectedErr,
 		},
 		{
 			name: "invalid credentials missing client secret",
 			creds: &JamfCredentials{
 				ClientID: "id",
 			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "either username+password or clientID+clientSecret must be provided")
-			},
+			wantErr: expectedErr,
 		},
 		{
 			name: "invalid credentials missing client id",
 			creds: &JamfCredentials{
 				ClientSecret: "secret",
 			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "either username+password or clientID+clientSecret must be provided")
-			},
+			wantErr: expectedErr,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			err := ValidateJamfCredentials(tt.creds)
-			tt.errAssertion(t, err)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.EqualError(t, err, tt.wantErr)
+			}
 		})
 	}
 }

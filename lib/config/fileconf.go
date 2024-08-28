@@ -2617,7 +2617,6 @@ func (j *JamfService) toJamfSpecV1(creds *servicecfg.JamfCredentials) (*types.Ja
 }
 
 func (j *JamfService) readJamfCredentials() (*servicecfg.JamfCredentials, error) {
-	// Read secrets.
 	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
 	if err != nil {
 		return nil, trace.Wrap(err)
