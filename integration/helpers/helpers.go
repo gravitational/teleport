@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -190,17 +191,19 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-// todo: for id file, matching key
 func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
 	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
 	require.NoError(t, err)
+	return mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
+}
+
+func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
 	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	require.NoError(t, err)
 	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
-
 	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
 	keyRing.ClusterName = tc.Secrets.SiteName
 
@@ -226,10 +229,16 @@ func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl 
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	keyRing := MustCreateUserKeyRing(t, tc, username, ttl)
+	key, err := cryptosuites.GenerateKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	}, cryptosuites.UserTLS)
+	require.NoError(t, err)
+	// Identity files must use the same key for SSH and TLS.
+	sshKey, tlsKey := key, key
+	keyRing := mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,
