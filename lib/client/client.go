@@ -172,7 +172,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequiredRequest, error) {
 	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
@@ -183,8 +183,10 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
 	case p.RouteToApp.Name != "":
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
+	default:
+		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
-	return req
+	return req, nil
 }
 
 // CertCachePolicy describes what should happen to the certificate cache when a

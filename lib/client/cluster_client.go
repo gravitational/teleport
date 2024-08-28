@@ -416,12 +416,16 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		return nil, trace.Wrap(err)
 	}
 
+	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	keyRing, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
-		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
+		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
@@ -470,7 +474,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			}
 		}
 
-		resp, err := authClient.IsMFARequired(ctx, params.isMFARequiredRequest(c.tc.HostLogin))
+		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+		if err != nil {
+			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+		}
+		resp, err := authClient.IsMFARequired(ctx, mfaRequiredReq)
 		if err != nil {
 			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
 		}
