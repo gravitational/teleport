@@ -228,14 +228,11 @@ func TestWriteAllFormats(t *testing.T) {
 		t.Run(string(format), func(t *testing.T) {
 			keyRing := newClientKeyRing(t)
 
-			keyRing.WindowsDesktopCerts = map[string][]byte{
-				"windows-user": []byte("cert data"),
-			}
-
 			cfg := WriteConfig{
-				OutputPath: path.Join(t.TempDir(), "identity"),
-				KeyRing:    keyRing,
-				Format:     format,
+				OutputPath:          path.Join(t.TempDir(), "identity"),
+				KeyRing:             keyRing,
+				WindowsDesktopCerts: map[string][]byte{"windows-user": []byte("cert data")},
+				Format:              format,
 			}
 
 			// extra fields for kubernetes
