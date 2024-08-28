@@ -240,6 +240,11 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 
 	// Wait for initial "Init" event to indicate we're now receiving events.
 	select {
+	case <-w.Done():
+		if err := w.Error(); err != nil {
+			return trace.Wrap(err, "watcher failed")
+		}
+		return trace.BadParameter("watcher closed unexpectedly")
 	case evt := <-w.Events():
 		if evt.Type == types.OpInit {
 			break
@@ -297,6 +302,11 @@ func (s *SPIFFEFederationSyncer) runWhileLocked(ctx context.Context) error {
 				// run so we don't need to pass the event along.
 				startSyncingFederation(evt.Resource.GetName())
 			}
+		case <-w.Done():
+			if err := w.Error(); err != nil {
+				return trace.Wrap(err, "watcher failed")
+			}
+			return trace.BadParameter("watcher closed unexpectedly")
 		case <-ctx.Done():
 			return nil
 		}
