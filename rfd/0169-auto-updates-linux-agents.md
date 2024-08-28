@@ -481,7 +481,7 @@ The `enable` subcommand will:
 1. Query the `/v1/webapi/find` endpoint.
 2. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, jump to (16).
 3. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (13).
-4. Ensure there is enough free disk space to update Teleport via `df .` and `content-length` header from `HEAD` request.
+4. Ensure there is enough free disk space to update Teleport via `unix.Statfs()` and `content-length` header from `HEAD` request.
 5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 6. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 7. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
@@ -504,7 +504,7 @@ When `update` subcommand is otherwise executed, it will:
 3. Check that `agent_autoupdates` is true, quit otherwise.
 4. If the current version of Teleport is the latest, quit.
 5. Wait `random(0, agent_update_jitter_seconds)` seconds.
-6. Ensure there is enough free disk space to update Teleport via `df .` and `content-length` header from `HEAD` request.
+6. Ensure there is enough free disk space to update Teleport via `unix.Statfs()` and `content-length` header from `HEAD` request.
 7. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 8. Download and verify the checksum (tarball URL suffixed with `.sha256`).
 9. Extract the tarball to `/var/lib/teleport/versions/VERSION` and write the SHA to `/var/lib/teleport/versions/VERSION/sha256`.
