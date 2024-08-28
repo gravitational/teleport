@@ -90,12 +90,14 @@ import (
 )
 
 func init() {
+	var rustLogLevel string
+
 	// initialize the Rust logger by setting $RUST_LOG based
 	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
-	if rl := os.Getenv("RUST_LOG"); rl == "" {
-		var rustLogLevel string
+	rl := os.Getenv("RUST_LOG")
+	if rl == "" {
 		switch l := logrus.GetLevel(); l {
 		case logrus.TraceLevel:
 			rustLogLevel = "trace"
@@ -108,6 +110,10 @@ func init() {
 		default:
 			rustLogLevel = "error"
 		}
+
+		// sspi-rs info-level logs are extremely verbose, so filter them out by default
+		// TODO(zmb3): remove this after sspi-rs logging is cleaned up
+		rustLogLevel += ",sspi=warn"
 
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
@@ -291,6 +297,18 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
 
+	// [kdcAddr] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	kdcAddr := C.CString(c.cfg.KDCAddr)
+	defer C.free(unsafe.Pointer(kdcAddr))
+
+	// [computerName] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	computerName := C.CString(c.cfg.ComputerName)
+	defer C.free(unsafe.Pointer(computerName))
+
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
 		return trace.Wrap(err)
@@ -308,7 +326,10 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr: addr,
+			ad:               C.bool(c.cfg.AD),
+			go_addr:          addr,
+			go_computer_name: computerName,
+			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(cert_der),

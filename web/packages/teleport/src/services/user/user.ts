@@ -121,10 +121,27 @@ const service = {
     await session.renewSession({ reloadUser: true }, signal);
   },
 
-  checkUserHasAccessToRegisteredResource(): Promise<boolean> {
-    return api
-      .get(cfg.getCheckAccessToRegisteredResourceUrl())
-      .then(res => Boolean(res.hasResource));
+  async checkUserHasAccessToAnyRegisteredResource() {
+    const clusterId = cfg.proxyCluster;
+
+    const res = await api
+      .get(
+        cfg.getUnifiedResourcesUrl(clusterId, {
+          limit: 1,
+          sort: {
+            fieldName: 'name',
+            dir: 'ASC',
+          },
+          includedResourceMode: 'all',
+        })
+      )
+      .catch(err => {
+        // eslint-disable-next-line no-console
+        console.error('Error checking access to registered resources', err);
+        return { items: [] };
+      });
+
+    return !!res?.items?.some?.(Boolean);
   },
 
   fetchConnectMyComputerLogins(signal?: AbortSignal): Promise<Array<string>> {

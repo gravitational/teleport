@@ -2406,6 +2406,107 @@ func TestCheckRuleAccess(t *testing.T) {
 	}
 }
 
+func TestMFAVerificationInterval(t *testing.T) {
+	testCases := []struct {
+		name        string
+		roles       []types.RoleV6
+		enforce     bool
+		inputTTL    time.Duration
+		expectedTTL time.Duration
+	}{
+		{
+			name:        "No roles, no enforcement, zero TTL",
+			roles:       nil,
+			enforce:     false,
+			inputTTL:    0,
+			expectedTTL: 0,
+		},
+		{
+			name: "Single role with no MFA requirement, no enforcement, TTL unchanged",
+			roles: []types.RoleV6{
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_OFF,
+							MFAVerificationInterval: 5 * time.Minute,
+						},
+					},
+				},
+			},
+			enforce:     false,
+			inputTTL:    10 * time.Minute,
+			expectedTTL: 10 * time.Minute,
+		},
+		{
+			name: "Single role with MFA requirement, TTL adjusted to MFA verification interval",
+			roles: []types.RoleV6{
+				{Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType:          types.RequireMFAType_SESSION,
+						MFAVerificationInterval: 5 * time.Minute,
+					},
+				},
+				},
+			},
+			enforce:     false,
+			inputTTL:    10 * time.Minute,
+			expectedTTL: 5 * time.Minute,
+		},
+		{
+			name: "Multiple roles with varying MFA requirements, TTL adjusted to smallest interval",
+			roles: []types.RoleV6{
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: 5 * time.Minute,
+						},
+					},
+				},
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_SESSION,
+							MFAVerificationInterval: 2 * time.Minute,
+						},
+					},
+				},
+			},
+			enforce:     false,
+			inputTTL:    10 * time.Minute,
+			expectedTTL: 2 * time.Minute,
+		},
+		{
+			name: "Role with MFA off but enforcement is true, TTL adjusted",
+			roles: []types.RoleV6{
+				{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							RequireMFAType:          types.RequireMFAType_OFF,
+							MFAVerificationInterval: 5 * time.Minute,
+						},
+					},
+				},
+			},
+			enforce:     true,
+			inputTTL:    10 * time.Minute,
+			expectedTTL: 5 * time.Minute,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for i := range tc.roles {
+				set = append(set, &tc.roles[i])
+			}
+
+			result := set.AdjustMFAVerificationInterval(tc.inputTTL, tc.enforce)
+			require.Equal(t, tc.expectedTTL, result)
+		})
+	}
+}
+
 func TestGuessIfAccessIsPossible(t *testing.T) {
 	// Examples from https://goteleport.com/docs/access-controls/reference/#rbac-for-sessions.
 	ownSessions, err := types.NewRole("own-sessions", types.RoleSpecV6{
@@ -3299,6 +3400,51 @@ func TestApplyTraits(t *testing.T) {
 				outSudoers: []string{
 					"alice ALL=(test) ALL",
 					"bob ALL=(test) ALL",
+				},
+			},
+		},
+		{
+			// See comment in ApplyValueTraits for why we allow this.
+			comment: "explicitly allow internal traits referenced via external namespace",
+			inTraits: map[string][]string{
+				constants.TraitLogins:             {"logins"},
+				constants.TraitWindowsLogins:      {"windowsLogins"},
+				constants.TraitKubeGroups:         {"kubeGroups"},
+				constants.TraitKubeUsers:          {"kubeUsers"},
+				constants.TraitDBNames:            {"dBNames"},
+				constants.TraitDBUsers:            {"dBUsers"},
+				constants.TraitDBRoles:            {"dBRoles"},
+				constants.TraitAWSRoleARNs:        {"aWSRoleARNs"},
+				constants.TraitAzureIdentities:    {"azureIdentities"},
+				constants.TraitGCPServiceAccounts: {"gCPServiceAccounts"},
+				constants.TraitJWT:                {"jwt"},
+			},
+			allow: rule{
+				inLogins: []string{
+					"{{external.logins}}",
+					"{{external.windows_logins}}",
+					"{{external.kubernetes_groups}}",
+					"{{external.kubernetes_users}}",
+					"{{external.db_names}}",
+					"{{external.db_users}}",
+					"{{external.db_roles}}",
+					"{{external.aws_role_arns}}",
+					"{{external.azure_identities}}",
+					"{{external.gcp_service_accounts}}",
+					"{{external.jwt}}",
+				},
+				outLogins: []string{
+					"logins",
+					"windowsLogins",
+					"kubeGroups",
+					"kubeUsers",
+					"dBNames",
+					"dBUsers",
+					"dBRoles",
+					"aWSRoleARNs",
+					"azureIdentities",
+					"gCPServiceAccounts",
+					"jwt",
 				},
 			},
 		},

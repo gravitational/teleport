@@ -82,7 +82,7 @@ test.each([
   const terminalContent = await screen.findByText('some-command');
 
   await navigator.clipboard.writeText('--flag=test');
-  await userEvent.pointer({ keys: '[MouseRight>]', target: terminalContent });
+  await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
 
   await waitFor(() => {
     expect(screen.getByText('some-command --flag=test')).toBeInTheDocument();
@@ -106,9 +106,11 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
   const terminalContent = await screen.findByText('some-command');
 
   await navigator.clipboard.writeText('--flag=test');
-  await userEvent.pointer({ keys: '[MouseRight>]', target: terminalContent });
+  await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
 
-  expect(openContextMenu).toHaveBeenCalledTimes(1);
+  await waitFor(() => {
+    expect(openContextMenu).toHaveBeenCalledTimes(1);
+  });
   expect(openContextMenu).toHaveBeenCalledWith(
     expect.objectContaining({ defaultPrevented: true })
   );

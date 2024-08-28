@@ -1787,6 +1787,76 @@ func (o *output) String() string {
 	return o.buf.String()
 }
 
+func TestNoRelogin(t *testing.T) {
+	t.Parallel()
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authProcess.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	var loginAttempts atomic.Int32
+	trackingLoginFunc := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+		loginAttempts.Add(1)
+		return mockSSOLogin(authServer, alice)(ctx, connectorID, priv, protocol)
+	}
+
+	// should try to relogin due to bad parameter without passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(1), loginAttempts.Load())
+
+	// should try to relogin due to bad parameter when passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--relogin",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(2), loginAttempts.Load())
+
+	// should skip relogin and fail instantly when passing --no-relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--no-relogin",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	// login not called a third time
+	require.Equal(t, int32(2), loginAttempts.Load())
+}
+
 // TestSSHAccessRequest tests that a user can automatically request access to a
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
@@ -3524,6 +3594,9 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
 	cfg.SSH.DisableCreateHostUser = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
@@ -3569,6 +3642,9 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	for _, fn := range options.configFuncs {
 		fn(cfg)
@@ -3689,6 +3765,13 @@ func setCopyStdout(stdout io.Writer) CliOption {
 func setHomePath(path string) CliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
+		return nil
+	}
+}
+
+func setNoRelogin() CliOption {
+	return func(cf *CLIConf) error {
+		cf.Relogin = false
 		return nil
 	}
 }
@@ -6102,6 +6185,38 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			require.Equal(t, tt.outPort, tc.HostPort)
 			require.Equal(t, tt.outJumpHosts, tc.JumpHosts)
 			require.Equal(t, tt.outCluster, tc.SiteName)
+		})
+	}
+}
+
+func TestRolesToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		roles    []string
+		expected string
+		debug    bool
+	}{
+		{
+			name:     "empty",
+			roles:    []string{},
+			expected: "",
+		},
+		{
+			name:     "exceed threshold okta roles should be squashed",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, and 2 more Okta access list roles ...",
+		},
+		{
+			name:     "debug flag",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			debug:    true,
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, app-figma-access-okta-acl-role, app-figma-reviewer-okta-acl-role",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, rolesToString(tc.debug, tc.roles))
 		})
 	}
 }

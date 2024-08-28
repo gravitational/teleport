@@ -18,7 +18,7 @@
 
 import { z } from 'zod';
 
-import { Platform } from 'teleterm/mainProcess/types';
+import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
@@ -28,11 +28,27 @@ import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
-export const createAppConfigSchema = (platform: Platform) => {
-  const defaultKeymap = getDefaultKeymap(platform);
-  const defaultTerminalFont = getDefaultTerminalFont(platform);
+/** ID of the custom shell. When it is set, the shell path should be read from `terminal.customShell`. */
+export const CUSTOM_SHELL_ID = 'custom' as const;
 
-  const shortcutSchema = createKeyboardShortcutSchema(platform);
+/**
+ * List of properties that can be modified from the renderer process.
+ * The motivation for adding this was to make it impossible to change
+ * `terminal.customShell` from the renderer.
+ */
+export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
+  'usageReporting.enabled',
+];
+
+export const createAppConfigSchema = (settings: RuntimeSettings) => {
+  const defaultKeymap = getDefaultKeymap(settings.platform);
+  const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
+  const availableShellIdsWithCustom = [
+    ...settings.availableShells.map(({ id }) => id),
+    CUSTOM_SHELL_ID,
+  ];
+
+  const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
@@ -63,9 +79,30 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(
         '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
       ),
+    'terminal.shell': z
+      .string()
+      .default(settings.defaultOsShellId)
+      .describe(
+        'A default terminal shell. Can be set to `custom` to take the shell path from `terminal.customShell`. It is best to configure it through UI (right click on a terminal tab > Default Shell).'
+      )
+      .refine(
+        configuredShell =>
+          availableShellIdsWithCustom.some(
+            shellId => shellId === configuredShell
+          ),
+        configuredShell => ({
+          message: `Cannot find the shell "${configuredShell}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
+        })
+      ),
+    'terminal.customShell': z
+      .string()
+      .default('')
+      .describe(
+        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).'
+      ),
     'terminal.rightClick': z
       .enum(['paste', 'copyPaste', 'menu'])
-      .default(platform === 'win32' ? 'copyPaste' : 'menu')
+      .default(settings.platform === 'win32' ? 'copyPaste' : 'menu')
       .describe(
         '`paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.'
       ),

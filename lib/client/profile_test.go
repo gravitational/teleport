@@ -20,6 +20,7 @@ package client
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -54,15 +55,17 @@ func TestProfileStore(t *testing.T) {
 		}
 		profiles := []*profile.Profile{
 			{
-				WebProxyAddr: "proxy1.example.com",
-				Username:     "test-user",
-				SiteName:     "root",
-				Dir:          dir,
+				WebProxyAddr:   "proxy1.example.com",
+				Username:       "test-user",
+				SiteName:       "root",
+				Dir:            dir,
+				SSHDialTimeout: 10 * time.Second,
 			}, {
-				WebProxyAddr: "proxy2.example.com",
-				Username:     "test-user",
-				SiteName:     "root",
-				Dir:          dir,
+				WebProxyAddr:   "proxy2.example.com",
+				Username:       "test-user",
+				SiteName:       "root",
+				Dir:            dir,
+				SSHDialTimeout: 1 * time.Second,
 			},
 		}
 

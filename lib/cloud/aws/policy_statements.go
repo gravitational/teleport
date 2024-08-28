@@ -118,6 +118,20 @@ func StatementForRDSDBConnect() *Statement {
 	}
 }
 
+// StatementForRDSMetadata returns a statement that allows describing RDS
+// instances and clusters for metadata import, as in monitoring AWS tags and
+// whether IAM auth is enabled.
+func StatementForRDSMetadata() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
+		Resources: allResources,
+	}
+}
+
 // StatementForEC2InstanceConnectEndpoint returns the statement that allows the flow for accessing
 // an EC2 instance using its private IP, using EC2 Instance Connect Endpoint.
 func StatementForEC2InstanceConnectEndpoint() *Statement {
@@ -186,6 +200,7 @@ func StatementForEKSAccess() *Statement {
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
 			"eks:AssociateAccessPolicy",
+			"eks:TagResource",
 		},
 		Resources: allResources,
 	}
@@ -410,6 +425,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:GetBucketPolicy",
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
+			"s3:GetBucketTagging",
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",

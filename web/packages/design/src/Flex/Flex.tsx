@@ -33,7 +33,7 @@ import {
 
 import Box, { BoxProps } from '../Box';
 
-interface FlexProps
+export interface FlexProps
   extends BoxProps,
     AlignItemsProps,
     JustifyContentProps,

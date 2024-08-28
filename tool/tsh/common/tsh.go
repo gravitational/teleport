@@ -45,6 +45,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -548,6 +549,11 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// Relogin determines if a login attempt should be made in the event of command failures. This
+	// allows users with potentially stale credentials preventing access to gain the required access
+	// without having to manually run tsh login and the failed command again.
+	Relogin bool
 }
 
 // Stdout returns the stdout writer.
@@ -794,6 +800,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -875,6 +882,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	proxySSH.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
@@ -3239,21 +3247,48 @@ func serializeSessions(sessions []types.SessionTracker, format string, w io.Writ
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "Hostname", "Address", "Login", "Command"})
+	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "User", "Target", "Address"})
 	for _, s := range sessions {
 		table.AddRow([]string{
 			s.GetSessionID(),
 			string(s.GetSessionKind()),
-			s.GetCreated().Format(time.RFC3339),
-			s.GetHostname(),
-			s.GetAddress(),
-			s.GetLogin(),
-			strings.Join(s.GetCommand(), " "),
+			humanize.Time(s.GetCreated()),
+			s.GetHostUser(),
+			target(s),
+			address(s),
 		})
 	}
 
 	tableOutput := table.AsBuffer().String()
 	fmt.Fprintln(output, tableOutput)
+}
+
+func address(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.KubernetesSessionKind:
+		// address isn't populated in the session tracker for kube sessions,
+		// so we display the command the exec session is running
+		return strings.Join(s.GetCommand(), " ")
+	default:
+		return s.GetAddress()
+	}
+}
+
+func target(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.SSHSessionKind:
+		return s.GetLogin() + "@" + s.GetHostname()
+	case types.KubernetesSessionKind:
+		return s.GetHostname() + "@" + s.GetKubeCluster()
+	case types.AppSessionKind:
+		return s.GetAppName()
+	case types.DatabaseSessionKind:
+		return s.GetDatabaseName()
+	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	default:
+		return s.GetHostname()
+	}
 }
 
 type clusterInfo struct {
@@ -3572,15 +3607,19 @@ func onSSH(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-
+		sshFunc := func() error {
 			var opts []func(*client.SSHOptions)
 			if cf.LocalExec {
 				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
 			}
 
 			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
-		})
+		}
+		if !cf.Relogin {
+			err = sshFunc()
+		} else {
+			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
+		}
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
@@ -4449,7 +4488,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
 	if debug {
 		var count int
 		for k, v := range p.Traits {
@@ -4505,6 +4544,35 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("\n")
+}
+
+func isOktaRole(role string) bool {
+	return strings.Contains(role, teleport.OktaReviewerRoleContext) || strings.Contains(role, teleport.OktaAccessRoleContext)
+}
+
+func rolesToString(debug bool, roles []string) string {
+	sort.Strings(roles)
+	var nonOktaRoles, oktaRoles []string
+	for _, role := range roles {
+		if isOktaRole(role) {
+			oktaRoles = append(oktaRoles, role)
+		} else {
+			nonOktaRoles = append(nonOktaRoles, role)
+		}
+	}
+	if len(oktaRoles) == 0 {
+		return strings.Join(nonOktaRoles, ", ")
+	}
+
+	squashRolesThreshold := 9
+
+	if !debug && len(nonOktaRoles)+len(oktaRoles) > squashRolesThreshold {
+		oktaRolesText := fmt.Sprintf("and %v more Okta access list roles ...", len(oktaRoles))
+		return strings.Join(append(nonOktaRoles, oktaRolesText), ", ")
+	}
+	// Keep okta roles at the end of list.
+	out := append(nonOktaRoles, oktaRoles...)
+	return strings.Join(out, ", ")
 }
 
 // printLoginInformation displays the provided profile information to the user.

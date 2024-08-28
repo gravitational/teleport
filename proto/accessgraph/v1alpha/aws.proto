@@ -271,6 +271,8 @@ message AWSS3BucketV1 {
   bool is_public = 4;
   // acl is the ACL of the S3 bucket.
   repeated AWSS3BucketACL acls = 5;
+  // tags is the list of tags that are attached to the S3 bucket.
+  repeated AWSTag tags = 6;
 }
 
 // AWSS3BucketACL is the ACL of an AWS S3 bucket.

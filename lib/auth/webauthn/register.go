@@ -190,7 +190,15 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cc, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
+	cc, sessionData, err := web.BeginRegistration(
+		u,
+		wan.WithExclusions(exclusions),
+		wan.WithExtensions(protocol.AuthenticationExtensions{
+			// Query authenticator on whether the resulting credential is resident,
+			// despite our requirements.
+			wantypes.CredPropsExtension: true,
+		}),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -347,7 +355,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			Aaguid:            credential.Authenticator.AAGUID,
 			SignatureCounter:  credential.Authenticator.SignCount,
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
-			ResidentKey:       req.Passwordless,
+			ResidentKey:       req.Passwordless || hasCredPropsRK(req.CreationResponse),
 			CredentialRpId:    f.Webauthn.RPID,
 			CredentialBackupEligible: &gogotypes.BoolValue{
 				Value: credential.Flags.BackupEligible,
@@ -390,4 +398,11 @@ func parseCredentialCreationResponse(resp *wantypes.CredentialCreationResponse) 
 	}
 	parsedResp, err := protocol.ParseCredentialCreationResponseBody(bytes.NewReader(body))
 	return parsedResp, trace.Wrap(err)
+}
+
+func hasCredPropsRK(ccr *wantypes.CredentialCreationResponse) bool {
+	return ccr != nil &&
+		ccr.Extensions != nil &&
+		ccr.Extensions.CredProps != nil &&
+		ccr.Extensions.CredProps.RK
 }

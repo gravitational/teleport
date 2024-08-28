@@ -540,6 +540,12 @@ func TestProxySSH(t *testing.T) {
 				require.NoError(t, err)
 			})
 
+			t.Run("no-relogin", func(t *testing.T) {
+				t.Parallel()
+				err := runProxySSH(proxyRequest, setNoRelogin(), setHomePath(t.TempDir()))
+				require.Error(t, err)
+			})
+
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), s.setMockSSOLogin(t))
@@ -943,9 +949,6 @@ func TestList(t *testing.T) {
 func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
-	currentUser, err := user.Current()
-	require.NoError(t, err)
-
 	sockDir := "test"
 	sockName := "agent.sock"
 
@@ -957,7 +960,7 @@ func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	})
 
 	// Start the SSH agent.
-	err = teleAgent.ListenUnixSocket(sockDir, sockName, currentUser)
+	err := teleAgent.ListenUnixSocket(sockDir, sockName, nil)
 	require.NoError(t, err)
 	go teleAgent.Serve()
 	t.Cleanup(func() {
