@@ -1,18 +1,10 @@
-Teleport Kubernetes Auto-Discovery involves two components.
+Teleport {{ resourceDesc }} auto-discovery involves two components:
 
-The first, the Discovery Service, is responsible for watching your cloud
-provider and checking if there are any new clusters or if there have been any
-modifications to previously discovered clusters. The second, the Kubernetes
-Service, monitors the clusters created by the Discovery Service. It proxies
-communications between users and the API servers of these clusters.
-
-<Admonition type="tip">
-
-This guide presents the Discovery Service and Kubernetes Service running in the
-same process, however both can run independently and on different machines. 
-
-For example, you can run an instance of the Kubernetes Service in each
-Kubernetes cluster you want to register with Teleport, and an instance of the
-Discovery Service in any network you wish. 
-
-</Admonition>
+1. The Teleport Discovery Service that watches for new {{ resourceDesc }}s or
+changes to previously discovered {{ resourceDesc }}s.
+It dynamically registers each discovered {{ resourceDesc }} as a
+`{{ resourceKind }}` resource in your Teleport cluster.
+It does not need connectivity to the {{ resourceDesc }}s it discovers.
+2. The Teleport {{ serviceName }} Service that monitors the dynamic
+`{{ resourceKind }}` resources registered by the Discovery Service.
+It proxies communications between users and the {{ resourceDesc }}.

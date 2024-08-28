@@ -19,7 +19,7 @@
 import { ReactElement, useEffect, useState } from 'react';
 import { useAttempt } from 'shared/hooks';
 
-import { User } from 'teleport/services/user';
+import { ExcludeUserField, User } from 'teleport/services/user';
 import useTeleport from 'teleport/useTeleport';
 import auth from 'teleport/services/auth/auth';
 
@@ -77,15 +77,17 @@ export default function useUsers({
   }
 
   function onUpdate(u: User) {
-    return ctx.userService.updateUser(u).then(result => {
-      setUsers([result, ...users.filter(i => i.name !== u.name)]);
-    });
+    return ctx.userService
+      .updateUser(u, ExcludeUserField.Traits)
+      .then(result => {
+        setUsers([result, ...users.filter(i => i.name !== u.name)]);
+      });
   }
 
   async function onCreate(u: User) {
     const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
     return ctx.userService
-      .createUser(u, webauthnResponse)
+      .createUser(u, ExcludeUserField.Traits, webauthnResponse)
       .then(result => setUsers([result, ...users]))
       .then(() =>
         ctx.userService.createResetPasswordToken(

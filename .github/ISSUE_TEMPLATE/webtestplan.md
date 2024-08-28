@@ -383,7 +383,7 @@ spec:
   allow:
     request:
       search_as_roles:
-      - searcheable resources
+      - searcheable-resources
       suggested_reviewers:
       - random-user-1
       - random-user-2
@@ -420,10 +420,10 @@ spec:
 ### Assuming Approved Requests (Role Based)
 
 - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into nodes
-- [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl` allows you to see users screen, and denies access to nodes
+- [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl` allows you to see users screen, and denies access to nodes
   - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it expires
-  - [ ] Verify `switching back` goes back to your default static role
-  - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged out after the expiry is met (4 minutes)
+  - [ ] Verify that you can access nodes after `Drop Request` on `allow-users-with-short-ttl` while `allow-roles-and-nodes` is still assumed
+  - [ ] Verify after re-assuming `allow-users-with-short-ttl` role that the next action (i.e. opening a new tab with unified resources) triggers a relogin modal after the expiry is met (4 minutes)
 
 ### Assuming Approved Requests (Search Based)
 
@@ -887,7 +887,7 @@ Add the following to enable read access to trusted clusters
           progress.
 - Access Requests
   - **Creating Access Requests (Role Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
+    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Role Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that under requestable roles, only `allow-roles-and-nodes` and
     `allow-users-with-short-ttl` are listed
     - [ ] Verify you can select/input/modify reviewers
@@ -897,7 +897,7 @@ Add the following to enable read access to trusted clusters
     suggested_reviewers wasn't defined)
     - [ ] Verify you can't review own requests
   - **Creating Access Requests (Search Based)**
-    - To setup a test environment, follow the steps laid out in `Created Access Requests (Search Based)` from the Web UI testplan and then verify the tasks below.
+    - To setup a test environment, follow the steps laid out in `Creating Access Requests (Resource Based)` from the Web UI testplan and then verify the tasks below.
     - [ ] Verify that a user can see resources based on the `searcheable-resources` rules
     - [ ] Verify you can select/input/modify reviewers
     - [ ] Verify you can view the request you created from request list (should be in a pending
@@ -908,7 +908,7 @@ Add the following to enable read access to trusted clusters
     - [ ] Verify that you can mix adding resources from the root and leaf clusters.
     - [ ] Verify that you can't mix roles and resources into the same request.
     - [ ] Verify that you can request resources from both the unified view and the search bar.
-    - Change `proxy_service.ui.show_resources` to `accessible_only`.
+    - Change `show_resources` to `accessible_only` in [the UI config](https://goteleport.com/docs/reference/resources/#ui-config) of the root cluster.
       - [ ] Verify that you can now only request resources from the new request tab.
   - **Viewing & Approving/Denying Requests**
     - To setup a test environment, follow the steps laid out in `Viewing & Approving/Denying Requests` from the Web UI testplan and then verify the tasks below.
@@ -921,12 +921,12 @@ Add the following to enable read access to trusted clusters
   - **Assuming Approved Requests (Role Based)**
     - [ ] Verify that assuming `allow-roles-and-nodes` allows you to see roles screen and ssh into
           nodes
-    - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-short-ttl`
+    - [ ] After assuming `allow-roles-and-nodes`, verify that assuming `allow-users-with-short-ttl`
           allows you to see users screen, and denies access to nodes
     - [ ] Verify a switchback banner is rendered with roles assumed, and count down of when it
           expires
     - [ ] Verify `switching back` goes back to your default static role
-    - [ ] Verify after re-assuming `allow-users-short-ttl` role, the user is automatically logged
+    - [ ] Verify after re-assuming `allow-users-with-short-ttl` role, the user is automatically logged
           out after the expiry is met (4 minutes)
   - **Assuming Approved Requests (Search Based)**
     - [ ] Verify that assuming approved request, allows you to see the resources you've requested.
@@ -963,10 +963,6 @@ Add the following to enable read access to trusted clusters
         second one after closing the modal for the first request.
   - [ ] Make two concurrent headless requests for two different clusters. Verify that Connect shows
         the second one after closing the modal for the first request.
-- tshd-initiated communication
-  - [ ] Create a db connection, wait for the cert to expire. Attempt to connect to the database
-        through CLI. While the login modal is shown, make a headless request. Verify that after logging
-        in again, the app shows the modal for the headless request.
 - Per-session MFA
   - The easiest way to test it is to enable [cluster-wide per-session
     MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa/#cluster-wide).
@@ -992,11 +988,44 @@ Add the following to enable read access to trusted clusters
     - [ ] macOS
     - [ ] Windows
     - [ ] Linux
-- [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
-      `~/Library/Application\ Support/Teleport\ Connect/logs`.
-- [ ] Verify that the password from the login form is not saved in the renderer log.
-- [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
-      works properly after that.
-- [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
-      Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
-      the app was able to reopen the tabs without any errors.
+- VNet
+  - VNet doesn't work with local clusters made available under custom domains through entries in
+    `/etc/hosts`. It's best to use a "real" cluster. nip.io might work, but it hasn't been confirmed
+    yet.
+  - Verify that VNet works for TCP apps within:
+    - [ ] a root cluster
+    - [ ] [a custom DNS zone](https://goteleport.com/docs/application-access/guides/vnet/) of a root cluster
+    - [ ] a leaf cluster
+    - [ ] a custom DNS zone of a leaf cluster
+  - [ ] Verify that setting [a custom IPv4 CIDR range](https://goteleport.com/docs/application-access/guides/vnet/#configuring-ipv4-cidr-range) works.
+  - [ ] Verify that Connect asks for relogin when attempting to connect to an app after cert expires.
+    - Be mindful that you need to connect to the app at least once before the cert expires for
+      Connect to properly recognize it as a TCP app.
+  - Start the app with debug logs on and tail `tshd.log`. Verify that the UI works correctly in the
+    following scenarios:
+    - All buth the first point assume that you successfully go through the osascript prompt.
+    - Close the osascript prompt.
+      - [ ] The VNet panel shows info about the password prompt being closed.
+    - Start VNet, then stop it.
+      - [ ] The VNet panel doesn't show any errors related to VNet being stopped.
+    - Start VNet, then remove the socket file used for communication with the admin process. It's reported in
+      `tshd.log` as `Created unix socket for admin subcommand socket:<path>`.
+      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
+      - [ ] The admin process cleans up files in `/etc/resolver`.
+    - Start VNet. While its running, kill the admin process.
+      - The easiest way to find the PID of the admin process is to open Activity Monitor, View →
+        All Processes, Hierarchically, search for `tsh` and find tsh running under kernel_task →
+        authtrampoline → bash → tsh. Then just `sudo kill -s KILL <tsh pid>`.
+      - [ ] The VNet panel shows an unexpected shutdown of VNet and an in-app notification is shown.
+      - [ ] The admin process _leaves_ files in `/etc/resolver`. However, it's possible to start
+        VNet again, connect to a TCP app, then shut VNet down and it results in the files being
+        cleaned up.
+- Misc
+  - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
+        `~/Library/Application\ Support/Teleport\ Connect/logs`.
+  - [ ] Verify that the password from the login form is not saved in the renderer log.
+  - [ ] Log in to a cluster, then log out and log in again as a different user. Verify that the app
+        works properly after that.
+  - [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
+        Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
+        the app was able to reopen the tabs without any errors.

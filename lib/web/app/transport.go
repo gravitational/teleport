@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -288,7 +289,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	clientJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -296,14 +296,13 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 	}
 
 	// Create a new jwt key using the web session private key to sign a new token.
-	wsPrivateKey, err := utils.ParsePrivateKey(t.c.ws.GetPriv())
+	wsPrivateKey, err := keys.ParsePrivateKey(t.c.ws.GetTLSPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	wsJWTKey, err := jwt.New(&jwt.Config{
 		Clock:       t.c.clock,
 		PrivateKey:  wsPrivateKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -468,7 +467,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 
 	// Configure the identity that will be used to connect to the server. This
 	// allows the server to verify the identity of the caller.
-	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetPriv())
+	certificate, err := tls.X509KeyPair(c.ws.GetTLSCert(), c.ws.GetTLSPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse certificate or key")
 	}

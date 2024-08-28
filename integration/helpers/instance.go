@@ -84,10 +84,10 @@ func fatalIf(err error) {
 }
 
 type User struct {
-	Username      string       `json:"username"`
-	AllowedLogins []string     `json:"logins"`
-	Key           *client.Key  `json:"key"`
-	Roles         []types.Role `json:"-"`
+	Username      string          `json:"username"`
+	AllowedLogins []string        `json:"logins"`
+	KeyRing       *client.KeyRing `json:"key"`
+	Roles         []types.Role    `json:"-"`
 }
 
 type InstanceSecrets struct {
@@ -296,6 +296,13 @@ type TeleInstance struct {
 	Log utils.Logger
 	InstanceListeners
 	Fds []*servicecfg.FileDescriptor
+	// ProcessProvider creates a Teleport process (OSS or Enterprise)
+	ProcessProvider teleportProcProvider
+}
+
+type teleportProcProvider interface {
+	// NewTeleport Create a teleport process OSS or Enterprise.
+	NewTeleport(cfg *servicecfg.Config) (*service.TeleportProcess, error)
 }
 
 // InstanceConfig is an instance configuration
@@ -597,11 +604,26 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 	return i.CreateWithConf(t, tconf)
 }
 
+func (i *TeleInstance) createTeleportProcess(tconf *servicecfg.Config) (*service.TeleportProcess, error) {
+	if i.ProcessProvider == nil {
+		p, err := service.NewTeleport(tconf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return p, nil
+	}
+	p, err := i.ProcessProvider.NewTeleport(tconf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return p, nil
+}
+
 // CreateWithConf creates a new instance of Teleport using the supplied config
 func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *servicecfg.Config) error {
 	i.Config = tconf
 	var err error
-	i.Process, err = service.NewTeleport(tconf)
+	i.Process, err = i.createTeleportProcess(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1618,7 +1640,7 @@ func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg Clien
 
 	// Add key to client and update CAs that will be trusted (equivalent to
 	// updating "known hosts" with OpenSSH.
-	err = tc.AddKey(&creds.Key)
+	err = tc.AddKeyRing(&creds.KeyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

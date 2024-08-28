@@ -23,8 +23,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os/user"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -35,15 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
+func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string) HostUsers {
 	//nolint:staticcheck // SA4023. False positive on macOS.
 	backend, err := newHostUsersBackend()
 	switch {
-	case trace.IsNotImplemented(err):
+	case trace.IsNotImplemented(err), trace.IsNotFound(err):
 		log.Debugf("Skipping host user management: %v", err)
 		return nil
 	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
@@ -96,6 +97,8 @@ type HostUsersBackend interface {
 	LookupGroup(group string) (*user.Group, error)
 	// LookupGroupByID retrieves a group by its ID.
 	LookupGroupByID(gid string) (*user.Group, error)
+	// SetUserGroups sets a user's groups, replacing their existing groups.
+	SetUserGroups(name string, groups []string) error
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
@@ -104,6 +107,8 @@ type HostUsersBackend interface {
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
 	CreateHomeDirectory(userHome string, uid, gid string) error
+	// GetDefaultHomeDirectory returns the default home directory path for the given user
+	GetDefaultHomeDirectory(user string) (string, error)
 }
 
 type userCloser struct {
@@ -113,7 +118,7 @@ type userCloser struct {
 }
 
 func (u *userCloser) Close() error {
-	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
+	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -126,7 +131,7 @@ func (u *userCloser) Close() error {
 var ErrUserLoggedIn = errors.New("User logged in error")
 
 type HostSudoers interface {
-	// WriteSudoers creates a temporary Teleport user in the TeleportServiceGroup
+	// WriteSudoers creates a temporary Teleport user in the TeleportDropGroup
 	WriteSudoers(name string, sudoers []string) error
 	// RemoveSudoers removes the users sudoer file
 	RemoveSudoers(name string) error
@@ -134,7 +139,7 @@ type HostSudoers interface {
 
 type HostSudoersNotImplemented struct{}
 
-// WriteSudoers creates a temporary Teleport user in the TeleportServiceGroup
+// WriteSudoers creates a temporary Teleport user in the TeleportDropGroup
 func (*HostSudoersNotImplemented) WriteSudoers(string, []string) error {
 	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
 }
@@ -145,12 +150,12 @@ func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
 }
 
 type HostUsers interface {
-	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
+	// UpsertUser creates a temporary Teleport user in the TeleportDropGroup
+	UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
-	// DeleteAllUsers deletes all suer in the TeleportServiceGroup
+	// DeleteAllUsers deletes all suer in the TeleportDropGroup
 	DeleteAllUsers() error
 	// UserCleanup starts a periodic user deletion cleanup loop for
 	// users that failed to delete
@@ -174,7 +179,7 @@ type HostUserManagement struct {
 	backend HostUsersBackend
 	ctx     context.Context
 	cancel  context.CancelFunc
-	storage *local.PresenceService
+	storage services.PresenceInternal
 
 	userGrace time.Duration
 }
@@ -221,95 +226,104 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 	return nil
 }
 
-// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
-	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
-		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
+// unmanagedUserErr is returned when attempting to modify or interact with a user that is not managed by Teleport.
+var unmanagedUserErr = errors.New("user not managed by teleport")
+
+func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) error {
+
+	existingUser, err := u.backend.Lookup(name)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	tempUser, err := u.backend.Lookup(name)
-	if err != nil && !errors.Is(err, user.UnknownUserError(name)) {
-		return nil, trace.Wrap(err)
+	currentGroups := make(map[string]struct{}, len(ui.Groups))
+	groupIDs, err := u.backend.UserGIDs(existingUser)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if tempUser != nil {
-		gids, err := u.backend.UserGIDs(tempUser)
+	for _, groupID := range groupIDs {
+		group, err := u.backend.LookupGroupByID(groupID)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
-		if err != nil {
-			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				return nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
-			}
-			return nil, trace.Wrap(err)
-		}
-		var found bool
-		for _, gid := range gids {
-			if gid == systemGroup.Gid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
+			return trace.Wrap(err)
 		}
 
-		err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
+		currentGroups[group.Name] = struct{}{}
+	}
+
+	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
+	// the teleport-keep group
+	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+
+	_, hasDropGroup := currentGroups[types.TeleportDropGroup]
+	_, hasKeepGroup := currentGroups[types.TeleportKeepGroup]
+	if !hasDropGroup && !hasKeepGroup && !migrateKeepUser {
+		return trace.Errorf("%q %w", name, unmanagedUserErr)
+	}
+
+	switch ui.Mode {
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		ui.Groups = append(ui.Groups, types.TeleportDropGroup)
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		if !hasKeepGroup {
+			home, err := u.backend.GetDefaultHomeDirectory(name)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := u.backend.CreateHomeDirectory(home, existingUser.Uid, existingUser.Gid); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		// no need to duplicate the group if it's already there
+		if !migrateKeepUser {
+			ui.Groups = append(ui.Groups, types.TeleportKeepGroup)
+		}
+	}
+
+	finalGroups := make(map[string]struct{}, len(ui.Groups))
+	for _, group := range ui.Groups {
+		finalGroups[group] = struct{}{}
+	}
+
+	primaryGroup, err := u.backend.LookupGroupByID(existingUser.Gid)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	finalGroups[primaryGroup.Name] = struct{}{}
+
+	if !maps.Equal(currentGroups, finalGroups) {
+		return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
+			return trace.Wrap(u.backend.SetUserGroups(name, ui.Groups))
+		}))
+	}
+
+	return nil
+}
+
+func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) error {
+	var home string
+	var err error
+
+	switch ui.Mode {
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		ui.Groups = append(ui.Groups, types.TeleportDropGroup)
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		ui.Groups = append(ui.Groups, types.TeleportKeepGroup)
+		home, err = u.backend.GetDefaultHomeDirectory(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
+		if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_KEEP {
 			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
 				return trace.Wrap(err)
 			}
-			return nil
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
-		// try to delete even if the user already exists as only users
-		// in the teleport-system group will be deleted and this way
-		// if a user creates multiple sessions the account will
-		// succeed in deletion
-		return &userCloser{
-			username: name,
-			users:    u,
-			backend:  u.backend,
-		}, trace.AlreadyExists("User %q already exists", name)
-	}
 
-	groups := make([]string, 0, len(ui.Groups))
-	for _, group := range ui.Groups {
-		if group == name {
-			// this causes an error as useradd expects the group with the same name as the user to be available
-			log.Debugf("Skipping group creation with name the same as login user (%q, %q).", name, group)
-			continue
-		}
-		groups = append(groups, group)
-	}
-	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		groups = append(groups, types.TeleportServiceGroup)
-	}
-	var errs []error
-	for _, group := range groups {
-		if err := u.createGroupIfNotExist(group); err != nil {
-			errs = append(errs, err)
-			continue
-		}
-	}
-	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, trace.WrapWithMessage(err, "error while creating groups")
-	}
-
-	var home string
-	if ui.Mode != types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
-		home, err = readDefaultHome(name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
-			return trace.Wrap(err)
-		}
 		if ui.GID != "" {
 			// if gid is specified a group must already exist
 			err := u.backend.CreateGroup(name, ui.GID)
@@ -318,7 +332,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 
-		err = u.backend.CreateUser(name, groups, home, ui.UID, ui.GID)
+		err = u.backend.CreateUser(name, ui.Groups, home, ui.UID, ui.GID)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
@@ -335,22 +349,79 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 
 		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	}))
+}
+
+func (u *HostUserManagement) ensureGroupsExist(groups ...string) error {
+	var errs []error
+
+	for _, group := range groups {
+		if err := u.createGroupIfNotExist(group); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
-		return nil, trace.Wrap(err)
+	return trace.NewAggregate(errs...)
+}
+
+// UpsertUser creates a temporary Teleport user in the TeleportDropGroup
+func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
+	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
+	// the teleport-keep group
+	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+	skipKeepGroup := migrateKeepUser && ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
+
+	if skipKeepGroup {
+		log.Warnf("explicit assignment of %q group is not possible in 'insecure-drop' mode", types.TeleportKeepGroup)
 	}
 
-	closer := &userCloser{
-		username: name,
-		users:    u,
-		backend:  u.backend,
+	groupSet := make(map[string]struct{}, len(ui.Groups))
+	groups := make([]string, 0, len(ui.Groups))
+	for _, group := range ui.Groups {
+		// the TeleportDropGroup is managed automatically and should not be allowed direct assignment
+		if group == types.TeleportDropGroup {
+			continue
+		}
+
+		if skipKeepGroup && group == types.TeleportKeepGroup {
+			continue
+		}
+
+		if _, ok := groupSet[group]; !ok {
+			groupSet[group] = struct{}{}
+			groups = append(groups, group)
+		}
+	}
+	ui.Groups = groups
+
+	if err := u.ensureGroupsExist(types.TeleportDropGroup, types.TeleportKeepGroup); err != nil {
+		return nil, trace.WrapWithMessage(err, "creating teleport system groups")
 	}
 
-	return closer, trace.Wrap(err)
+	if err := u.ensureGroupsExist(groups...); err != nil {
+		return nil, trace.WrapWithMessage(err, "creating configured groups")
+	}
+
+	var closer io.Closer
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
+		closer = &userCloser{
+			username: name,
+			users:    u,
+			backend:  u.backend,
+		}
+	}
+
+	if err := u.updateUser(name, ui); err != nil {
+		if !errors.Is(err, user.UnknownUserError(name)) {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := u.createUser(name, ui); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return closer, nil
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
@@ -406,10 +477,10 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
+	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, types.TeleportServiceGroup) {
-			log.Debugf("%q group not found, not deleting users", types.TeleportServiceGroup)
+		if isUnknownGroupError(err, types.TeleportDropGroup) {
+			log.Debugf("%q group not found, not deleting users", types.TeleportDropGroup)
 			return nil
 		}
 		return trace.Wrap(err)
@@ -473,9 +544,15 @@ func (u *HostUserManagement) UserCleanup() {
 	cleanupTicker := time.NewTicker(time.Minute * 5)
 	defer cleanupTicker.Stop()
 	for {
-		if err := u.DeleteAllUsers(); err != nil {
+		err := u.DeleteAllUsers()
+		switch {
+		case trace.IsNotFound(err):
+			log.Debugf("Error during temporary user cleanup: %s, stopping cleanup job", err)
+			return
+		case err != nil:
 			log.Error("Error during temporary user cleanup: ", err)
 		}
+
 		select {
 		case <-cleanupTicker.C:
 		case <-u.ctx.Done():

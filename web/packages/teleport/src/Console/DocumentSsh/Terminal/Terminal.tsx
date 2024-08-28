@@ -23,7 +23,7 @@ import React, {
   useRef,
 } from 'react';
 import { Flex } from 'design';
-import { ITheme } from 'xterm';
+import { ITheme } from '@xterm/xterm';
 
 import { getPlatformType } from 'design/platform';
 
@@ -48,7 +48,7 @@ export interface TerminalProps {
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>();
-  const elementRef = useRef<HTMLElement>();
+  const elementRef = useRef<HTMLDivElement>();
 
   useImperativeHandle(
     ref,

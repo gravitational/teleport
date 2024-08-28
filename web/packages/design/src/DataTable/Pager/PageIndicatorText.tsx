@@ -35,12 +35,10 @@ export function PageIndicatorText({
 
   return (
     <Text
-      typography="body2"
+      typography="body3"
       mr={1}
-      fontWeight="500"
       style={{
         whiteSpace: 'nowrap',
-        letterSpacing: '0.15px',
       }}
     >
       Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}

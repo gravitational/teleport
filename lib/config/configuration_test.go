@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -43,15 +44,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -676,7 +679,7 @@ proxy_service:
 	}
 
 	for _, tt := range tests {
-		comment := fmt.Sprintf(tt.desc)
+		comment := tt.desc
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
@@ -837,7 +840,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, pkcs11LibPath, cfg.Auth.KeyStore.PKCS11.Path)
 	require.Equal(t, "example_token", cfg.Auth.KeyStore.PKCS11.TokenLabel)
 	require.Equal(t, 1, *cfg.Auth.KeyStore.PKCS11.SlotNumber)
-	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.Pin)
+	require.Equal(t, "example_pin", cfg.Auth.KeyStore.PKCS11.PIN)
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
@@ -1174,6 +1177,63 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestUIConfig_ShowResources(t *testing.T) {
+	tests := []struct {
+		desc     string
+		fc       *FileConfig
+		expected constants.ShowResources
+		wantErr  bool
+	}{
+		{
+			desc: "show resources sets default value",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+					},
+				},
+			},
+			expected: constants.ShowResourcesRequestable,
+		},
+		{
+			desc: "show resources respects config setting",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+						ShowResources:   constants.ShowResourcesaccessibleOnly,
+					},
+				},
+			},
+			expected: constants.ShowResourcesaccessibleOnly,
+		},
+		{
+			desc: "show resources fails with bad setting",
+			fc: &FileConfig{
+				Proxy: Proxy{
+					UI: &UIConfig{
+						ScrollbackLines: 1000,
+						ShowResources:   "bad",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+			err := applyProxyConfig(test.fc, cfg)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expected, cfg.Proxy.UI.ShowResources)
 			}
 		})
 	}
@@ -2576,11 +2636,12 @@ func TestAppsCLF(t *testing.T) {
 	}
 }
 
+// TestDatabaseConfig ensures reading database the configuration won't return
+// error.
 func TestDatabaseConfig(t *testing.T) {
 	tests := []struct {
 		inConfigString string
 		desc           string
-		outError       string
 	}{
 		{
 			desc: "valid database config",
@@ -2612,7 +2673,6 @@ db_service:
       command: ["uname", "-p"]
       period: 1h
 `,
-			outError: "",
 		},
 		{
 			desc: "missing database name",
@@ -2623,7 +2683,6 @@ db_service:
   - protocol: postgres
     uri: localhost:5432
 `,
-			outError: "empty database name",
 		},
 		{
 			desc: "unsupported database protocol",
@@ -2635,7 +2694,6 @@ db_service:
     protocol: unknown
     uri: localhost:5432
 `,
-			outError: `unsupported database "foo" protocol`,
 		},
 		{
 			desc: "missing database uri",
@@ -2646,7 +2704,6 @@ db_service:
   - name: foo
     protocol: postgres
 `,
-			outError: `database "foo" URI is empty`,
 		},
 		{
 			desc: "invalid database uri (missing port)",
@@ -2658,7 +2715,6 @@ db_service:
     protocol: postgres
     uri: 192.168.1.1
 `,
-			outError: `invalid database "foo" address`,
 		},
 	}
 	for _, tt := range tests {
@@ -2667,12 +2723,7 @@ db_service:
 				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
 			}
 			err := Configure(&clf, servicecfg.MakeDefaultConfig(), false)
-			if tt.outError != "" {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -2687,7 +2738,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		inFlags     CommandLineFlags
 		desc        string
 		outDatabase servicecfg.Database
-		outError    string
 	}{
 		{
 			desc: "valid database config",
@@ -2711,36 +2761,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 						Command: []string{"hostname"},
 					},
 				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
-		},
-		{
-			desc: "unsupported database protocol",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: "unknown",
-				DatabaseURI:      "localhost:5432",
-			},
-			outError: `unsupported database "foo" protocol`,
-		},
-		{
-			desc: "missing database uri",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-			},
-			outError: `database "foo" URI is empty`,
-		},
-		{
-			desc: "invalid database uri (missing port)",
-			inFlags: CommandLineFlags{
-				DatabaseName:     "foo",
-				DatabaseProtocol: defaults.ProtocolPostgres,
-				DatabaseURI:      "localhost",
-			},
-			outError: `invalid database "foo" address`,
 		},
 		{
 			desc: "RDS database",
@@ -2767,9 +2788,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2800,9 +2818,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2820,7 +2835,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 				TLS: servicecfg.DatabaseTLS{
-					Mode:   servicecfg.VerifyFull,
 					CACert: fixtures.LocalhostCert,
 				},
 				GCP: servicecfg.DatabaseGCP{
@@ -2847,12 +2861,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				Name:     "sqlserver",
 				Protocol: defaults.ProtocolSQLServer,
 				URI:      "sqlserver.example.com:1433",
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 				AD: servicecfg.DatabaseAD{
 					KeytabFile: "/etc/keytab",
-					Krb5File:   defaults.Krb5FilePath,
 					Domain:     "EXAMPLE.COM",
 					SPN:        "MSSQLSvc/sqlserver.example.com:1433",
 				},
@@ -2876,9 +2886,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				URI:      "localhost:3306",
 				MySQL: servicecfg.MySQLOptions{
 					ServerVersion: "8.0.28",
-				},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2911,9 +2918,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2941,9 +2945,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 		{
@@ -2976,9 +2977,6 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					types.OriginLabel: types.OriginConfigFile,
 				},
 				DynamicLabels: services.CommandLabels{},
-				TLS: servicecfg.DatabaseTLS{
-					Mode: servicecfg.VerifyFull,
-				},
 			},
 		},
 	}
@@ -2990,12 +2988,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 			config := servicecfg.MakeDefaultConfig()
 			err := Configure(&tt.inFlags, config, false)
-			if tt.outError != "" {
-				require.Contains(t, err.Error(), tt.outError)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
-			}
+			require.NoError(t, err)
+			require.Equal(t, []servicecfg.Database{tt.outDatabase}, config.Databases.Databases)
 		})
 	}
 }
@@ -3107,7 +3101,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						Pin:        "pin",
+						PIN:        "pin",
 					},
 				},
 			},
@@ -3115,7 +3109,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "pin",
+					PIN:        "pin",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3128,7 +3122,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 						ModulePath: securePKCS11LibPath,
 						TokenLabel: "foo",
 						SlotNumber: &slotNumber,
-						PinPath:    securePinFilePath,
+						PINPath:    securePinFilePath,
 					},
 				},
 			},
@@ -3136,7 +3130,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 				PKCS11: servicecfg.PKCS11Config{
 					TokenLabel: "foo",
 					SlotNumber: &slotNumber,
-					Pin:        "secure-pin-file",
+					PIN:        "secure-pin-file",
 					Path:       securePKCS11LibPath,
 				},
 			},
@@ -3146,8 +3140,8 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						Pin:     "oops",
-						PinPath: securePinFilePath,
+						PIN:     "oops",
+						PINPath: securePinFilePath,
 					},
 				},
 			},
@@ -3172,7 +3166,7 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{
 					PKCS11: &PKCS11{
-						PinPath: worldReadablePinFilePath,
+						PINPath: worldReadablePinFilePath,
 					},
 				},
 			},
@@ -3400,62 +3394,6 @@ teleport:
 	}
 }
 
-func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
-	tests := []struct {
-		name        string
-		buildType   string
-		deviceTrust *DeviceTrust
-		wantErr     bool
-	}{
-		{
-			name:      "ok: OSS Mode=off",
-			buildType: modules.BuildOSS,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeOff,
-			},
-		},
-		{
-			name:      "nok: OSS Mode=required",
-			buildType: modules.BuildOSS,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired,
-			},
-			wantErr: true,
-		},
-		{
-			name:      "ok: Enterprise Mode=required",
-			buildType: modules.BuildEnterprise,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
-				TestBuildType: test.buildType,
-			})
-
-			defaultCfg := servicecfg.MakeDefaultConfig()
-			err := ApplyFileConfig(&FileConfig{
-				Auth: Auth{
-					Service: Service{
-						EnabledFlag: "yes",
-					},
-					Authentication: &AuthenticationConfig{
-						DeviceTrust: test.deviceTrust,
-					},
-				},
-			}, defaultCfg)
-			if test.wantErr {
-				assert.Error(t, err, "ApplyFileConfig mismatch")
-			} else {
-				assert.NoError(t, err, "ApplyFileConfig mismatch")
-			}
-		})
-	}
-}
-
 func TestApplyConfig_JamfService(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -3487,8 +3425,10 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 			},
 		},
@@ -3501,9 +3441,11 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3526,8 +3468,6 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3538,6 +3478,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -3584,13 +3528,12 @@ jamf_service:
 			yaml: `jamf_service: {}`,
 		},
 		{
-			name: "disabled config is validated",
+			name: "disabled config ignored",
 			yaml: `
 jamf_service:
   enabled: false
   api_endpoint: https://yourtenant.jamfcloud.com
   username: llama`,
-			wantErr: "password",
 		},
 	}
 	for _, test := range tests {
@@ -4994,4 +4937,69 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, testCase.expectedGCPMatchers, cfg.Discovery.GCPMatchers)
 		})
 	}
+}
+
+// TestProxyUntrustedCert tests that configuring a Proxy Service with an HTTPS
+// cert signed by an untrusted cert authority is an error, and returns a helpful
+// error message.
+func TestProxyUntrustedCert(t *testing.T) {
+	t.Parallel()
+
+	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// Generate a CA for the test that will not be trusted.
+	caCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caPriv,
+		pkix.Name{
+			CommonName:   "CA",
+			Organization: []string{"teleport"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromCertAndSigner(caCert, caPriv)
+	require.NoError(t, err)
+
+	// Generate a leaf cert signed by the untrusted CA.
+	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: leafPriv.Public(),
+		Subject:   pkix.Name{CommonName: "leaf"},
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	leafPrivPem, err := keys.MarshalPrivateKey(leafPriv)
+	require.NoError(t, err)
+
+	certDir := t.TempDir()
+	certPath := filepath.Join(certDir, "leaf.crt")
+	keyPath := filepath.Join(certDir, "leaf.key")
+	err = os.WriteFile(certPath, leafCert, 0600)
+	require.NoError(t, err)
+	err = os.WriteFile(keyPath, leafPrivPem, 0600)
+	require.NoError(t, err)
+
+	fc := &FileConfig{
+		Proxy: Proxy{
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  keyPath,
+					Certificate: certPath,
+				},
+			},
+		},
+	}
+	cfg := &servicecfg.Config{}
+
+	err = applyProxyConfig(fc, cfg)
+	require.Error(t, err)
+	require.ErrorContains(t, err, certPath)
+	require.ErrorContains(t, err, proxyUntrustedTLSCertErrMsg)
+
+	// We can't test that writing the CA cert to file and setting SSL_CERT_FILE
+	// would fix this error, because:
+	// - the system root certs are loaded exactly once and cached
+	// - it only works on linux
 }

@@ -17,11 +17,10 @@
  */
 
 import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
+import { Text, Flex, ButtonPrimary, Mark } from 'design';
 import * as Icons from 'design/Icon';
 import Dialog, { DialogContent } from 'design/DialogConfirmation';
 
-import { Mark } from 'teleport/Discover/Shared';
 import { NodeMeta, useDiscover } from 'teleport/Discover/useDiscover';
 
 export function NoEc2IceRequiredDialog({ nextStep }: { nextStep: () => void }) {

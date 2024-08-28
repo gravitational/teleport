@@ -44,16 +44,22 @@ type DesktopCommand struct {
 
 	// desktopList implements the "tctl desktop ls" subcommand.
 	desktopList *kingpin.CmdClause
+
+	// desktopBootstrap implements the "tctl desktop bootstrap" subcommand.
+	desktopBootstrap *kingpin.CmdClause
 }
 
 // Initialize allows DesktopCommand to plug itself into the CLI parser
 func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
-	desktop := app.Command("windows_desktops", "Operate on registered desktops.").Alias("desktops")
+	desktop := app.Command("desktop", "Operate on registered desktops.").Alias("desktops").Alias("windows_desktop").Alias("windows_desktops")
+
 	c.desktopList = desktop.Command("ls", "List all desktops registered with the cluster.")
 	c.desktopList.Flag("format", "Output format, 'text', 'json' or 'yaml'").Default(teleport.Text).StringVar(&c.format)
 	c.desktopList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
+
+	c.desktopBootstrap = desktop.Command("bootstrap", "Generate a PowerShell script to bootstrap Active Directory.")
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
@@ -61,6 +67,8 @@ func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client *authcli
 	switch cmd {
 	case c.desktopList.FullCommand():
 		err = c.ListDesktop(ctx, client)
+	case c.desktopBootstrap.FullCommand():
+		err = c.BootstrapAD(ctx, client)
 	default:
 		return false, nil
 	}
@@ -87,6 +95,16 @@ func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Cli
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
+}
+
+// BootstrapAD generates a PowerShell script that can be used to bootstrap Active Directory.
+func (c *DesktopCommand) BootstrapAD(ctx context.Context, client *authclient.Client) error {
+	script, err := client.GetDesktopBootstrapScript(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = os.Stdout.Write([]byte(script))
+	return trace.Wrap(err)
 }
 
 var desktopMessageTemplate = template.Must(template.New("desktop").Parse(`The invite token: {{.token}}

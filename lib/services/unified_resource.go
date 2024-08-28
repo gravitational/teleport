@@ -65,7 +65,7 @@ type UnifiedResourceCacheConfig struct {
 
 // UnifiedResourceCache contains a representation of all resources that are displayable in the UI
 type UnifiedResourceCache struct {
-	mu  sync.Mutex
+	rw  sync.RWMutex
 	log *log.Entry
 	cfg UnifiedResourceCacheConfig
 	// nameTree is a BTree with items sorted by (hostname)/name/type
@@ -135,11 +135,7 @@ func (cfg *UnifiedResourceCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// put stores the value into backend (creates if it does not
-// exist, updates it otherwise)
-func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *UnifiedResourceCache) putLocked(resource resource) {
 	key := resourceKey(resource)
 	sortKey := makeResourceSortKey(resource)
 	oldResource, exists := c.resources[key]
@@ -156,7 +152,6 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 	c.resources[key] = resource
 	c.nameTree.ReplaceOrInsert(&item{Key: sortKey.byName, Value: key})
 	c.typeTree.ReplaceOrInsert(&item{Key: sortKey.byType, Value: key})
-	return nil
 }
 
 func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
@@ -181,26 +176,17 @@ func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 	return nil
 }
 
-// delete removes the item by key, returns NotFound error
-// if item does not exist
-func (c *UnifiedResourceCache) delete(ctx context.Context, res types.Resource) error {
+func (c *UnifiedResourceCache) deleteLocked(res types.Resource) error {
 	key := resourceKey(res)
-
-	// delete generally only sends the id, so we will fetch the actual resource from our resources
-	// map and generate our sort keys. Then we can delete from the map and all the trees at once
 	resource, exists := c.resources[key]
 	if !exists {
 		return trace.NotFound("cannot delete resource: key %s not found in unified resource cache", key)
 	}
 
 	sortKey := makeResourceSortKey(resource)
-
-	return c.read(ctx, func(cache *UnifiedResourceCache) error {
-		cache.deleteSortKey(sortKey)
-		// delete from resource map
-		delete(c.resources, key)
-		return nil
-	})
+	c.deleteSortKey(sortKey)
+	delete(c.resources, key)
+	return nil
 }
 
 func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*item], error) {
@@ -215,7 +201,7 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 
 }
 
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
 	if len(startKey) == 0 {
 		return nil, "", trace.BadParameter("missing parameter startKey")
 	}
@@ -231,13 +217,13 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			return trace.Wrap(err, "getting sort tree")
 		}
 		var iterateRange func(lessOrEqual, greaterThan *item, iterator btree.ItemIteratorG[*item])
-		var endKey []byte
+		var endKey backend.Key
 		if req.SortBy.IsDesc {
 			iterateRange = tree.DescendRange
-			endKey = backend.Key(prefix)
+			endKey = backend.NewKey(prefix)
 		} else {
 			iterateRange = tree.AscendRange
-			endKey = backend.RangeEnd(backend.Key(prefix))
+			endKey = backend.RangeEnd(backend.NewKey(prefix))
 		}
 		var iteratorErr error
 		iterateRange(&item{Key: startKey}, &item{Key: endKey}, func(item *item) bool {
@@ -282,18 +268,18 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 	return res, nextKey, nil
 }
 
-func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
+func getStartKey(req *proto.ListUnifiedResourcesRequest) backend.Key {
 	// if startkey exists, return it
 	if req.StartKey != "" {
-		return []byte(req.StartKey)
+		return backend.Key(req.StartKey)
 	}
 	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list
 	if req.SortBy.IsDesc {
-		return backend.RangeEnd(backend.Key(prefix))
+		return backend.RangeEnd(backend.NewKey(prefix))
 	}
 	// return start of the list
-	return backend.Key(prefix)
+	return backend.NewKey(prefix)
 }
 
 func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]types.ResourceWithLabels, string, error) {
@@ -314,7 +300,7 @@ func (c *UnifiedResourceCache) IterateUnifiedResources(ctx context.Context, matc
 // GetUnifiedResources returns a list of all resources stored in the current unifiedResourceCollector tree in ascending order
 func (c *UnifiedResourceCache) GetUnifiedResources(ctx context.Context) ([]types.ResourceWithLabels, error) {
 	req := &proto.ListUnifiedResourcesRequest{Limit: backend.NoLimit, SortBy: types.SortBy{IsDesc: false, Field: sortByName}}
-	result, _, err := c.getRange(ctx, backend.Key(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
+	result, _, err := c.getRange(ctx, backend.NewKey(prefix), func(rwl types.ResourceWithLabels) (bool, error) { return true, nil }, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,7 +319,7 @@ func (c *UnifiedResourceCache) GetUnifiedResourcesByIDs(ctx context.Context, ids
 
 	err := c.read(ctx, func(cache *UnifiedResourceCache) error {
 		for _, id := range ids {
-			key := backend.Key(prefix, id)
+			key := backend.NewKey(prefix, id)
 			res, found := cache.nameTree.Get(&item{Key: key})
 			if !found || res == nil {
 				continue
@@ -385,8 +371,8 @@ func resourceKey(resource types.Resource) string {
 }
 
 type resourceSortKey struct {
-	byName []byte
-	byType []byte
+	byName backend.Key
+	byType backend.Key
 }
 
 // resourceSortKey will generate a key to be used in the sort trees
@@ -432,8 +418,8 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	return resourceSortKey{
 		// names should be stored as lowercase to keep items sorted as
 		// expected, regardless of case
-		byName: backend.Key(prefix, strings.ToLower(name), kind),
-		byType: backend.Key(prefix, kind, strings.ToLower(name)),
+		byName: backend.NewKey(prefix, strings.ToLower(name), kind),
+		byType: backend.NewKey(prefix, kind, strings.ToLower(name)),
 	}
 }
 
@@ -468,8 +454,8 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	// empty the trees
 	c.nameTree.Clear(false)
 	c.typeTree.Clear(false)
@@ -598,15 +584,15 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 // wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
 func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedResourceCache) error) error {
-	c.mu.Lock()
+	c.rw.RLock()
 
 	if !c.stale {
 		err := fn(c)
-		c.mu.Unlock()
+		c.rw.RUnlock()
 		return err
 	}
 
-	c.mu.Unlock()
+	c.rw.RUnlock()
 	ttlCache, err := utils.FnCacheGet(ctx, c.cache, "unified_resources", func(ctx context.Context) (*UnifiedResourceCache, error) {
 		fallbackCache := &UnifiedResourceCache{
 			cfg: c.cfg,
@@ -625,15 +611,15 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 		}
 		return fallbackCache, nil
 	})
-	c.mu.Lock()
+	c.rw.RLock()
 
 	if !c.stale {
 		// primary became healthy while we were waiting
 		err := fn(c)
-		c.mu.Unlock()
+		c.rw.RUnlock()
 		return err
 	}
-	c.mu.Unlock()
+	c.rw.RUnlock()
 
 	if err != nil {
 		// ttl-tree setup failed
@@ -645,8 +631,8 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 }
 
 func (c *UnifiedResourceCache) notifyStale() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.rw.Lock()
+	defer c.rw.Unlock()
 	c.stale = true
 }
 
@@ -665,20 +651,29 @@ func (c *UnifiedResourceCache) IsInitialized() bool {
 	}
 }
 
-func (c *UnifiedResourceCache) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil {
-		c.log.Warnf("Unexpected event: %v.", event)
+func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	c.rw.Lock()
+	defer c.rw.Unlock()
+
+	if c.stale {
 		return
 	}
 
-	switch event.Type {
-	case types.OpDelete:
-		c.delete(ctx, event.Resource)
-	case types.OpPut:
-		c.put(ctx, event.Resource.(resource))
-	default:
-		c.log.Warnf("unsupported event type %s.", event.Type)
-		return
+	for _, event := range events {
+		if event.Resource == nil {
+			c.log.Warnf("Unexpected event: %v.", event)
+			continue
+		}
+
+		switch event.Type {
+		case types.OpDelete:
+			c.deleteLocked(event.Resource)
+		case types.OpPut:
+			c.putLocked(event.Resource.(resource))
+		default:
+			c.log.Warnf("unsupported event type %s.", event.Type)
+			continue
+		}
 	}
 }
 
@@ -715,7 +710,7 @@ func (i *item) Less(iother btree.Item) bool {
 // prefixItem is used for prefix matches on a B-Tree
 type prefixItem struct {
 	// prefix is a prefix to match
-	prefix []byte
+	prefix backend.Key
 }
 
 // Less is used for Btree operations
@@ -732,7 +727,7 @@ type resource interface {
 type item struct {
 	// Key is a key of the key value item. This will be different based on which sorting tree
 	// the item is in
-	Key []byte
+	Key backend.Key
 	// Value will be the resourceKey used in the resources map to get the resource
 	Value string
 }
@@ -779,7 +774,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
 
-		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, RequiresRequest: requiresRequest}
+		protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServer{AppServer: app}, Logins: logins, RequiresRequest: requiresRequest}
 	case types.KindNode:
 		srv, ok := resource.(*types.ServerV2)
 		if !ok {

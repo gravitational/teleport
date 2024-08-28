@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -76,17 +75,16 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		ClusterName: "me.localhost",
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tt.b.Close())
+	})
 
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	tt.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -645,6 +643,9 @@ func TestValidateClientRedirect(t *testing.T) {
 			"https://127.0.0.1:12345/callback",
 			"https://localhost:12345/callback",
 			"https://localhost/callback",
+			"ftp://localhost/callback",
+			"ftp://127.0.0.1/callback",
+			"ftp://[::1]/callback",
 		} {
 			const ssoTestFlowFalse = false
 			var defaultSettings *types.SSOClientRedirectSettings
@@ -695,6 +696,60 @@ func TestValidateClientRedirect(t *testing.T) {
 					"allowed.domain.invalid",
 					"*.allowed.with.subdomain.invalid",
 					"^[-a-zA-Z0-9]+.no.subsubdomain.invalid",
+				},
+			}
+			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+	})
+
+	t.Run("InsecureAllowedCidrRanges", func(t *testing.T) {
+		for _, goodURL := range []string{
+			"http://192.168.0.27/callback",
+			"https://192.168.0.27/callback",
+			"http://192.168.0.27:1337/callback",
+			"https://192.168.0.27:1337/callback",
+			"http://[2001:db8::aaaa:bbbb]/callback",
+			"https://[2001:db8::aaaa:bbbb]/callback",
+			"http://[2001:db8::aaaa:bbbb]:1337/callback",
+			"https://[2001:db8::aaaa:bbbb]:1337/callback",
+			"http://[2001:db8::1]/callback",
+			"https://[2001:db8::1]/callback",
+			"http://[2001:db8::1]:1337/callback",
+			"https://[2001:db8::1]:1337/callback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				InsecureAllowedCidrRanges: []string{
+					"192.168.0.0/24",
+					"2001:db8::/96",
+				},
+			}
+			require.NoError(t, ValidateClientRedirect(goodURL+"?secret_key=", ssoTestFlowFalse, settings))
+		}
+
+		for _, badURL := range []string{
+			"http://192.168.1.1/callback",
+			"https://192.168.1.1/callback",
+			"http://192.168.1.1:80/callback",
+			"https://192.168.1.1:443/callback",
+			"http://[2001:db8::1:aaaa:bbbb]/callback",
+			"https://[2001:db8::1:aaaa:bbbb]/callback",
+			"http://[2001:db8::1:aaaa:bbbb]:80/callback",
+			"https://[2001:db8::1:aaaa:bbbb]:443/callback",
+			"http://[2001:db9::]/callback",
+			"https://[2001:db9::]/callback",
+			"http://not.an.ip/callback",
+			"https://not.an.ip/callback",
+			"http://192.168.0.27/nocallback",
+			"https://192.168.0.27/nocallback",
+			"http://[2001:db8::1]/notacallback",
+			"https://[2001:db8::1]/notacallback",
+		} {
+			const ssoTestFlowFalse = false
+			settings := &types.SSOClientRedirectSettings{
+				InsecureAllowedCidrRanges: []string{
+					"192.168.0.0/24",
+					"2001:db8::/96",
 				},
 			}
 			require.Error(t, ValidateClientRedirect(badURL+"?secret_key=", ssoTestFlowFalse, settings))

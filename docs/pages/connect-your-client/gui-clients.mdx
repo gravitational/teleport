@@ -14,7 +14,7 @@ work with Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../database-access/guides.mdx) for how to set up the Teleport
+  [guides](../enroll-resources/database-access/guides.mdx) for how to set up the Teleport
   Database Service for your database.
 
 ### Get connection information
@@ -48,7 +48,7 @@ is `127.0.0.1:62652`.
 
 </TabItem>
 <TabItem label="TLS routing">
-If you're using Teleport in [TLS routing](../management/operations/tls-routing.mdx)
+If you're using Teleport in [TLS routing](../admin-guides/management/operations/tls-routing.mdx)
 mode where each database protocol is multiplexed on the same web proxy port, use
 the following command to start a local TLS proxy your GUI database client will
 be connecting to:
@@ -478,3 +478,32 @@ Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
 Click "Proceed", then click "Finish".
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+## Oracle SQL Developer
+
+The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
+```
+tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
+```
+
+<Notice type="tip">
+This command uses the local port 1521, but you can choose any port, or let
+`tsh` pick a local port at random if you omit the `--port` flag.
+You should specify a port to avoid the need to reconfigure your GUI client again
+later.
+</Notice>
+
+In "Connections" click the "+" button for a new database connection:
+
+![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/oracle-sql-developer-add-database.png)
+
+Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
+set the "Custom JDBC URL" from the `tsh proxy db` command.
+
+![Oracle SQL Developer](../../img/database-access/guides/oracle/oracle-sql-developer-general.png)
+
+Now you can click "Test" to check your configuration.
+
+![Oracle SQL Developer Success](../../img/database-access/guides/oracle/oracle-sql-developer-success.png)
+
+Congratulations! You have just connected to your Oracle instance.

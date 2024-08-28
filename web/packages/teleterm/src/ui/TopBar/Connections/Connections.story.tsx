@@ -150,37 +150,6 @@ export function VnetError() {
   );
 }
 
-export function VnetUnexpectedShutdown() {
-  const appContext = new MockAppContext();
-  prepareAppContext(appContext);
-
-  appContext.statePersistenceService.putState({
-    ...appContext.statePersistenceService.getState(),
-    vnet: { autoStart: true },
-  });
-  appContext.workspacesService.setState(draft => {
-    draft.isInitialized = true;
-  });
-  appContext.vnet.start = () => {
-    setTimeout(() => {
-      appContext.unexpectedVnetShutdownListener({
-        error: 'lorem ipsum dolor sit amet',
-      });
-    }, 0);
-    return new MockedUnaryCall({});
-  };
-
-  return (
-    <AppContextProvider value={appContext}>
-      <ConnectionsContextProvider>
-        <VnetContextProvider>
-          <Connections />
-        </VnetContextProvider>
-      </ConnectionsContextProvider>
-    </AppContextProvider>
-  );
-}
-
 export function WithScroll() {
   const appContext = new MockAppContext();
   prepareAppContext(appContext);

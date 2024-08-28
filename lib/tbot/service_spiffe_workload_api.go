@@ -19,7 +19,6 @@
 package tbot
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -34,10 +33,13 @@ import (
 	"sync"
 	"time"
 
+	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -54,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
 
@@ -85,15 +88,17 @@ type SPIFFEWorkloadAPIService struct {
 	// client holds the impersonated client for the service
 	client *authclient.Client
 
-	trustDomain string
+	trustDomain spiffeid.TrustDomain
+
+	attestor *workloadattest.Attestor
 
 	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
 	// getTrustBundle to access it.
-	trustBundle   []byte
+	trustBundle   *x509bundle.Bundle
 	trustBundleMu sync.Mutex
 }
 
-func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
+func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle *x509bundle.Bundle) {
 	s.trustBundleMu.Lock()
 	s.trustBundle = trustBundle
 	s.trustBundleMu.Unlock()
@@ -101,29 +106,45 @@ func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle []byte) {
 	s.trustBundleBroadcast.broadcast()
 }
 
-func (s *SPIFFEWorkloadAPIService) getTrustBundle() []byte {
+func (s *SPIFFEWorkloadAPIService) getTrustBundle() *x509bundle.Bundle {
 	s.trustBundleMu.Lock()
 	defer s.trustBundleMu.Unlock()
 	return s.trustBundle
 }
 
+// trustBundleToRawCerts converts a trust bundle's certs to raw bytes.
+// What's particularly special is that the certs are not pem encoded and
+// are appended directly to one another. This is the way that the SPIFFE
+// workload API clients expect.
+func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
+	out := []byte{}
+	for _, cert := range bundle.X509Authorities() {
+		out = append(out, cert.Raw...)
+	}
+	return out
+}
+
 func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
-	cas, err := s.botClient.GetCertAuthorities(ctx, types.SPIFFECA, false)
+	ca, err := s.botClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: s.trustDomain.Name(),
+	}, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	trustBundleBytes := &bytes.Buffer{}
-	for _, ca := range cas {
-		for _, cert := range services.GetTLSCerts(ca) {
-			// The values from GetTLSCerts are PEM encoded. We need them to be
-			// the bare ASN.1 DER encoded certificate.
-			block, _ := pem.Decode(cert)
-			trustBundleBytes.Write(block.Bytes)
+
+	bundle := x509bundle.New(s.trustDomain)
+	for _, certBytes := range services.GetTLSCerts(ca) {
+		block, _ := pem.Decode(certBytes)
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return trace.Wrap(err, "parsing cert")
 		}
+		bundle.AddX509Authority(cert)
 	}
 
 	s.log.InfoContext(ctx, "Fetched new trust bundle")
-	s.setTrustBundle(trustBundleBytes.Bytes())
+	s.setTrustBundle(bundle)
 	return nil
 }
 
@@ -161,14 +182,19 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 		}
 	}()
 
-	if err := s.fetchBundle(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-	authPing, err := client.Ping(ctx)
+	s.trustDomain, err = spiffeid.TrustDomainFromString(facade.Get().ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.trustDomain = authPing.ClusterName
+
+	if err := s.fetchBundle(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
+	if err != nil {
+		return trace.Wrap(err, "setting up workload attestation")
+	}
 
 	return nil
 }
@@ -264,6 +290,17 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
 	workloadpb.RegisterSpiffeWorkloadAPIServer(srv, s)
+	sdsHandler := &spiffeSDSHandler{
+		log:    s.log,
+		cfg:    s.cfg,
+		botCfg: s.botCfg,
+
+		clientAuthenticator:         s.authenticateClient,
+		trustBundleGetter:           s.getTrustBundle,
+		trustBundleUpdateSubscriber: s.trustBundleBroadcast.subscribe,
+		svidFetcher:                 s.fetchX509SVIDs,
+	}
+	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
 	lis, err := createListener(ctx, s.log, s.cfg.Listen)
 	if err != nil {
@@ -356,13 +393,14 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	// contention on the mutex and to ensure that all SVIDs are using the
 	// same trust bundle.
 	trustBundle := s.getTrustBundle()
+	bundleRawCerts := trustBundleToRawCerts(trustBundle)
 
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
 	// every request.
-	res, privateKey, err := config.GenerateSVID(
+	res, privateKey, err := generateSVID(
 		ctx,
-		s.client.WorkloadIdentityServiceClient(),
+		s.client,
 		svidRequests,
 		// For TTL, we use the one globally configured.
 		s.botCfg.CertificateTTL,
@@ -390,7 +428,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
-			Bundle: trustBundle,
+			Bundle: bundleRawCerts,
 			Hint:   svidRes.Hint,
 		}
 		cert, err := x509.ParseCertificate(svidRes.Certificate)
@@ -419,11 +457,16 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 
 // filterSVIDRequests filters the SVID requests based on the workload
 // attestation.
+//
+// TODO(noah): In a future PR, we need to totally refactor this to a more
+// flexible rules engine otherwise this is going to get absurdly large as
+// we add more types. Ideally, something that would be compatible with a
+// predicate language would be great.
 func filterSVIDRequests(
 	ctx context.Context,
 	log *slog.Logger,
 	svidRequests []config.SVIDRequestWithRules,
-	udsCreds *uds.Creds,
+	att workloadattest.Attestation,
 ) []config.SVIDRequest {
 	var filtered []config.SVIDRequest
 	for _, req := range svidRequests {
@@ -442,33 +485,91 @@ func filterSVIDRequests(
 		match := false
 		for _, rule := range req.Rules {
 			log := log.With("rule", rule)
+			logMismatch := func(field string, want any, got any) {
+				log.DebugContext(
+					ctx,
+					"Rule did not match workload attestation",
+					"field", field,
+					"want", want,
+					"got", got,
+				)
+			}
+			logNotAttested := func(requiredAttestor string) {
+				log.DebugContext(
+					ctx,
+					"Workload did not complete attestation required for this rule",
+					"required_attestor", requiredAttestor,
+				)
+			}
 			log.DebugContext(
 				ctx,
 				"Evaluating rule against workload attestation",
 			)
-			if rule.Unix.UID != nil && (udsCreds == nil || *rule.Unix.UID != udsCreds.UID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.uid",
-				)
-				continue
+			if rule.Unix.UID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.UID != att.Unix.UID {
+					logMismatch("unix.uid", *rule.Unix.UID, att.Unix.UID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.PID != nil && (udsCreds == nil || *rule.Unix.PID != udsCreds.PID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.pid",
-				)
-				continue
+			if rule.Unix.PID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.PID != att.Unix.PID {
+					logMismatch("unix.pid", *rule.Unix.PID, att.Unix.PID)
+					continue
+				}
+				// Rule field matched!
 			}
-			if rule.Unix.GID != nil && (udsCreds == nil || *rule.Unix.GID != udsCreds.GID) {
-				log.DebugContext(
-					ctx,
-					"Rule did not match workload attestation",
-					"field", "unix.gid",
-				)
-				continue
+			if rule.Unix.GID != nil {
+				if !att.Unix.Attested {
+					logNotAttested("unix")
+					continue
+				}
+				if *rule.Unix.GID != att.Unix.GID {
+					logMismatch("unix.gid", *rule.Unix.GID, att.Unix.GID)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.Namespace != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.Namespace != att.Kubernetes.Namespace {
+					logMismatch("kubernetes.namespace", rule.Kubernetes.Namespace, att.Kubernetes.Namespace)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.PodName != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.PodName != att.Kubernetes.PodName {
+					logMismatch("kubernetes.pod_name", rule.Kubernetes.PodName, att.Kubernetes.PodName)
+					continue
+				}
+				// Rule field matched!
+			}
+			if rule.Kubernetes.ServiceAccount != "" {
+				if !att.Kubernetes.Attested {
+					logNotAttested("kubernetes")
+					continue
+				}
+				if rule.Kubernetes.ServiceAccount != att.Kubernetes.ServiceAccount {
+					logMismatch("kubernetes.service_account", rule.Kubernetes.ServiceAccount, att.Kubernetes.ServiceAccount)
+					continue
+				}
+				// Rule field matched!
 			}
 
 			log.DebugContext(
@@ -489,6 +590,36 @@ func filterSVIDRequests(
 	return filtered
 }
 
+func (s *SPIFFEWorkloadAPIService) authenticateClient(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error) {
+	// The zero value of the attestation is equivalent to no attestation.
+	var att workloadattest.Attestation
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, att, trace.BadParameter("peer not found in context")
+	}
+	log := s.log
+	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
+
+	if ok && authInfo.Creds != nil {
+		var err error
+		att, err = s.attestor.Attest(ctx, authInfo.Creds.PID)
+		if err != nil {
+			return nil, att, trace.Wrap(err, "performing workload attestation")
+		}
+		log = log.With(
+			"workload", slog.LogValuer(att),
+		)
+	}
+	if p.Addr.String() != "" {
+		log = log.With(
+			slog.String("remote_addr", p.Addr.String()),
+		)
+	}
+
+	return log, att, nil
+}
+
 // FetchX509SVID generates and returns the X.509 SVIDs available to a workload.
 // It is a streaming RPC, and sends renewed SVIDs to the client before they
 // expire.
@@ -501,29 +632,9 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	defer unsubscribe()
 	ctx := srv.Context()
 
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return trace.BadParameter("peer not found in context")
-	}
-	log := s.log
-	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
-	if ok && authInfo.Creds != nil {
-		log = log.With(
-			slog.Group("workload",
-				slog.Group("unix",
-					"pid", authInfo.Creds.PID,
-					"uid", authInfo.Creds.UID,
-					"gid", authInfo.Creds.GID,
-				),
-			),
-		)
-	}
-	if p.Addr.String() != "" {
-		log = log.With(
-			slog.Group("workload",
-				slog.String("addr", p.Addr.String()),
-			),
-		)
+	log, creds, err := s.authenticateClient(ctx)
+	if err != nil {
+		return trace.Wrap(err, "authenticating client")
 	}
 
 	log.InfoContext(ctx, "FetchX509SVID stream opened by workload")
@@ -531,7 +642,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 
 	// Before we issue the SVIDs to the workload, we need to complete workload
 	// attestation and determine which SVIDs to issue.
-	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, authInfo.Creds)
+	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
 
 	// The SPIFFE Workload API (5.2.1):
 	//
@@ -596,10 +707,11 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 
 	for {
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
+		tb := s.getTrustBundle()
 		err := srv.Send(&workloadpb.X509BundlesResponse{
 			// Bundles keyed by trust domain
 			Bundles: map[string][]byte{
-				s.trustDomain: s.getTrustBundle(),
+				tb.TrustDomain().IDString(): trustBundleToRawCerts(tb),
 			},
 		})
 		if err != nil {

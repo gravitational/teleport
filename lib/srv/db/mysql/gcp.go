@@ -77,7 +77,7 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 	switch {
 	// GetUser permission is new for IAM auth. If no permission, assume legacy password user.
 	case trace.IsAccessDenied(err):
-		e.Log.WithField("user", sessionCtx.DatabaseUser).Debug("Access denied to get GCP MySQL database user info. Continue with password auth.")
+		e.Log.DebugContext(e.Context, "Access denied to get GCP MySQL database user info. Continue with password auth.", "user", sessionCtx.DatabaseUser)
 		password, err := e.getGCPOneTimePassword(ctx, sessionCtx)
 		if err != nil {
 			return "", "", trace.Wrap(err)
@@ -125,15 +125,15 @@ func (e *Engine) getGCPUserAndPassword(ctx context.Context, sessionCtx *common.S
 }
 
 func (e *Engine) getGCPIAMAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with IAM auth.")
+	e.Log.DebugContext(ctx, "Authenticating GCP MySQL with IAM auth.", "session", sessionCtx)
 
 	// Note that sessionCtx.DatabaseUser is the service account.
-	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx)
+	password, err := e.Auth.GetCloudSQLAuthToken(ctx, sessionCtx.DatabaseUser)
 	return password, trace.Wrap(err)
 }
 
 func (e *Engine) getGCPOneTimePassword(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	e.Log.WithField("session", sessionCtx).Debug("Authenticating GCP MySQL with password auth.")
+	e.Log.DebugContext(ctx, "Authenticating GCP MySQL with password auth.", "session", sessionCtx)
 
 	// For Cloud SQL MySQL legacy auth, we use one-time passwords by resetting
 	// the database user password for each connection. Thus, acquire a lock to
@@ -151,10 +151,10 @@ func (e *Engine) getGCPOneTimePassword(ctx context.Context, sessionCtx *common.S
 	defer func() {
 		err := e.AuthClient.CancelSemaphoreLease(ctx, *lease)
 		if err != nil {
-			e.Log.WithError(err).Errorf("Failed to cancel lease: %v.", lease)
+			e.Log.ErrorContext(ctx, "Failed to cancel lease.", "lease", lease, "error", err)
 		}
 	}()
-	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx)
+	password, err := e.Auth.GetCloudSQLPassword(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

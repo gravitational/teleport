@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,8 +42,8 @@ import (
 // wallet.jks   - Java Wallet format used by JDBC Drivers.
 // sqlnet.ora   - Generic Oracle Client Configuration File allowing to specify Wallet Location.
 // tnsnames.ora - Oracle Net Service mapped to connections descriptors.
-func GenerateClientConfiguration(key *client.Key, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
-	walletPath := profile.OracleWalletDir(key.ClusterName, db.ServiceName)
+func GenerateClientConfiguration(keyRing *client.KeyRing, db tlsca.RouteToDatabase, profile *client.ProfileStatus) error {
+	walletPath := profile.OracleWalletDir(keyRing.ClusterName, db.ServiceName)
 	if err := os.MkdirAll(walletPath, teleport.PrivateDirMode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -56,7 +57,7 @@ func GenerateClientConfiguration(key *client.Key, db tlsca.RouteToDatabase, prof
 		return trace.ConvertSystemError(err)
 	}
 
-	jksWalletPath, err := createClientWallet(key, localProxyCAPem, password, walletPath)
+	jksWalletPath, err := createClientWallet(keyRing, localProxyCAPem, password, walletPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,8 +73,8 @@ func GenerateClientConfiguration(key *client.Key, db tlsca.RouteToDatabase, prof
 	return nil
 }
 
-func createClientWallet(key *client.Key, certPem []byte, password string, walletPath string) (string, error) {
-	buff, err := createJKSWallet(key.PrivateKeyPEM(), certPem, certPem, password)
+func createClientWallet(keyRing *client.KeyRing, certPem []byte, password string, walletPath string) (string, error) {
+	buff, err := createJKSWallet(keyRing.PrivateKey.PrivateKeyPEM(), certPem, certPem, password)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -85,11 +86,11 @@ func createClientWallet(key *client.Key, certPem []byte, password string, wallet
 }
 
 func createJKSWallet(keyPEM, certPEM, caPEM []byte, password string) ([]byte, error) {
-	key, err := utils.ParsePrivateKey(keyPEM)
+	key, err := keys.ParsePrivateKey(keyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	privateKey, err := x509.MarshalPKCS8PrivateKey(key)
+	privateKey, err := x509.MarshalPKCS8PrivateKey(key.Signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

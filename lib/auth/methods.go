@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -198,9 +197,6 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 }
 
 var (
-	// authenticateHeadlessError is the generic error returned for failed headless
-	// authentication attempts.
-	authenticateHeadlessError = &trace.AccessDeniedError{Message: "headless authentication failed"}
 	// authenticateWebauthnError is the generic error returned for failed WebAuthn
 	// authentication attempts.
 	authenticateWebauthnError = &trace.AccessDeniedError{Message: "invalid credentials"}
@@ -301,6 +297,18 @@ func (a *Server) authenticateUserInternal(
 	user = req.Username
 	passwordless := user == ""
 
+	// Headless auth is treated more like sso login or access requests than local login,
+	// meaning it should be allowed for non-local users and failed headless auth attempts
+	// should not lock out the user (we skip the WithUserLock wrapper).
+	if req.HeadlessAuthenticationID != "" {
+		mfaDev, err = a.authenticateHeadless(ctx, req)
+		if err != nil {
+			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			return nil, "", trace.Wrap(err)
+		}
+		return mfaDev, user, nil
+	}
+
 	// Only one path if passwordless, other variants shouldn't see an empty user.
 	if passwordless {
 		if requiredExt.Scope != mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN {
@@ -331,18 +339,6 @@ func (a *Server) authenticateUserInternal(
 	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
-	case req.HeadlessAuthenticationID != "":
-		// handle authentication before the user lock to prevent locking out users
-		// due to timed-out/canceled headless authentication attempts.
-		mfaDevice, err := a.authenticateHeadless(ctx, req)
-		if err != nil {
-			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
-			return nil, "", trace.Wrap(authenticateHeadlessError)
-		}
-		authenticateFn = func() (*types.MFADevice, error) {
-			return mfaDevice, nil
-		}
-		authErr = authenticateHeadlessError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			if req.Pass != nil {
@@ -499,7 +495,8 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
-	ha.PublicKey = req.PublicKey
+	ha.SshPublicKey = req.SSHPublicKey
+	ha.TlsPublicKey = req.TLSPublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
 		return nil, trace.Wrap(err)
@@ -536,8 +533,11 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
-	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-		return nil, trace.AccessDenied("headless authentication public key mismatch")
+	if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+		return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
+	}
+	if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+		return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 	}
 
 	return approvedHeadlessAuthn.MfaDevice, nil
@@ -631,36 +631,17 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
 	}
 
 	return sess, nil
@@ -669,13 +650,18 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
 func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !authPref.GetAllowLocalAuth() {
+
+	// Disable all local auth requests, except headless requests.
+	if !authPref.GetAllowLocalAuth() && req.HeadlessAuthenticationID == "" {
 		a.emitNoLocalAuthEvent(username)
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
@@ -717,16 +703,18 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	}
 
 	certReq := certRequest{
-		user:                 user,
-		ttl:                  req.TTL,
-		publicKey:            req.PublicKey,
-		compatibility:        req.CompatibilityMode,
-		checker:              checker,
-		traits:               user.GetTraits(),
-		routeToCluster:       req.RouteToCluster,
-		kubernetesCluster:    req.KubernetesCluster,
-		loginIP:              clientIP,
-		attestationStatement: req.AttestationStatement,
+		user:                             user,
+		ttl:                              req.TTL,
+		sshPublicKey:                     req.SSHPublicKey,
+		tlsPublicKey:                     req.TLSPublicKey,
+		compatibility:                    req.CompatibilityMode,
+		checker:                          checker,
+		traits:                           user.GetTraits(),
+		routeToCluster:                   req.RouteToCluster,
+		kubernetesCluster:                req.KubernetesCluster,
+		loginIP:                          clientIP,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
@@ -735,8 +723,11 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-			return nil, trace.AccessDenied("headless authentication public key mismatch")
+		if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+			return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
+		}
+		if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 		}
 		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
 		certReq.ttl = time.Minute

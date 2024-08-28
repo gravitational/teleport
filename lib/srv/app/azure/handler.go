@@ -262,7 +262,6 @@ func (s *handler) parseAuthHeader(token string, pubKey crypto.PublicKey) (*jwt.A
 	key, err := jwt.New(&jwt.Config{
 		Clock:       s.Clock,
 		PublicKey:   pubKey,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {

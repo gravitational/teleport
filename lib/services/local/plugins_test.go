@@ -97,7 +97,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.IsType(t, trace.AlreadyExists(""), err)
 
 	// Set plugin status.
-	status := types.PluginStatusV1{
+	status := &types.PluginStatusV1{
 		Code: types.PluginStatusCode_OTHER_ERROR,
 	}
 	err = service.SetPluginStatus(ctx, plugin1.GetName(), status)

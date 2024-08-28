@@ -29,11 +29,6 @@ import (
 )
 
 var PEMBytes = map[string][]byte{
-	"ecdsa": []byte(`-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEINGWx0zo6fhJ/0EAfrPzVFyFC9s18lBt3cRoEDhS3ARooAoGCCqGSM49
-AwEHoUQDQgAEi9Hdw6KvZcWxfg2IDhA7UkpDtzzt6ZqJXSsFdLd+Kx4S3Sx4cVO+
-6/ZOXRnPmNAlLUqjShUsUBBngG0u2fqEqA==
------END EC PRIVATE KEY-----`),
 	"rsa": []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAz1MArBKUGR4pHEwGS8PC6buJcjY7IHd5E8N7bDezVlmkZhz3
 2bMLCkKpoHGrcgL5UmiyTjcMZkfp/mVVkqGGQo+7ufiSbrUMgWhXpy0JL+ec2THY
@@ -128,6 +123,14 @@ f9Oeos0UUothgiDktdQHxdNEwLjQf7lJJBzV+5OtwswCWA==
 -----END RSA TESTING KEY-----`))
 
 func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
+
+var LocalhostTLSCertificate = func() tls.Certificate {
+	c, err := tls.X509KeyPair(LocalhostCert, LocalhostKey)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}()
 
 // TLSConfig is TLS configuration for running local TLS tests
 type TLSConfig struct {

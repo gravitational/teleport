@@ -25,9 +25,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,9 +89,72 @@ func TestX509KeyPair(t *testing.T) {
 			tlsCert, err := X509KeyPair(tc.certPEM, tc.keyPEM)
 			require.NoError(t, err)
 
-			require.Equal(t, expectCert, tlsCert)
+			require.Empty(t, cmp.Diff(expectCert, tlsCert, cmpopts.IgnoreFields(tls.Certificate{}, "Leaf")))
 		})
 	}
+}
+
+func TestX509Certificate(t *testing.T) {
+	// Checking certificate expiry to see if the certificate got parsed and we did not get an empty struct.
+	hasExpiry := func(t require.TestingT, i interface{}, args ...interface{}) {
+		cert, ok := i.(*x509.Certificate)
+		require.True(t, ok)
+		require.NotNil(t, cert)
+		require.Equal(t, rsaCertExpiry, cert.NotAfter)
+	}
+
+	nilCert := func(t require.TestingT, i interface{}, args ...interface{}) {
+		cert, ok := i.(*x509.Certificate)
+		require.True(t, ok)
+		require.Nil(t, cert)
+	}
+
+	for _, tc := range []struct {
+		name           string
+		keyPEM         []byte
+		certPEM        []byte
+		expectedLength int
+		expectedError  require.ErrorAssertionFunc
+		validateResult require.ValueAssertionFunc
+	}{
+		{
+			name:           "rsa cert",
+			certPEM:        rsaCertPEM,
+			expectedLength: 1,
+			expectedError:  require.NoError,
+			validateResult: hasExpiry,
+		}, {
+			name: "rsa certs",
+			certPEM: func() []byte {
+				// encode two certs into certPEM.
+				rsaCertPEMDuplicated := new(bytes.Buffer)
+				der, _ := pem.Decode(rsaCertPEM)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				pem.Encode(rsaCertPEMDuplicated, der)
+				return rsaCertPEMDuplicated.Bytes()
+			}(),
+			expectedLength: 2,
+			expectedError:  require.NoError,
+			validateResult: hasExpiry,
+		},
+		{
+			name:           "no cert",
+			certPEM:        []byte{},
+			expectedLength: 0,
+			expectedError:  require.Error,
+			validateResult: nilCert,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cert, rawCerts, err := X509Certificate(tc.certPEM)
+			require.Len(t, rawCerts, tc.expectedLength)
+
+			tc.expectedError(t, err)
+
+			tc.validateResult(t, cert)
+		})
+	}
+
 }
 
 var (
@@ -141,4 +208,5 @@ mg0exCUFW40aXpfm0z0dNNwoN+FPSefKMYMQ1LV87I6zGnmVTYH9Nix3REiuliIQ
 7XXnJc7A6tsc6yXdVG6IpGnKXuTvl/r4iIbH+JDv3MDSvZSCE5kzAPFjgB3zMAZ8
 Z0+424ERgom0Zdy75Y8I
 -----END CERTIFICATE-----`)
+	rsaCertExpiry = time.Date(2022, time.September, 21, 19, 1, 1, 0, time.UTC)
 )

@@ -19,6 +19,7 @@
 package ui
 
 import (
+	"cmp"
 	"sort"
 
 	"github.com/sirupsen/logrus"
@@ -56,6 +57,9 @@ type App struct {
 	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 	// SAMLApp if true, indicates that the app is a SAML Application (SAML IdP Service Provider)
 	SAMLApp bool `json:"samlApp,omitempty"`
+	// SAMLAppPreset is the preset value of SAML IdP service provider. The SAML service provider
+	// preset value is used to process custom configuration for the service provider.
+	SAMLAppPreset string `json:"samlAppPreset,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 	// Integration is the integration name that must be used to access this Application.
@@ -152,6 +156,8 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
 // Keep in sync with lib/teleterm/apiserver/handler/handler_apps.go.
+// Note: The SAMLAppPreset field is used in SAML service provider update flow in the
+// Web UI. Thus, this field is currently not available in the Connect App type.
 func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) App {
 	labels := makeLabels(app.GetAllLabels())
 	resultApp := App{
@@ -163,6 +169,7 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 		ClusterID:       c.AppClusterName,
 		FriendlyName:    types.FriendlyName(app),
 		SAMLApp:         true,
+		SAMLAppPreset:   cmp.Or(app.GetPreset(), "unspecified"),
 		RequiresRequest: c.RequiresRequest,
 	}
 

@@ -38,7 +38,7 @@ const (
 
 	// PackageNameOSS is the teleport package name for the OSS version.
 	PackageNameOSS = "teleport"
-	// PackageNameOSS is the teleport package name for the Enterprise version.
+	// PackageNameEnt is the teleport package name for the Enterprise version.
 	PackageNameEnt = "teleport-ent"
 
 	// ActionRead grants read access (get, list)
@@ -65,6 +65,10 @@ const (
 
 	// KindBot is a Machine ID bot resource
 	KindBot = "bot"
+	// KindBotInstance is an instance of a Machine ID bot
+	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -519,8 +523,26 @@ const (
 	// KindUserNotificationState is a resource which tracks whether a user has clicked on or dismissed a notification.
 	KindUserNotificationState = "user_notification_state"
 
+	// KindAccessGraphSecretAuthorizedKey is a authorized key entry found in
+	// a Teleport SSH node type.
+	KindAccessGraphSecretAuthorizedKey = "access_graph_authorized_key"
+
+	// KindAccessGraphSecretPrivateKey is a private key entry found in
+	// a managed device.
+	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
+
+	// KindAccessGraphSettings is a resource which holds cluster-wide configuration for dynamic access graph settings.
+	KindAccessGraphSettings = "access_graph_settings"
+
+	// KindStaticHostUser is a host user to be created on matching SSH nodes.
+	KindStaticHostUser = "static_host_user"
+
+	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
+	// access graph settings.
+	MetaNameAccessGraphSettings = "access-graph-settings"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -544,6 +566,9 @@ const (
 	// not explicitly versioned.
 	V1 = "v1"
 )
+
+// PackageNameKinds is the list of valid teleport package names.
+var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt}
 
 // WebSessionSubKinds lists subkinds of web session resources
 var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
@@ -663,18 +688,32 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
+	projectIDLabelSuffix = "project-id"
+	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
-	// ZoneLabek is used to identify virtual machines by GCP zone
+	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
+	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
+	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
+	// and can be used in RBAC checks.
+	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
+	// RegionLabel is used to identify virtual machines by region found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	RegionLabel = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabel is used to identify virtual machines by resource-group found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
+	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportInternalLabelPrefix + "zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
+	ZoneLabelDiscovery = TeleportInternalLabelPrefix + "zone"
+	// NameLabelDiscovery is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportInternalLabelPrefix + "name"
+	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -717,6 +756,8 @@ const (
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	// Also added by discovery service to indicate the type of discovered
+	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
 	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
 	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
 	DiscoveryPortLabel = TeleportNamespace + "/port"
@@ -735,6 +776,8 @@ const (
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
 	// ReqAnnotationNotifySchedulesLabel is the request annotation key at which notify schedules are stored for access plugins.
 	ReqAnnotationNotifySchedulesLabel = "/notify-services"
+	// ReqAnnotationTeamsLabel is the request annotation key at which teams are stored for access plugins.
+	ReqAnnotationTeamsLabel = "/teams"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -1008,6 +1051,8 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
 
 	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
 	NotificationDefaultInformationalSubKind = "default-informational"
@@ -1166,6 +1211,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
@@ -1243,10 +1289,14 @@ var KubernetesClusterWideResourceKinds = []string{
 }
 
 const (
-	// TeleportServiceGroup is a default group that users of the
-	// teleport automated user provisioning system get added to so
-	// already existing users are not deleted
-	TeleportServiceGroup = "teleport-system"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
 )
 
 const (

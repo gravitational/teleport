@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -401,7 +400,6 @@ func TestValidateTrustedCluster(t *testing.T) {
 func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { bk.Close() })
 
 	clusterName := "me.localhost"
 	if len(name) != 0 {
@@ -415,17 +413,18 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 	authConfig := &InitConfig{
 		ClusterName:            clusterNameRes,
 		Backend:                bk,
+		VersionStorage:         NewFakeTeleportVersion(),
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
-		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
-		},
 	}
 	a, err := NewServer(authConfig)
 	require.NoError(t, err)
-	t.Cleanup(func() { a.Close() })
+
+	t.Cleanup(func() {
+		bk.Close()
+		a.Close()
+	})
+
 	require.NoError(t, a.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = a.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)

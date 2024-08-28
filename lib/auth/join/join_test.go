@@ -18,18 +18,20 @@ package join
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -282,47 +283,47 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 	return token
 }
 
-func TestVerifyALPNUpgradedConn(t *testing.T) {
-	t.Parallel()
+type authJoinClientMock struct {
+	AuthJoinClient
+	registerUsingToken func(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+}
 
-	srv := newTestTLSServer(t)
-	proxy, err := auth.NewServerIdentity(srv.Auth(), "test-proxy", types.RoleProxy)
-	require.NoError(t, err)
+func (a *authJoinClientMock) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	return a.registerUsingToken(ctx, req)
+}
 
-	tests := []struct {
-		name       string
-		serverCert []byte
-		clock      clockwork.Clock
-		checkError require.ErrorAssertionFunc
-	}{
-		{
-			name:       "proxy verified",
-			serverCert: proxy.TLSCertBytes,
-			clock:      srv.Clock(),
-			checkError: require.NoError,
-		},
-		{
-			name:       "proxy expired",
-			serverCert: proxy.TLSCertBytes,
-			clock:      clockwork.NewFakeClockAt(srv.Clock().Now().Add(defaults.CATTL + time.Hour)),
-			checkError: require.Error,
-		},
-		{
-			name:       "not proxy",
-			serverCert: []byte(fixtures.TLSCACertPEM),
-			clock:      srv.Clock(),
-			checkError: require.Error,
+// TestRegisterWithAuthClient is a unit test to validate joining using a
+// auth client supplied via RegisterParams
+func TestRegisterWithAuthClient(t *testing.T) {
+	ctx := context.Background()
+	expectedCerts := &proto.Certs{
+		SSH: []byte("ssh-cert"),
+	}
+	expectedToken := "test-token"
+	expectedRole := types.RoleBot
+	called := false
+	m := &authJoinClientMock{
+		registerUsingToken: func(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+			assert.Empty(t, cmp.Diff(
+				req,
+				&types.RegisterUsingTokenRequest{
+					Token: expectedToken,
+					Role:  expectedRole,
+				},
+			))
+			called = true
+			return expectedCerts, nil
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			serverCert, err := utils.ReadCertificates(test.serverCert)
-			require.NoError(t, err)
-
-			test.checkError(t, verifyALPNUpgradedConn(test.clock)(tls.ConnectionState{
-				PeerCertificates: serverCert,
-			}))
-		})
-	}
+	gotCerts, gotErr := Register(ctx, RegisterParams{
+		Token: expectedToken,
+		ID: state.IdentityID{
+			Role: expectedRole,
+		},
+		AuthClient: m,
+	})
+	require.NoError(t, gotErr)
+	assert.True(t, called)
+	assert.Equal(t, expectedCerts, gotCerts)
 }

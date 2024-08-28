@@ -212,24 +212,43 @@ func (client *InstanceMetadataClient) GetHostname(ctx context.Context) (string, 
 	return value, nil
 }
 
+// InstanceInfo contains the current instance's metadata information.
+// Values obtained from:
+// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#get-user-data.
+type InstanceInfo struct {
+	Location          string `json:"location"`
+	ResourceGroupName string `json:"resourceGroupName"`
+	SubscriptionID    string `json:"subscriptionId"`
+	VMID              string `json:"vmId"`
+	ResourceID        string `json:"resourceId"`
+}
+
+// GetInstanceInfo gets the Azure Instance information.
+func (client *InstanceMetadataClient) GetInstanceInfo(ctx context.Context) (*InstanceInfo, error) {
+	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var ret InstanceInfo
+	if err := utils.FastUnmarshal(body, &ret); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ret, nil
+}
+
 // GetID gets the Azure resource ID of the cloud instance.
 func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error) {
-	compute := struct {
-		ResourceID string `json:"resourceId"`
-	}{}
-	body, err := client.getRawMetadata(ctx, "/instance/compute", url.Values{"format": []string{"json"}})
+	instanceInfo, err := client.GetInstanceInfo(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if err := utils.FastUnmarshal(body, &compute); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if compute.ResourceID == "" {
+	if instanceInfo.ResourceID == "" {
 		return "", trace.NotFound("instance resource ID not available")
 	}
 
-	return compute.ResourceID, nil
+	return instanceInfo.ResourceID, nil
 }
 
 // GetAttestedData gets attested data from the instance.

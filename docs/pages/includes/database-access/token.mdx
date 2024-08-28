@@ -1,9 +1,0 @@
-{{ tokenFile="/tmp/token" }}
-
-The Database Service requires a valid join token to join your Teleport cluster.
-Run the following `tctl` command and save the token output in `{{ tokenFile }}`
-on the server that will run the Database Service:
-
-```code
-$ tctl tokens add --type=db --format=text
-```

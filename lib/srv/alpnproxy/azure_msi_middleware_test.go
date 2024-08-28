@@ -34,20 +34,25 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
+	t.Parallel()
+	for _, alg := range []cryptosuites.Algorithm{cryptosuites.RSA2048, cryptosuites.ECDSAP256} {
+		t.Run(alg.String(), func(t *testing.T) {
+			testAzureMSIMiddlewareHandleRequest(t, alg)
+		})
+	}
+}
+
+func testAzureMSIMiddlewareHandleRequest(t *testing.T, alg cryptosuites.Algorithm) {
 	newPrivateKey := func() crypto.Signer {
-		_, privateBytes, err := jwt.GenerateKeyPair()
-		require.NoError(t, err)
-		privateKey, err := utils.ParsePrivateKey(privateBytes)
+		privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
 		require.NoError(t, err)
 		return privateKey
 	}
-
 	m := &AzureMSIMiddleware{
 		Identity: "azureTestIdentity",
 		TenantID: "cafecafe-cafe-4aaa-cafe-cafecafecafe",
@@ -171,7 +176,6 @@ func TestAzureMSIMiddlewareHandleRequest(t *testing.T) {
 					key, err := jwt.New(&jwt.Config{
 						Clock:       m.Clock,
 						PrivateKey:  pk,
-						Algorithm:   defaults.ApplicationTokenAlgorithm,
 						ClusterName: types.TeleportAzureMSIEndpoint,
 					})
 					require.NoError(t, err)

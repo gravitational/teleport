@@ -48,8 +48,8 @@ func TestCreateCrownJewel(t *testing.T) {
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})
@@ -74,8 +74,8 @@ func TestUpsertCrownJewel(t *testing.T) {
 	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})
@@ -287,8 +287,8 @@ func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 	obj, err := crownjewel.NewCrownJewel(name, &crownjewelv1.CrownJewelSpec{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
 			{
-				Kinds: []string{"ssh"},
-				Name:  "test",
+				Kinds: []string{"node"},
+				Names: []string{"test"},
 			},
 		},
 	})

@@ -127,7 +127,7 @@ destinations:
 						Symlinks: botfs.SymlinksSecure,
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path: "/path/destination",
@@ -207,7 +207,7 @@ destinations:
 				Storage: &StorageConfig{
 					Destination: &DestinationMemory{},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path:     "/path/example",
@@ -248,7 +248,7 @@ destinations:
 				Storage: &StorageConfig{
 					Destination: &DestinationMemory{},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&KubernetesOutput{
 						Destination: &DestinationDirectory{
 							Path:     "/path/example",
@@ -290,7 +290,7 @@ destinations:
 				Storage: &StorageConfig{
 					Destination: &DestinationMemory{},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&ApplicationOutput{
 						Destination: &DestinationDirectory{
 							Path:     "/path/example",
@@ -332,7 +332,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -375,7 +375,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&DatabaseOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -425,7 +425,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&DatabaseOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -475,7 +475,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&DatabaseOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -525,7 +525,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&DatabaseOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -583,7 +583,7 @@ oneshot: false
 						ACLs:     "try",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&SSHHostOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -623,7 +623,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&ApplicationOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -666,7 +666,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&ApplicationOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -707,7 +707,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: []Output{
+				Services: ServiceConfigs{
 					&KubernetesOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -777,7 +777,7 @@ destinations:
 					},
 				},
 				Debug: true,
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path:     "/opt/machine-id",
@@ -817,7 +817,7 @@ destinations:
 						Symlinks: botfs.SymlinksInsecure,
 					},
 				},
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path:     "/var/tmp/machine-id",
@@ -856,7 +856,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&DatabaseOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -899,7 +899,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&KubernetesOutput{
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
@@ -957,7 +957,7 @@ destinations:
 						Path: "/var/lib/teleport/bot",
 					},
 				},
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&KubernetesOutput{
 						Destination: &DestinationDirectory{
 							Path: "/mount/redacted-prod-global",
@@ -1037,7 +1037,7 @@ destinations:
 						Path: "/var/lib/teleport/tbot",
 					},
 				},
-				Outputs: Outputs{
+				Services: ServiceConfigs{
 					&IdentityOutput{
 						Destination: &DestinationDirectory{
 							Path: "/path/to/role1_creds",

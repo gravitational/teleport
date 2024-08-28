@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
@@ -54,15 +55,34 @@ func TestConnect(t *testing.T) {
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt := testenv.MakeDefaultAuthClient(t, process)
+	fileConfigAgent := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "false",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+		SSH: config.SSH{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.NodeSSHAddr,
+			},
+		},
+	}
 
 	username := "admin"
-	mustAddUser(t, fileConfig, "admin", "access")
+	mustAddUser(t, clt, "admin", "access")
 
 	for _, tc := range []struct {
-		name         string
-		cliFlags     GlobalCLIFlags
-		modifyConfig func(*servicecfg.Config)
+		name            string
+		cliFlags        GlobalCLIFlags
+		modifyConfig    func(*servicecfg.Config)
+		wantErrContains string
 	}{
 		{
 			name: "default to data dir",
@@ -74,22 +94,52 @@ func TestConnect(t *testing.T) {
 				cfg.DataDir = fileConfig.DataDir
 			},
 		}, {
-			name: "config file",
+			name: "auth config file",
 			cliFlags: GlobalCLIFlags{
 				ConfigFile: mustWriteFileConfig(t, fileConfig),
 				Insecure:   true,
 			},
 		}, {
-			name: "config file string",
+			name: "auth config file string",
 			cliFlags: GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfig),
 				Insecure:     true,
 			},
 		}, {
+			name: "ignores agent config file",
+			cliFlags: GlobalCLIFlags{
+				ConfigFile: mustWriteFileConfig(t, fileConfigAgent),
+				Insecure:   true,
+			},
+			wantErrContains: "make sure that a Teleport Auth Service instance is running",
+		}, {
+			name: "ignores agent config file string",
+			cliFlags: GlobalCLIFlags{
+				ConfigString: mustGetBase64EncFileConfig(t, fileConfigAgent),
+				Insecure:     true,
+			},
+			wantErrContains: "make sure that a Teleport Auth Service instance is running",
+		}, {
+			name: "ignores agent config file and loads identity file",
+			cliFlags: GlobalCLIFlags{
+				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
+				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
+				ConfigFile:       mustWriteFileConfig(t, fileConfigAgent),
+				Insecure:         true,
+			},
+		}, {
+			name: "ignores agent config file string and loads identity file",
+			cliFlags: GlobalCLIFlags{
+				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
+				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
+				ConfigString:     mustGetBase64EncFileConfig(t, fileConfigAgent),
+				Insecure:         true,
+			},
+		}, {
 			name: "identity file",
 			cliFlags: GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
-				IdentityFilePath: mustWriteIdentityFile(t, fileConfig, username),
+				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				Insecure:         true,
 			},
 		},
@@ -97,11 +147,18 @@ func TestConnect(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			// set tsh home to a fake path so that the existence of a real
+			// ~/.tsh does not interfere with the test result.
+			cfg.TeleportHome = t.TempDir()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)
 			}
 
 			clientConfig, err := ApplyConfig(&tc.cliFlags, cfg)
+			if tc.wantErrContains != "" {
+				require.ErrorContains(t, err, tc.wantErrContains)
+				return
+			}
 			require.NoError(t, err)
 
 			_, err = authclient.Connect(ctx, clientConfig)

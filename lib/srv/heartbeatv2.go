@@ -23,7 +23,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -60,6 +59,9 @@ type HeartbeatV2Config[T any] struct {
 	OnHeartbeat func(error)
 	// AnnounceInterval is the interval at which heartbeats are attempted (optional).
 	AnnounceInterval time.Duration
+	// DisruptionAnnounceInterval is the interval at which heartbeats are attempted when
+	// if there was a disuption in the control stream since the last heartbeat (optional).
+	DisruptionAnnounceInterval time.Duration
 	// PollInterval is the interval at which checks for change are performed (optional).
 	PollInterval time.Duration
 }
@@ -100,9 +102,10 @@ func NewSSHServerHeartbeat(cfg HeartbeatV2Config[*types.ServerV2]) (*HeartbeatV2
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
-		onHeartbeatInner: cfg.OnHeartbeat,
-		announceInterval: cfg.AnnounceInterval,
-		pollInterval:     cfg.PollInterval,
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
 	}), nil
 }
 
@@ -119,9 +122,10 @@ func NewAppServerHeartbeat(cfg HeartbeatV2Config[*types.AppServerV3]) (*Heartbea
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
-		onHeartbeatInner: cfg.OnHeartbeat,
-		announceInterval: cfg.AnnounceInterval,
-		pollInterval:     cfg.PollInterval,
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
 	}), nil
 }
 
@@ -209,9 +213,10 @@ type HeartbeatV2 struct {
 }
 
 type heartbeatV2Config struct {
-	announceInterval time.Duration
-	pollInterval     time.Duration
-	onHeartbeatInner func(error)
+	announceInterval           time.Duration
+	disruptionAnnounceInterval time.Duration
+	pollInterval               time.Duration
+	onHeartbeatInner           func(error)
 
 	// -- below values only used in tests
 
@@ -226,6 +231,11 @@ func (c *heartbeatV2Config) SetDefaults() {
 		// for our periodics, that translates to an average interval of ~6m, a slight increase
 		// from the average of ~5m30s that was used for V1 ssh server heartbeats.
 		c.announceInterval = 2 * (apidefaults.ServerAnnounceTTL / 3)
+	}
+	if c.disruptionAnnounceInterval == 0 {
+		// if there was a disruption in the control stream, we want to heartbeat a bit
+		// sooner in case the disruption affected the most recent announce's success.
+		c.disruptionAnnounceInterval = 2 * (c.announceInterval / 3)
 	}
 	if c.pollInterval == 0 {
 		c.pollInterval = defaults.HeartbeatCheckPeriod
@@ -355,6 +365,21 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 	// poll immediately when sender becomes available.
 	if h.inner.Poll(h.closeContext) {
 		h.shouldAnnounce = true
+	}
+
+	// in the event of disruption, we want to heartbeat a bit sooner than the normal.
+	// this helps prevent node heartbeats from getting too stale when auth servers fail
+	// in a manner that isn't immediately detected by the agent (e.g. deadlock,
+	// i/o timeout, etc). Since we're heartbeating over a channel, such failure modes
+	// can sometimes mean that the last announce failed "silently" from our perspective.
+	if t, ok := h.announce.LastTick(); ok {
+		elapsed := time.Since(t)
+		dai := utils.SeventhJitter(h.disruptionAnnounceInterval)
+		if elapsed >= dai {
+			h.shouldAnnounce = true
+		} else {
+			h.announce.ResetTo(dai - elapsed)
+		}
 	}
 
 	for {
@@ -559,26 +584,15 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	return true
 }
 
-var (
-	minAppVersion15 = semver.New("15.3.4")
-	minAppVersion14 = semver.New("14.3.19")
-	minAppVersion13 = semver.New("13.4.25")
-)
-
 func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
-	authVersion, err := semver.NewVersion(sender.Hello().Version)
-	if err != nil {
-		return false
-	}
-
 	// AppServer heartbeats via inventory control stream were not introduced in a major version,
 	// so there is a chance that the Auth server is unable to process the request via the inventory
-	// control stream. If the Auth server is detected to be running an incompatible version, then use
-	// the fallback mechanism.
-	// TODO(tross) DELETE IN 16.0.0
-	if (authVersion.Major == 15 && authVersion.LessThan(*minAppVersion15)) ||
-		(authVersion.Major == 14 && authVersion.LessThan(*minAppVersion14)) ||
-		(authVersion.Major == 13 && authVersion.LessThan(*minAppVersion13)) {
+	// control stream. If the Auth server capabilities indicate as such, then use the fallback mechanism.
+	hello := sender.Hello()
+	switch {
+	case hello.Capabilities == nil:
+		return h.FallbackAnnounce(ctx)
+	case hello.Capabilities != nil && !hello.Capabilities.AppHeartbeats:
 		return h.FallbackAnnounce(ctx)
 	}
 

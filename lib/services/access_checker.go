@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -83,7 +84,7 @@ type AccessChecker interface {
 	//
 	// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
 	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(types.AuthPreference, ...AccessState) error
+	CheckAccessToSAMLIdP(readonly.AuthPreference, ...AccessState) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -225,7 +226,7 @@ type AccessChecker interface {
 	// GetAccessState returns the AccessState for the user given their roles, the
 	// cluster auth preference, and whether MFA and the user's device were
 	// verified.
-	GetAccessState(authPref types.AuthPreference) AccessState
+	GetAccessState(authPref readonly.AuthPreference) AccessState
 	// PrivateKeyPolicy returns the enforced private key policy for this role set,
 	// or the provided defaultPolicy - whichever is stricter.
 	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) (keys.PrivateKeyPolicy, error)
@@ -258,8 +259,8 @@ type AccessChecker interface {
 	// Supports the following resource types:
 	//
 	// - types.Server with GetKind() == types.KindNode
-	//
 	// - types.KindWindowsDesktop
+	// - types.KindApp with IsAWSConsole() == true
 	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 
 	// CheckSPIFFESVID checks if the role set has access to generating the
@@ -766,8 +767,8 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 // Supports the following resource types:
 //
 // - types.Server with GetKind() == types.KindNode
-//
 // - types.KindWindowsDesktop
+// - types.KindApp with IsAWSConsole() == true
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
@@ -1227,14 +1228,15 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*A
 // local roles based on the given roleMap.
 func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
-	// passing exact logins, Kubernetes users/groups and database users/names
-	// to the remote cluster.
+	// passing exact logins, Kubernetes users/groups, database users/names, and
+	// AWS Role ARNs to the remote cluster.
 	traits := map[string][]string{
-		constants.TraitLogins:     identity.Principals,
-		constants.TraitKubeGroups: identity.KubernetesGroups,
-		constants.TraitKubeUsers:  identity.KubernetesUsers,
-		constants.TraitDBNames:    identity.DatabaseNames,
-		constants.TraitDBUsers:    identity.DatabaseUsers,
+		constants.TraitLogins:      identity.Principals,
+		constants.TraitKubeGroups:  identity.KubernetesGroups,
+		constants.TraitKubeUsers:   identity.KubernetesUsers,
+		constants.TraitDBNames:     identity.DatabaseNames,
+		constants.TraitDBUsers:     identity.DatabaseUsers,
+		constants.TraitAWSRoleARNs: identity.AWSRoleARNs,
 	}
 	// Prior to Teleport 6.2 no user traits were passed to remote clusters
 	// except for the internal ones specified above.

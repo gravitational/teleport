@@ -3,21 +3,22 @@
   {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
     {{- fail "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/" -}}
   {{- end -}}
-  {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
-  {{- /* Trim ports from all public addresses if present */ -}}
-  {{- range $publicAddr -}}
-    {{- $address := . -}}
-    {{- if (contains ":" $address) -}}
-      {{- $split := split ":" $address -}}
-      {{- $address = $split._0 -}}
-      {{- $publicAddr = append (mustWithout $publicAddr .) $address -}}
+  {{- if not .Values.ingress.useExisting }}
+    {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
+    {{- /* Trim ports from all public addresses if present */ -}}
+    {{- range $publicAddr -}}
+      {{- $address := . -}}
+      {{- if (contains ":" $address) -}}
+        {{- $split := split ":" $address -}}
+        {{- $address = $split._0 -}}
+        {{- $publicAddr = append (mustWithout $publicAddr .) $address -}}
+      {{- end -}}
+      {{- $wildcard := printf "*.%s" $address -}}
+      {{- /* Add wildcard versions of all public addresses to ingress, unless 1) suppressed or 2) wildcard version already exists */ -}}
+      {{- if and (not $.Values.ingress.suppressAutomaticWildcards) (not (hasPrefix "*." $address)) (not (has $wildcard $publicAddr)) -}}
+        {{- $publicAddr = append $publicAddr (printf "*.%s" $address) -}}
+      {{- end -}}
     {{- end -}}
-    {{- $wildcard := printf "*.%s" $address -}}
-    {{- /* Add wildcard versions of all public addresses to ingress, unless 1) suppressed or 2) wildcard version already exists */ -}}
-    {{- if and (not $.Values.ingress.suppressAutomaticWildcards) (not (hasPrefix "*." $address)) (not (has $wildcard $publicAddr)) -}}
-      {{- $publicAddr = append $publicAddr (printf "*.%s" $address) -}}
-    {{- end -}}
-  {{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -58,4 +59,5 @@ spec:
             port:
               number: 443
     {{- end }}
+  {{- end }}
 {{- end }}

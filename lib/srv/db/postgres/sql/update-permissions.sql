@@ -7,8 +7,7 @@ DECLARE
     diff_count_1 INTEGER;
     diff_count_2 INTEGER;
 BEGIN
-
-    grant_data = COALESCE(permissions_->'tables', '[]'::JSONB);
+    grant_data = COALESCE(NULLIF(permissions_->'tables', 'null'), '[]'::JSONB);
 
     -- If the user has active connections to current database, verify that permissions haven't changed.
     IF EXISTS (SELECT usename FROM pg_stat_activity WHERE usename = username AND datname = current_database()) THEN

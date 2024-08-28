@@ -54,6 +54,16 @@ export type TableProps<T> = {
   // any client table filtering supplied by default.
   // Use case: filtering is done on the caller side e.g. server side.
   disableFilter?: boolean;
+  /**
+   * row configuration
+   */
+  row?: {
+    onClick?(row: T): void;
+    /**
+     * conditionally style a row (eg: cursor: pointer, disabled)
+     */
+    getStyle?(row: T): React.CSSProperties;
+  };
 };
 
 type TableColumnBase<T> = {
@@ -68,9 +78,19 @@ type TableColumnBase<T> = {
   isNonRender?: boolean;
 };
 
+export type PagerPosition = 'top' | 'bottom' | 'both';
+
 export type PaginationConfig<T> = {
   pageSize?: number;
-  pagerPosition?: 'top' | 'bottom';
+  /**
+   * "undefined" will show both pagers if data on current page is some
+   * sufficient length.
+   *
+   * Otherwise, it will only show the top pager.
+   *
+   * "both" will show both regardless of data length.
+   */
+  pagerPosition?: PagerPosition;
   CustomTable?: (p: PagedTableProps<T>) => JSX.Element;
 };
 

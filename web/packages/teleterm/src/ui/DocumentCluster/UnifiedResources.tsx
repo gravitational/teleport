@@ -33,7 +33,7 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text, Link } from 'design';
+import { Flex, ButtonPrimary, Text, Link, H1 } from 'design';
 
 import * as icons from 'design/Icon';
 import Image from 'design/Image';
@@ -259,7 +259,7 @@ const Resources = memo(
   }) => {
     const appContext = useAppContext();
 
-    const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+    const { fetch, resources, attempt } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
           // Block the call if we don't know yet what resources to show.
@@ -316,11 +316,10 @@ const Resources = memo(
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
       const { cleanup } = onResourcesRefreshRequest(() => {
-        clear();
-        fetch({ force: true });
+        fetch({ clear: true });
       });
       return cleanup;
-    }, [onResourcesRefreshRequest, fetch, clear]);
+    }, [onResourcesRefreshRequest, fetch]);
 
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
@@ -486,9 +485,7 @@ function NoResources(props: {
   if (!props.canCreate) {
     $content = (
       <>
-        <Text typography="h3" mb="2" fontWeight={600}>
-          No Resources Found
-        </Text>
+        <H1 mb="2">No Resources Found</H1>
         <Text>
           Either there are no resources in the cluster, or your roles don't
           grant you access.
@@ -504,9 +501,7 @@ function NoResources(props: {
     $content = (
       <>
         <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
-        <Text typography="h3" mb={2} fontWeight={600}>
-          Add your first resource to Teleport
-        </Text>
+        <H1 mb={2}>Add your first resource to Teleport</H1>
         <Text color="text.slightlyMuted">
           {props.canUseConnectMyComputer ? (
             <>

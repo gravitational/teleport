@@ -29,29 +29,33 @@ export function SlideTabs({
   size = 'xlarge',
   tabs,
   isProcessing = false,
+  disabled = false,
 }: props) {
   return (
     <Wrapper>
       <TabNav role="tablist" appearance={appearance} size={size}>
         {tabs.map((tabName, tabIndex) => {
           const selected = tabIndex === activeIndex;
+          let onClick;
+          if (!disabled && !isProcessing) {
+            onClick = (e: React.MouseEvent<HTMLLabelElement, MouseEvent>) => {
+              e.preventDefault();
+              onChange(tabIndex);
+            };
+          }
           return (
             <TabLabel
               role="tab"
               htmlFor={`${name}-${tabName}`}
-              onClick={e => {
-                e.preventDefault();
-                onChange(tabIndex);
-              }}
+              onClick={onClick}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
               className={tabIndex === activeIndex && 'selected'}
               processing={isProcessing}
+              disabled={disabled}
             >
               <Box>
-                {selected && isProcessing && (
-                  <Spinner delay="none" size="25px" />
-                )}
+                {selected && isProcessing && <Spinner delay="none" size={25} />}
                 <Text ml={2}>{tabName}</Text>
               </Box>
               <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
@@ -103,6 +107,10 @@ type props = {
    * Look into horizontal progress bar (connect has one in LinearProgress.tsx)
    */
   isProcessing?: boolean;
+  /**
+   * If true, disables pointer events.
+   */
+  disabled?: boolean;
 };
 
 export type TabComponent = {
@@ -114,22 +122,33 @@ const Wrapper = styled.div`
   position: relative;
 `;
 
-const TabLabel = styled.label`
-  cursor: pointer;
+const TabLabel = styled.label<{
+  itemCount: number;
+  processing?: boolean;
+  disabled?: boolean;
+}>`
+  cursor: ${p => (p.processing || p.disabled ? 'default' : 'pointer')};
   display: flex;
   justify-content: center;
   padding: 10px;
   width: ${props => 100 / props.itemCount}%;
   z-index: 1; /* Ensures that the label is above the background slider. */
-  opacity: ${p => (p.processing ? 0.5 : 1)};
-  pointer-events: ${p => (p.processing ? 'none' : 'auto')};
+  opacity: ${p => (p.processing || p.disabled ? 0.5 : 1)};
 `;
 
 const TabInput = styled.input`
   display: none;
 `;
 
-const TabSlider = styled.div`
+type Appearance = 'square' | 'round';
+type Size = 'xlarge' | 'medium';
+
+const TabSlider = styled.div<{
+  appearance: Appearance;
+  itemCount: number;
+  size: Size;
+  activeIndex: number;
+}>`
   background-color: ${({ theme }) => theme.colors.brand};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
@@ -143,7 +162,7 @@ const TabSlider = styled.div`
   width: calc(${props => 100 / props.itemCount}% - 16px);
 `;
 
-const TabNav = styled.nav`
+const TabNav = styled.nav<{ appearance: Appearance; size: Size }>`
   align-items: center;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};

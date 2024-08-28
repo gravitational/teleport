@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -58,7 +59,7 @@ const (
 	// the jira issue again if the webhook payload and jira API disagree on the issue status.
 	webhookIssueAPIRetryInterval = 5 * time.Second
 	// webhookIssueAPIRetryTimeout the timeout for retrying check that webhook payload matches issue API response.
-	webhookIssueAPIRetryTimeout = time.Minute
+	webhookIssueAPIRetryTimeout = 5 * time.Minute
 )
 
 var resolveReasonInlineRegex = regexp.MustCompile(`(?im)^ *(resolution|reason) *: *(.+)$`)
@@ -235,7 +236,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = lib.AssertServerVersion(pong, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
@@ -288,7 +289,10 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 }
 
 // onJiraWebhook processes Jira webhook and updates the status of an issue
-func (a *App) onJiraWebhook(ctx context.Context, webhook Webhook) error {
+func (a *App) onJiraWebhook(_ context.Context, webhook Webhook) error {
+	ctx, cancel := context.WithTimeout(context.Background(), webhookIssueAPIRetryTimeout)
+	defer cancel()
+
 	webhookEvent := webhook.WebhookEvent
 	issueEventTypeName := webhook.IssueEventTypeName
 	if webhookEvent != "jira:issue_updated" || issueEventTypeName != "issue_generic" {

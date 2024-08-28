@@ -100,6 +100,10 @@ type SAMLConnector interface {
 	SetAllowIDPInitiated(bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+	GetSingleLogoutURL() string
+	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+	SetSingleLogoutURL(string)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -375,6 +379,16 @@ func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings
 		return nil
 	}
 	return o.Spec.ClientRedirectSettings
+}
+
+// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) GetSingleLogoutURL() string {
+	return o.Spec.SingleLogoutURL
+}
+
+// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
+	o.Spec.SingleLogoutURL = url
 }
 
 // setStaticFields sets static resource header and metadata fields.

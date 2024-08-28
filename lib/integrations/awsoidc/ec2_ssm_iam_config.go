@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 const (
@@ -60,6 +61,13 @@ type EC2SSMIAMConfigureRequest struct {
 	// No trailing / is expected.
 	// Eg https://tenant.teleport.sh
 	ProxyPublicURL string
+
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -82,6 +90,14 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.ProxyPublicURL == "" {
 		return trace.BadParameter("proxy public url is required")
+	}
+
+	if r.ClusterName == "" {
+		return trace.BadParameter("cluster name is required")
+	}
+
+	if r.IntegrationName == "" {
+		return trace.BadParameter("integration name is required")
 	}
 
 	return nil
@@ -165,11 +181,14 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 
 	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to Role", "policy", req.IntegrationRoleEC2SSMPolicy, "role", req.IntegrationRole)
 
+	ownershipTags := tags.DefaultResourceCreationTags(req.ClusterName, req.IntegrationName)
+
 	_, err = clt.CreateDocument(ctx, &ssm.CreateDocumentInput{
 		Name:           aws.String(req.SSMDocumentName),
 		DocumentType:   ssmtypes.DocumentTypeCommand,
 		DocumentFormat: ssmtypes.DocumentFormatYaml,
 		Content:        aws.String(awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL)),
+		Tags:           ownershipTags.ToSSMTags(),
 	})
 	if err != nil {
 		var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists

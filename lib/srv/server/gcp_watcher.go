@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,7 +51,7 @@ type GCPInstances struct {
 	// Parameters are the parameters passed to the installation script
 	Parameters []string
 	// Instances is a list of discovered GCP virtual machines.
-	Instances []*gcp.Instance
+	Instances []*gcpimds.Instance
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -143,16 +144,16 @@ func (*gcpInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Ins
 // GetInstances fetches all GCP virtual machines matching configured filters.
 func (f *gcpInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	// Key by project ID, then by zone.
-	instanceMap := make(map[string]map[string][]*gcp.Instance)
+	instanceMap := make(map[string]map[string][]*gcpimds.Instance)
 	for _, projectID := range f.ProjectIDs {
-		instanceMap[projectID] = make(map[string][]*gcp.Instance)
+		instanceMap[projectID] = make(map[string][]*gcpimds.Instance)
 		for _, zone := range f.Zones {
-			instanceMap[projectID][zone] = make([]*gcp.Instance, 0)
+			instanceMap[projectID][zone] = make([]*gcpimds.Instance, 0)
 			vms, err := f.GCP.ListInstances(ctx, projectID, zone)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			filteredVMs := make([]*gcp.Instance, 0, len(vms))
+			filteredVMs := make([]*gcpimds.Instance, 0, len(vms))
 			for _, vm := range vms {
 				if len(f.ServiceAccounts) > 0 && !slices.Contains(f.ServiceAccounts, vm.ServiceAccount) {
 					continue

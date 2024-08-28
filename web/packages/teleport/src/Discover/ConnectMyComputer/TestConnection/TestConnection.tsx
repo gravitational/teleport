@@ -25,11 +25,15 @@ import {
   LabelInput,
   Indicator,
   Link,
+  H3,
+  Subtitle3,
 } from 'design';
 import Select from 'shared/components/Select';
 import { useAsync } from 'shared/hooks/useAsync';
 import * as Icons from 'design/Icon';
 import * as connectMyComputer from 'shared/connectMyComputer';
+
+import { P } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -194,11 +198,12 @@ export function TestConnection(props: AgentStepProps) {
             buttonText="Refresh"
             buttonOnClick={() => window.location.reload()}
           >
-            For Connect My Computer to work, the role{' '}
-            {connectMyComputer.getRoleNameForUser(storeUser.getUsername())} must
-            be assigned to you.
-            <br />
-            {$restartSetupInstructions}
+            <P>
+              For Connect My Computer to work, the role{' '}
+              {connectMyComputer.getRoleNameForUser(storeUser.getUsername())}{' '}
+              must be assigned to you.
+            </P>
+            <P>{$restartSetupInstructions}</P>
           </FetchLoginsAttemptError>
         ) : (
           <FetchLoginsAttemptError
@@ -284,9 +289,10 @@ export function TestConnection(props: AgentStepProps) {
 
 const StepSkeletonPickUser = (props: { children: React.ReactNode }) => (
   <StyledBox mb={5}>
-    <Text bold mb={3}>
-      Step 1: Pick the OS user to test
-    </Text>
+    <header>
+      <H3>Step 1</H3>
+      <Subtitle3 mb={3}>Pick the OS user to test</Subtitle3>
+    </header>
     {props.children}
   </StyledBox>
 );

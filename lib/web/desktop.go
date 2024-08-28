@@ -21,10 +21,10 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -164,13 +164,13 @@ func (h *Handler) createDesktopConnection(
 	})
 
 	// Parse the private key of the user from the session context.
-	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
 	if err != nil {
 		return sendTDPError(err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk, desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -253,24 +253,23 @@ const (
 
 func createUserCertsRequest(
 	sctx *SessionContext,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName,
 	username,
 	siteName string,
 ) (*proto.UserCertsRequest, error) {
-	key := &client.Key{
-		PrivateKey: pk,
-		Cert:       sctx.cfg.Session.GetPub(),
-		TLSCert:    sctx.cfg.Session.GetTLSCert(),
+	tlsCert, err := sctx.GetX509Certificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tlsCert, err := key.TeleportTLSCertificate()
+	publicKeyPEM, err := keys.MarshalPublicKey(publicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
-		PublicKey:      key.MarshalSSHPublicKey(),
+		TLSPublicKey:   publicKeyPEM,
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
@@ -290,7 +289,7 @@ func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-	pk *keys.PrivateKey,
+	publicKey crypto.PublicKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
@@ -304,7 +303,7 @@ func (h *Handler) prepareForCertIssuance(
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, pk, desktopName, username, site.GetName())
+	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -447,7 +446,7 @@ func (h *Handler) performMFACeremony(
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: certsReq,
-		Key:      nil, // We just want the certs.
+		KeyRing:  nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -665,27 +664,6 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
-// createCertificateBlob creates Certificate BLOB
-// It has following structure:
-//
-//	CertificateBlob {
-//		PropertyID: u32, little endian,
-//		Reserved: u32, little endian, must be set to 0x01 0x00 0x00 0x00
-//		Length: u32, little endian
-//		Value: certificate data
-//	}
-func createCertificateBlob(certData []byte) []byte {
-	buf := new(bytes.Buffer)
-	buf.Grow(len(certData) + 12)
-	// PropertyID for certificate is 32
-	binary.Write(buf, binary.LittleEndian, int32(32))
-	binary.Write(buf, binary.LittleEndian, int32(1))
-	binary.Write(buf, binary.LittleEndian, int32(len(certData)))
-	buf.Write(certData)
-
-	return buf.Bytes()
-}
-
 // Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
 // TODO(isaiah): Delete in v17.0.0.
 func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -748,7 +726,7 @@ func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *h
 	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
 		"caCertPEM":          string(keyPair.Cert),
 		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		"caCertBase64":       base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
 		"provisionToken":     tokenStr,
 		"internalResourceID": internalResourceID,

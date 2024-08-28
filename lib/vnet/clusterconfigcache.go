@@ -29,52 +29,48 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-type getClusterClientFunc = func(ctx context.Context, profileName, leafClusterName string) (ClusterClient, error)
-
-type clusterConfig struct {
-	// clusterName is the name of the cluster as reported by Ping.
-	clusterName string
-	// proxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
-	// just the hostname. This is often but not always identical to the clusterName. For root clusters this
+type ClusterConfig struct {
+	// ClusterName is the name of the cluster as reported by Ping.
+	ClusterName string
+	// ProxyPublicAddr is the public address of the proxy as reported by Ping, with any ports removed, this is
+	// just the hostname. This is often but not always identical to the ClusterName. For root clusters this
 	// will be the same as the profile name (the profile is named after the proxy public addr).
-	proxyPublicAddr string
-	// dnsZones is the list of DNS zones that are valid for this cluster, this includes proxyPublicAddr *and*
+	ProxyPublicAddr string
+	// DNSZones is the list of DNS zones that are valid for this cluster, this includes ProxyPublicAddr *and*
 	// any configured custom DNS zones for the cluster.
-	dnsZones []string
-	// ipv4CIDRRange is the CIDR range that IPv4 addresses should be assigned from for apps in this cluster.
-	ipv4CIDRRange string
-	// expires is the time at which this information should be considered stale and refetched. Stale data may
+	DNSZones []string
+	// IPv4CIDRRange is the CIDR range that IPv4 addresses should be assigned from for apps in this cluster.
+	IPv4CIDRRange string
+	// Expires is the time at which this information should be considered stale and refetched. Stale data may
 	// be used if a subsequent fetch fails.
-	expires time.Time
+	Expires time.Time
 }
 
-func (e *clusterConfig) stale(clock clockwork.Clock) bool {
-	return clock.Now().After(e.expires)
+func (e *ClusterConfig) stale(clock clockwork.Clock) bool {
+	return clock.Now().After(e.Expires)
 }
 
-// clusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
+// ClusterConfigCache is a read-through cache for cluster VnetConfigs. Cached entries go stale after 5
 // minutes, after which they will be re-fetched on the next read.
 //
 // If a read from the cluster fails but there is a stale cache entry present, this prefers to return the stale
 // cached entry. This is desirable in cases where the profile for a cluster expires during VNet operation,
 // it's better to use the stale custom DNS zones than to remove all DNS configuration for that cluster.
-type clusterConfigCache struct {
+type ClusterConfigCache struct {
 	flightGroup singleflight.Group
 	clock       clockwork.Clock
-	getClient   getClusterClientFunc
-	cache       map[string]*clusterConfig
+	cache       map[string]*ClusterConfig
 	mu          sync.RWMutex
 }
 
-func newClusterConfigCache(getClient getClusterClientFunc, clock clockwork.Clock) *clusterConfigCache {
-	return &clusterConfigCache{
-		clock:     clock,
-		getClient: getClient,
-		cache:     make(map[string]*clusterConfig),
+func NewClusterConfigCache(clock clockwork.Clock) *ClusterConfigCache {
+	return &ClusterConfigCache{
+		clock: clock,
+		cache: make(map[string]*ClusterConfig),
 	}
 }
 
-func (c *clusterConfigCache) getClusterConfig(ctx context.Context, clusterClient ClusterClient) (*clusterConfig, error) {
+func (c *ClusterConfigCache) GetClusterConfig(ctx context.Context, clusterClient ClusterClient) (*ClusterConfig, error) {
 	k := clusterClient.ClusterName()
 
 	// Use a singleflight.Group to avoid concurrent requests for the same cluster VnetConfig.
@@ -107,10 +103,10 @@ func (c *clusterConfigCache) getClusterConfig(ctx context.Context, clusterClient
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return result.(*clusterConfig), nil
+	return result.(*ClusterConfig), nil
 }
 
-func (c *clusterConfigCache) getClusterConfigUncached(ctx context.Context, clusterClient ClusterClient) (*clusterConfig, error) {
+func (c *ClusterConfigCache) getClusterConfigUncached(ctx context.Context, clusterClient ClusterClient) (*ClusterConfig, error) {
 	pingResp, err := clusterClient.CurrentCluster().Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -140,11 +136,11 @@ func (c *clusterConfigCache) getClusterConfigUncached(ctx context.Context, clust
 		ipv4CIDRRange = cmp.Or(vnetConfig.GetSpec().GetIpv4CidrRange(), defaultIPv4CIDRRange)
 	}
 
-	return &clusterConfig{
-		clusterName:     clusterName,
-		proxyPublicAddr: proxyPublicAddr,
-		dnsZones:        dnsZones,
-		ipv4CIDRRange:   ipv4CIDRRange,
-		expires:         c.clock.Now().Add(5 * time.Minute),
+	return &ClusterConfig{
+		ClusterName:     clusterName,
+		ProxyPublicAddr: proxyPublicAddr,
+		DNSZones:        dnsZones,
+		IPv4CIDRRange:   ipv4CIDRRange,
+		Expires:         c.clock.Now().Add(5 * time.Minute),
 	}, nil
 }

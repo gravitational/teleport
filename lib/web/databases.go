@@ -40,18 +40,25 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-// createDatabaseRequest contains the necessary basic information to create a database.
-// Database here is the database resource, containing information to a real database (protocol, uri)
-type createDatabaseRequest struct {
+// createOrOverwriteDatabaseRequest contains the necessary basic information
+// to create (or overwrite) a database.
+// Database here is the database resource, containing information to a real
+// database (protocol, uri).
+type createOrOverwriteDatabaseRequest struct {
 	Name     string     `json:"name,omitempty"`
 	Labels   []ui.Label `json:"labels,omitempty"`
 	Protocol string     `json:"protocol,omitempty"`
 	URI      string     `json:"uri,omitempty"`
 	AWSRDS   *awsRDS    `json:"awsRds,omitempty"`
+	// Overwrite will replace an existing db resource
+	// with a new db resource. Only the name cannot
+	// be changed.
+	Overwrite bool `json:"overwrite,omitempty"`
 }
 
 type awsRDS struct {
@@ -61,7 +68,7 @@ type awsRDS struct {
 	VPCID      string   `json:"vpcId,omitempty"`
 }
 
-func (r *createDatabaseRequest) checkAndSetDefaults() error {
+func (r *createOrOverwriteDatabaseRequest) checkAndSetDefaults() error {
 	if r.Name == "" {
 		return trace.BadParameter("missing database name")
 	}
@@ -93,8 +100,8 @@ func (r *createDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseCreate creates a database's metadata.
-func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var req *createDatabaseRequest
+func (h *Handler) handleDatabaseCreateOrOverwrite(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	var req *createOrOverwriteDatabaseRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -113,11 +120,20 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.CreateDatabase(r.Context(), database); err != nil {
-		if trace.IsAlreadyExists(err) {
-			return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+	if req.Overwrite {
+		if _, err := clt.GetDatabase(r.Context(), req.Name); err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err)
+		if err := clt.UpdateDatabase(r.Context(), database); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := clt.CreateDatabase(r.Context(), database); err != nil {
+			if trace.IsAlreadyExists(err) {
+				return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+			}
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	accessChecker, err := sctx.GetUserAccessChecker()
@@ -169,7 +185,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 }
 
 // handleDatabaseUpdate updates the database
-func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) handleDatabasePartialUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	databaseName := p.ByName("database")
 	if databaseName == "" {
 		return nil, trace.BadParameter("a database name is required")
@@ -218,7 +234,7 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 	savedLabels := database.GetStaticLabels()
 
 	// Make a new database to reset the check and set defaulted fields.
-	database, err = getNewDatabaseResource(createDatabaseRequest{
+	database, err = getNewDatabaseResource(createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: database.GetProtocol(),
 		URI:      savedOrNewURI,
@@ -228,7 +244,6 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	database.SetCA(savedOrNewCaCert)
 	if len(req.Labels) == 0 {
 		database.SetStaticLabels(savedLabels)
@@ -361,7 +376,7 @@ func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *htt
 	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
 		CACertPEM:       string(keyPair.Cert),
 		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
-		CACertBase64:    base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		CACertBase64:    base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
 		CRLPEM:          string(encodeCRLPEM(caCRL)),
 		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
 		ProvisionToken:  tokenStr,
@@ -396,7 +411,7 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	}
 }
 
-func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error) {
+func getNewDatabaseResource(req createOrOverwriteDatabaseRequest) (*types.DatabaseV3, error) {
 	labels := make(map[string]string)
 	for _, label := range req.Labels {
 		labels[label.Name] = label.Value

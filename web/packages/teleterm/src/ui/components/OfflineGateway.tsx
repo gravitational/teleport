@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { ButtonPrimary, Flex, Text } from 'design';
+import { ButtonPrimary, Flex, H2, Text } from 'design';
 
 import * as Alerts from 'design/Alert';
 import Validation from 'shared/components/Validation';
@@ -61,9 +61,7 @@ export function OfflineGateway(props: {
         position: relative;
       `}
     >
-      <Text typography="h4" bold>
-        {props.targetName}
-      </Text>
+      <H2 mb={1}>{props.targetName}</H2>
       <Text>
         The {props.gatewayKind} connection is {statusDescription}
       </Text>

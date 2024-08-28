@@ -379,7 +379,7 @@ func (s *SlogTextHandler) Handle(ctx context.Context, r slog.Record) error {
 			Line:     f.Line,
 		}
 
-		file, line := getCaller(slog.Attr{Key: slog.SourceKey, Value: slog.AnyValue(src)})
+		file, line := getCaller(src)
 		*buf = fmt.Appendf(*buf, " %s:%d", file, line)
 	}
 
@@ -495,11 +495,22 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					if !withComponent {
 						return slog.Attr{}
 					}
+					if a.Value.Kind() != slog.KindString {
+						return a
+					}
 
 					a.Key = ComponentField
 				case slog.LevelKey:
+					// The slog.JSONHandler will inject "level" Attr.
+					// However, this lib's consumer might add an Attr using the same key ("level") and we end up with two records named "level".
+					// We must check its type before assuming this was injected by the slog.JSONHandler.
+					lvl, ok := a.Value.Any().(slog.Level)
+					if !ok {
+						return a
+					}
+
 					var level string
-					switch lvl := a.Value.Any().(slog.Level); lvl {
+					switch lvl {
 					case TraceLevel:
 						level = "trace"
 					case slog.LevelDebug:
@@ -522,6 +533,13 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 						return slog.Attr{}
 					}
 
+					// The slog.JSONHandler will inject "time" Attr.
+					// However, this lib's consumer might add an Attr using the same key ("time") and we end up with two records named "time".
+					// We must check its type before assuming this was injected by the slog.JSONHandler.
+					if a.Value.Kind() != slog.KindTime {
+						return a
+					}
+
 					t := a.Value.Time()
 					if t.IsZero() {
 						return a
@@ -530,13 +548,27 @@ func NewSlogJSONHandler(w io.Writer, cfg SlogJSONHandlerConfig) *SlogJSONHandler
 					a.Key = TimestampField
 					a.Value = slog.StringValue(t.Format(time.RFC3339))
 				case slog.MessageKey:
+					// The slog.JSONHandler will inject "msg" Attr.
+					// However, this lib's consumer might add an Attr using the same key ("msg") and we end up with two records named "msg".
+					// We must check its type before assuming this was injected by the slog.JSONHandler.
+					if a.Value.Kind() != slog.KindString {
+						return a
+					}
 					a.Key = messageField
 				case slog.SourceKey:
 					if !withCaller {
 						return slog.Attr{}
 					}
 
-					file, line := getCaller(a)
+					// The slog.JSONHandler will inject "source" Attr when AddSource is true.
+					// However, this lib's consumer might add an Attr using the same key ("source") and we end up with two records named "source".
+					// We must check its type before assuming this was injected by the slog.JSONHandler.
+					s, ok := a.Value.Any().(*slog.Source)
+					if !ok {
+						return a
+					}
+
+					file, line := getCaller(s)
 					a = slog.String(CallerField, fmt.Sprintf("%s:%d", file, line))
 				}
 
@@ -589,8 +621,7 @@ func (j *SlogJSONHandler) Handle(ctx context.Context, r slog.Record) error {
 // getCaller retrieves source information from the attribute
 // and returns the file and line of the caller. The file is
 // truncated from the absolute path to package/filename.
-func getCaller(a slog.Attr) (file string, line int) {
-	s := a.Value.Any().(*slog.Source)
+func getCaller(s *slog.Source) (file string, line int) {
 	count := 0
 	idx := strings.LastIndexFunc(s.File, func(r rune) bool {
 		if r == '/' {

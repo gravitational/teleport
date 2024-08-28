@@ -5,14 +5,16 @@ cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
 teleportFlavor='{{.TeleportFlavor}}' # teleport or teleport-ent
 successMessage='{{.SuccessMessage}}'
+teleportArgs='{{.TeleportArgs}}'
 
 # shellcheck disable=all
-tempDir=$({{.BinMktemp}} -d)
+# Use $HOME or / as base dir
+tempDir=$({{.BinMktemp}} -d -p ${HOME:-}/)
 OS=$({{.BinUname}} -s)
 ARCH=$({{.BinUname}} -m)
 # shellcheck enable=all
 
-teleportArgs='{{.TeleportArgs}}'
+trap 'rm -rf -- "$tempDir"' EXIT
 
 teleportTarballName() {
     if [ ${OS} = "Darwin" ]; then
@@ -36,19 +38,14 @@ teleportTarballName() {
 }
 
 main() {
-    cd $tempDir
-
     tarballName=$(teleportTarballName)
-    curl --show-error --fail --location --remote-name ${cdnBaseURL}/${tarballName}
-    echo "Extracting teleport to $tempDir ..."
-    tar -xzf ${tarballName}
+    echo "Downloading from ${cdnBaseURL}/${tarballName} and extracting teleport to ${tempDir} ..."
+    curl --show-error --fail --location ${cdnBaseURL}/${tarballName} | tar xzf - -C ${tempDir} ${teleportFlavor}/teleport
 
-    mkdir -p ./bin
-    mv ./${teleportFlavor}/teleport ./bin/teleport
-    echo "> ./bin/teleport ${teleportArgs}"
-    ./bin/teleport ${teleportArgs} && echo $successMessage
-
-    cd -
+    mkdir -p ${tempDir}/bin
+    mv ${tempDir}/${teleportFlavor}/teleport ${tempDir}/bin/teleport
+    echo "> ${tempDir}/bin/teleport ${teleportArgs} $@"
+    {{.TeleportCommandPrefix}} ${tempDir}/bin/teleport ${teleportArgs} $@ && echo $successMessage
 }
 
-main
+main $@

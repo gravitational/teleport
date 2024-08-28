@@ -27,6 +27,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/doc-tests.yaml'
+              - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
 

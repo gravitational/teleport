@@ -32,15 +32,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -179,6 +182,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
+		{Kind: types.KindAccessGraphSettings},
+		{Kind: types.KindSPIFFEFederation},
+		{Kind: types.KindStaticHostUser},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -290,6 +296,7 @@ func ForNode(cfg Config) Config {
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindStaticHostUser},
 	}
 
 	cfg.QueueSize = defaults.NodeQueueSize
@@ -516,6 +523,8 @@ type Cache struct {
 	kubeWaitingContsCache        *local.KubeWaitingContainerService
 	notificationsCache           services.Notifications
 	accessMontoringRuleCache     services.AccessMonitoringRules
+	spiffeFederationCache        spiffeFederationCacher
+	staticHostUsersCache         *local.StaticHostUserService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -688,6 +697,10 @@ type Config struct {
 	Notifications services.Notifications
 	// AccessMonitoringRules is the access monitoring rules service.
 	AccessMonitoringRules services.AccessMonitoringRules
+	// SPIFFEFederations is the SPIFFE federations service.
+	SPIFFEFederations SPIFFEFederationReader
+	// StaticHostUsers is the static host user service.
+	StaticHostUsers services.StaticHostUser
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -923,6 +936,18 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	spiffeFederationCache, err := local.NewSPIFFEFederationService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	staticHostUserCache, err := local.NewStaticHostUserService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -963,6 +988,8 @@ func New(config Config) (*Cache, error) {
 		eventsFanout:                 fanout,
 		lowVolumeEventsFanout:        utils.NewRoundRobin(lowVolumeFanouts),
 		kubeWaitingContsCache:        kubeWaitingContsCache,
+		spiffeFederationCache:        spiffeFederationCache,
+		staticHostUsersCache:         staticHostUserCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1258,6 +1285,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
+	fetchAndApplyStart := time.Now()
+
 	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
 		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
@@ -1320,6 +1349,19 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	defer relativeExpiryInterval.Stop()
 
 	c.notify(c.ctx, Event{Type: WatcherStarted})
+
+	fetchAndApplyDuration := time.Since(fetchAndApplyStart)
+	if fetchAndApplyDuration > time.Second*20 {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Warn("slow fetch and apply")
+	} else {
+		c.Logger.WithFields(log.Fields{
+			"cache_target": c.Config.target,
+			"duration":     fetchAndApplyDuration.String(),
+		}).Debug("fetch and apply")
+	}
 
 	var lastStalenessWarning time.Time
 	var staleEventCount int
@@ -1405,7 +1447,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 // cannot run concurrently with event processing.
 func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	// TODO(fspmarshall): Start using dynamic value once it is implemented.
-	gracePeriod := apidefaults.ServerAnnounceTTL
+
+	// because event streams are not necessarily ordered across keys expiring on the
+	// server announce TTL may sometimes generate false positives. Using the watcher
+	// creation grace period as our safety buffer is mostly an arbitrary choice, but
+	// since it approximates our expected worst-case staleness of the event stream its
+	// a fairly reasonable one.
+	gracePeriod := apidefaults.ServerAnnounceTTL + backend.DefaultCreationGracePeriod
 
 	// latestExp will be the value that we choose to consider the most recent "expired"
 	// timestamp.  This will either end up being the most recently seen node expiry, or
@@ -2110,7 +2158,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 		rg.Release()
 		// fallback is sane because this method is never used
 		// in construction of derivative caches.
-		if rc, err := c.Config.Presence.GetRemoteCluster(ctx, clusterName); err == nil {
+		if rc, err := c.Config.Trust.GetRemoteCluster(ctx, clusterName); err == nil {
 			return rc, nil
 		}
 	}
@@ -2259,6 +2307,32 @@ func (c *Cache) GetKubernetesWaitingContainer(ctx context.Context, req *kubewait
 	}
 	defer rg.Release()
 	return rg.reader.GetKubernetesWaitingContainer(ctx, req)
+}
+
+// ListStaticHostUsers lists static host users.
+func (c *Cache) ListStaticHostUsers(ctx context.Context, pageSize int, pageToken string) ([]*userprovisioningpb.StaticHostUser, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListStaticHostUsers")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListStaticHostUsers(ctx, pageSize, pageToken)
+}
+
+// GetStaticHostUser returns a static host user by name.
+func (c *Cache) GetStaticHostUser(ctx context.Context, name string) (*userprovisioningpb.StaticHostUser, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetStaticHostUser")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.staticHostUsers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetStaticHostUser(ctx, name)
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -3239,4 +3313,29 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	}
 
 	return rg.reader.ListResources(ctx, req)
+}
+
+// GetAccessGraphSettings gets AccessGraphSettings from the backend.
+func (c *Cache) GetAccessGraphSettings(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessGraphSettings")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessGraphSettings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedCfg, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"access_graph_settings"}, func(ctx context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+			cfg, err := rg.reader.GetAccessGraphSettings(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		clone := protobuf.Clone(cachedCfg).(*clusterconfigpb.AccessGraphSettings)
+		return clone, nil
+	}
+	return rg.reader.GetAccessGraphSettings(ctx)
 }

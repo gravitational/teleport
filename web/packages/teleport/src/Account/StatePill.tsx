@@ -45,25 +45,27 @@ export function StatePill({ state, 'data-testid': testId }: StatePillProps) {
 
 const StatePillBody = styled.span<StatePillProps>`
   font-size: 14px;
+  font-weight: 300;
+  line-height: 20px;
   display: inline-block;
-  padding: 0 ${props => props.theme.space[3]}px;
+  padding: 6px ${props => props.theme.space[3]}px;
   border-radius: 1000px;
 
   ${statePillStyles}
 `;
 
-function statePillStyles({ state }: StatePillProps): string {
+function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
   switch (state) {
     case 'active':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.success[0]};
+          props.theme.colors.interactive.tonal.success[0].background};
         color: ${props => props.theme.colors.success.main};
       `;
     case 'inactive':
       return css`
         background-color: ${props =>
-          props.theme.colors.interactive.tonal.neutral[0]};
+          props.theme.colors.interactive.tonal.neutral[0].background};
         color: ${props => props.theme.colors.text.disabled};
       `;
     default:

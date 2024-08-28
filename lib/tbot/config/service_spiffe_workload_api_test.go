@@ -20,6 +20,8 @@ package config
 
 import (
 	"testing"
+
+	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 )
 
 func ptr[T any](v T) *T {
@@ -34,6 +36,18 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 			name: "full",
 			in: SPIFFEWorkloadAPIService{
 				Listen: "unix:///var/run/spiffe.sock",
+				Attestors: workloadattest.Config{
+					Kubernetes: workloadattest.KubernetesAttestorConfig{
+						Enabled: true,
+						Kubelet: workloadattest.KubeletClientConfig{
+							SecurePort: 12345,
+							TokenPath:  "/path/to/token",
+							CAPath:     "/path/to/ca.pem",
+							SkipVerify: true,
+							Anonymous:  true,
+						},
+					},
+				},
 				SVIDs: []SVIDRequestWithRules{
 					{
 						SVIDRequest: SVIDRequest{
@@ -55,6 +69,11 @@ func TestSPIFFEWorkloadAPIService_YAML(t *testing.T) {
 							{
 								Unix: SVIDRequestRuleUnix{
 									PID: ptr(100),
+								},
+								Kubernetes: SVIDRequestRuleKubernetes{
+									Namespace:      "my-namespace",
+									PodName:        "my-pod",
+									ServiceAccount: "service-account",
 								},
 							},
 						},

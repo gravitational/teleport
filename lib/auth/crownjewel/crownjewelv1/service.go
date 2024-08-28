@@ -102,11 +102,11 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewels)
+	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -171,11 +171,11 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewels)
+	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -198,11 +198,11 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 		return nil, trace.Wrap(err)
 	}
 
-	if err := crownjewel.ValidateCrownJewel(req.CrownJewels); err != nil {
+	if err := crownjewel.ValidateCrownJewel(req.CrownJewel); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewels)
+	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

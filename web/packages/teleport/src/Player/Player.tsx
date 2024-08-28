@@ -36,7 +36,7 @@ import { DesktopPlayer } from './DesktopPlayer';
 import SshPlayer from './SshPlayer';
 import Tabs, { TabItem } from './PlayerTabs';
 
-const validRecordingTypes = ['ssh', 'k8s', 'desktop'];
+const validRecordingTypes = ['ssh', 'k8s', 'desktop', 'database'];
 
 export function Player() {
   const { sid, clusterId } = useParams<UrlPlayerParams>();

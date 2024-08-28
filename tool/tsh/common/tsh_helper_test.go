@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -108,6 +109,10 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
+
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	user, err := user.Current()
 	require.NoError(t, err)
@@ -201,6 +206,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	})
 	require.NoError(t, err)
 	cfg.SetToken(staticToken)
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
@@ -530,4 +538,13 @@ func registerDeviceForUser(t *testing.T, authServer *auth.Server, device *mocku2
 		},
 	})
 	require.NoError(t, err)
+}
+
+func mustWriteFileConfig(t *testing.T, fc *config.FileConfig) string {
+	fileConfPath := filepath.Join(t.TempDir(), "teleport.yaml")
+	fileConfYAML, err := yaml.Marshal(fc)
+	require.NoError(t, err)
+	err = os.WriteFile(fileConfPath, fileConfYAML, 0o600)
+	require.NoError(t, err)
+	return fileConfPath
 }

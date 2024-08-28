@@ -354,6 +354,10 @@ func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 		}, 2*time.Second, 500*time.Millisecond)
 
 		require.NotContains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+
+		dbServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+		require.NoError(t, err)
+		require.Equal(t, "teleport.cluster.local", dbServices[0].GetHostname())
 	})
 	t.Run("when running as AWS OIDC ECS/Fargate Agent, it has a label indicating that", func(t *testing.T) {
 		ctx := context.Background()
@@ -384,6 +388,10 @@ func TestDatabaseServiceHeartbeatEvents(t *testing.T) {
 		}, 2*time.Second, 500*time.Millisecond)
 
 		require.Contains(t, listResp.Resources[0].GetAllLabels(), "teleport.dev/awsoidc-agent")
+
+		dbServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+		require.NoError(t, err)
+		require.Equal(t, "teleport.cluster.local", dbServices[0].GetHostname())
 	})
 }
 

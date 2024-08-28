@@ -100,7 +100,7 @@ func TestAWS(t *testing.T) {
 	// Log into the "aws-app" app.
 	err = Run(
 		context.Background(),
-		[]string{"app", "login", "aws-app"},
+		[]string{"app", "login", "--insecure", "--aws-role", "some-aws-role", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
+		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
@@ -187,6 +187,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 			},
 			AWSRoleARNs: []string{
 				"arn:aws:iam::123456789012:role/some-aws-role",
+				"arn:aws:iam::123456789012:role/some-other-aws-role",
 			},
 		},
 	})
@@ -221,6 +222,9 @@ func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, app
 	cfg.Apps.Enabled = true
 	cfg.Apps.Apps = apps
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	return runTeleport(t, cfg)
 }

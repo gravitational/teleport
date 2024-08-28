@@ -287,7 +287,7 @@ global:
   clusterDomain: cluster.local
 
 # Labels is a map of key-value pairs about this cluster. Those labels are used
-# in Teleport to access the Kuebrnetes cluster. They must not be confused with
+# in Teleport to access the Kubernetes cluster. They must not be confused with
 # `extraLabels` which are additional labels to add on Kubernetes resources
 # created by the Helm chart.
 labels: {}
@@ -700,6 +700,11 @@ service:
 # See https://goteleport.com/docs/architecture/tls-routing/#working-with-layer-7-load-balancers-or-reverse-proxies-preview for details.
 ingress:
   enabled: false
+  # useExisting indicates to the chart that you are managing your own ingress.
+  # (or HTTPRoute, or any other LoadBalancing method that terminates TLS).
+  # The chart will configure Teleport like it's running behind an ingress, but will not create the ingress resource.
+  # You are responsible for creating and managing the ingress.
+  useExisting: false
   # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
   # by the Ingress. This may be desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false

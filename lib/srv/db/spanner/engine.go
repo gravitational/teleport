@@ -109,7 +109,7 @@ func (e *Engine) SendError(err error) {
 	}
 	// the grpc server handles sending all errors, if an error is sent outside
 	// of that, just log it here.
-	e.Log.WithError(err).Debug("GCP Spanner connection error")
+	e.Log.DebugContext(e.Context, "GCP Spanner connection error", "error", err)
 }
 
 // HandleConnection processes the connection from the proxy coming over reverse
@@ -164,7 +164,7 @@ func (e *Engine) unaryServerInterceptors() []grpc.UnaryServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.UnaryServerInterceptor{
 		interceptors.GRPCServerUnaryErrorInterceptor,
-		unaryServerLoggingInterceptor(e.Log),
+		unaryServerLoggingInterceptor(e.Context, e.Log),
 	}
 }
 
@@ -172,6 +172,6 @@ func (e *Engine) streamServerInterceptors() []grpc.StreamServerInterceptor {
 	// intercept and log some info, then convert errors to gRPC codes.
 	return []grpc.StreamServerInterceptor{
 		interceptors.GRPCServerStreamErrorInterceptor,
-		streamServerLoggingInterceptor(e.Log),
+		streamServerLoggingInterceptor(e.Context, e.Log),
 	}
 }

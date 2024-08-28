@@ -18,6 +18,10 @@
 
 import { Box, LabelInput } from 'design';
 
+import { GroupBase, OnChangeValue, OptionsOrGroups } from 'react-select';
+
+import { BoxProps } from 'design/Box';
+
 import { useRule } from 'shared/components/Validation';
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -25,11 +29,16 @@ import Select, {
   Props as SelectProps,
   SelectAsync,
   AsyncProps as AsyncSelectProps,
+  Option,
 } from '../Select';
 
 import { LabelTip, defaultRule } from './shared';
 
-export function FieldSelect({
+export function FieldSelect<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>({
   components,
   label,
   labelTip,
@@ -45,13 +54,13 @@ export function FieldSelect({
   rule = defaultRule,
   stylesConfig,
   isSearchable = false,
-  isSimpleValue = false,
   autoFocus = false,
   isDisabled = false,
   elevated = false,
   inputId = 'select',
+  defaultValue,
   ...styles
-}: SelectProps & FieldProps) {
+}: SelectProps<Opt, IsMulti, Group> & FieldProps<Opt, IsMulti>) {
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
@@ -63,14 +72,13 @@ export function FieldSelect({
           {labelTip && <LabelTip text={labelTip} />}
         </LabelInput>
       )}
-      <Select
+      <Select<Opt, IsMulti, Group>
         components={components}
         stylesConfig={stylesConfig}
         inputId={inputId}
         name={name}
         menuPosition={menuPosition}
         hasError={hasError}
-        isSimpleValue={isSimpleValue}
         isSearchable={isSearchable}
         isClearable={isClearable}
         value={value}
@@ -82,6 +90,7 @@ export function FieldSelect({
         autoFocus={autoFocus}
         isDisabled={isDisabled}
         elevated={elevated}
+        defaultValue={defaultValue}
       />
     </Box>
   );
@@ -100,7 +109,11 @@ export default FieldSelect;
  * Note: It is not possible to re-fetch the initial call for options.
  * ReactSelect fetches them when the component mounts and then keeps in memory.
  */
-export function FieldSelectAsync({
+export function FieldSelectAsync<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>({
   components,
   label,
   labelTip,
@@ -115,16 +128,16 @@ export function FieldSelectAsync({
   rule = defaultRule,
   stylesConfig,
   isSearchable,
-  isSimpleValue,
   autoFocus,
   isDisabled,
   elevated,
   noOptionsMessage,
   loadOptions,
   inputId = 'select',
+  defaultValue,
   ...styles
-}: AsyncSelectProps & FieldProps) {
-  const [attempt, runAttempt] = useAsync(loadOptions);
+}: AsyncSelectProps<Opt, IsMulti, Group> & FieldProps<Opt, IsMulti>) {
+  const [attempt, runAttempt] = useAsync(resolveUndefinedOptions(loadOptions));
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
@@ -134,30 +147,29 @@ export function FieldSelectAsync({
         {labelText}
         {labelTip && <LabelTip text={labelTip} />}
       </LabelInput>
-      <SelectAsync
+      <SelectAsync<Opt, IsMulti, Group>
         components={components}
         stylesConfig={stylesConfig}
         inputId={inputId}
         name={name}
         menuPosition={menuPosition}
         hasError={hasError}
-        isSimpleValue={isSimpleValue}
         isSearchable={isSearchable}
         isClearable={isClearable}
         value={value}
         onChange={onChange}
-        loadOptions={async (input, option) => {
-          const [options, error] = await runAttempt(input, option);
+        loadOptions={async (value, callback) => {
+          const [options, error] = await runAttempt(value, callback);
           if (error) {
             return [];
           }
           return options;
         }}
-        noOptionsMessage={() => {
+        noOptionsMessage={obj => {
           if (attempt.status === 'error') {
             return `Could not load options: ${attempt.statusText}`;
           }
-          return noOptionsMessage();
+          return noOptionsMessage?.(obj) ?? 'No options';
         }}
         maxMenuHeight={maxMenuHeight}
         defaultOptions={true}
@@ -166,16 +178,37 @@ export function FieldSelectAsync({
         autoFocus={autoFocus}
         isDisabled={isDisabled}
         elevated={elevated}
+        defaultValue={defaultValue}
       />
     </Box>
   );
 }
 
-type FieldProps = {
+type FieldProps<Opt, IsMulti extends boolean> = BoxProps & {
   autoFocus?: boolean;
   label?: string;
   labelTip?: string;
-  rule?: (options: unknown) => () => unknown;
-  // styles
-  [key: string]: any;
+  rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
 };
+
+/**
+ * Returns an option loader that wraps given function and returns a promise to
+ * an empty array if the wrapped function returns `undefined`. This wrapper is
+ * useful for using the `loadingOptions` callback in context where a promise is
+ * strictly required, while the declaration of the `loadingOptions` attribute
+ * allows a `void` return type.
+ */
+export const resolveUndefinedOptions =
+  <Opt, Group extends GroupBase<Opt>>(
+    loadOptions: AsyncSelectProps<Opt, false, Group>['loadOptions']
+  ) =>
+  (
+    value: string,
+    callback?: (options: OptionsOrGroups<Opt, Group>) => void
+  ) => {
+    const result = loadOptions(value, callback);
+    if (!result) {
+      return Promise.resolve([] as Opt[]);
+    }
+    return result;
+  };

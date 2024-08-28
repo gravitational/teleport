@@ -31,7 +31,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/pprof"
@@ -45,6 +45,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -66,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -77,11 +79,14 @@ import (
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
+	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -523,6 +528,11 @@ type CLIConf struct {
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
 
+	// DTAutoEnroll allows tests to override the default device
+	// auto-enroll function.
+	// Defaults to [dtenroll.AutoEnroll].
+	DTAutoEnroll client.DTAutoEnrollFunc
+
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to [wancli.Login].
 	WebauthnLogin client.WebauthnLoginFunc
@@ -539,6 +549,11 @@ type CLIConf struct {
 
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
+
+	// Relogin determines if a login attempt should be made in the event of command failures. This
+	// allows users with potentially stale credentials preventing access to gain the required access
+	// without having to manually run tsh login and the failed command again.
+	Relogin bool
 }
 
 // Stdout returns the stdout writer.
@@ -587,7 +602,7 @@ func Main() {
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
-	switch path.Base(os.Args[0]) {
+	switch filepath.Base(os.Args[0]) {
 	case "ssh":
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
@@ -681,8 +696,10 @@ func initLogger(cf *CLIConf) {
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	cf := CLIConf{
-		Context:         ctx,
-		TracingProvider: tracing.NoopProvider(),
+		Context:            ctx,
+		TracingProvider:    tracing.NoopProvider(),
+		DTAuthnRunCeremony: dtauthn.NewCeremony().Run,
+		DTAutoEnroll:       dtenroll.AutoEnroll,
 	}
 
 	// run early to enable debug logging if env var is set.
@@ -783,6 +800,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests (DEPRECATED: use --request-mode=off)").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -804,19 +822,23 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
+	aws.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+	azure.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 
 	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
 	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	gcloud.Alias("gcp")
 
 	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
 	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
 	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gsutil.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -860,6 +882,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	proxySSH.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
+	proxySSH.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	// don't require <db> positional argument, user can select with --labels/--query alone.
 	proxyDB.Arg("db", "The name of the database to start local proxy for").StringVar(&cf.DatabaseService)
@@ -958,6 +981,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
+	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
@@ -1157,6 +1181,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
+	// SCAN subcommands.
+	scan := newScanCommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 	config.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
@@ -1182,6 +1208,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	vnetCmd := newVnetCommand(app)
 	vnetAdminSetupCmd := newVnetAdminSetupCommand(app)
+	vnetDaemonCmd := newVnetDaemonCommand(app)
 
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
@@ -1454,7 +1481,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = kube.exec.run(&cf)
 	case kube.join.FullCommand():
 		err = kube.join.run(&cf)
-
+	case scan.keys.FullCommand():
+		err = scan.keys.run(&cf)
 	case proxySSH.FullCommand():
 		err = onProxyCommandSSH(&cf)
 	case proxyDB.FullCommand():
@@ -1549,6 +1577,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetCmd.run(&cf)
 	case vnetAdminSetupCmd.FullCommand():
 		err = vnetAdminSetupCmd.run(&cf)
+	case vnetDaemonCmd.FullCommand():
+		err = vnetDaemonCmd.run(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1569,18 +1599,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	return trace.Wrap(err)
 }
 
-// cloudAutomaticSamplingRate is the sampling rate at which traces are captured
-// when tracing is automatically enabled for invocations of some tsh commands
-// when performed against a cloud tenant.
-const cloudAutomaticSamplingRate = 0.25
-
-// isCloudTenant determines if the proxy address provided
-// belongs to a cloud tenant. It currently returns true if
-// the tenant is a production tenant.
-func isCloudTenant(proxyAddress string) bool {
-	return strings.HasSuffix(proxyAddress, ".teleport.sh:443")
-}
-
 func initializeTracing(cf *CLIConf) func() {
 	cf.TracingProvider = tracing.NoopProvider()
 	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
@@ -1597,14 +1615,11 @@ func initializeTracing(cf *CLIConf) func() {
 		}
 	}
 
-	// The list of commands that are automatically traced and forward to Cloud.
-	autoForwardedToCloud := []string{"ssh"}
-
 	// A default sampling rate of 1 ensures that all spans for this invocation of
 	// tsh are guaranteed to be recorded. Since Teleport honors the sampling rate
 	// of remote spans this will also cause Teleport to sample any spans it generates
 	// in response to the client request.
-	samplingRate := 1.0
+	const samplingRate = 1.0
 
 	switch {
 	// kubectl is a special case because it is the only command that we re-execute
@@ -1642,7 +1657,7 @@ func initializeTracing(cf *CLIConf) func() {
 	// All commands besides ssh are only traced if the user explicitly requested
 	// tracing. For ssh, a random number of spans may be sampled if the Proxy is
 	// for a Cloud tenant.
-	case !cf.SampleTraces && !slices.Contains(autoForwardedToCloud, cf.command):
+	case !cf.SampleTraces:
 		return func() {}
 	case cf.SampleTraces:
 	}
@@ -1653,18 +1668,6 @@ func initializeTracing(cf *CLIConf) func() {
 	if err != nil {
 		log.WithError(err).Debug("failed to set up span forwarding.")
 		return func() {}
-	}
-
-	if !cf.SampleTraces {
-		// Automatically enable and forward spans to Cloud if the following conditions are met:
-		// 1) The proxy address resembles that of a Cloud tenant
-		// 2) The command being executed is tsh ssh
-		// 3) The user has not already explicitly provided the --trace flag.
-		if isCloudTenant(tc.WebProxyAddr) {
-			samplingRate = cloudAutomaticSamplingRate
-		} else {
-			return func() {}
-		}
 	}
 
 	var provider *tracing.Provider
@@ -1896,6 +1899,11 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
+			profile, profiles, err = cf.FullProfileStatus()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles, cf.getAccessListsToReview(tc)))
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -1985,7 +1993,7 @@ func onLogin(cf *CLIConf) error {
 		}
 		filesWritten, err := identityfile.Write(cf.Context, identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
-			Key:                  key,
+			KeyRing:              key,
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
@@ -2109,7 +2117,6 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		// Load profile for the requested proxy/user.
 		profile, err := tc.ProfileStatus()
 		if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
@@ -2151,7 +2158,6 @@ func onLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
 		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
 		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
 			return trace.Wrap(err)
@@ -2176,6 +2182,28 @@ func onLogout(cf *CLIConf) error {
 					return trace.Wrap(err)
 				}
 			}
+		}
+
+		err = forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+			if !profile.SAMLSingleLogoutEnabled {
+				return nil
+			}
+			clt, err := tc.ConnectToCluster(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer clt.Close()
+			sloURL, err := tc.GetSAMLSingleLogoutURL(ctx, clt, profile)
+			if err != nil {
+				return trace.WrapWithMessage(err, "failed to retrieve SAML single logout URL.")
+			}
+			if sloURL == "" {
+				return trace.WrapWithMessage(err, "SAML single logout is enabled, but no single logout URL is available.")
+			}
+			return trace.Wrap(tc.SAMLSingleLogout(ctx, sloURL))
+		})
+		if err != nil {
+			fmt.Printf("We were unable to log you out of your SAML identity provider: %v", err)
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -3219,21 +3247,48 @@ func serializeSessions(sessions []types.SessionTracker, format string, w io.Writ
 }
 
 func printSessions(output io.Writer, sessions []types.SessionTracker) {
-	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "Hostname", "Address", "Login", "Command"})
+	table := asciitable.MakeTable([]string{"ID", "Kind", "Created", "User", "Target", "Address"})
 	for _, s := range sessions {
 		table.AddRow([]string{
 			s.GetSessionID(),
 			string(s.GetSessionKind()),
-			s.GetCreated().Format(time.RFC3339),
-			s.GetHostname(),
-			s.GetAddress(),
-			s.GetLogin(),
-			strings.Join(s.GetCommand(), " "),
+			humanize.Time(s.GetCreated()),
+			s.GetHostUser(),
+			target(s),
+			address(s),
 		})
 	}
 
 	tableOutput := table.AsBuffer().String()
 	fmt.Fprintln(output, tableOutput)
+}
+
+func address(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.KubernetesSessionKind:
+		// address isn't populated in the session tracker for kube sessions,
+		// so we display the command the exec session is running
+		return strings.Join(s.GetCommand(), " ")
+	default:
+		return s.GetAddress()
+	}
+}
+
+func target(s types.SessionTracker) string {
+	switch s.GetSessionKind() {
+	case types.SSHSessionKind:
+		return s.GetLogin() + "@" + s.GetHostname()
+	case types.KubernetesSessionKind:
+		return s.GetHostname() + "@" + s.GetKubeCluster()
+	case types.AppSessionKind:
+		return s.GetAppName()
+	case types.DatabaseSessionKind:
+		return s.GetDatabaseName()
+	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	default:
+		return s.GetHostname()
+	}
 }
 
 type clusterInfo struct {
@@ -3401,28 +3456,29 @@ func retryWithAccessRequest(
 }
 
 func promptUserForAccessRequestDetails(cf *CLIConf, req types.AccessRequest) error {
-	if cf.RequestMode != accessRequestModeRole {
-		return nil
-	}
-	// If this is a role access request, ensure that it only has one role.
-	switch len(req.GetRoles()) {
-	case 0:
-		return trace.AccessDenied("no roles to request that would grant access")
-	case 1:
-		return nil
-	default:
-		selectedRole, err := prompt.PickOne(
-			cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
-			"Choose role to request",
-			req.GetRoles())
-		if err != nil {
-			return trace.Wrap(err)
+	if cf.RequestMode == accessRequestModeRole {
+		// If this is a role access request, ensure that it only has one role.
+		switch len(req.GetRoles()) {
+		case 0:
+			return trace.AccessDenied("no roles to request that would grant access")
+		case 1:
+			// No need to choose a role, just set request reason.
+		default:
+			selectedRole, err := prompt.PickOne(
+				cf.Context, os.Stdout, prompt.NewContextReader(os.Stdin),
+				"Choose role to request",
+				req.GetRoles())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			req.SetRoles([]string{selectedRole})
 		}
-		req.SetRoles([]string{selectedRole})
 	}
+
 	if err := setAccessRequestReason(cf, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -3515,6 +3571,31 @@ func onSSHLatency(cf *CLIConf) error {
 	return trace.Wrap(showLatency(cf.Context, clt.ProxyClient, targetPinger, "Proxy", tc.Host))
 }
 
+// Executes the given command on the client machine (localhost). If no command is given,
+// executes shell
+func runLocalCommand(hostLogin string, command []string) error {
+	if len(command) == 0 {
+		if hostLogin == "" {
+			user, err := apiutils.CurrentUser()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
+		}
+		shell, err := shell.GetLoginShell(hostLogin)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		command = []string{shell}
+	}
+
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
+}
+
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -3526,9 +3607,19 @@ func onSSH(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
-		})
+		sshFunc := func() error {
+			var opts []func(*client.SSHOptions)
+			if cf.LocalExec {
+				opts = append(opts, client.WithLocalCommandExecutor(runLocalCommand))
+			}
+
+			return tc.SSH(cf.Context, cf.RemoteCommand, opts...)
+		}
+		if !cf.Relogin {
+			err = sshFunc()
+		} else {
+			err = client.RetryWithRelogin(cf.Context, tc, sshFunc)
+		}
 		if err != nil {
 			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
 				clt, err := tc.ConnectToCluster(cf.Context)
@@ -4062,6 +4153,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.MockSSOLogin = cf.MockSSOLogin
 	c.MockHeadlessLogin = cf.MockHeadlessLogin
 	c.DTAuthnRunCeremony = cf.DTAuthnRunCeremony
+	c.DTAutoEnroll = cf.DTAutoEnroll
 	c.WebauthnLogin = cf.WebauthnLogin
 
 	// pass along MySQL/Postgres path overrides (only used in tests).
@@ -4349,19 +4441,19 @@ func flattenIdentity(cf *CLIConf) error {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
-	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
+	keyRing, err := identityfile.KeyRingFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// unmarshal certificate bytes into a ssh.PublicKey
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(keyRing.Cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.Signer, key.MarshalSSHPublicKey())
-	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, keyRing.PrivateKey.Signer, keyRing.PrivateKey.MarshalSSHPublicKey())
+	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(keyRing.PrivateKey.SSHPublicKey()))
 	return nil
 }
 
@@ -4396,7 +4488,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	if cluster != "" {
 		fmt.Printf("  Cluster:            %v\n", cluster)
 	}
-	fmt.Printf("  Roles:              %v\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v\n", rolesToString(debug, p.Roles))
 	if debug {
 		var count int
 		for k, v := range p.Traits {
@@ -4452,6 +4544,35 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	}
 
 	fmt.Printf("\n")
+}
+
+func isOktaRole(role string) bool {
+	return strings.Contains(role, teleport.OktaReviewerRoleContext) || strings.Contains(role, teleport.OktaAccessRoleContext)
+}
+
+func rolesToString(debug bool, roles []string) string {
+	sort.Strings(roles)
+	var nonOktaRoles, oktaRoles []string
+	for _, role := range roles {
+		if isOktaRole(role) {
+			oktaRoles = append(oktaRoles, role)
+		} else {
+			nonOktaRoles = append(nonOktaRoles, role)
+		}
+	}
+	if len(oktaRoles) == 0 {
+		return strings.Join(nonOktaRoles, ", ")
+	}
+
+	squashRolesThreshold := 9
+
+	if !debug && len(nonOktaRoles)+len(oktaRoles) > squashRolesThreshold {
+		oktaRolesText := fmt.Sprintf("and %v more Okta access list roles ...", len(oktaRoles))
+		return strings.Join(append(nonOktaRoles, oktaRolesText), ", ")
+	}
+	// Keep okta roles at the end of list.
+	out := append(nonOktaRoles, oktaRoles...)
+	return strings.Join(out, ", ")
 }
 
 // printLoginInformation displays the provided profile information to the user.
@@ -5119,10 +5240,10 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 func setEnvFlags(cf *CLIConf) {
 	// these can only be set with env vars.
 	if homeDir := os.Getenv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
+		cf.HomePath = filepath.Clean(homeDir)
 	}
 	if configPath := os.Getenv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
+		cf.GlobalTshConfigPath = filepath.Clean(configPath)
 	}
 
 	// prioritize CLI input for the rest.

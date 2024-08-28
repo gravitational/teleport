@@ -1064,3 +1064,113 @@ func TestDatabaseSpanner(t *testing.T) {
 		})
 	}
 }
+
+func TestDatabaseGCPCloudSQL(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		inputName   string
+		inputSpec   DatabaseSpecV3
+		expectError bool
+	}{
+		{
+			inputName: "gcp-valid-configuration",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID:  "project-1",
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: false,
+		},
+		{
+			inputName: "gcp-project-id-specified-without-instance-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					ProjectID: "project-1",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "gcp-instance-id-specified-without-project-id",
+			inputSpec: DatabaseSpecV3{
+				Protocol: DatabaseProtocolPostgreSQL,
+				URI:      "localhost:5432",
+				GCP: GCPCloudSQL{
+					InstanceID: "instance-1",
+				},
+			},
+			expectError: true,
+		},
+	} {
+		t.Run(test.inputName, func(t *testing.T) {
+			_, err := NewDatabaseV3(Metadata{
+				Name: test.inputName,
+			}, test.inputSpec)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetAdminUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc      string
+		specAdmin *DatabaseAdminUser
+		labels    map[string]string
+		want      DatabaseAdminUser
+	}{
+		{
+			desc: "no admin",
+			want: DatabaseAdminUser{},
+		},
+		{
+			desc:      "gets admin from spec",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			want:      DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc: "gets admin from labels",
+			labels: map[string]string{
+				DatabaseAdminLabel:                "llama",
+				DatabaseAdminDefaultDatabaseLabel: "hill",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc:      "gets admin from spec ignoring labels",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			labels: map[string]string{
+				DatabaseAdminLabel:                "horse",
+				DatabaseAdminDefaultDatabaseLabel: "pasture",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			meta := Metadata{
+				Name:   "example",
+				Labels: test.labels,
+			}
+			spec := DatabaseSpecV3{
+				Protocol:  "postgres",
+				URI:       "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+				AdminUser: test.specAdmin,
+			}
+			d, err := NewDatabaseV3(meta, spec)
+			require.NoError(t, err)
+			require.Equal(t, test.want, d.GetAdminUser())
+		})
+	}
+}

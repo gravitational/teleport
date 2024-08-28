@@ -1,4 +1,7 @@
 /**
+ * @jest-environment node
+ */
+/**
  * (The MIT License)
  *
  * Copyright (c) 2019 Subash Pathak <subash@subash.me>

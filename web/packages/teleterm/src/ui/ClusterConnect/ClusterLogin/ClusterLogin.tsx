@@ -18,7 +18,7 @@
 
 import React from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, Indicator, Box } from 'design';
+import { ButtonIcon, Text, Indicator, Box, H2 } from 'design';
 import * as Icons from 'design/Icon';
 import { DialogHeader, DialogContent } from 'design/Dialog';
 import { PrimaryAuthType } from 'shared/services';
@@ -26,7 +26,6 @@ import { PrimaryAuthType } from 'shared/services';
 import { AuthSettings } from 'teleterm/ui/services/clusters/types';
 import { ClusterConnectReason } from 'teleterm/ui/services/modals';
 import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { routing } from 'teleterm/ui/uri';
 
 import LoginForm from './FormLogin';
 import useClusterLogin, { State, Props } from './useClusterLogin';
@@ -59,9 +58,9 @@ export function ClusterLoginPresentation({
   return (
     <>
       <DialogHeader px={4} pt={4} mb={0}>
-        <Text typography="h4">
+        <H2>
           Login to <b>{title}</b>
-        </Text>
+        </H2>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
         </ButtonIcon>
@@ -145,14 +144,7 @@ const getTargetDesc = (reason: ClusterConnectReason): React.ReactNode => {
       }
     }
     case 'reason.vnet-cert-expired': {
-      const { targetUri } = reason;
-      const appName = routing.parseAppUri(targetUri)?.params['appId'];
-
-      if (appName) {
-        return <strong>{appName}</strong>;
-      } else {
-        return <strong>{targetUri}</strong>;
-      }
+      return <strong>{reason.publicAddr}</strong>;
     }
     default: {
       reason satisfies never;
