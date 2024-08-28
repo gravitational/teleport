@@ -50,7 +50,6 @@ type JamfCredentials struct {
 
 // ValidateJamfCredentials validates the Jamf credentials.
 func ValidateJamfCredentials(j *JamfCredentials) error {
-	// Jamf can handle both credential sets being present, so we let it pass.
 	hasUserPass := j.Username != "" && j.Password != ""
 	hasAPICreds := j.ClientID != "" && j.ClientSecret != ""
 	switch {
