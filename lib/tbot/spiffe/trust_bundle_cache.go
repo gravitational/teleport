@@ -97,7 +97,7 @@ func MarshalX509Bundle(b *x509bundle.Bundle) []byte {
 // EncodedX509Bundles returns a map of trust domain names to their trust bundles
 // encoded as raw bytes. If includeLocal is true, the local trust domain will be
 // included in the output. Uses MarshalX509Bundle to encode the bundles for
-// compatability with the SPIFFE workload API specification.
+// compatibility with the SPIFFE workload API specification.
 func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 	bundles := make(map[string][]byte)
 	if includeLocal {
@@ -412,11 +412,11 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 	// cloning again.
 	bundleSet := m.getBundleSet()
 
-	log := m.logger.With("event.type", event.Type)
+	log := m.logger.With("event_type", event.Type)
 	if event.Resource != nil {
 		log = log.With(
-			"event.resource.kind", event.Resource.GetKind(),
-			"event.resource.name", event.Resource.GetName(),
+			"event_resource.kind", event.Resource.GetKind(),
+			"event_resource_name", event.Resource.GetName(),
 		)
 	}
 
@@ -519,7 +519,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 			}
 			bundle, err := convertSPIFFEFederationToBundle(federation)
 			if err != nil {
-				// TODO: Should we match the behaviour for the local trust
+				// TODO: Should we match the behavior for the local trust
 				// bundle that's derived from the CA - i.e continue to use the
 				// last good bundle, or, should we remove this from our local
 				// set and tell workloads to start ignoring this trust domain?
