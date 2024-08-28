@@ -165,7 +165,7 @@ test('entra onboard with policy enabled', async () => {
   expect(pluginsService.createPlugin).toHaveBeenCalledTimes(0);
 
   // Set file upload
-  const fileInput = screen.getByTestId('access-graph-cache');
+  const fileInput = screen.getByTestId('button-file-upload');
   fireEvent.change(fileInput, { target: { files: [createTAGCacheFile()] } });
 
   // Submit form successfully

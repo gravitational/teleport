@@ -1,30 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import {
-  Alert,
-  ButtonPrimary,
-  Text,
-  Link,
-  Box,
-  Flex,
-  LabelInput,
-  ButtonBorder,
-} from 'design';
+import { Alert, ButtonPrimary, Text, Link, Box, Flex } from 'design';
+import { ButtonFileUpload } from 'shared/components/ButtonFileUpload';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import * as Icons from 'design/Icon';
-
 import { pluginsService } from 'e-teleport/services/plugins';
-
 import cfg from 'e-teleport/config';
 
 import { usePlugin } from '../../MultiStep/usePlugin';
-
 import { Header } from '../Shared';
 
 import { FormDataField } from './types';
@@ -40,18 +28,18 @@ export function RunScript() {
 
   const [tenantId, setTenantId] = useState('');
   const [clientId, setClientId] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File>(null);
 
-  const fileInput = React.createRef<HTMLInputElement>();
-  const [fileName, setFileName] = useState('');
-  const [fileHasError, setFileHasError] = useState(false);
+  const [showFileValidationError, setShowFileValidationError] =
+    useState<boolean>(false);
 
   const { attempt, run } = useAttempt();
 
   function handleSubmit(validator: Validator) {
     let valid = true;
     if (accessGraphEnabled) {
-      setFileHasError(!fileName);
-      valid = !!fileName;
+      setShowFileValidationError(!selectedFile?.name);
+      valid = !!selectedFile?.name;
     }
 
     if (!validator.validate()) {
@@ -62,6 +50,9 @@ export function RunScript() {
 
     formData.set(FormDataField.TenantId, tenantId);
     formData.set(FormDataField.ClientId, clientId);
+    if (accessGraphEnabled) {
+      formData.set(FormDataField.AccessGraphCache, selectedFile);
+    }
 
     run(async () => {
       const resp = await pluginsService.createPlugin(formData);
@@ -70,17 +61,9 @@ export function RunScript() {
     });
   }
 
-  useEffect(() => {
-    if (fileName) setFileHasError(false);
-  }, [fileName]);
-
-  function handleFileChange(e) {
-    e.stopPropagation();
-    e.preventDefault();
-
-    const file = e.target.files[0];
-    setFileName(file.name);
-    formData.set(FormDataField.AccessGraphCache, file);
+  function onFileSelect(f: File) {
+    setShowFileValidationError(false);
+    setSelectedFile(f);
   }
 
   return (
@@ -163,32 +146,18 @@ export function RunScript() {
                   onChange={e => setClientId(e.target.value)}
                 />
                 {accessGraphEnabled && (
-                  <Flex alignItems="center" gap={3} mb={2} mt={5}>
-                    <ButtonBorder
-                      gap={2}
-                      onClick={() => fileInput.current.click()}
-                      size="large"
-                      textTransform="none"
-                      px={3}
-                      disabled={attempt.status === 'processing'}
-                    >
-                      Click to upload the cache.json file{' '}
-                      <Icons.Upload size="small" />
-                    </ButtonBorder>
-
-                    <FileLabel hasError={fileHasError}>
-                      {fileHasError ? 'Cache file must be specified' : fileName}
-                    </FileLabel>
-                    <input
-                      disabled={attempt.status === 'processing'}
+                  <Box mb={2} mt={5}>
+                    <ButtonFileUpload
+                      text="Click to upload the cache.json file"
+                      errorMessage="Cache file must be specified"
                       accept=".json"
-                      style={{ display: 'none' }}
-                      type="file"
-                      onChange={handleFileChange}
-                      ref={fileInput}
-                      data-testid="access-graph-cache"
+                      onFileSelect={onFileSelect}
+                      showValidationError={showFileValidationError}
+                      disabled={attempt.status === 'processing'}
+                      buttonSize="large"
+                      buttonIconSize="small"
                     />
-                  </Flex>
+                  </Box>
                 )}
               </StyledBox>
               <Flex>
@@ -207,12 +176,6 @@ export function RunScript() {
     </Box>
   );
 }
-
-const FileLabel = styled(LabelInput)`
-  width: auto;
-  font-size: ${props => props.theme.fontSizes[2]}px;
-  margin-bottom: 0;
-`;
 
 const StyledBox = styled(Box).attrs({
   p: 4,
