@@ -3428,6 +3428,10 @@ jamf_service:
 					Username:    "llama",
 					Password:    password,
 				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
+				},
 			},
 		},
 		{
@@ -3442,6 +3446,10 @@ jamf_service:
 					Enabled:      true,
 					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
 					ClientId:     "llama-UUID",
+					ClientSecret: password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3476,6 +3484,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},

@@ -2576,22 +2576,12 @@ type JamfInventoryEntry struct {
 	PageSize int32 `yaml:"page_size,omitempty"`
 }
 
-func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
+func (j *JamfService) toJamfSpecV1(creds *servicecfg.JamfCredentials) (*types.JamfSpecV1, error) {
 	switch {
 	case j == nil:
 		return nil, trace.BadParameter("jamf_service is nil")
 	case j.ListenAddress != "":
 		return nil, trace.BadParameter("jamf listen_addr not supported")
-	}
-
-	// Read secrets.
-	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	// Assemble spec.
@@ -2606,15 +2596,16 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		}
 	}
 	spec := &types.JamfSpecV1{
-		Enabled:      j.Enabled(),
-		Name:         j.Name,
-		SyncDelay:    types.Duration(j.SyncDelay),
-		ApiEndpoint:  j.APIEndpoint,
-		Username:     j.Username,
-		Password:     password,
-		Inventory:    inventory,
-		ClientId:     j.ClientID,
-		ClientSecret: clientSecret,
+		Enabled:     j.Enabled(),
+		Name:        j.Name,
+		SyncDelay:   types.Duration(j.SyncDelay),
+		ApiEndpoint: j.APIEndpoint,
+		Inventory:   inventory,
+		// TODO(tigrato): DELETE once we remove the fields from the config.
+		Username:     creds.Username,
+		Password:     creds.Password,
+		ClientId:     creds.ClientID,
+		ClientSecret: creds.ClientSecret,
 	}
 
 	// Validate.
@@ -2623,6 +2614,31 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	return spec, nil
+}
+
+func (j *JamfService) readJamfCredentials() (*servicecfg.JamfCredentials, error) {
+	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	creds := &servicecfg.JamfCredentials{
+		Username:     j.Username,
+		Password:     password,
+		ClientID:     j.ClientID,
+		ClientSecret: clientSecret,
+	}
+
+	// Validate.
+	if err := servicecfg.ValidateJamfCredentials(creds); err != nil {
+		return nil, trace.BadParameter("jamf_service %v", err)
+	}
+
+	return creds, nil
 }
 
 func readJamfPasswordFile(path, key string) (string, error) {
