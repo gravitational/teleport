@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -77,18 +78,18 @@ func TestHardwareKeyLogin(t *testing.T) {
 	// mock SSO login and count the number of login attempts.
 	var lastLoginCount int
 	mockSSOLogin := mockSSOLogin(authServer, alice)
-	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+	mockSSOLoginWithCountAndAttestation := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		lastLoginCount++
 
 		// Set MockAttestationData to attest the expected key policy and reset it after login.
 		testModules.MockAttestationData = &keys.AttestationData{
-			PrivateKeyPolicy: priv.GetPrivateKeyPolicy(),
+			PrivateKeyPolicy: keyRing.SSHPrivateKey.GetPrivateKeyPolicy(),
 		}
 		defer func() {
 			testModules.MockAttestationData = nil
 		}()
 
-		return mockSSOLogin(ctx, connectorID, priv, protocol)
+		return mockSSOLogin(ctx, connectorID, keyRing, protocol)
 	}
 	setMockSSOLogin := setMockSSOLoginCustom(mockSSOLoginWithCountAndAttestation, connector.GetName())
 
