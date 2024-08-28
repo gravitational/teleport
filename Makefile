@@ -428,9 +428,9 @@ tsh-app:
 	$(NOTARIZE_TSH_APP)
 
 .PHONY: tctl-app
-tsh-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
-tsh-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/tctl.entitlements
-tsh-app:
+tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
+tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/tctl.entitlements
+tctl-app:
 	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
 	mkdir -p "$(TCTL_APP_BUNDLE)/Contents/MacOS/"
 	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
