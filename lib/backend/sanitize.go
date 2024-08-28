@@ -40,12 +40,12 @@ var denyPatterns = []*regexp.Regexp{
 }
 
 // isKeySafe checks if the passed in key conforms to whitelist
-func isKeySafe(s []byte) bool {
+func isKeySafe(s Key) bool {
 	return allowPattern.Match(s) && !denyPatternsMatch(s) && utf8.Valid(s)
 }
 
 // denyPatternsMatch checks if the passed in key conforms to the deny patterns.
-func denyPatternsMatch(s []byte) bool {
+func denyPatternsMatch(s Key) bool {
 	for _, pattern := range denyPatterns {
 		if pattern.Match(s) {
 			return true
@@ -69,7 +69,7 @@ func NewSanitizer(backend Backend) *Sanitizer {
 }
 
 // GetRange returns query range
-func (s *Sanitizer) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	if !isKeySafe(startKey) {
 		return nil, trace.BadParameter(errorMessage, startKey)
 	}
@@ -104,7 +104,7 @@ func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 }
 
 // Get returns a single item or not found error
-func (s *Sanitizer) Get(ctx context.Context, key []byte) (*Item, error) {
+func (s *Sanitizer) Get(ctx context.Context, key Key) (*Item, error) {
 	if !isKeySafe(key) {
 		return nil, trace.BadParameter(errorMessage, key)
 	}
@@ -122,7 +122,7 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 }
 
 // Delete deletes item by key
-func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
+func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
 	if !isKeySafe(key) {
 		return trace.BadParameter(errorMessage, key)
 	}
@@ -130,7 +130,7 @@ func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
 }
 
 // DeleteRange deletes range of items
-func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (s *Sanitizer) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	// we only validate the start key, since we often compute the end key
 	// in order to delete a bunch of related entries
 	if !isKeySafe(startKey) {

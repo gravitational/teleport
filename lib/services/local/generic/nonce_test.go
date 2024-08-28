@@ -60,7 +60,7 @@ func newNoncedResource(name string, nonce uint64) *noncedResource {
 	}
 }
 
-func fastGetResource[T types.Resource](ctx context.Context, bk backend.Backend, key []byte) (T, error) {
+func fastGetResource[T types.Resource](ctx context.Context, bk backend.Backend, key backend.Key) (T, error) {
 	var value T
 
 	item, err := bk.Get(ctx, key)

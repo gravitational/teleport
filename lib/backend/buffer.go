@@ -217,7 +217,7 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+func removeRedundantPrefixes(prefixes []Key) []Key {
 	if len(prefixes) == 0 {
 		return prefixes
 	}

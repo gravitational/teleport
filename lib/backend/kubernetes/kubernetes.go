@@ -219,7 +219,7 @@ func (b *Backend) Exists(ctx context.Context) bool {
 // Get reads the secret and extracts the key from it.
 // If the secret does not exist or the key is not found it returns trace.Notfound,
 // otherwise returns the underlying error.
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -258,7 +258,7 @@ func (b *Backend) getSecret(ctx context.Context) (*corev1.Secret, error) {
 
 // readSecretData reads the secret content and extracts the content for key.
 // returns an error if the key does not exist or the data is empty.
-func (b *Backend) readSecretData(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) readSecretData(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	secret, err := b.getSecret(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -350,7 +350,7 @@ func generateSecretAnnotations(namespace, releaseNameEnv string) map[string]stri
 
 // backendKeyToSecret replaces the "/" with "."
 // "/" chars are not allowed in Kubernetes Secret keys.
-func backendKeyToSecret(k []byte) string {
+func backendKeyToSecret(k backend.Key) string {
 	return strings.ReplaceAll(string(k), "/", ".")
 }
 
