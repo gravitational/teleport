@@ -655,30 +655,37 @@ func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineRece
 		return trace.Wrap(err)
 	}
 
-	// We try to get inner multiplexer connection, if we succeed and there is on, it means conn was passed
-	// to us from another multiplexer listener and unsigned PROXY protocol requirement was handled there.
-	innerConn := unwrapMuxConn(conn)
-
-	if !selfConnection && innerConn == nil && !unsignedPROXYLineReceived {
+	isInternalConn := unwrapMuxConn(conn)
+	if !selfConnection && !isInternalConn && !unsignedPROXYLineReceived {
 		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
-func unwrapMuxConn(conn net.Conn) *Conn {
+// unwrapMuxConn determines whether the connection is a multiplexer Conn or one originating from a websocket upgrade.
+// If the check is successful, it indicates that the connection was provided by another multiplexer listener or web API,
+// and that the unsigned PROXY protocol requirement has already been handled.
+func unwrapMuxConn(conn net.Conn) bool {
 	type netConn interface {
 		NetConn() net.Conn
 	}
+	type connUpgradedFromWebsocket interface {
+		IsALPNUpgradedConn()
+	}
 
 	for {
-		if muxConn, ok := conn.(*Conn); ok {
-			return muxConn
+		if _, ok := conn.(*Conn); ok {
+			return true
+		}
+
+		if _, ok := conn.(connUpgradedFromWebsocket); ok {
+			return true
 		}
 
 		connGetter, ok := conn.(netConn)
 		if !ok {
-			return nil
+			return false
 		}
 		conn = connGetter.NetConn()
 	}
