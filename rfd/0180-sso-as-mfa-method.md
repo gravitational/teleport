@@ -3,9 +3,10 @@ authors: Brian Joerger (bjoerger@goteleport.com)
 state: draft
 ---
 
-# RFD 180 - SSO as MFA Method
+# RFD 180 - SSO MFA
 
 ## Required Approvers
+
 * Engineering: @rosstimothy || @codingllama
 * Product: @xinding33 || @klizhentas
 
@@ -20,23 +21,144 @@ moderated sessions. Ideally we will support SSO as a first class MFA method.
 
 ## Why
 
-Delegating MFA checks to a registered IdP has several benefits:
+Delegating MFA checks to a registered IdP has several potential benefits:
 - Administrators gain the ability to configure and monitor all authentication
 directly through an IdP.
-- Teleport can integrate with custom MFA mechanisms and devices through an IdP.
-- Improves UX for SSO users without an MFA device registered.
-- Allows SSO users to add their first MFA device securely.
+- Teleport can integrate with custom MFA mechanisms and devices registered
+setup through an IdP.
+- Improves UX for new SSO users by providing an MFA flow without requiring the
+user to manually register a new device.
+- Improve UX for existing users by providing multiple paths during MFA checks,
+such as when they don't have their WebAuthn device plugged in.
+- Improve security of new SSO users by requiring an SSO MFA check to add their
+first MFA device.
 
 ## Details
 
-### UX and User stories
+### UX
 
-This feature will improve the UX of performing MFA checks for SSO users by
-removing the requirement to add an MFA device. The primary UX concerns for
-this feature are:
-- Adding too many options without clarity (OTP, Webauthn, and SSO).
+This feature will provide users with additional paths towards passing MFA
+checks. In some cases, such as when the user has no MFA device registered,
+this will improve UX.
+
+Adding an SSO MFA option also comes with potential downsides:
+- Providing too many options without clarity (OTP, Webauthn, and SSO).
 - Locking users into SSO MFA in cases where WebAuthn may be preferred.
 - Automatically opening browser windows when WebAuthn may be preferred.
+
+These concerns will be addressed in the sections below.
+
+#### Devices
+
+When an auth connector has MFA enabled, Teleport will treat it as if any user
+originating from that auth connector has a corresponding SSO MFA device
+registered. This way, users can view their true MFA options.
+
+```console
+> tsh mfa ls
+Name     Type     Added at Last used                     
+-------- -------- -------- ---------
+yubi     WebAuthn ...      ...
+okta     SAML     ...      ...
+```
+
+Note: Teleport does not actually store a MFA device backend resource for each
+user. This means that interaction, e.g. `tsh mfa add/rm`, will not work and should
+result in a readable error message. If we want to support `tsh mfa add/rm`, we
+can implement the functionality behind the scenes with a new user preferences
+field, e.g. `use_sso_mfa`. I'm leaving this out of scope for now.
+
+#### Modes
+
+Auth connectors with MFA enabled will be configured with one of the following
+modes:
+- `optional`: SSO MFA is available to the user, but WebAuthn is preferred when
+  applicable.
+- `preferred`: SSO MFA is preferred over WebAuthn, but Webauthn is still
+  available to the user.
+- `required`: SSO MFA is the only available MFA method.
+
+Each mode has UX implications that will be explored in more detail below.
+
+Note: Like WebAuthn, SSO will always be preferred over OTP, unless OTP is
+requested with `tsh --mfa-mode=otp`.
+
+#### `tsh`
+
+When SSO MFA is enabled, there are three possible MFA prompts. The prompt depends
+on whether SSO MFA is optional, preferred, or required, and whether the user has
+any Webauthn devices registered *and* available.
+
+1. SSO is the only available MFA method, is required, or user passed the
+`--mfa-mode=sso` flag.
+```console
+Complete an auth check in your local web browser:
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+```
+
+2. SSO is available, but Webauthn is preferred.
+```console
+Complete an auth check in your local web browser. Open it by clicking on the link:
+ http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+
+Or tap any security key
+```
+
+3. Webauthn is available, but SSO is preferred.
+```console
+Complete an auth check in your local web browser:
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+
+Or tap any security key
+```
+
+Here's the same information in chart form:
+
+| Mode      | WebAuthn available | Type | Browser   | Prompt |
+|-----------|--------------------|------|-----------|--------|
+| *         | no                 | SSO  | Launch    | 1      |
+| optional  | yes                | Both | Clickable | 2      |
+| preferred | yes                | Both | Launch    | 3      |
+| required  | yes                | SSO  | Launch    | 1      |
+
+Note: It should be simple to detect whether the user has an MFA device plugged
+in using the `libfido2` or touchID libraries for MacOS and Linux. Window's
+`webauthn.dll` should support the same functionality, but that is TBD during
+the implementation. Worst case we will fall back to prompting for both.
+
+See [User Stories](#user-stories) for more specific examples.
+
+#### Teleport Connect
+
+The Teleport connect flow will be identical to `tsh`.
+
+TODO: POC THIS
+
+#### WebUI
+
+In the WebUI, we will add a `SSO` button the existing MFA modal when SSO MFA is
+enabled.
+
+The UI will change depending on the [SSO MFA Mode](#sso-mfa-modes):
+| Mode      | WebAuthn button   | SSO button        |
+|-----------|-------------------|-------------------|
+| optional  | colored, selected | gray              |
+| preferred | gray              | colored, selected |
+| required  | removed           | colored, selected |
+
+When the user clicks the SSO button, the SSO redirect URL will be opened in a
+new browser window. Once the SSO authentication is complete, the window will
+close, and the WebUI will proceed with the resulting MFA response.
+
+TODO: POC THIS
+
+Note: If possible, it would be best to open the SSO redirect URL in a pop up
+window rather than opening a new tab. I'm leaving this as an implementation
+decision.
+
+### User stories
 
 #### First time SSO user
 
@@ -44,7 +166,7 @@ this feature are:
 > I want to connect to a resource protected by per-session MFA
 > I have not registered through Teleport, my company uses an IdP provider for login
 
-**Old behavior**
+##### Old behavior
 
 When the user logs in with SSO for the first time, their Teleport user is created
 without any MFA devices registered. In order to access resources protected by
@@ -59,9 +181,9 @@ an error telling the user to add their first MFA device.
 ERROR: MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices
 ```
 
-**New MFA prompts**
+##### SSO MFA prompt
 
-With SSO as an MFA method, this first time user would instead be prompted to
+With SSO as an MFA method, this first time user will instead be prompted to
 re-authenticate through their SSO provider for a more seamless experience.
 
 ```console
@@ -72,35 +194,13 @@ If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
 ```
 
-If SSO is not the required MFA method in the cluster, the user will also be
-notified of how to add an MFA device for future MFA checks. The SSO login
-browser will not be opened automatically in order to draw attention to the
-output. The link can still be clicked for easy UX.
+##### Adding first MFA Device
 
-```console
-> tsh ssh server01
-MFA is required to access Node "server01"
-Complete an SSO auth check in your local web browser. Open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
-Or register an MFA device with `tsh mfa add` to complete MFA checks with a tap.
-```
+Usually, a new SSO user without a registered MFA device can add their first
+device without an additional authentication check. With SSO MFA, we can include
+an MFA check even for the first device.
 
-Note: the MFA prompt is moved to the end to help it stick out over the SSO link.
-
-Stretch: Rather than having the user add an MFA device with additional steps,
-they should be guided through MFA registration and allowed to complete their
-request afterwards. This would also apply without the SSO MFA option.
-
-```console
-> tsh ssh server01
-MFA is required to access Node "server01"
-Complete an SSO auth check in your local web browser. Open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
-Or register an MFA device to complete MFA checks with a tap.
-Choose device type [WEBAUTHN]:
-
-### User can type to continue the registration process or proceed with SSO re-auth.
-```
+TODO:: show tsh add and delete
 
 #### Existing SSO user with registered MFA method
 
@@ -108,67 +208,37 @@ Choose device type [WEBAUTHN]:
 > I have registered one or more MFA devices
 > I want to connect to a resource protected by per-session MFA
 
-**New MFA prompts**
+##### SSO MFA prompt
 
 The user will be given the option to pass MFA checks with a registered device
-or with SSO.
+or with SSO, depending on the MFA mode of the user's auth connector.
 
 ```console
 > tsh ssh server01
 MFA is required to access Node "server01"
 Complete an auth check in your local web browser. Open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+ 
 Or tap any security key
 ```
 
-If the user re-authenticates with security key, the web browser should be closed
-automatically.
+Note that the exact prompt may differ depending on which [config scenario](#tsh)
+we are in.
 
-If SSO is the required MFA method, the security key prompt would be skipped and
-the browser opened automatically.
+##### Deleting last MFA device
 
-```console
-> tsh ssh server01
-Re-authentication is required to access this node.
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
-```
-
-#### Teleport Connect
-
-The Teleport connect flow will be identical to `tsh`.
-
-#### WebUI
-
-In the WebUI, opening a new tab for MFA automatically would be awkward UX.
-Instead, we should redirect the user in the current tab to complete
-authentication with the IdP. Once complete, the user will be redirected back
-to the original page requiring MFA.
-
-We will update the current MFA modal to have 3 buttons; `Webauthn`, `SSO`, and
-`Cancel`. Either Webauthn or SSO will be highlighted depending on the cluster 
-configuration.
+Similar to how we can add an SSO MFA check for a [user adding their first device](#adding-first-mfa-device),
+we can use an SSO MFA check for users removing their last device, which is
+usually forbidden. This may be useful if the user wants to makes SSO their
+default MFA method for UX purposes.
 
 ### Configuration
 
 #### Enable SSO connector as MFA method.
 
-IdP connectors will gain a new `allow_as_mfa_method` field with possible values
-`no`, `yes`, and `only`. The default value is `no`.
-
-When set to `no`, the connector cannot be used for MFA checks, and vice versa
-for `yes`.
-
-When set to `only`, the connector can be used for MFA checks but cannot be used
-for login. This option is useful in cases where administrators want to set up
-a second IdP which performs a subset of the login checks. e.g. just Webauthn
-without password.
-
-Note: a split Login/MFA IdP setup requires that both IdPs are set up for the
-same list of users. If a user tries to authenticate through the MFA IdP, and
-the resulting login's username doesn't match, it will result in an error. The
-user will be prompted to add an MFA device to give them a path forward while
-administrators sort out the misconfiguration.
+Auth connectors will have a new `mfa` settings field that can be set to allow
+an auth connector to handle MFA checks in addition to login requests. These
+MFA settings will apply to all users registered through the Auth connector.
 
 ```yaml
 kind: saml
@@ -176,66 +246,144 @@ version: v2
 metadata:
   name: okta
 spec:
-  allow_as_mfa_method: no | yes | only
+  display: Okta
+  acs: https://root.example.com:3080/v1/webapi/saml/acs/okta
+  entity_descriptor_url: AAA
+  entity_descriptor: BBB
+  attributes_to_roles:
+    - {name: groups, value: okta-dev, roles: [dev]}
+  # new mfa settings field. Defaults to null.
+  mfa:
+    # enabled specifies whether this auth connector supports MFA checks.
+    enabled: yes
+    # mode can be set to determine how Teleport decides to prioritize SSO MFA
+    # over other MFA options for users tied to this auth connector. Supported
+    # values are optional (default), preferred, and required.
+    mode: optional
+    # set entity_descriptor_url or entity_descriptor to use a different IdP configured
+    # app to handle MFA checks. This is useful when configuring a separate MFA flow
+    # tied to a separate app. Defaults to the entity_descriptor_url and entity_descriptor above.
+    entity_descriptor_url: XXX
+    entity_descriptor: YYY
+    # force_reauth determines whether existing login sessions are accepted or if
+    # re-authentication is always required. Defaults to "yes".
+    force_reauth: yes
+---
+kind: oidc
+version: v2
+metadata:
+  name: auth0
+spec:
+  display: Auth0
+  client_id: AAA
+  client_secret: BBB
+  issuer_url: https://gravitational.auth0.com/
+  redirect_url: https://root.example.com:3080/v1/webapi/oidc/callback
+  claims_to_roles:
+    - {claim: email, value: bjoerger@goteleport.com, roles: [dev]}
+  # new mfa settings field. Defaults to null.
+  mfa:
+    # enabled specifies whether this auth connector supports MFA checks.
+    enabled: yes
+    # mode can be set to determine how Teleport decides to prioritize SSO MFA
+    # over other MFA options for users tied to this auth connector. Supported
+    # values are optional (default), preferred, and required.
+    mode: optional
+    # set client_id and client_secret to use a different IdP configured app to
+    # handle MFA checks. This is useful when configuring a separate MFA flow
+    # tied to a separate app. Defaults to the client_id and client_secret above.
+    client_id: XXX
+    client_secret: YYY
+    # prompt can be set to request a specific prompt flow from the IdP. Supported
+    # values depend on the IdP.
+    prompt: null
+    # acr_values can be optionally set to request a specific acr from the IdP
+    # for MFA checks. Supported values depend on the IdP.
+    acr_values: []
+    # max_age determines when an existing IdP session should be considered
+    # expired. Defaults to "0" to force re-authentication on MFA checks.
+    max_age: 0
+---
+kind: github
+metadata:
+  name: github
+spec:
+  client_id: AAA
+  client_secret: BBB
+  display: GitHub
+  redirect_url: https://root.example.com:3080/v1/webapi/github/callback
+  teams_to_roles:
+    - { organization: org-name, team: github-team, roles: [dev], }
+  # new mfa settings field. Defaults to null.
+  mfa:
+    # enabled specifies whether users originating from this auth connector
+    # can use the auth connector for MFA flows.
+    enabled: yes
+    # mode can be set to determine how Teleport decides to prioritize SSO MFA
+    # over other MFA options for users tied to this auth connector. Supported
+    # values are optional (default), preferred, and required.
+    mode: optional
+    # set client_id and client_secret to use a different IdP configured app to
+    # handle MFA checks. This is useful when configuring a separate MFA flow
+    # tied to a separate app. Defaults to the client_id and client_secret above.
+    client_id: XXX
+    client_secret: YYY
+    # max_age determines when an existing IdP session should be considered
+    # expired. Defaults to "0" to force re-authentication on MFA checks.
+    max_age: 0
 ```
 
-#### Make SSO the only MFA method
+Most of the MFA setting options are inherited from the parent auth connector,
+but let's cover some of the new ones in more detail.
 
-Using SSO as an MFA method enables Administrators to maintain tighter control
-over what MFA devices can be used for MFA. In some cases, it may make sense to
-disable non-SSO MFA methods to prevent users from going around registered SSO
-MFA connectors.
+##### `mfa.mode`
 
-For this use case, we will add `second_factor: sso`, which will prevent users
-from registering/using MFA devices registered through Teleport.
+See [SSO MFA Modes](#sso-mfa-modes).
 
-#### Default MFA connector
+##### `mfa.force_reauth` (saml)
 
-Cluster auth preference will also gain the `mfa_connector_name` field to set
-a preferred IdP connector for MFA checks. As detailed in the UX section, setting
-a preferred IdP connector has some beneficial UX implications.
+For SAML, forced re-authentication can be achieved by adding the `ForceAuth`
+attribute to the SAML request. This field will be added to both the parent
+and MFA auth connector settings.
 
-If `mfa_connector_name` is not set, but `connector_name` is set, that connector
-will be used as an MFA method if `allow_as_mfa_method` is set to `yes`.
+##### `mfa.max_age` (github) 
 
-If neither of the fields above are set, Teleport will look through all
-registered connectors in lexical order and return the first one with 
-`allow_as_mfa_method` set to `yes` or`only`.
-
-#### Bad configuration
-
-The following two fail states should be prevented:
-- `mfa_connector_name` points to a connector with `allow_as_mfa_method = no`
-- `connector_name` points to a connector with `allow_as_mfa_method = only`
-
-These fail states will be checked on both connector update and auth preference
-update.
+The github connector does not currently support `max_age`, so it will be
+added to both the parent and MFA auth connector settings to match the
+generic OIDC auth connector resource.
 
 ### Security
 
 Teleport uses MFA checks for some of its most security focused features, including
 per-session MFA, moderated sessions, and MFA for admin actions. Using SSO as an
-MFA method opens up the possibility of poorly configured clusters being
+MFA method opens up the possibility of poorly configured auth connectors being
 vulnerable to attacks ranging from internal users avoiding safe MFA checks to
 attackers with a compromised IdP gaining keys to the castle.
 
-#### Opt-in
+#### Strict Guidelines
 
 SSO as an MFA method will be opt-in. Administrators will be instructed through
-the docs to only enable an IdP connector as an MFA method if the IdP provider
-has strict checks itself (e.g. Administered Webauthn devices, Trusted devices).
+the docs to only enable MFA for an auth connector if the IdP provider has strict
+checks itself (e.g. Administered Webauthn devices, Trusted devices).
 
 Teleport has no way to confirm whether a registered IdP connector follows the
 guidelines, but it will display a warning to admins who attempt to enable it.
 
 ```console
 > tctl edit connector/okta
-### sets `allow_as_mfa_method: yes`
+### sets `spec.mfa.enabled=yes`
+
 Warning: Allowing this IdP provider to be used as an MFA method may reduce the
 security of enforced MFA checks for critical security features. This option
 should not be enabled unless the IdP provider has strict MFA and/or Device trust
 enforcement itself. Continue? (y/N):
 ```
+
+Additionally, forced re-authentication will be the default setting. Even if a
+connector is enabled for MFA without actual strict IdP MFA checks, the user will
+still be required to re-authenticate through the SSO provider. In practice,
+this means that a stolen SSO session is not enough for an attacker to bypass
+MFA checks, they'd need to steal the user's SSO identity (password, MFA).
 
 #### IdP Compromise
 
@@ -255,36 +403,88 @@ invariant, device trust must be enforced within the SSO MFA check.
 
 ### Implementation
 
-#### Privilege Tokens
+#### SSO MFA flow
 
-Privileged tokens are used as transient MFA verification for some operations in
-Teleport today, like account resets. These tokens can be generated by passing a
-completed MFA challenge to `rpc CreatePrivilegeToken`.
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Teleport
+    participant Identity Provider
+    participant Node
 
-Currently, privilege tokens can only be used in select endpoints as a replacement
-for MFA. Privilege Tokens will be supported as a normal MFA response to support
-other use cases:
+    Note over Client: `tsh ssh node`
+    Note over Client: Prepare SSO client callback URL
+    par mfa challenge request
+        Client ->> Teleport: rpc CreateAuthenticateRequest<br/>w/ client callback url
+        Teleport ->> Teleport: create SSO MFA session
+        Teleport ->> Client: SSOChallenge{ redirect URL, request ID }
+    end    
+    Note over Client: Prompt user to complete SSO MFA check
+    par mfa challenge response
+        Client ->> Identity Provider: browse to redirect URL
+        Identity Provider ->> Identity Provider: login and pass configured MFA check
+        Identity Provider ->> Teleport: send successful IdP auth response
+        Teleport ->> Teleport: save MFA token in SSO MFA session
+        Teleport ->> Identity Provider: return client callback URL<br/>w/ encode encrypted MFA token in query params
+        Identity Provider -> Client: redirect
+    end
+    Note over Client: Decode and decrypt MFA token<br/>from redirect query params
+    par mfa response validation
+        Client ->> Teleport: rpc GenerateUserSingleUseCerts<br/>w/ SSO MFA token
+        Teleport ->> Teleport: check MFA token against SSO MFA session
+        Teleport ->> Client: issue MFA verified certs
+    end
+    Client ->> Node: connect w/ MFA verified certs
+```
 
-```proto
-message MFAAuthenticateResponse {
-  oneof Response {
-    TOTPResponse TOTP = 2;
-    webauthn.CredentialAssertionResponse Webauthn = 3;
-    PrivilegeTokenResponse Token = 4;
-  }
+Caveat: this flow will be slightly different for the WebUI, where we use a CSRF
+token instead of a secret key, and save the MFA token as a web cookie to avoid
+redirecting the user in the browser.
+
+#### SSO MFA session
+
+When a user requests an SSO MFA challenge, an SSO MFA session data object will
+be created in the backend. Once the user completes the SSO MFA flow, the client
+and session data will gain a matching MFA token, which can be used by the client
+to verify itself as the owner of the session.
+
+Note: challenge extensions are included, so scopes and reuse are both available.
+See RFD 155 for details.
+
+```go
+// SSOMFASessionData SSO MFA Session data.
+type SSOMFASessionData struct {
+	// RequestID is the ID of the corresponding SSO Auth request, which is used to
+	// identity this session.
+	RequestID string `json:"request_id,omitempty"`
+	// Username is the Teleport username.
+	Username string `json:"username,omitempty"`
+	// MFAToken is a secret token set when the SSO flow is completed and returned to
+  // the user. The user can then use this token to prove they own the MFA session.
+	MFAToken string `json:"token,omitempty"`
+	// ConnectorID is id of the corresponding Auth connector.
+	ConnectorID string `json:"connector_id,omitempty"`
+	// ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
+	ConnectorType string `json:"connector_type,omitempty"`
+	// ChallengeExtensions are challenge extensions that apply to this SSO MFA session.
+	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
 }
 ```
 
-Note: Privilege tokens used in this way must be consumed upon verification to
-ensure that exchanging a webauthn or totp token for a privilege token through
-`rpc CreatePrivilegeToken` has no significant security implications.
+#### MFA device
+
+Teleport will treat any user that originated from an mfa-enabled auth connector
+as if they have an SSO MFA device registered. This device is not stored in the
+backend. Instead, it is retrieved by checking the user's `CreatedBy` field,
+fetching the corresponding auth connector, checking if it has MFA enabled, and
+then filling out an SSO MFA device from the auth connector's details.
 
 #### SSO MFA flow
 
 We will introduce a new SSO login flow that allows clients to get a new privilege
 token instead of the standard login credentials. Authenticated clients can create
 an sso auth request with `rpc CreateSAMLAuthRequest`, `rpc CreateOIDCAuthRequest`
-or `rpc CreateGithubAuthRequest` and set `CreatePrivilegeToken=true` to use this
+or `rpc CreateGithubAuthRequest` and set `CreateMFASession=true` to use this
 new flow. Once the client authenticates through the IdP, the client will be given
 a privilege token generated for the user.
 
@@ -292,160 +492,233 @@ Note: As is the case with normal SSO login, the login response is encrypted
 using a secret key owned by the client so that the token can not be intercepted
 in a man in the middle attack.
 
-#### Forced Re-authentication
-
-By default, Teleport will require the user to re-login through their IdP to
-pass an MFA check. This will prevent long lasting login sessions from being
-used as MFA verification, which could easily be exploited by an attacker with
-remote access to the user's machine.
-
-For SAML, this can be achieved by setting `ForceAuthn=true` in the authn
-request. For OIDC and Github, setting `max_age=0` in the server redirect URL's
-query parameter will force re-auth.
-
-In cases where re-auth is not desired behaviour, such as when the IdP is
-configured to prompt for MFA for existing sessions, users can set `force_authn`
-or `max_age` in the SAML or OIDC connector respectively to override the default
-behavior.
-
 ### Proto
 
-**MFAConnectorName**
+**CreateAuthenticateChallengeRequest**
+
 ```diff
-message AuthPreferenceSpecV2 {
-  // Type is the type of authentication.
-  string Type = 1 [(gogoproto.jsontag) = "type"];
+message CreateAuthenticateChallengeRequest {
   ...
-  // ConnectorName is the name of the OIDC or SAML connector. If this value is
-  // not set the first connector in the backend will be used.
-  string ConnectorName = 3 [(gogoproto.jsontag) = "connector_name,omitempty"];
-  ...
-+  // MFAConnectorName is the name of an auth connector to use for MFA verification.
-+  // If this value is not set, the first connector in the backend with AllowAsMFAMethod
-+  // set to YES or ONLY will be used, starting with ConnectorName.
-+  string MFAConnectorName = 21 [(gogoproto.jsontag) = "mfa_connector_name,omitempty"];
-+  // MFAConnectorType is the type of auth connector to use for MFA verification, if any.
-+  // Defaults to the auth Type set above.
-+  string MFAConnectorType = 22 [(gogoproto.jsontag) = "mfa_connector_type,omitempty"];
++ // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
++ // If unset, the server will only return non-SSO challenges, or an error if SSO
++ // challenges are required.
++ string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 ```
 
-**AllowAsMFAMethod**
-```diff
-+// AllowAsMFAMethod represents whether an auth connector can be used as an
-+// MFA method or not.
-+enum AllowAsMFAMethod {
-+  ALLOW_AS_MFA_METHOD_UNSPECIFIED = 0;
-+  // NO this auth connector cannot be used as an MFA method.
-+  ALLOW_AS_MFA_METHOD_NO = 1;
-+  // YES this auth connector can be used as an MFA method.
-+  ALLOW_AS_MFA_METHOD_YES = 2;
-+  // ONLY means this auth connector can only be used as an MFA method, and not
-+  // as a primary authentication mechanism. In order for this MFA method to work,
-+  // it must be configured for the users from the primary authentication method.
-+  ALLOW_AS_MFA_METHOD_ONLY = 3;
-+}
+**SSOChallenge**
 
-message OIDCConnectorSpecV3 {
-  ...
-+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-+  // method or not.
-+  AllowAsMFAMethod AllowAsMFAMethod = 19 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
-}
-
-message SAMLConnectorSpecV2 {
-  ...
-+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-+  // method or not.
-+  AllowAsMFAMethod AllowAsMFAMethod = 17 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
-}
- 
-message GithubConnectorSpecV3 {
-  ...
-+  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-+  // method or not.
-+  AllowAsMFAMethod AllowAsMFAMethod = 10 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
+```proto
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+message SSOChallenge {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
+  string redirect_url = 2;
 }
 ```
 
-**CreatePrivilegedToken**
 ```diff
-message OIDCAuthRequest {
-  ...
-+  // CreatePrivilegedToken is an option to create a privileged token instead of creating 
-+  // a user session. Privileged tokens can be used in place of standard MFA verification for
-+  // privileged actions. This action is only allowed if the auth connector is allowed
-+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
-+  bool CreatePrivilegedToken = 19 [(gogoproto.jsontag) = "create_privileged_token,omitempty"];
-}
-
-message SAMLAuthRequest {
-  ...
-+  // CreatePrivilegedToken is an option to create a privileged token instead of creating 
-+  // a user session. Privileged tokens can be used in place of standard MFA verification for
-+  // privileged actions. This action is only allowed if the auth connector is allowed
-+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
-+  bool CreatePrivilegedToken = 18 [(gogoproto.jsontag) = "create_token,omitempty"];
-}
-
-message GithubAuthRequest {
-  ...
-+  // CreatePrivilegedToken is an option to create a privileged token instead of creating 
-+  // a user session. Privileged tokens can be used in place of standard MFA verification for
-+  // privileged actions. This action is only allowed if the auth connector is allowed
-+  // to be used as an MFA method and if the user is pre-authenticated (not first time login).
-+  bool CreatePrivilegedToken = 18 [(gogoproto.jsontag) = "create_token,omitempty"];
-}
-```
-
-**AuthConnectorChallenge**
-```diff
-message MFAAuthenticateChallenge {
-  ...
-+  // ProviderChallenge is an an auth provider MFA challenge. If set, the client
-+  // will attempt to create an auth request with this connector to acquire a
-+  // privileged token as a substitute for local MFA.
-+  ProviderChallenge ProviderChallenge = 5;
-}
-
-+// ProviderChallenge contains auth connector details for completing a provider
-+// MFA challenge.
-+message ProviderChallenge {
-+  // Type is the auth connector type.
-+  string Type = 1;
-+  // ID is the auth connector ID.
-+  string ID = 2;
-+}
-
 message MFAAuthenticateResponse {
   oneof Response {
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
-+   PrivilegeTokenResponse Token = 4;
++   SSOResponse SSO = 4;
   }
+}
+```
+
+**SSOResponse**
+
+```proto
+// SSOResponse is a response to SSOChallenge.
+message SSOResponse {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // Token is a secret token used to verify the user's SSO MFA session.
+  string token = 2;
+}
+```
+
+```diff
+message MFAAuthenticateChallenge {
+  ...
++ // SSO Challenge is an sso MFA challenge. If set, the client can go to the
++ // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA
++ // token. This token and sso request pair can then be used as MFA verification.
++ SSOChallenge SSOChallenge = 5;
+}
+```
+
+**SSOMFADevice**
+
+```proto
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
+}
+```
+
+```diff
+message MFADevice {
+  ...
+  oneof device {
+    TOTPDevice totp = 8;
+    U2FDevice u2f = 9;
+    WebauthnDevice webauthn = 10;
++   SSOMFADevice sso = 11;
+  }
+}
+```
+
+**AuthConnectorMFAMode**
+
+```proto
+// AuthConnectorMFAMode specified the MFA mode of an Auth Connector.
+enum AuthConnectorMFAMode {
+  // UNSPECIFIED is treated as OPTIONAL.
+  AUTH_CONNECTOR_MFA_MODE_UNSPECIFIED = 0;
+  // OPTIONAL mfa through this auth connector is optional and other MFA methods are preferred.
+  AUTH_CONNECTOR_MFA_MODE_OPTIONAL = 1;
+  // PREFERRED mfa through this auth connector is preferred and other MFA methods are optional.
+  AUTH_CONNECTOR_MFA_MODE_PREFERRED = 2;
+  // REQUIRED mfa through this auth connector is required and other MFA methods are disabled.
+  AUTH_CONNECTOR_MFA_MODE_REQUIRED = 3;
+}
+```
+
+**SAMLConnectorMFASettings**
+
+```proto
+message SAMLConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool Enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode MFAMode = 2;
+  // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+  // parameters in one XML file rather than supplying them in the individual elements.
+  // If unset, the parent SAML connector's EntityDescriptor will be used.
+  string entity_descriptor = 3;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML. If unset, 
+  // the parent SAML connector's EntityDescriptor will be used.
+  string entity_descriptor_url = 4;
+  // ForceReauth specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is 
++ // treated as YES. to always re-authentication for MFA checks. This should only be set to YES if the
+  // IdP is setup to perform MFA checks on top of active user sessions. 
+  SAMLForceReauth ForceReauth = 5;
+}
+
+// SAMLForceReauth specified whether existing SAML sessions should be accepted or re-authentication
+// should be forced.
+enum SAMLForceReauth {
+  // UNSPECIFIED is treated as the default value for the context; NO for login, YES for MFA checks.
+  FORCE_REAUTH_UNSPECIFIED = 0;
+  // YES re-authentication should be forced for existing SAML sessions..
+  FORCE_REAUTH_YES = 1;
+  // NO re-authentication should not be forced for existing SAML sessions.
+  FORCE_REAUTH_NO = 2;
+}
+```
+
+```diff
+message SAMLConnectorSpecV2 {
+  ...
++ // MFASettings contains settings to enabled SSO MFA checks through this auth connector.
++ SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
++ // ForceReauth specified whether re-authentication should be forced on login. UNSPECIFIED
++ // is treated as NO.
++ SAMLForceReauth ForceReauth = 18 [(gogoproto.jsontag) = "force_reauth,omitempty"];
+}
+```
+
+**OIDCConnectorMFASettings**
+
+```proto
+message OIDCConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool Enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode MFAMode = 2;
+  // ClientID is the id of the authentication client (Teleport Auth server). If unset, 
+  // the parent OIDC connector's ClientID will be used.
+  string client_id = 2;
+  // ClientSecret is used to authenticate the client. If unset, the parent OIDC connector's
+  // ClientSecret will be used.
+  string client_secret = 3;
+  // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
+  // value is context-specific and varies for identity providers. Some identity providers
+  // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+  string acr_values = 4;
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.
+  // If not specified, it defaults to select_account for backwards compatibility.
+  string prompt = 5;
+  // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
+  // force re-authentication for MFA checks. This should only be set to a non-zero value if
+  // the IdP is setup to perform MFA checks on top of active user sessions.
+  google.protobuf.Duration max_age = 6;
+}
+```
+
+```diff
+message OIDCConnectorSpecV3 {
+  ...
++ // MFASettings contains settings to enabled SSO MFA checks through this auth connector.
++ OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
+}
+```
+
+**GithubConnectorMFASettings**
+
+```proto
+message GithubConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool Enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode MFAMode = 2;
+  // ClientID is the id of the authentication client (Teleport Auth server). If unset, the parent 
+  // Github connector's ClientID will be used.
+  string client_id = 2;
+  // ClientSecret is used to authenticate the client. If unset, the parent Github connector's
+  // ClientSecret will be used.
+  string client_secret = 3;
+  // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
+  // force re-authentication for MFA checks. This should only be set to a non-zero value if
+  // the IdP is setup to perform MFA checks on top of active user sessions.
+  google.protobuf.Duration max_age = 4;
+}
+```
+
+```diff
+message GithubConnectorSpecV3 {
+  ...
++ // MFASettings contains settings to enabled SSO MFA checks through this auth connector.
++ GithubConnectorMFASettings MFASettings = 10 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
 }
 ```
 
 ### Backward Compatibility
 
-It's possible that an old client or proxy version could result in an attempted
-SSO login using an auth connector setup for MFA only. The Auth server will
-check auth requests against the configured auth connector to ensure that these
-login attempts are prevented. Checks will be added to the following endpoints:
+The SSO MFA flow is completely separate from the SSO login flow, meaning a new
+client cannot start an SSO login flow thinking it is doing an MFA login, or
+vice versa.
 
-- `rpc CreateSAMLAuthRequest`
-- `rpc CreateOIDCAuthRequest`
-- `rpc CreateGithubAuthRequest`
-- `http /v1/saml/requests/validate`
-- `http /v1/oidc/requests/validate`
-- `http /v1/github/requests/validate`
+For the SSO MFA flow to begin, both the client and server must pull a lever:
+1. Client (tsh, Teleport Connect, WebUI) must provide client callback URL
+2. Server be aware of the client callback URL field to return an SSO challenge
+
+As a result, there is no compatibility concerns around client/server version
+differences.
 
 ### Audit Events
 
-SSO MFA requests will be tracked through the existing audit events that contain
-`MFADeviceMetadata`. Since SSO as MFA doesn't correspond to actual user MFA
-devices in the backend, this metadata will be picked from the auth connector:
+SSO MFA checks will be tracked through the existing audit events that contain
+`MFADeviceMetadata`, using the [SSO MFA device](#mfa-device) tied to the SSO
+MFA session.
 
+In practice, the metadata will be filled out like this:
 - `DeviceName` - Name of the auth connector
 - `DeviceID` - UUID of the auth connector
 - `DeviceType` - SSO type (`OIDC`, `SAML`, or `Github`)
@@ -461,41 +734,7 @@ message MFADeviceMetadata {
 }
 ```
 
-#### Privilege Tokens
-
-When a privilege token is created, the context of its creation is lost. This
-makes it difficult to tie audit event between the SSO login that creates the
-token and the Per-session MFA certificate issuance that consumes the token.
-
-To amend this, we will store the details of the MFA device used to create the
-privilege token in the backend token resource. This data can then be included
-in the `privilege_token.create` and `mfa_auth_challenge.validate` events.
-
 ### Additional considerations
-
-#### Temporary SSO MFA device in backend
-
-There are a few nice to have features that could be implemented if we created
-temporary SSO MFA devices for users. For example, users would be able to list
-SSO MFA devices available to them.
-
-```console
-> tsh mfa ls
-Name     Type     Added at Last used                     
--------- -------- -------- ---------
-yubi     WebAuthn ...      ...
-okta-mfa SAML     ...      ...
-```
-
-We could then implement a way for clients to choose an SSO MFA device by
-providing new flags such as `--mfa-auth-type` and `--mfa-auth-name`.
-
-However, this idea would require significant engineering to handle
-automatic creation, automatic deletion, user interaction (tsh mfa rm),
-and other edge cases.
-
-For now, users will always be prompted to use the default MFA SSO connector,
-as configured in the cluster auth preference.
 
 #### OIDC ACR Values
 
@@ -510,7 +749,7 @@ For example, Okta supports a phishing resistant (phr) acr value that would
 require Fido2/WebAuthn authentication to satisfy the requirement.
 
 Since this will vary between providers and configurations, Teleport will not
-use and ACR values by default, though we will document how to set `acr_values`
+use any ACR values by default, though we will document how to set `acr_values`
 in the OIDC connector in cases where it is useful.
 
 #### SAML RequestedAuthnContext
