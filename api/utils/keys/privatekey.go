@@ -58,7 +58,7 @@ type PrivateKey struct {
 }
 
 // NewPrivateKey returns a new PrivateKey for the given crypto.Signer with a
-// pre-marshalled private key PEM, which may be a special PIV key PEM.
+// pre-marshaled private key PEM, which may be a special PIV key PEM.
 func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
@@ -262,12 +262,12 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	marshalledSSHPub, err := os.ReadFile(sshPubFile)
+	marshaledSSHPub, err := os.ReadFile(sshPubFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	priv, err := ParseKeyPair(privPEM, marshalledSSHPub)
+	priv, err := ParseKeyPair(privPEM, marshaledSSHPub)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,14 +275,14 @@ func LoadKeyPair(privFile, sshPubFile string) (*PrivateKey, error) {
 }
 
 // ParseKeyPair returns the PrivateKey for the given private and public key PEM blocks.
-func ParseKeyPair(privPEM, marshalledSSHPub []byte) (*PrivateKey, error) {
+func ParseKeyPair(privPEM, marshaledSSHPub []byte) (*PrivateKey, error) {
 	priv, err := ParsePrivateKey(privPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Verify that the private key's public key matches the expected public key.
-	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshalledSSHPub) {
+	if !bytes.Equal(ssh.MarshalAuthorizedKey(priv.SSHPublicKey()), marshaledSSHPub) {
 		return nil, trace.CompareFailed("the given private and public keys do not form a valid keypair")
 	}
 
