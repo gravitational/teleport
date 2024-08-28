@@ -2930,7 +2930,7 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	jamfSpec, err := fc.Jamf.toJamfSpecV1(creds)
+	jamfSpec, err := fc.Jamf.toJamfSpecV1()
 	if err != nil {
 		return trace.Wrap(err)
 	}
