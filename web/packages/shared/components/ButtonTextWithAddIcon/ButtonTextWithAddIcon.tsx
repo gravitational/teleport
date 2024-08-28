@@ -20,6 +20,8 @@ import React from 'react';
 import { ButtonText } from 'design';
 import { Add as AddIcon } from 'design/Icon';
 
+import type { IconSize } from 'design/Icon/Icon';
+
 export const ButtonTextWithAddIcon = ({
   label,
   onClick,
@@ -29,7 +31,7 @@ export const ButtonTextWithAddIcon = ({
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  iconSize?: number | 'small' | 'medium' | 'large' | 'extraLarge';
+  iconSize?: IconSize;
 }) => {
   return (
     <ButtonText onClick={onClick} disabled={disabled} compact>

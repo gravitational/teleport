@@ -379,11 +379,11 @@ Error during negotiation step: the server requires that the client support enhan
 
 **Solution:** Disable Network Level Authentication (NLA)
 
-This means that the RDP server is requiring NLA.
-Teleport currently requires that NLA is disabled in order to perform its
-certificate-based passwordless login.
+This means that the RDP server is requiring NLA. To fix this error,
+you can configure the server such that it doesn't require NLA, or you
+can enable NLA if you are running Teleport 16.2.0 or later.
 
-To disable NLA, follow the instructions to [allow remote
+To configure the server to not require NLA, follow the instructions to [allow remote
 desktop connections](./active-directory.mdx#allow-remote-desktop-connections)
 in the group policy object you have configured for Teleport connections.
 If you are still encountering this error after disabling NLA in Active Directory,
@@ -393,3 +393,29 @@ to force the policy update:
 ```code
 $ gpupdate.exe /force
 ```
+
+To enable NLA with Teleport 16.2.0 and later, set the `TELEPORT_ENABLE_RDP_NLA`
+environment variable to `yes` on hosts running Teleport's `windows_desktop_service`.
+More information on Teleport's NLA support is available in the [Active Directory guide](./active-directory.mdx#network-level-authentication-nla).
+
+### CredSSP: server not found in Kerberos database
+
+Attempts to connect to a desktop fail, and the UI shows an error similar to:
+
+```
+CredSSP UnknownCredentials: server not found in Kerberos database
+```
+
+This is an error with NLA. To connect to a Windows host using NLA, Teleport
+must specify the computer name as it exists in Active Directory. You will see
+this error if you have not specified the correct computer name, or if you are
+connecting by IP address instead of hostname.
+
+**Solution:** correct the server's computer name
+
+To fix this error, ensure that either:
+
+- the server's computer name is specified in the `teleport.dev/computer_name` label
+- the server's `addr` field specifies the correct computer name
+
+See [Computer Name](./active-directory.mdx#computer-name) for more information.

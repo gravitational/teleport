@@ -2169,6 +2169,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
+	cfg.WindowsDesktop.KDCAddr = fc.WindowsDesktop.KDCAddress
+
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
@@ -2923,14 +2925,20 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	jamfSpec, err := fc.Jamf.toJamfSpecV1()
+	creds, err := fc.Jamf.readJamfCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	jamfSpec, err := fc.Jamf.toJamfSpecV1(creds)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
+		Spec:        jamfSpec,
+		ExitOnSync:  fc.Jamf.ExitOnSync,
+		Credentials: creds,
 	}
 	return nil
 }
