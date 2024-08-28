@@ -243,6 +243,12 @@ func (conn *waitConn) Close() error {
 	return trace.Wrap(err)
 }
 
+// IsALPNUpgradedConn is a no-op function to mark this connection as an ALPN upgrade connection.
+// It's used to disable PROXY line enforcement in the muxer when the connection is
+// passed to the ALPN handler and `proxy_protocol` is enabled.
+func (conn *waitConn) IsALPNUpgradedConn() {
+}
+
 type websocketALPNServerConn struct {
 	net.Conn
 	readBuffer []byte
