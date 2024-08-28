@@ -10,13 +10,12 @@ description: How to configure Teleport database access with Oracle Exadata.
 (!docs/pages/includes/database-access/how-it-works/mtls.mdx db="Oracle"!)
 
 <Tabs>
-<TabItem scope={["enterprise"]} label="Teleport Enterprise">
+<TabItem scope={["enterprise"]} label="Teleport Enterprise (Self-Hosted)">
 ![Teleport Database Access Self-hosted Oracle](../../../../img/database-access/guides/oracle_selfhosted.png)
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise (Cloud)">
 ![Teleport Database Access Oracle Cloud](../../../../img/database-access/guides/oracle_selfhosted_cloud.png)
 </TabItem>
-
 </Tabs>
 
 ## Prerequisites
@@ -72,18 +71,28 @@ Repeat these steps for each additional database or database home as required.
 
 ### Configure Oracle user account
 
-Your Oracle user accounts must be configured to require a valid client certificate. 
+Your Oracle user accounts must be configured to require a valid client certificate.
 
-```sql
-ALTER USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
-```
-
-If you're creating a new user:
-
+<Tabs>
+<TabItem label="New user">
+Create new user:
 ```sql
 CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
 GRANT CREATE SESSION TO alice;
 ```
+</TabItem>
+<TabItem label="Existing user">
+Alter existing user:
+```sql
+ALTER USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
+```
+<Admonition type="warning">
+This operation will void existing authentication methods like password. The certificate-based auth will become the sole method of authentication for this user.
+</Admonition>
+</TabItem>
+</Tabs>
+
+
 
 ### Trust Teleport Database Client CA
 
@@ -191,6 +200,8 @@ $ sudo teleport db configure create \
    --ca-cert-file="/var/lib/teleport/oracle-server-certificate.crt" \
    --labels=env=dev
 ```
+
+Manually edit the generated config file to include `tls.mode: verify-ca`.
 
 The final entry for the `<Var name="oracle" />` database will look similar to this:
 
@@ -305,8 +316,7 @@ Additionally you can create a different audit policy for each user.
 
 Configure the Teleport Database Service to pull audit logs from Oracle Audit Trail:
 
-<Tabs>
-<TabItem label="Static config">
+
 ```yaml
 db_service:
   enabled: "yes"
@@ -316,26 +326,13 @@ db_service:
     uri: "<Var name="10.20.30.40:2484" />"
     oracle:
       audit_user: "teleport"
+    tls:
+      mode: verify-ca
+      ca_cert_file: /var/lib/teleport/oracle-server-certificate.crt
 ```
-</TabItem>
-<TabItem label="Dynamic resource">
-```yaml
-kind: db
-version: v3
-metadata:
-  name: <Var name="oracle" />
-spec:
-  protocol: "oracle"
-  uri: "<Var name="10.20.30.40:2484" />"
-  oracle:
-    audit_user: "teleport"
-```
-</TabItem>
-</Tabs>
 
 Teleport doesn't clean up audit trail events from Oracle Audit Trail.
 Make sure to configure an Oracle Audit Trail cleanup policy to avoid running out of disk space.
-
 
 ## Step 5/6. Create a Teleport user
 
