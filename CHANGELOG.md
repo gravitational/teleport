@@ -1,6 +1,6 @@
 # Changelog
 
-## 14.3.29 (08/27/24)
+## 14.3.30 (08/28/24)
 
 ### Security fix
 
@@ -25,6 +25,9 @@ to be updated.
 
 ### Other fixes and improvements
 
+* Fixed an issue where host_sudoers could be written to Teleport proxy server sudoer lists in Teleport v14 and v15. [#45960](https://github.com/gravitational/teleport/pull/45960)
+* Prevent interactive sessions from hanging on exit. [#45954](https://github.com/gravitational/teleport/pull/45954)
+* Fixed kernel version check of Enhanced Session Recording for distributions with backported BPF. [#45943](https://github.com/gravitational/teleport/pull/45943)
 * When a database is created manually (without auto-discovery) the teleport.dev/db-admin and teleport.dev/db-admin-default-database labels are no longer ignored and can be used to configure database auto-user provisioning. [#45893](https://github.com/gravitational/teleport/pull/45893)
 * Fixed an issue where Teleport could modify group assignments for users not managed by Teleport. This will require a migration of host users created with create_host_user_mode: keep in order to maintain Teleport management. More info can be found at [Migrating unmanaged users](./docs/pages/enroll-resources/server-access/guides/host-user-creation.mdx#migrating-unmanaged-users). [#45796](https://github.com/gravitational/teleport/pull/45796)
 * Fixed host user creation for tsh scp. [#45682](https://github.com/gravitational/teleport/pull/45682)
