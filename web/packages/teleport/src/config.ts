@@ -85,6 +85,10 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // enterprise non-exact routes will be merged into this
+  // see `getNonExactRoutes` for details about non-exact routes
+  nonExactRoutes: [],
+
   // featureLimits define limits for features.
   /** @deprecated Use entitlements instead. */
   featureLimits: {
@@ -205,7 +209,6 @@ const cfg = {
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
-    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
@@ -379,6 +382,19 @@ const cfg = {
   },
 
   playable_db_protocols: [],
+
+  getNonExactRoutes() {
+    // These routes will not be exact matched when deciding if it is a valid route
+    // to redirect to when a user is unauthenticated.
+    // This is useful for routes that can be infinitely nested, e.g. `
+    // /web/accessgraph` and `/web/accessgraph/integrations/new`
+    // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
+
+    return [
+      // at the moment, only `e` has an exempt route, which is merged in on `cfg.init()`
+      ...this.nonExactRoutes,
+    ];
+  },
 
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
@@ -651,13 +667,6 @@ const cfg = {
   getMfaRequiredUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.mfaRequired, { clusterId });
-  },
-
-  getCheckAccessToRegisteredResourceUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.checkAccessToRegisteredResource, {
-      clusterId,
-    });
   },
 
   getUserContextUrl() {

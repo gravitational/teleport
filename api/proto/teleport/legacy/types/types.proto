@@ -17,6 +17,7 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
@@ -1295,6 +1296,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
   // TPM allows the configuration of options specific to the "tpm" join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1579,6 +1582,55 @@ message ProvisionTokenSpecV2GCP {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
+// ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2TerraformCloud {
+  // Rule is a set of properties the Terraform-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // OrganizationID is the ID of the HCP Terraform organization. At least
+    // one organization value is required, either ID or name.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+    // OrganizationName is the human-readable name of the HCP Terraform
+    // organization. At least one organization value is required, either ID or
+    // name.
+    string OrganizationName = 2 [(gogoproto.jsontag) = "organization_name,omitempty"];
+
+    // ProjectID is the ID of the HCP Terraform project. At least one project or
+    // workspace value is required, either ID or name.
+    string ProjectID = 3 [(gogoproto.jsontag) = "project_id,omitempty"];
+
+    // ProjectName is the human-readable name for the HCP Terraform project. At
+    // least one project or workspace value is required, either ID or name.
+    string ProjectName = 4 [(gogoproto.jsontag) = "project_name,omitempty"];
+
+    // WorkspaceID is the ID of the HCP Terraform workspace. At least one
+    // project or workspace value is required, either ID or name.
+    string WorkspaceID = 5 [(gogoproto.jsontag) = "workspace_id,omitempty"];
+
+    // WorkspaceName is the human-readable name of the HCP Terraform workspace.
+    // At least one project or workspace value is required, either ID or name.
+    string WorkspaceName = 6 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+
+    // RunPhase is the phase of the run the token was issued for, e.g. `plan` or
+    // `apply`
+    string RunPhase = 7 [(gogoproto.jsontag) = "run_phase,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is the JWT audience as configured in the
+  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
+  // For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+  // Terraform Cloud, this value should be `foo`. If the variable is set to
+  // match the cluster name, it does not need to be set here.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -1808,6 +1860,13 @@ message ClusterNetworkingConfigSpecV2 {
 
   // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
   bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
+
+  // SSHDialTimeout is a custom dial timeout used when establishing
+  // SSH connections. If not set, the default timeout of 30s will be used.
+  int64 SSHDialTimeout = 13 [
+    (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -2911,6 +2970,19 @@ message RoleOptions {
   // database when not set to off.
   // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MFAVerificationInterval optionally defines the maximum duration that can elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  google.protobuf.Duration MFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "mfa_verification_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 message RecordSession {
@@ -5695,6 +5767,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.
@@ -6883,7 +6957,9 @@ message HeadlessAuthentication {
   string user = 2;
 
   // PublicKey is an ssh public key to sign in case of successful auth.
-  bytes public_key = 3;
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;
@@ -6893,6 +6969,14 @@ message HeadlessAuthentication {
 
   // ClientIPAddress is the IP address of the client being authenticated.
   string client_ip_address = 6;
+
+  // SshPublicKey is a public key that will be used as the subject of the issued
+  // SSH certificate in case of successful auth. It must be in SSH authorized_keys format.
+  bytes ssh_public_key = 7;
+  // TlsPublicKey is a public key that will be used as the subject of the issued
+  // TLS certificate in case of successful auth. It must be in PEM-encoded
+  // PKCS#1 or PKIX format.
+  bytes tls_public_key = 8;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -6988,6 +7072,8 @@ message ServerInfoSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
+  reserved 5, 6, 8, 9;
+  reserved "username", "password", "client_id", "client_secret";
   option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
@@ -7006,29 +7092,9 @@ message JamfSpecV1 {
   // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
-  // Jamf API username.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Prefer using client_id and client_secret.
-  // Either username+password or client_id+client_secret are required.
-  string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
-  // Jamf API password.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Prefer using client_id and client_secret.
-  // Either username+password or client_id+client_secret are required.
-  string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
-  // Jamf API client ID.
-  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  // Either username+password or client_id+client_secret are required.
-  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
-  // Jamf API client secret.
-  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  // Either username+password or client_id+client_secret are required.
-  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].

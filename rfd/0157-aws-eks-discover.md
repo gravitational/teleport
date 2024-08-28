@@ -56,7 +56,8 @@ associate access policies for an EKS cluster (details [below](#eks-access-entrie
                 "eks:ListAccessEntries",
                 "eks:CreateAccessEntry",
                 "eks:DeleteAccessEntry",
-                "eks:AssociateAccessPolicy"
+                "eks:AssociateAccessPolicy",
+                "eks:TagResource"
             ],
             "Resource": "*"
         }

@@ -396,9 +396,6 @@ type ServerContext struct {
 	// ServerSubKind if the sub kind of the node this context is for.
 	ServerSubKind string
 
-	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
-	UserCreatedByTeleport bool
-
 	// approvedFileReq is an approved file transfer request that will only be
 	// set when the session's pending file transfer request is approved.
 	approvedFileReq *FileTransferRequest
@@ -1121,7 +1118,7 @@ func buildEnvironment(ctx *ServerContext) []string {
 	if session != nil {
 		if session.term != nil {
 			env.AddTrusted("TERM", session.term.GetTermType())
-			env.AddTrusted("SSH_TTY", session.term.TTY().Name())
+			env.AddTrusted("SSH_TTY", session.term.TTYName())
 		}
 		if session.id != "" {
 			env.AddTrusted(teleport.SSHSessionID, string(session.id))

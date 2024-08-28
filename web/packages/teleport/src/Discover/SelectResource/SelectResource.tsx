@@ -260,9 +260,9 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
                     </Box>
                   </Flex>
 
-                  {r.unguidedLink && (
+                  {r.unguidedLink && r.hasAccess ? (
                     <NewTabInCorner color="text.muted" size={18} />
-                  )}
+                  ) : null}
                 </ResourceCard>
               );
             })}

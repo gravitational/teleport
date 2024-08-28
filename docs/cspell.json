@@ -116,6 +116,7 @@
     "Kanban",
     "Keycloak",
     "Keyspaces",
+    "Kubelet",
     "Kubernetes",
     "Kubes",
     "LDAPS",
@@ -284,6 +285,7 @@
     "argoproj",
     "armv",
     "atburke",
+    "attested",
     "attrname",
     "auditctl",
     "auditd",
@@ -353,6 +355,7 @@
     "clientcmd",
     "clientid",
     "clis",
+    "cloudallow",
     "cloudbuild",
     "cloudflared",
     "cloudhsmv2",
@@ -746,6 +749,7 @@
     "ptrace",
     "puttyconfig",
     "pwgen",
+    "pwsh",
     "quicktime",
     "rabbitmq",
     "rangefeed",
@@ -758,6 +762,7 @@
     "readall",
     "readyz",
     "realmd",
+    "reauthenticates",
     "reauthentication",
     "recents",
     "reco",
@@ -783,6 +788,7 @@
     "rolebindings",
     "rolesanywhere",
     "rollouts",
+    "rootca",
     "rootcluster",
     "rtrzn",
     "runcommand",
@@ -888,6 +894,7 @@
     "specsigning",
     "specspacelift",
     "specspaceliftallow",
+    "specterraform",
     "specteams",
     "spectpm",
     "spectpmallow",
@@ -1043,6 +1050,10 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "flagWords": [
+    "hte"
+  ],
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }
