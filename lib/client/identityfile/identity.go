@@ -586,9 +586,17 @@ const (
 	orapkiBinary = "orapki"
 )
 
+func IsOrapkiAvailable() bool {
+	return isOrapkiAvailable()
+}
+
 func isOrapkiAvailable() bool {
 	_, err := exec.LookPath(orapkiBinary)
 	return err == nil
+}
+
+func CreateOracleWallet(caCertPaths []string, walletPath, p12Path, password string) error {
+	return createOracleWallet(caCertPaths, walletPath, p12Path, password)
 }
 
 func createOracleWallet(caCertPaths []string, walletPath, p12Path, password string) error {

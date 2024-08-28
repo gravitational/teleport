@@ -20,6 +20,7 @@ package oracle
 
 import (
 	"bytes"
+	"crypto/rand"
 	"crypto/x509"
 	"os"
 	"path/filepath"
@@ -29,13 +30,17 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
+	"software.sslmate.com/src/go-pkcs12"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+
+	clientidentityfile "github.com/gravitational/teleport/lib/client/identityfile"
 )
 
 // GenerateClientConfiguration function generates following Oracle Client configuration:
@@ -82,7 +87,54 @@ func createClientWallet(key *client.Key, certPem []byte, password string, wallet
 	if err := os.WriteFile(walletFile, buff, teleport.FileMaskOwnerOnly); err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	if clientidentityfile.IsOrapkiAvailable() {
+		if _, err := createOracleWallet(walletPath, key.PrivateKeyPEM(), certPem, certPem, password); err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
 	return walletFile, nil
+}
+func createOracleWallet(path string, keyPEM, certPEM, caPEM []byte, password string) ([]byte, error) {
+	certBlock, err := tlsca.ParseCertificatePEM(certPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyK, err := keys.ParsePrivateKey(keyPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var caCerts []*x509.Certificate
+	c, err := tlsca.ParseCertificatePEM(caPEM)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCerts = append(caCerts, c)
+
+	pf, err := pkcs12.LegacyRC2.WithRand(rand.Reader).Encode(keyK.Signer, certBlock, nil, password)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p12Path := filepath.Join(path, "ca.p12")
+	certPath := filepath.Join(path, "user.crt")
+
+	if err := os.WriteFile(p12Path, pf, identityfile.FilePermissions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = os.WriteFile(certPath, caPEM, identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := os.MkdirAll(path, teleport.PrivateDirMode); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clientidentityfile.CreateOracleWallet([]string{}, path, p12Path, password); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, nil
 }
 
 func createJKSWallet(keyPEM, certPEM, caPEM []byte, password string) ([]byte, error) {
