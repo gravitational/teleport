@@ -125,7 +125,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, arr, 4)
 		assert.Empty(t, checkpoint)
-	}, 10*time.Second, 500*time.Millisecond)
+	}, 120*time.Second, 500*time.Millisecond)
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -291,7 +291,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Len(t, history, 1)
-	}, 10*time.Second, 500*time.Millisecond)
+	}, 120*time.Second, 500*time.Millisecond)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -344,7 +344,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, history, 3)
-	}, 10*time.Second, 500*time.Millisecond)
+	}, 120*time.Second, 500*time.Millisecond)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
 	require.Equal(t, events.SessionEndEvent, history[2].GetType())

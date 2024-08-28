@@ -37,6 +37,8 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
@@ -469,6 +471,8 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		database:                     cfg.Database,
 		workgroup:                    cfg.Workgroup,
 		queryResultsS3:               cfg.QueryResultsS3,
+		locationS3Prefix:             cfg.locationS3Prefix,
+		locationS3Bucket:             cfg.locationS3Bucket,
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
 		awsCfg:                       cfg.StorerQuerierAWSConfig,
@@ -505,6 +509,10 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return l.querier.SearchEvents(ctx, req)
+}
+
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return l.querier.ExportUnstructuredEvents(ctx, req)
 }
 
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {

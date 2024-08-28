@@ -21,9 +21,11 @@ import (
 	"github.com/gravitational/trace"
 	limiter "github.com/sethvargo/go-limiter"
 	"github.com/sethvargo/go-limiter/memorystore"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
 // EventsJob incapsulates audit log event consumption logic
@@ -90,7 +92,7 @@ func (j *EventsJob) run(ctx context.Context) error {
 func (j *EventsJob) runPolling(ctx context.Context) error {
 	log := logger.Get(ctx)
 
-	evtCh, errCh := j.app.EventWatcher.Events(ctx)
+	evtCh, errCh := j.app.EventWatcher.EventsExport(ctx)
 
 	logTicker := time.NewTicker(time.Minute)
 	defer logTicker.Stop()
@@ -102,17 +104,13 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 		case err := <-errCh:
 			log.WithField("err", err).Error("Error ingesting Audit Log")
 			return trace.Wrap(err)
-
 		case evt := <-evtCh:
 			if evt == nil {
 				return nil
 			}
-
-			err := j.handleEvent(ctx, evt)
-			if err != nil {
+			if err := j.handleEvent(ctx, evt); err != nil {
 				return trace.Wrap(err)
 			}
-
 			eventsProcessed++
 		case <-logTicker.C:
 			log.WithField("events_per_minute", eventsProcessed).Info("event processing rate")
@@ -122,6 +120,133 @@ func (j *EventsJob) runPolling(ctx context.Context) error {
 		}
 	}
 }
+
+// runPolling runs actual event queue polling
+func (j *EventsJob) runPollingV2(ctx context.Context) error {
+	log := logger.Get(ctx)
+
+	evtCh, errCh := j.app.EventWatcher.EventsExport(ctx)
+
+	logTicker := time.NewTicker(time.Minute)
+	defer logTicker.Stop()
+
+	logLimiter := rate.NewLimiter(rate.Every(time.Minute), 6)
+
+	posLimiter := rate.NewLimiter(rate.Every(time.Second), 1)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var eventsProcessed int
+
+	type sendResult struct {
+		evt *TeleportEvent
+		err error
+	}
+
+	workfn := func(evt *TeleportEvent) sendResult {
+		err := j.handleEventAsync(ctx, evt)
+		return sendResult{evt, err}
+	}
+
+	q := cq.New(
+		workfn,
+		cq.Workers(128),
+		cq.Capacity(256),
+	)
+	defer q.Close()
+
+	go func() {
+		for {
+			select {
+			case evt := <-evtCh:
+				if evt == nil {
+					panic("nil event")
+				}
+
+				// enqueue event for parallel processing
+				select {
+				case q.Push() <- evt:
+				default:
+					if logLimiter.Allow() {
+						log.Warn("backpressure on concurrent queue")
+					}
+					select {
+					case q.Push() <- evt:
+					case <-ctx.Done():
+						panic("done")
+					}
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case err := <-errCh:
+			log.WithField("err", err).Error("Error ingesting Audit Log")
+			return trace.Wrap(err)
+		case sent := <-q.Pop():
+			if sent.err != nil {
+				return trace.Wrap(sent.err)
+			}
+			// limit update of position to once per second to reduce time spent waiting
+			// on disk.
+			if posLimiter.Allow() {
+				if err := j.handleEventSync(ctx, sent.evt); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			eventsProcessed++
+		case <-logTicker.C:
+			log.WithField("events_per_minute", eventsProcessed).Info("event processing rate")
+			eventsProcessed = 0
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// handleEventAsync is the async-safe subset of handleEvent.
+func (j *EventsJob) handleEventAsync(ctx context.Context, evt *TeleportEvent) error {
+	// Send event to Teleport
+	err := j.sendEvent(ctx, evt)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Start session ingestion if needed
+	if evt.IsSessionEnd {
+		j.app.RegisterSession(ctx, evt)
+	}
+
+	// If the event is login event
+	if evt.IsFailedLogin {
+		err := j.TryLockUser(ctx, evt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// handleEventSync is the subset of handleEvent that must be synchronous.
+func (j *EventsJob) handleEventSync(ctx context.Context, evt *TeleportEvent) error {
+	// Save last event id and cursor to disk
+	if err := j.app.State.SetID(evt.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := j.app.State.SetCursor(evt.Cursor); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+var stateLimiter = rate.NewLimiter(rate.Every(time.Second), 1)
 
 // handleEvent processes an event
 func (j *EventsJob) handleEvent(ctx context.Context, evt *TeleportEvent) error {
@@ -144,12 +269,14 @@ func (j *EventsJob) handleEvent(ctx context.Context, evt *TeleportEvent) error {
 		}
 	}
 
-	// Save last event id and cursor to disk
-	if err := j.app.State.SetID(evt.ID); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := j.app.State.SetCursor(evt.Cursor); err != nil {
-		return trace.Wrap(err)
+	if stateLimiter.Allow() {
+		// Save last event id and cursor to disk
+		if err := j.app.State.SetID(evt.ID); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := j.app.State.SetCursor(evt.Cursor); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

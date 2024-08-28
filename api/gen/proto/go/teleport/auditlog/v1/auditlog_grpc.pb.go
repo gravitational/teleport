@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	AuditLogService_StreamUnstructuredSessionEvents_FullMethodName = "/teleport.auditlog.v1.AuditLogService/StreamUnstructuredSessionEvents"
 	AuditLogService_GetUnstructuredEvents_FullMethodName           = "/teleport.auditlog.v1.AuditLogService/GetUnstructuredEvents"
+	AuditLogService_ExportUnstructuredEvents_FullMethodName        = "/teleport.auditlog.v1.AuditLogService/ExportUnstructuredEvents"
 )
 
 // AuditLogServiceClient is the client API for AuditLogService service.
@@ -49,6 +50,10 @@ type AuditLogServiceClient interface {
 	// GetUnstructuredEvents gets events from the audit log in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the events as JSON.
 	GetUnstructuredEvents(ctx context.Context, in *GetUnstructuredEventsRequest, opts ...grpc.CallOption) (*EventsUnstructured, error)
+	// ExportUnstructuredEvents is a simplified API intended to support bulk export of events. Results may be unordered and
+	// most query/filtering options are not supported, but this API is often more performant when all events for
+	// a given range are needed.
+	ExportUnstructuredEvents(ctx context.Context, in *ExportUnstructuredEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExportEventUnstructured], error)
 }
 
 type auditLogServiceClient struct {
@@ -88,6 +93,25 @@ func (c *auditLogServiceClient) GetUnstructuredEvents(ctx context.Context, in *G
 	return out, nil
 }
 
+func (c *auditLogServiceClient) ExportUnstructuredEvents(ctx context.Context, in *ExportUnstructuredEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ExportEventUnstructured], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AuditLogService_ServiceDesc.Streams[1], AuditLogService_ExportUnstructuredEvents_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExportUnstructuredEventsRequest, ExportEventUnstructured]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuditLogService_ExportUnstructuredEventsClient = grpc.ServerStreamingClient[ExportEventUnstructured]
+
 // AuditLogServiceServer is the server API for AuditLogService service.
 // All implementations must embed UnimplementedAuditLogServiceServer
 // for forward compatibility.
@@ -100,6 +124,10 @@ type AuditLogServiceServer interface {
 	// GetUnstructuredEvents gets events from the audit log in an unstructured format.
 	// This endpoint is used by the event handler to retrieve the events as JSON.
 	GetUnstructuredEvents(context.Context, *GetUnstructuredEventsRequest) (*EventsUnstructured, error)
+	// ExportUnstructuredEvents is a simplified API intended to support bulk export of events. Results may be unordered and
+	// most query/filtering options are not supported, but this API is often more performant when all events for
+	// a given range are needed.
+	ExportUnstructuredEvents(*ExportUnstructuredEventsRequest, grpc.ServerStreamingServer[ExportEventUnstructured]) error
 	mustEmbedUnimplementedAuditLogServiceServer()
 }
 
@@ -115,6 +143,9 @@ func (UnimplementedAuditLogServiceServer) StreamUnstructuredSessionEvents(*Strea
 }
 func (UnimplementedAuditLogServiceServer) GetUnstructuredEvents(context.Context, *GetUnstructuredEventsRequest) (*EventsUnstructured, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUnstructuredEvents not implemented")
+}
+func (UnimplementedAuditLogServiceServer) ExportUnstructuredEvents(*ExportUnstructuredEventsRequest, grpc.ServerStreamingServer[ExportEventUnstructured]) error {
+	return status.Errorf(codes.Unimplemented, "method ExportUnstructuredEvents not implemented")
 }
 func (UnimplementedAuditLogServiceServer) mustEmbedUnimplementedAuditLogServiceServer() {}
 func (UnimplementedAuditLogServiceServer) testEmbeddedByValue()                         {}
@@ -166,6 +197,17 @@ func _AuditLogService_GetUnstructuredEvents_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuditLogService_ExportUnstructuredEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ExportUnstructuredEventsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AuditLogServiceServer).ExportUnstructuredEvents(m, &grpc.GenericServerStream[ExportUnstructuredEventsRequest, ExportEventUnstructured]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AuditLogService_ExportUnstructuredEventsServer = grpc.ServerStreamingServer[ExportEventUnstructured]
+
 // AuditLogService_ServiceDesc is the grpc.ServiceDesc for AuditLogService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -182,6 +224,11 @@ var AuditLogService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "StreamUnstructuredSessionEvents",
 			Handler:       _AuditLogService_StreamUnstructuredSessionEvents_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ExportUnstructuredEvents",
+			Handler:       _AuditLogService_ExportUnstructuredEvents_Handler,
 			ServerStreams: true,
 		},
 	},

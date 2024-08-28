@@ -19,10 +19,13 @@
 package athena
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -30,15 +33,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -63,6 +71,7 @@ type querier struct {
 	querierConfig
 
 	athenaClient athenaClient
+	s3Getter     s3Getter
 }
 
 type athenaClient interface {
@@ -71,11 +80,18 @@ type athenaClient interface {
 	GetQueryResults(ctx context.Context, params *athena.GetQueryResultsInput, optFns ...func(*athena.Options)) (*athena.GetQueryResultsOutput, error)
 }
 
+type s3Getter interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
 type querierConfig struct {
 	tablename               string
 	database                string
 	workgroup               string
 	queryResultsS3          string
+	locationS3Bucket        string
+	locationS3Prefix        string
 	getQueryResultsInterval time.Duration
 	// getQueryResultsInitialDelay allows to set custom getQueryResultsInitialDelay.
 	// If not provided, default will be used.
@@ -134,6 +150,7 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}
 	return &querier{
 		athenaClient:  athena.NewFromConfig(*cfg.awsCfg),
+		s3Getter:      s3.NewFromConfig(*cfg.awsCfg),
 		querierConfig: cfg,
 	}, nil
 }
@@ -205,6 +222,295 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
+}
+
+func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	startTime := req.StartDate.AsTime()
+	if startTime.IsZero() {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter start_date"))
+	}
+
+	date := startTime.Format(time.DateOnly)
+
+	var cursor athenaExportCursor
+
+	if req.Cursor != "" {
+		if err := cursor.Decode(req.Cursor); err != nil {
+			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+		}
+	}
+
+	rawEvents := q.streamEventsFromCursor(ctx, date, cursor)
+	return stream.FilterMap(rawEvents, func(item eventAndCursor) (*auditlogpb.ExportEventUnstructured, bool) {
+		event, err := auditEventFromParquet(item.event)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": item.cursor.chunk,
+				"pos":   item.cursor.pos,
+			}).Warn("skipping export of audit event due to failed decoding")
+			return nil, false
+		}
+
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+				"date":  date,
+				"chunk": item.cursor.chunk,
+				"pos":   item.cursor.pos,
+			}).Warn("skipping export of audit event due to failed conversion to unstructured event")
+			return nil, false
+		}
+
+		return &auditlogpb.ExportEventUnstructured{
+			Event:  unstructuredEvent,
+			Cursor: item.cursor.Encode(),
+		}, true
+	})
+}
+
+// athenaExportCursors follow the format a1:<chunk>:<pos>.
+type athenaExportCursor struct {
+	chunk string
+	pos   int64
+}
+
+func (c *athenaExportCursor) Encode() string {
+	return fmt.Sprintf("a1:%s:%d", c.chunk, c.pos)
+}
+
+func (c *athenaExportCursor) Decode(key string) error {
+	parts := strings.Split(key, ":")
+	if len(parts) != 3 {
+		return trace.BadParameter("invalid key format")
+	}
+	if parts[0] != "a1" {
+		return trace.BadParameter("unsupported cursor format (expected a1, got %q)", parts[0])
+	}
+	c.chunk = parts[1]
+	pos, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.pos = pos
+	return nil
+}
+
+type eventAndCursor struct {
+	event  eventParquet
+	cursor athenaExportCursor
+}
+
+func (q *querier) streamEventsFromCursor(ctx context.Context, date string, cursor athenaExportCursor) stream.Stream[eventAndCursor] {
+	if cursor.chunk == "" {
+		var err error
+		cursor.chunk, err = q.getNextChunk(ctx, date, "")
+		if err != nil {
+			log.WithFields(log.Fields{
+				"date":  date,
+				"error": err,
+			}).Error("failed to get first event chunk")
+			return stream.Fail[eventAndCursor](trace.Wrap(err))
+		}
+
+		if cursor.chunk == "" {
+			log.WithFields(log.Fields{
+				"date": date,
+			}).Debug("no event chunks found for date")
+			return stream.Empty[eventAndCursor]()
+		}
+	}
+
+	var currentStream stream.Stream[eventParquet]
+
+	closer := func() {
+		if currentStream != nil {
+			currentStream.Done()
+		}
+	}
+
+	return stream.Func(func() (eventAndCursor, error) {
+		for {
+			if currentStream == nil {
+				// start/resume stream on current target chunk/pos.
+				log.WithFields(log.Fields{
+					"date":  date,
+					"chunk": cursor.chunk,
+					"pos":   cursor.pos,
+				}).Debug("starting new event chunk stream")
+				currentStream = q.streamEventsFromChunk(ctx, date, cursor.chunk)
+				if cursor.pos != 0 {
+					currentStream = stream.Skip(currentStream, int(cursor.pos))
+				}
+			}
+
+			if currentStream.Next() {
+				// there is stil an item available in stream. advance the cursor and
+				// return the item.
+				cursor.pos++
+				return eventAndCursor{
+					event:  currentStream.Item(),
+					cursor: cursor,
+				}, nil
+			}
+
+			if err := currentStream.Done(); err != nil {
+				// stream exited with an error, halt and bubble it up.
+				log.WithFields(log.Fields{
+					"date":  date,
+					"chunk": cursor.chunk,
+					"pos":   cursor.pos,
+					"error": err,
+				}).Error("event chunk stream failed")
+				return eventAndCursor{}, trace.Wrap(err)
+			}
+
+			// stream exited without error, advance to the next chunk.
+			var err error
+			prevChunk := cursor.chunk
+			cursor.chunk, err = q.getNextChunk(ctx, date, cursor.chunk)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"date":  date,
+					"chunk": prevChunk,
+					"pos":   cursor.pos,
+					"error": err,
+				}).Error("failed to get next event chunk")
+				return eventAndCursor{}, trace.Wrap(err)
+			}
+
+			if cursor.chunk == "" {
+				// no more chunks available, we're done.
+				log.WithFields(log.Fields{
+					"date":  date,
+					"chunk": prevChunk,
+					"pos":   cursor.pos,
+				}).Info("no more event chunks")
+				return eventAndCursor{}, io.EOF
+			}
+
+			cursor.pos = 0
+			currentStream = nil
+		}
+	}, closer)
+}
+
+func (q *querier) getNextChunk(ctx context.Context, date, prev string) (string, error) {
+	prefix := fmt.Sprintf("%s/%s/", q.locationS3Prefix, date)
+
+	var startAfter *string
+	if prev != "" {
+		startAfter = aws.String(prefix + prev + ".parquet")
+	}
+
+	for {
+
+		req := s3.ListObjectsV2Input{
+			Bucket:     aws.String(q.locationS3Bucket),
+			Prefix:     aws.String(prefix),
+			MaxKeys:    aws.Int32(1),
+			StartAfter: startAfter,
+		}
+
+		resp, err := q.s3Getter.ListObjectsV2(ctx, &req)
+		if err != nil {
+			var nsk *s3types.NoSuchKey
+			if prev == "" && errors.As(err, &nsk) {
+				log.WithFields(log.Fields{
+					"date":  date,
+					"error": err,
+				}).Warn("no event chunks found for date")
+				return "", nil
+			}
+			log.WithFields(log.Fields{
+				"error":       err,
+				"date":        date,
+				"start_after": startAfter,
+			}).Error("failed to list event chunk objects in S3")
+			return "", trace.Wrap(err)
+		}
+
+		if len(resp.Contents) == 0 {
+			log.WithFields(log.Fields{
+				"date":        date,
+				"start_after": startAfter,
+			}).Info("no more s3 event chunk files")
+			return "", nil
+		}
+
+		fullKey := aws.ToString(resp.Contents[0].Key)
+
+		if !strings.HasSuffix(fullKey, ".parquet") {
+			log.WithFields(log.Fields{
+				"key":         fullKey,
+				"date":        date,
+				"start_after": startAfter,
+			}).Info("skipping non-parquet s3 file")
+			startAfter = aws.String(fullKey)
+			continue
+		}
+
+		key := strings.TrimSuffix(strings.TrimPrefix(fullKey, prefix), ".parquet")
+		if key == "" {
+			log.WithFields(log.Fields{
+				"key":         fullKey,
+				"date":        date,
+				"start_after": startAfter,
+			}).Info("skipping empty key")
+			startAfter = aws.String(fullKey)
+			continue
+		}
+
+		return key, nil
+	}
+}
+
+func (q *querier) streamEventsFromChunk(ctx context.Context, date, chunk string) stream.Stream[eventParquet] {
+	data, err := q.readEventChunk(ctx, date, chunk)
+	if err != nil {
+		return stream.Fail[eventParquet](err)
+	}
+
+	reader := parquet.NewGenericReader[eventParquet](bytes.NewReader(data))
+
+	closer := func() {
+		reader.Close()
+	}
+
+	return stream.Func(func() (eventParquet, error) {
+		// TODO: figure out if its worth using a larger buffer here
+		var buf [1]eventParquet
+		_, err := reader.Read(buf[:])
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return eventParquet{}, io.EOF
+			}
+			return eventParquet{}, trace.Wrap(err)
+		}
+		return buf[0], nil
+	}, closer)
+}
+
+func (q *querier) readEventChunk(ctx context.Context, date, chunk string) ([]byte, error) {
+	getObjectInput := &s3.GetObjectInput{
+		Bucket: aws.String(q.locationS3Bucket),
+		Key:    aws.String(fmt.Sprintf("%s/%s/%s.parquet", q.locationS3Prefix, date, chunk)),
+	}
+	getObjectOutput, err := q.s3Getter.GetObject(ctx, getObjectInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer getObjectOutput.Body.Close()
+
+	// TODO: ideally we'd start streaming events immediately without waiting for the read to
+	// complete. in practice thats tricky since the parquet reader wants methods that aren't
+	// typically available on lazy readers. we should implement a custom wrapper that lazily
+	// loads all bytes into an unlimited size buffer so that we can support methods like Seek
+	// and ReadAt, which aren't available on buffered readers with fixed sizes.
+	return io.ReadAll(getObjectOutput.Body)
 }
 
 func (q *querier) canOptimizePaginatedSearchCosts(ctx context.Context, startKey *keyset, from, to time.Time) bool {

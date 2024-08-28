@@ -29,6 +29,10 @@ service AuditLogService {
   // GetUnstructuredEvents gets events from the audit log in an unstructured format.
   // This endpoint is used by the event handler to retrieve the events as JSON.
   rpc GetUnstructuredEvents(GetUnstructuredEventsRequest) returns (EventsUnstructured);
+  // ExportUnstructuredEvents is a simplified API intended to support bulk export of events. Results may be unordered and
+  // most query/filtering options are not supported, but this API is often more performant when all events for
+  // a given range are needed.
+  rpc ExportUnstructuredEvents(ExportUnstructuredEventsRequest) returns (stream ExportEventUnstructured);
 }
 
 // StreamUnstructuredSessionEventsRequest is a request containing data needed to fetch a session recording.
@@ -75,6 +79,24 @@ message EventsUnstructured {
   // actual amount. this is the key clients can supply in another API request to continue fetching
   // events from the previous last position.
   string last_key = 2;
+}
+
+// ExportUnstructuredEventsRequest is a request with the needed data to export events.
+message ExportUnstructuredEventsRequest {
+  // start_date is the oldest date of returned events.
+  google.protobuf.Timestamp start_date = 1;
+  // end_date is the newest date of returned events.
+  google.protobuf.Timestamp end_date = 2;
+  // cursor is an optional mechanism to resume interrupted streams.
+  string cursor = 3;
+}
+
+// ExportEventUnstructured is the stream item of the ExportUnstructuredEvents method.
+message ExportEventUnstructured {
+  // event is the unstructured representation of the event payload.
+  EventUnstructured event = 1;
+  // cursor is the cursor to resume the stream after this point.
+  string cursor = 2;
 }
 
 // EventUnstructured represents a single events.AuditEvent in an unstructured format.

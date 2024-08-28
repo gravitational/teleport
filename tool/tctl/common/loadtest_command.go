@@ -33,12 +33,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // LoadtestCommand implements the `tctl loadtest` family of commands.
@@ -47,7 +50,8 @@ type LoadtestCommand struct {
 
 	nodeHeartbeats *kingpin.CmdClause
 
-	watch *kingpin.CmdClause
+	watch       *kingpin.CmdClause
+	auditEvents *kingpin.CmdClause
 
 	count       int
 	churn       int
@@ -57,6 +61,9 @@ type LoadtestCommand struct {
 	concurrency int
 
 	kind string
+
+	date   string
+	cursor string
 }
 
 // Initialize allows LoadtestCommand to plug itself into the CLI parser
@@ -76,6 +83,10 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 
 	c.watch = loadtest.Command("watch", "Monitor event stream").Hidden()
 	c.watch.Flag("kind", "Resource kind(s) to watch, e.g. --kind=node,user,role").StringVar(&c.kind)
+
+	c.auditEvents = loadtest.Command("audit-events", "Dump audit events").Hidden()
+	c.auditEvents.Flag("date", "Date to dump events for").StringVar(&c.date)
+	c.auditEvents.Flag("cursor", "Cursor to start from").StringVar(&c.cursor)
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
@@ -85,6 +96,8 @@ func (c *LoadtestCommand) TryRun(ctx context.Context, cmd string, client *authcl
 		err = c.NodeHeartbeats(ctx, client)
 	case c.watch.FullCommand():
 		err = c.Watch(ctx, client)
+	case c.auditEvents.FullCommand():
+		err = c.AuditEvents(ctx, client)
 	default:
 		return false, nil
 	}
@@ -278,6 +291,73 @@ func (c *LoadtestCommand) Watch(ctx context.Context, client *authclient.Client) 
 			return trace.Errorf("watcher exited unexpectedly: %v", watcher.Error())
 		}
 	}
+}
+
+func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Client) error {
+	var cursor string
+	if c.cursor != "" {
+		cursor = c.cursor
+	}
+
+	date := time.Now()
+	if c.date != "" {
+		var err error
+		date, err = time.Parse("2006-01-02", c.date)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	outch := make(chan *auditlogpb.ExportEventUnstructured, 1024)
+	defer close(outch)
+
+	go func() {
+		for event := range outch {
+			s, err := utils.FastMarshal(map[string]any{
+				"event":  event.Event,
+				"cursor": event.Cursor,
+			})
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(string(s))
+		}
+	}()
+
+	for {
+		eventStream := client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+			StartDate: timestamppb.New(date),
+			Cursor:    cursor,
+		})
+
+		for eventStream.Next() {
+			select {
+			case outch <- eventStream.Item():
+				continue
+			default:
+				log.Warn("backpressure in event stream")
+			}
+
+			select {
+			case outch <- eventStream.Item():
+			case <-ctx.Done():
+				return nil
+			}
+		}
+
+		if err := eventStream.Done(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		log.WithFields(log.Fields{
+			"date": date,
+		}).Info("finished processing events for date")
+
+		date = date.AddDate(0, 0, 1)
+		cursor = ""
+	}
+
+	return nil
 }
 
 func printEvent(ekind string, rsc types.Resource) {

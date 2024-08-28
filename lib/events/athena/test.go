@@ -47,6 +47,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -150,6 +152,17 @@ func (e *EventuallyConsistentAuditLogger) SearchEvents(ctx context.Context, req 
 	return e.Inner.SearchEvents(ctx, req)
 }
 
+func (e *EventuallyConsistentAuditLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.emitWasAfterLastDelay {
+		time.Sleep(e.QueryDelay)
+		// clear emit delay
+		e.emitWasAfterLastDelay = false
+	}
+	return e.Inner.ExportUnstructuredEvents(ctx, req)
+}
+
 func (e *EventuallyConsistentAuditLogger) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -180,8 +193,8 @@ func SetupAthenaContext(t *testing.T, ctx context.Context, cfg AthenaContextConf
 	t.Cleanup(func() {
 		assert.NoError(t, backend.Close())
 	})
-	bucketWithLocking := "auditlogs-integrationtests-locking"
-	bucketForTemporaryFiles := "auditlogs-integrationtests"
+	bucketWithLocking := fmt.Sprintf("fspm-int-locking-7e0296a8-14e9-4606-9da9-4c3b9a18e165")
+	bucketForTemporaryFiles := fmt.Sprintf("fspm-int-temp-7e0296a8-14e9-4606-9da9-4c3b9a18e165")
 	ac := &AthenaContext{
 		clock:              clock,
 		testID:             testID,
