@@ -25,10 +25,12 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -45,10 +47,13 @@ const (
 type TeleportSearchEventsClient interface {
 	// SearchEvents searches for events in the audit log and returns them using their protobuf representation.
 	SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
+
 	// StreamSessionEvents returns session events stream for a given session ID using their protobuf representation.
 	StreamSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan events.AuditEvent, chan error)
 	// SearchUnstructuredEvents searches for events in the audit log and returns them using an unstructured representation (structpb.Struct).
 	SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error)
+
+	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured]
 	// StreamUnstructuredSessionEvents returns session events stream for a given session ID using an unstructured representation (structpb.Struct).
 	StreamUnstructuredSessionEvents(ctx context.Context, sessionID string, startIndex int64) (chan *auditlogpb.EventUnstructured, chan error)
 	UpsertLock(ctx context.Context, lock types.Lock) error
@@ -301,6 +306,83 @@ func (t *TeleportEventsWatcher) pause(ctx context.Context) error {
 	case <-time.After(t.config.Timeout):
 		return nil
 	}
+}
+
+func (t *TeleportEventsWatcher) EventsExport(ctx context.Context) (chan *TeleportEvent, chan error) {
+	ch := make(chan *TeleportEvent, t.config.BatchSize)
+	e := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			close(e)
+			close(ch)
+		}()
+
+		logLimiter := rate.NewLimiter(rate.Every(time.Minute), 6)
+
+		date := t.getWindowStartTime()
+		var cursor string
+
+	Outer:
+		for {
+			eventStream := t.client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+				StartDate: timestamppb.New(date),
+				Cursor:    cursor,
+			})
+
+		Inner:
+			for eventStream.Next() {
+				cursor = eventStream.Item().Cursor
+
+				evt, err := NewTeleportEvent(eventStream.Item().Event, cursor)
+				if err != nil {
+					e <- trace.Wrap(err)
+					break Outer
+				}
+
+				// attempt non-blocking send first, falling back to blocking send
+				// if we encounter backpressure.
+				select {
+				case ch <- evt:
+					continue Inner
+				default:
+				}
+
+				if logLimiter.Allow() {
+					log.Warn("encountering backpressure from outbound event processing")
+				}
+
+				select {
+				case ch <- evt:
+				case <-ctx.Done():
+					e <- ctx.Err()
+					break Outer
+				}
+			}
+
+			if err := eventStream.Done(); err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Error("event stream export failed")
+			}
+
+			prevDate := date
+			prevCursor := cursor
+
+			// export API chunks on days
+			date = date.Add(time.Hour * 24)
+			cursor = ""
+
+			log.WithFields(log.Fields{
+				"date":   prevDate,
+				"cursor": prevCursor,
+				"next":   date,
+			}).Info("finished exporting events for date, moving to next")
+		}
+
+	}()
+
+	return ch, e
 }
 
 // Next returns next event from a batch or requests next batch if it has been ended

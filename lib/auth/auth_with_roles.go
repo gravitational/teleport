@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -6056,6 +6057,28 @@ func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEve
 	}
 
 	return outEvents, lastKey, nil
+}
+
+// ExportUnstructuredEvents returns all events that occurred within a coarse time range in an undefined order. May be
+// more performant for bulk event exports for certain implementations.
+func (a *ServerWithRoles) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
+	}
+
+	return a.alog.ExportUnstructuredEvents(ctx, req)
+}
+
+// GetEventExportChunks returns a stream of chunks to be exported via ExportUnstructuredEvents for a given
+// date. The returned list isn't necessarily in time order. Subsequent calls may return a different order with additional
+// chunks in it if events for the target date are still being uploaded. The stream does not block waiting for
+// new chunks to become available, and polling for new chunks requires re-consuming the entire stream.
+func (a *ServerWithRoles) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
+		return stream.Fail[*auditlogpb.EventExportChunk](trace.Wrap(err))
+	}
+
+	return a.alog.GetEventExportChunks(ctx, req)
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.

@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -59,6 +60,8 @@ func NewSessionEventsJob(app *App) *SessionEventsJob {
 	return j
 }
 
+var sessionLogLimiter = rate.NewLimiter(rate.Every(time.Second), 3)
+
 // run runs session consuming process
 func (j *SessionEventsJob) run(ctx context.Context) error {
 	log := logger.Get(ctx)
@@ -71,6 +74,8 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		return nil
 	})
 
+	logLimiter := rate.NewLimiter(rate.Every(time.Minute), 6)
+
 	if err := j.restartPausedSessions(); err != nil {
 		log.WithError(err).Error("Restarting paused sessions")
 	}
@@ -82,13 +87,22 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		case s := <-j.sessions:
 			logger := log.WithField("id", s.ID).WithField("index", s.Index)
 
-			logger.Info("Starting session ingest")
+			if sessionLogLimiter.Allow() {
+				logger.Info("Starting session ingest")
+			}
 
 			select {
 			case j.semaphore <- struct{}{}:
-			case <-ctx.Done():
-				logger.WithError(ctx.Err()).Error("Failed to acquire semaphore")
-				return nil
+			default:
+				if logLimiter.Allow() {
+					logger.Warn("encountering backpressure from session ingest semaphor, if this issue persists consider increasing concurrency")
+				}
+				select {
+				case j.semaphore <- struct{}{}:
+				case <-ctx.Done():
+					logger.WithError(ctx.Err()).Error("Failed to acquire semaphore")
+					return nil
+				}
 			}
 
 			func(s session, log logrus.FieldLogger) {
@@ -159,7 +173,10 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 				return trace.LimitExceeded("Session ingestion exceeded attempt limit")
 			}
 
-			log.WithError(err).WithField("n", attempt).Error("Session ingestion error, retrying")
+			log.WithError(err).WithFields(logrus.Fields{
+				"n":           attempt,
+				"upload_time": s.UploadTime,
+			}).Error("Session ingestion error, retrying")
 
 			// Perform backoff before retrying the session again.
 			if err := backoff.Do(ctx); err != nil {
@@ -269,16 +286,22 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 func (j *SessionEventsJob) consumeSession(ctx context.Context, s session) (bool, error) {
 	url := j.app.Config.FluentdSessionURL + "." + s.ID + ".log"
 	chEvt, chErr := j.app.EventWatcher.StreamUnstructuredSessionEvents(ctx, s.ID, s.Index)
-
+	var consumed int
 Loop:
 	for {
 		select {
 		case err := <-chErr:
+			logrus.WithError(err).WithFields(logrus.Fields{
+				"id":       s.ID,
+				"consumed": consumed,
+			}).Error("Failed to ingest session events")
 			return true, trace.Wrap(err)
 
 		case evt, ok := <-chEvt:
 			if !ok {
-				logrus.WithField("id", s.ID).Info("Finished session events ingest")
+				if sessionLogLimiter.Allow() {
+					logrus.WithField("id", s.ID).Info("Finished session events ingest")
+				}
 				break Loop // Break the main loop
 			}
 
@@ -304,6 +327,7 @@ Loop:
 			if err != nil {
 				return true, trace.Wrap(err)
 			}
+			consumed++
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
 				return false, nil
