@@ -4551,8 +4551,11 @@ message OIDCAuthRequest {
   // PublicKey is an optional public key, users want these keys to be signed by
   // auth servers user CA in case of successful auth.
   //
-  // Soon to be deprecated after references are removed from teleport.e.
-  bytes PublicKey = 7 [(gogoproto.jsontag) = "public_key"];
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 7 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -4591,8 +4594,11 @@ message OIDCAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   //
-  // Soon to be deprecated after references are removed from teleport.e.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -4715,8 +4721,11 @@ message SAMLAuthRequest {
   // keys to be signed by auth servers user CA in case
   // of successful auth.
   //
-  // Soon to be deprecated after references are removed from teleport.e.
-  bytes PublicKey = 6 [(gogoproto.jsontag) = "public_key"];
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 6 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -4752,7 +4761,7 @@ message SAMLAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   //
-  // Soon to be deprecated after references are removed from teleport.e.
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
