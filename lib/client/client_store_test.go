@@ -412,6 +412,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 			ClusterName: "teleportcluster",
 		},
 		TLSPrivateKey:      privateKey,
+		SSHPrivateKey:      privateKey,
 		TLSCert:            certPEM,
 		KubeTLSCredentials: make(map[string]TLSCredential, 10),
 	}
