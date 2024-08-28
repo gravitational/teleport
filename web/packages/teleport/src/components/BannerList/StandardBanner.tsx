@@ -18,7 +18,9 @@
 
 import React from 'react';
 
-import { Banner, Link } from 'design';
+import { Banner } from 'design';
+
+import { Action } from 'design/Alert';
 
 import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
@@ -30,6 +32,7 @@ type Props = {
   severity: Severity;
   id: string;
   link?: string;
+  linkCTA?: string;
   onDismiss: () => void;
 };
 
@@ -38,36 +41,46 @@ export function StandardBanner({
   message = '',
   severity = 'info',
   link = '',
+  linkCTA = '',
   onDismiss,
 }: Props) {
-  const isValidTeleportLink = (link: string) => {
-    try {
-      const url = new URL(link);
-      return url.hostname === 'goteleport.com';
-    } catch {
-      return false;
-    }
-  };
+  const linkValid = isValidTeleportLink(link);
+  const details = linkValid ? undefined : bannerDetails(link, linkCTA);
+  const primaryAction = linkValid ? action(id, link, linkCTA) : undefined;
 
   return (
-    <Banner kind={severity} onDismiss={onDismiss} dismissible>
-      {isValidTeleportLink(link) ? (
-        <Link
-          href={link}
-          target="_blank"
-          css={{ fontWeight: 'inherit' }}
-          onClick={() =>
-            userEventService.captureUserEvent({
-              event: CaptureEvent.BannerClickEvent,
-              alert: id,
-            })
-          }
-        >
-          {message}
-        </Link>
-      ) : (
-        message
-      )}
+    <Banner
+      kind={severity}
+      details={details}
+      primaryAction={primaryAction}
+      onDismiss={onDismiss}
+      dismissible
+    >
+      {message}
     </Banner>
   );
 }
+
+const isValidTeleportLink = (link: string) => {
+  try {
+    const url = new URL(link);
+    return url.hostname === 'goteleport.com';
+  } catch {
+    return false;
+  }
+};
+
+const bannerDetails = (link: string, cta: string): string =>
+  cta ? `${cta}: ${link}` : link;
+
+const action = (id: string, link: string, cta: string): Action => {
+  return {
+    content: cta || 'Learn More',
+    href: link,
+    onClick: () =>
+      userEventService.captureUserEvent({
+        event: CaptureEvent.BannerClickEvent,
+        alert: id,
+      }),
+  };
+};

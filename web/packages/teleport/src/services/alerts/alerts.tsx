@@ -20,6 +20,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 export const LINK_LABEL = 'teleport.internal/link';
+export const LINK_LABEL_CTA = 'teleport.internal/link-cta';
 
 export type ClusterAlert = {
   kind: string;
