@@ -54,9 +54,7 @@ func TestValidateJamfCredentials(t *testing.T) {
 				ClientID:     "client-id",
 				ClientSecret: "client-secret",
 			},
-			errAssertion: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "both username+password and clientID+clientSecret are set, use one or the other")
-			},
+			errAssertion: require.NoError,
 		},
 		{
 			name: "invalid credentials missing password",
