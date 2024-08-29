@@ -1976,6 +1976,9 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 
 // VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
 // The count of users with the role must exceed the minimum by 1 in order to be safe to remove, as the user being unassigned may be counted.
+// todo mberg feedback:  you could return only the error - if it's some sort of guard (like ErrMinimumAssignmentViolation) then it breaks the assignment, non-nil err is some other failure and nil means OK.
+// todo mberg feedback: I'm not sure if going through the cache is a good idea if that means we could work with outdated information.
+// todo mberg feedback: If you pass in the role then maybe read the label from the role itself? Less chance of mismatched parameters.
 func (c *Cache) VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
 	defer span.End()

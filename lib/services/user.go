@@ -74,6 +74,7 @@ func ValidateRoleChangesWithMinimums(ctx context.Context, user, req types.User, 
 		return nil
 	}
 
+	// todo mberg feedback: We could stop early if the request only adds roles. Maybe check this above?
 	// Only check minimum assignment if user both has the role, and the request removes the role
 	for _, role := range userRoles {
 		r, err := roleGetter.GetRole(ctx, role)
@@ -84,6 +85,7 @@ func ValidateRoleChangesWithMinimums(ctx context.Context, user, req types.User, 
 		labels := r.GetAllLabels()
 		label, ok := labels[types.TeleportMinimumAssignment]
 		if ok {
+			// todo mberg feedback:  calculating the removed roles first and then querying only for those might make the logic here simple
 			// find role in request
 			found := false
 			for _, requestRole := range requestRoles {

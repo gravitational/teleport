@@ -199,8 +199,9 @@ func NewPresetOwnerRole() types.Role {
 			Description: "todo",
 			Labels: map[string]string{
 				types.TeleportInternalResourceType: types.PresetResource,
-				types.TeleportImmutableResource:    "true",
-				types.TeleportMinimumAssignment:    "1",
+				// todo mberg update every reference of TeleportImmutableResource to read "true"
+				types.TeleportImmutableResource: "true",
+				types.TeleportMinimumAssignment: "1",
 			},
 		},
 		Spec: types.RoleSpecV6{
