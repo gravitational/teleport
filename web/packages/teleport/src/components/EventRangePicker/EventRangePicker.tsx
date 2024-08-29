@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { components } from 'react-select';
+import { components, ValueContainerProps } from 'react-select';
 import 'react-day-picker/dist/style.css';
 import { Text, Box } from 'design';
 import Dialog from 'design/DialogConfirmation';
@@ -30,6 +30,8 @@ import { State } from 'teleport/Audit/useAuditEvents';
 
 import { CustomRange } from './Custom';
 import { EventRange } from './utils';
+
+type RangeOption = Option<EventRange, string>;
 
 export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   const [isPickerOpen, openDayPicker] = useState(false);
@@ -86,7 +88,10 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
   );
 }
 
-const ValueContainer = ({ children, ...props }) => {
+const ValueContainer = ({
+  children,
+  ...props
+}: ValueContainerProps<RangeOption>) => {
   const { isCustom, from, to } = props.getValue()[0].value;
 
   if (isCustom) {

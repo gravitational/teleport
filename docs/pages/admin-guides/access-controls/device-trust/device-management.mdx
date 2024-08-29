@@ -15,8 +15,8 @@ The `tctl` tool is used to manage the device inventory. A device admin is
 responsible for managing devices, adding new devices to the inventory and
 removing devices that are no longer in use.
 
-<Admonition type="tip" title="Self enrollment: v13.3.5+">
-  Users with the preset `editor` or `device-admin` role (since v13.3.6)
+<Admonition type="tip" title="Self enrollment">
+  Users with the preset `editor` or `device-admin` role
   can register and enroll their device in a single step with the following command:
   ```code
   $ tsh device enroll --current-device
@@ -80,14 +80,6 @@ Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
-
-<Admonition type="warning" title="Device Role">
-  For clusters created after v13.3.6, Teleport supports preset `device-admin` role to manage devices.
-
-  For clusters created using Teleport v12 or newer, the preset `editor` role has
-  the necessary permissions to manage devices. For clusters created before v12, you may want
-  to create a dedicated [`device-admin`](#dedicated-device-admin-role) role.
-</Admonition>
 
 ## Create a device enrollment token
 
@@ -224,51 +216,6 @@ Device "C00AA0AAAA0A" removed
 $ tctl devices rm --device-id=c9cbb327-68a8-497e-b820-6a4b2bf58269
 Device "c9cbb327-68a8-497e-b820-6a4b2bf58269" removed
 ```
-
-## Dedicated device admin role
-
-We recommend creating a dedicated `device-admin` role for device inventory
-management.
-
-<Admonition type="tip" title="v13.3.6+">
-  Teleport version 13.3.6 and above has the preset `device-admin` role, which
-  is a substitute for the role described below.
-</Admonition>
-
-Following is an example of a role that grants permissions for the `device` resource is necessary to manage
-the inventory. Save the yaml below as `device-admin.yaml`:
-
-```yaml
-version: v7
-kind: role
-metadata:
-  name: device-admin
-spec:
-  allow:
-    rules:
-    - resources: ["device"]
-      verbs:
-      - create
-      - read
-      - list
-      - update
-      - delete
-      - create_enroll_token
-      - enroll
-```
-
-Create the role:
-
-```code
-$ tctl create -f device-admin.yaml
-role 'device-admin' has been created
-```
-
-Note that in addition to the usual CRUD verbs (create, read, list, update and
-delete), we have also included `create_enroll_token` and `enroll`. The
-`create_enroll_token` verb is necessary to execute the `tctl devices enroll`
-command; `enroll` is necessary to execute `tsh device enroll`.
-
 
 ## Configuring a TPM EKCert CA allow-list
 

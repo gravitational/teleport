@@ -71,6 +71,7 @@ export type CreateDatabaseRequest = {
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
   awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {

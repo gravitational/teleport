@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -492,6 +493,9 @@ type Config struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout time.Duration
 }
 
 // CachePolicy defines cache policy for local clients
@@ -822,6 +826,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
+	c.SSHDialTimeout = profile.SSHDialTimeout
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -871,6 +876,7 @@ func (c *Config) Profile() *profile.Profile {
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
+		SSHDialTimeout:                c.SSHDialTimeout,
 	}
 }
 
@@ -1121,7 +1127,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 }
 
 // DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
-type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+type DTAuthnRunCeremonyFunc func(context.Context, *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error)
 
 // DTAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
 type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
@@ -1385,7 +1391,7 @@ type targetNode struct {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetResourcesClient, options SSHOptions) ([]targetNode, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]targetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -1404,16 +1410,28 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
-		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		nodes, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		retval := make([]targetNode, 0, len(nodes))
 		for _, resource := range nodes {
+			server, ok := resource.ResourceWithLabels.(types.Server)
+			if !ok {
+				continue
+			}
+
 			// always dial nodes by UUID
 			retval = append(retval, targetNode{
-				hostname: resource.GetHostname(),
+				hostname: server.GetHostname(),
 				addr:     fmt.Sprintf("%s:0", resource.GetName()),
 			})
 		}
@@ -3037,7 +3055,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
 			Auth:            authMethods,
-			Timeout:         apidefaults.DefaultIOTimeout,
+			Timeout:         tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
@@ -3282,20 +3300,20 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := tc.SSHLogin(ctx, sshLoginFunc)
+	keyRing, err := tc.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Use proxy identity if set in key response.
-	if key.Username != "" {
-		tc.Username = key.Username
+	if keyRing.Username != "" {
+		tc.Username = keyRing.Username
 		if tc.localAgent != nil {
-			tc.localAgent.username = key.Username
+			tc.localAgent.username = keyRing.Username
 		}
 	}
 
-	return key, nil
+	return keyRing, nil
 }
 
 // LoginWeb logs the user in via the Teleport web api the same way that the web UI does.
@@ -3359,14 +3377,16 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 		return nil
 	}
 
-	newCerts, err := tc.DeviceLogin(
-		ctx,
-		rootAuthClient,
-		&devicepb.UserCertificates{
+	newCerts, err := tc.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
+		DevicesClient: rootAuthClient.DevicesClient(),
+		Certs: &devicepb.UserCertificates{
 			// Augment the SSH certificate.
 			// The TLS certificate is already part of the connection.
 			SshAuthorizedKey: keyRing.Cert,
-		})
+		},
+		// TODO(nklaassen): split SSH private key from TLS key.
+		SSHSigner: keyRing.PrivateKey,
+	})
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
 		log.Debug("Device Trust: Skipping device authentication, device key not found")
@@ -3418,7 +3438,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authclient.ClientI, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, params *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/DeviceLogin",
@@ -3433,8 +3453,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	}
 
 	// Login without a previous auto-enroll attempt.
-	devicesClient := rootAuthClient.DevicesClient()
-	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
+	newCerts, loginErr := runCeremony(ctx, params)
 	// Success or auto-enroll impossible.
 	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
 		return newCerts, trace.Wrap(loginErr)
@@ -3456,11 +3475,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	}
 
 	// Auto-enroll and Login again.
-	if _, err := autoEnroll(ctx, devicesClient); err != nil {
+	if _, err := autoEnroll(ctx, params.DevicesClient); err != nil {
 		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
-	newCerts, err = runCeremony(ctx, devicesClient, certs)
+	newCerts, err = runCeremony(ctx, params)
 	return newCerts, trace.Wrap(err)
 }
 
@@ -4483,6 +4502,8 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		// k8s requests by "kube-teleport-proxy-alpn." SNI prefix and route to the kube proxy service.
 		tc.KubeProxyAddr = tc.WebProxyAddr
 	}
+
+	tc.SSHDialTimeout = proxySettings.SSH.DialTimeout
 
 	return nil
 }

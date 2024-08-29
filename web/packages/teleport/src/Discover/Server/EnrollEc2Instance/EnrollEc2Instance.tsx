@@ -98,7 +98,7 @@ export function EnrollEc2Instance() {
   });
 
   const [autoDiscoveryCfg, setAutoDiscoveryCfg] = useState<DiscoveryConfig>();
-  const [wantAutoDiscover, setWantAutoDiscover] = useState(true);
+  const [wantAutoDiscover, setWantAutoDiscover] = useState(false);
   const [discoveryGroupName, setDiscoveryGroupName] = useState(() =>
     cfg.isCloud ? '' : DEFAULT_DISCOVERY_GROUP_NON_CLOUD
   );

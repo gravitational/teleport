@@ -161,11 +161,31 @@ func TestValidateAssertionConsumerServicesEndpoint(t *testing.T) {
 			location:  "javascript://sptest.iamshowcase.com/acs",
 			assertion: require.Error,
 		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs"`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs<`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs>`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs!`,
+			assertion: require.Error,
+		},
+		{
+			location:  `https://sptest.iamshowcase.com/acs;`,
+			assertion: require.Error,
+		},
 	}
 
 	for _, test := range cases {
 		t.Run(test.location, func(t *testing.T) {
-			test.assertion(t, ValidateAssertionConsumerServicesEndpoint(test.location))
+			test.assertion(t, validateAssertionConsumerServicesEndpoint(test.location))
 		})
 	}
 }
@@ -236,4 +256,70 @@ func (b *entityDescriptorBuilder) Done() string {
 	}
 
 	return fmt.Sprintf(edBuilderTemplate, strings.Join(acss, "\n      "))
+}
+
+func TestValidateSAMLIdPACSURLAndRelayStateInputs(t *testing.T) {
+	cases := []struct {
+		acsURL     string
+		entityID   string
+		relayState string
+		assertion  require.ErrorAssertionFunc
+	}{
+		{
+			acsURL:     "https://sp.com/",
+			entityID:   "https://sp.com/",
+			relayState: "https://sp.com/",
+			assertion:  require.NoError,
+		},
+		{
+			acsURL:    "javascript://sp.com/acs",
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:    `https://sp.com/acs"`,
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:    "https://sp.com/acs<",
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:    "https://sp.com/acs>",
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:    "https://sp.com/acs!",
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:    "https://sp.com/acs;",
+			entityID:  "https://sp.com/",
+			assertion: require.Error,
+		},
+		{
+			acsURL:     "https://sp.com/acs",
+			entityID:   "https://sp.com/",
+			relayState: `https://sp.com/acs>`,
+			assertion:  require.Error,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.acsURL, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "sp",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityID:   test.entityID,
+				ACSURL:     test.acsURL,
+				RelayState: test.relayState,
+			})
+			require.NoError(t, err)
+			test.assertion(t, ValidateSAMLIdPACSURLAndRelayStateInputs(sp))
+		})
+	}
 }
