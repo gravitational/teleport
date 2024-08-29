@@ -29,8 +29,6 @@ func TestValidateJamfSpecV1(t *testing.T) {
 	validSpec := &types.JamfSpecV1{
 		Enabled:     true,
 		ApiEndpoint: "https://yourtenant.jamfcloud.com",
-		Username:    "llama",
-		Password:    "supersecret!!1!",
 	}
 	validEntry := &types.JamfInventoryEntry{
 		FilterRsql:        "", // no filters
@@ -59,8 +57,6 @@ func TestValidateJamfSpecV1(t *testing.T) {
 			spec: &types.JamfSpecV1{
 				Enabled:     true,
 				ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				Username:    "llama",
-				Password:    "supersecret!!1!",
 				Inventory: []*types.JamfInventoryEntry{
 					{
 						FilterRsql:        `general.remoteManagement.managed==true and general.platform=="Mac"`,
@@ -75,36 +71,6 @@ func TestValidateJamfSpecV1(t *testing.T) {
 					validEntry,
 				},
 			},
-		},
-		{
-			name: "all fields",
-			spec: &types.JamfSpecV1{
-				Enabled:     true,
-				Name:        "jamf2",
-				SyncDelay:   types.Duration(2 * time.Minute),
-				ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				Username:    "llama",
-				Password:    "supersecret!!1!",
-				Inventory: []*types.JamfInventoryEntry{
-					{
-						FilterRsql:        `general.remoteManagement.managed==true and general.platform=="Mac"`,
-						SyncPeriodPartial: types.Duration(4 * time.Hour),
-						SyncPeriodFull:    types.Duration(48 * time.Hour),
-						OnMissing:         "DELETE",
-					},
-				},
-				ClientId:     "llama-UUID", // "duplicate" creds are fine
-				ClientSecret: "supersecretsecret!!1!",
-			},
-		},
-		{
-			name: "using API credentials",
-			spec: modify(func(spec *types.JamfSpecV1) {
-				spec.Username = ""
-				spec.Password = ""
-				spec.ClientId = "llama-UUID"
-				spec.ClientSecret = "supersecretsecret!11!"
-			}),
 		},
 		{
 			name:    "nil spec",
