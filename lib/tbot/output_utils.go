@@ -114,7 +114,7 @@ func NewClientKeyRing(ident *identity.Identity, hostCAs []types.CertAuthority) (
 		KeyRingIndex: client.KeyRingIndex{
 			ClusterName: ident.ClusterName,
 		},
-		// tobt identities use a single private key for SSH and TLS.
+		// tbot identities use a single private key for SSH and TLS.
 		SSHPrivateKey: pk,
 		TLSPrivateKey: pk,
 		Cert:          ident.CertBytes,

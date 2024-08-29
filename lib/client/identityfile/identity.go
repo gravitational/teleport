@@ -229,8 +229,8 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		// Identity files only hold a single private key, and all certs are
 		// associated with that key. All callers should provide a
 		// [client.KeyRing] where [KeyRing.SSHPrivateKey] and
-		// [KeyRing.TLSPrivateKey] are the same equal. Assert that here.
-		if !bytes.Equal(cfg.KeyRing.SSHPrivateKey.PrivateKeyPEM(), cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM()) {
+		// [KeyRing.TLSPrivateKey] are equal. Assert that here.
+		if !bytes.Equal(cfg.KeyRing.SSHPrivateKey.MarshalSSHPublicKey(), cfg.KeyRing.TLSPrivateKey.MarshalSSHPublicKey()) {
 			return nil, trace.BadParameter("identity files don't support mismatched SSH and TLS keys, this is a bug")
 		}
 		filesWritten = append(filesWritten, cfg.OutputPath)
