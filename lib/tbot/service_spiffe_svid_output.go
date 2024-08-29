@@ -25,12 +25,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -96,19 +98,65 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 		return trace.BadParameter("timed out waiting for trust bundle")
 	}
 
+	jitter := retryutils.NewJitter()
+	var res *machineidv1pb.SignX509SVIDsResponse
+	var privateKey *rsa.PrivateKey
+	var failures int
+	firstRun := make(chan struct{}, 1)
+	firstRun <- struct{}{}
 	for {
+		var retryAfter <-chan time.Time
+		if failures > 0 {
+			backoffTime := time.Second * time.Duration(math.Pow(2, float64(failures-1)))
+			if backoffTime > time.Minute {
+				backoffTime = time.Minute
+			}
+			backoffTime = jitter(backoffTime)
+			s.log.WarnContext(
+				ctx,
+				"Last attempt to generated failed, will retry",
+				"retry_after", backoffTime,
+				"failures", failures,
+			)
+			retryAfter = time.After(time.Duration(failures) * time.Second)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-retryAfter:
+			s.log.InfoContext(ctx, "Retrying")
+		case newBundleSet := <-bundleSetCh:
+			s.log.InfoContext(ctx, "Trust bundle set has been updated")
+			if !newBundleSet.Local.Equal(bundleSet.Local) {
+				// If the local trust domain CA has changed, we need to reissue
+				// the SVID.
+				res = nil
+				privateKey = nil
+			}
+			bundleSet = newBundleSet
+		case <-time.After(s.botCfg.RenewalInterval):
+			s.log.InfoContext(ctx, "Renewal interval reached, renewing SVIDs")
+			res = nil
+			privateKey = nil
+		case <-firstRun:
+		}
 
+		if res == nil || privateKey == nil {
+			var err error
+			res, privateKey, err = s.requestSVID(ctx)
+			if err != nil {
+				s.log.ErrorContext(ctx, "Failed to request SVID", "error", err)
+				failures++
+				continue
+			}
+		}
+		if err := s.render(ctx, bundleSet, res, privateKey); err != nil {
+			s.log.ErrorContext(ctx, "Failed to render output", "error", err)
+			failures++
+			continue
+		}
+		failures = 0
 	}
-
-	err := runOnInterval(ctx, runOnIntervalConfig{
-		name:       "output-renewal",
-		f:          s.render,
-		interval:   s.botCfg.RenewalInterval,
-		retryLimit: renewalRetryLimit,
-		log:        s.log,
-		reloadCh:   reloadCh,
-	})
-	return trace.Wrap(err)
 }
 
 func (s *SPIFFESVIDOutputService) requestSVID(
