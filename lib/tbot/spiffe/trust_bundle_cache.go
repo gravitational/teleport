@@ -32,12 +32,15 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"go.opentelemetry.io/otel"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
 
 type BundleSet struct {
 	// Local is the trust bundle for the local trust domain.
@@ -273,46 +276,18 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 		return trace.Wrap(watcher.Error(), "watcher closed before initialization")
 	}
 
-	bundleSet := &BundleSet{
-		Federated: make(map[string]*spiffebundle.Bundle),
-	}
-
 	// Now that we know our watcher is streaming events, we can fetch the
 	// current point-in-time list of resources.
-	spiffeCA, err := m.trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
-		Type:       string(types.SPIFFECA),
-		Domain:     m.clusterName,
-		IncludeKey: false,
-	})
+	bundleSet, err := FetchInitialBundleSet(
+		ctx,
+		m.logger,
+		m.federationClient,
+		m.trustClient,
+		authSupportsSPIFFEFederation,
+		m.clusterName,
+	)
 	if err != nil {
-		return trace.Wrap(err, "fetching spiffe CA")
-	}
-	bundleSet.Local, err = convertSPIFFECAToBundle(spiffeCA)
-	if err != nil {
-		return trace.Wrap(err, "converting SPIFFE CA to trust bundle")
-	}
-
-	if authSupportsSPIFFEFederation {
-		spiffeFederations, err := ListAllSPIFFEFederations(
-			ctx, m.federationClient,
-		)
-		if err != nil {
-			return trace.Wrap(err, "fetching SPIFFE federations")
-		}
-		for _, federation := range spiffeFederations {
-			bundle, err := convertSPIFFEFederationToBundle(federation)
-			if err != nil {
-				m.logger.WarnContext(
-					ctx,
-					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
-					"trust_domain", federation.GetMetadata().Name,
-					"error", err,
-				)
-				continue
-			}
-			bundleSet.Federated[federation.Metadata.Name] = bundle
-		}
-
+		return trace.Wrap(err, "fetching initial bundle set")
 	}
 
 	// The initial state of the bundleSet is now complete, we can set it.
@@ -548,7 +523,62 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 	}
 }
 
-func ListAllSPIFFEFederations(
+func FetchInitialBundleSet(
+	ctx context.Context,
+	log *slog.Logger,
+	federationClient machineidv1pb.SPIFFEFederationServiceClient,
+	trustClient trustv1.TrustServiceClient,
+	fetchFederatedBundles bool,
+	clusterName string,
+) (*BundleSet, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"FetchInitialBundleSet",
+	)
+	defer span.End()
+
+	bs := &BundleSet{
+		Federated: make(map[string]*spiffebundle.Bundle),
+	}
+	spiffeCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+		Type:       string(types.SPIFFECA),
+		Domain:     clusterName,
+		IncludeKey: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching spiffe CA")
+	}
+	bs.Local, err = convertSPIFFECAToBundle(spiffeCA)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting SPIFFE CA to trust bundle")
+	}
+
+	if fetchFederatedBundles {
+		spiffeFederations, err := listAllSPIFFEFederations(
+			ctx, federationClient,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching SPIFFE federations")
+		}
+		for _, federation := range spiffeFederations {
+			bundle, err := convertSPIFFEFederationToBundle(federation)
+			if err != nil {
+				log.WarnContext(
+					ctx,
+					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
+					"trust_domain", federation.GetMetadata().Name,
+					"error", err,
+				)
+				continue
+			}
+			bs.Federated[federation.Metadata.Name] = bundle
+		}
+	}
+
+	return bs, nil
+}
+
+func listAllSPIFFEFederations(
 	ctx context.Context,
 	client machineidv1pb.SPIFFEFederationServiceClient,
 ) ([]*machineidv1pb.SPIFFEFederation, error) {

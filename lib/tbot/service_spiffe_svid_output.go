@@ -48,14 +48,15 @@ const (
 
 // SPIFFESVIDOutputService
 type SPIFFESVIDOutputService struct {
-	botAuthClient     *authclient.Client
-	botCfg            *config.BotConfig
-	cfg               *config.SPIFFESVIDOutput
-	getBotIdentity    getBotIdentityFn
-	log               *slog.Logger
-	reloadBroadcaster *channelBroadcaster
-	resolver          reversetunnelclient.Resolver
-	trustBundleCache  *spiffe.TrustBundleCache
+	botAuthClient  *authclient.Client
+	botCfg         *config.BotConfig
+	cfg            *config.SPIFFESVIDOutput
+	getBotIdentity getBotIdentityFn
+	log            *slog.Logger
+	resolver       reversetunnelclient.Resolver
+	// trustBundleCache is the cache of trust bundles. It only needs to be
+	// provided when running in daemon mode.
+	trustBundleCache *spiffe.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
@@ -63,16 +64,45 @@ func (s *SPIFFESVIDOutputService) String() string {
 }
 
 func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
-	return s.generate(ctx)
+	res, privateKey, err := s.requestSVID(ctx)
+	if err != nil {
+		return trace.Wrap(err, "requesting SVID")
+	}
+	bundleSet, err := spiffe.FetchInitialBundleSet(
+		ctx,
+		s.log,
+		s.botAuthClient.SPIFFEFederationServiceClient(),
+		s.botAuthClient.TrustClient(),
+		s.cfg.IncludeFederatedTrustBundles,
+		s.getBotIdentity().ClusterName,
+	)
+	if err != nil {
+		return trace.Wrap(err, "fetching trust bundle set")
+
+	}
+	return s.render(ctx, bundleSet, res, privateKey)
 }
 
 func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
-	reloadCh, unsubscribe := s.reloadBroadcaster.subscribe()
-	defer unsubscribe()
+	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
+	defer stopBundleSetCh()
+
+	var bundleSet *spiffe.BundleSet
+	select {
+	case <-ctx.Done():
+		return nil
+	case bundleSet = <-bundleSetCh:
+	case <-time.After(10 * time.Second):
+		return trace.BadParameter("timed out waiting for trust bundle")
+	}
+
+	for {
+
+	}
 
 	err := runOnInterval(ctx, runOnIntervalConfig{
 		name:       "output-renewal",
-		f:          s.generate,
+		f:          s.render,
 		interval:   s.botCfg.RenewalInterval,
 		retryLimit: renewalRetryLimit,
 		log:        s.log,
@@ -81,13 +111,61 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *SPIFFESVIDOutputService) generate(
+func (s *SPIFFESVIDOutputService) requestSVID(
+	ctx context.Context,
+) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		"SPIFFESVIDOutputService/requestSVID",
+	)
+	defer span.End()
+
+	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "fetching roles")
+	}
+
+	id, err := generateIdentity(
+		ctx,
+		s.botAuthClient,
+		s.getBotIdentity(),
+		roles,
+		s.botCfg.CertificateTTL,
+		nil,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "generating identity")
+	}
+	// create a client that uses the impersonated identity, so that when we
+	// fetch information, we can ensure access rights are enforced.
+	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
+	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer impersonatedClient.Close()
+
+	res, privateKey, err := generateSVID(
+		ctx,
+		impersonatedClient,
+		[]config.SVIDRequest{s.cfg.SVID},
+		s.botCfg.CertificateTTL,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return res, privateKey, nil
+}
+
+func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
 	bundleSet *spiffe.BundleSet,
+	res *machineidv1pb.SignX509SVIDsResponse,
+	privateKey *rsa.PrivateKey,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"SPIFFESVIDOutputService/generate",
+		"SPIFFESVIDOutputService/render",
 	)
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
@@ -102,41 +180,6 @@ func (s *SPIFFESVIDOutputService) generate(
 	// ACLs are misconfigured, regardless of configuration.
 	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
 		return trace.Wrap(err, "verifying destination")
-	}
-
-	roles, err := fetchDefaultRoles(ctx, s.botAuthClient, s.getBotIdentity())
-	if err != nil {
-		return trace.Wrap(err, "fetching roles")
-	}
-
-	id, err := generateIdentity(
-		ctx,
-		s.botAuthClient,
-		s.getBotIdentity(),
-		roles,
-		s.botCfg.CertificateTTL,
-		nil,
-	)
-	if err != nil {
-		return trace.Wrap(err, "generating identity")
-	}
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	facade := identity.NewFacade(s.botCfg.FIPS, s.botCfg.Insecure, id)
-	impersonatedClient, err := clientForFacade(ctx, s.log, s.botCfg, facade, s.resolver)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer impersonatedClient.Close()
-
-	res, privateKey, err := generateSVID(
-		ctx,
-		impersonatedClient,
-		[]config.SVIDRequest{s.cfg.SVID},
-		s.botCfg.CertificateTTL,
-	)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
@@ -171,8 +214,7 @@ func (s *SPIFFESVIDOutputService) generate(
 		return trace.Wrap(err, "marshaling local trust bundle")
 	}
 
-	includeFederatedTrustBundle := true
-	if includeFederatedTrustBundle {
+	if s.cfg.IncludeFederatedTrustBundles {
 		for _, federatedBundle := range bundleSet.Federated {
 			federatedBundleBytes, err := federatedBundle.X509Bundle().Marshal()
 			if err != nil {

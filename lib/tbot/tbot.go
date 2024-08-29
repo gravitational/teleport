@@ -375,12 +375,11 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, svc)
 		case *config.SPIFFESVIDOutput:
 			svc := &SPIFFESVIDOutputService{
-				botAuthClient:     b.botIdentitySvc.GetClient(),
-				botCfg:            b.cfg,
-				cfg:               svcCfg,
-				getBotIdentity:    b.botIdentitySvc.GetIdentity,
-				reloadBroadcaster: reloadBroadcaster,
-				resolver:          resolver,
+				botAuthClient:  b.botIdentitySvc.GetClient(),
+				botCfg:         b.cfg,
+				cfg:            svcCfg,
+				getBotIdentity: b.botIdentitySvc.GetIdentity,
+				resolver:       resolver,
 			}
 			svc.log = b.log.With(
 				teleport.ComponentKey, teleport.Component(componentTBot, "svc", svc.String()),
