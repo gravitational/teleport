@@ -37,7 +37,7 @@ export function Delete({
           <Text bold as="span">
             {` ${appName}`}
           </Text>
-          . This will prevent user's access from the application.
+          . This will prevent users' access from the application.
         </Text>
       </DialogContent>
       <DialogFooter>
