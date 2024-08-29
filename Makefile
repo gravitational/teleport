@@ -560,6 +560,8 @@ release-arm64:
 #
 .PHONY: build-archive
 ifeq ("$(OS)","darwin")
+build-archive: BINARIES := $(BINARIES:%tsh=%tsh.app)
+build-archive: BINARIES := $(BINARIES:%tctl=%tctl.app)
 build-archive: INSTALL_SCRIPT=build.assets/macos/install
 else
 build-archive: INSTALL_SCRIPT=build.assets/install
@@ -608,9 +610,8 @@ release-darwin-unsigned: full build-archive
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) tctl-app
-	$(MAKE) build-archive BINARIES="$(filter tsh tctl,$(BINARIES)) tsh.app tctl.app"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -627,23 +628,26 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
-release-darwin: TARBINS := $(subst tsh,tsh.app,$(TARBINS))
+release-darwin: TARBINS := $(TARBINS:%tsh=%tsh.app)
+release-darwin: TARBINS := $(TARBINS:%tctl=%tctl.app)
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
 
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
-	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
 	lipo -create -output $(BUILDDIR)/tsh \
 		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
 		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+	lipo -create -output $(BUILDDIR)/tctl \
+		$(BUILDDIR_arm64)/tctl.app/Contents/MacOS/tctl \
+		$(BUILDDIR_amd64)/tctl.app/Contents/MacOS/tctl
 
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
