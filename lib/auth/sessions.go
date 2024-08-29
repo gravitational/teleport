@@ -732,7 +732,7 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	return certs.SSH, certs.TLS, nil
 }
 
-// CreateSessionCerts returns new user certs. The user must already be
+// CreateSessionCert returns new user certs. The user must already be
 // authenticated.
 //
 // TODO(nklaassen): delete the after refs are removed from e. Replaced by
