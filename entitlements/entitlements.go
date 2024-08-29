@@ -59,11 +59,11 @@ var AllEntitlements = []EntitlementKind{
 	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting,
 }
 
-// supportEntitlementsCompatibility ensures entitlements are backwards compatible
+// BackfillFeatures ensures entitlements are backwards compatible
 // If Entitlements are present, there are no changes
 // If Entitlements are not present, sets the entitlements fields to legacy field values
 // TODO(michellescripts) remove in v18
-func SupportEntitlementsCompatibility(features *proto.Features) {
+func BackfillFeatures(features *proto.Features) {
 	if len(features.Entitlements) > 0 {
 		return
 	}

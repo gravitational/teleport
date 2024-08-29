@@ -55,7 +55,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.SupportEntitlementsCompatibility(&features)
+	entitlements.BackfillFeatures(&features)
 	expected := utils.CloneProtoMsg(&features)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
@@ -65,7 +65,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.SupportEntitlementsCompatibility(&features)
+	entitlements.BackfillFeatures(&features)
 	mockedFeatures = features
 	expected = utils.CloneProtoMsg(&features)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
@@ -82,7 +82,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.SupportEntitlementsCompatibility(&features)
+	entitlements.BackfillFeatures(&features)
 	mockedFeatures = features
 
 	expected = &proto.Features{
@@ -96,7 +96,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.SupportEntitlementsCompatibility(expected)
+	entitlements.BackfillFeatures(expected)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
 	// stop watcher and ensure it stops updating features
@@ -108,7 +108,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
-	entitlements.SupportEntitlementsCompatibility(&features)
+	entitlements.BackfillFeatures(&features)
 	mockedFeatures = features
 	expected = utils.CloneProtoMsg(&features)
 	// assert the handler never get these last features as the watcher is stopped
