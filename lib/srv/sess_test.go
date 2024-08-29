@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -1428,4 +1429,301 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 		require.Fail(t, "timeout while waiting for the SSH session")
 		return nil
 	}
+
+}
+
+type createHostUserCase struct {
+	name string
+
+	identityContext IdentityContext
+	hostUsers       *fakeHostUsersBackend
+	createHostUser  bool
+
+	expectCreated     bool
+	expectCalls       map[string]int
+	expectErrIs       error
+	expectErrContains string
+}
+
+func Test_UpsertHostUser(t *testing.T) {
+	cases := []createHostUserCase{
+		{
+			name:            "should upsert existing user with permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{}},
+			hostUsers:       &fakeHostUsersBackend{},
+
+			expectCreated: false,
+			expectCalls: map[string]int{
+				"UpsertUser": 1,
+				"UserExists": 1,
+			},
+		},
+		{
+			name:            "should upsert new user with permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{}},
+			hostUsers: &fakeHostUsersBackend{
+				userExistsFn: func(name string) error {
+					return trace.NotFound("test")
+				},
+				upsertUserFn: func(name string, info services.HostUsersInfo) (io.Closer, error) {
+					return nil, nil
+				},
+			},
+
+			expectCreated: true,
+			expectCalls: map[string]int{
+				"UpsertUser": 1,
+				"UserExists": 1,
+			},
+		},
+		{
+			name:            "should not upsert existing user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers:       &fakeHostUsersBackend{},
+
+			expectCreated: false,
+			expectCalls: map[string]int{
+				"UpsertUser": 0,
+				"UserExists": 1,
+			},
+			expectErrIs: trace.AccessDenied("test"),
+		},
+		{
+			name:            "should not upsert new user without permission",
+			createHostUser:  true,
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostUsers: &fakeHostUsersBackend{
+				userExistsFn: func(name string) error {
+					return trace.NotFound("test")
+				},
+			},
+
+			expectCreated: false,
+			expectCalls: map[string]int{
+				"UpsertUser": 0,
+				"UserExists": 1,
+			},
+			expectErrIs:       trace.AccessDenied("test"),
+			expectErrContains: "insufficient permissions for host user creation",
+		},
+		{
+			name:            "should do nothing if login is session join principal",
+			createHostUser:  true,
+			identityContext: IdentityContext{Login: teleport.SSHSessionJoinPrincipal},
+			hostUsers:       &fakeHostUsersBackend{},
+
+			expectCreated: false,
+			expectCalls: map[string]int{
+				"UpsertUser": 0,
+				"UserExists": 0,
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			registry := SessionRegistry{
+				SessionRegistryConfig: SessionRegistryConfig{
+					Srv: &fakeServer{createHostUser: c.createHostUser},
+				},
+				users: c.hostUsers,
+			}
+
+			userCreated, _, err := registry.UpsertHostUser(c.identityContext)
+
+			if c.expectErrIs != nil {
+				assert.ErrorIs(t, err, c.expectErrIs)
+			}
+
+			if c.expectErrContains != "" {
+				assert.Contains(t, err.Error(), c.expectErrContains)
+			}
+
+			if c.expectErrIs == nil && c.expectErrContains == "" {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, c.expectCreated, userCreated)
+
+			for fn := range c.expectCalls {
+				assert.Equal(t, c.expectCalls[fn], c.hostUsers.calls[fn], "calls to %q", fn)
+			}
+		})
+	}
+}
+
+type writeSudoersCase struct {
+	name string
+
+	identityContext IdentityContext
+	hostSudoers     *fakeSudoersBackend
+
+	expectWriteSudoersCalled int
+	expectErrIs              error
+	expectErrContains        string
+}
+
+func Test_WriteSudoersFile(t *testing.T) {
+	cases := []writeSudoersCase{
+		{
+			name:            "should write sudoers with permission",
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{}},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectWriteSudoersCalled: 1,
+		},
+		{
+			name:            "should not write sudoers without permission",
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{err: trace.AccessDenied("test")}},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectWriteSudoersCalled: 0,
+			expectErrIs:              trace.AccessDenied("test"),
+		},
+		{
+			name:            "should do nothing for session join principal",
+			identityContext: IdentityContext{AccessChecker: &fakeAccessChecker{}, Login: teleport.SSHSessionJoinPrincipal},
+			hostSudoers:     &fakeSudoersBackend{},
+
+			expectWriteSudoersCalled: 0,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			registry := SessionRegistry{
+				SessionRegistryConfig: SessionRegistryConfig{
+					Srv: &fakeServer{hostSudoers: c.hostSudoers},
+				},
+				sessionsByUser: &userSessions{
+					sessionsByUser: make(map[string]int),
+				},
+			}
+
+			_, err := registry.WriteSudoersFile(c.identityContext)
+
+			if c.expectErrIs != nil {
+				assert.ErrorIs(t, err, c.expectErrIs)
+			}
+
+			if c.expectErrContains != "" {
+				assert.Contains(t, err.Error(), c.expectErrContains)
+			}
+
+			if c.expectErrIs == nil && c.expectErrContains == "" {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, c.expectWriteSudoersCalled, c.hostSudoers.writeSudoersCalled)
+		})
+	}
+}
+
+type fakeServer struct {
+	Server
+
+	createHostUser bool
+	hostSudoers    HostSudoers
+}
+
+func (f *fakeServer) GetCreateHostUser() bool {
+	return f.createHostUser
+}
+
+func (f *fakeServer) GetHostSudoers() HostSudoers {
+	return f.hostSudoers
+}
+
+func (f *fakeServer) GetInfo() types.Server {
+	return nil
+}
+
+type fakeAccessChecker struct {
+	services.AccessChecker
+	err      error
+	hostInfo services.HostUsersInfo
+}
+
+func (f *fakeAccessChecker) HostSudoers(srv types.Server) ([]string, error) {
+	return []string{"test"}, f.err
+}
+
+func (f *fakeAccessChecker) HostUsers(srv types.Server) (*services.HostUsersInfo, error) {
+	return &f.hostInfo, f.err
+}
+
+type fakeHostUsersBackend struct {
+	HostUsers
+
+	calls        map[string]int
+	upsertUserFn func(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error)
+	userExistsFn func(name string) error
+}
+
+func (f *fakeHostUsersBackend) functionCalled(name string) {
+	if f.calls == nil {
+		f.calls = make(map[string]int)
+	}
+
+	f.calls[name]++
+}
+
+func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error) {
+	f.functionCalled("UpsertUser")
+
+	if f.upsertUserFn != nil {
+		return f.upsertUserFn(name, hostRoleInfo)
+	}
+
+	return nil, unmanagedUserErr
+}
+
+func (f *fakeHostUsersBackend) DeleteUser(name, gid string) error {
+	f.functionCalled("DeleteUser")
+	return trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) DeleteAllUsers() error {
+	f.functionCalled("DeleteAllUsers")
+	return trace.NotImplemented("")
+}
+
+func (f *fakeHostUsersBackend) UserCleanup() {
+	f.functionCalled("UserCleanup")
+}
+
+func (f *fakeHostUsersBackend) Shutdown() {
+	f.functionCalled("ShutDown")
+}
+
+func (f *fakeHostUsersBackend) UserExists(name string) error {
+	f.functionCalled("UserExists")
+	if f.userExistsFn != nil {
+		return f.userExistsFn(name)
+	}
+
+	return nil
+}
+
+func (f *fakeHostUsersBackend) SetHostUserDeletionGrace(grace time.Duration) {
+	f.functionCalled("SetHostUserDeletionGrace")
+}
+
+type fakeSudoersBackend struct {
+	writeSudoersCalled  int
+	removeSudoersCalled int
+	err                 error
+}
+
+func (f *fakeSudoersBackend) WriteSudoers(name string, sudoers []string) error {
+	f.writeSudoersCalled++
+	return f.err
+}
+
+func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
+	f.removeSudoersCalled++
+	return f.err
 }

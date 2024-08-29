@@ -151,6 +151,10 @@ type ExecCommand struct {
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 
+	// IgnoredErrs contains any non-fatal errors that might have occurred while
+	// bootstrapping the ExecCommand.
+	IgnoredErrs []error
+
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
@@ -389,6 +393,10 @@ func RunCommand() (errw io.Writer, code int, err error) {
 
 	// Start the command.
 	if err := cmd.Start(); err != nil {
+		if len(c.IgnoredErrs) > 0 {
+			return errorWriter, teleport.RemoteCommandFailure, trace.NewAggregate(append(c.IgnoredErrs, err)...)
+		}
+
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 

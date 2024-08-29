@@ -1049,6 +1049,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
 		UserCreatedByTeleport: c.UserCreatedByTeleport,
+		IgnoredErrs:           c.IgnoredErrs,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,

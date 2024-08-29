@@ -78,6 +78,11 @@ type ConnectionContext struct {
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 
+	// IgnoredErrs contains the errors, if any, encountered while establishing a connection.
+	// These may not result in connection failure and are collected for error reporting in
+	// the event that the connection fails later in the flow
+	IgnoredErrs []error
+
 	clock clockwork.Clock
 }
 
@@ -265,6 +270,13 @@ func (c *ConnectionContext) GetNetworkingProcess() (*networking.Process, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.networkingProcess, c.networkingProcess != nil
+}
+
+// AddIgnoredErr adds an error for potential reporting later in the connection process.
+func (c *ConnectionContext) AddIgnoredErr(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.IgnoredErrs = append(c.IgnoredErrs, err)
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
