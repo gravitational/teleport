@@ -7,6 +7,7 @@ TELEPORT_VERSION=''  # -v, version, without leading 'v'
 TARBALL_DIRECTORY='' # -s
 BUNDLEID="${TSH_BUNDLEID}"
 PACKAGE_ARCH=amd64   # -a, default to amd64 for backward-compatibilty.
+NAME=tsh             # -n, name of app, defaulted to tsh
 
 usage() {
   log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
@@ -152,15 +153,14 @@ or name of the key to sign packages"
   tar xzf "$tarname" -C "$tmp"
 
   # Prepare app shell.
-  local target="$tmp/root/tsh.app"
-  cp -r "$tmp/teleport/tsh.app" "$target"
+  local target="$tmp/root/$NAME.app"
+  cp -r "$tmp/teleport/$NAME.app" "$target"
 
   # Sign app.
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
     -i "$BUNDLEID" \
-    --entitlements "$buildassets"/macos/$TSH_SKELETON/tsh*.entitlements \
     --timestamp \
     "$target"
 
@@ -171,9 +171,9 @@ or name of the key to sign packages"
   if [[ "$PACKAGE_ARCH" != "universal" ]]; then
     arch_tag="-$PACKAGE_ARCH"
   fi
-  target="$tmp/tsh-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
+  target="$tmp/$NAME-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
-  local pkg_component_plist="$tmp/tsh-component.plist"
+  local pkg_component_plist="$tmp/$NAME-component.plist"
   local pkg_scripts="$buildassets/macos/scripts"
   make_non_relocatable_plist "$pkg_root" "$pkg_component_plist"
   pkgbuild \

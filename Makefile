@@ -609,7 +609,8 @@ ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) tsh-app
-	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	$(MAKE) tctl-app
+	$(MAKE) build-archive BINARIES="$(filter tsh tctl,$(BINARIES)) tsh.app tctl.app"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -1654,6 +1655,10 @@ pkg: | $(RELEASE_DIR)
 	@echo Building tsh-$(VERSION).pkg
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tsh*.pkg* $(BUILDDIR)/
+
+	@echo Building tctl-$(VERSION).pkg
+	./build.assets/build-pkg-tsh.sh -n tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tctl*.pkg* $(BUILDDIR)/
 
 	@echo Building teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
