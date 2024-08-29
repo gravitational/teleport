@@ -564,17 +564,19 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 		nextSyncIn = s.cfg.DefaultSyncInterval
 		if refreshHint, ok := bundle.RefreshHint(); ok {
 			if refreshHint < s.cfg.MinSyncInterval {
-				log.InfoContext(
+				log.DebugContext(
 					ctx,
 					"Refresh hint is less than MinSyncInterval, using MinSyncInterval",
 					"refresh_hint", refreshHint,
+					"min_sync_interval", s.cfg.MinSyncInterval,
 				)
 				nextSyncIn = s.cfg.MinSyncInterval
 			} else if refreshHint > s.cfg.MaxSyncInterval {
-				log.InfoContext(
+				log.DebugContext(
 					ctx,
 					"Refresh hint is greater than MaxSyncInterval, using MaxSyncInterval",
 					"refresh_hint", refreshHint,
+					"max_sync_interval", s.cfg.MaxSyncInterval,
 				)
 				nextSyncIn = s.cfg.MaxSyncInterval
 			} else {
