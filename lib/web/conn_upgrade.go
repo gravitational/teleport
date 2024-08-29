@@ -243,6 +243,10 @@ func (conn *waitConn) Close() error {
 	return trace.Wrap(err)
 }
 
+func (conn *waitConn) NetConn() net.Conn {
+	return conn.Conn
+}
+
 type websocketALPNServerConn struct {
 	net.Conn
 	readBuffer []byte
@@ -260,6 +264,10 @@ func newWebSocketALPNServerConn(ctx context.Context, conn net.Conn, logger *slog
 		logContext: ctx,
 		logger:     logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWeb, "alpnws")),
 	}
+}
+
+func (c *websocketALPNServerConn) NetConn() net.Conn {
+	return c.Conn
 }
 
 func (c *websocketALPNServerConn) Read(b []byte) (int, error) {
