@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
 func TestBotResourceName(t *testing.T) {
@@ -61,7 +62,7 @@ func TestBotResourceName(t *testing.T) {
 // TestCreateBot is an integration test that uses a real gRPC client/server.
 func TestCreateBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botCreator, _, err := auth.CreateUserAndRole(
@@ -532,7 +533,7 @@ func TestCreateBot(t *testing.T) {
 // TestUpdateBot is an integration test that uses a real gRPC client/server.
 func TestUpdateBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botUpdaterUser, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-updater", []string{}, []types.Rule{
@@ -895,7 +896,7 @@ func TestUpdateBot(t *testing.T) {
 // TestUpsertBot is an integration test that uses a real gRPC client/server.
 func TestUpsertBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botCreator, _, err := auth.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
@@ -1323,7 +1324,7 @@ func TestUpsertBot(t *testing.T) {
 // TestGetBot is an integration test that uses a real gRPC client/server.
 func TestGetBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botGetterUser, _, err := auth.CreateUserAndRole(
@@ -1434,7 +1435,7 @@ func TestGetBot(t *testing.T) {
 // TestListBots is an integration test that uses a real gRPC client/server.
 func TestListBots(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botListerUser, _, err := auth.CreateUserAndRole(
@@ -1545,7 +1546,7 @@ func TestListBots(t *testing.T) {
 // TestDeleteBot is an integration test that uses a real gRPC client/server.
 func TestDeleteBot(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	botDeleterUser, _, err := auth.CreateUserAndRole(
@@ -1730,7 +1731,7 @@ func TestDeleteBot(t *testing.T) {
 // TODO(noah): DELETE IN 16.0.0
 func TestCreateBotLegacy(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 	testRole := "test-role"
 	_, err := auth.CreateRole(ctx, srv.Auth(), testRole, types.RoleSpecV6{})
@@ -1840,7 +1841,7 @@ func TestCreateBotLegacy(t *testing.T) {
 // TODO(noah): DELETE IN 16.0.0
 func TestGetBotUsersLegacy(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	getBotsUser, _, err := auth.CreateUserAndRole(
@@ -1982,14 +1983,17 @@ func TestGetBotUsersLegacy(t *testing.T) {
 	}
 }
 
-func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
+func newTestTLSServer(t testing.TB) (*auth.TestTLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 
-	srv, err := as.NewTestTLSServer()
+	emitter := &eventstest.MockRecorderEmitter{}
+	srv, err := as.NewTestTLSServer(func(config *auth.TestTLSServerConfig) {
+		config.APIConfig.Emitter = emitter
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -2000,5 +2004,5 @@ func newTestTLSServer(t testing.TB) *auth.TestTLSServer {
 		require.NoError(t, err)
 	})
 
-	return srv
+	return srv, emitter
 }

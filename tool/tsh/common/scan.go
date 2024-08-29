@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/assert"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	secretsscannerclient "github.com/gravitational/teleport/lib/secretsscanner/client"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	secretsreporter "github.com/gravitational/teleport/lib/secretsscanner/reporter"
 	secretsscanner "github.com/gravitational/teleport/lib/secretsscanner/scanner"
 )
@@ -43,7 +42,7 @@ type scanCommand struct {
 }
 
 func newScanCommand(app *kingpin.Application) scanCommand {
-	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport").Hidden()
+	scan := app.Command("scan", "Scan the local machine for Secrets and report findings to Teleport.")
 	cmd := scanCommand{
 		keys: newScanKeysCommand(scan),
 	}
@@ -57,7 +56,7 @@ type scanKeysCommand struct {
 }
 
 func newScanKeysCommand(parent *kingpin.CmdClause) *scanKeysCommand {
-	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport")}
+	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport.")}
 	c.Flag("dirs", "Directories to scan.").Default(defaultDirValues()).StringsVar(&c.dirs)
 	c.Flag("skip-paths", "Paths to directories or files to skip. Supports for matching patterns.").StringsVar(&c.skipPaths)
 	return c
@@ -77,9 +76,6 @@ func defaultDirValues() string {
 }
 
 func (c *scanKeysCommand) run(cf *CLIConf) error {
-	if !secscanconstants.Enabled {
-		return trace.BadParameter("scan feature is disabled")
-	}
 	if len(c.dirs) == 0 {
 		return trace.BadParameter("no directories to scan")
 	}

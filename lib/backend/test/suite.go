@@ -511,7 +511,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// When I create a new watcher...
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -581,7 +581,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -711,7 +711,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 // requireEvent asserts that a given event type with the given key is emitted
 // by a watcher within the supplied timeout, returning that event for further
 // inspection if successful.
-func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key []byte, timeout time.Duration) backend.Event {
+func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key backend.Key, timeout time.Duration) backend.Event {
 	t.Helper()
 	select {
 	case e := <-watcher.Events():
@@ -760,7 +760,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 
 	// cancel context -> get watcher to close
@@ -773,7 +773,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	}
 
 	// closing backend should close associated watcher too
-	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 
 	require.NoError(t, uut.Close())
@@ -1031,7 +1031,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -1188,7 +1188,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	}
 }
 
-func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key backend.Key, value string, expires time.Time) (backend.Item, backend.Lease) {
 	t.Helper()
 	item := backend.Item{
 		Key:     key,
@@ -1219,9 +1219,9 @@ func requireWaitGroupToFinish(ctx context.Context, t *testing.T, waitGroup *sync
 
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
-func MakePrefix() func(k string) []byte {
+func MakePrefix() func(k string) backend.Key {
 	id := "/" + uuid.New().String()
-	return func(k string) []byte {
-		return []byte(id + k)
+	return func(k string) backend.Key {
+		return backend.Key(id + k)
 	}
 }

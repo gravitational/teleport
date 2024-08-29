@@ -903,7 +903,7 @@ cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
 BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
 */
 func BenchmarkGetMaxNodes(b *testing.B) {
-	benchGetNodes(b, backend.DefaultRangeLimit)
+	benchGetNodes(b, 1_000_000)
 }
 
 func benchGetNodes(b *testing.B, nodeCount int) {
@@ -911,18 +911,32 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 	require.NoError(b, err)
 	defer p.Close()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	createErr := make(chan error, 1)
+
+	go func() {
+		for i := 0; i < nodeCount; i++ {
+			server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+			_, err := p.presenceS.UpsertNode(ctx, server)
+			if err != nil {
+				createErr <- err
+				return
+			}
+		}
+	}()
+
+	timeout := time.After(time.Second * 90)
 
 	for i := 0; i < nodeCount; i++ {
-		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
-		_, err := p.presenceS.UpsertNode(ctx, server)
-		require.NoError(b, err)
-
 		select {
 		case event := <-p.eventsC:
 			require.Equal(b, EventProcessed, event.Type)
-		case <-time.After(200 * time.Millisecond):
-			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		case err := <-createErr:
+			b.Fatalf("failed to create node: %v", err)
+		case <-timeout:
+			b.Fatalf("timeout waiting for event, progress=%d", i)
 		}
 	}
 
