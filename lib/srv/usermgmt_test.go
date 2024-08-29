@@ -654,3 +654,53 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.NotContains(t, backend.users["bob"], types.TeleportKeepGroup)
 
 }
+
+func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
+	t.Parallel()
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	existingGroups := []string{"alice", "simon"}
+	for _, group := range existingGroups {
+		require.NoError(t, backend.CreateGroup(group, ""))
+	}
+
+	userinfo := services.HostUsersInfo{
+		Groups: []string{},
+		Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+	}
+
+	// create a user without an existing primary group
+	closer, err := users.UpsertUser("bob", userinfo)
+	assert.NoError(t, err)
+	assert.NotEqual(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+
+	// create a user with primary group defined in userinfo.Groups, but not yet on the host
+	userinfo.Groups = []string{"fred"}
+	closer, err = users.UpsertUser("fred", userinfo)
+	assert.NoError(t, err)
+	assert.NotEqual(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+
+	// create a user with primary group defined in userinfo.Groups that already exists on the host
+	userinfo.Groups = []string{"alice"}
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.NotEqual(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+
+	// create a user with primary group that already exists on the host but is not defined in userinfo.Groups
+	userinfo.Groups = []string{""}
+	closer, err = users.UpsertUser("simon", userinfo)
+	assert.True(t, trace.IsAlreadyExists(err))
+	assert.Contains(t, err.Error(), "conflicts with an existing group")
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+}

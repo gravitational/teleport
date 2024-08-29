@@ -305,7 +305,7 @@ func TestRootHostUsers(t *testing.T) {
 
 		t.Cleanup(func() {
 			os.Remove(sudoersPath(testuser, uuid))
-			host.UserDel(testuser)
+			cleanupUsersAndGroups([]string{testuser}, nil)
 		})
 		closer, err := users.UpsertUser(testuser,
 			services.HostUsersInfo{
