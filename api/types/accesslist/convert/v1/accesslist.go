@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"fmt"
 	"runtime/debug"
 	"time"
 
@@ -145,7 +146,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
 			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
 		} else {
-			panic("invalid IneligibleStatus value" + owner.IneligibleStatus)
+			fmt.Println("invalid IneligibleStatus value" + owner.IneligibleStatus)
 		}
 		owners[i] = &accesslistv1.AccessListOwner{
 			Name:             owner.Name,
