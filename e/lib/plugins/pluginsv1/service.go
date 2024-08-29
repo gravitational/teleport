@@ -760,14 +760,6 @@ func logPluginAttr(plugin *types.PluginV1) (attrs []any) {
 	attrs = append(attrs, slog.String("plugin_name", plugin.GetName()))
 
 	spec := utils.CloneProtoMsg(&(plugin.Spec))
-	switch t := spec.GetSettings().(type) {
-	case *types.PluginSpecV1_Jamf:
-		if t.Jamf != nil && t.Jamf.JamfSpec != nil {
-			t.Jamf.JamfSpec.Username, t.Jamf.JamfSpec.Password = "", ""
-			t.Jamf.JamfSpec.ClientId, t.Jamf.JamfSpec.ClientSecret = "", ""
-		}
-	}
-
 	attrs = append(attrs, slog.Any("spec", spec))
 	return attrs
 }
