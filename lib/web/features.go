@@ -45,8 +45,8 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
 func (h *Handler) startFeatureWatcher() {
 	h.featureWatcherOnce.Do(func() {
-		ticker := h.clock.NewTicker(h.cfg.LicenseWatchInterval)
-		h.log.WithField("interval", h.cfg.LicenseWatchInterval).Info("Proxy handler features watcher has started")
+		ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
+		h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
 		ctx := context.Background()
 
 		defer ticker.Stop()

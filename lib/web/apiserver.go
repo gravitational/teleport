@@ -126,9 +126,9 @@ const (
 	IncludedResourceModeRequestable = "requestable"
 	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
 	IncludedResourceModeAll = "all"
-	// DefaultLicenseWatchInterval is the default time in which the license watcher
-	// should ping the auth server for updated features
-	DefaultLicenseWatchInterval = time.Minute * 5
+	// DefaultFeatureWatchInterval is the default time in which the feature watcher
+	// should ping the auth server to check for updated features
+	DefaultFeatureWatchInterval = time.Minute * 5
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -321,9 +321,9 @@ type Config struct {
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
 
-	// LicenseWatchInterval is the interval between pings to the auth server
+	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
-	LicenseWatchInterval time.Duration
+	FeatureWatchInterval time.Duration
 }
 
 // SetDefaults ensures proper default values are set if
@@ -339,7 +339,7 @@ func (c *Config) SetDefaults() {
 		c.PresenceChecker = client.RunPresenceTask
 	}
 
-	c.LicenseWatchInterval = cmp.Or(c.LicenseWatchInterval, DefaultLicenseWatchInterval)
+	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
 type APIHandler struct {
