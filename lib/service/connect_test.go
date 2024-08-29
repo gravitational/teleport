@@ -276,7 +276,7 @@ func Test_supportEntitlementsCompatibility(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cloned := apiutils.CloneProtoMsg(tt.features)
 
-			supportEntitlementsCompatibility(cloned)
+			entitlements.BackfillFeatures(cloned)
 			require.Equal(t, tt.expected, cloned.Entitlements)
 		})
 	}
