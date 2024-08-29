@@ -2392,6 +2392,11 @@
       "permanent": true
     },
     {
+      "source": "/management/diagnostics/logging/",
+      "destination": "/admin-guides/management/diagnostics/logging/",
+      "permanent": true
+    },
+    {
       "source": "/management/diagnostics/metrics/",
       "destination": "/admin-guides/management/diagnostics/metrics/",
       "permanent": true
