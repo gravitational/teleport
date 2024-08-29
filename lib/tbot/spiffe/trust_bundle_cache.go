@@ -76,10 +76,7 @@ func (b *BundleSet) Equal(other *BundleSet) bool {
 		}
 	}
 	// go-spiffe's Equal method correctly handles nils of either value.
-	if !b.Local.Equal(other.Local) {
-		return false
-	}
-	return true
+	return b.Local.Equal(other.Local)
 }
 
 // MarshalX509Bundle converts a trust bundle's certs to raw bytes.
@@ -174,7 +171,7 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 }
 
 // Run initializes the cache and begins watching for events. It will block until
-// the context is cancelled, at which point it will return nil.
+// the context is canceled, at which point it will return nil.
 // Implements the tbot Service interface.
 func (m *TrustBundleCache) Run(ctx context.Context) error {
 	for {
@@ -415,7 +412,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 	log := m.logger.With("event_type", event.Type)
 	if event.Resource != nil {
 		log = log.With(
-			"event_resource.kind", event.Resource.GetKind(),
+			"event_resource_kind", event.Resource.GetKind(),
 			"event_resource_name", event.Resource.GetName(),
 		)
 	}
