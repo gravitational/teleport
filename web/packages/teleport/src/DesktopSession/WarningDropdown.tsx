@@ -90,8 +90,6 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
                 key={warning.id}
                 item={warning}
                 onRemove={() => onRemoveWarning(warning.id)}
-                Icon={Warning}
-                getColor={theme => theme.colors.warning.main}
                 isAutoRemovable={false}
               />
             ))}
