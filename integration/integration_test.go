@@ -5261,21 +5261,40 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	helpers.EnableKubernetesService(t, config)
 	helpers.EnableDesktopService(config)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-
+	serviceCh := make(chan *service.TeleportProcess, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
-				serviceC <- svc
+				serviceCh <- svc
+				// panic if we end up restarting
+				close(serviceCh)
 			}
 			return svc, err
 		})
 	}()
 
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := waitForProcessStart(serviceCh)
 	require.NoError(t, err)
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
@@ -5324,9 +5343,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reload
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
@@ -5356,9 +5373,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// new credentials will work from this phase to others
 	newCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{Process: svc, Username: suite.Me.Username})
@@ -5386,9 +5401,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -5428,21 +5441,40 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-
+	serviceCh := make(chan *service.TeleportProcess, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
-				serviceC <- svc
+				serviceCh <- svc
+				// panic if we end up restarting
+				close(serviceCh)
 			}
 			return svc, err
 		})
 	}()
 
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := waitForProcessStart(serviceCh)
 	require.NoError(t, err)
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
@@ -5488,9 +5520,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reload
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	cfg := helpers.ClientConfig{
 		Login:   s.Me.Username,
@@ -5516,9 +5546,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
@@ -5530,9 +5558,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// old client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -5576,20 +5602,40 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	config, err := main.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
+	serviceCh := make(chan *service.TeleportProcess, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
-				serviceC <- svc
+				serviceCh <- svc
+				// panic if we end up restarting
+				close(serviceCh)
 			}
 			return svc, err
 		})
 	}()
 
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := waitForProcessStart(serviceCh)
 	require.NoError(t, err)
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
@@ -5702,9 +5748,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseUpdateClients)
 
@@ -5722,9 +5766,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseUpdateServers)
 
@@ -5749,11 +5791,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	t.Log("Waiting for service reload.")
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
-	t.Log("Service reload completed, waiting for phase.")
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseStandby)
 	t.Log("Phase completed.")
@@ -5810,63 +5848,6 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 	return svc, nil
-}
-
-// waitForReload waits for multiple events to happen:
-//
-// 1. new service to be created and started
-// 2. old service, if present to shut down
-//
-// this helper function allows to serialize tests for reloads.
-func waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
-	var svc *service.TeleportProcess
-	select {
-	case svc = <-serviceC:
-	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to start")
-	}
-
-	if _, err := svc.WaitForEventTimeout(20*time.Second, service.TeleportReadyEvent); err != nil {
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
-	// if old service is present, wait for it to complete shut down procedure
-	if old != nil {
-		if err := waitForProcessReloadEvent(old); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ctx, cancel := context.WithCancel(context.TODO())
-		go func() {
-			defer cancel()
-			old.Supervisor.Wait()
-		}()
-		select {
-		case <-ctx.Done():
-		case <-time.After(1 * time.Minute):
-			dumpGoroutineProfile()
-			return nil, trace.BadParameter("timeout waiting for old service to stop")
-		}
-	}
-	return svc, nil
-}
-
-// waitForProcessReloadEvent waits for the old process to receive a TeleportExitEvent
-// and verifies the event payload indicates the process is reloading.
-func waitForProcessReloadEvent(old *service.TeleportProcess) error {
-	event, err := old.WaitForEventTimeout(20*time.Second, service.TeleportExitEvent)
-	if err != nil {
-		return trace.WrapWithMessage(err, "timeout waiting for old service to broadcast exit event")
-	}
-	ctx, ok := event.Payload.(context.Context)
-	if !ok {
-		return trace.BadParameter("payload of the exit event is not a context.Context")
-	}
-	if !services.IsProcessReloading(ctx) {
-		return trace.BadParameter("payload of the exit event is not a ProcessReloadContext")
-	}
-	return nil
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
