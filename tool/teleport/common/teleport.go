@@ -195,6 +195,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("db-aws-region",
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
+	start.Flag("disable-debug-service",
+		"Disables debug service.").Hidden().
+		BoolVar(&ccf.DisabledDebugService)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)

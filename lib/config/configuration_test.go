@@ -5003,3 +5003,39 @@ func TestProxyUntrustedCert(t *testing.T) {
 	// - the system root certs are loaded exactly once and cached
 	// - it only works on linux
 }
+
+func TestDebugServiceConfig(t *testing.T) {
+	for name, tc := range map[string]struct {
+		configFile                string
+		commandLineFlags          *CommandLineFlags
+		expectDebugServiceEnabled bool
+	}{
+		"enabled by default": {configFile: "", expectDebugServiceEnabled: true},
+		"disabled by commandline": {
+			configFile:                "",
+			commandLineFlags:          &CommandLineFlags{DisabledDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
+		"disabled by configuration": {
+			configFile: `
+debug_service:
+  enabled: "no"
+`,
+			expectDebugServiceEnabled: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			filePath := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(filePath, []byte(tc.configFile), 0o777))
+
+			if tc.commandLineFlags == nil {
+				tc.commandLineFlags = &CommandLineFlags{}
+			}
+			tc.commandLineFlags.ConfigFile = filePath
+
+			conf := servicecfg.MakeDefaultConfig()
+			require.NoError(t, Configure(tc.commandLineFlags, conf, false))
+			require.Equal(t, tc.expectDebugServiceEnabled, conf.DebugService.Enabled)
+		})
+	}
+}
