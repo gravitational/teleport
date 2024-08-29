@@ -1008,7 +1008,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			return nil, trace.AccessDenied("user is not allowed to create host users")
+			return nil, trace.AccessDenied("role %q prevents creating host users", role.GetName())
 		}
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
