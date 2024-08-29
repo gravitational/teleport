@@ -1144,7 +1144,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	// Set cluster features and return successfully with a working connector.
 	// TODO(michellescripts) remove clone & compatibility check in v18
 	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
-	entitlements.SupportEntitlementsCompatibility(cloned)
+	entitlements.BackfillFeatures(cloned)
 	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())

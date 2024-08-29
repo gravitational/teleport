@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package web implements web proxy handler that provides
-// web interface to view and connect to teleport nodes
 package web
 
 import (
@@ -31,7 +29,7 @@ func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
 
-	entitlements.SupportEntitlementsCompatibility(&features)
+	entitlements.BackfillFeatures(&features)
 	h.clusterFeatures = features
 }
 

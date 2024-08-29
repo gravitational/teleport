@@ -21,6 +21,7 @@
 package web
 
 import (
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
@@ -126,7 +127,7 @@ const (
 	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
 	IncludedResourceModeAll = "all"
 	// DefaultLicenseWatchInterval is the default time in which the license watcher
-	// should ping the auth server for new cluster features
+	// should ping the auth server for updated features
 	DefaultLicenseWatchInterval = time.Minute * 5
 )
 
@@ -177,7 +178,7 @@ type Handler struct {
 	wsIODeadline time.Duration
 
 	// featureWatcherStop is a channel used to emit a stop signal to the
-	// license watcher goroutine
+	// features watcher goroutine
 	featureWatcherStop chan struct{}
 	featureWatcherOnce sync.Once
 }
@@ -342,9 +343,7 @@ func (c *Config) SetDefaults() {
 		c.PresenceChecker = client.RunPresenceTask
 	}
 
-	if c.LicenseWatchInterval == 0 {
-		c.LicenseWatchInterval = DefaultLicenseWatchInterval
-	}
+	c.LicenseWatchInterval = cmp.Or(c.LicenseWatchInterval, DefaultLicenseWatchInterval)
 }
 
 type APIHandler struct {
