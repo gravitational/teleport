@@ -201,7 +201,7 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 
 }
 
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
 	if len(startKey) == 0 {
 		return nil, "", trace.BadParameter("missing parameter startKey")
 	}
@@ -217,7 +217,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			return trace.Wrap(err, "getting sort tree")
 		}
 		var iterateRange func(lessOrEqual, greaterThan *item, iterator btree.ItemIteratorG[*item])
-		var endKey []byte
+		var endKey backend.Key
 		if req.SortBy.IsDesc {
 			iterateRange = tree.DescendRange
 			endKey = backend.NewKey(prefix)
@@ -268,10 +268,10 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 	return res, nextKey, nil
 }
 
-func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
+func getStartKey(req *proto.ListUnifiedResourcesRequest) backend.Key {
 	// if startkey exists, return it
 	if req.StartKey != "" {
-		return []byte(req.StartKey)
+		return backend.Key(req.StartKey)
 	}
 	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list
@@ -371,8 +371,8 @@ func resourceKey(resource types.Resource) string {
 }
 
 type resourceSortKey struct {
-	byName []byte
-	byType []byte
+	byName backend.Key
+	byType backend.Key
 }
 
 // resourceSortKey will generate a key to be used in the sort trees
@@ -710,7 +710,7 @@ func (i *item) Less(iother btree.Item) bool {
 // prefixItem is used for prefix matches on a B-Tree
 type prefixItem struct {
 	// prefix is a prefix to match
-	prefix []byte
+	prefix backend.Key
 }
 
 // Less is used for Btree operations
@@ -727,7 +727,7 @@ type resource interface {
 type item struct {
 	// Key is a key of the key value item. This will be different based on which sorting tree
 	// the item is in
-	Key []byte
+	Key backend.Key
 	// Value will be the resourceKey used in the resources map to get the resource
 	Value string
 }

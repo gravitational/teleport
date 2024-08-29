@@ -197,7 +197,7 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
-type proxySettingsGetter interface {
+type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
@@ -260,7 +260,7 @@ type Config struct {
 	ClusterFeatures proto.Features
 
 	// ProxySettings allows fetching the current proxy settings.
-	ProxySettings proxySettingsGetter
+	ProxySettings ProxySettingsGetter
 
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
@@ -769,8 +769,16 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
-	// token generation
-	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+	// join token handlers
+	h.PUT("/webapi/tokens/yaml", h.WithAuth(h.updateTokenYAML))
+	// used for creating a new token
+	h.POST("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for updating a token
+	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for creating tokens used during guided discover flows
+	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
+	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
+	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
@@ -783,12 +791,14 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+	// Deprecated: Use `/webapi/sites/:site/resources` instead.
+	// TODO(kiosion): DELETE in 18.0
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
-	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
-	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreateOrOverwrite))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabasePartialUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 	h.GET("/webapi/scripts/databases/configure/sqlserver/:token/configure-ad.ps1", httplib.MakeHandler(h.sqlServerConfigureADScriptHandle))
@@ -880,6 +890,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ping", h.WithClusterAuth(h.awsOIDCPing))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
@@ -3360,23 +3371,25 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	keepAliveInterval := req.KeepAliveInterval
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.Debugf("Unable to get auth access point: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	keepAliveInterval := apidefaults.KeepAliveInterval()
+	if netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx); err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+	} else {
+		dialTimeout = netConfig.GetSSHDialTimeout()
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	}
+
 	// Try to use the keep alive interval from the request.
 	// When it's not set or below a second, use the cluster's keep alive interval.
-	if keepAliveInterval < time.Second {
-		authAccessPoint, err := site.CachingAccessPoint()
-		if err != nil {
-			h.log.Debugf("Unable to get auth access point: %v", err)
-			return nil, trace.Wrap(err)
-		}
-
-		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-			return nil, trace.Wrap(err)
-		}
-
-		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if req.KeepAliveInterval >= time.Second {
+		keepAliveInterval = req.KeepAliveInterval
 	}
 
 	nw, err := site.NodeWatcher()
@@ -3402,6 +3415,7 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
+		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
 			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
 				return n.GetName() == serverID

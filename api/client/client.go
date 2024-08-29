@@ -851,6 +851,15 @@ func (c *Client) BotServiceClient() machineidv1pb.BotServiceClient {
 	return machineidv1pb.NewBotServiceClient(c.conn)
 }
 
+// BotInstanceServiceClient returns an unadorned client for the bot instance service
+func (c *Client) BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient {
+	return machineidv1pb.NewBotInstanceServiceClient(c.conn)
+}
+
+func (c *Client) SPIFFEFederationServiceClient() machineidv1pb.SPIFFEFederationServiceClient {
+	return machineidv1pb.NewSPIFFEFederationServiceClient(c.conn)
+}
+
 // PresenceServiceClient returns an unadorned client for the presence service.
 func (c *Client) PresenceServiceClient() presencepb.PresenceServiceClient {
 	return presencepb.NewPresenceServiceClient(c.conn)

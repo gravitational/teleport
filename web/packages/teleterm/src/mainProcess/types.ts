@@ -20,10 +20,12 @@ import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfi
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { Kind } from 'teleterm/ui/services/workspacesService';
+import { Document } from 'teleterm/ui/services/workspacesService';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
 import { ConfigService } from '../services/config';
+
+import { Shell } from './shell';
 
 export type RuntimeSettings = {
   /**
@@ -60,7 +62,9 @@ export type RuntimeSettings = {
   // Before switching to the recommended path, we need to investigate the impact of this change.
   // https://www.electronjs.org/docs/latest/api/app#appgetpathname
   logsDir: string;
-  defaultShell: string;
+  /** Identifier of default OS shell. */
+  defaultOsShellId: string;
+  availableShells: Shell[];
   platform: Platform;
   agentBinaryPath: string;
   tshd: {
@@ -207,15 +211,12 @@ export interface ClusterContextMenuOptions {
 }
 
 export interface TabContextMenuOptions {
-  documentKind: Kind;
-
+  document: Document;
   onClose(): void;
-
   onCloseOthers(): void;
-
   onCloseToRight(): void;
-
   onDuplicatePty(): void;
+  onReopenPtyInShell(shell: Shell): void;
 }
 
 export const TerminalContextMenuEventChannel =
@@ -229,6 +230,7 @@ export enum TabContextMenuEventType {
   CloseOthers = 'CloseOthers',
   CloseToRight = 'CloseToRight',
   DuplicatePty = 'DuplicatePty',
+  ReopenPtyInShell = 'ReopenPtyInShell',
 }
 
 export enum ConfigServiceEventType {

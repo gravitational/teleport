@@ -138,7 +138,6 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -2740,7 +2739,11 @@ func (process *TeleportProcess) initSSH() error {
 		// return a NOP struct that can be used to discard BPF data.
 		ebpf, err := bpf.New(cfg.SSH.BPF)
 		if err != nil {
-			return trace.Wrap(err)
+			// Check kernel version if the host can run BPF programs.
+			return trace.NewAggregate(
+				trace.Wrap(bpf.IsHostCompatible()),
+				trace.Wrap(err),
+			)
 		}
 		defer func() { warnOnErr(process.ExitContext(), ebpf.Close(restartingOnGracefulShutdown), logger) }()
 
@@ -4294,10 +4297,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		proxySettings := &proxySettings{
-			cfg:          cfg,
-			proxySSHAddr: proxySSHAddr,
-			accessPoint:  accessPoint,
+		proxySettings := &web.ProxySettings{
+			ServiceConfig: cfg,
+			ProxySSHAddr:  proxySSHAddr.String(),
+			AccessPoint:   accessPoint,
 		}
 
 		proxyKubeAddr := cfg.Proxy.Kube.ListenAddr
@@ -6279,7 +6282,7 @@ type kubernetesBackend interface {
 	// exists, updates it otherwise)
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*backend.Item, error)
+	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
 }
 
 // readHostIDFromStorages tries to read the `host_uuid` value from different storages,
@@ -6381,19 +6384,18 @@ func (process *TeleportProcess) initPublicGRPCServer(
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
-	if secscanconstants.Enabled {
-		accessGraphProxySvc, err := secretsscannerproxy.New(
-			secretsscannerproxy.ServiceConfig{
-				AuthClient: conn.Client,
-				Log:        process.logger,
-			})
-		if err != nil {
-			return nil, trace.Wrap(err)
+	accessGraphProxySvc, err := secretsscannerproxy.New(
+		secretsscannerproxy.ServiceConfig{
+			AuthClient: conn.Client,
+			Log:        process.logger,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
 
-		}
-
-		accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
 	}
+
+	accessgraphsecretsv1pb.RegisterSecretsScannerServiceServer(server, accessGraphProxySvc)
+
 	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.logger.InfoContext(process.ExitContext(), "Starting proxy gRPC server.", "listen_address", listener.Addr())
 		return trace.Wrap(server.Serve(listener))

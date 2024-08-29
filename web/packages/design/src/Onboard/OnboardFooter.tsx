@@ -18,18 +18,15 @@
 
 import React from 'react';
 
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Flex, Link, Text } from 'design';
 
 export const OnboardFooter = () => {
-  const theme = useTheme();
   return (
     <StyledFooter>
       <StyledContent>
-        <Text typography={theme.typography.paragraph2}>
-          &copy; Gravitational, Inc. All Rights Reserved
-        </Text>
+        <Text>&copy; Gravitational, Inc. All Rights Reserved</Text>
         <StyledLink href={'https://goteleport.com/legal/tos/'} target="_blank">
           Terms of Service
         </StyledLink>

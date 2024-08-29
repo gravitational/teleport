@@ -82,6 +82,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_DatabaseObject{
 				DatabaseObject: r,
 			}
+		case *machineidv1.BotInstance:
+			out.Resource = &proto.Event_BotInstance{
+				BotInstance: r,
+			}
 		case *machineidv1.SPIFFEFederation:
 			out.Resource = &proto.Event_SPIFFEFederation{
 				SPIFFEFederation: r,
@@ -519,6 +523,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetDatabaseObject(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetSPIFFEFederation(); r != nil {

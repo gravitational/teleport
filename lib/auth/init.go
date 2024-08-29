@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -305,6 +304,9 @@ type InitConfig struct {
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
 
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
+
 	// SPIFFEFederations is a service that manages storing SPIFFE federations.
 	SPIFFEFederations services.SPIFFEFederations
 }
@@ -440,13 +442,11 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		return trace.Wrap(initializeSessionRecordingConfig(ctx, asrv, cfg.SessionRecordingConfig))
 	})
 
-	if secscanconstants.Enabled {
-		g.Go(func() error {
-			ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
-			defer span.End()
-			return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
-		})
-	}
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeAccessGraphSettings")
+		defer span.End()
+		return trace.Wrap(initializeAccessGraphSettings(ctx, asrv))
+	})
 
 	g.Go(func() error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/initializeAuthPreference")
@@ -974,6 +974,7 @@ func GetPresetRoles() []types.Role {
 		services.NewPresetRequireTrustedDeviceRole(),
 		services.NewSystemOktaAccessRole(),
 		services.NewSystemOktaRequesterRole(),
+		services.NewPresetTerraformProviderRole(),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

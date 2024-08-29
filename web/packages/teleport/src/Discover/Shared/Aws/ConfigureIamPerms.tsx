@@ -109,6 +109,7 @@ export function ConfigureIamPerms({
         "eks:CreateAccessEntry",
         "eks:DeleteAccessEntry",
         "eks:AssociateAccessPolicy",
+        "eks:TagResource"
       ],
       "Resource": "*"
     }
@@ -203,7 +204,7 @@ export function ConfigureIamPerms({
   );
 }
 
-const EditorWrapper = styled(Flex)`
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   flex-directions: column;
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;

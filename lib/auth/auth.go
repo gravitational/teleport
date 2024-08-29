@@ -152,7 +152,7 @@ const (
 	dynamicLabelCheckPeriod  = time.Hour
 	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
 	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
-		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"This is not recommended due to the volatility of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
@@ -332,6 +332,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.BotInstance == nil {
+		cfg.BotInstance, err = local.NewBotInstanceService(cfg.Backend, cfg.Clock)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.SPIFFEFederations == nil {
 		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
 		if err != nil {
@@ -422,6 +428,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Notifications:             cfg.Notifications,
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
+		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
 	}
 
@@ -619,6 +626,7 @@ type Services struct {
 	services.SPIFFEFederations
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
+	services.BotInstance
 }
 
 // GetWebSession returns existing web session described by req.
@@ -2025,6 +2033,9 @@ type certRequest struct {
 	deviceExtensions DeviceExtensions
 	// botName is the name of the bot requesting this cert, if any
 	botName string
+	// botInstanceID is the unique identifier of the bot instance associated
+	// with this cert, if any
+	botInstanceID string
 }
 
 // check verifies the cert request is valid.
@@ -2968,6 +2979,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
@@ -3064,6 +3076,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		BotName:                 req.botName,
+		BotInstanceID:           req.botInstanceID,
 		AllowedResourceIDs:      req.checker.GetAllowedResourceIDs(),
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,

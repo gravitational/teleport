@@ -56,7 +56,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, func() error {
+	sshFunc := func() error {
 		clt, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -102,7 +102,12 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		defer conn.Close()
 
 		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
-	}))
+	}
+	if !cf.Relogin {
+		return trace.Wrap(sshFunc())
+	}
+
+	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, sshFunc))
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -230,6 +235,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
+			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 		}
 		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
@@ -240,7 +246,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
-		).GetConnectCommandAlternatives()
+		).GetConnectCommandAlternatives(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}

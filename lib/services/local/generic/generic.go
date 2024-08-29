@@ -194,7 +194,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 	}
 
 	out := make([]T, 0, len(result.Items))
-	var lastKey []byte
+	var lastKey backend.Key
 	for _, item := range result.Items {
 		resource, err := s.unmarshalFunc(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
@@ -231,7 +231,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 	limit := pageSize + 1
 
 	var resources []T
-	var lastKey []byte
+	var lastKey backend.Key
 	if err := backend.IterateRange(
 		ctx,
 		s.backend,
@@ -443,7 +443,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 }
 
 // MakeKey will make a key for the service given a name.
-func (s *Service[T]) MakeKey(name string) []byte {
+func (s *Service[T]) MakeKey(name string) backend.Key {
 	return backend.NewKey(s.backendPrefix, name)
 }
 

@@ -416,6 +416,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 				"eks:CreateAccessEntry",
 				"eks:DeleteAccessEntry",
 				"eks:AssociateAccessPolicy",
+				"eks:TagResource",
 			})
 		return nil
 	case err == nil:
@@ -438,6 +439,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 					"eks:CreateAccessEntry",
 					"eks:DeleteAccessEntry",
 					"eks:AssociateAccessPolicy",
+					"eks:TagResource",
 				})
 			return nil
 		} else if err != nil {
@@ -457,6 +459,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 					"eks:CreateAccessEntry",
 					"eks:DeleteAccessEntry",
 					"eks:AssociateAccessPolicy",
+					"eks:TagResource",
 				})
 			return nil
 		}

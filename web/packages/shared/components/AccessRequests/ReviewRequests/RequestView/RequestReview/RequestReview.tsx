@@ -118,7 +118,7 @@ export default function RequestReview({
           mt={7}
           style={{ position: 'relative' }}
         >
-          <Box bg="levels.sunken" py={1} px={3} alignItems="center">
+          <Box bg="levels.sunken" py={1} px={3}>
             <Text typography="h6" mr={3}>
               {user} - add a review
             </Text>
@@ -337,7 +337,7 @@ const TextWithSmallerLineHeight = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
 
-const HorizontalLine = styled.div`
+const HorizontalLine = styled.div<{ height?: number }>`
   width: 2px;
   height: ${p => p.height || 92}px;
   background-color: ${props => props.theme.colors.spotBackground[0]};

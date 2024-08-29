@@ -99,6 +99,7 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 // - eks:CreateAccessEntry
 // - eks:DeleteAccessEntry
 // - eks:AssociateAccessPolicy
+// - eks:TagResource
 //
 // For more info about EKS access entries see:
 // https://aws.amazon.com/blogs/containers/a-deep-dive-into-simplified-amazon-eks-access-management-controls/

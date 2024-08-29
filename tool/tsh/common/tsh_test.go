@@ -1787,6 +1787,76 @@ func (o *output) String() string {
 	return o.buf.String()
 }
 
+func TestNoRelogin(t *testing.T) {
+	t.Parallel()
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t,
+		withBootstrap(connector, alice),
+	)
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authProcess.GetAuthServer(), alice, connector.GetName()))
+	require.NoError(t, err)
+
+	var loginAttempts atomic.Int32
+	trackingLoginFunc := func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+		loginAttempts.Add(1)
+		return mockSSOLogin(authServer, alice)(ctx, connectorID, priv, protocol)
+	}
+
+	// should try to relogin due to bad parameter without passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(1), loginAttempts.Load())
+
+	// should try to relogin due to bad parameter when passing --relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--insecure",
+		"--relogin",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	require.Equal(t, int32(2), loginAttempts.Load())
+
+	// should skip relogin and fail instantly when passing --no-relogin
+	err = Run(context.Background(), []string{
+		"ssh",
+		"--no-relogin",
+		"--insecure",
+		"--user", "alice",
+		"--proxy", proxyAddr.String(),
+		"12.12.12.12:8080",
+		"uptime",
+	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+	require.Error(t, err)
+	// login not called a third time
+	require.Equal(t, int32(2), loginAttempts.Load())
+}
+
 // TestSSHAccessRequest tests that a user can automatically request access to a
 // ssh server using a resource access request when "tsh ssh" fails with
 // AccessDenied.
@@ -3699,6 +3769,13 @@ func setHomePath(path string) CliOption {
 	}
 }
 
+func setNoRelogin() CliOption {
+	return func(cf *CLIConf) error {
+		cf.Relogin = false
+		return nil
+	}
+}
+
 func setOverrideMySQLConfigPath(path string) CliOption {
 	return func(cf *CLIConf) error {
 		cf.overrideMySQLOptionFilePath = path
@@ -3889,7 +3966,8 @@ func TestSerializeDatabases(t *testing.T) {
         "memorydb": {},
         "opensearch": {},
         "rdsproxy": {},
-        "redshift_serverless": {}
+        "redshift_serverless": {},
+        "docdb": {}
       },
       "mysql": {},
       "oracle": {
@@ -3921,7 +3999,8 @@ func TestSerializeDatabases(t *testing.T) {
         "memorydb": {},
         "opensearch": {},
         "rdsproxy": {},
-        "redshift_serverless": {}
+        "redshift_serverless": {},
+        "docdb": {}
       },
       "azure": {
 	    "redis": {}
@@ -5100,19 +5179,8 @@ func TestShowSessions(t *testing.T) {
         "sid": "",
         "db_protocol": "postgres",
         "db_uri": "",
-        "db_name": "db-name",
         "session_start": "0001-01-01T00:00:00Z",
         "session_stop": "0001-01-01T00:00:00Z"
-    },
-    {
-        "ei": 0,
-        "event": "",
-        "uid": "someID5",
-        "time": "0001-01-01T00:00:00Z",
-        "user": "someUser",
-        "sid": "",
-        "server_id": "",
-        "app_name": "app-name"
     }
 ]`
 	sessions := []events.AuditEvent{
@@ -5148,23 +5216,10 @@ func TestShowSessions(t *testing.T) {
 				User: "someUser",
 			},
 			DatabaseMetadata: events.DatabaseMetadata{
-				DatabaseName:     "db-name",
 				DatabaseProtocol: "postgres",
 			},
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
-		},
-		&events.AppSessionEnd{
-			Metadata: events.Metadata{
-				ID:   "someID5",
-				Time: time.Time{},
-			},
-			UserMetadata: events.UserMetadata{
-				User: "someUser",
-			},
-			AppMetadata: events.AppMetadata{
-				AppName: "app-name",
-			},
 		},
 	}
 	var buf bytes.Buffer

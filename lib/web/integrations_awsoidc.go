@@ -110,9 +110,31 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
+	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels)+3)
 	for _, label := range req.DatabaseAgentMatcherLabels {
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
+	// DELETE in 19.0: delete only the outer if block (checking labels == 0).
+	// The outer block is required since older UI's will not
+	// send these values to the backend, but instead send custom labels (the UI
+	// will require at least one label before proceeding).
+	// Newer UI's will not send any labels, but instead send the required
+	// fields for default labels.
+	if len(req.DatabaseAgentMatcherLabels) == 0 {
+		if req.VPCID == "" {
+			return nil, trace.BadParameter("vpc ID is required")
+		}
+		if req.Region == "" {
+			return nil, trace.BadParameter("AWS region is required")
+		}
+		if req.AccountID == "" {
+			return nil, trace.BadParameter("AWS account ID is required")
+		}
+		// Add default labels.
+		databaseAgentMatcherLabels[types.DiscoveryLabelVPCID] = []string{req.VPCID}
+		databaseAgentMatcherLabels[types.DiscoveryLabelRegion] = []string{req.Region}
+		databaseAgentMatcherLabels[types.DiscoveryLabelAccountID] = []string{req.AccountID}
 	}
 
 	iamTokenName := deployserviceconfig.DefaultTeleportIAMTokenName
@@ -1355,4 +1377,33 @@ func getServiceURLs(dbServices []types.DatabaseService, accountID, region, telep
 		serviceURLByVPC[vpcID] = svcURL
 	}
 	return serviceURLByVPC, nil
+}
+
+// awsOIDCPing performs an health check for the integration.
+// Returns meta information: account id and assumed the ARN for the IAM Role.
+func (h *Handler) awsOIDCPing(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	ctx := r.Context()
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pingResp, err := clt.IntegrationAWSOIDCClient().Ping(ctx, &integrationv1.PingRequest{
+		Integration: integrationName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCPingResponse{
+		AccountID: pingResp.AccountId,
+		ARN:       pingResp.Arn,
+		UserID:    pingResp.UserId,
+	}, nil
 }

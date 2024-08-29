@@ -19,6 +19,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net/url"
@@ -573,12 +574,42 @@ func (a *ServerWithRoles) GetClusterCACert(
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+	isProxy := a.hasBuiltinRole(types.RoleProxy)
+
 	// We do not trust remote addr in the request unless it's coming from the Proxy.
-	if !a.hasBuiltinRole(types.RoleProxy) || req.RemoteAddr == "" {
+	if !isProxy || req.RemoteAddr == "" {
 		if err := setRemoteAddrFromContext(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	// Similarly, do not trust bot instance IDs or generation values in the
+	// request unless from a component with the proxy role (e.g. the join
+	// service). They will be derived from the client certificate otherwise.
+	if !isProxy {
+		if req.BotInstanceID != "" {
+			log.WithFields(logrus.Fields{
+				"bot_instance_id": req.BotInstanceID,
+			}).Warnf("Untrusted client attempted to provide a bot instance ID, this will be ignored")
+
+			req.BotInstanceID = ""
+		}
+
+		if req.BotGeneration > 0 {
+			log.WithFields(logrus.Fields{
+				"bot_generation": req.BotGeneration,
+			}).Warnf("Untrusted client attempted to provide a bot generation, this will be ignored")
+
+			req.BotGeneration = 0
+		}
+	}
+
+	// If the identity has a BotInstanceID or BotGeneration included, copy it
+	// onto the request - but only if one wasn't already passed along via the
+	// proxy.
+	ident := a.context.Identity.GetIdentity()
+	req.BotInstanceID = cmp.Or(req.BotInstanceID, ident.BotInstanceID)
+	req.BotGeneration = cmp.Or(req.BotGeneration, int32(ident.Generation))
 
 	// tokens have authz mechanism  on their own, no need to check
 	return a.authServer.RegisterUsingToken(ctx, req)
@@ -3043,19 +3074,27 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if identity.Renewable || isRoleImpersonation(req) {
 			// Bot self-renewal or role impersonation can request certs with an
 			// expiry up to the global maximum allowed value.
-			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
-				req.Expires = max
+			if maxTime := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(maxTime) {
+				req.Expires = maxTime
 			}
-		} else if req.GetUsage() == proto.UserCertsRequest_Kubernetes && req.GetRequesterName() == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS {
-			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl.
+		} else if isLocalProxyCertReq(&req) {
+			// If requested certificate is for headless Kubernetes access of local proxy it is limited by max session ttl
+			// or mfa_verification_interval or req.Expires.
 
 			// Calculate the expiration time.
 			roleSet, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			sessionTTL := roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration())
-			req.Expires = a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			// [roleSet.AdjustMFAVerificationInterval] will reduce the adjusted sessionTTL if any of the roles requires
+			// MFA tap and `mfa_verification_interval` is set and lower than [roleSet.AdjustSessionTTL].
+			sessionTTL := roleSet.AdjustMFAVerificationInterval(
+				roleSet.AdjustSessionTTL(readOnlyAuthPref.GetDefaultSessionTTL().Duration()),
+				readOnlyAuthPref.GetRequireMFAType().IsSessionMFARequired())
+			adjustedSessionExpires := a.authServer.GetClock().Now().UTC().Add(sessionTTL)
+			if req.Expires.After(adjustedSessionExpires) {
+				req.Expires = adjustedSessionExpires
+			}
 		} else if req.Expires.After(sessionExpires) {
 			// Standard user impersonation has an expiry limited to the expiry
 			// of the current session. This prevents a user renewing their
@@ -3255,7 +3294,14 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
 		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
+
+		// Always pass through a bot instance ID if available. Legacy bots
+		// joining without an instance ID may have one generated when
+		// `updateBotInstance()` is called below, and this (empty) value will be
+		// overridden.
+		botInstanceID: a.context.Identity.GetIdentity().BotInstanceID,
 	}
+
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
 	} else if isRoleImpersonation(req) {
@@ -3301,10 +3347,24 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		certReq.renewable = true
 	}
 
-	// If the cert is renewable, process any certificate generation counter.
+	// If the cert is renewable, process any bot instance updates (generation
+	// counter, auth records, etc). `updateBotInstance()` may modify certain
+	// `certReq` attributes (generation, botInstanceID).
 	if certReq.renewable {
 		currentIdentityGeneration := a.context.Identity.GetIdentity().Generation
-		if err := a.authServer.validateGenerationLabel(ctx, user.GetName(), &certReq, currentIdentityGeneration); err != nil {
+
+		// If we're handling a renewal for a bot, we want to return the
+		// Host CAs as well as the User CAs.
+		if certReq.botName != "" {
+			certReq.includeHostCA = true
+		}
+
+		// Update the bot instance based on this authentication. This may create
+		// a new bot instance record if the identity is missing an instance ID.
+		if err := a.authServer.updateBotInstance(
+			ctx, &certReq, user.GetName(), certReq.botName,
+			certReq.botInstanceID, nil, int32(currentIdentityGeneration),
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

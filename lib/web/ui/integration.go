@@ -187,6 +187,9 @@ type AWSOIDCDeployServiceRequest struct {
 	// Region is the AWS Region for the Service.
 	Region string `json:"region"`
 
+	// VPCID is the VPCID where the service is going to be deployed.
+	VPCID string `json:"vpcId"`
+
 	// AccountID is the AWS Account ID.
 	// Optional. sts.GetCallerIdentity is used if the value is not provided.
 	AccountID string `json:"accountId"`
@@ -500,4 +503,15 @@ type AWSOIDCDeployEC2ICEResponseEndpoint struct {
 	Name string `json:"name"`
 	// SubnetID is the subnet where this endpoint was created.
 	SubnetID string `json:"subnetId"`
+}
+
+// AWSOIDCPingResponse contains the result of the Ping request.
+// This response contains meta information about the current state of the Integration.
+type AWSOIDCPingResponse struct {
+	// AccountID number of the account that owns or contains the calling entity.
+	AccountID string `json:"accountId"`
+	// ARN associated with the calling entity.
+	ARN string `json:"arn"`
+	// UserID is the unique identifier of the calling entity.
+	UserID string `json:"userId"`
 }

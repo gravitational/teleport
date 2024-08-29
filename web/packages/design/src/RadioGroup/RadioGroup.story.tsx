@@ -28,7 +28,7 @@ export default {
 
 export const Default = () => {
   return (
-    <Flex direction="row">
+    <Flex flexDirection="row">
       <Box mr={6}>
         <h4>String options</h4>
         <RadioGroup

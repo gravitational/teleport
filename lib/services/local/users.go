@@ -221,7 +221,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
 func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
-	suffix := []byte(paramsPrefix)
+	suffix := backend.Key(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
 		if !bytes.HasSuffix(item.Key, suffix) {
 			return nil, false
@@ -251,7 +251,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !bytes.HasSuffix(item.Key, backend.Key(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -965,11 +965,11 @@ type webauthnUser struct {
 	TeleportUser string `json:"teleport_user"`
 }
 
-func webauthnLocalAuthKey(user string) []byte {
+func webauthnLocalAuthKey(user string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
 }
 
-func webauthnUserKey(id []byte) []byte {
+func webauthnUserKey(id []byte) backend.Key {
 	key := base64.RawURLEncoding.EncodeToString(id)
 	return backend.NewKey(webauthnPrefix, usersPrefix, key)
 }
@@ -1023,7 +1023,7 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
 }
 
-func sessionDataKey(user, sessionID string) []byte {
+func sessionDataKey(user, sessionID string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
@@ -1134,7 +1134,7 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func globalSessionDataKey(scope, id string) []byte {
+func globalSessionDataKey(scope, id string) backend.Key {
 	return backend.NewKey(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 

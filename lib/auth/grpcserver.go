@@ -2414,7 +2414,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy process.
+		// time is bounded by the lifetime of the local proxy process or the mfa verification interval.
 		return
 	}
 
@@ -2429,7 +2429,7 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
@@ -5175,6 +5175,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
+	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.BotInstance,
+		Clock:      cfg.AuthServer.GetClock(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating bot instance service")
+	}
+	machineidv1pb.RegisterBotInstanceServiceServer(server, botInstanceService)
+
 	workloadIdentityService, err := machineidv1.NewWorkloadIdentityService(machineidv1.WorkloadIdentityServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Cache:      cfg.AuthServer.Cache,
@@ -5187,6 +5197,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err, "creating workload identity service")
 	}
 	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
+
+	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.SPIFFEFederations,
+		Cache:      cfg.AuthServer.Cache,
+		Clock:      cfg.AuthServer.GetClock(),
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE federation service")
+	}
+	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,

@@ -89,6 +89,7 @@ func TestUsers(t *testing.T) {
 			}
 			return nil
 		},
+		ClusterName: "example.teleport.sh",
 	})
 	require.NoError(t, err)
 

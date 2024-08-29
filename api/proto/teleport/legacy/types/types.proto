@@ -17,6 +17,7 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -466,6 +467,12 @@ message AWS {
   IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
+
+  // DocumentDB contains AWS DocumentDB specific metadata.
+  DocumentDB DocumentDB = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "docdb,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -548,6 +555,16 @@ message OpenSearch {
   string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
   // DomainID is the ID of the domain.
   string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// DocumentDB contains AWS DocumentDB specific metadata.
+message DocumentDB {
+  // ClusterID is the cluster identifier.
+  string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
+  // InstanceID is the instance identifier.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
@@ -1788,6 +1805,13 @@ message ClusterNetworkingConfigSpecV2 {
 
   // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
   bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
+
+  // SSHDialTimeout is a custom dial timeout used when establishing
+  // SSH connections. If not set, the default timeout of 30s will be used.
+  int64 SSHDialTimeout = 13 [
+    (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -2887,6 +2911,19 @@ message RoleOptions {
   // database when not set to off.
   // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MFAVerificationInterval optionally defines the maximum duration that can elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  google.protobuf.Duration MFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "mfa_verification_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 message RecordSession {
@@ -5259,6 +5296,16 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -5649,6 +5696,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.

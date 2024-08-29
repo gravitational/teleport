@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	secscanconstants "github.com/gravitational/teleport/lib/secretsscanner/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -166,6 +165,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindVnetConfig:               rc.createVnetConfig,
 		types.KindAccessGraphSettings:      rc.upsertAccessGraphSettings,
 		types.KindPlugin:                   rc.createPlugin,
+		types.KindSPIFFEFederation:         rc.createSPIFFEFederation,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                    rc.updateUser,
@@ -956,6 +956,23 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 		}
 		fmt.Printf("crown jewel %q has been created\n", crownJewel.GetMetadata().GetName())
 	}
+
+	return nil
+}
+
+func (rc *ResourceCommand) createSPIFFEFederation(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
+	in, err := services.UnmarshalSPIFFEFederation(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c := client.SPIFFEFederationServiceClient()
+	if _, err := c.CreateSPIFFEFederation(ctx, &machineidv1pb.CreateSPIFFEFederationRequest{
+		SpiffeFederation: in,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("SPIFFE Federation %q has been created\n", in.GetMetadata().GetName())
 
 	return nil
 }
@@ -1786,6 +1803,15 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Access monitoring rule %q has been deleted\n", rc.ref.Name)
+	case types.KindSPIFFEFederation:
+		if _, err := client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(
+			ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			},
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SPIFFE federation %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -2824,10 +2850,46 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			startKey = resp.NextKey
 		}
 		return &pluginCollection{plugins: plugins}, nil
-	case types.KindAccessGraphSettings:
-		if !secscanconstants.Enabled {
-			return nil, trace.BadParameter("access graph settings are not supported")
+	case types.KindBotInstance:
+		if rc.ref.Name != "" && rc.ref.SubKind != "" {
+			// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
+			bi, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+				BotName:    rc.ref.SubKind,
+				InstanceId: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return &botInstanceCollection{items: []*machineidv1pb.BotInstance{bi}}, nil
 		}
+
+		var instances []*machineidv1pb.BotInstance
+		startKey := ""
+
+		for {
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+				PageSize:  100,
+				PageToken: startKey,
+
+				// Note: empty filter lists all bot instances
+				FilterBotName: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			instances = append(instances, resp.BotInstances...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+
+			startKey = resp.NextPageToken
+		}
+
+		return &botInstanceCollection{items: instances}, nil
+	case types.KindAccessGraphSettings:
 		settings, err := client.ClusterConfigClient().GetAccessGraphSettings(ctx, &clusterconfigpb.GetAccessGraphSettingsRequest{})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2837,6 +2899,36 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &accessGraphSettings{accessGraphSettings: rec}, nil
+	case types.KindSPIFFEFederation:
+		if rc.ref.Name != "" {
+			resource, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+				Name: rc.ref.Name,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &spiffeFederationCollection{items: []*machineidv1pb.SPIFFEFederation{resource}}, nil
+		}
+
+		var resources []*machineidv1pb.SPIFFEFederation
+		pageToken := ""
+		for {
+			resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+				PageToken: pageToken,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, resp.SpiffeFederations...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			pageToken = resp.NextPageToken
+		}
+
+		return &spiffeFederationCollection{items: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -3157,9 +3249,6 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 }
 
 func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if !secscanconstants.Enabled {
-		return trace.BadParameter("access graph settings are not supported")
-	}
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3174,9 +3263,6 @@ func (rc *ResourceCommand) upsertAccessGraphSettings(ctx context.Context, client
 }
 
 func (rc *ResourceCommand) updateAccessGraphSettings(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if !secscanconstants.Enabled {
-		return trace.BadParameter("access graph settings are not supported")
-	}
 	settings, err := clusterconfigrec.UnmarshalAccessGraphSettings(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)

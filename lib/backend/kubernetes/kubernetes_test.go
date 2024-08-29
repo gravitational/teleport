@@ -142,7 +142,7 @@ func TestBackend_Get(t *testing.T) {
 	}
 
 	type args struct {
-		key []byte
+		key backend.Key
 	}
 
 	tests := []struct {
