@@ -146,6 +146,15 @@ spec:
     # is not 'off'.
     host_groups: [ubuntu, nginx, other]
 
+    # List of entries to include in a temporary sudoers file created in
+    # `/etc/sudoers.d`. The records are removed on session close.
+    host_sudoers: [
+      # This line will allow the login user to run `systemctl restart nginx.service`
+      # as root without requiring a password. The sudoers entry will be prefixed
+      # with the logged in username.
+      "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
+    ]
+
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the 'external' property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
