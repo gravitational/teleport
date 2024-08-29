@@ -1571,6 +1571,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsServiceNow        = "serviceNow"
 		settingsGitlab            = "gitlab"
 		settingsEntraID           = "entra_id"
+		settingsAWDIC             = "awsIamIc"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1638,6 +1639,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+		case settingsAWDIC:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIamIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}

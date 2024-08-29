@@ -186,7 +186,12 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindStaticHostUser},
 		{Kind: types.KindProvisioningState},
-		{Kind: types.KindIdentityCenterAccount},
+		// KindIdentityCenterAccount
+		// is missing cache machinery to upsert resource into
+		// in-memory database from the stateful backend. Removing them
+		// from this watchKind forces presence service to lookup
+		// in stateful-database instead of in-memory which is the default.
+		// {Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize

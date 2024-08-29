@@ -42,6 +42,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
+	PluginTypeAWSIC,
 }
 
 const (

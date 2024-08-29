@@ -1216,6 +1216,7 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

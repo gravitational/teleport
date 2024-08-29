@@ -315,7 +315,7 @@ type InitConfig struct {
 	StaticHostUsers services.StaticHostUser
 
 	ProvisioningStates services.ProvisioningStates
-	IdentityCenter services.IdentityCenter
+	IdentityCenter     services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -479,7 +479,7 @@ func (c *UnifiedResourceCache) GetResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
-	putResources[resource153Adapter[IdentityCenterAccount]](c, newICAccounts)
+	putResources[Resource153Adapter[IdentityCenterAccount]](c, newICAccounts)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -591,8 +591,8 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
-func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]resource153Adapter[IdentityCenterAccount], error) {
-	var accounts []resource153Adapter[IdentityCenterAccount]
+func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]Resource153Adapter[IdentityCenterAccount], error) {
+	var accounts []Resource153Adapter[IdentityCenterAccount]
 	var pageRequest pagination.PageRequestToken
 	for {
 		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, pageRequest)
@@ -600,7 +600,7 @@ func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([
 			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
 		}
 		for _, a := range resultsPage {
-			accounts = append(accounts, resource153Adapter[IdentityCenterAccount]{inner: a})
+			accounts = append(accounts, Resource153Adapter[IdentityCenterAccount]{Inner: a})
 		}
 
 		if nextPage == pagination.EndOfList {
@@ -705,7 +705,7 @@ func (c *UnifiedResourceCache) ProcessEventsAndUpdateCurrent(ctx context.Context
 				switch unwrapped := u.Unwrap().(type) {
 				case *identitycenterv1.Account:
 					wrappedAccount := IdentityCenterAccount{Account: unwrapped}
-					r = resource153Adapter[IdentityCenterAccount]{inner: wrappedAccount}
+					r = Resource153Adapter[IdentityCenterAccount]{Inner: wrappedAccount}
 				default:
 					c.log.
 						WithField("type", reflect.TypeOf(unwrapped)).
@@ -923,7 +923,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			}
 		}
 	case types.KindIdentityCenterAccount:
-		unwrapper, ok := resource.(resource153Adapter[IdentityCenterAccount])
+		unwrapper, ok := resource.(Resource153Adapter[IdentityCenterAccount])
 		if !ok {
 			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
 		}
@@ -954,7 +954,7 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 								Labels:      acct.Metadata.Labels,
 							},
 							Spec: types.AppSpecV3{
-								URI: "https://example.aws.com/#start",
+								URI: "https://console.aws.amazon.com/#start",
 								AWS: &types.AppAWS{
 									ExternalID: acct.Spec.Id,
 								},

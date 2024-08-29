@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -1236,6 +1237,37 @@ func (s *PresenceService) GetSAMLIdPServiceProviders(ctx context.Context, opts .
 	return serviceProviders, nil
 }
 
+// GetIdentityCenterAccount is used for non-paginated listResources request.
+// TODO(sshah): This is not needed as IdentityCenterAccount is supported in the
+// listResource but only keeping it here for immidiate reference if we ever need
+// to support this before pushing out PR to master.
+func (s *PresenceService) GetIdentityCenterAccount(ctx context.Context, opts ...services.MarshalOption) ([]services.Resource153Adapter[services.IdentityCenterAccount], error) {
+	var accounts []services.Resource153Adapter[services.IdentityCenterAccount]
+	startKey := backend.ExactKey(awsAccountPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	acs := make([]*identitycenterv1.Account, len(result.Items))
+	for i, item := range result.Items {
+		serviceProvider, err := services.UnmarshalIdentityCenterAccount(
+			item.Value,
+			services.AddOptions(opts,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		acs[i] = serviceProvider
+	}
+
+	for _, v := range acs {
+		wrappedAccount := services.IdentityCenterAccount{Account: v}
+		accounts = append(accounts, services.Resource153Adapter[services.IdentityCenterAccount]{Inner: wrappedAccount})
+	}
+	return accounts, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1281,6 +1313,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
+	case types.KindIdentityCenterAccount:
+		keyPrefix = []string{awsAccountPrefix}
+		unmarshalItemFunc = backendItemToAWSIAMICAccount
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1438,6 +1473,18 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = sortedServiceProviders.AsResources()
+	case types.KindIdentityCenterAccount:
+		// unused at the moment.
+		ac, err := s.GetIdentityCenterAccount(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sortedICAccounts := services.IdentityCenterAccounts2(ac)
+		if err := sortedICAccounts.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedICAccounts.AsResources()
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}
@@ -1667,6 +1714,19 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
+}
+
+func backendItemToAWSIAMICAccount(item backend.Item) (types.ResourceWithLabels, error) {
+	awsicac, err := services.UnmarshalIdentityCenterAccount(
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, err
+	}
+	wrappedAccount := services.IdentityCenterAccount{Account: awsicac}
+	return services.Resource153Adapter[services.IdentityCenterAccount]{Inner: wrappedAccount}, nil
 }
 
 const (

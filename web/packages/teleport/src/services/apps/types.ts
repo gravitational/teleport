@@ -57,7 +57,7 @@ export interface App {
   // Only applicable to AWS App Access.
   integration?: string;
 
-  permissionSets?: PermissionSet[];
+  permission_sets?: PermissionSet[];
 }
 
 export type UserGroupAndDescription = {

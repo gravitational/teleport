@@ -338,7 +338,7 @@ type AccountSpec struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Arn is the unique ARN for this permission set
 	Arn string `protobuf:"bytes,2,opt,name=arn,proto3" json:"arn,omitempty"`
-	// Title is the human-readable name of the permission set
+	// Name is the human-readable name of the permission set
 	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	// Description is a heman-readable description of the AWS Permission Set
 	Description string `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
@@ -511,7 +511,7 @@ type PermissionSetSpec struct {
 
 	// Arn is the unique ARN for this permission set
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
-	// Title is the human-readable name of the permission set
+	// Name is the human-readable name of the permission set
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Description is a human-readable description of the AWS Permission Set
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
@@ -665,6 +665,11 @@ func (x *PrincipalAssignment) GetStatus() *PrincipalAssignmentStatus {
 // that there is a corresponding Account Assignment in AWS Identity Center that
 // grants that user the Permission Set specified in that resource, on the
 // AWS Account specified in that resource.
+//
+// The name "binding" was chosen to evoke the idea of binding parameters in a
+// function (inspired by stc::bind in C++) and to avoid using the word "assignment"
+// which is implies an existing relationship - whereas this type only captures
+// two thirds of a potential Identity Center Account Assignment.
 type PermissionSetBinding struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

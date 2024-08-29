@@ -4,10 +4,13 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"sort"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils/pagination"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -17,6 +20,53 @@ import (
 // IdentityCenterAccount will point to the same record.
 type IdentityCenterAccount struct {
 	*identitycenterv1.Account
+}
+
+// type IdentityCenterAccounts2 []Resource153Adapter[IdentityCenterAccount]
+type IdentityCenterAccounts2 []Resource153Adapter[IdentityCenterAccount]
+
+// AsResources returns these service providers as resources with labels.
+func (s IdentityCenterAccounts2) AsResources() types.ResourcesWithLabels {
+	resources := make([]types.ResourceWithLabels, 0, len(s))
+	for _, sp := range s {
+		resources = append(resources, sp)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (s IdentityCenterAccounts2) Len() int { return len(s) }
+
+// Less compares service providers by name.
+func (s IdentityCenterAccounts2) Less(i, j int) bool { return s[i].GetName() < s[j].GetName() }
+
+// Swap swaps two service providers.
+func (s IdentityCenterAccounts2) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom sorts SAMLIdPServiceProviders as per the sortBy value.
+// Only ResourceMetadataName field is supported.
+func (s IdentityCenterAccounts2) SortByCustom(sortBy types.SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case types.ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, types.KindIdentityCenterAccount)
+	}
+
+	return nil
+}
+
+func stringCompare(a string, b string, isDesc bool) bool {
+	if isDesc {
+		return a > b
+	}
+	return a < b
 }
 
 // CloneResource creates a deep copy of the underlying account resource

@@ -252,6 +252,7 @@ function toResourceMap(request: PendingAccessRequest): ResourceMap {
     db: {},
     app: {},
     saml_idp_service_provider: {},
+    aws_iam_ic_account: {},
   };
   if (request.kind === 'role') {
     request.roles.forEach(role => {

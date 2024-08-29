@@ -143,17 +143,24 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		}
 	}
 
+	appName := app.GetName()
+	isICACcount := app.IsAWSConsole() && len(permissionSets) > 0
+	// assuming current aws_iam_ic_account UI struct that includes permissionSets
+	if isICACcount {
+		appName = app.GetAWSExternalID()
+	}
+
 	resultApp := App{
 		Kind:            types.KindApp,
-		Name:            app.GetName(),
+		Name:            appName,
 		Description:     description,
 		URI:             app.GetURI(),
-		PublicAddr:      app.GetPublicAddr(),
+		PublicAddr:      cmp.Or(app.GetPublicAddr(), app.GetURI()),
 		Labels:          labels,
 		ClusterID:       c.AppClusterName,
 		FQDN:            fqdn,
 		AWSConsole:      app.IsAWSConsole(),
-		FriendlyName:    types.FriendlyName(app),
+		FriendlyName:    cmp.Or(types.FriendlyName(app), app.GetName()),
 		UserGroups:      userGroupAndDescriptions,
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
@@ -162,12 +169,29 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+		if isICACcount {
+			resultApp.AWSRoles = awsRolesFromPermSet(permissionSets, app.GetAWSExternalID())
+		} else {
+			allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+			resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
+				app.GetAWSAccountID())
+		}
+
 	}
 
 	return resultApp
+}
+
+func awsRolesFromPermSet(ps []IdentityCenterPermissionSet, accID string) aws.Roles {
+	var awsRoles aws.Roles
+	for _, v := range ps {
+		awsRoles = append(awsRoles, aws.Role{
+			Name:      v.Name,
+			ARN:       v.ARN,
+			AccountID: accID,
+		})
+	}
+	return awsRoles
 }
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.

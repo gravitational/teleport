@@ -39,5 +39,6 @@ export function getEmptyResourceState(): ResourceMap {
     windows_desktop: {},
     role: {},
     saml_idp_service_provider: {},
+    aws_iam_ic_account: {},
   };
 }
