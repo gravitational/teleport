@@ -2003,7 +2003,7 @@
     },
     {
       "source": "/access-controls/teleport-policy/policy-integrations/",
-      "destination": "/admin-guides/teleport-policy/integrations/integrations/",
+      "destination": "/admin-guides/teleport-policy/integrations/",
       "permanent": true
     },
     {
