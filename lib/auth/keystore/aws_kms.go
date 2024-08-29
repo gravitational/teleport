@@ -117,7 +117,7 @@ func (a *awsKMSKeystore) keyTypeDescription() string {
 
 // generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, opts ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+func (a *awsKMSKeystore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	alg, err := awsAlgorithm(algorithm)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -269,7 +269,14 @@ func (a *awsKMSSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpt
 			return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key type %T", opts.HashFunc(), a.pub)
 		}
 	case crypto.SHA512:
-		signingAlg = kms.SigningAlgorithmSpecRsassaPkcs1V15Sha512
+		switch a.pub.(type) {
+		case *rsa.PublicKey:
+			signingAlg = kms.SigningAlgorithmSpecRsassaPkcs1V15Sha512
+		case *ecdsa.PublicKey:
+			signingAlg = kms.SigningAlgorithmSpecEcdsaSha512
+		default:
+			return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key type %T", opts.HashFunc(), a.pub)
+		}
 	default:
 		return nil, trace.BadParameter("unsupported hash func %q for AWS KMS key", opts.HashFunc())
 	}
