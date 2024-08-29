@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	"runtime/debug"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -143,6 +144,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		var ineligibleStatus accesslistv1.IneligibleStatus
 		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
 			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		} else {
+			panic("invalid IneligibleStatus value" + owner.IneligibleStatus)
 		}
 		owners[i] = &accesslistv1.AccessListOwner{
 			Name:             owner.Name,
@@ -222,6 +225,7 @@ func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner
 			protoIneligibleStatus := protoOwners[i].GetIneligibleStatus()
 			ineligibleStatus := ""
 			if protoIneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+				debug.PrintStack()
 				ineligibleStatus = protoIneligibleStatus.String()
 			}
 			owner.IneligibleStatus = ineligibleStatus

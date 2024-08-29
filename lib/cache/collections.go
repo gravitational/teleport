@@ -2984,11 +2984,12 @@ func (accessListExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets 
 	for {
 		var page []*accesslist.AccessList
 		var err error
+
 		page, nextToken, err = cache.AccessLists.ListAccessLists(ctx, 0 /* page size */, nextToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		fmt.Printf("$$$$$$$$$$$cache type %T", cache.AccessLists, page[0].Spec.Owners)
 		resources = append(resources, page...)
 
 		if nextToken == "" {
