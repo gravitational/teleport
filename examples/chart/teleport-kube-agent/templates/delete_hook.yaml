@@ -73,6 +73,10 @@ spec:
   template:
     metadata:
       name: {{ .Release.Name }}-delete-hook
+      annotations:
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
 {{- if .Values.imagePullSecrets }}
       imagePullSecrets:
