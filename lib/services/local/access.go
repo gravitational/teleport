@@ -83,6 +83,12 @@ func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
 	return roles, nil
 }
 
+// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+func (s *AccessService) VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error) {
+	//TODO mberg implement me
+	panic("implement me")
+}
+
 // ListRoles is a paginated role getter.
 func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
 	const maxPageSize = 16_000

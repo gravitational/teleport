@@ -176,7 +176,7 @@ func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	user.SetRoles(req.Roles)
+	user.GetAllLabels()
 
 	// checkAndSetDefaults makes sure either TraitsPreset
 	// or AllTraits field to be populated. Since empty

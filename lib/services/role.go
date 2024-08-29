@@ -895,6 +895,8 @@ func ReadNoSecrets() []string {
 type RoleGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
@@ -3142,6 +3144,21 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 	actionsParser, err := NewActionsParser(p.ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// if rule is a subset of Teleport owner abilities, check for Teleport owner role and grant access
+	if p.resource == types.KindUser || p.resource == types.KindRole {
+		for _, role := range set {
+			if role.GetName() == teleport.PresetOwnerRoleName {
+				// Check label to ensure role was created by Teleport
+				labels := role.GetAllLabels()
+				_, ok := labels[types.TeleportImmutableResource]
+				if ok {
+					// grant owner access
+					return nil
+				}
+			}
+		}
 	}
 
 	// check deny: a single match on a deny rule prohibits access

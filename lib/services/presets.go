@@ -187,6 +187,45 @@ func NewPresetEditorRole() types.Role {
 	return role
 }
 
+// NewPresetOwnerRole returns a new pre-defined role for cluster
+// editors who can edit cluster configuration resources.
+func NewPresetOwnerRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetOwnerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "todo",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+				types.TeleportImmutableResource:    "true",
+				types.TeleportMinimumAssignment:    "1",
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(false),
+				},
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUser, RW()),
+					types.NewRule(types.KindRole, RW()),
+				},
+			},
+		},
+	}
+	return role
+}
+
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
@@ -639,6 +678,7 @@ var defaultAllowRulesMap = map[string][]types.Rule{
 	teleport.PresetAuditorRoleName: NewPresetAuditorRole().GetRules(types.Allow),
 	teleport.PresetEditorRoleName:  NewPresetEditorRole().GetRules(types.Allow),
 	teleport.PresetAccessRoleName:  NewPresetAccessRole().GetRules(types.Allow),
+	teleport.PresetOwnerRoleName:   NewPresetOwnerRole().GetRules(types.Allow),
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when

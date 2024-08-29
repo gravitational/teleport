@@ -69,6 +69,7 @@ export function RoleList({
           altKey: 'options-btn',
           render: (role: RoleResource) => (
             <ActionCell
+              immutable={false} // todo mberg
               onEdit={() => onEdit(role.id)}
               onDelete={() => onDelete(role.id)}
             />
@@ -81,12 +82,12 @@ export function RoleList({
   );
 }
 
-const ActionCell = (props: { onEdit(): void; onDelete(): void }) => {
+const ActionCell = (props: { immutable: boolean; onEdit(): void; onDelete(): void }) => {
   return (
     <Cell align="right">
       <MenuButton>
         <MenuItem onClick={props.onEdit}>Edit...</MenuItem>
-        <MenuItem onClick={props.onDelete}>Delete...</MenuItem>
+        <MenuItem disabled={props.immutable} onClick={props.onDelete}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
   );

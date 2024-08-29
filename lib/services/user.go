@@ -22,6 +22,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -53,6 +55,69 @@ func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter)
 			return trace.Wrap(err)
 		}
 	}
+	return nil
+}
+
+// ValidateRoleChangesWithMinimums checks that role changes involving removing a role with minimum requirements is valid
+// todo mberg re-write
+func ValidateRoleChangesWithMinimums(ctx context.Context, user, req types.User, roleGetter RoleGetter) error {
+	if user.GetUserType() != types.UserTypeLocal {
+		// we only validate minimums for local users
+		return nil
+	}
+
+	userRoles := user.GetRoles()
+	requestRoles := req.GetRoles()
+
+	if slices.Equal(userRoles, requestRoles) {
+		// no change in roles, nothing to verify - continue
+		return nil
+	}
+
+	// Only check minimum assignment if user both has the role, and the request removes the role
+	for _, role := range userRoles {
+		r, err := roleGetter.GetRole(ctx, role)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		labels := r.GetAllLabels()
+		label, ok := labels[types.TeleportMinimumAssignment]
+		if ok {
+			// find role in request
+			found := false
+			for _, requestRole := range requestRoles {
+				rr, err := roleGetter.GetRole(ctx, requestRole)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if rr == r {
+					found = true
+				}
+			}
+
+			// previously assigned role with minimum is not in the request and will be removed
+			// check if the count is valid
+			if !found {
+				// convert the label string to the minimum value
+				minimum, err := strconv.ParseInt(label, 10, 64)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				// check to see if the role can be removed without breaking the minimum assignment requirement
+				ok, err := roleGetter.VerifyMinimumRoleRemoval(ctx, r, minimum)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				// check if we decrease this count by 1, will the number of assigned drop below the minimum value
+				if !ok {
+					return trace.BadParameter("Unable to remove role %v from user %v as this violates the minimum role assignment", r.GetName(), user.GetName())
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

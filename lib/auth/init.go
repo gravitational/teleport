@@ -960,6 +960,8 @@ type PresetRoleManager interface {
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates a role and emits a related audit event.
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
+	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
 }
 
 // GetPresetRoles returns a list of all preset roles expected to be available on
@@ -968,6 +970,7 @@ func GetPresetRoles() []types.Role {
 	presets := []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
+		services.NewPresetOwnerRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
 		services.NewPresetReviewerRole(),
@@ -1009,6 +1012,18 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 				}
 
 				return nil
+			}
+
+			labels := role.GetAllLabels()
+			for k, _ := range labels {
+				if strings.HasPrefix(k, types.TeleportRestrictedLabelPrefix) {
+					// Roles marked with `teleport.restricted` *always* get reset on every auth startup
+					if _, err := rm.UpsertRole(gctx, role); err != nil {
+						return trace.Wrap(err, "failed upserting immutable preset role %s", role.GetName())
+					}
+
+					return nil
+				}
 			}
 
 			if _, err := rm.CreateRole(gctx, role); err != nil {

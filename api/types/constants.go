@@ -914,6 +914,13 @@ const (
 	// See also TeleportNamespace and TeleportHiddenLabelPrefix.
 	TeleportInternalLabelPrefix = "teleport.internal/"
 
+	// TeleportRestrictedLabelPrefix is the prefix used by all Teleport restricted labels. Those labels
+	// are automatically populated by Teleport and cannot be added to roles by users. Roles with this label are reset
+	// on restart.
+	//
+	// See also TeleportNamespace.
+	TeleportRestrictedLabelPrefix = "teleport.restricted/"
+
 	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels.
 	//
 	// See also TeleportNamespace and TeleportInternalLabelPrefix.
@@ -986,6 +993,20 @@ const (
 	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
 	//           but user changes to these resources will be preserved.
 	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
+
+	// TeleportImmutableResource indicates the Teleport resource is immutable
+	// Any value is valid, the presence of the key indicates immutable
+	//
+	// This is a restricted label: it may not be applied to roles outside of Teleport
+	TeleportImmutableResource = TeleportRestrictedLabelPrefix + "immutable"
+
+	// TeleportMinimumAssignment indicates the Teleport resource must be assigned to a minimum number of members
+	// Valid values are:
+	// - 0: Default, no minimum
+	// - >0: Minimum
+	//
+	// This is a restricted label: it may not be applied to roles outside of Teleport
+	TeleportMinimumAssignment = TeleportRestrictedLabelPrefix + "minimum-assignment"
 
 	// TeleportResourceRevision marks a teleport-managed resource with a reversion
 	// number to aid future migrations. Label value is expected to be a number.

@@ -45,6 +45,7 @@ export default function ResourceEditor(props) {
     onClose,
     isNew,
     kind = '',
+    immutable = false,
   } = props;
 
   const { attempt, attemptActions, content, isDirty, setContent } =
@@ -99,8 +100,9 @@ export default function ResourceEditor(props) {
               onChange={setContent}
             />
           </Flex>
+          {immutable && <Alerts.Warning mt={2}>This role cannot be modified.</Alerts.Warning>}
           <Box mt="5">
-            <ButtonPrimary disabled={isSaveDisabled} onClick={onSave} mr="3">
+            <ButtonPrimary disabled={immutable || isSaveDisabled} onClick={onSave} mr="3">
               Save changes
             </ButtonPrimary>
             <ButtonSecondary
