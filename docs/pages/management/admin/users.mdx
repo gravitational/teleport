@@ -4,7 +4,9 @@ description: Learn how to manage local users in Teleport. Local users are stored
 ---
 
 In Teleport, **local users** are users managed directly via Teleport, rather
-than a third-party identity provider.
+than a third-party identity provider. All local users are stored in Teleport's
+cluster state backend, which contains the user's name, their roles and traits,
+and a bcrypt password hash.
 
 This guide shows you how to:
 
@@ -61,7 +63,7 @@ The user completes registration by visiting this URL in their web browser,
 picking a password, and configuring multi-factor authentication. If the
 credentials are correct, the Teleport Auth Server generates and signs a new
 certificate, and the client stores this key and will use it for subsequent
-logins. 
+logins.
 
 The key will automatically expire after 12 hours by default, after which
 the user will need to log back in with their credentials. This TTL can be
@@ -137,4 +139,3 @@ information, see [GitHub SSO](../../access-controls/sso/github-sso.mdx).
 
 </TabItem>
 </Tabs>
-
