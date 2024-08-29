@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -74,7 +75,7 @@ func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, authclient.Trust
 }
 
 func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.KeyRing {
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
@@ -101,8 +102,7 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 	})
 	require.NoError(t, err)
 
-	ta := testauthority.New()
-	signer, err := ta.GeneratePrivateKey()
+	signer, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
 	require.NoError(t, err)
 	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
