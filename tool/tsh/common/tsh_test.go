@@ -6188,3 +6188,35 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		})
 	}
 }
+
+func TestRolesToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		roles    []string
+		expected string
+		debug    bool
+	}{
+		{
+			name:     "empty",
+			roles:    []string{},
+			expected: "",
+		},
+		{
+			name:     "exceed threshold okta roles should be squashed",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, and 2 more Okta access list roles ...",
+		},
+		{
+			name:     "debug flag",
+			roles:    append([]string{"app-figma-reviewer-okta-acl-role", "app-figma-access-okta-acl-role"}, []string{"r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9", "r10"}...),
+			debug:    true,
+			expected: "r1, r10, r2, r3, r4, r5, r6, r7, r8, r9, app-figma-access-okta-acl-role, app-figma-reviewer-okta-acl-role",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, rolesToString(tc.debug, tc.roles))
+		})
+	}
+}
