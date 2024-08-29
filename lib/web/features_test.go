@@ -26,7 +26,7 @@ func TestFeaturesWatcher(t *testing.T) {
 
 	handler := &Handler{
 		cfg: Config{
-			LicenseWatchInterval: 100 * time.Millisecond,
+			FeatureWatchInterval: 100 * time.Millisecond,
 			ProxyClient: &mockedPingTestProxy{
 				mockedPing: func(ctx context.Context) (proto.PingResponse, error) {
 					return proto.PingResponse{
