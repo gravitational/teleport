@@ -166,7 +166,7 @@ func (c *ClusterAlert) CheckAndSetDefaults() error {
 			}
 		case AlertLinkCTA:
 			if !matchAlertLabelCTAVal(val) {
-				return trace.BadParameter("invalid alert: label link CTA not allowed: %q", val)
+				return trace.BadParameter("invalid alert: label button text not allowed: %q", val)
 			}
 		default:
 			if !matchAlertLabelVal(val) {
