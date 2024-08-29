@@ -2,6 +2,7 @@
 
 ## 15.4.17 (08/28/24)
 
+* Prevent connections from being randomly terminated by Teleport proxies when `proxy_protocol` is enabled and TLS is terminated before Teleport Proxy. [#45993](https://github.com/gravitational/teleport/pull/45993)
 * Fixed an issue where host_sudoers could be written to Teleport proxy server sudoer lists in Teleport v14 and v15. [#45961](https://github.com/gravitational/teleport/pull/45961)
 * Prevent interactive sessions from hanging on exit. [#45953](https://github.com/gravitational/teleport/pull/45953)
 * Fixed kernel version check of Enhanced Session Recording for distributions with backported BPF. [#45942](https://github.com/gravitational/teleport/pull/45942)
