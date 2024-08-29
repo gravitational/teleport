@@ -113,14 +113,14 @@ You can also run queries to fetch specific information from the Access Graph, su
 The following query fetches all projects accessible to a user <Var name="user" />:
 
 ```sql
-SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='GITLAB'
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='Gitlab'
 ```
 
 Additionally, you filter projects by the user's access level, `owner`, `maintainer`, `developer`, `guest`, or `reporter`
 by running the following query:
 
 ```sql
-SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='GITLAB' AND action='owner'
+SELECT * FROM access_path WHERE "identity" = '<Var name="user" />' AND source='Gitlab' AND action='owner'
 ```
 
 Change the `action` parameter to `maintainer`, `developer`, `guest`, or `reporter` to fetch the respective projects.
@@ -130,7 +130,7 @@ Change the `action` parameter to `maintainer`, `developer`, `guest`, or `reporte
 The following query fetches all users with read/write access to a project named <Var name="project" />:
 
 ```sql
-SELECT * FROM access_path WHERE "resource" = '<Var name="project" />' AND source='GITLAB'
+SELECT * FROM access_path WHERE "resource" = '<Var name="project" />' AND source='Gitlab'
 ```
 
 ## Troubleshooting
