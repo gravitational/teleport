@@ -3425,8 +3425,10 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 			},
 		},
@@ -3439,9 +3441,11 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3464,8 +3468,6 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3476,6 +3478,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},

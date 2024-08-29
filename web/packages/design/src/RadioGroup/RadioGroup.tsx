@@ -28,6 +28,7 @@ interface RadioObjectOption {
   value: string;
   label: ReactNode;
   disabled?: boolean;
+  helperText?: ReactNode;
 }
 
 type RadioOption = RadioObjectOption | string;
@@ -60,11 +61,15 @@ export function RadioGroup({
         const optionDisabled = isRadioObjectOption(option)
           ? option.disabled
           : undefined;
+        const optionHelperText = isRadioObjectOption(option)
+          ? option.helperText
+          : undefined;
         return (
           <FieldRadio
             key={optionValue}
             name={name}
             label={optionLabel}
+            helperText={optionHelperText}
             checked={value !== undefined ? value === optionValue : undefined}
             disabled={optionDisabled}
             size={size}
