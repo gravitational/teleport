@@ -159,10 +159,6 @@ type Handler struct {
 	userConns atomic.Int32
 
 	// clusterFeatures contain flags for supported and unsupported features.
-	// Note: This field can become stale since it's only set on initial proxy
-	// startup. To get the latest feature flags you'll need to ping from the
-	// auth server.
-	// https://github.com/gravitational/teleport/issues/39161
 	clusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from

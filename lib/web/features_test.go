@@ -45,7 +45,7 @@ func TestFeaturesWatcher(t *testing.T) {
 	// before running the watcher, features should match the value passed to the handler
 	requireFeatures(t, clock, proto.Features{}, handler.GetClusterFeatures)
 
-	go handler.startFeaturesWatcher()
+	go handler.startFeatureWatcher()
 	clock.BlockUntil(1)
 
 	// after starting the watcher, handler.GetClusterFeatures should return
@@ -100,7 +100,7 @@ func TestFeaturesWatcher(t *testing.T) {
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
 	// stop watcher and ensure it stops updating features
-	handler.stopFeaturesWatcher()
+	handler.stopFeatureWatcher()
 	features = proto.Features{
 		Kubernetes:     !features.Kubernetes,
 		App:            !features.App,

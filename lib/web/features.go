@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 )
 
+// SetClusterFeatures sets the flags for supported and unsupported features
 func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
@@ -33,6 +34,7 @@ func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.clusterFeatures = features
 }
 
+// GetClusterFeatures returns flags for supported and unsupported features.
 func (h *Handler) GetClusterFeatures() proto.Features {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
@@ -40,7 +42,8 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 	return h.clusterFeatures
 }
 
-func (h *Handler) startFeaturesWatcher() {
+// startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
+func (h *Handler) startFeatureWatcher() {
 	h.featureWatcherOnce.Do(func() {
 		ticker := h.clock.NewTicker(h.cfg.LicenseWatchInterval)
 		h.log.WithField("interval", h.cfg.LicenseWatchInterval).Info("Proxy handler features watcher has started")
@@ -67,6 +70,7 @@ func (h *Handler) startFeaturesWatcher() {
 	})
 }
 
-func (h *Handler) stopFeaturesWatcher() {
+// stopFeatureWatcher stops the feature watcher
+func (h *Handler) stopFeatureWatcher() {
 	close(h.featureWatcherStop)
 }
