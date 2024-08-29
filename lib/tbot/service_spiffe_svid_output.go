@@ -19,7 +19,6 @@
 package tbot
 
 import (
-	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
@@ -32,13 +31,12 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 )
 
 const (
@@ -57,6 +55,7 @@ type SPIFFESVIDOutputService struct {
 	log               *slog.Logger
 	reloadBroadcaster *channelBroadcaster
 	resolver          reversetunnelclient.Resolver
+	trustBundleCache  *spiffe.TrustBundleCache
 }
 
 func (s *SPIFFESVIDOutputService) String() string {
@@ -82,7 +81,10 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 	return trace.Wrap(err)
 }
 
-func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
+func (s *SPIFFESVIDOutputService) generate(
+	ctx context.Context,
+	bundleSet *spiffe.BundleSet,
+) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"SPIFFESVIDOutputService/generate",
@@ -147,11 +149,6 @@ func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
 		Bytes: privBytes,
 	})
 
-	spiffeCAs, err := s.botAuthClient.GetCertAuthorities(ctx, types.SPIFFECA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if len(res.Svids) != 1 {
 		return trace.BadParameter("expected 1 SVID, got %d", len(res.Svids))
 
@@ -169,17 +166,24 @@ func (s *SPIFFESVIDOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err, "writing svid certificate")
 	}
 
-	trustBundleBytes := &bytes.Buffer{}
-	for _, ca := range spiffeCAs {
-		for _, cert := range services.GetTLSCerts(ca) {
-			// Values are already PEM encoded, so we just append to the buffer
-			if _, err := trustBundleBytes.Write(cert); err != nil {
-				return trace.Wrap(err, "writing trust bundle to buffer")
+	trustBundleBytes, err := bundleSet.Local.X509Bundle().Marshal()
+	if err != nil {
+		return trace.Wrap(err, "marshaling local trust bundle")
+	}
+
+	includeFederatedTrustBundle := true
+	if includeFederatedTrustBundle {
+		for _, federatedBundle := range bundleSet.Federated {
+			federatedBundleBytes, err := federatedBundle.X509Bundle().Marshal()
+			if err != nil {
+				return trace.Wrap(err, "marshaling federated trust bundle (%s)", federatedBundle.TrustDomain().Name())
 			}
+			trustBundleBytes = append(trustBundleBytes, federatedBundleBytes...)
 		}
 	}
+
 	if err := s.cfg.Destination.Write(
-		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes.Bytes(),
+		ctx, config.SVIDTrustBundlePEMPath, trustBundleBytes,
 	); err != nil {
 		return trace.Wrap(err, "writing svid trust bundle")
 	}
