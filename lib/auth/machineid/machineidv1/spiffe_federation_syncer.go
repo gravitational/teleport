@@ -203,7 +203,7 @@ type trustDomainSyncState struct {
 	// putEventsCh is a channel for passing PUT events to a specific
 	// SPIFFEFederations syncer.
 	putEventsCh chan types.Event
-	// stopCh is a channel for signalling a specific SPIFFEFederations
+	// stopCh is a channel for signaling a specific SPIFFEFederations
 	// syncer to stop syncing. This is closed when the watcher detects that the
 	// resource has been deleted.
 	stopCh chan struct{}
