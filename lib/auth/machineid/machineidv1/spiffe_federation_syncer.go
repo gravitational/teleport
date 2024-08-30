@@ -113,6 +113,8 @@ type SPIFFEFederationSyncerConfig struct {
 	SPIFFEFetchOptions []federation.FetchOption
 }
 
+// CheckAndSetDefaults checks the configuration and sets defaults where
+// necessary.
 func (c *SPIFFEFederationSyncerConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Backend == nil:
@@ -181,15 +183,12 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 				RetryInterval: time.Second * 30,
 			},
 		}, s.syncTrustDomains)
-		if ctx.Err() != nil {
-			return nil
-		}
 		if err != nil {
 			s.cfg.Logger.ErrorContext(
 				ctx,
-				"SPIFFEFederation syncer exited with an error",
+				"SPIFFEFederation syncer encountered a fatal error, it will restart after backoff",
 				"error", err,
-				"retry_after", waitWithJitter,
+				"restart_after", waitWithJitter,
 			)
 		}
 		select {
