@@ -1,0 +1,84 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.userintegrationtasks.v1;
+
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userintegrationtasks/v1;userintegrationtasksv1";
+
+// UserIntegrationTask is a resource that represents an action to be completed by the user.
+// UserIntegrationTasks are a unit of work for users to act upon issues related to integrations.
+// As an example, when auto-enrolling EC2 instances using the Discovery Service
+// a UserIntegrationTask is created to let the user know that something failed on a set of instances.
+// The user can then mark the task as resolved after following the recommendation/fixing steps.
+message UserIntegrationTask {
+  // The kind of resource represented.
+  string kind = 1;
+  // Mandatory field for all resources. Not populated for this resource type.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // The configured properties of UserIntegrationTask.
+  UserIntegrationTaskSpec spec = 5;
+}
+
+// UserIntegrationTaskSpec contains the properties of the UserIntegrationTask.
+message UserIntegrationTaskSpec {
+  // Integration is the integration name that originated this task.
+  string integration = 1;
+  // TaskType indicates the type of task.
+  // Examples: discover-ec2, discover-rds, discover-eks
+  string task_type = 2;
+  // IssueType is an identifier for the type of issue that happened.
+  // Example for discover-ec2: SSM_AGENT_NOT_AVAILABLE
+  string issue_type = 3;
+  // DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
+  // Present when TaskType is discover-ec2.
+  DiscoverEC2 discover_ec2 = 4;
+}
+
+// DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
+message DiscoverEC2 {
+  // Instances maps an instance id to the result of enrolling that instance into teleport.
+  map<string, DiscoverEC2Instance> instances = 1;
+}
+
+// DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
+message DiscoverEC2Instance {
+  // State indicates the current issue state.
+  // When the issue is created, it starts with OPEN.
+  // Users can mark this instance issue as RESOLVED.
+  // If the issue happens again (eg, new discover iteration faces the same error), it will move to OPEN again.
+  string state = 1;
+  // Name is the instance Name.
+  // Might be empty, if the instance doesn't have the Name tag.
+  string name = 2;
+  // Region is the AWS Region where this issue is happening.
+  string region = 3;
+  // InvocationURL is the URL that points to the invocation.
+  // Empty if there was an error before installing the
+  string invocation_url = 4;
+  // DiscoveryConfig is the discovery config name that originated this instance enrollment.
+  string discovery_config = 5;
+  // DiscoveryGroup is the DiscoveryGroup name that originated this task.
+  string discovery_group = 6;
+  // SyncTime is the timestamp when the error was produced.
+  google.protobuf.Timestamp sync_time = 7;
+}

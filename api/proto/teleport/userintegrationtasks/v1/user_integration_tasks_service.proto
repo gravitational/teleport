@@ -1,0 +1,83 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.userintegrationtasks.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/userintegrationtasks/v1/user_integration_tasks.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userintegrationtasks/v1;userintegrationtasksv1";
+
+// UserIntegrationTaskService is a service that provides methods to manage User Integration Tasks.
+service UserIntegrationTaskService {
+  // CreateUserIntegrationTask creates a User Integration Task.
+  rpc CreateUserIntegrationTask(CreateUserIntegrationTaskRequest) returns (teleport.userintegrationtasks.v1.UserIntegrationTask);
+  // UpsertUserIntegrationTask creates or updates User Integration Task.
+  rpc UpsertUserIntegrationTask(UpsertUserIntegrationTaskRequest) returns (teleport.userintegrationtasks.v1.UserIntegrationTask);
+  // GetUserIntegrationTask gets a UserIntegrationTask by name.
+  rpc GetUserIntegrationTask(GetUserIntegrationTaskRequest) returns (teleport.userintegrationtasks.v1.UserIntegrationTask);
+  // ListUserIntegrationTasks returns a list of UserIntegrationTasks. It supports pagination and filters.
+  rpc ListUserIntegrationTasks(ListUserIntegrationTasksRequest) returns (ListUserIntegrationTasksResponse);
+  // UpdateUserIntegrationTask updates an existing User Integration Task.
+  rpc UpdateUserIntegrationTask(UpdateUserIntegrationTaskRequest) returns (teleport.userintegrationtasks.v1.UserIntegrationTask);
+  // DeleteUserIntegrationTask deletes a User Integration Task.
+  rpc DeleteUserIntegrationTask(DeleteUserIntegrationTaskRequest) returns (google.protobuf.Empty);
+}
+
+// CreateUserIntegrationTaskRequest is a request to create a User Integration Task.
+message CreateUserIntegrationTaskRequest {
+  teleport.userintegrationtasks.v1.UserIntegrationTask user_integration_task = 1;
+}
+
+// UpsertUserIntegrationTaskRequest is a request to create or update a User Integration Task.
+message UpsertUserIntegrationTaskRequest {
+  teleport.userintegrationtasks.v1.UserIntegrationTask user_integration_task = 1;
+}
+
+// GetUserIntegrationTaskRequest is a request to get a User Integration Task by name.
+message GetUserIntegrationTaskRequest {
+  // Name is the name of the UserIntegrationTask to get.
+  string name = 1;
+}
+
+// ListUserIntegrationTasksRequest is a request to get a list of User Integration Tasks.
+message ListUserIntegrationTasksRequest {
+  // page_size is the maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int64 page_size = 1;
+  // page_token is the next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// ListUserIntegrationTasksResponse is a response to ListUserIntegrationTasks.
+message ListUserIntegrationTasksResponse {
+  repeated teleport.userintegrationtasks.v1.UserIntegrationTask user_integration_tasks = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// UpdateUserIntegrationTaskRequest is a request to update an existing User Integration Task.
+message UpdateUserIntegrationTaskRequest {
+  teleport.userintegrationtasks.v1.UserIntegrationTask user_integration_task = 1;
+}
+
+// DeleteUserIntegrationTaskRequest is a request to delete a User Integration Task.
+message DeleteUserIntegrationTaskRequest {
+  // Name is the name of the User Integration Task to delete.
+  string name = 1;
+}
