@@ -174,7 +174,6 @@ export default class Modal extends React.Component {
       BackdropProps,
       children,
       container,
-      disablePortal,
       modalCss,
       hideBackdrop,
       open,
@@ -191,7 +190,6 @@ export default class Modal extends React.Component {
       <Portal
         ref={this.handlePortalRef}
         container={container}
-        disablePortal={disablePortal}
         onRendered={this.handleRendered}
         data-testid="portal"
       >
@@ -255,11 +253,6 @@ Modal.propTypes = {
    */
   disableEscapeKeyDown: PropTypes.bool,
   /**
-   * Disable the portal behavior.
-   * The children stay within it's parent DOM hierarchy.
-   */
-  disablePortal: PropTypes.bool,
-  /**
    * If `true`, the modal will not restore focus to previously focused element once
    * modal is hidden.
    */
@@ -302,7 +295,6 @@ Modal.defaultProps = {
   disableBackdropClick: false,
   disableEnforceFocus: false,
   disableEscapeKeyDown: false,
-  disablePortal: false,
   disableRestoreFocus: false,
   hideBackdrop: false,
 };

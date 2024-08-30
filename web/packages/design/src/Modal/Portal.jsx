@@ -30,27 +30,18 @@ class Portal extends React.Component {
   componentDidMount() {
     this.setMountNode(this.props.container);
 
-    // Only rerender if needed
-    if (!this.props.disablePortal) {
-      // Portal initializes the container and mounts it to the DOM during
-      // first render. No children are rendered at this time.
-      // ForceUpdate is called to render children elements inside
-      // the container after it gets mounted.
-      this.forceUpdate();
-    }
+    // Portal initializes the container and mounts it to the DOM during
+    // first render. No children are rendered at this time.
+    // ForceUpdate is called to render children elements inside
+    // the container after it gets mounted.
+    this.forceUpdate();
   }
 
   componentDidUpdate(prevProps) {
-    if (
-      prevProps.container !== this.props.container ||
-      prevProps.disablePortal !== this.props.disablePortal
-    ) {
+    if (prevProps.container !== this.props.container) {
       this.setMountNode(this.props.container);
 
-      // Only rerender if needed
-      if (!this.props.disablePortal) {
-        this.forceUpdate();
-      }
+      this.forceUpdate();
     }
   }
 
@@ -59,11 +50,7 @@ class Portal extends React.Component {
   }
 
   setMountNode(container) {
-    if (this.props.disablePortal) {
-      this.mountNode = ReactDOM.findDOMNode(this).parentElement;
-    } else {
-      this.mountNode = getContainer(container, getOwnerDocument(this).body);
-    }
+    this.mountNode = getContainer(container, getOwnerDocument(this).body);
   }
 
   /**
@@ -74,11 +61,7 @@ class Portal extends React.Component {
   };
 
   render() {
-    const { children, disablePortal } = this.props;
-
-    if (disablePortal) {
-      return children;
-    }
+    const { children } = this.props;
 
     return this.mountNode
       ? ReactDOM.createPortal(children, this.mountNode)
@@ -98,15 +81,6 @@ Portal.propTypes = {
    * so it's simply `document.body` most of the time.
    */
   container: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
-  /**
-   * Disable the portal behavior.
-   * The children stay within it's parent DOM hierarchy.
-   */
-  disablePortal: PropTypes.bool,
-};
-
-Portal.defaultProps = {
-  disablePortal: false,
 };
 
 function getContainer(container, defaultContainer) {

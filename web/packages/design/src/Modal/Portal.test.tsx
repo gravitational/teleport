@@ -37,11 +37,6 @@ describe('design/Modal/Portal', () => {
     expect(screen.queryByTestId('content')).not.toBeInTheDocument();
     expect(customElement).toHaveTextContent('hello');
   });
-
-  test('disable the portal behavior', () => {
-    const { container } = renderPortal({ disablePortal: true });
-    expect(container).toContainElement(screen.getByTestId('content'));
-  });
 });
 
 function renderPortal(props) {
