@@ -301,7 +301,7 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 			want,
 			updated,
 			protocmp.Transform(),
-			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		))
 
 		got, err := service.GetSPIFFEFederation(ctx, "example.com")
@@ -310,7 +310,7 @@ func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
 			want,
 			got,
 			protocmp.Transform(),
-			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "id"),
 		))
 		require.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
 	})

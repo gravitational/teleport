@@ -260,7 +260,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		got, err := store.GetSPIFFEFederation(ctx, "example.com")
 		require.NoError(t, err)
 		// Require that the persisted resource equals the resource output by syncTrustDomain
-		require.Empty(t, cmp.Diff(got, firstSync, protocmp.Transform()))
+		require.Empty(t, cmp.Diff(got, firstSync, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "id")))
 		// Check that some update as occurred (as indicated by the revision)
 		require.NotEqual(t, created.Metadata.Revision, firstSync.Metadata.Revision)
 		// Check that the expected status fields have been set...
@@ -276,7 +276,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		// Check that syncing again does nothing.
 		secondSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(secondSync, firstSync, protocmp.Transform()))
+		require.Empty(t, cmp.Diff(secondSync, firstSync, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "id")))
 
 		// Advance the clock and check that the sync is triggered again.
 		clock.Advance(time.Minute * 15)
@@ -294,7 +294,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		// Check that syncing again does nothing.
 		fourthSync, err := syncer.syncTrustDomain(ctx, "example.com")
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform()))
+		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "id")))
 
 		// Check that modifying the bundle source triggers a sync.
 		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = fmt.Sprintf("%s/modified", testSrv.URL)
