@@ -19,8 +19,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import { createPortal } from 'react-dom';
 
-import Portal from './Portal';
 import RootRef from './RootRef';
 
 export default class Modal extends React.Component {
@@ -85,12 +85,6 @@ export default class Modal extends React.Component {
     }
   };
 
-  handleRendered = () => {
-    if (this.props.onRendered) {
-      this.props.onRendered();
-    }
-  };
-
   handleDocumentKeyDown = event => {
     const ESC = 'Escape';
 
@@ -119,10 +113,6 @@ export default class Modal extends React.Component {
     if (!this.dialogRef.contains(currentActiveElement)) {
       this.dialogRef.focus();
     }
-  };
-
-  handlePortalRef = ref => {
-    this.mountNode = ref ? ref.getMountNode() : ref;
   };
 
   handleModalRef = ref => {
@@ -167,15 +157,8 @@ export default class Modal extends React.Component {
   }
 
   render() {
-    const {
-      BackdropProps,
-      children,
-      container,
-      modalCss,
-      hideBackdrop,
-      open,
-      className,
-    } = this.props;
+    const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
+      this.props;
 
     const childProps = {};
 
@@ -183,28 +166,22 @@ export default class Modal extends React.Component {
       return null;
     }
 
-    return (
-      <Portal
-        ref={this.handlePortalRef}
-        container={container}
-        onRendered={this.handleRendered}
-        data-testid="portal"
+    return createPortal(
+      <StyledModal
+        modalCss={modalCss}
+        data-testid="Modal"
+        ref={this.handleModalRef}
+        className={className}
+        onClick={e => e.stopPropagation()}
       >
-        <StyledModal
-          modalCss={modalCss}
-          data-testid="Modal"
-          ref={this.handleModalRef}
-          className={className}
-          onClick={e => e.stopPropagation()}
-        >
-          {!hideBackdrop && (
-            <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
-          )}
-          <RootRef rootRef={this.onRootRef}>
-            {React.cloneElement(children, childProps)}
-          </RootRef>
-        </StyledModal>
-      </Portal>
+        {!hideBackdrop && (
+          <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
+        )}
+        <RootRef rootRef={this.onRootRef}>
+          {React.cloneElement(children, childProps)}
+        </RootRef>
+      </StyledModal>,
+      document.body
     );
   }
 }
@@ -220,11 +197,6 @@ Modal.propTypes = {
    * A single child content element.
    */
   children: PropTypes.element,
-  /**
-   * A node, component instance, or function that returns either.
-   * The `container` will have the portal children appended to it.
-   */
-  container: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
   /**
    * If `true`, the modal will not automatically shift focus to itself when it opens, and
    * replace it to the last focused element when it closes.
@@ -275,11 +247,6 @@ Modal.propTypes = {
    * `disableEscapeKeyDown` is false and the modal is in focus.
    */
   onEscapeKeyDown: PropTypes.func,
-  /**
-   * Callback fired once the children has been mounted into the `container`.
-   * It signals that the `open={true}` property took effect.
-   */
-  onRendered: PropTypes.func,
   /**
    * If `true`, the modal is open.
    */
