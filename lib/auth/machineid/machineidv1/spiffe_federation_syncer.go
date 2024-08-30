@@ -113,6 +113,32 @@ type SPIFFEFederationSyncerConfig struct {
 	SPIFFEFetchOptions []federation.FetchOption
 }
 
+func (c *SPIFFEFederationSyncerConfig) CheckAndSetDefaults() error {
+	switch {
+	case c.Backend == nil:
+		return trace.BadParameter("backend: must be non-nil")
+	case c.Store == nil:
+		return trace.BadParameter("store: must be non-nil")
+	case c.Logger == nil:
+		return trace.BadParameter("logger: must be non-nil")
+	case c.Clock == nil:
+		return trace.BadParameter("clock: must be non-nil")
+	}
+	if c.MinSyncInterval == 0 {
+		c.MinSyncInterval = minRefreshInterval
+	}
+	if c.MaxSyncInterval == 0 {
+		c.MaxSyncInterval = maxRefreshInterval
+	}
+	if c.DefaultSyncInterval == 0 {
+		c.DefaultSyncInterval = defaultRefreshInterval
+	}
+	if c.SyncTimeout == 0 {
+		c.SyncTimeout = defaultSyncTimeout
+	}
+	return nil
+}
+
 // SPIFFEFederationSyncer is a syncer that manages the trust bundles of
 // federated clusters. It runs on a single elected auth server.
 type SPIFFEFederationSyncer struct {
@@ -131,27 +157,8 @@ const (
 
 // NewSPIFFEFederationSyncer creates a new SPIFFEFederationSyncer.
 func NewSPIFFEFederationSyncer(cfg SPIFFEFederationSyncerConfig) (*SPIFFEFederationSyncer, error) {
-	switch {
-	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend: must be non-nil")
-	case cfg.Store == nil:
-		return nil, trace.BadParameter("store: must be non-nil")
-	case cfg.Logger == nil:
-		return nil, trace.BadParameter("logger: must be non-nil")
-	case cfg.Clock == nil:
-		return nil, trace.BadParameter("clock: must be non-nil")
-	}
-	if cfg.MinSyncInterval == 0 {
-		cfg.MinSyncInterval = minRefreshInterval
-	}
-	if cfg.MaxSyncInterval == 0 {
-		cfg.MaxSyncInterval = maxRefreshInterval
-	}
-	if cfg.DefaultSyncInterval == 0 {
-		cfg.DefaultSyncInterval = defaultRefreshInterval
-	}
-	if cfg.SyncTimeout == 0 {
-		cfg.SyncTimeout = defaultSyncTimeout
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err, "validating SPIFFE federation syncer config")
 	}
 	return &SPIFFEFederationSyncer{
 		cfg: cfg,
