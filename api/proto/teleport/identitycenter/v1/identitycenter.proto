@@ -107,7 +107,7 @@ message PrincipalAssignment {
 // grants that user the Permission Set specified in that resource, on the
 // AWS Account specified in that resource.
 //
-// The name "binding" was chosen to evoke the idea of binding parameters in a 
+// The name "binding" was chosen to evoke the idea of binding parameters in a
 // function (inspired by stc::bind in C++) and to avoid using the word "assignment"
 // which is implies an existing relationship - whereas this type only captures
 // two thirds of a potential Identity Center Account Assignment.
