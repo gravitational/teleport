@@ -5,9 +5,6 @@ resource "teleport_installer" "example" {
   metadata = {
     name        = "example"
     description = "Example Teleport Installer"
-
-    expires = "2024-10-12T07:20:50Z"
-
     labels = {
       example = "yes"
     }
