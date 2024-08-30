@@ -77,6 +77,11 @@ func TestAppPublicAddrValidation(t *testing.T) {
 			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
 			check:      hasErrTypeBadParameter(),
 		},
+		{
+			name:       "addr with numbers in the host",
+			publicAddr: "123456789012.teleport.example.com:3080",
+			check:      hasNoErr(),
+		},
 	}
 
 	for _, tc := range tests {

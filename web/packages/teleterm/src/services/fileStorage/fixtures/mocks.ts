@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { FileStorage } from 'teleterm/services/fileStorage';
+import type { FileStorage } from 'teleterm/services/fileStorage';
 
 export function createMockFileStorage(opts?: {
   filePath: string;
@@ -39,6 +39,10 @@ export function createMockFileStorage(opts?: {
 
     getFilePath() {
       return opts?.filePath || '';
+    },
+
+    getFileName() {
+      return opts?.filePath.split('/').at(-1) || '';
     },
 
     getFileLoadingError() {

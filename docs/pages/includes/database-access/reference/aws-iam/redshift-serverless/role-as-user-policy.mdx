@@ -1,0 +1,37 @@
+The following permissions policy should be attached to an IAM role that Teleport
+users can specify as a database user.
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftServerlessConnect",
+            "Effect": "Allow",
+            "Action": "redshift-serverless:GetCredentials",
+            "Resource": "arn:aws:redshift-serverless:<Var name="us-east-2"/>:<Var name="aws-account-id"/>:workgroup/<Var name="workgroup-id"/>"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RedshiftServerlessConnect` | Get credentials to connect to a database. |
+
+The resource ARN string has the following format:
+
+```
+arn:aws:redshift-serverless:{Region}:{AccountID}:workgroup/{WorkgroupID}
+```
+
+Teleport users can connect as the IAM role by specifying the role name as a
+database user, e.g.
+
+```code
+$ tsh db connect redshift-serverless-example-db --db-user={{ dbUserRole }}
+```
+
+See
+[Identity and access management in Amazon Redshift Serverless](https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-iam.html)
+for more information about configuring Redshift Serverless permissions.

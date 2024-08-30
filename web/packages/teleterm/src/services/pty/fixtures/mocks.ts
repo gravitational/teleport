@@ -29,7 +29,7 @@ export class MockPtyProcess implements IPtyProcess {
 
   resize() {}
 
-  dispose() {}
+  async dispose() {}
 
   onData() {
     return () => {};
@@ -61,13 +61,17 @@ export class MockPtyProcess implements IPtyProcess {
 }
 
 export class MockPtyServiceClient implements PtyServiceClient {
-  createPtyProcess(): Promise<{
-    process: IPtyProcess;
-    creationStatus: PtyProcessCreationStatus;
-  }> {
+  createPtyProcess() {
     return Promise.resolve({
       process: new MockPtyProcess(),
       creationStatus: PtyProcessCreationStatus.Ok,
+      windowsPty: undefined,
+      shell: {
+        id: 'zsh',
+        friendlyName: 'zsh',
+        binPath: '/bin/zsh',
+        binName: 'zsh',
+      },
     });
   }
 }

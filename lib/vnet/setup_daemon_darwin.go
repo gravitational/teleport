@@ -21,18 +21,16 @@ package vnet
 
 import (
 	"context"
-	"os"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/vnet/daemon"
 )
 
-func execAdminProcess(ctx context.Context, socketPath, ipv6Prefix, dnsAddr string) error {
-	// TODO(ravicious): Remove the feature env var after the daemon gets implemented.
-	if os.Getenv("VNETDAEMON") == "yes" {
-		return trace.Wrap(daemon.RegisterAndCall(ctx, socketPath, ipv6Prefix, dnsAddr))
-	}
+func execAdminProcess(ctx context.Context, config daemon.Config) error {
+	return trace.Wrap(daemon.RegisterAndCall(ctx, config))
+}
 
-	return trace.Wrap(execAdminSubcommand(ctx, socketPath, ipv6Prefix, dnsAddr))
+func DaemonSubcommand(ctx context.Context) error {
+	return trace.Wrap(daemon.Start(ctx, AdminSetup))
 }

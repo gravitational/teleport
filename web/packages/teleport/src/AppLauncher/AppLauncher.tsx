@@ -41,6 +41,27 @@ export function AppLauncher() {
     const port = location.port ? `:${location.port}` : '';
 
     try {
+      // Attempt to resolve the fqdn of the app, if we can't then an error
+      // will be returned preventing a redirect to a potentially arbitrary
+      // address. Compare the resolved fqdn with the one that was passed,
+      // if they don't match then the public address was used to find the
+      // resolved fqdn, and the passed fdqn isn't valid.
+      const resolvedApp = await service.getAppFqdn({
+        fqdn: params.fqdn,
+        clusterId: params.clusterId,
+        publicAddr: params.publicAddr,
+        arn: params.arn,
+      });
+      // Because the ports are stripped from the FQDNs before they are
+      // compared, an attacker can pass a FQDN with a different port than
+      // what the app's public address is configured with and have Teleport
+      // redirect to the public address with an arbitrary port. But because
+      // the attacker can't control what domain is redirected to this has
+      // a low risk factor.
+      if (prepareFqdn(resolvedApp.fqdn) !== prepareFqdn(params.fqdn)) {
+        throw Error(`Failed to match applications with FQDN "${params.fqdn}"`);
+      }
+
       let path = '';
       if (queryParams.has('path')) {
         path = queryParams.get('path');
@@ -125,8 +146,30 @@ export function AppLauncherAccessDenied(props: AppLauncherAccessDeniedProps) {
   return <AccessDenied message={props.statusText} />;
 }
 
+// prepareFqdn removes the port from the FQDN if it has one and ensures
+// the FQDN is lowercase. This is to prevent issues matching the
+// resolved fqdn with the one that was passed. Apps generally aren't
+// supposed to have a port in the public address but some integrations
+// create apps that do. The FQDN is also lowercased to prevent
+// issues with case sensitivity.
+function prepareFqdn(fqdn: string) {
+  try {
+    const fqdnUrl = new URL('https://' + fqdn);
+    fqdnUrl.port = '';
+    // The returned FQDN will have a scheme added to it, but that's
+    // fine because we're just using it to compare the FQDNs.
+    return fqdnUrl.toString().toLowerCase();
+  } catch (err) {
+    throwFailedToParseUrlError(err);
+  }
+}
+
 function getXTeleportAuthUrl({ fqdn, port }: { fqdn: string; port: string }) {
-  return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  try {
+    return new URL(`https://${fqdn}${port}/x-teleport-auth`);
+  } catch (err) {
+    throwFailedToParseUrlError(err);
+  }
 }
 
 // initiateNewAuthExchange is the first step to gaining access to an
@@ -181,4 +224,8 @@ function initiateNewAuthExchange({
   }
 
   window.location.replace(url.toString());
+}
+
+function throwFailedToParseUrlError(err: TypeError) {
+  throw Error(`Failed to parse URL: ${err.message}`);
 }

@@ -123,7 +123,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		return trace.Wrap(err)
 	}
 	if err != nil {
-		return trace.Wrap(err, "could not get resource %v: %v", rc.ref.String(), err)
+		return trace.Wrap(err, "could not get resource %v", rc.ref.String())
 	}
 
 	originalSum, err := checksum(f.Name())

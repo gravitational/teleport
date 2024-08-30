@@ -81,6 +81,15 @@ through the steps here unless you are trying to recreate parts of the skeleton
     For example, click "build" and copy the app using "Product -> Show Build
     Folder in Finder".
 
+## FIDO2
+
+In order to have a signed binary with FIDO2 support, you need to statically link libfido2.
+
+```
+make build-fido2
+PKG_CONFIG_PATH=$(make print-fido2-pkg-path) FIDO2=static make build/tsh
+```
+
 ## Working with launch daemons
 
 tsh.app includes a launch daemon for VNet under `Contents/Library/LaunchDaemons`. tsh uses
@@ -171,6 +180,15 @@ launch the daemon with the following error:
 ```
 
 After resetting the db and restarting the device, everything seemed to be working again.
+
+In theory, it's possible to list all app bundles with a certain bundle identifier by running the
+following command:
+
+```
+mdfind kMDItemCFBundleIdentifier = "com.goteleport.tshdev"
+```
+
+In practice, getting rid of all but one bundle didn't appear to solve the problem.
 
 ### Daemon does not start
 

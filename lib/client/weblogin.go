@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
@@ -154,10 +155,10 @@ type CreateSSHCertReq struct {
 	OTPToken string `json:"otp_token"`
 	// HeadlessAuthenticationID is a headless authentication resource id.
 	HeadlessAuthenticationID string `json:"headless_id"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
-	// TTL is a desired TTL for the cert (max is still capped by server,
-	// however user can shorten the time)
+	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
+	// should be used as the subject of issued certificates, and optional
+	// hardware key attestation statements for each key.
+	UserPublicKeys
 	TTL time.Duration `json:"ttl"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
@@ -167,8 +168,81 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
+	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
+}
+
+// UserPublicKeys holds user-submitted public keys and attestation statements
+// used in login requests.
+type UserPublicKeys struct {
+	// PubKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PubKey []byte `json:"pub_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	//
+	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (k *UserPublicKeys) CheckAndSetDefaults() error {
+	switch {
+	case len(k.PubKey) > 0 && len(k.SSHPubKey) > 0:
+		return trace.BadParameter("'pub_key' and 'ssh_pub_key' cannot both be set")
+	case len(k.PubKey) > 0 && len(k.TLSPubKey) > 0:
+		return trace.BadParameter("'pub_key' and 'tls_pub_key' cannot both be set")
+	case len(k.PubKey)+len(k.SSHPubKey)+len(k.TLSPubKey) == 0:
+		return trace.BadParameter("'ssh_pub_key' or 'tls_pub_key' must be set")
+	case k.AttestationStatement != nil && k.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case k.AttestationStatement != nil && k.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
+	}
+	if len(k.PubKey) > 0 {
+		// Normalize by splitting PubKey to SSHPubKey and TLSPubKey to reduce
+		// special case handling elsewhere. PubKey is deprecated.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		k.SSHPubKey = k.PubKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(k.PubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		k.TLSPubKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		k.PubKey = nil
+	}
+	if k.AttestationStatement != nil {
+		// Normalize by splitting AttestationStatement to
+		// SSHAttestationStatement and TLSAttestationStatement to reduce special
+		// case handling elsewhere. AttestationStatement is deprecated.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated attestation statements.
+		k.SSHAttestationStatement = k.AttestationStatement
+		k.TLSAttestationStatement = k.AttestationStatement
+		k.AttestationStatement = nil
+	}
+	return nil
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -183,8 +257,10 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
+	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
+	// should be used as the subject of issued certificates, and optional
+	// hardware key attestation statements for each key.
+	UserPublicKeys
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
@@ -196,8 +272,10 @@ type AuthenticateSSHUserRequest struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+}
+
+func (r *AuthenticateSSHUserRequest) CheckAndSetDefaults() error {
+	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
 }
 
 type AuthenticateWebUserRequest struct {
@@ -418,33 +496,9 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	clickableURL := rd.ClickableURL()
 
 	// If a command was found to launch the browser, create and start it.
-	var execCmd *exec.Cmd
-	if login.Browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", clickableURL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, clickableURL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
-		}
+	err = OpenURLInBrowser(login.Browser, clickableURL)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
@@ -480,15 +534,17 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:                 login.User,
-		Password:             login.Password,
-		OTPToken:             login.OTPToken,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
+		User:     login.User,
+		Password: login.Password,
+		OTPToken: login.OTPToken,
+		UserPublicKeys: UserPublicKeys{
+			PubKey:               login.PubKey,
+			AttestationStatement: login.AttestationStatement,
+		},
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -501,6 +557,40 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 	}
 
 	return &out, nil
+}
+
+// OpenURLInBrowser opens a URL in a web browser.
+func OpenURLInBrowser(browser string, URL string) error {
+	var execCmd *exec.Cmd
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case constants.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		// Windows.
+		case constants.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		}
+	}
+	if execCmd != nil {
+		if err := execCmd.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
@@ -516,12 +606,14 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
-		PubKey:                   login.PubKey,
-		TTL:                      login.TTL,
-		Compatibility:            login.Compatibility,
-		RouteToCluster:           login.RouteToCluster,
-		KubernetesCluster:        login.KubernetesCluster,
-		AttestationStatement:     login.AttestationStatement,
+		UserPublicKeys: UserPublicKeys{
+			PubKey:               login.PubKey,
+			AttestationStatement: login.AttestationStatement,
+		},
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -595,12 +687,14 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		&AuthenticateSSHUserRequest{
 			User:                      "", // User carried on WebAuthn assertion.
 			WebauthnChallengeResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-			PubKey:                    login.PubKey,
-			TTL:                       login.TTL,
-			Compatibility:             login.Compatibility,
-			RouteToCluster:            login.RouteToCluster,
-			KubernetesCluster:         login.KubernetesCluster,
-			AttestationStatement:      login.AttestationStatement,
+			UserPublicKeys: UserPublicKeys{
+				PubKey:               login.PubKey,
+				AttestationStatement: login.AttestationStatement,
+			},
+			TTL:               login.TTL,
+			Compatibility:     login.Compatibility,
+			RouteToCluster:    login.RouteToCluster,
+			KubernetesCluster: login.KubernetesCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -657,14 +751,16 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 	}
 
 	challengeResp := AuthenticateSSHUserRequest{
-		User:                 login.User,
-		Password:             login.Password,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
+		User:     login.User,
+		Password: login.Password,
+		UserPublicKeys: UserPublicKeys{
+			PubKey:               login.PubKey,
+			AttestationStatement: login.AttestationStatement,
+		},
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {

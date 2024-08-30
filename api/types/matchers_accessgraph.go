@@ -18,6 +18,8 @@ package types
 
 import (
 	"github.com/gravitational/trace"
+
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
@@ -33,6 +35,12 @@ func (a *AccessGraphSync) CheckAndSetDefaults() error {
 func (a *AccessGraphAWSSync) CheckAndSetDefaults() error {
 	if len(a.Regions) == 0 {
 		return trace.BadParameter("discovery service requires at least one region")
+	}
+
+	for _, region := range a.Regions {
+		if err := awsapiutils.IsValidRegion(region); err != nil {
+			return trace.BadParameter("discovery service does not support region %q", region)
+		}
 	}
 	return nil
 }

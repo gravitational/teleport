@@ -18,15 +18,18 @@ package resumption
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func newResumableConn(localAddr, remoteAddr net.Addr) *Conn {
@@ -83,7 +86,7 @@ func runResumeV1Unlocking(r *Conn, nc net.Conn, firstConn bool) error {
 			r.cond.Wait()
 		}
 		if dt := time.Since(t0); dt > time.Second {
-			logrus.WithField("elapsed", dt.String()).Warn("Slow resumable connection detach took over one second.")
+			slog.WarnContext(context.TODO(), "slow resumable connection detach took over one second", "elapsed", logutils.StringerAttr(dt))
 		}
 
 		if r.remoteClosed {

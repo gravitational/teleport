@@ -21,13 +21,17 @@ import styled from 'styled-components';
 import {
   Alert,
   Box,
+  ButtonBorder,
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
   Flex,
+  H2,
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -194,9 +198,9 @@ export function RequestCheckout<T extends PendingListItem>({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <Text typography="h4" color="text.main" bold>
+          <H2>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </Text>
+          </H2>
         </Box>
       </Flex>
     );
@@ -221,14 +225,12 @@ export function RequestCheckout<T extends PendingListItem>({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box mt={2} mb={7} textAlign="center">
-                  <Text typography="h4" color="text.main" bold>
-                    Resources Requested Successfully
-                  </Text>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
+                <Box as="header" mt={2} mb={7} textAlign="center">
+                  <H2 mb={1}>Resources Requested Successfully</H2>
+                  <Subtitle2 color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Text>
+                  </Subtitle2>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -486,14 +488,25 @@ function ResourceRequestRoles({
             border-color: ${props => props.theme.colors.spotBackground[1]};
           `}
         >
-          <Flex flexDirection="column" width="100%">
-            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
-              Roles
-            </LabelInput>
-            <Text typography="subtitle2" mb={2}>
-              {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
-              selected
-            </Text>
+          <Flex alignItems="center" gap={2}>
+            <Flex flexDirection="column" width="100%">
+              <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+                Roles
+              </LabelInput>
+              <Text typography="body4" mb={2}>
+                {selectedRoles.length} role
+                {selectedRoles.length !== 1 ? 's' : ''} selected
+              </Text>
+            </Flex>
+            {selectedRoles.length ? (
+              <ButtonBorder
+                onClick={() => setSelectedRoles([])}
+                size="small"
+                width="50px"
+              >
+                Clear
+              </ButtonBorder>
+            ) : null}
           </Flex>
           {fetchAttempt.status === 'processing' ? (
             <Flex
@@ -552,10 +565,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>
@@ -671,6 +684,8 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
     default:
       kind satisfies never;
       return kind;

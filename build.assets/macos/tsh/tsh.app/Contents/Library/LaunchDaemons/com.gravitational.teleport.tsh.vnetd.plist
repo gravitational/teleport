@@ -20,5 +20,7 @@
 	<string>/var/log/vnet.log</string>
 	<key>StandardOutPath</key>
 	<string>/var/log/vnet.log</string>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
 </dict>
 </plist>

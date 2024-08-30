@@ -46,6 +46,10 @@ func newSoftwareKeyStore(config *softwareConfig) *softwareKeyStore {
 	}
 }
 
+func (p *softwareKeyStore) name() string {
+	return storeSoftware
+}
+
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (s *softwareKeyStore) keyTypeDescription() string {
@@ -55,7 +59,7 @@ func (s *softwareKeyStore) keyTypeDescription() string {
 // generateRSA creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier for softwareKeyStore is a pem-encoded private key, and can be passed to getSigner later to get
 // an equivalent crypto.Signer.
-func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+func (s *softwareKeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	if alg == cryptosuites.RSA2048 && s.rsaKeyPairSource != nil {
 		privateKeyPEM, _, err := s.rsaKeyPairSource()
 		if err != nil {

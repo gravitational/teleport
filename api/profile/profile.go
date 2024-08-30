@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -111,6 +112,13 @@ type Profile struct {
 	// MissingClusterDetails means this profile was created with limited cluster details.
 	// Missing cluster details should be loaded into the profile by pinging the proxy.
 	MissingClusterDetails bool
+
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
+	// using an auth connector with a SAML SLO URL configured.
+	SAMLSingleLogoutEnabled bool `yaml:"saml_slo_enabled,omitempty"`
+
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout time.Duration `yaml:"ssh_dial_timeout,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -394,6 +402,13 @@ func profileFromFile(filePath string) (*Profile, error) {
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}
+
+	// For backwards compatibility, if the dial timeout was not set,
+	// then use the DefaultIOTimeout.
+	if p.SSHDialTimeout == 0 {
+		p.SSHDialTimeout = defaults.DefaultIOTimeout
+	}
+
 	return &p, nil
 }
 
@@ -489,4 +504,11 @@ func (p *Profile) KnownHostsPath() string {
 // is no guarantee that there is an actual certificate at that location.
 func (p *Profile) AppCertPath(appName string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
+}
+
+// AppKeyPath returns the path to the profile's private key for a given
+// application. Note that this function merely constructs the path - there
+// is no guarantee that there is an actual key at that location.
+func (p *Profile) AppKeyPath(appName string) string {
+	return keypaths.AppKeyPath(p.Dir, p.Name(), p.Username, p.SiteName, appName)
 }

@@ -42,7 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -352,10 +352,10 @@ func Test_transport_rewriteRequest(t *testing.T) {
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
 
-		wsPrivateKey, err := keys.ParsePrivateKey(appSession.GetPriv())
+		wsPrivateKey, err := keys.ParsePrivateKey(appSession.GetTLSPriv())
 		require.NoError(t, err)
 
-		unknownKey, err := native.GeneratePrivateKey()
+		unknownKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		require.NoError(t, err)
 
 		for _, tt := range []struct {

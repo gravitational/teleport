@@ -101,7 +101,7 @@ const LabelState = styled.span<LabelStateProps>`
   min-height: 16px;
   line-height: 1.4;
   padding: 0 8px;
-  font-size: 10px;
+  font-size: ${props => props.theme.fontSizes[0]}px;
   font-weight: 500;
   text-transform: uppercase;
   ${space}
@@ -111,7 +111,6 @@ const LabelState = styled.span<LabelStateProps>`
   ${fontSize}
 `;
 LabelState.defaultProps = {
-  fontSize: 0,
   shadow: false,
 };
 

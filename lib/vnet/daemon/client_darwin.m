@@ -1,3 +1,6 @@
+//go:build vnetdaemon
+// +build vnetdaemon
+
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -15,41 +18,13 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "client_darwin.h"
+#include "common_darwin.h"
 
 #import <Foundation/Foundation.h>
 #import <ServiceManagement/ServiceManagement.h>
+#include <dispatch/dispatch.h>
 
 #include <string.h>
-
-// VNECopyNSString duplicates an NSString into an UTF-8 encoded C string.
-// The caller is expected to free the returned pointer.
-const char *VNECopyNSString(NSString *val) {
-  if (val) {
-    return strdup([val UTF8String]);
-  }
-  return strdup("");
-}
-
-// Returns the label for the daemon by getting the identifier of the bundle
-// this executable is shipped in and appending ".vnetd" to it.
-//
-// The returned string might be empty if the executable is not in a bundle.
-//
-// The filename and the value of the Label key in the plist file and the Mach
-// service of of the daemon must match the string returned from this function.
-NSString *DaemonLabel(NSString *bundlePath) {
-  NSBundle *main = [NSBundle bundleWithPath:bundlePath];
-  if (!main) {
-    return @"";
-  }
-
-  NSString *bundleIdentifier = [main bundleIdentifier];
-  if (!bundleIdentifier || [bundleIdentifier length] == 0) {
-    return @"";
-  }
-
-  return [NSString stringWithFormat:@"%@.vnetd", bundleIdentifier];
-}
 
 // DaemonPlist takes the result of DaemonLabel and appends ".plist" to it
 // if not empty.
@@ -95,5 +70,114 @@ int DaemonStatus(const char *bundle_path) {
 void OpenSystemSettingsLoginItems(void) {
   if (@available(macOS 13, *)) {
     [SMAppService openSystemSettingsLoginItems];
+  }
+}
+
+@implementation VNEDaemonClient {
+  NSXPCConnection *_connection;
+  NSString *_bundlePath;
+  NSString *_codeSigningRequirement;
+}
+
+- (id)initWithBundlePath:(NSString *)bundlePath codeSigningRequirement:(NSString *)codeSigningRequirement {
+  self = [super init];
+  if (self) {
+    _bundlePath = bundlePath;
+    _codeSigningRequirement = codeSigningRequirement;
+  }
+  return self;
+}
+
+- (NSXPCConnection *)connection {
+  // Create the XPC Connection on demand.
+  if (_connection == nil) {
+    _connection = [[NSXPCConnection alloc] initWithMachServiceName:DaemonLabel(_bundlePath)
+                                                           options:NSXPCConnectionPrivileged];
+    _connection.remoteObjectInterface =
+        [NSXPCInterface interfaceWithProtocol:@protocol(VNEDaemonProtocol)];
+    _connection.invalidationHandler = ^{
+      self->_connection = nil;
+    };
+
+    // The daemon won't even be started on macOS < 13.0, so we don't have to handle the else branch
+    // of this condition.
+    if (@available(macOS 13, *)) {
+      [_connection setCodeSigningRequirement:_codeSigningRequirement];
+    }
+
+    // New connections always start in a suspended state.
+    [_connection resume];
+  }
+  return _connection;
+}
+
+- (void)startVnet:(VNEConfig *)config completion:(void (^)(NSError *))completion {
+  // This way of calling the XPC proxy ensures either the error handler or
+  // the reply block gets called.
+  // https://forums.developer.apple.com/forums/thread/713429
+  id proxy = [self.connection remoteObjectProxyWithErrorHandler:^(NSError *error) {
+    completion(error);
+  }];
+
+  [(id<VNEDaemonProtocol>)proxy startVnet:config completion:^(NSError *error) {
+    completion(error);
+  }];
+}
+
+- (void)invalidate {
+  if (_connection) {
+    [_connection invalidate];
+  }
+}
+
+@end
+
+static VNEDaemonClient *daemonClient = NULL;
+
+void StartVnet(StartVnetRequest *request, StartVnetResult *outResult) {
+  if (!daemonClient) {
+    NSString *requirement = nil;
+    NSError *error = nil;
+    bool ok = getCodeSigningRequirement(&requirement, &error);
+    if (!ok) {
+      outResult->ok = false;
+      outResult->error_domain = VNECopyNSString([error domain]);
+      outResult->error_code = (int)[error code];
+      outResult->error_description = VNECopyNSString([error description]);
+      return;
+    }
+
+    daemonClient = [[VNEDaemonClient alloc] initWithBundlePath:@(request->bundle_path) codeSigningRequirement:requirement];
+  }
+
+  VNEConfig *config = [[VNEConfig alloc] init];
+  [config setSocketPath:@(request->socket_path)];
+  [config setIpv6Prefix:@(request->ipv6_prefix)];
+  [config setDnsAddr:@(request->dns_addr)];
+  [config setHomePath:@(request->home_path)];
+
+  dispatch_semaphore_t sema = dispatch_semaphore_create(0);
+
+  [daemonClient startVnet:config
+               completion:^(NSError *error) {
+                 if (error) {
+                   outResult->ok = false;
+                   outResult->error_domain = VNECopyNSString([error domain]);
+                   outResult->error_code = (int)[error code];
+                   outResult->error_description = VNECopyNSString([error description]);
+                   dispatch_semaphore_signal(sema);
+                   return;
+                 }
+
+                 outResult->ok = true;
+                 dispatch_semaphore_signal(sema);
+               }];
+
+  dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+}
+
+void InvalidateDaemonClient(void) {
+  if (daemonClient) {
+    [daemonClient invalidate];
   }
 }

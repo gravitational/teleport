@@ -154,7 +154,10 @@ export class WindowsManager {
           return callback(false);
         }
 
-        if (permission === 'clipboard-sanitized-write') {
+        if (
+          permission === 'clipboard-sanitized-write' ||
+          permission === 'clipboard-read'
+        ) {
           return callback(true);
         }
         return callback(false);

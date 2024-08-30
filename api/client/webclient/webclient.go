@@ -360,6 +360,9 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+
+	// DialTimeout indicates the SSH timeout clients should use.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // DBProxySettings contains database access specific proxy settings.
@@ -420,6 +423,9 @@ type AuthenticationSettings struct {
 	// DefaultSessionTTL is the TTL requested for user certs if
 	// a TTL is not otherwise specified.
 	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for
+	// the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -446,6 +452,8 @@ type SAMLSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
+	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.

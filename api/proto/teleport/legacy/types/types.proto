@@ -17,7 +17,9 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -466,6 +468,12 @@ message AWS {
   IAMPolicyStatus IAMPolicyStatus = 14 [(gogoproto.jsontag) = "iam_policy_status"];
   // SessionTags is a list of AWS STS session tags.
   map<string, string> SessionTags = 15 [(gogoproto.jsontag) = "session_tags,omitempty"];
+
+  // DocumentDB contains AWS DocumentDB specific metadata.
+  DocumentDB DocumentDB = 16 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "docdb,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -548,6 +556,16 @@ message OpenSearch {
   string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
   // DomainID is the ID of the domain.
   string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
+}
+
+// DocumentDB contains AWS DocumentDB specific metadata.
+message DocumentDB {
+  // ClusterID is the cluster identifier.
+  string ClusterID = 1 [(gogoproto.jsontag) = "cluster_id,omitempty"];
+  // InstanceID is the instance identifier.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id,omitempty"];
   // EndpointType is the type of the endpoint.
   string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
@@ -1238,7 +1256,7 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include "token", "ec2", and "iam".
+  // Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
@@ -1278,6 +1296,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
   // TPM allows the configuration of options specific to the "tpm" join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
+  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
 // ProvisionTokenSpecV2TPM contains the TPM-specific part of the
@@ -1562,6 +1582,55 @@ message ProvisionTokenSpecV2GCP {
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
+// ProvisionTokenSpecV2Terraform contains Terraform-specific parts of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2TerraformCloud {
+  // Rule is a set of properties the Terraform-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // OrganizationID is the ID of the HCP Terraform organization. At least
+    // one organization value is required, either ID or name.
+    string OrganizationID = 1 [(gogoproto.jsontag) = "organization_id,omitempty"];
+
+    // OrganizationName is the human-readable name of the HCP Terraform
+    // organization. At least one organization value is required, either ID or
+    // name.
+    string OrganizationName = 2 [(gogoproto.jsontag) = "organization_name,omitempty"];
+
+    // ProjectID is the ID of the HCP Terraform project. At least one project or
+    // workspace value is required, either ID or name.
+    string ProjectID = 3 [(gogoproto.jsontag) = "project_id,omitempty"];
+
+    // ProjectName is the human-readable name for the HCP Terraform project. At
+    // least one project or workspace value is required, either ID or name.
+    string ProjectName = 4 [(gogoproto.jsontag) = "project_name,omitempty"];
+
+    // WorkspaceID is the ID of the HCP Terraform workspace. At least one
+    // project or workspace value is required, either ID or name.
+    string WorkspaceID = 5 [(gogoproto.jsontag) = "workspace_id,omitempty"];
+
+    // WorkspaceName is the human-readable name of the HCP Terraform workspace.
+    // At least one project or workspace value is required, either ID or name.
+    string WorkspaceName = 6 [(gogoproto.jsontag) = "workspace_name,omitempty"];
+
+    // RunPhase is the phase of the run the token was issued for, e.g. `plan` or
+    // `apply`
+    string RunPhase = 7 [(gogoproto.jsontag) = "run_phase,omitempty"];
+  }
+
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+
+  // Audience is the JWT audience as configured in the
+  // TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If
+  // unset, defaults to the Teleport cluster name.
+  // For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in
+  // Terraform Cloud, this value should be `foo`. If the variable is set to
+  // match the cluster name, it does not need to be set here.
+  string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+}
+
 // StaticTokensV2 implements the StaticTokens interface.
 message StaticTokensV2 {
   option (gogoproto.goproto_stringer) = false;
@@ -1791,6 +1860,13 @@ message ClusterNetworkingConfigSpecV2 {
 
   // CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
   bool CaseInsensitiveRouting = 12 [(gogoproto.jsontag) = "case_insensitive_routing,omitempty"];
+
+  // SSHDialTimeout is a custom dial timeout used when establishing
+  // SSH connections. If not set, the default timeout of 30s will be used.
+  int64 SSHDialTimeout = 13 [
+    (gogoproto.jsontag) = "ssh_dial_timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.
@@ -2786,7 +2862,7 @@ message RoleOptions {
   // concurrent sessions per connection.
   int64 MaxSessions = 10 [(gogoproto.jsontag) = "max_sessions,omitempty"];
 
-  // RequestAccess defines the access request strategy (optional|note|always)
+  // RequestAccess defines the request strategy (optional|note|always)
   // where optional is the default.
   string RequestAccess = 11 [
     (gogoproto.jsontag) = "request_access,omitempty",
@@ -2894,6 +2970,19 @@ message RoleOptions {
   // database when not set to off.
   // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
+
+  // MFAVerificationInterval optionally defines the maximum duration that can elapse
+  // between successive MFA verifications. This variable is used to ensure
+  // that users are periodically prompted to verify their identity, enhancing
+  // security by preventing prolonged sessions without re-authentication when using
+  // tsh proxy * derivatives.
+  // It's only effective if the session requires MFA.
+  // If not set, defaults to `max_session_ttl`.
+  google.protobuf.Duration MFAVerificationInterval = 30 [
+    (gogoproto.jsontag) = "mfa_verification_interval,omitempty",
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
 }
 
 message RecordSession {
@@ -3474,6 +3563,13 @@ message UserSpecV2 {
   LocalAuthSecrets LocalAuth = 9 [(gogoproto.jsontag) = "local_auth,omitempty"];
 
   // TrustedDeviceIDs contains the IDs of trusted devices enrolled by the user.
+  //
+  // Note that SSO users are transient and thus may contain an empty
+  // TrustedDeviceIDs field, even though the user->device association exists
+  // under the Device Trust subsystem. Do not rely on this field to determine
+  // device associations or ownership, it exists for legacy/informative purposes
+  // only.
+  //
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
 }
@@ -3636,6 +3732,14 @@ message WebauthnDevice {
   // If an RPID change does happen, this helps Teleport detect it and react
   // accordingly.
   string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -3860,7 +3964,8 @@ message WebSessionSpecV2 {
   // Pub is the SSH certificate for the user, marshaled in the authorized key
   // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
-  // Priv is the SSH private key for the user.
+  // Priv is the SSH private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If TLSPriv is unset, this is also the TLS private key.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
   // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
@@ -3905,6 +4010,28 @@ message WebSessionSpecV2 {
   // HasDeviceExtensions is true if the session's TLS and SSH certificates are
   // augmented with device extensions.
   bool HasDeviceExtensions = 13 [(gogoproto.jsontag) = "has_device_extensions,omitempty"];
+  // TrustedDeviceRequirement indicates whether access may be hindered by the
+  // lack of a trusted device.
+  //
+  // If during login a device is required and DeviceWebToken is nil, then it's
+  // likely the user needs to enroll their device to avoid impacting access.
+  TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
+  // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
+  // format. If unset, then Priv is used as both the SSH and TLS private key.
+  bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+}
+
+// TrustedDeviceRequirement indicates whether access may be hindered by the lack
+// of a trusted device.
+enum TrustedDeviceRequirement {
+  // Device requirement not determined.
+  // Does not mean that a device is not required, only that the necessary data
+  // was not considered.
+  TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED = 0;
+  // Trusted device not required.
+  TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED = 1;
+  // Trusted device required by either cluster mode or user roles.
+  TRUSTED_DEVICE_REQUIREMENT_REQUIRED = 2;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -4394,6 +4521,8 @@ message MaxAge {
 message SSOClientRedirectSettings {
   // a list of hostnames allowed for https client redirect URLs
   repeated string allowed_https_hostnames = 1;
+  // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+  repeated string insecure_allowed_cidr_ranges = 2;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4464,6 +4593,10 @@ message OIDCAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4606,6 +4739,10 @@ message SAMLAuthRequest {
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+
+  // ClientUserAgent is the user agent of the Web browser, used for issuing a
+  // DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4732,6 +4869,9 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
+  // ClientUserAgent is the user agent of the Web browser, used for issuing
+  // a DeviceWebToken.
+  string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5227,6 +5367,16 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -5617,6 +5767,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.
@@ -6128,7 +6280,15 @@ message PluginStatusV1 {
     // gitlab is the status details for the Gitlab plugin.
     PluginGitlabStatusV1 gitlab = 4;
     PluginEntraIDStatusV1 entra_id = 5;
+    // Okta holds status details for the Okta plugin
+    PluginOktaStatusV1 okta = 7;
   }
+
+  // last_raw_error variable stores the most recent raw error message received from an API or service.
+  // It is intended to capture the original error message without any modifications or formatting.
+  // This can be useful for debugging purposes, providing detailed information about what went wrong
+  // in the interaction with the external service.
+  string last_raw_error = 6;
 }
 
 // PluginGitlabStatusV1 is the status details for the Gitlab plugin.
@@ -6163,6 +6323,171 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
+}
+
+// OktaPluginSyncStatusCode indicates the possible states of an Okta
+// synchronization service.
+enum OktaPluginSyncStatusCode {
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED is the status code zero value,
+  // indicating that the service has not yet reported a status code.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_UNSPECIFIED = 0;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS indicates that the service is running
+  // without error
+  OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS = 1;
+
+  // OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR indicates that the service is currently
+  // in an error state.
+  OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR = 2;
+}
+
+// PluginOktaStatusV1 contains the details for the running Okta plugin.
+message PluginOktaStatusV1 {
+  // SSODetails are status details relating to SSO.
+  PluginOktaStatusDetailsSSO sso_details = 1;
+
+  // AppGroupSyncDetails are status details relating to synchronizing apps and
+  // groups from Okta.
+  PluginOktaStatusDetailsAppGroupSync app_group_sync_details = 2;
+
+  // UsersSyncDetails are status details relating to synchronizing users from
+  // Okta.
+  PluginOktaStatusDetailsUsersSync users_sync_details = 3;
+
+  // ScimDetails are status details relating to SCIM integration with
+  // Okta.
+  PluginOktaStatusDetailsSCIM scim_details = 4;
+
+  // AccessListSyncDetails are status details relating to synchronizing access
+  // lists from Okta.
+  PluginOktaStatusDetailsAccessListsSync access_lists_sync_details = 5;
+}
+
+// PluginOktaStatusDetailsSSO are details related to the
+// current status of the Okta integration w/r/t SSO.
+message PluginOktaStatusDetailsSSO {
+  // Enabled indicates whether SSO login is enabled.
+  bool enabled = 1;
+
+  // AppId is the unique Okta application ID of the Okta Applicaion used for
+  // SSO login.
+  string app_id = 2;
+
+  // AppName is the human-readable name of the Okta Applicaion used for SSO.
+  string app_name = 3;
+}
+
+// PluginOktaStatusDetailsAppGroupSync are details related to the
+// current status of the Okta integration w/r/t application and group
+// sync.
+message PluginOktaStatusDetailsAppGroupSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the App & Group sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumAppsSynced is the total number of apps synchronized.
+  int32 num_apps_synced = 5;
+
+  // NumAppsSynced is the total number of groups synchronized.
+  int32 num_groups_synced = 6;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 7;
+}
+
+// PluginOktaStatusDetailsUsersSync are details related to the
+// current status of the Okta integration w/r/t users sync.
+message PluginOktaStatusDetailsUsersSync {
+  // Enabled is whether the users sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the User sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // NumUsersSynced is the total number of users synchronized.
+  int32 num_users_synced = 5;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 6;
+}
+
+// PluginOktaStatusDetailsSCIM are details related to the
+// current status of the Okta integration w/r/t SCIM.
+message PluginOktaStatusDetailsSCIM {
+  // Enabled is whether SCIM is enabled.
+  bool enabled = 1;
+}
+
+// PluginOktaStatusDetailsAccessListsSync are details related to the
+// current status of the Okta integration w/r/t access list sync.
+message PluginOktaStatusDetailsAccessListsSync {
+  // Enabled is whether access lists sync is enabled.
+  bool enabled = 1;
+
+  // StatusCode indicates the current state of the AccessList sync service
+  OktaPluginSyncStatusCode status_code = 2;
+
+  // LastSuccessful is the date of the last successful run.
+  google.protobuf.Timestamp last_successful = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_successful"
+  ];
+
+  // LastFailed is the date of the last failed run.
+  google.protobuf.Timestamp last_failed = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "last_failed"
+  ];
+
+  // AppFilters are the app filters used for the access list sync.
+  repeated string app_filters = 5;
+
+  // NumAppsSynced are the number of applications synchronized as access lists.
+  int32 num_apps_synced = 6;
+
+  // GroupFilters are the group filters used for the access list sync.
+  repeated string group_filters = 7;
+
+  // NumGroupsSynced are the number of groups synchronized as access lists.
+  int32 num_groups_synced = 8;
+
+  // Error contains a textual description of the reason the last synchronization
+  // failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.
+  string error = 9;
 }
 
 // PluginCredentialsV1 represents "live" credentials
@@ -6632,7 +6957,9 @@ message HeadlessAuthentication {
   string user = 2;
 
   // PublicKey is an ssh public key to sign in case of successful auth.
-  bytes public_key = 3;
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes public_key = 3 [deprecated = true];
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;
@@ -6642,6 +6969,14 @@ message HeadlessAuthentication {
 
   // ClientIPAddress is the IP address of the client being authenticated.
   string client_ip_address = 6;
+
+  // SshPublicKey is a public key that will be used as the subject of the issued
+  // SSH certificate in case of successful auth. It must be in SSH authorized_keys format.
+  bytes ssh_public_key = 7;
+  // TlsPublicKey is a public key that will be used as the subject of the issued
+  // TLS certificate in case of successful auth. It must be in PEM-encoded
+  // PKCS#1 or PKIX format.
+  bytes tls_public_key = 8;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -6737,6 +7072,8 @@ message ServerInfoSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
+  reserved 5, 6, 8, 9;
+  reserved "username", "password", "client_id", "client_secret";
   option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
@@ -6755,29 +7092,9 @@ message JamfSpecV1 {
   // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
-  // Jamf API username.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Prefer using client_id and client_secret.
-  // Either username+password or client_id+client_secret are required.
-  string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
-  // Jamf API password.
-  // Username and password are used to acquire short-lived Jamf Pro API tokens.
-  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
-  // Prefer using client_id and client_secret.
-  // Either username+password or client_id+client_secret are required.
-  string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
-  // Jamf API client ID.
-  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  // Either username+password or client_id+client_secret are required.
-  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
-  // Jamf API client secret.
-  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
-  // Either username+password or client_id+client_secret are required.
-  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].

@@ -12,12 +12,12 @@ Here is why you might use Teleport:
 
 Teleport works with SSH, Kubernetes, databases, RDP, and web services.
 
-* Architecture: https://goteleport.com/docs/architecture/
+* Architecture: https://goteleport.com/docs/architecture/introduction
 * Getting Started: https://goteleport.com/docs/getting-started/
 
 <div align="center">
    <a href="https://goteleport.com/download">
-   <img src="./assets/img/hero-teleport-platform.svg" width=750/>
+   <img src="./assets/img/hero-teleport-platform.png" width=750/>
    </a>
    <div align="center" style="padding: 25px">
       <a href="https://goteleport.com/download">
@@ -55,14 +55,14 @@ Teleport includes an identity-aware access proxy, a CA that issues short-lived c
 
 We have implemented Teleport as a single Go binary that integrates with multiple protocols and cloud services:
 
-* [SSH nodes](https://goteleport.com/docs/server-access/introduction/).
-* [Kubernetes clusters](https://goteleport.com/docs/kubernetes-access/introduction/)
-* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/database-access/introduction/).
-* [Internal Web apps](https://goteleport.com/docs/application-access/introduction/).
-* [Windows Hosts](https://goteleport.com/docs/desktop-access/introduction/).
-* [Networked servers](https://goteleport.com/docs/server-access/introduction/).
+* [SSH nodes](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
+* [Kubernetes clusters](https://goteleport.com/docs/enroll-resources/kubernetes-access/introduction/)
+* [PostgreSQL, MongoDB, CockroachDB and MySQL databases](https://goteleport.com/docs/enroll-resources/database-access/database-access/).
+* [Internal Web apps](https://goteleport.com/docs/enroll-resources/application-access/introduction/).
+* [Windows Hosts](https://goteleport.com/docs/enroll-resources/desktop-access/introduction/).
+* [Networked servers](https://goteleport.com/docs/enroll-resources/server-access/introduction/).
 
-You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/#set-up-a-demo-cluster) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
+You can set up Teleport as a [Linux daemon](https://goteleport.com/docs/deploy-a-cluster/linux-demo) or a [Kubernetes deployment](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/).
 
 Teleport focuses on best practices for infrastructure security:
 
@@ -110,8 +110,6 @@ If you wish to deploy Teleport inside a Docker container see the
 
 ### For Local Testing and Development
 
-Follow the instructions in the [docker/README](docker/README.md) file.
-
 To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies)
 
 ## Building Teleport
@@ -150,8 +148,8 @@ Ensure you have installed correct versions of necessary dependencies:
 * For `tsh` version > `10.x` with FIDO2 support, you will need `libfido2` and
   `pkg-config` installed locally
 * To build the web UI:
-  * [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
-  * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
+  * [`pnpm`](https://pnpm.io/installation#using-corepack). If you have Node.js installed, run `corepack enable pnpm` to make `pnpm` available.
+  * If you prefer not to install/use pnpm, but have docker available, you can run `make docker-ui` instead.
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required.
   * [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
@@ -370,8 +368,9 @@ We had a choice, either start a security consulting business or build a solution
 ## More Information
 
 * [Teleport Getting Started](https://goteleport.com/docs/getting-started/)
-* [Teleport Architecture](https://goteleport.com/teleport/docs/architecture)
-* [Reference](https://goteleport.com/docs/reference)
+* [Teleport
+  Architecture](https://goteleport.com/teleport/docs/architecture/introduction)
+* [Reference](https://goteleport.com/docs/reference/introduction)
 * [FAQ](https://goteleport.com/docs/faq)
 
 ## Support and Contributing

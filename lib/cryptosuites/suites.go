@@ -79,6 +79,13 @@ const (
 	// Database agent over a reverse tunnel.
 	ProxyToDatabaseAgent
 
+	// UserSSH represents a user SSH key.
+	UserSSH
+	// UserTLS represents a user TLS key.
+	UserTLS
+	// UserDatabase represents a user Database key.
+	UserDatabase
+
 	// TODO(nklaassen): define remaining key purposes.
 
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
@@ -136,6 +143,9 @@ var (
 		SAMLIdPCATLS:        RSA2048,
 		SPIFFECATLS:         RSA2048,
 		SPIFFECAJWT:         RSA2048,
+		UserSSH:             RSA2048,
+		UserTLS:             RSA2048,
+		UserDatabase:        RSA2048,
 		// We could consider updating this algorithm even in the legacy suite, only database agents need to
 		// accept these connections and they have never restricted algorithm support.
 		ProxyToDatabaseAgent: RSA2048,
@@ -155,9 +165,12 @@ var (
 		OpenSSHCASSH:         Ed25519,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
+		UserSSH:              Ed25519,
+		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -175,9 +188,12 @@ var (
 		OpenSSHCASSH:         ECDSAP256,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
+		UserSSH:              ECDSAP256,
+		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -197,9 +213,12 @@ var (
 		OpenSSHCASSH:         ECDSAP256,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
+		UserSSH:              Ed25519,
+		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -230,13 +249,7 @@ func getSignatureAlgorithmSuite(ctx context.Context, authPrefGetter AuthPreferen
 	return suite, nil
 }
 
-// AlgorithmForKey returns the cryptographic signature algorithm that should be used for new keys with the
-// given purpose, based on the currently configured algorithm suite.
-func AlgorithmForKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (Algorithm, error) {
-	suite, err := getSignatureAlgorithmSuite(ctx, authPrefGetter)
-	if err != nil {
-		return algorithmUnspecified, trace.Wrap(err)
-	}
+func algorithmForKey(suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (Algorithm, error) {
 	s, ok := allSuites[suite]
 	if !ok {
 		return algorithmUnspecified, trace.BadParameter("unsupported signature algorithm suite %v", suite)
@@ -248,10 +261,74 @@ func AlgorithmForKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, p
 	return alg, nil
 }
 
-// AlgorithmForKey generates a new cryptographic keypair for the given purpose, with a signature algorithm
-// chosen based on the currently configured algorithm suite.
+// AlgorithmForKey returns the cryptographic signature algorithm that should be used for new keys with the
+// given purpose, based on the currently configured algorithm suite.
+func AlgorithmForKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (Algorithm, error) {
+	suite, err := getSignatureAlgorithmSuite(ctx, authPrefGetter)
+	if err != nil {
+		return algorithmUnspecified, trace.Wrap(err)
+	}
+	alg, err := algorithmForKey(suite, purpose)
+	if err != nil {
+		return algorithmUnspecified, trace.Wrap(err)
+	}
+	return alg, nil
+}
+
+// GenerateUserSSHAndTLSKey generates and returns a pair of keys to be used for
+// user SSH and TLS keys. If the legacy algorithm suite is currently configured,
+// a single key will be generated and returned.
+func GenerateUserSSHAndTLSKey(ctx context.Context, authPrefGetter AuthPreferenceGetter) (sshKey, tlsKey crypto.Signer, err error) {
+	currentSuite, err := getSignatureAlgorithmSuite(ctx, authPrefGetter)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	if currentSuite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY {
+		// If the legacy suite is configured, generate a single RSA2048 key and
+		// use it for both SSH and TLS.
+		key, err := generateRSA2048()
+		return key, key, trace.Wrap(err)
+	}
+
+	sshKeyAlgorithm, err := algorithmForKey(currentSuite, UserSSH)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshKey, err = GenerateKeyWithAlgorithm(sshKeyAlgorithm)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	tlsKeyAlgorithm, err := algorithmForKey(currentSuite, UserTLS)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsKey, err = GenerateKeyWithAlgorithm(tlsKeyAlgorithm)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return sshKey, tlsKey, nil
+}
+
+// AlgorithmForKey generates a new cryptographic keypair for the given [purpose],
+// with a signature algorithm chosen based on the algorithm suite currently
+// configured in the cluster auth preference.
 func GenerateKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (crypto.Signer, error) {
 	alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return GenerateKeyWithAlgorithm(alg)
+}
+
+// GenerateKeyWithSuite generates a new cryptographic keypair for the given
+// [purpose], with a signature algorithm chosen from [suite].
+func GenerateKeyWithSuite(ctx context.Context, suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (crypto.Signer, error) {
+	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+		suite = defaultSuite
+	}
+	alg, err := algorithmForKey(suite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

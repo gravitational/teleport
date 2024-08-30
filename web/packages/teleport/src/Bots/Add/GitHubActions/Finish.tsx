@@ -22,7 +22,7 @@ import { Link } from 'react-router-dom';
 import Flex from 'design/Flex';
 import Image from 'design/Image';
 
-import Text from 'design/Text';
+import Text, { H2 } from 'design/Text';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 
 import celebratePamPng from 'teleport/Discover/Shared/Finished/celebrate-pam.png';
@@ -46,9 +46,9 @@ export function Finish() {
       `}
     >
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <Text mt={3} mb={2} typography="h4" bold>
+      <H2 mt={3} mb={2}>
         Your Bot is Added to Teleport
-      </Text>
+      </H2>
       <Text mb={3}>
         Bot {createBotRequest.botName} has been successfully added to this
         Teleport Cluster. You can see {createBotRequest.botName} in the Bots

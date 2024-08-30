@@ -20,6 +20,8 @@ import React, { useState } from 'react';
 import { Box, LabelInput } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 
+import { resolveUndefinedOptions } from 'shared/components/FieldSelect';
+
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
 export default function ClusterSelector({
@@ -62,6 +64,7 @@ export default function ClusterSelector({
       .then(options => filterOptions(inputValue, options))
       .catch((err: Error) => {
         setError(err.message);
+        return [];
       });
   }
 
@@ -80,12 +83,11 @@ export default function ClusterSelector({
         noOptionsMessage={getNoOptionsMessage}
         value={selectedOption}
         onChange={onChangeOption}
-        loadOptions={onLoadOptions}
+        loadOptions={resolveUndefinedOptions(onLoadOptions)}
         defaultMenuIsOpen={defaultMenuIsOpen}
         hasError={false}
         maxMenuHeight={400}
         isSearchable
-        isSimpleValue={false}
         isClearable={false}
         defaultOptions
         cacheOptions

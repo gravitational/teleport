@@ -191,10 +191,15 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client)
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
-	var allMembers []*accesslist.AccessListMember
-	var nextToken string
+	var (
+		allMembers []*accesslist.AccessListMember
+		nextToken  string
+		err        error
+		members    []*accesslist.AccessListMember
+	)
+
 	for {
-		members, nextToken, err := client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
+		members, nextToken, err = client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -203,6 +208,7 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 			break
 		}
 	}
+
 	switch c.format {
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(os.Stdout, allMembers))

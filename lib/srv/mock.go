@@ -102,8 +102,13 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 
 	scx.killShellr, scx.killShellw, err = os.Pipe()
 	require.NoError(t, err)
+	scx.AddCloser(scx.killShellw)
 
-	t.Cleanup(func() { require.NoError(t, scx.Close()) })
+	// TODO (joerger): check the error coming from Close once the logic around
+	// closing open files has been fixed to fail with "close |1: file already closed".
+	// Note that outside of tests, we never check the error form scx.Close because this
+	// error is a part of normal execution currently.
+	t.Cleanup(func() { scx.Close() })
 
 	return scx
 }
@@ -127,12 +132,16 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, bk.Close())
+	})
 
 	authCfg := &auth.InitConfig{
-		Backend:      bk,
-		Authority:    testauthority.New(),
-		ClusterName:  clusterName,
-		StaticTokens: staticTokens,
+		Backend:        bk,
+		VersionStorage: auth.NewFakeTeleportVersion(),
+		Authority:      testauthority.New(),
+		ClusterName:    clusterName,
+		StaticTokens:   staticTokens,
 	}
 
 	authServer, err := auth.NewServer(authCfg, auth.WithClock(clock))

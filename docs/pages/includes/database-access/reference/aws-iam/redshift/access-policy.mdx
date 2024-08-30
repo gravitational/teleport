@@ -1,0 +1,56 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftConnectAsDBUser",
+            "Effect": "Allow",
+            "Action": "redshift:GetClusterCredentials",
+            "Resource": "*"
+        },
+        {
+            "Sid": "RedshiftConnectAsIAMRole",
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": [
+                "arn:aws:iam::<Var name="aws-account-id"/>:role/{{ dbUserRole }}"
+            ]
+        },
+        {
+            "Sid": "RedshiftFetchMetadata",
+            "Effect": "Allow",
+            "Action": "redshift:DescribeClusters",
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RedshiftConnectAsDBUser` | Connect to a database as an existing database user. |
+|`RedshiftConnectAsIAMRole` | Assume an IAM role to connect to a database with permissions mapped into the database 1:1 from the role's IAM permissions. |
+|`RedshiftFetchMetadata` | Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+
+You can reduce the scope of the `RedshiftConnectAsDBUser` statement by updating
+it to only allow specific users, databases, and database groups.
+The resource ARN you can specify has the following formats:
+```code
+arn:aws:redshift:{Region}:{AccountID}:dbuser:{ClusterName}/{UserName}
+arn:aws:redshift:{Region}:{AccountID}:dbname:{ClusterName}/{DatabaseName}
+arn:aws:redshift:{Region}:{AccountID}:dbgroup:{ClusterName}/{DatabaseGroupName}
+```
+
+See [Create an IAM role or user with permissions to call GetClusterCredentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-iam-credentials-role-permissions.html)
+for more information about the `redshift:GetClusterCredentials` permission
+grant syntax.
+
+You can authenticate as an existing database user or as an IAM role that will
+be automatically mapped into the database.
+The corresponding IAM statement is only required for the method(s) you want to
+use.
+If an IAM role names the Database Service's identity as a trusted principal,
+and both identities are in the same AWS account, then the
+`RedshiftConnectAsIAMRole` statement can also be omitted.
+
+(!docs/pages/includes/database-access/reference/metadata-fetching-permissions-note.mdx sid="RedshiftFetchMetadata"!)

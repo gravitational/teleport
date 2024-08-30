@@ -248,7 +248,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 
 		// Detect whether the instance is set to require SSL.
 		// Fallback to not requiring SSL for access denied errors.
-		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx, gcpClient)
+		requireSSL, err := cloud.GetGCPRequireSSL(ctx, sessionCtx.Database, gcpClient)
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		}
@@ -256,7 +256,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// the instance requires SSL. Also use a TLS dialer instead of
 		// the default net dialer when GCP requires SSL.
 		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, sessionCtx, gcpClient, tlsConfig)
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, gcpClient, tlsConfig)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

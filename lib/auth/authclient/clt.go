@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -652,6 +654,10 @@ func (c *Client) AccessGraphClient() accessgraphv1.AccessGraphServiceClient {
 	return accessgraphv1.NewAccessGraphServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient {
+	return accessgraphsecretsv1pb.NewSecretsScannerServiceClient(c.APIClient.GetConnection())
+}
+
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
@@ -673,6 +679,11 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdat
 // CrownJewelsClient returns a client for managing Crown Jewel resources.
 func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
+}
+
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -707,21 +718,36 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username st
 }
 
 // CreateGlobalNotification creates a global notification.
-func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+		GlobalNotification: gn,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+		Notification: notification,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	// TODO(rudream): implement client methods for notifications
-	return trace.NotImplemented(notImplementedMessage)
+	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+		Username:       username,
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
 }
 
 // DeleteAllGlobalNotifications not implemented: can only be called locally.
@@ -746,11 +772,6 @@ func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteUserNotification not implemented: can only be called locally.
-func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -787,6 +808,31 @@ func (c *Client) UpsertGlobalNotification(ctx context.Context, globalNotificatio
 // UpsertUserNotification not implemented: can only be called locally.
 func (c *Client) UpsertUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetAccessGraphSettings gets the access graph settings from the backend.
+func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateAccessGraphSettings creates the access graph settings in the backend.
+func (c *Client) CreateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpdateAccessGraphSettings updates the access graph settings in the backend.
+func (c *Client) UpdateAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertAccessGraphSettings creates or updates the access graph settings in the backend.
+func (c *Client) UpsertAccessGraphSettings(context.Context, *clusterconfigpb.AccessGraphSettings) (*clusterconfigpb.AccessGraphSettings, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAccessGraphSettings deletes the access graph settings from the backend.
+func (c *Client) DeleteAccessGraphSettings(context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 type WebSessionReq struct {
@@ -1227,8 +1273,16 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// PublicKey is a public key in ssh authorized_keys format.
+	// Soon to be deprecated in favor of SSHPublicKey, TLSPublicKey
+	PublicKey []byte `json:"public_key,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -1261,6 +1315,27 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
+	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
+	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
+	}
+	if len(a.PublicKey) > 0 {
+		// Normalize by splitting PublicKey to SSHPublicKey and TLSPublicKey to
+		// reduce special case handling elsewhere. PublicKey will be deprecated
+		// in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated keys.
+		a.SSHPublicKey = a.PublicKey
+		cryptoPubKey, err := sshutils.CryptoPublicKey(a.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.TLSPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.PublicKey = nil
 	}
 	return nil
 }
@@ -1297,8 +1372,17 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	// Soon to be deprecated in favor of SSHAttestationStatement, TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1306,8 +1390,23 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	switch {
+	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
+	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
+	}
+	if a.AttestationStatement != nil {
+		// Normalize by splitting AttestationStatement to SSHAttestationStatement
+		// and TLSAttestationStatement to reduce special case handling
+		// elsewhere. AttestingStatement will be deprecated in 18.0.0.
+		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+		// the separated attestation statements.
+		a.SSHAttestationStatement = a.AttestationStatement
+		a.TLSAttestationStatement = a.AttestationStatement
+		a.AttestationStatement = nil
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
@@ -1328,6 +1427,8 @@ type SSHLoginResponse struct {
 	TLSCert []byte `json:"tls_cert"`
 	// HostSigners is a list of signing host public keys trusted by proxy
 	HostSigners []TrustedCerts `json:"host_signers"`
+	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
+	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1453,6 +1554,8 @@ type ClientI interface {
 
 	// AccessGraphClient returns a client to the Access Graph gRPC service.
 	AccessGraphClient() accessgraphv1.AccessGraphServiceClient
+
+	AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
@@ -1669,6 +1772,11 @@ type ClientI interface {
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1724,7 +1832,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 
@@ -1735,6 +1843,8 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 		AWSRoleARN:        routeToApp.AWSRoleARN,
 		AzureIdentity:     routeToApp.AzureIdentity,
 		GCPServiceAccount: routeToApp.GCPServiceAccount,
+		URI:               routeToApp.URI,
+		AppName:           routeToApp.Name,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

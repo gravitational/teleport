@@ -18,8 +18,8 @@
 
 import PropTypes from 'prop-types';
 
-import { ResponsiveValue } from 'styled-system';
 import { WebTarget } from 'styled-components';
+import { Property } from 'csstype';
 
 import { SharedStyles, Theme } from 'design/theme/themes/types';
 import { shouldForwardProp } from 'design/ThemeProvider';
@@ -30,7 +30,7 @@ export interface TypographyProps {
   italic?: boolean;
   mono?: boolean;
   breakAll?: boolean;
-  typography?: ResponsiveValue<keyof SharedStyles['typography']>;
+  typography?: keyof SharedStyles['typography'];
 }
 
 interface TypographyPropsWithTheme extends TypographyProps {
@@ -68,7 +68,9 @@ export function shouldForwardTypographyProp(
   return !typographyProps[propName] && shouldForwardProp(propName, target);
 }
 
-function caps(props: TypographyProps) {
+function caps(props: TypographyProps): {
+  textTransform: Property.TextTransform;
+} {
   return props.caps ? { textTransform: 'uppercase' } : null;
 }
 
@@ -76,7 +78,7 @@ function mono(props: TypographyPropsWithTheme) {
   return props.mono ? { fontFamily: props.theme.fonts.mono } : null;
 }
 
-function breakAll(props: TypographyProps) {
+function breakAll(props: TypographyProps): { wordBreak: Property.WordBreak } {
   return props.breakAll ? { wordBreak: 'break-all' } : null;
 }
 

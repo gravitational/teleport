@@ -18,12 +18,14 @@
 
 import React, { useState, useEffect } from 'react';
 
-import { Text, Flex, Box, Indicator } from 'design';
+import { Text, Flex, Box, Indicator, ButtonSecondary, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
 import { FetchStatus } from 'design/DataTable/types';
-
+import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
+import { pluralize } from 'shared/utils/text';
+import { P, P3 } from 'design/Text/Text';
 
 import {
   integrationService,
@@ -44,11 +46,13 @@ export const SelectSecurityGroups = ({
   setSelectedSecurityGroups,
   dbMeta,
   emitErrorEvent,
+  disabled = false,
 }: {
   selectedSecurityGroups: string[];
   setSelectedSecurityGroups: React.Dispatch<React.SetStateAction<string[]>>;
   dbMeta: DbMeta;
   emitErrorEvent(err: string): void;
+  disabled?: boolean;
 }) => {
   const [sgTableData, setSgTableData] = useState<TableData>({
     items: [],
@@ -74,20 +78,26 @@ export const SelectSecurityGroups = ({
     }
   }
 
-  async function fetchSecurityGroups() {
+  async function fetchSecurityGroups({ refresh = false } = {}) {
     run(() =>
       integrationService
         .fetchSecurityGroups(dbMeta.awsIntegration.name, {
-          vpcId: dbMeta.selectedAwsRdsDb.vpcId,
+          vpcId: dbMeta.awsVpcId,
           region: dbMeta.awsRegion,
           nextToken: sgTableData.nextToken,
         })
         .then(({ securityGroups, nextToken }) => {
+          const combinedSgs = [...sgTableData.items, ...securityGroups];
           setSgTableData({
-            nextToken: nextToken,
+            nextToken,
             fetchStatus: nextToken ? '' : 'disabled',
-            items: [...sgTableData.items, ...securityGroups],
+            items: refresh ? securityGroups : combinedSgs,
           });
+          if (refresh) {
+            // Reset so user doesn't unintentionally keep a security group
+            // that no longer exists upon refresh.
+            setSelectedSecurityGroups([]);
+          }
         })
         .catch((err: Error) => {
           const errMsg = getErrMessage(err);
@@ -103,13 +113,32 @@ export const SelectSecurityGroups = ({
 
   return (
     <>
-      <Text bold>Select Security Groups</Text>
-      <Text mb={2}>
+      <Flex alignItems="center" gap={1} mb={2}>
+        <Subtitle3>Select Security Groups</Subtitle3>
+        <ToolTipInfo>
+          <Text>
+            Select security group(s) based on the following requirements:
+            <ul>
+              <li>
+                The selected security group(s) must allow all outbound traffic
+                (eg: 0.0.0.0/0)
+              </li>
+              <li>
+                A security group attached to your database(s) must allow inbound
+                traffic from a security group you select or from all IPs in the
+                subnets you selected
+              </li>
+            </ul>
+          </Text>
+        </ToolTipInfo>
+      </Flex>
+
+      <P mb={2}>
         Select security groups to assign to the Fargate service that will be
-        running the database access agent. The security groups you pick must
-        allow outbound connectivity to this Teleport cluster. If you don't
-        select any security groups, the default one for the VPC will be used.
-      </Text>
+        running the Teleport Database Service. If you don't select any security
+        groups, the default one for the VPC will be used.
+      </P>
+      {/* TODO(bl-nero): Convert this to an alert box with embedded retry button */}
       {attempt.status === 'failed' && (
         <>
           <Flex my={3}>
@@ -136,6 +165,23 @@ export const SelectSecurityGroups = ({
             onSelectSecurityGroup={onSelectSecurityGroup}
             selectedSecurityGroups={selectedSecurityGroups}
           />
+          <Flex alignItems="center" gap={3} mt={2}>
+            <HoverTooltip
+              tipContent="Refreshing security groups will reset selections"
+              anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+            >
+              <ButtonSecondary
+                onClick={() => fetchSecurityGroups({ refresh: true })}
+                px={2}
+                disabled={disabled}
+              >
+                <Icons.Refresh size="medium" mr={2} /> Refresh
+              </ButtonSecondary>
+            </HoverTooltip>
+            <P3>
+              {`${selectedSecurityGroups.length} ${pluralize(selectedSecurityGroups.length, 'security group')} selected`}
+            </P3>
+          </Flex>
         </Box>
       )}
     </>

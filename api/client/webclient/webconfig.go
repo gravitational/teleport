@@ -79,6 +79,9 @@ type WebConfig struct {
 	PremiumSupport bool `json:"premiumSupport"`
 	// Edition is the edition of Teleport
 	Edition string `json:"edition"`
+	// PlayableDatabaseProtocols is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
 
@@ -131,9 +134,9 @@ type WebConfig struct {
 // { Enabled: false, Limit: >=0 } => no access to feature X
 type EntitlementInfo struct {
 	// Enabled indicates the feature is 'on' if true; feature is disabled if false
-	Enabled bool
+	Enabled bool `json:"enabled"`
 	// Limit indicates the allotted amount of use when limited; if 0 use is unlimited
-	Limit int32
+	Limit int32 `json:"limit"`
 }
 
 // featureLimits define limits for features.
