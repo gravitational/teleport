@@ -64,7 +64,7 @@ type App struct {
 
 	PluginName string
 	teleport   teleport.Client
-	serviceNow *Client
+	serviceNow ServiceNowClient
 	mainJob    lib.ServiceJob
 	conf       Config
 }
@@ -436,10 +436,15 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 }
 
 func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]string, error) {
+	log := logger.Get(ctx)
 	onCallUsers := []string{}
 	for _, scheduleName := range serviceNames {
 		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				log.WithError(err).Error("Failed to retrieve responder from schedule")
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
 		onCallUsers = append(onCallUsers, respondersResult...)
