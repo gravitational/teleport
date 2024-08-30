@@ -4740,6 +4740,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -4754,6 +4755,10 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 			},
 		},
 	})
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready to advance to clock
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4801,20 +4806,27 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		},
 	}
 
-	// Make a request.
-	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		t.Helper()
+		// Make a request.
+		clt := env.proxies[0].newClient(t)
+		endpoint := clt.Endpoint("web", "config.js")
+		re, err := clt.Get(ctx, endpoint, nil)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+		// Response is type application/javascript, we need to strip off the variable name
+		// and the semicolon at the end, then we are left with json like object.
+		var cfg webclient.WebConfig
+		str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+		require.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		if assert.Empty(c, diff) {
+			t.Logf("Feature diff (-want +got):\n%s", diff)
+		}
+
+	}, time.Second, time.Millisecond*50)
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {

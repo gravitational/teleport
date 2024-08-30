@@ -177,6 +177,9 @@ type Handler struct {
 	// features watcher goroutine
 	featureWatcherStop chan struct{}
 	featureWatcherOnce sync.Once
+	// featureWatcherReady is a chan that the feature watcher closes
+	// to signal it is ready. Used in tests.
+	featureWatcherReady chan struct{}
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -468,6 +471,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
 		featureWatcherStop:   make(chan struct{}),
+		featureWatcherReady:  make(chan struct{}),
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
@@ -1186,6 +1190,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
+	// TODO use cluster features instead of pinging auth server
 	pingResp, err := clt.Ping(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1815,7 +1820,6 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
 		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
 		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
-
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}

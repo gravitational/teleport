@@ -49,18 +49,21 @@ func (h *Handler) startFeatureWatcher() {
 		h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
 		ctx := context.Background()
 
+		// close ready channel to signal it started the main loop
+		close(h.featureWatcherReady)
+
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.Chan():
 				h.log.Info("Pinging auth server for features")
-				f, err := h.cfg.ProxyClient.Ping(ctx)
+				pingResponse, err := h.GetProxyClient().Ping(ctx)
 				if err != nil {
 					h.log.WithError(err).Error("Auth server ping failed")
 					continue
 				}
 
-				h.SetClusterFeatures(*f.ServerFeatures)
+				h.SetClusterFeatures(*pingResponse.ServerFeatures)
 				h.log.Debug("Done updating proxy features")
 			case <-h.featureWatcherStop:
 				h.log.Info("Feature service has stopped")
