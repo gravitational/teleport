@@ -80,12 +80,13 @@ latest agent version.
 ### Self-hosted Teleport
 
 If you are self-hosting Teleport Enterprise you can set up automatic agent updates.
-A version channel is required to provide agent target version
-which there is a default provided by the Teleport Proxy
-Service. You can add override the default version or set other channel versions.
-You are responsible for ensuring the targeted version is compatible with their
-current auth/proxy versions. You must also monitor the agent's health and
-rollout status to ensure every agent is healthy and running the correct version.
+The updater uses a version channel to retrieve the targetted version for an agent.
+The Teleport Proxy Service provides a default version channel that matches to its current version.
+You can add override the default version and set additional channel versions.
+You are responsible for ensuring the version channels are compatible with the
+current Teleport Proxy Service and Teleport Auth Service versions. You must also
+monitor the agent's health and rollout status to ensure every agent is healthy
+and running the correct version.
 
 ## Next steps
 
