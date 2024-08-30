@@ -34,7 +34,7 @@ import (
 )
 
 // TestAzureDBServerFetchers tests common azureFetcher functionalities and the
-// azureDBServerPlugin which is used for Azure MySQL and Azure PostgresSQL.
+// azureDBServerPlugin which is used for Azure MySQL and Azure PostgreSQL.
 func TestAzureDBServerFetchers(t *testing.T) {
 	t.Parallel()
 
