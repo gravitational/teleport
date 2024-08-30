@@ -451,11 +451,13 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	if err != nil && !isUnknownGroupError(err, group) {
 		return trace.Wrap(err)
 	}
+
 	err = u.backend.CreateGroup(group, "")
 	if trace.IsAlreadyExists(err) {
 		return nil
 	}
-	return trace.Wrap(err)
+
+	return trace.Wrap(err, "%q", group)
 }
 
 // isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
