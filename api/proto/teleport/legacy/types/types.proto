@@ -5296,6 +5296,16 @@ message RegisterUsingTokenRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // BotInstanceID is a trusted instance identifier for a Machine ID bot,
+  // provided when rejoining. This parameters may only be provided by the join
+  // service and is ignored otherwise; bots should otherwise rejoin with their
+  // existing client certificate to prove their instance identity.
+  string BotInstanceID = 13 [(gogoproto.jsontag) = "bot_instance_id"];
+  // BotGeneration is a trusted generation counter value for Machine ID bots,
+  // provided to Auth by the Join Service when bots rejoin via a streamed/gRPC
+  // join method. Rejoining bots supply this value via a client certificate
+  // extension; it is ignored from other sources.
+  int32 BotGeneration = 14 [(gogoproto.jsontag) = "bot_generation"];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -5686,6 +5696,8 @@ message DatabaseServiceV1 {
 message DatabaseServiceSpecV1 {
   // ResourceMatchers is the configured match for Database resources.
   repeated DatabaseResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  // Hostname is the hostname where this service is running.
+  string Hostname = 2 [(gogoproto.jsontag) = "hostname"];
 }
 
 // DatabaseResourceMatcher is a set of properties that is used to match on resources.

@@ -16,7 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { style, px, compose } from 'styled-system';
+import {
+  style,
+  px,
+  compose,
+  BorderRadiusProps as StyledSystemBorderRadiusProps,
+  ResponsiveValue,
+  TLengthStyledSystem,
+} from 'styled-system';
+import { Property } from 'csstype';
+
+export interface BorderRadiusProps<TLength = TLengthStyledSystem>
+  extends StyledSystemBorderRadiusProps<TLength> {
+  borderTopLeftRadius?: ResponsiveValue<Property.BorderTopRightRadius<TLength>>;
+  borderTopRightRadius?: ResponsiveValue<
+    Property.BorderTopRightRadius<TLength>
+  >;
+  borderBottomLeftRadius?: ResponsiveValue<
+    Property.BorderBottomLeftRadius<TLength>
+  >;
+  borderBottomRightRadius?: ResponsiveValue<
+    Property.BorderBottomRightRadius<TLength>
+  >;
+}
 
 export const borderTopLeftRadius = style({
   prop: 'borderTopLeftRadius',

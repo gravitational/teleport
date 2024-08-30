@@ -503,6 +503,10 @@ const (
 	// CertExtensionBotName indicates the name of the Machine ID bot this
 	// certificate was issued to, if any.
 	CertExtensionBotName = "bot-name@goteleport.com"
+	// CertExtensionBotInstanceID indicates the unique identifier of this
+	// Machine ID bot instance, if any. This identifier is persisted through
+	// certificate renewals.
+	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -942,4 +946,11 @@ const (
 	// DebugServiceSocketName represents the Unix domain socket name of the
 	// debug service.
 	DebugServiceSocketName = "debug.sock"
+)
+
+const (
+	// OktaAccessRoleContext is the context used to name Okta Access role created by Okta access list sync
+	OktaAccessRoleContext = "access-okta-acl-role"
+	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
+	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )

@@ -232,7 +232,7 @@ export function NewMfaDeviceForm({
                 />
                 <Flex flexDirection="column">
                   <Box flex="1">
-                    <Text typography="body-2">
+                    <Text>
                       Scan the QR Code with any authenticator app and enter the
                       generated code.
                     </Text>

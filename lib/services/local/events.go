@@ -33,6 +33,7 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -65,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser
-	var prefixes [][]byte
+	var prefixes []backend.Key
 	for _, kind := range watch.Kinds {
 		if kind.Name != "" && kind.Kind != types.KindNamespace {
 			if watch.AllowPartialSuccess {
@@ -211,6 +212,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newGlobalNotificationParser()
 		case types.KindAccessMonitoringRule:
 			parser = newAccessMonitoringRuleParser()
+		case types.KindBotInstance:
+			parser = newBotInstanceParser()
 		case types.KindInstance:
 			parser = newInstanceParser()
 		case types.KindSPIFFEFederation:
@@ -355,26 +358,26 @@ type resourceParser interface {
 	// parse parses resource from the backend event
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
-	match(key []byte) bool
+	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
-	prefixes() [][]byte
+	prefixes() []backend.Key
 }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
 type baseParser struct {
-	matchPrefixes [][]byte
+	matchPrefixes []backend.Key
 }
 
-func newBaseParser(prefixes ...[]byte) baseParser {
+func newBaseParser(prefixes ...backend.Key) baseParser {
 	return baseParser{matchPrefixes: prefixes}
 }
 
-func (p baseParser) prefixes() [][]byte {
+func (p baseParser) prefixes() []backend.Key {
 	return p.matchPrefixes
 }
 
-func (p baseParser) match(key []byte) bool {
+func (p baseParser) match(key backend.Key) bool {
 	for _, prefix := range p.matchPrefixes {
 		if bytes.HasPrefix(key, prefix) {
 			return true
@@ -711,7 +714,7 @@ type namespaceParser struct {
 	baseParser
 }
 
-func (p *namespaceParser) match(key []byte) bool {
+func (p *namespaceParser) match(key backend.Key) bool {
 	// namespaces are stored under key '/namespaces/<namespace-name>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
@@ -779,15 +782,15 @@ func newAccessRequestParser(m map[string]string) (*accessRequestParser, error) {
 
 type accessRequestParser struct {
 	filter      types.AccessRequestFilter
-	matchPrefix []byte
-	matchSuffix []byte
+	matchPrefix backend.Key
+	matchSuffix backend.Key
 }
 
-func (p *accessRequestParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *accessRequestParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *accessRequestParser) match(key []byte) bool {
+func (p *accessRequestParser) match(key backend.Key) bool {
 	if !bytes.HasPrefix(key, p.matchPrefix) {
 		return false
 	}
@@ -825,7 +828,7 @@ type userParser struct {
 	baseParser
 }
 
-func (p *userParser) match(key []byte) bool {
+func (p *userParser) match(key backend.Key) bool {
 	// users are stored under key '/web/users/<username>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
@@ -1354,14 +1357,14 @@ func newRemoteClusterParser() *remoteClusterParser {
 }
 
 type remoteClusterParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *remoteClusterParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *remoteClusterParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *remoteClusterParser) match(key []byte) bool {
+func (p *remoteClusterParser) match(key backend.Key) bool {
 	return bytes.HasPrefix(key, p.matchPrefix)
 }
 
@@ -1415,14 +1418,14 @@ func newNetworkRestrictionsParser() *networkRestrictionsParser {
 }
 
 type networkRestrictionsParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *networkRestrictionsParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *networkRestrictionsParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *networkRestrictionsParser) match(key []byte) bool {
+func (p *networkRestrictionsParser) match(key backend.Key) bool {
 	return bytes.HasPrefix(key, p.matchPrefix)
 }
 
@@ -2122,6 +2125,57 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 	}
 }
 
+func newBotInstanceParser() *botInstanceParser {
+	return &botInstanceParser{
+		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
+	}
+}
+
+type botInstanceParser struct {
+	baseParser
+}
+
+func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		// Remove the first separator so none of the separated parts will be
+		// empty strings
+		key := string(event.Item.Key)
+		key = strings.TrimPrefix(key, string(backend.Separator))
+
+		// bot_instance/<1: bot name>/<2: uuid>
+		parts := strings.Split(key, string(backend.Separator))
+		if len(parts) != 3 {
+			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
+		}
+
+		botInstance := &machineidv1.BotInstance{
+			Kind:    types.KindBotInstance,
+			Version: types.V1,
+			Spec: &machineidv1.BotInstanceSpec{
+				BotName:    parts[1],
+				InstanceId: parts[2],
+			},
+			Metadata: &headerv1.Metadata{
+				Name: parts[2],
+			},
+		}
+
+		return types.Resource153ToLegacy(botInstance), nil
+	case types.OpPut:
+		botInstance, err := services.UnmarshalBotInstance(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(botInstance), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newInstanceParser() *instanceParser {
 	return &instanceParser{
 		baseParser: newBaseParser(backend.NewKey(instancePrefix)),
@@ -2365,7 +2419,7 @@ type EventMatcher interface {
 
 // base returns last element delimited by separator, index is
 // is an index of the key part to get counting from the end
-func base(key []byte, offset int) ([]byte, error) {
+func base(key backend.Key, offset int) ([]byte, error) {
 	parts := bytes.Split(key, []byte{backend.Separator})
 	if len(parts) < offset+1 {
 		return nil, trace.NotFound("failed parsing %v", string(key))
@@ -2374,7 +2428,7 @@ func base(key []byte, offset int) ([]byte, error) {
 }
 
 // baseTwoKeys returns two last keys
-func baseTwoKeys(key []byte) (string, string, error) {
+func baseTwoKeys(key backend.Key) (string, string, error) {
 	parts := bytes.Split(key, []byte{backend.Separator})
 	if len(parts) < 2 {
 		return "", "", trace.NotFound("failed parsing %v", string(key))

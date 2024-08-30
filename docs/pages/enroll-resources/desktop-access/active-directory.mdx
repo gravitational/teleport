@@ -383,6 +383,12 @@ Next you need to configure policies that allow remote connections to domain comp
 1. Right-click **Require user authentication for remote connections by using
    Network Level Authentication**, select **Edit**, select **Disabled**, then click **OK**.
 
+   <Admonition type="note" title="NLA Support">
+   Teleport 16.2.0 and later support NLA. If you are running a supported version
+   and enable NLA, you can skip this step. Read more in the
+   [NLA](#network-level-authentication-nla) section.
+   </Admonition>
+
    <Figure align="left" bordered caption="Disable Require user authentication...">
    ![Disable Require](../../../img/desktop-access/disable.png)
    </Figure>
@@ -737,9 +743,64 @@ domain, you would do the following:
 With this configuration, Teleport will generate certificates for users in
 `dev.example.com`, but it will publish its CA and CRLs to `example.com`.
 
+## Network Level Authentication (NLA)
+
+With Teleport 16.2.0 and later, you can configure `windows_desktop_service` to
+perform Network Level Authentication (NLA) when connecting to Windows hosts. NLA
+is a security feature that authenticates the user *prior* to establishing the
+remote desktop connection, which ensures that the remote Windows host doesn't
+consume system resources to present a login screen to an unauthenticated user.
+
+In order to perform NLA, Teleport's `windows_desktop_service` needs to be able
+to make an outbound Kerberos connection to a key distribution center (KDC). This
+is most commonly performed on TCP port 88.
+
+By default, Teleport will assume that a KDC is available on the same host that
+is specified in the `ldap` configuration's `addr` field, using the default
+Kerberos port.
+
+For example, with the following configuration, Teleport will attempt to perform
+NLA against `example.com:88`.
+
+```yaml
+windows_desktop_service:
+    enabled: yes
+    ldap:
+      addr: example.com:636
+```
+
+Alternatively, you can override the KDC address by specifying the `kdc_address`
+in your Teleport configuration file.
+
+```yaml
+windows_desktop_service:
+    enabled: yes
+    kdc_address: kdc.example.com   # defaults to port 88 if unspecified
+```
+
+To enable NLA, set the `TELEPORT_ENABLE_RDP_NLA` environment variable to `yes`
+on any hosts running the Teleport's `windows_desktop_service`. Note that NLA is
+only supported when connecting to hosts that are part of an Active Directory
+domain. Teleport will not perform NLA when connecting to hosts as a local
+Windows user.
+
+### Computer Name
+
+In order to complete a successful authentication flow, Teleport needs to know
+the hostname of the target Windows server. If you are using Teleport's
+LDAP-based discovery no action is necessary - Teleport will default to using the
+`teleport.dev/computer_name` label which is automatically populated. If this
+label is not present then Teleport will use the desktop's `addr` field.
+
+If you register your Windows hosts via configuration file or via Teleport's API
+and you want to enable NLA, then you should either:
+
+- manually set the `teleport.dev/computer_name` label to the proper hostname
+- ensure that the host's `addr` is its actual hostname
+
 ## Next steps
 
-If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for common problems and
-solutions.
-For information about configuring Windows-specific role permissions, see
+If you encounter any issues, see [Troubleshooting](./troubleshooting.mdx) for
+common problems and solutions. For information about configuring
+Windows-specific role permissions, see
 [Role-Based Access Control for Desktops](./rbac.mdx).

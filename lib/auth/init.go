@@ -304,6 +304,9 @@ type InitConfig struct {
 	// Notifications is a service that manages notifications.
 	Notifications services.Notifications
 
+	// BotInstance is a service that manages Machine ID bot instances
+	BotInstance services.BotInstance
+
 	// SPIFFEFederations is a service that manages storing SPIFFE federations.
 	SPIFFEFederations services.SPIFFEFederations
 }

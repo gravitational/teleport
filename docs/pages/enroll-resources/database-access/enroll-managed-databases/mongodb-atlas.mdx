@@ -4,16 +4,22 @@ description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
 ---
 
-(!docs/pages/includes/database-access/db-introduction.mdx dbType="MongoDB Atlas" dbConfigure="with either IAM or mutual TLS authentication"!)
+(!docs/pages/includes/database-access/db-introduction.mdx dbType="MongoDB Atlas" dbConfigure="with either mutual TLS or AWS IAM authentication"!)
 
 ## How it works
 
-The Teleport Database Service communicates with MongoDB Atlas using mutual TLS.
-You configure MongoDB Atlas to trust the Teleport certificate authority for
-database clients, and Teleport to trust the Let's Encrypt CA, which signs
-certificates for MongoDB Atlas. When a user connects to MongoDB Atlas via
-Teleport, the Teleport Database Service authenticates using a certificate and
-forwards user traffic to MongoDB Atlas.
+The Teleport Database Service communicates with MongoDB Atlas using mutual TLS
+or AWS IAM:
+- **Mutual TLS:** You configure MongoDB Atlas to trust the Teleport certificate
+  authority for database clients, and Teleport to trust the Let's Encrypt CA,
+  which signs certificates for MongoDB Atlas. When a user connects to MongoDB
+  Atlas via Teleport, the Teleport Database Service authenticates using a
+  certificate and forwards user traffic to MongoDB Atlas.
+- **AWS IAM:** You configure MongoDB users to use "MONGODB-AWS" authentication
+  mechanism, and Teleport to trust Let's Encrypt CA, which signs certificates
+  for MongoDB Atlas. When a user connects to MongoDB Atlas via Teleport, the
+  Teleport Database Service assumes the associated IAM role for authentication
+  and forwards user traffic to MongoDB Atlas.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">

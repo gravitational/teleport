@@ -287,3 +287,7 @@ func (dks *DestinationKubernetesSecret) MarshalYAML() (interface{}, error) {
 	type raw DestinationKubernetesSecret
 	return withTypeHeader((*raw)(dks), DestinationKubernetesSecretType)
 }
+
+func (dks *DestinationKubernetesSecret) IsPersistent() bool {
+	return true
+}

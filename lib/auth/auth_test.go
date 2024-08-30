@@ -1143,7 +1143,7 @@ func TestUpdateConfig(t *testing.T) {
 	require.Equal(t, cn.GetClusterName(), s.clusterName.GetClusterName())
 	st, err = s.a.GetStaticTokens()
 	require.NoError(t, err)
-	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
+	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))
@@ -1152,7 +1152,7 @@ func TestUpdateConfig(t *testing.T) {
 	// new static tokens
 	st, err = authServer.GetStaticTokens()
 	require.NoError(t, err)
-	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromV1([]types.ProvisionTokenV1{{
+	require.Equal(t, st.GetStaticTokens(), types.ProvisionTokensFromStatic([]types.ProvisionTokenV1{{
 		Token: "bar",
 		Roles: types.SystemRoles{types.SystemRole("baz")},
 	}}))

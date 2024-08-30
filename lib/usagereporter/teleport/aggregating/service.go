@@ -47,7 +47,7 @@ const (
 // userActivityReportKey returns the backend key for a user activity report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
 	return backend.NewKey(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
@@ -83,7 +83,7 @@ func prepareUserActivityReports(
 // resourcePresenceReportKey returns the backend key for a resource presence report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
 	return backend.NewKey(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 

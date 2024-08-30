@@ -145,6 +145,11 @@ spec:
       # 'region': '^us-west-1|eu-central-1$'
       'reg': '^us-west-1|eu-central-1$'
 
+    # List of host groups the created user will be added to. Any that don't
+    # already exist are created. Only applies when create_host_user_mode
+    # is not 'off'.
+    host_groups: [ubuntu, nginx, other]
+
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the 'external' property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
@@ -229,7 +234,7 @@ spec:
 
     # List of database roles to grant. Mutually exclusive with 'db_permissions'.
     db_roles: ['{{external.db_roles}}']
-    
+
     # Grant all possible Postgres permissions for all tables.
     # List of database permissions to grant. Mutually exclusive with 'db_roles'.
     db_permissions:

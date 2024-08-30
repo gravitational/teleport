@@ -43,6 +43,7 @@ var (
 		types.AWSMatcherElastiCache:        {newElastiCacheFetcher},
 		types.AWSMatcherMemoryDB:           {newMemoryDBFetcher},
 		types.AWSMatcherOpenSearch:         {newOpenSearchFetcher},
+		types.AWSMatcherDocumentDB:         {newDocumentDBFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
