@@ -17,7 +17,7 @@ Teleport continuously scans connected databases and imports objects, such as tab
 
 The labels assigned to these objects are matched against the `spec.allow.db_permissions` section of each user role. This results in a set of permissions that will be applied when the user connects to the database.
 
-For more details of this process see [Database Access Controls](../../database-access/rbac.mdx)
+For more details of this process see [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 
 Teleport Policy calculates the effective permissions for each user in advance, and thanks to automatic synchronization, it provides real-time insights into database access for individual Teleport users.
 
@@ -27,7 +27,7 @@ Teleport Policy calculates the effective permissions for each user in advance, a
 - Teleport Identity and Teleport Policy enabled for your account.
   - For self-hosted clusters, ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
 - For self-hosted clusters, a running Access Graph node v1.21.3 or later.
-Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+Check the [Teleport Policy page](./teleport-policy.mdx) for details on
 how to set up Access Graph.
 - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
@@ -97,8 +97,7 @@ For example:
 
 For more information, refer to:
 
-- [Database Access Controls](../../database-access/rbac.mdx), which covers additional topics such as custom import rules and the permission evaluation algorithm.
-
+- [Database Access Controls](../../enroll-resources/database-access/rbac.mdx), which covers additional topics such as custom import rules and the permission evaluation algorithm.
 - [Enrolling Self-Hosted Postgres](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) database.
 
 ## Analyzing Database Access Controls in Teleport Access Graph
