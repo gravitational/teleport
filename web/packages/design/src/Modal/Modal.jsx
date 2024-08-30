@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { createRef, cloneElement } from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
 
-import RootRef from './RootRef';
-
 export default class Modal extends React.Component {
   mounted = false;
+  dialogRef = createRef();
 
   componentDidMount() {
     this.mounted = true;
@@ -53,7 +52,7 @@ export default class Modal extends React.Component {
     document.addEventListener('keydown', this.handleDocumentKeyDown);
     document.addEventListener('focus', this.enforceFocus, true);
 
-    if (this.dialogRef) {
+    if (this.dialogRef.current) {
       this.handleOpened();
     }
   };
@@ -104,14 +103,18 @@ export default class Modal extends React.Component {
 
   enforceFocus = () => {
     // The Modal might not already be mounted.
-    if (this.props.disableEnforceFocus || !this.mounted || !this.dialogRef) {
+    if (
+      this.props.disableEnforceFocus ||
+      !this.mounted ||
+      !this.dialogRef.current
+    ) {
       return;
     }
 
     const currentActiveElement = document.activeElement;
 
-    if (!this.dialogRef.contains(currentActiveElement)) {
-      this.dialogRef.focus();
+    if (!this.dialogRef.current.contains(currentActiveElement)) {
+      this.dialogRef.current.focus();
     }
   };
 
@@ -119,25 +122,21 @@ export default class Modal extends React.Component {
     this.modalRef = ref;
   };
 
-  onRootRef = ref => {
-    this.dialogRef = ref;
-  };
-
   autoFocus() {
     // We might render an empty child.
-    if (this.props.disableAutoFocus || !this.dialogRef) {
+    if (this.props.disableAutoFocus || !this.dialogRef.current) {
       return;
     }
 
     const currentActiveElement = document.activeElement;
 
-    if (!this.dialogRef.contains(currentActiveElement)) {
-      if (!this.dialogRef.hasAttribute('tabIndex')) {
-        this.dialogRef.setAttribute('tabIndex', -1);
+    if (!this.dialogRef.current.contains(currentActiveElement)) {
+      if (!this.dialogRef.current.hasAttribute('tabIndex')) {
+        this.dialogRef.current.setAttribute('tabIndex', -1);
       }
 
       this.lastFocus = currentActiveElement;
-      this.dialogRef.focus();
+      this.dialogRef.current.focus();
     }
   }
 
@@ -160,13 +159,15 @@ export default class Modal extends React.Component {
     const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
       this.props;
 
-    const childProps = {};
-
     if (!open) {
       return null;
     }
 
     return createPortal(
+      // TODO: Replace dialogRef with a ref on StyledModal.
+      // dialogRef was supposed to give access to the child node. We can replace it with a ref on
+      // StyledModal and a function which returns either the first or second child of StyledModal,
+      // depending on whether hideBackdrop is true or not.
       <StyledModal
         modalCss={modalCss}
         data-testid="Modal"
@@ -177,9 +178,12 @@ export default class Modal extends React.Component {
         {!hideBackdrop && (
           <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
         )}
-        <RootRef rootRef={this.onRootRef}>
-          {React.cloneElement(children, childProps)}
-        </RootRef>
+        {cloneElement(children, {
+          ref: this.dialogRef,
+          // setRef is passed in case there's only one child which is one of our styled components.
+          // Those accept refs through the setRef prop, not ref.
+          setRef: this.dialogRef,
+        })}
       </StyledModal>,
       document.body
     );
