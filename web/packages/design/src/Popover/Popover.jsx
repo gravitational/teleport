@@ -296,19 +296,10 @@ export default class Popover extends React.Component {
   };
 
   render() {
-    const {
-      children,
-      container: containerProp,
-      open,
-      popoverCss,
-      ...other
-    } = this.props;
-
-    const container = containerProp || document.body;
+    const { children, open, popoverCss, ...other } = this.props;
 
     return (
       <Modal
-        container={container}
         open={open}
         BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
@@ -387,15 +378,6 @@ Popover.propTypes = {
    * The content of the component.
    */
   children: PropTypes.node,
-  /**
-   * A node, component instance, or function that returns either.
-   * The `container` will passed to the Modal component.
-   * By default, it uses the body of the anchorEl's top-level document object,
-   * so it's simply `document.body` most of the time.
-   */
-  container: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
-  /**
-   */
   /**
    * This function is called in order to retrieve the content anchor element.
    * It's the opposite of the `anchorEl` property.
