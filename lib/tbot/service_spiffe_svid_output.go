@@ -216,7 +216,7 @@ func (s *SPIFFESVIDOutputService) render(
 		"SPIFFESVIDOutputService/render",
 	)
 	defer span.End()
-	s.log.InfoContext(ctx, "Generating output")
+	s.log.InfoContext(ctx, "Rendering output")
 
 	// Check the ACLs. We can't fix them, but we can warn if they're
 	// misconfigured. We'll need to precompute a list of keys to check.
