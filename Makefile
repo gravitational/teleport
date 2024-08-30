@@ -560,8 +560,6 @@ release-arm64:
 #
 .PHONY: build-archive
 ifeq ("$(OS)","darwin")
-build-archive: BINARIES := $(BINARIES:%tsh=%tsh.app)
-build-archive: BINARIES := $(BINARIES:%tctl=%tctl.app)
 build-archive: INSTALL_SCRIPT=build.assets/macos/install
 else
 build-archive: INSTALL_SCRIPT=build.assets/install
@@ -606,12 +604,15 @@ include darwin-signing.mk
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: full build-archive
 
+SIGNED_BINARIES := $(BINARIES:%tsh=%tsh.app)
+SIGNED_BINARIES := $(SIGNED_BINARIES:%tctl=%tctl.app)
+
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) tsh-app tctl-app
-	$(MAKE) build-archive
+	$(MAKE) build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -647,7 +648,7 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 
 	$(NOTARIZE_BINARIES)
 	$(MAKE) tsh-app tctl-app
-	$(MAKE) ARCH=universal build-archive
+	$(MAKE) ARCH=universal build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
