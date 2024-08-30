@@ -324,7 +324,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSPrintIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSPrintFlags.role)
 	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
 	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
-	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
+	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").Hidden().BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
 	dbConfigureAWSPrintIAM.Flag("assumes-roles",
 		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
 		StringVar(&configureDatabaseAWSPrintFlags.assumesRoles)
