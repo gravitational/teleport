@@ -200,9 +200,13 @@ func (s *SPIFFEFederationSyncer) Run(ctx context.Context) error {
 }
 
 type trustDomainSyncState struct {
-	// eventsCh is an unbuffered channel for passing events to a specific
+	// putEventsCh is a channel for passing PUT events to a specific
 	// SPIFFEFederations syncer.
-	eventsCh chan types.Event
+	putEventsCh chan types.Event
+	// stopCh is a channel for signalling a specific SPIFFEFederations
+	// syncer to stop syncing. This is closed when the watcher detects that the
+	// resource has been deleted.
+	stopCh chan struct{}
 }
 
 // syncTrustDomains is the core loop of the syncer that runs on a single auth
@@ -245,9 +249,10 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 			return
 		}
 
-		eventsCh := make(chan types.Event)
+		eventsCh := make(chan types.Event, 1)
 		states[trustDomain] = trustDomainSyncState{
-			eventsCh: eventsCh,
+			putEventsCh: eventsCh,
+			stopCh:      make(chan struct{}),
 		}
 
 		wg.Add(1)
@@ -320,29 +325,38 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				continue
 			}
 
-			mu.Lock()
-			existingState, ok := states[evt.Resource.GetName()]
-			mu.Unlock()
-
-			// If it already exists, we can just pass the event along. If
-			// there's already a sync queued due to an event, we don't need to
-			// queue another since it fetches the latest resource anyway.
-			if ok {
-				select {
-				case existingState.eventsCh <- evt:
-				default:
-					s.cfg.Logger.DebugContext(
-						ctx,
-						"Sync already queued for trust domain, ignoring event",
-					)
+			switch evt.Type {
+			case types.OpPut:
+				mu.Lock()
+				existingState, ok := states[evt.Resource.GetName()]
+				mu.Unlock()
+				// If it already exists, we can just pass the event along. If
+				// there's already a sync queued due to an event, we don't need to
+				// queue another since it fetches the latest resource anyway.
+				if ok {
+					select {
+					case existingState.putEventsCh <- evt:
+					default:
+						s.cfg.Logger.DebugContext(
+							ctx,
+							"Sync already queued for trust domain, ignoring event",
+						)
+					}
+					continue
 				}
-				continue
-			}
-			if evt.Type == types.OpPut {
 				// If it doesn't exist, we should kick off a goroutine to start
 				// managing it. That routine will sync automatically on first
 				// run so we don't need to pass the event along.
 				startSyncingFederation(evt.Resource.GetName())
+			case types.OpDelete:
+				mu.Lock()
+				existingState, ok := states[evt.Resource.GetName()]
+				if ok {
+					close(existingState.stopCh)
+					delete(states, evt.Resource.GetName())
+				}
+				mu.Unlock()
+			default:
 			}
 		case <-w.Done():
 			if err := w.Error(); err != nil {
@@ -399,14 +413,6 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 		case <-nextRetry:
 			log.InfoContext(ctx, "Wait for backoff complete, retrying sync")
 		case evt := <-eventsCh:
-			if evt.Type == types.OpDelete {
-				log.DebugContext(
-					ctx,
-					"Resource has been deleted, stopping sync loop for trust domain",
-				)
-				// If we've been deleted, we should stop syncing.
-				return
-			}
 			// If we've just synced, we can effectively expect an "echo" of our
 			// last update. We can ignore this event safely.
 			if synced != nil {
