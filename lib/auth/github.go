@@ -614,49 +614,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
-	// exchange the authorization code received by the callback for an access token
-	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	userResp, teamsResp, err := a.getGithubUserAndTeams(ctx, connector, code, client, diagCtx, logger)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
-	}
-
-	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
-		TokenType: token.TokenType,
-		Expires:   int64(token.Expires),
-		Scope:     token.Scope,
-	}
-
-	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
-		token.TokenType, token.Expires, token.Scope)
-
-	// Get the Github organizations the user is a member of so we don't
-	// make unnecessary API requests
-	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ghClient := &githubAPIClient{
-		token:       token.AccessToken,
-		authServer:  a,
-		apiEndpoint: apiEndpoint,
-	}
-	userResp, err := ghClient.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user info")
-	}
-	teamsResp, err := ghClient.getTeams(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user teams")
-	}
-	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
-
-	// If we are running Teleport OSS, ensure that the Github organization
-	// the user is trying to authenticate with is not using external SSO.
-	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
-	// This is checked when Github auth connectors get created or updated, but
-	// check again here in case the organization enabled external SSO after
-	// the auth connector was created.
-	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -786,6 +745,69 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	return &auth, nil
+}
+
+func (a *Server) getGithubUserAndTeams(
+	ctx context.Context,
+	connector types.GithubConnector,
+	code string,
+	client *oauth2.Client,
+	diagCtx *SSODiagContext,
+	logger *logrus.Entry,
+) (*userResponse, []teamResponse, error) {
+	if a.githubUserAndTeamsOverride != nil {
+		// Allow tests to override the user and teams response instead of
+		// calling out to GitHub.
+		return a.githubUserAndTeamsOverride()
+	}
+
+	// exchange the authorization code received by the callback for an access token
+	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
+	}
+
+	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
+		TokenType: token.TokenType,
+		Expires:   int64(token.Expires),
+		Scope:     token.Scope,
+	}
+
+	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
+		token.TokenType, token.Expires, token.Scope)
+
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	ghClient := &githubAPIClient{
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
+	}
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user info")
+	}
+	teamsResp, err := ghClient.getTeams(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user teams")
+	}
+	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
+
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return userResp, teamsResp, nil
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only

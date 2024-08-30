@@ -20,10 +20,12 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -582,9 +584,9 @@ func TestGithubAuthRequest(t *testing.T) {
 }
 
 // TestGithubAuthCompat attempts to test github SSO authentication from the
-// perspective of a Proxy service connecting to the Auth service. The Auth
-// service on major version N should support proxies on version N and N-1, which
-// may send a single user public key or split SSH and TLS public keys.
+// perspective of an Auth service receiving requests from a Proxy service. The
+// Auth service on major version N should support proxies on version N and N-1,
+// which may send a single user public key or split SSH and TLS public keys.
 //
 // The proxy originally sends the user public keys via gPRC
 // CreateGithubAuthRequest, and later retrieves the request via HTTP
@@ -599,72 +601,126 @@ func TestGithubAuthCompat(t *testing.T) {
 		ClientSecret: "example-client-secret",
 		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
 		Display:      "sign in with github",
-		TeamsToLogins: []types.TeamMapping{
-			{
-				Organization: "octocats",
-				Team:         "idp-admin",
-				Logins:       []string{"access"},
-			},
-		},
+		TeamsToRoles: []types.TeamRolesMapping{{
+			Organization: "octocats",
+			Team:         "devs",
+			Roles:        []string{"access"},
+		}},
 	})
 	require.NoError(t, err)
 	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(srv.Auth(), "alice", nil /*logins*/, []types.Rule{{
-		Resources: []string{types.KindGithubRequest},
-		Verbs:     []string{types.VerbCreate},
-	}})
+	srv.Auth().githubUserAndTeamsOverride = func() (*userResponse, []teamResponse, error) {
+		return &userResponse{
+				Login: "alice",
+			}, []teamResponse{{
+				Name: "devs",
+				Slug: "devs",
+				Org:  orgResponse{Login: "octocats"},
+			}}, nil
+	}
+
+	_, err = CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
 	require.NoError(t, err)
-	clt, err := srv.NewClient(TestUser(user.GetName()))
+
+	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	_, sshPub, _, tlsPub := newSSHAndTLSKeyPairs(t)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
-		desc                            string
-		publicKey, sshPubKey, tlsPubKey []byte
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
 	}{
 		{
-			desc:      "single key",
-			publicKey: sshPub,
+			desc: "no keys",
 		},
 		{
-			desc:      "split keys",
-			sshPubKey: sshPub,
-			tlsPubKey: tlsPub,
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
 		},
 		{
-			desc:      "only ssh",
-			sshPubKey: sshPub,
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
 		},
 		{
-			desc:      "only tls",
-			tlsPubKey: tlsPub,
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
 		},
 	} {
-		// Create the request over gRPC, this simulates to proxy creating the
-		// initial request.
-		req, err := clt.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
-			ConnectorID:  connector.GetName(),
-			Type:         constants.Github,
-			PublicKey:    tc.publicKey,
-			SshPublicKey: tc.sshPubKey,
-			TlsPublicKey: tc.tlsPubKey,
-			CertTTL:      apidefaults.MinCertDuration,
-		})
-		require.NoError(t, err)
+		t.Run(tc.desc, func(t *testing.T) {
+			// Create the request over gRPC, this simulates to proxy creating the
+			// initial request.
+			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+				ConnectorID:  connector.GetName(),
+				Type:         constants.Github,
+				PublicKey:    tc.pubKey,
+				SshPublicKey: tc.sshPubKey,
+				TlsPublicKey: tc.tlsPubKey,
+				CertTTL:      apidefaults.MinCertDuration,
+			})
+			require.NoError(t, err)
 
-		// Simulate the response to the request callback validation. There's no
-		// good way to actually test the HTTP endpoint without mocking out all
-		// the relevant code, so here we just directly get the original request
-		// from the backend and translate it to the JSON-marshallable struct
-		// type that would be returned.
-		req, err = srv.Auth().GetGithubAuthRequest(ctx, req.StateToken)
-		require.NoError(t, err)
-		jsonReq := GithubAuthRequestFromProto(req)
-		require.Equal(t, tc.publicKey, jsonReq.PublicKey) //nolint:staticcheck // SA1019. Testing deprecated sent by older proxy clients.
-		require.Equal(t, tc.sshPubKey, jsonReq.SSHPubKey)
-		require.Equal(t, tc.tlsPubKey, jsonReq.TLSPubKey)
+			// Simulate the proxy redirecting the user to github, getting a
+			// response, and calling back to auth for validation.
+			resp, err := proxyClient.ValidateGithubAuthCallback(ctx, url.Values{
+				"code":  []string{"success"},
+				"state": []string{req.StateToken},
+			})
+			require.NoError(t, err)
+
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey)
+			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.TLSCert)
+			}
+		})
 	}
 }
 
