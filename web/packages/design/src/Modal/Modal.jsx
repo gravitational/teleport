@@ -20,7 +20,6 @@ import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
-import { ownerDocument } from './../utils';
 import Portal from './Portal';
 import RootRef from './RootRef';
 
@@ -38,7 +37,7 @@ export default class Modal extends React.Component {
     if (prevProps.open && !this.props.open) {
       this.handleClose();
     } else if (!prevProps.open && this.props.open) {
-      this.lastFocus = ownerDocument(this.mountNode).activeElement;
+      this.lastFocus = document.activeElement;
       this.handleOpen();
     }
   }
@@ -51,9 +50,8 @@ export default class Modal extends React.Component {
   }
 
   handleOpen = () => {
-    const doc = ownerDocument(this.mountNode);
-    doc.addEventListener('keydown', this.handleDocumentKeyDown);
-    doc.addEventListener('focus', this.enforceFocus, true);
+    document.addEventListener('keydown', this.handleDocumentKeyDown);
+    document.addEventListener('focus', this.enforceFocus, true);
 
     if (this.dialogRef) {
       this.handleOpened();
@@ -67,9 +65,8 @@ export default class Modal extends React.Component {
   };
 
   handleClose = () => {
-    const doc = ownerDocument(this.mountNode);
-    doc.removeEventListener('keydown', this.handleDocumentKeyDown);
-    doc.removeEventListener('focus', this.enforceFocus, true);
+    document.removeEventListener('keydown', this.handleDocumentKeyDown);
+    document.removeEventListener('focus', this.enforceFocus, true);
 
     this.restoreLastFocus();
   };
@@ -117,7 +114,7 @@ export default class Modal extends React.Component {
       return;
     }
 
-    const currentActiveElement = ownerDocument(this.mountNode).activeElement;
+    const currentActiveElement = document.activeElement;
 
     if (!this.dialogRef.contains(currentActiveElement)) {
       this.dialogRef.focus();
@@ -142,7 +139,7 @@ export default class Modal extends React.Component {
       return;
     }
 
-    const currentActiveElement = ownerDocument(this.mountNode).activeElement;
+    const currentActiveElement = document.activeElement;
 
     if (!this.dialogRef.contains(currentActiveElement)) {
       if (!this.dialogRef.hasAttribute('tabIndex')) {
