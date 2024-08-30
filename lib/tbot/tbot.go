@@ -44,7 +44,6 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -242,22 +241,19 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 		})
 	}
 
-	// Gate heartbeating behind the workload identity experiment for now.
-	if experiment.Enabled() {
-		services = append(services, &heartbeatService{
-			now:       time.Now,
-			botCfg:    b.cfg,
-			startedAt: startedAt,
-			log: b.log.With(
-				teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
-			),
-			heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
-				b.botIdentitySvc.GetClient().GetConnection(),
-			),
-			interval:   time.Minute * 30,
-			retryLimit: 5,
-		})
-	}
+	services = append(services, &heartbeatService{
+		now:       time.Now,
+		botCfg:    b.cfg,
+		startedAt: startedAt,
+		log: b.log.With(
+			teleport.ComponentKey, teleport.Component(componentTBot, "heartbeat"),
+		),
+		heartbeatSubmitter: machineidv1pb.NewBotInstanceServiceClient(
+			b.botIdentitySvc.GetClient().GetConnection(),
+		),
+		interval:   time.Minute * 30,
+		retryLimit: 5,
+	})
 
 	services = append(services, &caRotationService{
 		getBotIdentity: b.botIdentitySvc.GetIdentity,
@@ -548,6 +544,13 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 		return unlock, trace.Wrap(err)
 	}
 
+	if !store.IsPersistent() {
+		b.log.WarnContext(
+			ctx,
+			"Bot is configured with a non-persistent storage destination. If the bot is running in a non-ephemeral environment, this will impact the ability to provide a long-lived bot instance identity",
+		)
+	}
+
 	return unlock, nil
 }
 
@@ -571,42 +574,6 @@ func checkDestinations(ctx context.Context, cfg *config.BotConfig) error {
 		if err := initable.Init(ctx); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	return nil
-}
-
-// checkIdentity performs basic startup checks on an identity and loudly warns
-// end users if it is unlikely to work.
-func checkIdentity(ctx context.Context, log *slog.Logger, ident *identity.Identity) error {
-	var validAfter time.Time
-	var validBefore time.Time
-
-	if ident.X509Cert != nil {
-		validAfter = ident.X509Cert.NotBefore
-		validBefore = ident.X509Cert.NotAfter
-	} else if ident.SSHCert != nil {
-		validAfter = time.Unix(int64(ident.SSHCert.ValidAfter), 0)
-		validBefore = time.Unix(int64(ident.SSHCert.ValidBefore), 0)
-	} else {
-		return trace.BadParameter("identity is invalid and contains no certificates")
-	}
-
-	now := time.Now().UTC()
-	if now.After(validBefore) {
-		log.WarnContext(
-			ctx,
-			"Identity has expired. The renewal is likely to fail",
-			"expires", validBefore.Format(time.RFC3339),
-			"current_time", now.Format(time.RFC3339),
-		)
-	} else if now.Before(validAfter) {
-		log.WarnContext(
-			ctx,
-			"Identity is not yet valid. Confirm that the system time is correct",
-			"valid_after", validAfter.Format(time.RFC3339),
-			"current_time", now.Format(time.RFC3339),
-		)
 	}
 
 	return nil

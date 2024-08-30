@@ -29,6 +29,7 @@ import {
   Alert,
   Input,
   H2,
+  Subtitle2,
 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
@@ -202,10 +203,10 @@ export function LockCheckout({
           <Box>
             <Box mt={2} mb={7} textAlign="center">
               <H2 mb={1}>Resources Locked Successfully</H2>
-              <Text typography="subtitle1" color="text.secondary">
+              <Subtitle2 color="text.secondary">
                 You've successfully locked {createdLocks.length}{' '}
                 {pluralize(createdLocks.length, 'resource')}
-              </Text>
+              </Subtitle2>
             </Box>
             <Flex justifyContent="center" mb={3}>
               <Image src={shieldCheck} width="250px" height="179px" />

@@ -1333,6 +1333,10 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 
 	// Register MFA devices for the fake user.
 	registered := addOneOfEachMFADevice(t, cl, clock, webOrigin)
+	// Adding MFA devices advances fake clock by 1 minute, here we return it back.
+	fakeClock, ok := clock.(clockwork.FakeClock)
+	require.True(t, ok)
+	fakeClock.Advance(-60 * time.Second)
 
 	// Fetch MFA device IDs.
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, user.GetName(), false)
@@ -1530,7 +1534,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1647,7 +1651,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-a", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},
@@ -1957,7 +1961,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
 					require.Equal(t, "app-b", identity.RouteToApp.Name)
-					// session ID should be set to a random UUID, corresponding to an app session.
+					// session ID should be set to a random ID, corresponding to an app session.
 					require.NotZero(t, identity.RouteToApp.SessionID)
 				},
 			},

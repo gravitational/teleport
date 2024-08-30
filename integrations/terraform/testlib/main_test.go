@@ -176,7 +176,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	require.NoError(s.T(), err)
 	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
 	require.NoError(s.T(), err)
-	keyRing := libclient.NewKey(privateKey)
+	keyRing := libclient.NewKeyRing(privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: publicKeyPEM,
@@ -194,7 +194,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           outputPath,
-		Key:                  keyRing,
+		KeyRing:              keyRing,
 		Format:               identityfile.FormatTLS,
 		OverwriteDestination: false,
 		Writer:               &identityfile.StandardConfigWriter{},
@@ -213,9 +213,7 @@ func (s *TerraformBaseSuite) closeClient() {
 	s.T().Helper()
 	p, ok := s.terraformProvider.(*provider.Provider)
 	require.True(s.T(), ok)
-	if p != nil && p.Client != nil {
-		require.NoError(s.T(), p.Client.Close())
-	}
+	require.NoError(s.T(), p.Close())
 }
 
 // getFixture loads fixture and returns it as string or <error> if failed

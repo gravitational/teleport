@@ -135,7 +135,12 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorCon
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		callbackURL.Scheme = "https"
+		// Default to HTTPS if no scheme is specified.
+		// This will allow users to specify an insecure HTTP URL but
+		// the backend will verify if the callback URL is allowed.
+		if callbackURL.Scheme == "" {
+			callbackURL.Scheme = "https"
+		}
 		callbackAddr = callbackURL.String()
 	}
 

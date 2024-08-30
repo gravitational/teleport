@@ -157,6 +157,6 @@ func unmarshalHeadlessAuthentication(data []byte) (*types.HeadlessAuthentication
 
 const headlessAuthenticationPrefix = "headless_authentication"
 
-func headlessAuthenticationKey(username, name string) []byte {
-	return backend.Key(headlessAuthenticationPrefix, usersPrefix, username, name)
+func headlessAuthenticationKey(username, name string) backend.Key {
+	return backend.NewKey(headlessAuthenticationPrefix, usersPrefix, username, name)
 }

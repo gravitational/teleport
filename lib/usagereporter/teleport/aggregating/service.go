@@ -47,8 +47,8 @@ const (
 // userActivityReportKey returns the backend key for a user activity report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
-	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
+	return backend.NewKey(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
 func prepareUserActivityReports(
@@ -83,8 +83,8 @@ func prepareUserActivityReports(
 // resourcePresenceReportKey returns the backend key for a resource presence report with
 // a given UUID and start time, such that reports with an earlier start time
 // will appear earlier in lexicographic ordering.
-func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
-	return backend.Key(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+func resourcePresenceReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
+	return backend.NewKey(ResourcePresenceReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
 // prepareResourcePresenceReport prepares a resource presence report for storage.
@@ -240,7 +240,7 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	if len(payload) == 0 {
 		payload = []byte("null")
 	}
-	lockKey := backend.Key(userActivityReportsLock)
+	lockKey := backend.NewKey(userActivityReportsLock)
 	// HACK(espadolini): dynamodbbk doesn't let you Create over an expired item
 	// but it will explicitly delete expired items on a Get; in addition, reads
 	// are cheaper than writes in most backends, so we do a Get here first

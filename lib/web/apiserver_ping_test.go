@@ -75,6 +75,17 @@ func TestPing(t *testing.T) {
 				webCfg, _ := cap.GetWebauthn()
 				require.NotNil(t, resp.Auth.Webauthn)
 				assert.Equal(t, webCfg.RPID, resp.Auth.Webauthn.RPID)
+
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, resp.Auth.SignatureAlgorithmSuite)
+			},
+		},
+		{
+			name: "OK signature algorithm suite",
+			spec: &types.AuthPreferenceSpecV2{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
+			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+				assert.Equal(t, types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, resp.Auth.SignatureAlgorithmSuite)
 			},
 		},
 		{

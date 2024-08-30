@@ -17,5 +17,16 @@
  */
 
 import Text from './Text';
-export { H1, H2 } from './Text';
+export {
+  H1,
+  H2,
+  H3,
+  H4,
+  P1,
+  P2,
+  P3,
+  Subtitle1,
+  Subtitle2,
+  Subtitle3,
+} from './Text';
 export default Text;

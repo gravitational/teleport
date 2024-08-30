@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -284,30 +285,36 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"us-east-1"},
-				"role":        []string{"myRole"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"myRole"},
+				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
+				"integrationName": []string{"my-integration"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
 				"--role=myRole " +
 				"--aws-region=us-east-1 " +
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
-				"--proxy-public-url=" + proxyPublicURL,
+				"--proxy-public-url=" + proxyPublicURL + " " +
+				"--cluster=localhost " +
+				"--name=my-integration",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"us-east-1"},
-				"role":        []string{"Test+1=2,3.4@5-6_7"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":       []string{"us-east-1"},
+				"role":            []string{"Test+1=2,3.4@5-6_7"},
+				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
+				"integrationName": []string{"my-integration"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
 				"--role=Test\\+1=2,3.4\\@5-6_7 " +
 				"--aws-region=us-east-1 " +
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
-				"--proxy-public-url=" + proxyPublicURL,
+				"--proxy-public-url=" + proxyPublicURL + " " +
+				"--cluster=localhost " +
+				"--name=my-integration",
 		},
 		{
 			name: "missing aws-region",
@@ -968,6 +975,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	require.NoError(t, err)
 
 	proxy := env.proxies[0]
+	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
 	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
@@ -1034,4 +1042,20 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	appServers, err = env.server.Auth().GetApplicationServers(ctx, "default")
 	require.NoError(t, err)
 	require.Empty(t, appServers)
+
+	t.Run("using the account id as name works as expected", func(t *testing.T) {
+		// Creating an Integration using the account id as name should not return an error if the proxy is listening at the default HTTPS port
+		myIntegrationWithAccountID, err := types.NewIntegrationAWSOIDC(types.Metadata{
+			Name: "123456789012",
+		}, &types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "some-arn-role",
+		})
+		require.NoError(t, err)
+
+		_, err = env.server.Auth().CreateIntegration(ctx, myIntegrationWithAccountID)
+		require.NoError(t, err)
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "123456789012", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.NoError(t, err)
+	})
 }

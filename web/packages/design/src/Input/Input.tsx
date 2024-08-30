@@ -55,6 +55,7 @@ const Input = styled.input<InputProps>`
   display: block;
   height: 40px;
   font-size: 16px;
+  font-weight: 300;
   padding: 0 16px;
   outline: none;
   width: 100%;

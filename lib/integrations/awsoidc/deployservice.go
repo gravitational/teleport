@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -141,7 +142,7 @@ type DeployServiceRequest struct {
 	IntegrationName string
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 
 	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
 	DeploymentMode string
@@ -250,7 +251,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if r.TeleportConfigString == "" {
@@ -471,7 +472,7 @@ type upsertTaskRequest struct {
 	ClusterName          string
 	ServiceName          string
 	TeleportVersionTag   string
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 	Region               string
 	TeleportConfigB64    string
 }
@@ -542,7 +543,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequ
 // It will re-create if its status is INACTIVE.
 // If the cluster status is not ACTIVE, an error is returned.
 // The cluster is returned.
-func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName string, resourceCreationTags AWSTags) (*ecsTypes.Cluster, error) {
+func upsertCluster(ctx context.Context, clt DeployServiceClient, clusterName string, resourceCreationTags tags.AWSTags) (*ecsTypes.Cluster, error) {
 	describeClustersResponse, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
 		Clusters: []string{clusterName},
 		Include: []ecsTypes.ClusterField{
@@ -687,7 +688,7 @@ func deployServiceNetworkConfiguration(subnetIDs, securityGroups []string) *ecsT
 type upsertServiceRequest struct {
 	ServiceName          string
 	ClusterName          string
-	ResourceCreationTags AWSTags
+	ResourceCreationTags tags.AWSTags
 	SubnetIDs            []string
 	SecurityGroups       []string
 }

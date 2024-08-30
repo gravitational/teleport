@@ -18,7 +18,9 @@
 
 import React from 'react';
 
-import { Box, H2, Text } from 'design';
+import { Box, H2 } from 'design';
+
+import { P } from 'design/Text/Text';
 
 import { BotTiles } from 'teleport/Bots/Add/AddBotsPicker';
 import useTeleport from 'teleport/useTeleport';
@@ -29,10 +31,10 @@ export const MachineIDIntegrationSection = () => {
     <>
       <Box mb={3}>
         <H2 mb={1}>Machine ID</H2>
-        <Text typography="body1">
+        <P>
           Set up Teleport Machine ID to allow CI/CD workflows and other machines
           to access resources protected by Teleport.
-        </Text>
+        </P>
       </Box>
       <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
     </>

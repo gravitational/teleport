@@ -18,6 +18,7 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { http, HttpResponse } from 'msw';
 
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -25,6 +26,7 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { getUserContext } from 'teleport/mocks/contexts';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import {
   DatabaseEngine,
   DatabaseLocation,
@@ -49,6 +51,13 @@ export const Init = () => {
     </Provider>
   );
 };
+Init.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+    ],
+  },
+};
 
 export const InitWithLabels = () => {
   return (
@@ -63,6 +72,11 @@ export const InitWithLabels = () => {
       <ManualDeploy />
     </Provider>
   );
+};
+InitWithLabels.parameters = {
+  msw: {
+    handlers: [http.post(cfg.api.joinTokenPath, () => HttpResponse.json({}))],
+  },
 };
 
 const Provider = props => {
@@ -125,3 +139,12 @@ function createTeleportContext() {
 
   return ctx;
 }
+
+const rawJoinToken = {
+  id: 'some-id',
+  roles: ['Node'],
+  method: 'iam',
+  suggestedLabels: [
+    { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'some-value' },
+  ],
+};

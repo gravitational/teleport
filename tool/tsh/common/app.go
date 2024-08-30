@@ -79,7 +79,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKey(key); err != nil {
+	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -104,9 +104,9 @@ func appLogin(
 		return nil, trace.Wrap(err)
 	}
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
 		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name)))
-	return key, trace.Wrap(err)
+	return keyRing, trace.Wrap(err)
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
@@ -289,6 +289,10 @@ func onAppLogout(cf *CLIConf) error {
 		}
 
 		if len(logout) == 0 {
+			// Not logged in but still try to delete any dangling files.
+			if err := tc.LogoutApp(cf.AppName); err != nil {
+				return trace.Wrap(err)
+			}
 			return trace.BadParameter("not logged into app %q", cf.AppName)
 		}
 	} else {
@@ -300,6 +304,7 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
 		err = tc.LogoutApp(app.Name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -311,6 +316,14 @@ func onAppLogout(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
 	}
+
+	if cf.AppName == "" {
+		// Try to delete any dangling files even if the app sessions are expired.
+		if err := tc.LogoutAllApps(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
 	} else {
@@ -345,6 +358,7 @@ func onAppConfig(cf *CLIConf) error {
 		AWSRoleARN:        app.AWSRoleARN,
 		AzureIdentity:     app.AzureIdentity,
 		GCPServiceAccount: app.GCPServiceAccount,
+		URI:               app.GetURI(),
 	}
 	conf, err := formatAppConfig(tc, profile, routeToApp, cf.Format)
 	if err != nil {
@@ -384,13 +398,16 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag = "--insecure "
 	}
 
+	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name)
+	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name)
+
 	curlCmd := fmt.Sprintf(`curl %s\
   --cert %q \
   --key %q \
   %v`,
 		curlInsecureFlag,
-		profile.AppCertPath(tc.SiteName, routeToApp.Name),
-		profile.KeyPath(),
+		certPath,
+		keyPath,
 		uri)
 	format = strings.ToLower(format)
 	switch format {
@@ -399,9 +416,9 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	case appFormatCA:
 		return profile.CACertPathForCluster(tc.SiteName), nil
 	case appFormatCert:
-		return profile.AppCertPath(tc.SiteName, routeToApp.Name), nil
+		return certPath, nil
 	case appFormatKey:
-		return profile.KeyPath(), nil
+		return keyPath, nil
 	case appFormatCURL:
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
@@ -409,8 +426,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 			Name:              routeToApp.Name,
 			URI:               uri,
 			CA:                profile.CACertPathForCluster(tc.SiteName),
-			Cert:              profile.AppCertPath(tc.SiteName, routeToApp.Name),
-			Key:               profile.KeyPath(),
+			Cert:              certPath,
+			Key:               keyPath,
 			Curl:              curlCmd,
 			AWSRoleARN:        routeToApp.AWSRoleARN,
 			AzureIdentity:     routeToApp.AzureIdentity,
@@ -428,8 +445,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		t.AddRow([]string{"Name:     ", routeToApp.Name})
 		t.AddRow([]string{"URI:", uri})
 		t.AddRow([]string{"CA:", profile.CACertPathForCluster(tc.SiteName)})
-		t.AddRow([]string{"Cert:", profile.AppCertPath(tc.SiteName, routeToApp.Name)})
-		t.AddRow([]string{"Key:", profile.KeyPath()})
+		t.AddRow([]string{"Cert:", certPath})
+		t.AddRow([]string{"Key:", keyPath})
 
 		if routeToApp.AWSRoleARN != "" {
 			t.AddRow([]string{"AWS ARN:", routeToApp.AWSRoleARN})
@@ -507,8 +524,11 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 	}
 
 	if route, err := pickActiveApp(cf, activeRoutes); err == nil {
-		info := &appInfo{RouteToApp: route, isActive: true}
-		return info, info.checkAndSetDefaults(cf, tc, profile)
+		return &appInfo{
+			profile:    profile,
+			RouteToApp: route,
+			isActive:   true,
+		}, nil
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -519,16 +539,44 @@ func getAppInfo(cf *CLIConf, tc *client.TeleportClient, matchRouteToApp func(tls
 		return nil, trace.Wrap(err)
 	}
 
-	info := &appInfo{
+	appInfo := &appInfo{
+		profile: profile,
 		RouteToApp: proto.RouteToApp{
 			Name:        app.GetName(),
 			PublicAddr:  app.GetPublicAddr(),
 			ClusterName: tc.SiteName,
+			URI:         app.GetURI(),
 		},
 		app: app,
 	}
 
-	return info, info.checkAndSetDefaults(cf, tc, profile)
+	// If this is a cloud app, set additional applicable fields from CLI flags or roles.
+	switch {
+	case app.IsAWSConsole():
+		awsRoleARN, err := getARNFromFlags(cf, profile, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		appInfo.AWSRoleARN = awsRoleARN
+
+	case app.IsAzureCloud():
+		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("Azure identity is %q", azureIdentity)
+		appInfo.AzureIdentity = azureIdentity
+
+	case app.IsGCP():
+		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("GCP service account is %q", gcpServiceAccount)
+		appInfo.GCPServiceAccount = gcpServiceAccount
+	}
+
+	return appInfo, nil
 }
 
 // appInfo wraps a RouteToApp and the corresponding app.
@@ -538,71 +586,13 @@ type appInfo struct {
 	proto.RouteToApp
 	// app corresponds to the app route and may be nil, so use GetApp
 	// instead of accessing it directly.
-	app types.Application
+	app   types.Application
+	appMu sync.Mutex
 	// isActive indicates an active app matched this app info.
 	isActive bool
-	mu       sync.Mutex
 
 	// profile is a cached profile status for the current login session.
 	profile *client.ProfileStatus
-}
-
-// checkAndSetDefaults checks the app route, applies cli flags, and sets defaults.
-func (a *appInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus) error {
-	a.profile = profile
-
-	switch {
-	case a.IsAWSConsole():
-		app, err := a.GetApp(cf.Context, tc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		awsRoleARN, err := getARNFromFlags(cf, profile, app)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		a.AWSRoleARN = awsRoleARN
-
-	case a.IsAzureCloud():
-		azureIdentity, err := getAzureIdentityFromFlags(cf, profile)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Debugf("Azure identity is %q", azureIdentity)
-		a.AzureIdentity = azureIdentity
-
-	case a.IsGCP():
-		gcpServiceAccount, err := getGCPServiceAccountFromFlags(cf, profile)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		log.Debugf("GCP service account is %q", gcpServiceAccount)
-		a.GCPServiceAccount = gcpServiceAccount
-	}
-
-	return nil
-}
-
-func (a *appInfo) IsAWSConsole() bool {
-	if a.app != nil {
-		return a.app.IsAWSConsole()
-	}
-	return a.RouteToApp.AWSRoleARN != ""
-}
-
-func (a *appInfo) IsAzureCloud() bool {
-	if a.app != nil {
-		return a.app.IsAzureCloud()
-	}
-	return a.RouteToApp.AzureIdentity != ""
-}
-
-func (a *appInfo) IsGCP() bool {
-	if a.app != nil {
-		return a.app.IsGCP()
-	}
-	return a.RouteToApp.GCPServiceAccount != ""
 }
 
 func (a *appInfo) appLocalCAPath(cluster string) string {
@@ -612,8 +602,8 @@ func (a *appInfo) appLocalCAPath(cluster string) string {
 // GetApp returns the cached app or fetches it using the app route and
 // caches the result.
 func (a *appInfo) GetApp(ctx context.Context, tc *client.TeleportClient) (types.Application, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.appMu.Lock()
+	defer a.appMu.Unlock()
 	if a.app != nil {
 		return a.app.Copy(), nil
 	}
@@ -683,5 +673,6 @@ func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 		AWSRoleARN:        route.AWSRoleARN,
 		AzureIdentity:     route.AzureIdentity,
 		GCPServiceAccount: route.GCPServiceAccount,
+		URI:               route.URI,
 	}
 }

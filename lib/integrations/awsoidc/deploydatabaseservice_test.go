@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
@@ -157,7 +158,7 @@ func TestDeployDatabaseServiceRequest_CheckAndSetDefaults(t *testing.T) {
 				Region:              "r",
 				TaskRoleARN:         "arn",
 				IntegrationName:     "teleportdev",
-				ResourceCreationTags: AWSTags{
+				ResourceCreationTags: tags.AWSTags{
 					"teleport.dev/origin":      "integration_awsoidc",
 					"teleport.dev/cluster":     "mycluster",
 					"teleport.dev/integration": "teleportdev",
@@ -202,7 +203,7 @@ type mockDeployServiceClient struct {
 	iamTokenMissing bool
 
 	iamAccessDeniedListServices bool
-	defaultTags                 AWSTags
+	defaultTags                 tags.AWSTags
 }
 
 // DescribeClusters lists ECS Clusters.
@@ -438,7 +439,7 @@ func TestDeployDatabaseService(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services", resp.ClusterDashboardURL)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services/database-service-vpc-123", resp.ClusterDashboardURL)
 		require.Equal(t, "ARNcluster-name-teleport", resp.ClusterARN)
 		require.Contains(t, mockClient.clusters, "cluster-name-teleport")
 		require.Contains(t, mockClient.services, "database-service-vpc-123")
@@ -549,7 +550,60 @@ func TestDeployDatabaseService(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services", resp.ClusterDashboardURL)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster-name-teleport/services/database-service-vpc-123", resp.ClusterDashboardURL)
 		require.Equal(t, "ARNcluster-name-teleport", resp.ClusterARN)
 	})
+}
+
+func TestECSDatabaseServiceDashboardURL(t *testing.T) {
+	tests := []struct {
+		name                string
+		region              string
+		teleportClusterName string
+		vpcID               string
+		wantURL             string
+		wantErrContains     string
+	}{
+		{
+			name:                "valid params",
+			region:              "us-west-1",
+			teleportClusterName: "foo.bar.com",
+			vpcID:               "vpc-123",
+			wantURL:             "https://us-west-1.console.aws.amazon.com/ecs/v2/clusters/foo_bar_com-teleport/services/database-service-vpc-123",
+		},
+		{
+			name:                "empty region is an error",
+			region:              "",
+			teleportClusterName: "foo.bar.com",
+			vpcID:               "vpc-123",
+			wantErrContains:     "empty region",
+		},
+		{
+			name:                "empty cluster name is an error",
+			region:              "us-west-1",
+			teleportClusterName: "",
+			vpcID:               "vpc-123",
+			wantErrContains:     "empty cluster name",
+		},
+		{
+			name:                "empty VPC ID is an error",
+			region:              "us-west-1",
+			teleportClusterName: "foo.bar.com",
+			vpcID:               "",
+			wantErrContains:     "empty VPC",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ECSDatabaseServiceDashboardURL(tt.region, tt.teleportClusterName, tt.vpcID)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantURL, got)
+		})
+	}
 }

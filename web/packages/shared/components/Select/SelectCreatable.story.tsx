@@ -27,7 +27,9 @@ export default {
 
 export const Selects = () => {
   const [input, setInput] = React.useState('');
-  const [selected, setSelected] = React.useState<Option[]>();
+  const [inputMulti, setInputMulti] = React.useState('');
+  const [selected, setSelected] = React.useState<Option>();
+  const [selectedMulti, setSelectedMulti] = React.useState<readonly Option[]>();
 
   return (
     // Note that these examples don't provide for great UX. Implementations
@@ -42,10 +44,10 @@ export const Selects = () => {
           isMulti
           isClearable
           isSearchable
-          inputValue={input}
-          value={selected}
-          onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          inputValue={inputMulti}
+          value={selectedMulti}
+          onInputChange={v => setInputMulti(v)}
+          onChange={v => setSelectedMulti(v)}
         />
         Note: accept new candidate with Enter or mouse click
       </Box>
@@ -56,7 +58,7 @@ export const Selects = () => {
           inputValue={input}
           value={selected}
           onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          onChange={v => setSelected(v)}
         />
       </Box>
     </Flex>

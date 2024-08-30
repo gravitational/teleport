@@ -122,14 +122,14 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	clusterName := facade.Get().ClusterName
 
 	// generate a keypair
-	key, err := client.GenerateRSAKey()
+	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         key.PrivateKey.MarshalSSHPublicKey(),
+		Key:         keyRing.PrivateKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  s.cfg.Principals,
@@ -141,12 +141,12 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	key.Cert = res.SshCertificate
+	keyRing.Cert = res.SshCertificate
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,
 		Writer:     newBotConfigWriter(ctx, s.cfg.Destination, ""),
-		Key:        key,
+		KeyRing:    keyRing,
 		Format:     identityfile.FormatOpenSSH,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.

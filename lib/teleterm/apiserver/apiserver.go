@@ -92,10 +92,14 @@ func (s *APIServer) Serve() error {
 
 // Stop stops the server and closes all listeners
 func (s *APIServer) Stop() {
-	s.grpcServer.GracefulStop()
+	// Gracefully stopping the gRPC server takes a second or two. Closing the VNet service is almost
+	// immediate. Closing the VNet service before the gRPC server gives some time for the VNet admin
+	// process to notice that the client is gone and shut down as well.
 	if err := s.vnetService.Close(); err != nil {
 		log.WithError(err).Error("Error while closing VNet service")
 	}
+
+	s.grpcServer.GracefulStop()
 }
 
 func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener, error) {

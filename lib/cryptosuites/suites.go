@@ -83,6 +83,8 @@ const (
 	UserSSH
 	// UserTLS represents a user TLS key.
 	UserTLS
+	// UserDatabase represents a user Database key.
+	UserDatabase
 
 	// TODO(nklaassen): define remaining key purposes.
 
@@ -143,6 +145,7 @@ var (
 		SPIFFECAJWT:         RSA2048,
 		UserSSH:             RSA2048,
 		UserTLS:             RSA2048,
+		UserDatabase:        RSA2048,
 		// We could consider updating this algorithm even in the legacy suite, only database agents need to
 		// accept these connections and they have never restricted algorithm support.
 		ProxyToDatabaseAgent: RSA2048,
@@ -162,11 +165,12 @@ var (
 		OpenSSHCASSH:         Ed25519,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -184,11 +188,12 @@ var (
 		OpenSSHCASSH:         ECDSAP256,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              ECDSAP256,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -208,11 +213,12 @@ var (
 		OpenSSHCASSH:         ECDSAP256,
 		JWTCAJWT:             ECDSAP256,
 		OIDCIdPCAJWT:         ECDSAP256,
-		SAMLIdPCATLS:         ECDSAP256,
+		SAMLIdPCATLS:         RSA2048,
 		SPIFFECATLS:          ECDSAP256,
 		SPIFFECAJWT:          ECDSAP256,
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
+		UserDatabase:         RSA2048,
 		ProxyToDatabaseAgent: ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
@@ -305,10 +311,24 @@ func GenerateUserSSHAndTLSKey(ctx context.Context, authPrefGetter AuthPreference
 	return sshKey, tlsKey, nil
 }
 
-// AlgorithmForKey generates a new cryptographic keypair for the given purpose, with a signature algorithm
-// chosen based on the currently configured algorithm suite.
+// AlgorithmForKey generates a new cryptographic keypair for the given [purpose],
+// with a signature algorithm chosen based on the algorithm suite currently
+// configured in the cluster auth preference.
 func GenerateKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (crypto.Signer, error) {
 	alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return GenerateKeyWithAlgorithm(alg)
+}
+
+// GenerateKeyWithSuite generates a new cryptographic keypair for the given
+// [purpose], with a signature algorithm chosen from [suite].
+func GenerateKeyWithSuite(ctx context.Context, suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (crypto.Signer, error) {
+	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
+		suite = defaultSuite
+	}
+	alg, err := algorithmForKey(suite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

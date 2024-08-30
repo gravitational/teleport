@@ -93,13 +93,33 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		protoc \
 			-I=../../api/proto \
 			-I=$(PROTOBUF_MOD_PATH) \
-			--plugin=./crdgen/protoc-gen-crd \
+			--plugin=./crdgen/build/protoc-gen-crd \
 			--crd_out=:./config/crd/bases \
 			"$${proto}"; \
 	done
 
 	rm -r ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds/
 	cp -r ./config/crd/bases/ ../../examples/chart/teleport-cluster/charts/teleport-operator/operator-crds
+
+.PHONY: build-docs-plugin
+build-docs-plugin: ## Build the protoc plugin for generating docs
+	make -C crdgen build-docs
+
+.PHONY: crd-docs
+crd-docs: build-docs-plugin ## Generate CRD reference docs.
+
+# The wrappers.proto file needed for this generator exist only inside the go mod cache,
+# so we retrieve the file path for the cached proto files with go mod tools.
+	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
+
+	for proto in $(PROTOS); do \
+		protoc \
+			-I=../../api/proto \
+			-I=$(PROTOBUF_MOD_PATH) \
+			--plugin=./crdgen/build/protoc-gen-crd-docs \
+			--crd-docs_out=../../docs/pages/reference/operator-resources/ \
+			"$${proto}"; \
+	done
 
 .PHONY: generate
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
@@ -127,7 +147,7 @@ crdgen-test: ## Run crdgen tests.
 
 .PHONY: build
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go namespace.go config.go
+	go build -trimpath -o bin/manager main.go namespace.go config.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
