@@ -276,3 +276,54 @@ func TestSPIFFEFederationService_DeleteAllSPIFFEFederation(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, page)
 }
+
+func TestSPIFFEFederationService_UpdateSPIFFEFederation(t *testing.T) {
+	ctx, service := setupSPIFFEFederationTest(t)
+
+	t.Run("ok", func(t *testing.T) {
+		// Create resource for us to Update since we can't update a non-existent resource.
+		created, err := service.CreateSPIFFEFederation(
+			ctx,
+			newSPIFFEFederation("example.com"),
+		)
+		require.NoError(t, err)
+		want := proto.Clone(created).(*machineidv1.SPIFFEFederation)
+		want.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = "https://example.com/new-bundle.json"
+
+		updated, err := service.UpdateSPIFFEFederation(
+			ctx,
+			// Clone to avoid Marshaling modifying want
+			proto.Clone(want).(*machineidv1.SPIFFEFederation),
+		)
+		require.NoError(t, err)
+		require.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		require.Empty(t, cmp.Diff(
+			want,
+			updated,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+
+		got, err := service.GetSPIFFEFederation(ctx, "example.com")
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			want,
+			got,
+			protocmp.Transform(),
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		))
+		require.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+	})
+	t.Run("validation occurs", func(t *testing.T) {
+		out, err := service.UpdateSPIFFEFederation(ctx, newSPIFFEFederation("spiffe://i-will-fail"))
+		require.ErrorContains(t, err, "metadata.name: must not include the spiffe:// prefix")
+		require.Nil(t, out)
+	})
+	t.Run("no create", func(t *testing.T) {
+		_, err := service.UpdateSPIFFEFederation(
+			ctx,
+			newSPIFFEFederation("non-existing.com"),
+		)
+		require.Error(t, err)
+	})
+}
