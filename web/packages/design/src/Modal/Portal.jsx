@@ -20,8 +20,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 
-import { ownerDocument } from './../utils';
-
 /**
  * Portals provide a first-class way to render children into a DOM node
  * that exists outside the DOM hierarchy of the parent component.
@@ -50,7 +48,7 @@ class Portal extends React.Component {
   }
 
   setMountNode(container) {
-    this.mountNode = getContainer(container, getOwnerDocument(this).body);
+    this.mountNode = getContainer(container, document.body);
   }
 
   /**
@@ -86,10 +84,6 @@ Portal.propTypes = {
 function getContainer(container, defaultContainer) {
   container = typeof container === 'function' ? container() : container;
   return ReactDOM.findDOMNode(container) || defaultContainer;
-}
-
-function getOwnerDocument(element) {
-  return ownerDocument(ReactDOM.findDOMNode(element));
 }
 
 export default Portal;
