@@ -1204,7 +1204,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			return trace.Wrap(err)
 		}
 
-		client := &websocketClientStreams{stream}
+		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
 		err = session.join(party, true /* emitSessionJoinEvent */)
