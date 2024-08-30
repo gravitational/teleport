@@ -1,7 +1,7 @@
 resource "teleport_installer" "test" {
   version = "v1"
   metadata = {
-    name        = "test"
+    name = "test"
     labels = {
       example = "yes"
     }
