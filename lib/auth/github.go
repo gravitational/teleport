@@ -264,7 +264,7 @@ type httpRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client httpRequester) error {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
 		return nil
@@ -754,11 +754,11 @@ func (a *Server) getGithubUserAndTeams(
 	client *oauth2.Client,
 	diagCtx *SSODiagContext,
 	logger *logrus.Entry,
-) (*userResponse, []teamResponse, error) {
-	if a.githubUserAndTeamsOverride != nil {
+) (*GithubUserResponse, []GithubTeamResponse, error) {
+	if a.GithubUserAndTeamsOverride != nil {
 		// Allow tests to override the user and teams response instead of
 		// calling out to GitHub.
-		return a.githubUserAndTeamsOverride()
+		return a.GithubUserAndTeamsOverride()
 	}
 
 	// exchange the authorization code received by the callback for an access token
@@ -1060,7 +1060,7 @@ func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *t
 
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
-func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
+func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) (*types.GithubClaims, error) {
 	orgToTeams := make(map[string][]string)
 	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
@@ -1093,20 +1093,20 @@ type githubAPIClient struct {
 	apiEndpoint string
 }
 
-// userResponse represents response from "user" API call
-type userResponse struct {
+// GithubUserResponse represents response from "user" API call
+type GithubUserResponse struct {
 	// Login is the username
 	Login string `json:"login"`
 }
 
 // getEmails retrieves a list of emails for authenticated user
-func (c *githubAPIClient) getUser() (*userResponse, error) {
+func (c *githubAPIClient) getUser() (*GithubUserResponse, error) {
 	// Ignore pagination links, we should never get more than a single user here.
 	bytes, _, err := c.get("user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var user userResponse
+	var user GithubUserResponse
 	err = json.Unmarshal(bytes, &user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1114,25 +1114,25 @@ func (c *githubAPIClient) getUser() (*userResponse, error) {
 	return &user, nil
 }
 
-// teamResponse represents a single team entry in the "teams" API response
-type teamResponse struct {
+// GithubTeamResponse represents a single team entry in the "teams" API response
+type GithubTeamResponse struct {
 	// Name is the team name
 	Name string `json:"name"`
 	// Slug is the team ID
 	Slug string `json:"slug"`
 	// Org describes the organization this team is a part of
-	Org orgResponse `json:"organization"`
+	Org GithubOrgResponse `json:"organization"`
 }
 
-// orgResponse represents a Github organization
-type orgResponse struct {
+// GithubOrgResponse represents a Github organization
+type GithubOrgResponse struct {
 	// Login is the organization ID
 	Login string `json:"login"`
 }
 
 // getTeams retrieves a list of teams authenticated user belongs to.
-func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) {
-	var result []teamResponse
+func (c *githubAPIClient) getTeams(ctx context.Context) ([]GithubTeamResponse, error) {
+	var result []GithubTeamResponse
 
 	bytes, nextPage, err := c.get("user/teams")
 	if err != nil {
@@ -1140,7 +1140,7 @@ func (c *githubAPIClient) getTeams(ctx context.Context) ([]teamResponse, error) 
 	}
 
 	// Extract the first page of results and append them to the full result set.
-	var teams []teamResponse
+	var teams []GithubTeamResponse
 	err = json.Unmarshal(bytes, &teams)
 	if err != nil {
 		return nil, trace.Wrap(err)

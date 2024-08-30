@@ -611,13 +611,13 @@ func TestGithubAuthCompat(t *testing.T) {
 	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
 	require.NoError(t, err)
 
-	srv.Auth().githubUserAndTeamsOverride = func() (*userResponse, []teamResponse, error) {
-		return &userResponse{
+	srv.Auth().GithubUserAndTeamsOverride = func() (*GithubUserResponse, []GithubTeamResponse, error) {
+		return &GithubUserResponse{
 				Login: "alice",
-			}, []teamResponse{{
+			}, []GithubTeamResponse{{
 				Name: "devs",
 				Slug: "devs",
-				Org:  orgResponse{Login: "octocats"},
+				Org:  GithubOrgResponse{Login: "octocats"},
 			}}, nil
 	}
 
