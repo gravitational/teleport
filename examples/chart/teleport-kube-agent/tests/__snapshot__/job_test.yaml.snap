@@ -49,8 +49,6 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
         helm.sh/hook-weight: "-3"
       name: RELEASE-NAME-delete-hook
       namespace: NAMESPACE
-      labels:
-        app: RELEASE-NAME
     rules:
     - apiGroups:
       - ""
@@ -88,6 +86,8 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
         helm.sh/hook-weight: "-1"
       name: RELEASE-NAME-delete-hook
       namespace: NAMESPACE
+      labels:
+        app: RELEASE-NAME
     spec:
       template:
         metadata:
