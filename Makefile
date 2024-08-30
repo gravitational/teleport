@@ -6,6 +6,8 @@
 #  clean  : removes all build artifacts
 #  test   : runs tests
 
+.DEFAULT_GOAL := all
+
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
 #   Stable releases:   "1.0.0"
@@ -60,6 +62,13 @@ ARCH ?= $(GO_ENV_ARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# If we're building inside the cross-compiling buildbox, include the
+# cross compilation definitions so we select the correct compilers and
+# libraries.
+ifeq ($(BUILDBOX_MODE),cross)
+include build.assets/buildbox/cross-compile.mk
+endif
+
 # Include common makefile shared between OSS and Ent.
 include common.mk
 
@@ -69,20 +78,30 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
+GOEXPERIMENT = boringcrypto
+OPENSSL_FIPS = 1
+export GOEXPERIMENT OPENSSL_FIPS
+ifeq ($(BUILDBOX_MODE),cross)
+# We need to set CGO_ENABLED=0 when building rdpclient as the build of
+# boring-sys builds and runs a Go program as part of its integrity testing.
+# (https://github.com/google/boringssl/blob/master/crypto/fipsmodule/FIPS.md#integrity-testing)
+# If CGO_ENABLED=1, this fails for odd reasons (it tries to use the cross
+# assembler to build ASM for the host).
+# It also needs to know the cross-compiler sysroot to properly cross-compile.
+RDPCLIENT_ENV = CGO_ENABLED=0 BORING_BSSL_FIPS_SYSROOT=$(CROSSTOOLNG_SYSROOT)
+endif
 endif
 
-# PAM support will only be built into Teleport if headers exist at build time.
+# Look for the PAM header "security/pam_appl.h" to determine if we should
+# enable PAM support in teleport. A native build will have it in /usr/include.
+# Darwin has it in /usr/local/include (SIP prevents us from modifying/creating
+# it in /usr/include), and the ng buildbox has it in one of the
+# $(C_INCLUDE_PATH) paths.
+PAM_HEADER_CANDIDATES := $(subst :, ,$(C_INCLUDE_PATH)) /usr/local/include /usr/include
 PAM_MESSAGE := without-PAM-support
-ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
+ifneq (,$(wildcard $(addsuffix /security/pam_appl.h,$(PAM_HEADER_CANDIDATES))))
 PAM_TAG := pam
 PAM_MESSAGE := with-PAM-support
-else
-# PAM headers for Darwin live under /usr/local/include/security instead, as SIP
-# prevents us from modifying/creating /usr/include/security on newer versions of MacOS
-ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
-PAM_TAG := pam
-PAM_MESSAGE := with-PAM-support
-endif
 endif
 
 # darwin universal (Intel + Apple Silicon combined) binary support
@@ -256,17 +275,20 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-# True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq ($(IS_NATIVE_BUILD),"no")
-		CGOFLAG += CC=aarch64-linux-gnu-gcc
-	endif
+ifneq ($(BUILDBOX_MODE),cross)
+ifeq (,$(IS_NATIVE_BUILD))
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
-ifeq ($(IS_NATIVE_BUILD),"no")
+ifneq ($(BUILDBOX_MODE),cross)
+ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
+endif
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
@@ -293,11 +315,18 @@ BUILDFLAGS_TBOT = $(ADDFLAGS) -ldflags '-w -s $(KUBECTL_SETVERSION)' -trimpath
 endif
 
 ifeq ("$(OS)","darwin")
+# Set the minimum version for macOS builds for Go, Rust and Xcode builds.
 # Note the minimum version for Apple silicon (ARM64) is 11.0 and will be automatically
 # clamped to the value for builds of that architecture
 MINIMUM_SUPPORTED_MACOS_VERSION = 10.15
 MACOSX_VERSION_MIN_FLAG = -mmacosx-version-min=$(MINIMUM_SUPPORTED_MACOS_VERSION)
-CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG) CGO_LDFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+
+# Go
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS=$(MACOSX_VERSION_MIN_FLAG)
+
+# Xcode and rust and Go linking
+MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
+export MACOSX_DEPLOYMENT_TARGET
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
@@ -360,14 +389,12 @@ $(BUILDDIR)/tsh:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG_TSH) go build -tags "$(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(VNETDAEMON_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tsh $(BUILDFLAGS) ./tool/tsh
 
 .PHONY: $(BUILDDIR)/tbot
-$(BUILDDIR)/tbot: CGO_ENABLED ?= 0
+# tbot is CGO-less by default except on Windows because lib/client/terminal/ wants CGO on this OS
+$(BUILDDIR)/tbot: TBOT_CGO_FLAGS ?= $(if $(filter windows,$(OS)),$(CGOFLAG))
+# Build mode pie requires CGO
+$(BUILDDIR)/tbot: BUILDFLAGS_TBOT += $(if $(TBOT_CGO_FLAGS), -buildmode=pie)
 $(BUILDDIR)/tbot:
-# The -buildmode=pie flag requires external cgo linking.
-ifeq ("$(CGO_ENABLED)", "1")
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) -buildmode=pie ./tool/tbot
-else
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
-endif
+	GOOS=$(OS) GOARCH=$(ARCH) $(TBOT_CGO_FLAGS) go build -tags "$(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ./tool/tbot
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -391,6 +418,15 @@ $(BUILDDIR)/fdpass-teleport:
 	cd tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
 	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
 
+.PHONY: tsh-app
+tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
+tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
+tsh-app:
+	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
+	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TSH_APP)
+
 #
 # BPF support (IF ENABLED)
 # Requires a recent version of clang and libbpf installed.
@@ -401,7 +437,7 @@ $(ER_BPF_BUILDDIR):
 
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(BPF_INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 .PHONY: bpf-er-bytecode
@@ -420,18 +456,11 @@ else
 bpf-bytecode:
 endif
 
-ifeq ("$(OS)-$(with_rdpclient)", "darwin-yes")
-# Set the minimum version linker flag for the rust build of rdpclient (and only rdpclient,
-# as the flag is invalid for building ironrdp to wasm in the web UI). Also set an env
-# var so any C libraries built by this build also target the correct min version.
-rdpclient: export RUSTFLAGS = -C link-arg=$(MACOSX_VERSION_MIN_FLAG)
-rdpclient: export MACOSX_DEPLOYMENT_TARGET = $(MINIMUM_SUPPORTED_MACOS_VERSION)
-endif
-
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
-	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
@@ -501,8 +530,7 @@ $(RELEASE_DIR):
 #
 # make release - Produces a binary release tarball.
 #
-.PHONY:
-export
+.PHONY: release
 release:
 	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
@@ -511,6 +539,12 @@ else ifeq ("$(OS)", "darwin")
 	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
+endif
+
+.PHONY: release-ent
+release-ent:
+ifneq (,$(wildcard e/Makefile))
+	$(MAKE) -C e release
 endif
 
 # These are aliases used to make build commands uniform.
@@ -534,12 +568,17 @@ release-arm64:
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
+ifeq ("$(OS)","darwin")
+build-archive: INSTALL_SCRIPT=build.assets/macos/install
+else
+build-archive: INSTALL_SCRIPT=build.assets/install
+endif
 build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BINARIES) \
 		examples \
-		build.assets/install\
+		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
 		teleport/
@@ -578,7 +617,8 @@ release-darwin-unsigned: full build-archive
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) build-archive
+	$(MAKE) tsh-app
+	$(MAKE) build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -595,16 +635,23 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
+release-darwin: TARBINS := $(subst tsh,tsh.app,$(TARBINS))
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
 	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
-	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
-	$(MAKE) ARCH=universal build-archive
+	lipo -create -output $(BUILDDIR)/tsh \
+		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
+		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+
+	$(NOTARIZE_BINARIES)
+	$(MAKE) tsh-app
+	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
@@ -683,16 +730,16 @@ release-windows: release-windows-unsigned
 # Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
 #
 # Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
-# should be defined for the `yarn package-term` command to succeed. CI sets
+# should be defined for the `pnpm package-term` command to succeed. CI sets
 # this appropriately depending on whether a push build is running, or a
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
 .PHONY: release-connect
 release-connect: | $(RELEASE_DIR)
-	yarn install --frozen-lockfile
-	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	pnpm install --frozen-lockfile
+	pnpm build-term
+	pnpm package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
 	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
@@ -757,6 +804,17 @@ $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 RERUN := $(TOOLINGDIR)/bin/rerun
 $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
+
+RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
+$(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
+#
+# Downloads and builds changelog from source.
+# PHONY is set so that we rely on Go's mod cache and not Make's cache.
+#
+CHANGELOG := $(TOOLINGDIR)/bin/changelog
+$(CHANGELOG):
+	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -859,6 +917,25 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 endif
+
+# Runs benchmarks once to make sure they pass.
+# This is intended to run in CI during unit testing to make sure benchmarks don't break.
+# To limit noise and improve speed this will only run on packages that have benchmarks.
+# Race detection is not enabled because it significantly slows down benchmarks.
+# todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
+.PHONY: test-go-bench
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
+test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
+
+test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
+test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
@@ -1515,6 +1592,12 @@ crds-up-to-date: must-start-clean/host
 		git diff; \
 		exit 1; \
 	fi
+	$(MAKE) -C integrations/operator crd-docs
+	@if ! git diff --quiet; then \
+		echo 'Please run make -C integrations/operator crd-docs.'; \
+		git diff; \
+		exit 1; \
+	fi
 
 # tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
 .PHONY: terraform-resources-up-to-date
@@ -1569,24 +1652,30 @@ ifneq ("$(OSS_TARBALL_PATH)", "")
 endif
 
 # build .pkg
+# builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
+# combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
+pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
+pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
+
+	@echo Building tsh-$(VERSION).pkg
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tsh*.pkg* $(BUILDDIR)/
+
+	@echo Building teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# runtime is currently ignored on OS X
 	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	cp $(BUILDDIR)/teleport-*.pkg $(RELEASE_DIR)
-	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
-# build tsh client-only .pkg
-.PHONY: pkg-tsh
-pkg-tsh: | $(RELEASE_DIR)
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
-	mkdir -p $(BUILDDIR)/
-	mv tsh*.pkg* $(BUILDDIR)/
-	cp $(BUILDDIR)/tsh-*.pkg $(RELEASE_DIR)
+	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_PKG)
+
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build .rpm
 .PHONY: rpm
@@ -1632,6 +1721,26 @@ ensure-webassets-e:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/teleport/index.html webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
+# Enables the pnpm package manager if it is not already enabled and Corepack
+# is available.
+# We check if pnpm is enabled, as the user may not have permission to
+# enable it, but it may already be available.
+# Enabling it merely installs a shim which then needs to be downloaded before first use.
+# Corepack typically prompts before downloading a package manager. We work around that
+# by issuing a bogus pnpm call with an env var that skips the prompt.
+.PHONY: ensure-js-package-manager
+ensure-js-package-manager:
+	@if [ -z "$$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v 2>/dev/null)" ]; then \
+		if [ -n "$$(corepack --version 2>/dev/null)" ]; then \
+			echo 'Info: pnpm is not enabled via Corepack. Enabling pnpm…'; \
+			corepack enable pnpm; \
+			echo "pnpm $$(COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm -v)"; \
+		else \
+			echo 'Error: Corepack is not installed, cannot enable pnpm. See the installation guide https://pnpm.io/installation#using-corepack'; \
+			exit 1; \
+		fi; \
+	fi
+
 .PHONY: init-submodules-e
 init-submodules-e:
 	git submodule init e
@@ -1646,15 +1755,15 @@ backport:
 .PHONY: ensure-js-deps
 ensure-js-deps:
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
-	else yarn install --ignore-scripts; fi
+	else $(MAKE) ensure-js-package-manager && pnpm install --frozen-lockfile; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || pnpm build-ui-e
 
 .PHONY: docker-ui
 docker-ui:
@@ -1676,12 +1785,32 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
-# usage: make changelog
-# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+# usage: make -s changelog
+# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
-# See ./build.assets/changelog.sh
 .PHONY: changelog
-changelog:
-	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
+changelog: $(CHANGELOG)
+	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+
+# create-github-release will generate release notes from the CHANGELOG.md and will
+# create release notes from them.
+#
+# usage: make create-github-release
+# usage: make create-github-release LATEST=true
+#
+# If it detects that the first version in CHANGELOG.md
+# does not match version set it will fail to create a release. If tag doesn't exist it
+# will also fail to create a release.
+#
+# For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
+.PHONY: create-github-release
+create-github-release: LATEST = false
+create-github-release: GITHUB_RELEASE_LABELS = ""
+create-github-release: $(RELEASE_NOTES_GEN)
+	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	-t "Teleport $(VERSION)" \
+	--latest=$(LATEST) \
+	--verify-tag \
+	-F - <<< "$$NOTES"

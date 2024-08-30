@@ -205,11 +205,8 @@ type Identity struct {
 
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
-	// SessionID is a UUIDv4 used to identify application sessions created by
-	// this certificate. The reason a UUID was used instead of a hash of the
-	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
-	// the SessionID is emitted in the audit log, using a UUID matches how SSH
-	// sessions are identified.
+	// SessionID is an ID used to identify application sessions created by
+	// this certificate.
 	SessionID string
 
 	// PublicAddr (and ClusterName) are used to route requests issued with this
@@ -231,6 +228,9 @@ type RouteToApp struct {
 
 	// GCPServiceAccount is the GCP service account to assume when accessing GCP API.
 	GCPServiceAccount string
+
+	// URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	URI string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -307,6 +307,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
 			AzureIdentity:     id.RouteToApp.AzureIdentity,
 			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+			URI:               id.RouteToApp.URI,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -357,6 +358,8 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
 		DeviceExtensions:        devExts,
+		BotName:                 id.BotName,
+		BotInstanceID:           id.BotInstanceID,
 	}
 }
 
@@ -1138,6 +1141,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AccessRequests:    id.ActiveRequests,
 		UserKind:          userKind,
 		TrustedDevice:     device,
+		BotName:           id.BotName,
+		BotInstanceID:     id.BotInstanceID,
 	}
 }
 

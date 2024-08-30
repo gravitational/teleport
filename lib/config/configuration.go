@@ -23,9 +23,11 @@
 package config
 
 import (
+	"context"
 	"crypto/x509"
 	"errors"
 	"io"
+	"io/fs"
 	"log/slog"
 	"maps"
 	"net"
@@ -57,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -69,6 +70,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+const (
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0o644
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -328,6 +336,12 @@ type IntegrationConfEC2SSMIAM struct {
 	// No trailing / is expected.
 	// Eg https://tenant.teleport.sh
 	ProxyPublicURL string
+	// ClusterName is the Teleport cluster name.
+	// Used for resource tagging.
+	ClusterName string
+	// IntegrationName is the Teleport AWS OIDC Integration name.
+	// Used for resource tagging.
+	IntegrationName string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -351,22 +365,6 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
-
-	// S3BucketURI is the S3 URI which contains the bucket name and prefix for the issuer.
-	// Format: s3://<bucket-name>/<prefix>
-	// Eg, s3://my-bucket/idp-teleport
-	// This is used in two places:
-	// - create openid configuration and jwks objects
-	// - set up the issuer
-	// The bucket must be public and will be created if it doesn't exist.
-	//
-	// If empty, the ProxyPublicAddress is used as issuer and no s3 objects are created.
-	S3BucketURI string
-
-	// S3JWKSContentsB64 must contain the public keys for the Issuer.
-	// The contents must be Base64 encoded.
-	// Eg. base64(`{"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}`)
-	S3JWKSContentsB64 string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -427,6 +425,8 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 
 // ApplyFileConfig applies configuration from a YAML file to Teleport
 // runtime config
+//
+// ApplyFileConfig is used by both teleport and tctl binaries.
 func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
 
@@ -756,12 +756,12 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 	var w io.Writer
 	switch loggerConfig.Output {
 	case "":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 	case "stderr", "error", "2":
-		w = os.Stderr
+		w = logutils.NewSharedWriter(os.Stderr)
 		cfg.Console = io.Discard // disable console printing
 	case "stdout", "out", "1":
-		w = os.Stdout
+		w = logutils.NewSharedWriter(os.Stdout)
 		cfg.Console = io.Discard // disable console printing
 	case teleport.Syslog:
 		w = os.Stderr
@@ -779,14 +779,20 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 
 		logger.ReplaceHooks(make(log.LevelHooks))
 		logger.AddHook(hook)
+		// If syslog output has been configured and is supported by the operating system,
+		// then the shared writer is not needed because the syslog writer is already
+		// protected with a mutex.
 		w = sw
 	default:
-		// assume it's a file path:
-		logFile, err := os.Create(loggerConfig.Output)
+		// Assume this is a file path.
+		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
+			return trace.Wrap(err, "failed to init the log file shared writer")
 		}
-		w = logFile
+		w = logutils.NewWriterFinalizer[*logutils.FileSharedWriter](sharedWriter)
+		if err := sharedWriter.RunWatcherReopen(context.Background()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	level := new(slog.LevelVar)
@@ -815,12 +821,6 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 
-	// If syslog output has been configured and is supported by the operating system,
-	// then the shared writer is not needed because the syslog writer is already
-	// protected with a mutex.
-	if len(logger.Hooks) == 0 {
-		w = logutils.NewSharedWriter(w)
-	}
 	var slogLogger *slog.Logger
 	switch strings.ToLower(loggerConfig.Format.Output) {
 	case "":
@@ -944,9 +944,6 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := dtconfig.ValidateConfigAgainstModules(cfg.Auth.Preference.GetDeviceTrust()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1146,6 +1143,14 @@ func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
 	return nil
 }
 
+const proxyUntrustedTLSCertErrMsg = `The Proxy Service was unable to validate the certificate chain of the
+  configured TLS certificate. The authority that issued this certificate is not
+  trusted on this host. Using an untrusted certificate is likely to cause
+  connection problems when clients and other Teleport services connect to this
+  Proxy Service. To trust a custom certificate authority you may set the
+  SSL_CERT_FILE or SSL_CERT_DIR environment variables to a path with your
+  authority's certificate chain.`
+
 // applyProxyConfig applies file configuration for the "proxy_service" section.
 func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
@@ -1268,11 +1273,11 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
 				"Teleport users to Man-in-the-Middle attacks."
-			log.Warnf(warningMessage)
+			log.Warn(warningMessage)
 		} else {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
-				return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
-					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+				return trace.BadParameter("unable to verify HTTPS certificate chain in %v:\n\n  %s\n\n  %s",
+					p.Certificate, proxyUntrustedTLSCertErrMsg, err)
 			}
 		}
 
@@ -2164,6 +2169,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
+	cfg.WindowsDesktop.KDCAddr = fc.WindowsDesktop.KDCAddress
+
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
@@ -2918,14 +2925,20 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
+	creds, err := fc.Jamf.readJamfCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	jamfSpec, err := fc.Jamf.toJamfSpecV1()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
+		Spec:        jamfSpec,
+		ExitOnSync:  fc.Jamf.ExitOnSync,
+		Credentials: creds,
 	}
 	return nil
 }

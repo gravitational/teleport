@@ -39,7 +39,6 @@ func stringPointer(s string) *string {
 }
 
 type mockListDatabasesClient struct {
-	pageSize    int
 	dbInstances []rdsTypes.DBInstance
 	dbClusters  []rdsTypes.DBCluster
 }
@@ -49,7 +48,21 @@ type mockListDatabasesClient struct {
 func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
 	requestedPage := 1
 
-	totalInstances := len(m.dbInstances)
+	instances := m.dbInstances
+	for _, f := range params.Filters {
+		if aws.ToString(f.Name) != filterDBClusterID {
+			continue
+		}
+		clusterIDFilter := f.Values[0]
+		var filtered []rdsTypes.DBInstance
+		for _, db := range instances {
+			if aws.ToString(db.DBClusterIdentifier) == clusterIDFilter {
+				filtered = append(filtered, db)
+			}
+		}
+		instances = filtered
+		break
+	}
 
 	if params.Marker != nil {
 		currentMarker, err := strconv.Atoi(*params.Marker)
@@ -59,14 +72,15 @@ func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params
 		requestedPage = currentMarker
 	}
 
-	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
+	sliceStart := int(listDatabasesPageSize) * (requestedPage - 1)
+	sliceEnd := int(listDatabasesPageSize) * requestedPage
+	totalInstances := len(instances)
 	if sliceEnd > totalInstances {
 		sliceEnd = totalInstances
 	}
 
 	ret := &rds.DescribeDBInstancesOutput{
-		DBInstances: m.dbInstances[sliceStart:sliceEnd],
+		DBInstances: instances[sliceStart:sliceEnd],
 	}
 
 	if sliceEnd < totalInstances {
@@ -94,64 +108,116 @@ func TestListDatabases(t *testing.T) {
 
 	clusterPort := int32(5432)
 
-	pageSize := 100
 	t.Run("pagination", func(t *testing.T) {
-		totalDBs := 203
+		pageOffset := 7
+		databasesPerVPC := int(listDatabasesPageSize)*3 + pageOffset
+		vpcIDs := []string{"vpc-1", "vpc-2", "vpc-3"}
+		totalDBs := databasesPerVPC * len(vpcIDs)
 
 		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
-		for i := 0; i < totalDBs; i++ {
-			allInstances = append(allInstances, rdsTypes.DBInstance{
-				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i)),
-				DbiResourceId:        stringPointer("db-123"),
-				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
-				Engine:               stringPointer("postgres"),
-				Endpoint: &rdsTypes.Endpoint{
-					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    aws.Int32(5432),
-				},
-			})
+		for i, vpcID := range vpcIDs {
+			for j := 0; j < databasesPerVPC; j++ {
+				allInstances = append(allInstances, rdsTypes.DBInstance{
+					DBInstanceStatus:     stringPointer("available"),
+					DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i*databasesPerVPC+j)),
+					DbiResourceId:        stringPointer("db-123"),
+					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+						VpcId: aws.String(vpcID),
+					},
+					Engine: stringPointer("postgres"),
+					Endpoint: &rdsTypes.Endpoint{
+						Address: stringPointer("endpoint.amazonaws.com"),
+						Port:    aws.Int32(5432),
+					},
+				})
+			}
 		}
 
 		mockListClient := mockListDatabasesClient{
-			pageSize:    pageSize,
 			dbInstances: allInstances,
 		}
 
-		// First page must return pageSize number of DBs
-		resp, err := ListDatabases(ctx, mockListClient, ListDatabasesRequest{
-			Region:    "us-east-1",
-			RDSType:   "instance",
-			Engines:   []string{"postgres"},
-			NextToken: "",
+		t.Run("without vpc filter", func(t *testing.T) {
+			t.Parallel()
+			// First page must return pageSize number of DBs
+			req := ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				VpcId:     "",
+				NextToken: "",
+			}
+			for i := 0; i < totalDBs/int(listDatabasesPageSize); i++ {
+				resp, err := ListDatabases(ctx, mockListClient, req)
+				require.NoError(t, err)
+				require.Len(t, resp.Databases, int(listDatabasesPageSize))
+				require.NotEmpty(t, resp.NextToken)
+				req.NextToken = resp.NextToken
+			}
+			// Last page must return remaining databases and an empty token.
+			resp, err := ListDatabases(ctx, mockListClient, req)
+			require.NoError(t, err)
+			require.Len(t, resp.Databases, totalDBs%int(listDatabasesPageSize))
+			require.Empty(t, resp.NextToken)
 		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp.NextToken)
-		require.Len(t, resp.Databases, pageSize)
-		nextPageToken := resp.NextToken
 
-		// Second page must return pageSize number of DBs
-		resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
-			Region:    "us-east-1",
-			RDSType:   "instance",
-			Engines:   []string{"postgres"},
-			NextToken: nextPageToken,
-		})
-		require.NoError(t, err)
-		require.NotEmpty(t, resp.NextToken)
-		require.Len(t, resp.Databases, pageSize)
-		nextPageToken = resp.NextToken
+		t.Run("with vpc filter", func(t *testing.T) {
+			t.Parallel()
+			// First page must return at least pageSize number of DBs
+			var gotDatabases []types.Database
+			wantVPC := "vpc-2"
+			resp, err := ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				VpcId:     wantVPC,
+				NextToken: "",
+			})
+			require.NoError(t, err)
+			// the first few pages of databases are in vpc-1, and filtering is done
+			// client side, so we keep fetching pages until we fill at least
+			// pageSize.
+			// The first page with vpc-2 databases will have pageSize-offset
+			// databases in vpc-2, which is less than pageSize, so we fetch another
+			// page, this time getting a full pageSize of databases in vpc-2, and
+			// then we return pageSize-offset+pageSize databases.
+			require.Len(t, resp.Databases, 2*int(listDatabasesPageSize)-pageOffset)
+			require.NotEmpty(t, resp.NextToken)
+			nextPageToken := resp.NextToken
+			gotDatabases = append(gotDatabases, resp.Databases...)
 
-		// Third page must return only the remaining DBs and an empty nextToken
-		resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
-			Region:    "us-east-1",
-			RDSType:   "instance",
-			Engines:   []string{"postgres"},
-			NextToken: nextPageToken,
+			// Second page must return pageSize number of DBs
+			resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				VpcId:     wantVPC,
+				NextToken: nextPageToken,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Databases, int(listDatabasesPageSize))
+			require.NotEmpty(t, resp.NextToken)
+			nextPageToken = resp.NextToken
+			gotDatabases = append(gotDatabases, resp.Databases...)
+
+			// Third page must return only the remaining DBs and an empty nextToken
+			resp, err = ListDatabases(ctx, mockListClient, ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				VpcId:     wantVPC,
+				NextToken: nextPageToken,
+			})
+			require.NoError(t, err)
+			require.Len(t, resp.Databases, databasesPerVPC-len(gotDatabases))
+			require.Empty(t, resp.NextToken)
+			gotDatabases = append(gotDatabases, resp.Databases...)
+
+			for i, db := range gotDatabases {
+				require.Equal(t, wantVPC, db.GetAWS().RDS.VPCID, "database %d should be in the requested VPC", i)
+			}
 		})
-		require.NoError(t, err)
-		require.Empty(t, resp.NextToken)
-		require.Len(t, resp.Databases, 3)
 	})
 
 	for _, tt := range []struct {
@@ -208,6 +274,85 @@ func TestListDatabases(t *testing.T) {
 							RDS: types.RDS{
 								InstanceID: "my-db",
 								ResourceID: "db-123",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
+			},
+			errCheck: noErrorFunc,
+		},
+		{
+			name: "valid for listing instances with a vpc filter",
+			req: ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				NextToken: "",
+				VpcId:     "vpc-2",
+			},
+			mockInstances: []rdsTypes.DBInstance{
+				{
+					DBInstanceStatus:     stringPointer("available"),
+					DBInstanceIdentifier: stringPointer("my-db-1"),
+					Engine:               stringPointer("postgres"),
+					DbiResourceId:        stringPointer("db-123"),
+					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-a")}},
+						VpcId:   aws.String("vpc-1"),
+					},
+					Endpoint: &rdsTypes.Endpoint{
+						Address: stringPointer("endpoint.amazonaws.com"),
+						Port:    aws.Int32(5432),
+					},
+				},
+				{
+					DBInstanceStatus:     stringPointer("available"),
+					DBInstanceIdentifier: stringPointer("my-db-2"),
+					Engine:               stringPointer("postgres"),
+					DbiResourceId:        stringPointer("db-123"),
+					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-b")}},
+						VpcId:   aws.String("vpc-2"),
+					},
+					Endpoint: &rdsTypes.Endpoint{
+						Address: stringPointer("endpoint.amazonaws.com"),
+						Port:    aws.Int32(5432),
+					},
+				},
+			},
+			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
+				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-db-2",
+						Description: "RDS instance in ",
+						Labels: map[string]string{
+							"account-id":         "123456789012",
+							"endpoint-type":      "instance",
+							"engine":             "postgres",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"teleport.dev/cloud": "AWS",
+							"vpc-id":             "vpc-2",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "endpoint.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								InstanceID: "my-db-2",
+								ResourceID: "db-123",
+								VPCID:      "vpc-2",
+								Subnets:    []string{"subnet-b"},
 							},
 						},
 					},
@@ -299,6 +444,7 @@ func TestListDatabases(t *testing.T) {
 				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 			}},
 			mockInstances: []rdsTypes.DBInstance{{
+				DBClusterIdentifier: stringPointer("my-dbc"),
 				DBSubnetGroup: &rdsTypes.DBSubnetGroup{
 					Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-999")}},
 					VpcId:   aws.String("vpc-999"),
@@ -333,6 +479,90 @@ func TestListDatabases(t *testing.T) {
 								ResourceID: "db-123",
 								Subnets:    []string{"subnet-999"},
 								VPCID:      "vpc-999",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expectedDB, ldr.Databases[0]))
+			},
+			errCheck: noErrorFunc,
+		},
+
+		{
+			name: "valid for listing clusters with vpc filter",
+			req: ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "cluster",
+				Engines:   []string{"postgres"},
+				NextToken: "",
+				VpcId:     "vpc-2",
+			},
+			mockClusters: []rdsTypes.DBCluster{
+				{
+					Status:              stringPointer("available"),
+					DBClusterIdentifier: stringPointer("my-dbc-1"),
+					DbClusterResourceId: stringPointer("db-123"),
+					Engine:              stringPointer("aurora-postgresql"),
+					Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+					Port:                &clusterPort,
+					DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				},
+				{
+					Status:              stringPointer("available"),
+					DBClusterIdentifier: stringPointer("my-dbc-2"),
+					DbClusterResourceId: stringPointer("db-123"),
+					Engine:              stringPointer("aurora-postgresql"),
+					Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+					Port:                &clusterPort,
+					DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				},
+			},
+			mockInstances: []rdsTypes.DBInstance{
+				{
+					DBClusterIdentifier: stringPointer("my-dbc-1"),
+					DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-1")}},
+						VpcId:   aws.String("vpc-1"),
+					},
+				},
+				{
+					DBClusterIdentifier: stringPointer("my-dbc-2"),
+					DBSubnetGroup: &rdsTypes.DBSubnetGroup{
+						Subnets: []rdsTypes.Subnet{{SubnetIdentifier: aws.String("subnet-2")}},
+						VpcId:   aws.String("vpc-2"),
+					},
+				},
+			},
+			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
+				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-dbc-2",
+						Description: "Aurora cluster in ",
+						Labels: map[string]string{
+							"account-id":         "123456789012",
+							"endpoint-type":      "primary",
+							"engine":             "aurora-postgresql",
+							"engine-version":     "",
+							"region":             "",
+							"status":             "available",
+							"vpc-id":             "vpc-2",
+							"teleport.dev/cloud": "AWS",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								ClusterID:  "my-dbc-2",
+								InstanceID: "aurora-instance-1",
+								ResourceID: "db-123",
+								Subnets:    []string{"subnet-2"},
+								VPCID:      "vpc-2",
 							},
 						},
 					},
@@ -395,7 +625,6 @@ func TestListDatabases(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			mockListClient := mockListDatabasesClient{
-				pageSize:    pageSize,
 				dbInstances: tt.mockInstances,
 				dbClusters:  tt.mockClusters,
 			}

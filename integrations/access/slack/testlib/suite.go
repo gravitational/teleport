@@ -831,7 +831,7 @@ func (s *SlackSuiteEnterprise) TestRace() {
 
 // TestAccessListReminder validates that Access List reminders are sent before
 // the Access List expires.
-func (s *SlackSuiteEnterprise) TestAccessListReminder() {
+func (s *SlackSuiteEnterprise) TestAccessListReminder_Singular() {
 	t := s.T()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -885,6 +885,66 @@ func (s *SlackSuiteEnterprise) TestAccessListReminder() {
 	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "Access List *simple title* is 7 day(s) past due for a review! Please review it.")
 }
 
+// TestAccessListReminder_Batched validates that Access List reminders are sent in batches
+// if multiple access lists are given.
+func (s *SlackSuiteEnterprise) TestAccessListReminder_Batched() {
+	t := s.T()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	t.Cleanup(cancel)
+
+	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
+	s.appConfig.Clock = clock
+	s.startApp()
+
+	// Test setup: create a couple accesslists
+
+	accessList1, err := accesslist.NewAccessList(header.Metadata{
+		Name: "access-list1",
+	}, accesslist.Spec{
+		Title: "simple title one",
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+		Owners: []accesslist.Owner{
+			{Name: integration.Reviewer1UserName},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: time.Date(2023, 3, 2, 0, 0, 0, 0, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.Ruler().AccessListClient().UpsertAccessList(ctx, accessList1)
+	require.NoError(t, err)
+
+	accessList2, err := accesslist.NewAccessList(header.Metadata{
+		Name: "access-list2",
+	}, accesslist.Spec{
+		Title: "simple title two",
+		Grants: accesslist.Grants{
+			Roles: []string{"grant"},
+		},
+		Owners: []accesslist.Owner{
+			{Name: integration.Reviewer1UserName},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: time.Date(2023, 3, 1, 0, 0, 0, 0, time.UTC),
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.Ruler().AccessListClient().UpsertAccessList(ctx, accessList2)
+	require.NoError(t, err)
+
+	// Trigger a reminder.
+	clock.BlockUntil(1)
+	clock.Advance(46 * 25 * time.Hour)
+	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "2 Access Lists are due for reviews, earliest of which is due by 2023-03-01")
+
+	// Make it overdue.
+	clock.BlockUntil(1)
+	clock.Advance(20 * 24 * time.Hour)
+	s.requireReminderMsgEqual(ctx, s.reviewer1SlackUser.ID, "2 Access Lists are due for reviews, earliest of which is 8 day(s) past due")
+}
+
 func (s *SlackBaseSuite) requireReminderMsgEqual(ctx context.Context, id, text string) {
 	s.T().Helper()
 	t := s.T()
@@ -893,5 +953,5 @@ func (s *SlackBaseSuite) requireReminderMsgEqual(ctx context.Context, id, text s
 	require.NoError(t, err)
 	require.Equal(t, id, msg.Channel)
 	require.IsType(t, slack.SectionBlock{}, msg.BlockItems[0].Block)
-	require.Equal(t, text, (msg.BlockItems[0].Block).(slack.SectionBlock).Text.GetText())
+	require.Contains(t, (msg.BlockItems[0].Block).(slack.SectionBlock).Text.GetText(), text)
 }

@@ -101,58 +101,95 @@ type EntitlementInfo struct {
 	Limit int32
 }
 
+// UnderLimit tests that a given entitlement is under its prescribed limit
+// based on the supplied use count. A return value of `true` indicates that
+// there is still at least *some* capacity left in the entitlement. The actual
+// definition of a "use" depends on the entitlement in question.
+// A disabled entitlement is always out of its limit.
+func (e EntitlementInfo) UnderLimit(count int) bool {
+	return e.Enabled && (e.Limit == 0 || count < int(e.Limit))
+}
+
 // ToProto converts Features into proto.Features
-// todo (michellescripts) phase 2 entitlements: update auth service
 func (f Features) ToProto() *proto.Features {
-	return &proto.Features{
-		// Settings
-		Cloud:           f.Cloud,
-		CustomTheme:     f.CustomTheme,
-		IsStripeManaged: f.IsStripeManaged,
-		IsUsageBased:    f.IsUsageBasedBilling,
-		Questionnaire:   f.Questionnaire,
-		SupportType:     f.SupportType,
+	protoF := &proto.Features{
+		Cloud:                      f.Cloud,
+		CustomTheme:                f.CustomTheme,
+		IsStripeManaged:            f.IsStripeManaged,
+		IsUsageBased:               f.IsUsageBasedBilling,
+		Questionnaire:              f.Questionnaire,
+		SupportType:                f.SupportType,
+		AccessControls:             f.AccessControls,
+		AccessGraph:                f.AccessGraph,
+		AdvancedAccessWorkflows:    f.AdvancedAccessWorkflows,
+		AutomaticUpgrades:          f.AutomaticUpgrades,
+		Plugins:                    f.Plugins,
+		ProductType:                proto.ProductType(f.ProductType),
+		RecoveryCodes:              f.RecoveryCodes,
+		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
+		Entitlements:               f.EntitlementsToProto(),
+	}
 
-		// todo (michellescripts) update this api to use new entitlements; typed as Entitlement
-		AccessList: &proto.AccessListFeature{
-			CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
-		},
-		// todo (michellescripts) in phase 2, break out AccessMonitoringConfigured and AccessMonitoringEntitlement
-		AccessMonitoring: &proto.AccessMonitoringFeature{
-			Enabled:             f.AccessMonitoringConfigured, // currently for backwards compatibility until we can separate enabled and entitled
-			MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
-		},
-		AccessRequests: &proto.AccessRequestsFeature{
-			MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
-		},
-		DeviceTrust: &proto.DeviceTrustFeature{
-			Enabled:           f.GetEntitlement(entitlements.DeviceTrust).Enabled,
-			DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
-		},
+	// remove setLegacyLogic in v18
+	setLegacyLogic(protoF, f)
+	return protoF
+}
 
-		AccessControls:          f.AccessControls,
-		AccessGraph:             f.AccessGraph,
-		AdvancedAccessWorkflows: f.AdvancedAccessWorkflows,
-		App:                     f.GetEntitlement(entitlements.App).Enabled,
-		AutomaticUpgrades:       f.AutomaticUpgrades,
-		DB:                      f.GetEntitlement(entitlements.DB).Enabled,
-		Desktop:                 f.GetEntitlement(entitlements.Desktop).Enabled,
-		ExternalAuditStorage:    f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled,
-		FeatureHiding:           f.GetEntitlement(entitlements.FeatureHiding).Enabled,
-		HSM:                     f.GetEntitlement(entitlements.HSM).Enabled,
-		IdentityGovernance:      f.GetEntitlement(entitlements.Identity).Enabled,
-		JoinActiveSessions:      f.GetEntitlement(entitlements.JoinActiveSessions).Enabled,
-		Kubernetes:              f.GetEntitlement(entitlements.K8s).Enabled,
-		MobileDeviceManagement:  f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled,
-		OIDC:                    f.GetEntitlement(entitlements.OIDC).Enabled,
-		Plugins:                 f.Plugins,
-		Policy:                  &proto.PolicyFeature{Enabled: f.GetEntitlement(entitlements.Policy).Enabled},
-		ProductType:             proto.ProductType(f.ProductType),
-		RecoveryCodes:           f.RecoveryCodes,
-		SAML:                    f.GetEntitlement(entitlements.SAML).Enabled,
+// setLegacyLogic sets the deprecated fields; to be removed in v18 - use entitlements
+func setLegacyLogic(protoF *proto.Features, f Features) {
+	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
+	protoF.App = f.GetEntitlement(entitlements.App).Enabled
+	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
+	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
+	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
+	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
+	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
+	protoF.FeatureHiding = f.GetEntitlement(entitlements.FeatureHiding).Enabled
+	protoF.IdentityGovernance = f.GetEntitlement(entitlements.Identity).Enabled
+	protoF.ExternalAuditStorage = f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled
+	protoF.JoinActiveSessions = f.GetEntitlement(entitlements.JoinActiveSessions).Enabled
+	protoF.MobileDeviceManagement = f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled
+
+	protoF.DeviceTrust = &proto.DeviceTrustFeature{
+		Enabled: f.GetEntitlement(entitlements.DeviceTrust).Enabled, DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
+	}
+	protoF.AccessRequests = &proto.AccessRequestsFeature{
+		MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
+	}
+	protoF.AccessMonitoring = &proto.AccessMonitoringFeature{
+		Enabled: f.AccessMonitoringConfigured, MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
+	}
+	protoF.AccessList = &proto.AccessListFeature{
+		CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
+	}
+	protoF.Policy = &proto.PolicyFeature{
+		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
 	}
 }
 
+// EntitlementsToProto takes the features.Entitlements object and returns a proto version. If not present on Features, the
+// proto entitlement will default to false
+func (f Features) EntitlementsToProto() map[string]*proto.EntitlementInfo {
+	all := entitlements.AllEntitlements
+	result := make(map[string]*proto.EntitlementInfo, len(all))
+
+	for _, e := range all {
+		al, ok := f.Entitlements[e]
+		if !ok {
+			result[string(e)] = &proto.EntitlementInfo{}
+			continue
+		}
+
+		result[string(e)] = &proto.EntitlementInfo{
+			Enabled: al.Enabled,
+			Limit:   al.Limit,
+		}
+	}
+
+	return result
+}
+
+// GetEntitlement takes an entitlement and returns either the Features entitlement, or if not present, a false entitlement
 func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo {
 	al, ok := f.Entitlements[e]
 	if !ok {
@@ -160,6 +197,21 @@ func (f Features) GetEntitlement(e entitlements.EntitlementKind) EntitlementInfo
 	}
 
 	return EntitlementInfo{
+		Enabled: al.Enabled,
+		Limit:   al.Limit,
+	}
+}
+
+// GetProtoEntitlement takes a proto features set and an entitlement and returns either the proto features entitlement,
+// or if not present, a false entitlement
+func GetProtoEntitlement(f *proto.Features, e entitlements.EntitlementKind) *proto.EntitlementInfo {
+	fE := f.GetEntitlements()
+	al, ok := fE[string(e)]
+	if !ok {
+		return &proto.EntitlementInfo{}
+	}
+
+	return &proto.EntitlementInfo{
 		Enabled: al.Enabled,
 		Limit:   al.Limit,
 	}

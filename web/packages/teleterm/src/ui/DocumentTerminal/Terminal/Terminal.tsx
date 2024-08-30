@@ -27,8 +27,12 @@ import {
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
+import { WindowsPty } from 'teleterm/services/pty';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
+
+import { ConfigService } from 'teleterm/services/config';
 
 import { Reconnect } from '../Reconnect';
 
@@ -48,6 +52,10 @@ type TerminalProps = {
   unsanitizedFontFamily: string;
   fontSize: number;
   onEnterKey?(): void;
+  windowsPty: WindowsPty;
+  openContextMenu(): void;
+  configService: ConfigService;
+  keyboardShortcutsService: KeyboardShortcutsService;
 };
 
 export function Terminal(props: TerminalProps) {
@@ -68,11 +76,18 @@ export function Terminal(props: TerminalProps) {
       setStartPtyProcessAttempt(makeSuccessAttempt(undefined));
     });
 
-    const ctrl = new XTermCtrl(props.ptyProcess, {
-      el: refElement.current,
-      fontSize: props.fontSize,
-      theme: theme.colors.terminal,
-    });
+    const ctrl = new XTermCtrl(
+      props.ptyProcess,
+      {
+        el: refElement.current,
+        fontSize: props.fontSize,
+        theme: theme.colors.terminal,
+        windowsPty: props.windowsPty,
+        openContextMenu: props.openContextMenu,
+      },
+      props.configService,
+      props.keyboardShortcutsService
+    );
 
     // Start the PTY process.
     ctrl.open();

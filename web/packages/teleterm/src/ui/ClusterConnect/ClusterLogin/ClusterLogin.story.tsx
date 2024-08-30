@@ -186,14 +186,16 @@ export const LocalOnlyWithReasonVnetCertExpired = () => {
   );
 };
 
+const authProviders = [
+  { type: 'github', name: 'github', displayName: 'GitHub' },
+  { type: 'saml', name: 'microsoft', displayName: 'Microsoft' },
+];
+
 export const SsoOnly = () => {
   const props = makeProps();
   props.initAttempt.data.localAuthEnabled = false;
   props.initAttempt.data.authType = 'github';
-  props.initAttempt.data.authProviders = [
-    { type: 'github', name: 'github', displayName: 'github' },
-    { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
-  ];
+  props.initAttempt.data.authProviders = authProviders;
 
   return (
     <TestContainer>
@@ -223,10 +225,7 @@ export const LocalLoggedInUserWithPasswordless = () => {
 
 export const LocalWithSso = () => {
   const props = makeProps();
-  props.initAttempt.data.authProviders = [
-    { type: 'github', name: 'github', displayName: 'github' },
-    { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
-  ];
+  props.initAttempt.data.authProviders = authProviders;
 
   return (
     <TestContainer>
@@ -261,10 +260,18 @@ export const PasswordlessWithLocalLoggedInUser = () => {
 export const SsoWithLocalAndPasswordless = () => {
   const props = makeProps();
   props.initAttempt.data.authType = 'github';
-  props.initAttempt.data.authProviders = [
-    { type: 'github', name: 'github', displayName: 'github' },
-    { type: 'saml', name: 'microsoft', displayName: 'microsoft' },
-  ];
+  props.initAttempt.data.authProviders = authProviders;
+
+  return (
+    <TestContainer>
+      <ClusterLoginPresentation {...props} />
+    </TestContainer>
+  );
+};
+
+export const SsoWithNoProvidersConfigured = () => {
+  const props = makeProps();
+  props.initAttempt.data.authType = 'github';
 
   return (
     <TestContainer>

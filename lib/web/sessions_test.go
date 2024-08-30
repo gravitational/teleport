@@ -235,7 +235,7 @@ func TestSessionCache_watcher(t *testing.T) {
 		session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
 			User:               "llama", // fake
 			Pub:                []byte(`ceci n'est pas an SSH certificate`),
-			Priv:               creds.PrivateKey,
+			TLSPriv:            creds.PrivateKey,
 			TLSCert:            creds.Cert,
 			BearerToken:        "12345678",
 			BearerTokenExpires: expires,

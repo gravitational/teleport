@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+import { Indicator, Box, Alert, Button } from 'design';
 
 import {
   FeatureBox,
@@ -65,18 +65,30 @@ export function Users(props: State) {
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-                Create New User
-              </ButtonPrimary>
-            )}
-            {InviteCollaborators && (
-              <ButtonPrimary
+              <Button
+                intent="primary"
+                fill="border"
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                onClick={onStartCreate}
+              >
+                Create New User
+              </Button>
+            )}
+            {InviteCollaborators && (
+              <Button
+                intent="primary"
+                fill="border"
+                ml="auto"
+                width="240px"
+                // TODO(bl-nero): There may be a bug here that used to be hidden
+                // by inadequate type checking; investigate and fix.
+                onClick={
+                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
+                }
               >
                 Enroll Users
-              </ButtonPrimary>
+              </Button>
             )}
           </>
         )}

@@ -34,7 +34,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -359,6 +358,19 @@ func (s *SSHMultiplexerService) generateIdentity(ctx context.Context) (*identity
 	if err != nil {
 		return nil, trace.Wrap(err, "adding identity to agent")
 	}
+	// There's a bug with Paramiko and older versions of OpenSSH that requires
+	// that the bare key also be included in the agent or the key with the
+	// certificate will not be used.
+	// See the following: https://bugzilla.mindrot.org/show_bug.cgi?id=2550
+	err = newAgent.Add(agent.AddedKey{
+		PrivateKey:   id.PrivateKey,
+		Certificate:  nil,
+		LifetimeSecs: 0,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "adding bare key to agent")
+	}
+
 	s.agentMu.Lock()
 	s.agent = newAgent.(agent.ExtendedAgent)
 	s.agentMu.Unlock()
@@ -849,52 +861,4 @@ func (s *cyclingHostDialClient) DialHost(ctx context.Context, target string, clu
 	}
 	wrappedConn.parent.Store(currentClt)
 	return wrappedConn, details, nil
-}
-
-// ConnectToSSHMultiplex connects to the SSH multiplexer and sends the target
-// to the multiplexer. It then returns the connection to the SSH multiplexer
-// over stdout.
-func ConnectToSSHMultiplex(ctx context.Context, socketPath string, target string, stdout *os.File) error {
-	outConn, err := net.FileConn(stdout)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer outConn.Close()
-	outUnix, ok := outConn.(*net.UnixConn)
-	if !ok {
-		return trace.BadParameter("expected stdout to be %T, got %T", outUnix, outConn)
-	}
-
-	c, err := new(net.Dialer).DialContext(ctx, "unix", socketPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer c.Close()
-
-	if _, err := fmt.Fprint(c, target, "\x00"); err != nil {
-		return trace.Wrap(err)
-	}
-
-	rawC, err := c.(*net.UnixConn).SyscallConn()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var innerErr error
-	if controlErr := rawC.Control(func(fd uintptr) {
-		// We have to write something in order to send a control message so
-		// we just write NUL.
-		_, _, innerErr = outUnix.WriteMsgUnix(
-			[]byte{0},
-			syscall.UnixRights(int(fd)),
-			nil,
-		)
-	}); controlErr != nil {
-		return trace.Wrap(controlErr)
-	}
-	if innerErr != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }

@@ -66,6 +66,7 @@ import (
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -89,6 +90,7 @@ import (
 	notifications "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
+	statichostuserv1 "github.com/gravitational/teleport/lib/auth/statichostuser"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
@@ -104,6 +106,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -1622,6 +1625,7 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 }
 
 // GetSAMLIdPSession gets a SAML IdPsession.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLIdPSessionRequest) (*authpb.GetSAMLIdPSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1643,6 +1647,7 @@ func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *authpb.GetSAMLI
 }
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *authpb.ListSAMLIdPSessionsRequest) (*authpb.ListSAMLIdPSessionsResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1741,6 +1746,7 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *authpb.Cre
 }
 
 // CreateSAMLIdPSession creates a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *authpb.CreateSAMLIdPSessionRequest) (*authpb.CreateSAMLIdPSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1810,6 +1816,7 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 }
 
 // DeleteSAMLIdPSession removes a SAML IdP session.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *authpb.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1826,6 +1833,7 @@ func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *authpb.Delet
 }
 
 // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1840,6 +1848,7 @@ func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Em
 }
 
 // DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
+// TODO(Joerger): DELETE IN v18.0.0
 func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *authpb.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -2407,7 +2416,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy process.
+		// time is bounded by the lifetime of the local proxy process or the mfa verification interval.
 		return
 	}
 
@@ -2422,7 +2431,7 @@ func isLocalProxyCertReq(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
@@ -4479,7 +4488,7 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 		if trace.IsNotFound(err) {
 			switch req.Name {
 			case installers.InstallerScriptName:
-				return installers.DefaultInstaller, nil
+				return installer.DefaultInstaller, nil
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
 			}
@@ -4505,7 +4514,7 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 	}
 	var installersV1 []*types.InstallerV1
 	defaultInstallers := map[string]*types.InstallerV1{
-		installers.InstallerScriptName:          installers.DefaultInstaller,
+		types.DefaultInstallerScriptName:        installer.DefaultInstaller,
 		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
 	}
 
@@ -5191,6 +5200,18 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
 
+	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services.SPIFFEFederations,
+		Cache:      cfg.AuthServer.Cache,
+		Clock:      cfg.AuthServer.GetClock(),
+		Emitter:    cfg.Emitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE federation service")
+	}
+	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
+
 	dbObjectImportRuleService, err := dbobjectimportrulev1.NewDatabaseObjectImportRuleService(dbobjectimportrulev1.DatabaseObjectImportRuleServiceConfig{
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
@@ -5278,6 +5299,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Cache:           cfg.AuthServer.Cache,
 		KeyStoreManager: cfg.AuthServer.GetKeyStore(),
 		Clock:           cfg.AuthServer.clock,
+		Emitter:         cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5401,6 +5423,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
 	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
+
+	staticHostUserServer, err := statichostuserv1.NewService(statichostuserv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userprovisioningpb.RegisterStaticHostUsersServiceServer(server, staticHostUserServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all

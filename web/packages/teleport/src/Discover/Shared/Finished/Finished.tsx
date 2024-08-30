@@ -18,7 +18,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
+import { ButtonPrimary, Text, Flex, ButtonSecondary, Image, H2 } from 'design';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
@@ -45,9 +45,9 @@ export function Finished(props: AgentStepProps) {
   return (
     <Container>
       <Image width="120px" height="120px" src={celebratePamPng} />
-      <Text mt={3} mb={2} typography="h4" bold>
+      <H2 mt={3} mb={2}>
         {title}
-      </Text>
+      </H2>
       <Text mb={3}>{resourceText}</Text>
       <Flex>
         <ButtonPrimary

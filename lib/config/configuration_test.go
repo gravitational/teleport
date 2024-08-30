@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -43,15 +44,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -676,7 +679,7 @@ proxy_service:
 	}
 
 	for _, tt := range tests {
-		comment := fmt.Sprintf(tt.desc)
+		comment := tt.desc
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
@@ -3391,62 +3394,6 @@ teleport:
 	}
 }
 
-func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
-	tests := []struct {
-		name        string
-		buildType   string
-		deviceTrust *DeviceTrust
-		wantErr     bool
-	}{
-		{
-			name:      "ok: OSS Mode=off",
-			buildType: modules.BuildOSS,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeOff,
-			},
-		},
-		{
-			name:      "nok: OSS Mode=required",
-			buildType: modules.BuildOSS,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired,
-			},
-			wantErr: true,
-		},
-		{
-			name:      "ok: Enterprise Mode=required",
-			buildType: modules.BuildEnterprise,
-			deviceTrust: &DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired,
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
-				TestBuildType: test.buildType,
-			})
-
-			defaultCfg := servicecfg.MakeDefaultConfig()
-			err := ApplyFileConfig(&FileConfig{
-				Auth: Auth{
-					Service: Service{
-						EnabledFlag: "yes",
-					},
-					Authentication: &AuthenticationConfig{
-						DeviceTrust: test.deviceTrust,
-					},
-				},
-			}, defaultCfg)
-			if test.wantErr {
-				assert.Error(t, err, "ApplyFileConfig mismatch")
-			} else {
-				assert.NoError(t, err, "ApplyFileConfig mismatch")
-			}
-		})
-	}
-}
-
 func TestApplyConfig_JamfService(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -3478,8 +3425,10 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 			},
 		},
@@ -3492,9 +3441,11 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3517,8 +3468,6 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3529,6 +3478,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -4984,4 +4937,69 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, testCase.expectedGCPMatchers, cfg.Discovery.GCPMatchers)
 		})
 	}
+}
+
+// TestProxyUntrustedCert tests that configuring a Proxy Service with an HTTPS
+// cert signed by an untrusted cert authority is an error, and returns a helpful
+// error message.
+func TestProxyUntrustedCert(t *testing.T) {
+	t.Parallel()
+
+	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// Generate a CA for the test that will not be trusted.
+	caCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caPriv,
+		pkix.Name{
+			CommonName:   "CA",
+			Organization: []string{"teleport"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromCertAndSigner(caCert, caPriv)
+	require.NoError(t, err)
+
+	// Generate a leaf cert signed by the untrusted CA.
+	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: leafPriv.Public(),
+		Subject:   pkix.Name{CommonName: "leaf"},
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	leafPrivPem, err := keys.MarshalPrivateKey(leafPriv)
+	require.NoError(t, err)
+
+	certDir := t.TempDir()
+	certPath := filepath.Join(certDir, "leaf.crt")
+	keyPath := filepath.Join(certDir, "leaf.key")
+	err = os.WriteFile(certPath, leafCert, 0600)
+	require.NoError(t, err)
+	err = os.WriteFile(keyPath, leafPrivPem, 0600)
+	require.NoError(t, err)
+
+	fc := &FileConfig{
+		Proxy: Proxy{
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  keyPath,
+					Certificate: certPath,
+				},
+			},
+		},
+	}
+	cfg := &servicecfg.Config{}
+
+	err = applyProxyConfig(fc, cfg)
+	require.Error(t, err)
+	require.ErrorContains(t, err, certPath)
+	require.ErrorContains(t, err, proxyUntrustedTLSCertErrMsg)
+
+	// We can't test that writing the CA cert to file and setting SSL_CERT_FILE
+	// would fix this error, because:
+	// - the system root certs are loaded exactly once and cached
+	// - it only works on linux
 }

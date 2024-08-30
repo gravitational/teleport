@@ -54,12 +54,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -229,6 +229,35 @@ func TestAccessPostgres(t *testing.T) {
 			dbName:        "metrics",
 			dbUser:        "alice",
 			err:           "access to db denied",
+		},
+		{
+			desc:         "empty username is not allowed",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{types.Wildcard},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "postgres",
+			dbUser:       "",
+			err:          "user name must not be empty",
+		},
+		{
+			desc:         "empty DB name is set to allowed user name",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"postgres"},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "",
+			dbUser:       "postgres",
+		},
+		{
+			desc:         "empty DB name is set to disallowed user name",
+			user:         "alice",
+			role:         "admin",
+			allowDbNames: []string{"non-existent"},
+			allowDbUsers: []string{"postgres"},
+			dbName:       "",
+			dbUser:       "postgres",
+			err:          "access to db denied",
 		},
 	}
 
@@ -1943,14 +1972,19 @@ func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress,
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := client.GenerateRSAKey()
+	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clientCert, err := c.authServer.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       key.MarshalSSHPublicKey(),
+			PublicKey:       publicKeyPEM,
 			Cluster:         c.clusterName,
 			Username:        teleportUser,
 			RouteToDatabase: route,
@@ -2535,6 +2569,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 				Emitter:  c.emitter,
 				Recorder: libevents.WithNoOpPreparer(p.Recorder),
 				Database: cfg.Database,
+				Clock:    c.clock,
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2613,7 +2648,7 @@ func TestAccessClickHouse(t *testing.T) {
 	for _, test := range tests {
 		for _, protocol := range []string{defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP} {
 			t.Run(protocol, func(t *testing.T) {
-				t.Run(fmt.Sprintf(test.desc), func(t *testing.T) {
+				t.Run(test.desc, func(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, aliceUser, adminRole, test.allowDbUsers, []string{types.Wildcard})
 

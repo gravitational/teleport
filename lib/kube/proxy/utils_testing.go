@@ -20,6 +20,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
@@ -47,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -209,7 +212,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
-	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	features := func() proto.Features {
+		return proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.K8s): {Enabled: true},
+			},
+		}
+	}
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
@@ -306,6 +315,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
 	require.NoError(t, err)
+	require.Len(t, proxyTLSConfig.Certificates, 1)
+	require.NotNil(t, proxyTLSConfig.RootCAs)
+
 	// Create kubernetes service server.
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -342,8 +354,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			LockWatcher:       testCtx.lockWatcher,
 			Clock:             clockwork.NewRealClock(),
 			ClusterFeatures:   features,
-			ConnTLSConfig:     proxyTLSConfig.Clone(),
-			PROXYSigner:       &multiplexer.PROXYSigner{},
+			GetConnTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyTLSConfig.Certificates[0], nil
+			},
+			GetConnTLSRoots: func() (*x509.CertPool, error) {
+				return proxyTLSConfig.RootCAs, nil
+			},
+			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
 		AccessPoint:              client,
@@ -427,9 +444,17 @@ type RoleSpec struct {
 	SetupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
-// CreateUserAndRole creates Teleport user and role with specified names
-func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name}, nil)
+// CreateUserWithTraitsAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
+	user, role, err := auth.CreateUserAndRole(
+		c.TLSServer.Auth(),
+		username,
+		[]string{roleSpec.Name},
+		nil,
+		auth.WithUserMutator(func(user types.User) {
+			user.SetTraits(userTraits)
+		}),
+	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
@@ -443,6 +468,11 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	upsertedRole, err := c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, upsertedRole
+}
+
+// CreateUserAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
 }
 
 func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
@@ -518,6 +548,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+		Traits:            user.GetTraits(),
 	}
 	for _, opt := range opts {
 		opt(&id)

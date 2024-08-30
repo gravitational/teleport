@@ -80,13 +80,12 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
         <ButtonBorder
           width={alignButtonWidthToMenu ? width : null}
           textTransform={props.textTransform}
-          height="24px"
           size="small"
           setRef={anchorRef}
           onClick={onOpen}
         >
           Connect
-          <ChevronDown ml={1} mr={-2} size="small" color="text.slightlyMuted" />
+          <ChevronDown ml={1} size="small" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
@@ -202,7 +201,7 @@ const StyledMenuItem = styled(MenuItem)(
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
 
-  :last-child {
+  &:last-child {
     border-bottom: none;
     margin-bottom: 8px;
   }
@@ -224,7 +223,7 @@ const Input = styled.input<SpaceProps>(
     outline: none;
   }
 
-  ::placeholder {
+  &::placeholder {
     color: ${theme.colors.text.muted};
     opacity: 1;
   }

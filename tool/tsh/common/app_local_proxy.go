@@ -60,10 +60,6 @@ func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.L
 	if err := a.startLocalALPNProxy(ctx, a.port, false /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if a.port == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
 	return nil
 }
 
@@ -71,10 +67,6 @@ func (a *localProxyApp) StartLocalProxy(ctx context.Context, opts ...alpnproxy.L
 func (a *localProxyApp) StartLocalProxyWithTLS(ctx context.Context, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	if err := a.startLocalALPNProxy(ctx, a.port, true /*withTLS*/, opts...); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if a.port == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 	return nil
 }
@@ -87,10 +79,6 @@ func (a *localProxyApp) StartLocalProxyWithForwarder(ctx context.Context, forwar
 
 	if err := a.startLocalForwardProxy(ctx, a.port, forwardMatcher); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if a.port == "" {
-		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 	return nil
 }
@@ -110,7 +98,7 @@ func (a *localProxyApp) Close() error {
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, withTLS bool, opts ...alpnproxy.LocalProxyConfigOpt) error {
 	// Create an app cert checker to check and reissue app certs for the local app proxy.
-	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil)
+	appCertChecker := client.NewAppCertChecker(a.tc, a.appInfo.RouteToApp, nil, client.WithTTL(a.tc.KeyTTL))
 
 	// If a stored cert is found for the app, try using it.
 	// Otherwise, let the checker reissue one as needed.
@@ -153,8 +141,6 @@ func (a *localProxyApp) startLocalALPNProxy(ctx context.Context, port string, wi
 		}
 		return trace.Wrap(err)
 	}
-
-	fmt.Printf("Proxying connections to %s on %v\n", a.appInfo.RouteToApp.Name, a.localALPNProxy.GetAddr())
 
 	go func() {
 		if err = a.localALPNProxy.Start(ctx); err != nil {
@@ -205,4 +191,8 @@ func (a *localProxyApp) startLocalForwardProxy(ctx context.Context, port string,
 		}
 	}()
 	return nil
+}
+
+func (a *localProxyApp) GetAddr() string {
+	return a.localALPNProxy.GetAddr()
 }

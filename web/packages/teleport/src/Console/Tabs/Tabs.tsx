@@ -78,13 +78,7 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
     });
 
   return (
-    <StyledTabs
-      as="nav"
-      typography="h5"
-      color="text.slightlyMuted"
-      bold
-      {...styledProps}
-    >
+    <StyledTabs as="nav" color="text.slightlyMuted" bold {...styledProps}>
       {$items}
       {$items.length > 0 && (
         <ButtonIcon

@@ -831,6 +831,58 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
+		"DocumentDB static database": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					Databases: []*config.Database{{
+						Name:     "docdb",
+						Protocol: "mongodb",
+						URI:      "docdb.cluster-aaaabbbbcccc.us-west-2.docdb.amazonaws.com:27017",
+					}},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBClusters"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBClusters", "sts:AssumeRole"},
+				},
+			},
+		},
+		"DocumentDB discovery": {
+			target: roleTarget,
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{types.AWSMatcherDocumentDB}, Regions: []string{"us-west-2"}},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBClusters"},
+				},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{
+					Effect:    awslib.EffectAllow,
+					Resources: awslib.SliceOrString{"*"},
+					Actions:   awslib.SliceOrString{"rds:DescribeDBClusters", "sts:AssumeRole"},
+				},
+			},
+		},
 		"target in assume role": {
 			target: roleTarget,
 			fileConfig: &config.FileConfig{
@@ -1075,6 +1127,24 @@ func TestAWSIAMDocuments(t *testing.T) {
 						Effect:    awslib.EffectAllow,
 						Resources: awslib.SliceOrString{"*"},
 						Actions:   awslib.SliceOrString{"es:DescribeDomains", "es:ListDomainNames", "es:ListTags"},
+					},
+				},
+				wantInlineAsBoundary: true,
+			},
+			"DocumentDB": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{types.AWSMatcherDocumentDB}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: awslib.SliceOrString{"*"},
+						Actions:   awslib.SliceOrString{"rds:DescribeDBClusters"},
 					},
 				},
 				wantInlineAsBoundary: true,
@@ -1414,6 +1484,30 @@ func TestAWSIAMDocuments(t *testing.T) {
 						Effect:    awslib.EffectAllow,
 						Resources: []string{"*"},
 						Actions:   []string{"es:DescribeDomains", "sts:AssumeRole"},
+					},
+				},
+			},
+			"DocumentDB": {
+				fileConfig: &config.FileConfig{
+					Discovery: config.Discovery{
+						Service: config.Service{EnabledFlag: "true"},
+						AWSMatchers: []config.AWSMatcher{
+							{Types: []string{types.AWSMatcherDocumentDB}, Regions: []string{"us-west-2"}},
+						},
+					},
+				},
+				statements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"rds:DescribeDBClusters"},
+					},
+				},
+				boundaryStatements: []*awslib.Statement{
+					{
+						Effect:    awslib.EffectAllow,
+						Resources: []string{"*"},
+						Actions:   []string{"rds:DescribeDBClusters", "sts:AssumeRole"},
 					},
 				},
 			},
@@ -1783,7 +1877,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 			targetPartitionID: assumedRoleIdentity.GetPartition(),
 			targetString:      "arn:aws:iam::123456789012:role/example-role",
 			iamClient:         &iamMock{unauthorized: true},
-			wantErrContains:   "Policies cannot be attached to an assumed-role",
+			wantErrContains:   "policies cannot be attached to an assumed-role",
 		},
 		"AssumedRoleIdentityWithRoleFromFlags": {
 			flags:             configurators.BootstrapFlags{AttachToRole: "arn:aws:iam::123456789012:role/some/path/example-role"},

@@ -1,0 +1,27 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftServerlessDiscovery",
+            "Effect": "Allow",
+            "Action": "redshift-serverless:ListWorkgroups",
+            "Resource": "*"
+        },
+        {
+            "Sid": "RedshiftServerlessFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "redshift-serverless:ListEndpointAccess",
+                "redshift-serverless:ListTagsForResource"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+| `RedshiftServerlessDiscovery` | Discover Redshift Serverless Workgroups. |
+| `RedshiftServerlessFetchMetadata` | Fetch metadata for discovered workgroups to import AWS tags as Teleport database labels and register any VPC endpoints as Teleport databases. |

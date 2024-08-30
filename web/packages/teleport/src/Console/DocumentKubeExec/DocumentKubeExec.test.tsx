@@ -20,7 +20,7 @@ import { render, screen } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
 
-import { ThemeProvider } from 'styled-components';
+import ThemeProvider from 'design/ThemeProvider';
 import 'jest-canvas-mock';
 import { darkTheme } from 'design/theme';
 
@@ -159,6 +159,5 @@ const baseSession: Session = {
   addr: '',
   participantModes: [],
   moderated: false,
-  isInteractive: true,
   command: '/bin/bash',
 };

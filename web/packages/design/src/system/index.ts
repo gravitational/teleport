@@ -25,6 +25,8 @@ import {
   type BorderProps,
   borderColor,
   type BorderColorProps,
+  borderRadius,
+  type BorderRadiusProps,
   borders,
   type BordersProps,
   color,
@@ -73,7 +75,6 @@ import {
 import { Property } from 'csstype';
 
 import typography, { type TypographyProps } from './typography';
-import borderRadius, { type BorderRadiusProps } from './borderRadius';
 
 const gap = style({
   prop: 'gap',

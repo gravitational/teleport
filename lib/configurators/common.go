@@ -101,6 +101,8 @@ type BootstrapFlags struct {
 	ForceDynamoDBPermissions bool
 	// ForceOpenSearchPermissions forces the presence of OpenSearch permissions.
 	ForceOpenSearchPermissions bool
+	// ForceDocumentDBPermissions forces the presence of DocumentDB permissions.
+	ForceDocumentDBPermissions bool
 	// Proxy is the address of the Teleport proxy to use.
 	Proxy string
 	// ForceAssumesRoles forces the presence of additional external AWS IAM roles to assume.

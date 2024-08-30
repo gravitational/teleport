@@ -20,6 +20,8 @@
 package common
 
 import (
+	"fmt"
+
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -54,17 +56,31 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 		processManager.Close()
 	}()
 
+	fmt.Println("VNet is ready.")
+
 	return trace.Wrap(processManager.Wait())
 }
 
+// vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
+// vnetdaemon build tag. This is typically the case when running tsh in development where it's not
+// signed and bundled in tsh.app.
+//
+// This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for communication with the parent process.
+	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
+	// the unprivileged process.
 	socketPath string
 	// ipv6Prefix is the IPv6 prefix for the VNet.
 	ipv6Prefix string
 	// dnsAddr is the IP address for the VNet DNS server.
 	dnsAddr string
+	// egid of the user starting VNet. Unsafe for production use, as the egid comes from an unstrusted
+	// source.
+	egid int
+	// euid of the user starting VNet. Unsafe for production use, as the euid comes from an unstrusted
+	// source.
+	euid int
 }
 
 func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
@@ -74,9 +90,23 @@ func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
 	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
 	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.Flag("egid", "effective group ID of the user starting VNet").IntVar(&cmd.egid)
+	cmd.Flag("euid", "effective user ID of the user starting VNet").IntVar(&cmd.euid)
 	return cmd
 }
 
-func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	return trace.Wrap(vnet.AdminSubcommand(cf.Context, c.socketPath, c.ipv6Prefix, c.dnsAddr))
+type vnetDaemonCommand struct {
+	*kingpin.CmdClause
+	// Launch daemons added through SMAppService are launched from a static .plist file, hence
+	// why this command does not accept any arguments.
+	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
 }
+
+func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
+	return &vnetDaemonCommand{
+		CmdClause: app.Command(vnetDaemonSubCommand, "Start the VNet daemon").Hidden(),
+	}
+}
+
+// The command must match the command provided in the .plist file.
+const vnetDaemonSubCommand = "vnet-daemon"

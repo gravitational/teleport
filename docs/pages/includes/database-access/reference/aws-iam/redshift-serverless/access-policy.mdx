@@ -1,0 +1,35 @@
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftServerlessConnectAsIAMRole",
+            "Effect": "Allow",
+            "Action": "sts:AssumeRole",
+            "Resource": [
+                "arn:aws:iam::<Var name="aws-account-id"/>:role/{{ dbUserRole }}"
+            ]
+        },
+        {
+            "Sid": "RedshiftServerlessFetchMetadata",
+            "Effect": "Allow",
+            "Action": [
+                "redshift-serverless:GetEndpointAccess",
+                "redshift-serverless:GetWorkgroup"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+| Statement | Purpose |
+| --------- | ------- |
+|`RedshiftServerlessFetchMetadata`| Automatically import AWS tags as database labels or find missing information such as the database's AWS region. |
+|`RedshiftServerlessConnectAsIAMRole`| Assume an IAM role to connect as a database user. |
+
+(!docs/pages/includes/database-access/reference/metadata-fetching-permissions-note.mdx sid="RedshiftServerlessFetchMetadata"!)
+
+Redshift Serverless maps IAM roles to database users. The Teleport Database
+Service must be able to assume these "access" IAM roles which are granted IAM
+permissions to generate IAM authentication tokens.

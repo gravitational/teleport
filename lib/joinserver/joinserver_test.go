@@ -20,7 +20,7 @@ package joinserver
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -398,7 +398,7 @@ func TestJoinServiceGRPCServer_RegisterUsingTPMMethod(t *testing.T) {
 			testPack.mockAuthServer.sendChallenge = tc.challenge
 			testPack.mockAuthServer.returnCerts = tc.certs
 			if tc.authErr != "" {
-				testPack.mockAuthServer.returnError = fmt.Errorf(tc.authErr)
+				testPack.mockAuthServer.returnError = errors.New(tc.authErr)
 			}
 			challengeResponder := func(
 				challenge *proto.TPMEncryptedCredential,

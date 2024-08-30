@@ -32,8 +32,15 @@ const (
 	sshDirSuffix = "-ssh"
 	// fileNameKnownHosts is a file where known hosts are stored.
 	fileNameKnownHosts = "known_hosts"
-	// fileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
-	fileExtTLSCert = "-x509.pem"
+	// fileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
+	fileExtTLSCertLegacy = "-x509.pem"
+	// FileExtTLSCert is the suffix/extension of a file where a TLS cert is stored.
+	FileExtTLSCert = ".crt"
+	// FileExtKubeCred is the suffix/extension of a file where a kubernetes
+	// credential is stored (TLS key and cert combined in a single file).
+	FileExtKubeCred = ".cred"
+	// fileExtTLSKey is the suffix/extension of a file where a TLS private key is stored.
+	fileExtTLSKey = ".key"
 	// fileNameTLSCerts is a file where TLS Cert Authorities are stored.
 	fileNameTLSCerts = "certs.pem"
 	// fileExtCert is the suffix/extension of a file where an SSH Cert is stored.
@@ -85,29 +92,35 @@ const (
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
 //    │   ├── foo-app                  --> App access certs for user "foo"
 //    │   │   ├── root                 --> App access certs for cluster "root"
-//    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
-//    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
+//    │   │   │   ├── appA.crt         --> TLS cert for app service "appA"
+//    │   │   │   ├── appA.key         --> private key for app service "appA"
+//    │   │   │   ├── appB.crt         --> TLS cert for app service "appB"
+//    │   │   │   ├── appB.key         --> private key for app service "appB"
 //    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
 //    │   │   └── leaf                 --> App access certs for cluster "leaf"
-//    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
+//    │   │       ├── appC.crt         --> TLS cert for app service "appC"
+//    │   │       └── appC.key         --> private key for app service "appC"
 //    │   ├── foo-db                   --> Database access certs for user "foo"
 //    │   │   ├── root                 --> Database access certs for cluster "root"
-//    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
-//    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
+//    │   │   │   ├── dbA.crt          --> TLS cert for database service "dbA"
+//    │   │   │   ├── dbA.key          --> private key for database service "dbA"
+//    │   │   │   ├── dbB.crt          --> TLS cert for database service "dbB"
+//    │   │   │   ├── dbB.key          --> private key for database service "dbB"
 //    │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
 //    │   │   ├── leaf                 --> Database access certs for cluster "leaf"
-//    │   │   │   └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │   │   ├── dbC.crt          --> TLS cert for database service "dbC"
+//    │   │   │   └── dbC.key          --> private key for database service "dbC"
 //    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
-//    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |    │   ├── kubeA.cred       --> TLS private key and cert for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   ├── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB.cred       --> TLS private key and cert for Kubernetes cluster "kubeB"
 //    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
 //    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
-//    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
+//    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
 //    |   └── cas                       --> Trusted clusters certificates
 //    |        ├── root.pem             --> TLS CA for teleport cluster "root"
 //    |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -163,7 +176,7 @@ func UserKeyPath(baseDir, proxy, username string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-x509.pem
 func TLSCertPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtTLSCert)
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtTLSCertLegacy)
 }
 
 // PublicKeyPath returns the path to the users's public key
@@ -227,20 +240,28 @@ func AppDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+appDirSuffix)
 }
 
-// AppCertDir returns the path to the user's app cert directory
-// for the given proxy and cluster.
+// AppCredentialDir returns the path to the user's app credential directory for
+// the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>
-func AppCertDir(baseDir, proxy, username, cluster string) string {
+func AppCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(AppDir(baseDir, proxy, username), cluster)
 }
 
 // AppCertPath returns the path to the user's TLS certificate
 // for the given proxy, cluster, and app.
 //
-// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-x509.pem
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.crt
 func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
-	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+FileExtTLSCert)
+}
+
+// AppKeyPath returns the path to the user's private key for the given proxy,
+// cluster, and app.
+//
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>.key
+func AppKeyPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtTLSKey)
 }
 
 // AppLocalCAPath returns the path to a self-signed localhost CA for the given
@@ -248,7 +269,7 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
 func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
-	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
+	return filepath.Join(AppCredentialDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
 }
 
 // DatabaseDir returns the path to the user's database directory
@@ -259,27 +280,35 @@ func DatabaseDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+dbDirSuffix)
 }
 
-// DatabaseCertDir returns the path to the user's database cert directory
+// DatabaseCredentialDir returns the path to the user's database cert directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>
-func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
+func DatabaseCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(DatabaseDir(baseDir, proxy, username), cluster)
 }
 
 // DatabaseCertPath returns the path to the user's TLS certificate
 // for the given proxy, cluster, and database.
 //
-// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>-x509.pem
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.crt
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+FileExtTLSCert)
+}
+
+// DatabaseKeyPath returns the path to the user's TLS private key
+// for the given proxy, cluster, and database.
+//
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>.key
+func DatabaseKeyPath(baseDir, proxy, username, cluster, dbname string) string {
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+fileExtTLSKey)
 }
 
 // DatabaseOracleWalletDirectory returns the path to the user's Oracle Wallet configuration directory.
 // for the given proxy, cluster and database.
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/dbname-wallet/
 func DatabaseOracleWalletDirectory(baseDir, proxy, username, cluster, dbname string) string {
-	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
+	return filepath.Join(DatabaseCredentialDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
 }
 
 // KubeDir returns the path to the user's kube directory
@@ -290,20 +319,20 @@ func KubeDir(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+kubeDirSuffix)
 }
 
-// KubeCertDir returns the path to the user's kube cert directory
+// KubeCredentialDir returns the path to the user's kube credential directory
 // for the given proxy and cluster.
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>
-func KubeCertDir(baseDir, proxy, username, cluster string) string {
+func KubeCredentialDir(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(KubeDir(baseDir, proxy, username), cluster)
 }
 
-// KubeCertPath returns the path to the user's TLS certificate
-// for the given proxy, cluster, and kube cluster.
+// KubeCredPath returns the path to the user's TLS credential for the given
+// proxy, cluster, and kube cluster.
 //
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-x509.pem
-func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+fileExtTLSCert)
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>.cred
+func KubeCredPath(baseDir, proxy, username, cluster, kubename string) string {
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+FileExtKubeCred)
 }
 
 // KubeConfigPath returns the path to the user's standalone kubeconfig
@@ -311,7 +340,7 @@ func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-kubeconfig
 func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
+	return filepath.Join(KubeCredentialDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
 }
 
 // KubeCredLockfilePath returns the kube credentials lock file for given proxy
@@ -342,7 +371,13 @@ func IdentitySSHCertPath(path string) string {
 
 // TrimCertPathSuffix returns the given path with any cert suffix/extension trimmed off.
 func TrimCertPathSuffix(path string) string {
-	trimmedPath := strings.TrimSuffix(path, fileExtTLSCert)
+	trimmedPath := strings.TrimSuffix(path, fileExtTLSCertLegacy)
+	trimmedPath = strings.TrimSuffix(trimmedPath, FileExtTLSCert)
 	trimmedPath = strings.TrimSuffix(trimmedPath, fileExtSSHCert)
 	return trimmedPath
+}
+
+// TrimKeyPathSuffix returns the given path with any key suffix/extension trimmed off.
+func TrimKeyPathSuffix(path string) string {
+	return strings.TrimSuffix(path, fileExtTLSKey)
 }

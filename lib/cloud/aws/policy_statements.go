@@ -65,6 +65,9 @@ func StatementForECSManageService() *Statement {
 
 			// EC2 DescribeSecurityGroups is required so that the user can list the SG and then pick which ones they want to apply to the ECS Service.
 			"ec2:DescribeSecurityGroups",
+
+			// IAM CreateServiceLinkedRole is required to ensure the ECS Service linked role exists.
+			"iam:CreateServiceLinkedRole",
 		},
 		Resources: allResources,
 	}
@@ -111,6 +114,20 @@ func StatementForRDSDBConnect() *Statement {
 	return &Statement{
 		Effect:    EffectAllow,
 		Actions:   SliceOrString{"rds-db:connect"},
+		Resources: allResources,
+	}
+}
+
+// StatementForRDSMetadata returns a statement that allows describing RDS
+// instances and clusters for metadata import, as in monitoring AWS tags and
+// whether IAM auth is enabled.
+func StatementForRDSMetadata() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
 		Resources: allResources,
 	}
 }
@@ -183,6 +200,7 @@ func StatementForEKSAccess() *Statement {
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
 			"eks:AssociateAccessPolicy",
+			"eks:TagResource",
 		},
 		Resources: allResources,
 	}
@@ -216,6 +234,8 @@ func StatementForListRDSDatabases() *Statement {
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
 			"ec2:DescribeSecurityGroups",
+			"ec2:DescribeSubnets",
+			"ec2:DescribeVpcs",
 		},
 		Resources: allResources,
 	}
@@ -405,6 +425,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:GetBucketPolicy",
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
+			"s3:GetBucketTagging",
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",

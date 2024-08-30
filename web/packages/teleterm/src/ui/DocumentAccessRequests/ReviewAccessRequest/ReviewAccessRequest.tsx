@@ -18,7 +18,7 @@
 
 import styled from 'styled-components';
 
-import { Text, Flex, Box, Alert } from 'design';
+import { Text, Flex, Box, Alert, H1 } from 'design';
 import { ArrowBack } from 'design/Icon';
 import { makeEmptyAttempt } from 'shared/hooks/useAsync';
 
@@ -78,7 +78,7 @@ export function ReviewAccessRequest(props: {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       <Header>
-        <HeaderTitle typography="h3" mb={3}>
+        <HeaderTitle mb={3}>
           <Flex alignItems="center">
             <ArrowBack
               mr={2}
@@ -121,7 +121,7 @@ const Header = styled(Flex)`
   margin-bottom: 24px;
 `;
 
-const HeaderTitle = styled(Text)`
+const HeaderTitle = styled(H1)`
   white-space: nowrap;
 `;
 

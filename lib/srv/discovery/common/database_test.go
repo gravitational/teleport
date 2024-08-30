@@ -819,6 +819,85 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 	}
 }
 
+func TestNewDatabasesFromDocumentDBCluster(t *testing.T) {
+	inputLabels := map[string]string{
+		"env": "test",
+	}
+
+	wantPrimaryDatabase, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-docdb",
+		Description: "DocumentDB cluster in us-west-2",
+		Labels: map[string]string{
+			"account-id":         "123456789012",
+			"endpoint-type":      "cluster",
+			"engine":             "docdb",
+			"engine-version":     "5.0.0",
+			"env":                "test",
+			"region":             "us-west-2",
+			"teleport.dev/cloud": "AWS",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "my-docdb.cluster-aabbccdd.us-west-2.docdb.amazonaws.com:27017",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			DocumentDB: types.DocumentDB{
+				ClusterID: "my-docdb",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	wantReaderDatabase, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "my-docdb-reader",
+		Description: "DocumentDB cluster in us-west-2 (reader endpoint)",
+		Labels: map[string]string{
+			"account-id":         "123456789012",
+			"endpoint-type":      "reader",
+			"engine":             "docdb",
+			"engine-version":     "5.0.0",
+			"env":                "test",
+			"region":             "us-west-2",
+			"teleport.dev/cloud": "AWS",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "my-docdb.cluster-ro-aabbccdd.us-west-2.docdb.amazonaws.com:27017",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			DocumentDB: types.DocumentDB{
+				ClusterID: "my-docdb",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		inputCluster  *rds.DBCluster
+		wantDatabases types.Databases
+	}{
+		{
+			name:          "primary-only",
+			inputCluster:  mocks.DocumentDBCluster("my-docdb", "us-west-2", inputLabels),
+			wantDatabases: types.Databases{wantPrimaryDatabase},
+		},
+		{
+			name:          "with-reader",
+			inputCluster:  mocks.DocumentDBCluster("my-docdb", "us-west-2", inputLabels, mocks.WithDocumentDBClusterReader),
+			wantDatabases: types.Databases{wantPrimaryDatabase, wantReaderDatabase},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualDatabases, err := NewDatabasesFromDocumentDBCluster(test.inputCluster)
+			require.NoError(t, err)
+			require.Equal(t, test.wantDatabases, actualDatabases)
+		})
+	}
+}
+
 func TestDatabaseFromRDSProxy(t *testing.T) {
 	tests := []struct {
 		desc         string

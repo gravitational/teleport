@@ -45,12 +45,14 @@ export type SamlIdpServiceProviderSpec = {
 
 /**
  * AttributeMapping defines SAML service provider
- * attribute mapping fields.
+ * attribute mapping fields. Field names are exactly
+ * defined as they are avaiable in the SAMLAttributeMapping
+ * proto in the backend.
  */
 export type AttributeMapping = {
   name: string;
   value: string;
-  nameFormat?: string;
+  name_format?: string;
 };
 
 /**
@@ -73,4 +75,22 @@ export type SamlGcpWorkforce = {
   orgId: string;
   poolName: string;
   poolProviderName: string;
+};
+
+/**
+ * SamlAppToDelete is used to define the name of an
+ * SAML app item to be deleted and its deletion state in the
+ * backend. Intended to be used in the unified resource view.
+ */
+export type SamlAppToDelete = {
+  /**
+   * name is the name of Saml app item to delete.
+   */
+  name: string;
+  // kind: string;
+  /**
+   * backendDeleted specifies if the item is deleted
+   * in the backend.
+   */
+  backendDeleted: boolean;
 };

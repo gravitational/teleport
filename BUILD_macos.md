@@ -78,8 +78,8 @@ PRs with corrections and updates are welcome!
   ```
 
 * To install tools for building the UI:
-  * `brew install node yarn`
-  * Currently, [`yarn`](https://classic.yarnpkg.com/en/docs/install) (< 2.0.0) is required
+  * `brew install node corepack`
+  * `corepack enable pnpm`
   * The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
   * The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
     `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`

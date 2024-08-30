@@ -57,10 +57,12 @@ func Commands() []CLICommand {
 		&IdPCommand{},
 		&accessmonitoring.Command{},
 		&plugin.PluginsCommand{},
+		&NotificationCommand{},
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
 		&fido2Command{},
 		&webauthnwinCommand{},
 		&touchIDCommand{},
+		&TerraformCommand{},
 	}
 }
