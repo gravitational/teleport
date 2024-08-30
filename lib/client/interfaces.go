@@ -121,9 +121,6 @@ type KeyRing struct {
 	// AppTLSCredetials are TLS credentials for application access.
 	// Map key is the application name.
 	AppTLSCredentials map[string]TLSCredential
-	// WindowsDesktopCerts are TLS certificates for Windows Desktop access.
-	// Map key is the desktop server name.
-	WindowsDesktopCerts map[string][]byte `json:"WindowsDesktopCerts,omitempty"`
 	// TrustedCerts is a list of trusted certificate authorities
 	TrustedCerts []authclient.TrustedCerts
 }
@@ -185,11 +182,10 @@ func GenerateRSAKeyRing() (*KeyRing, error) {
 // NewKeyRing creates a new KeyRing for the given private key.
 func NewKeyRing(priv *keys.PrivateKey) *KeyRing {
 	return &KeyRing{
-		PrivateKey:          priv,
-		KubeTLSCredentials:  make(map[string]TLSCredential),
-		DBTLSCredentials:    make(map[string]TLSCredential),
-		AppTLSCredentials:   make(map[string]TLSCredential),
-		WindowsDesktopCerts: make(map[string][]byte),
+		PrivateKey:         priv,
+		KubeTLSCredentials: make(map[string]TLSCredential),
+		DBTLSCredentials:   make(map[string]TLSCredential),
+		AppTLSCredentials:  make(map[string]TLSCredential),
 	}
 }
 

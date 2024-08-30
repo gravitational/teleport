@@ -63,6 +63,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -222,6 +223,8 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 func TestDiscoveryServer(t *testing.T) {
 	t.Parallel()
 
+	fakeClock := clockwork.NewFakeClock()
+
 	defaultDiscoveryGroup := "dc001"
 	defaultStaticMatcher := Matchers{
 		AWS: []types.AWSMatcher{{
@@ -269,13 +272,14 @@ func TestDiscoveryServer(t *testing.T) {
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
-		presentInstances       []types.Server
-		foundEC2Instances      []*ec2.Instance
-		ssm                    *mockSSMClient
-		emitter                *mockEmitter
-		discoveryConfig        *discoveryconfig.DiscoveryConfig
-		staticMatchers         Matchers
-		wantInstalledInstances []string
+		presentInstances          []types.Server
+		foundEC2Instances         []*ec2.Instance
+		ssm                       *mockSSMClient
+		emitter                   *mockEmitter
+		discoveryConfig           *discoveryconfig.DiscoveryConfig
+		staticMatchers            Matchers
+		wantInstalledInstances    []string
+		wantDiscoveryConfigStatus *discoveryconfig.Status
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -515,8 +519,23 @@ func TestDiscoveryServer(t *testing.T) {
 					}, ae)
 				},
 			},
-			staticMatchers:         Matchers{},
-			discoveryConfig:        dcForEC2SSMWithIntegration,
+			staticMatchers:  Matchers{},
+			discoveryConfig: dcForEC2SSMWithIntegration,
+			wantDiscoveryConfigStatus: &discoveryconfig.Status{
+				State:               "DISCOVERY_CONFIG_STATE_SYNCING",
+				ErrorMessage:        nil,
+				DiscoveredResources: 1,
+				LastSyncTime:        fakeClock.Now().UTC(),
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					"my-integration": {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+							Found:    1,
+							Enrolled: 0,
+							Failed:   0,
+						},
+					},
+				},
+			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
 	}
@@ -569,6 +588,12 @@ func TestDiscoveryServer(t *testing.T) {
 				installedInstances: make(map[string]struct{}),
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
+
+			if tc.discoveryConfig != nil {
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
+				require.NoError(t, err)
+			}
+
 			server, err := New(authz.ContextWithUser(context.Background(), identity.I), &Config{
 				CloudClients:     testCloudClients,
 				ClusterFeatures:  func() proto.Features { return proto.Features{} },
@@ -578,16 +603,12 @@ func TestDiscoveryServer(t *testing.T) {
 				Emitter:          tc.emitter,
 				Log:              logger,
 				DiscoveryGroup:   defaultDiscoveryGroup,
+				clock:            fakeClock,
 			})
 			require.NoError(t, err)
 			server.ec2Installer = installer
 			tc.emitter.server = server
 			tc.emitter.t = t
-
-			if tc.discoveryConfig != nil {
-				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, tc.discoveryConfig)
-				require.NoError(t, err)
-			}
 
 			go server.Start()
 			t.Cleanup(server.Stop)
@@ -605,6 +626,20 @@ func TestDiscoveryServer(t *testing.T) {
 				}, 500*time.Millisecond, 50*time.Millisecond)
 			}
 			require.GreaterOrEqual(t, reporter.DiscoveryFetchEventCount(), 1)
+
+			// Discovery Config Status is updated accordingly
+			if tc.wantDiscoveryConfigStatus != nil {
+				// It can take a while for the status to be updated.
+				require.Eventually(t, func() bool {
+					storedDiscoveryConfig, err := tlsServer.Auth().DiscoveryConfigs.GetDiscoveryConfig(ctx, tc.discoveryConfig.GetName())
+					require.NoError(t, err)
+					if len(storedDiscoveryConfig.Status.IntegrationDiscoveredResources) == 0 {
+						return false
+					}
+					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
+					return true
+				}, 500*time.Millisecond, 50*time.Millisecond)
+			}
 		})
 	}
 }

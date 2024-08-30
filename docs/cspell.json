@@ -154,6 +154,19 @@
     "OpenAI",
     "Opsgenie",
     "Orapki",
+    "Exadata",
+    "exadata",
+    "demodb",
+    "exadatadomain",
+    "oraclevcn",
+    "cprops",
+    "mkstore",
+    "dbaas",
+    "acfs",
+    "sqlplus",
+    "sysdba",
+    "paas",
+    "nologo",
     "PFDEBUG",
     "PFSELFTEST",
     "PGCLIENTENCODING",
@@ -355,6 +368,7 @@
     "clientcmd",
     "clientid",
     "clis",
+    "cloudallow",
     "cloudbuild",
     "cloudflared",
     "cloudhsmv2",
@@ -893,6 +907,7 @@
     "specsigning",
     "specspacelift",
     "specspaceliftallow",
+    "specterraform",
     "specteams",
     "spectpm",
     "spectpmallow",
@@ -1048,6 +1063,10 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"],
-  "ignorePaths": ["**/reference/terraform-provider/**"]
+  "flagWords": [
+    "hte"
+  ],
+  "ignorePaths": [
+    "**/reference/terraform-provider/**"
+  ]
 }
