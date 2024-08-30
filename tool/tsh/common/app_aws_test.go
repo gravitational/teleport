@@ -192,7 +192,11 @@ func TestAWS(t *testing.T) {
 func TestAWSConsoleLogins(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() {
+		lib.SetInsecureDevMode(isInsecure)
+	})
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 
@@ -263,7 +267,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 	require.NoError(t, err)
 
 	for cluster, expectedARNs := range map[string][]string{
-		// "root": append(userARNs, rootARNs...),
+		"root": append(userARNs, rootARNs...),
 		"leaf": append(leafARNs, append(userARNs, rootARNs...)...),
 	} {
 		t.Run(cluster, func(t *testing.T) {
@@ -272,8 +276,13 @@ func TestAWSConsoleLogins(t *testing.T) {
 			// are mulitple ARN roles.
 			err := Run(
 				context.Background(),
-				[]string{"app", "login", "--cluster", cluster, "awsconsole"},
+				[]string{"app", "login", "--insecure", "--cluster", cluster, "awsconsole"},
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
+				// TODO(gabrielcorado): Given the `RetryWithRerlLogin` is going
+				//   to perform a relogin for BadParameter error, we need to
+				//   provide login mock here. Once the function is fixed and
+				//   only retry `Retry` errors, this can be removed.
+				setMockSSOLogin(authServer, user, connector.GetName()),
 			)
 			require.ErrorContains(t, err, "--aws-role flag is required")
 			require.Regexp(t, strings.Join(expectedARNs, "|"), commandOutput.String(), "mismatch on expected roles")
