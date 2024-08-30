@@ -1,0 +1,122 @@
+---
+title: Teleport Policy and Database Access Controls
+description: Describes how to import and visualize advanced Teleport Database Access Controls policies using Teleport Policy and Access Graph.
+---
+
+Advanced Database Access Controls features allow Teleport administrators to configure user permissions for individual database objects using powerful, label-based approach for expressing access policies.
+
+The database objects-level access information is automatically synchronized to Teleport Policy, making it easy to see who has particular levels of access to the different parts of the database.
+
+<Notice type="note">
+Currently PostgreSQL is the only supported protocol for database-object level permissions. Support for additional protocols will be added in the future.
+</Notice>
+
+## How it works
+
+Teleport continuously scans connected databases and imports objects, such as tables, based on predefined import rules. These rules determine which objects to import and what labels to assign to them. By default, all objects are imported, with labels automatically generated from object properties like schema and database name.
+
+The labels assigned to these objects are matched against the `spec.allow.db_permissions` section of each user role. This results in a set of permissions that will be applied when the user connects to the database.
+
+For more details of this process see [Database Access Controls](../../database-access/rbac.mdx)
+
+Teleport Policy calculates the effective permissions for each user in advance, and thanks to automatic synchronization, it provides real-time insights into database access for individual Teleport users.
+
+## Prerequisites
+
+- A running Teleport Enterprise cluster v16.2.0 or later.
+- Teleport Identity and Teleport Policy enabled for your account.
+  - For self-hosted clusters, ensure that an up-to-date `license.pem` is used in the Auth Service configuration.
+- For self-hosted clusters, a running Access Graph node v1.21.3 or later.
+Check the [Teleport Policy page](../teleport-policy.mdx) for details on
+how to set up Access Graph.
+- The node running the Access Graph service must be reachable from the Teleport Auth Service.
+
+To verify that Access Graph is set up correctly for your cluster, sign in to the Teleport Web UI and navigate to the Management tab.
+If enabled, the Access Graph menu item will appear in the Permission Management section.
+
+## Example Minimal Database Access Controls Configuration
+
+This section provides an example of a Teleport configuration that corresponds to the Teleport Policy usage examples detailed later. Before deploying an updated configuration in a production environment, please ensure you've reviewed the detailed documentation on the relevant topics.
+
+### Creating a Teleport Role
+
+Create a `db_auto_user` role with the following configuration. This role:
+- Allows access to any database.
+- Enables automated user provisioning, where the database username matches the Teleport username for databases that support this feature.
+- Grants `SELECT`, `INSERT`, and `UPDATE` permissions on any objects in the `public` schema.
+
+```yaml
+kind: role
+metadata:
+  name: db_auto_user
+spec:
+  allow:
+    db_labels:
+      '*': '*'
+    db_names:
+    - '*'
+    db_permissions:
+    - match:
+        schema: public
+      permissions:
+      - SELECT
+      - INSERT
+      - UPDATE
+  options:
+    create_db_user: true
+    create_db_user_mode: keep
+version: v7
+```
+
+### Creating a New Teleport User
+
+Create a user named `alice` and assign the `db_auto_user` role to her:
+
+```bash
+> tctl users add --roles=db_auto_user alice
+```
+
+### Verifying Resource Configuration
+
+Ensure that the Postgres database resource is configured with an `admin_user` section. The admin user should be associated with a valid default database and must have privileges to create additional users. 
+
+For example:
+
+```yaml
+  - name: pg-docker
+    protocol: postgres
+    uri: localhost:5432
+    admin_user:
+      name: postgres
+      default_database: teleport
+    static_labels:
+      env: dev
+```
+
+### Further Reading
+
+For more information, refer to:
+
+- [Database Access Controls](../../database-access/rbac.mdx), which covers additional topics such as custom import rules and the permission evaluation algorithm.
+
+- [Enrolling Self-Hosted Postgres](../../enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted.mdx) database.
+
+## Analyzing Database Access Controls in Teleport Access Graph
+
+When you inspect a particular user's access, the Teleport Access Graph will automatically display the database objects that the user can access.
+
+![Overview of access including individual database objects](../../../img/access-graph/dac/overview.png)
+
+To see more details about a specific database object, simply select it.
+
+![Details of an individual database object](../../../img/access-graph/dac/db-object-details.png)
+
+In the graph, database objects are connected by multiple edges:
+
+1. There is exactly one edge connecting the object to its parent database resource.
+
+![Database object and parent database resource](../../../img/access-graph/dac/db-object-contains-relation.png)
+
+2. At least one edge shows the permissions associated with the object, such as `INSERT, SELECT, UPDATE`. If multiple roles grant permissions to the same object, additional edges of this type may be present.
+
+![Specific object permissions](../../../img/access-graph/dac/db-object-permissions-label.png)
