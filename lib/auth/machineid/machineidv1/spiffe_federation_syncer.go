@@ -250,9 +250,10 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 		}
 
 		eventsCh := make(chan types.Event, 1)
+		stopCh := make(chan struct{})
 		states[trustDomain] = trustDomainSyncState{
 			putEventsCh: eventsCh,
-			stopCh:      make(chan struct{}),
+			stopCh:      stopCh,
 		}
 
 		wg.Add(1)
@@ -263,7 +264,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				mu.Unlock()
 				wg.Done()
 			}()
-			s.syncTrustDomainLoop(ctx, trustDomain, eventsCh)
+			s.syncTrustDomainLoop(ctx, trustDomain, eventsCh, stopCh)
 		}()
 	}
 
@@ -321,10 +322,6 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 				"Received event from SPIFFEFederation watcher",
 				"evt_type", evt.Type,
 			)
-			if !(evt.Type == types.OpPut || evt.Type == types.OpDelete) {
-				continue
-			}
-
 			switch evt.Type {
 			case types.OpPut:
 				mu.Lock()
@@ -351,6 +348,8 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 			case types.OpDelete:
 				mu.Lock()
 				existingState, ok := states[evt.Resource.GetName()]
+				// If it exists, close the stopCh to tell it to exit and remove
+				// it from the states map.
 				if ok {
 					close(existingState.stopCh)
 					delete(states, evt.Resource.GetName())
@@ -372,7 +371,8 @@ func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
 func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	ctx context.Context,
 	name string,
-	eventsCh <-chan types.Event,
+	putEventsCh <-chan types.Event,
+	stopCh <-chan struct{},
 ) {
 	log := s.cfg.Logger.With("trust_domain", name)
 	log.InfoContext(ctx, "Starting sync loop for trust domain")
@@ -412,7 +412,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 			log.DebugContext(ctx, "Next sync time has passed, trying sync")
 		case <-nextRetry:
 			log.InfoContext(ctx, "Wait for backoff complete, retrying sync")
-		case evt := <-eventsCh:
+		case evt := <-putEventsCh:
 			// If we've just synced, we can effectively expect an "echo" of our
 			// last update. We can ignore this event safely.
 			if synced != nil {
@@ -424,9 +424,12 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 					"Resource has been updated, trying to sync trust domain immediately",
 				)
 			}
-			// Note, we explicitly don't use the resource within the event.
-			// Instead, we will fetch the latest upon starting the sync. This
-			// avoids completing multiple syncs if multiple changes are queued.
+		// Note, we explicitly don't use the resource within the event.
+		// Instead, we will fetch the latest upon starting the sync. This
+		// avoids completing multiple syncs if multiple changes are queued.
+		case <-stopCh:
+			log.DebugContext(ctx, "Stop signal received, stopping sync loop")
+			return
 		case <-ctx.Done():
 			return
 		}
