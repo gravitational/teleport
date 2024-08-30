@@ -470,10 +470,9 @@ func (s *SPIFFEFederationSyncer) syncTrustDomainLoop(
 	}
 }
 
-func shouldSyncTrustDomain(
+func (s *SPIFFEFederationSyncer) shouldSyncTrustDomain(
 	ctx context.Context,
 	log *slog.Logger,
-	clock clockwork.Clock,
 	in *machineidv1.SPIFFEFederation,
 ) string {
 	if in.Status == nil {
@@ -490,7 +489,7 @@ func shouldSyncTrustDomain(
 	}
 	// Check if we've passed the next sync time.
 	nextSyncAt := in.Status.NextSyncAt.AsTime()
-	now := clock.Now()
+	now := s.cfg.Clock.Now()
 	if !nextSyncAt.IsZero() && now.After(nextSyncAt) {
 		log.DebugContext(
 			ctx,
@@ -535,7 +534,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	}
 
 	// Determine - should we sync...
-	syncReason := shouldSyncTrustDomain(ctx, log, s.cfg.Clock, current)
+	syncReason := s.shouldSyncTrustDomain(ctx, log, current)
 	if syncReason == "" {
 		log.DebugContext(ctx, "Skipping sync as is not required")
 		return current, nil
