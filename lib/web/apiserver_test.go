@@ -4552,6 +4552,7 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
+	handler := env.proxies[0].handler.handler
 
 	// Set auth preference with passwordless.
 	const MOTD = "Welcome to cluster, your activity will be recorded."
@@ -4581,6 +4582,11 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
 	require.NoError(t, err)
+
+	// start the feature watcher so the web config gets new features
+	go handler.startFeatureWatcher()
+	<-handler.featureWatcherReady // await until the watcher is ready
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
@@ -4670,6 +4676,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			},
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	require.NoError(t, err)
 	// This version is too high and MUST NOT be used
@@ -4680,7 +4687,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		},
 	}
 	require.NoError(t, channels.CheckAndSetDefaults())
-	env.proxies[0].handler.handler.cfg.AutomaticUpgradesChannels = channels
+	handler.cfg.AutomaticUpgradesChannels = channels
 
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
@@ -4696,14 +4703,20 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
-	// request and verify enabled features are enabled.
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	// request and verify enabled features are eventually enabled.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		re, err = clt.Get(ctx, endpoint, nil)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+		str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+		require.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		if assert.Empty(c, diff) {
+			t.Logf("Feature diff (-want +got):\n%s", diff)
+		}
+
+	}, time.Second, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
 	// cluster config
@@ -4726,15 +4739,22 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			IsUsageBasedBilling: false,
 		},
 	})
+	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	// request and verify again
-	re, err = clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		re, err = clt.Get(ctx, endpoint, nil)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+		str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+		require.NoError(t, err)
+		diff := cmp.Diff(expectedCfg, cfg)
+		if assert.Empty(c, diff) {
+			t.Logf("Feature diff (-want +got):\n%s", diff)
+		}
+
+	}, time.Second, time.Millisecond*50)
 }
 
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
@@ -4757,7 +4777,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	})
 	// start the feature watcher so the web config gets new features
 	go handler.startFeatureWatcher()
-	<-handler.featureWatcherReady // await until the watcher is ready to advance to clock
+	<-handler.featureWatcherReady // await until the watcher is ready
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
