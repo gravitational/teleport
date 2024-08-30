@@ -561,7 +561,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 	var bundle *spiffebundle.Bundle
 	var nextSyncIn time.Duration
 	switch {
-	case current.Spec.BundleSource.HttpsWeb != nil:
+	case current.GetSpec().GetBundleSource().GetHttpsWeb() != nil:
 		url := current.Spec.BundleSource.HttpsWeb.BundleEndpointUrl
 		log.DebugContext(
 			ctx,
@@ -597,7 +597,7 @@ func (s *SPIFFEFederationSyncer) syncTrustDomain(
 				nextSyncIn = refreshHint
 			}
 		}
-	case current.Spec.BundleSource.Static != nil:
+	case current.GetSpec().GetBundleSource().GetStatic() != nil:
 		log.DebugContext(
 			ctx, "Fetching bundle using spec.bundle_source.static.bundle",
 		)
