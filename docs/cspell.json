@@ -692,6 +692,7 @@
     "noout",
     "noprompt",
     "nosql",
+    "notifempty",
     "nowait",
     "ntauth",
     "nvme",

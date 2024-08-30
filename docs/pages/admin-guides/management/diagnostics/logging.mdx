@@ -63,7 +63,7 @@ This is useful for implementing log rotation without needing to restart or inter
 Using `logrotate` as an example, you may define the following config `/etc/logrotate.d/teleport.conf`
 to rotate Teleport log file weekly:
 
-```
+```code
 /var/lib/teleport/log/output.log {
     weekly
     compress
