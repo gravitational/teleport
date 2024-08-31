@@ -20,16 +20,56 @@ package test
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
+
+type flakyHandler struct {
+	events.MultipartHandler
+	mu          sync.Mutex
+	shouldFlake bool
+	flakedParts map[int64]bool
+}
+
+func newFlakyHandler(handler events.MultipartHandler) *flakyHandler {
+	return &flakyHandler{
+		MultipartHandler: handler,
+		flakedParts:      make(map[int64]bool),
+	}
+}
+
+func (f *flakyHandler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	var shouldFlake bool
+	f.mu.Lock()
+	if f.shouldFlake && !f.flakedParts[partNumber] {
+		shouldFlake = true
+		f.flakedParts[partNumber] = true
+	}
+	f.mu.Unlock()
+
+	if shouldFlake {
+		return nil, trace.Errorf("flakeity flake flake")
+	}
+
+	return f.MultipartHandler.UploadPart(ctx, upload, partNumber, partBody)
+}
+
+func (f *flakyHandler) setFlakeUpload(flake bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.shouldFlake = flake
+}
 
 // StreamParams configures parameters of a stream test suite
 type StreamParams struct {
@@ -39,19 +79,34 @@ type StreamParams struct {
 	ConcurrentUploads int
 	// MinUploadBytes is minimum required upload bytes
 	MinUploadBytes int64
+	// Flaky is a flag that indicates that the handler should be flaky
+	Flaky bool
+	// ForceFlush is a flag that indicates that the handler should be forced to flush
+	// partially filled slices during event input.
+	ForceFlush bool
 }
 
 // StreamSinglePart tests stream upload and subsequent download and reads the results
 func StreamSinglePart(t *testing.T, handler events.MultipartHandler) {
-	StreamWithParameters(t, handler, StreamParams{
+	StreamWithPermutedParameters(t, handler, StreamParams{
 		PrintEvents:    1024,
+		MinUploadBytes: 1024 * 1024,
+	})
+}
+
+// StreamWithPadding tests stream upload in a case where significant padding must be added. Note that
+// in practice padding is only necessarily added in the 'ForceFlush' permutation as single-slice uploads
+// do not require padding.
+func StreamWithPadding(t *testing.T, handler events.MultipartHandler) {
+	StreamWithPermutedParameters(t, handler, StreamParams{
+		PrintEvents:    10,
 		MinUploadBytes: 1024 * 1024,
 	})
 }
 
 // Stream tests stream upload and subsequent download and reads the results
 func Stream(t *testing.T, handler events.MultipartHandler) {
-	StreamWithParameters(t, handler, StreamParams{
+	StreamWithPermutedParameters(t, handler, StreamParams{
 		PrintEvents:       1024,
 		MinUploadBytes:    1024,
 		ConcurrentUploads: 2,
@@ -60,7 +115,7 @@ func Stream(t *testing.T, handler events.MultipartHandler) {
 
 // StreamManyParts tests stream upload and subsequent download and reads the results
 func StreamManyParts(t *testing.T, handler events.MultipartHandler) {
-	StreamWithParameters(t, handler, StreamParams{
+	StreamWithPermutedParameters(t, handler, StreamParams{
 		PrintEvents:       8192,
 		MinUploadBytes:    1024,
 		ConcurrentUploads: 64,
@@ -77,6 +132,27 @@ func StreamResumeManyParts(t *testing.T, handler events.MultipartHandler) {
 	})
 }
 
+// StreamWithPermutedParameters tests stream upload and subsequent download and reads the results, repeating
+// the process with various permutations of flake and flush parameters in order to better cover padding and
+// retry logic, which are easy to accidentally fail to cover.
+func StreamWithPermutedParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
+	cases := []struct{ Flaky, ForceFlush bool }{
+		{Flaky: false, ForceFlush: false},
+		{Flaky: true, ForceFlush: false},
+		{Flaky: false, ForceFlush: true},
+		{Flaky: true, ForceFlush: true},
+	}
+
+	for _, cc := range cases {
+		t.Run(fmt.Sprintf("Flaky=%v,ForceFlush=%v", cc.Flaky, cc.ForceFlush), func(t *testing.T) {
+			pc := params
+			pc.Flaky = cc.Flaky
+			pc.ForceFlush = cc.ForceFlush
+			StreamWithParameters(t, handler, pc)
+		})
+	}
+}
+
 // StreamWithParameters tests stream upload and subsequent download and reads the results
 func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params StreamParams) {
 	ctx := context.TODO()
@@ -84,10 +160,15 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: params.PrintEvents})
 	sid := session.ID(inEvents[0].(events.SessionMetadataGetter).GetSessionID())
 
+	forceFlush := make(chan struct{})
+
+	wrappedHandler := newFlakyHandler(handler)
+
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
-		Uploader:          handler,
+		Uploader:          wrappedHandler,
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
+		ForceFlush:        forceFlush,
 	})
 	require.NoError(t, err)
 
@@ -101,7 +182,21 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 		t.Fatalf("Timed out waiting for status update.")
 	}
 
-	for _, event := range inEvents {
+	// if enabled, flake causes the first upload attempt for each multipart upload part
+	// to fail. necessary in order to cover upload retry logic, which has historically been
+	// a source of bugs.
+	wrappedHandler.setFlakeUpload(params.Flaky)
+
+	timeout := time.After(time.Minute)
+
+	for i, event := range inEvents {
+		if params.ForceFlush && i%(len(inEvents)/3) == 0 {
+			select {
+			case forceFlush <- struct{}{}:
+			case <-timeout:
+				t.Fatalf("Timed out waiting for force flush.")
+			}
+		}
 		err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
 		require.NoError(t, err)
 	}

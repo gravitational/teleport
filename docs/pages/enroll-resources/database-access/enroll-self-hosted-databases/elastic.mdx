@@ -116,10 +116,10 @@ xpack.security.authc.realms.pki.pki1:
   certificate_authorities: /path/to/server.cas
 ```
 
-Once mutual TLS has been enabled, you will no longer be able to connect to the cluster without
-providing a valid client certificate. You can set `xpack.security.http.ssl.client_authentication`
-to `optional` to allow connections from clients that do not present a certificate, using other
-methods like username and password.
+Restart Elasticsearch to enable this configuration. Once mutual TLS has been enabled, you will no
+longer be able to connect to the cluster without providing a valid client certificate. You can set
+`xpack.security.http.ssl.client_authentication` to `optional` to allow connections from clients
+that do not present a certificate, using other methods like username and password.
 
 ## Step 5/5. Connect
 

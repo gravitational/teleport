@@ -325,11 +325,8 @@ const NameCell = ({ token }: { token: JoinToken }) => {
     <Cell
       align="left"
       style={{
-        minWidth: '320px',
+        maxWidth: '320px',
         fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -337,13 +334,18 @@ const NameCell = ({ token }: { token: JoinToken }) => {
       <Flex alignItems="center" gap={2}>
         <Text
           css={`
-            text-overflow: clip;
-            overflow-x: auto;
+            overflow-wrap: break-word;
           `}
         >
           {method !== 'token' ? id : safeName}
         </Text>
-        {hovered && <CopyButton name={id} />}
+        <Box
+          css={`
+            visibility: ${hovered ? 'visible' : 'hidden'};
+          `}
+        >
+          <CopyButton name={id} />
+        </Box>
       </Flex>
     </Cell>
   );
