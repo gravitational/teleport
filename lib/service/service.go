@@ -5009,6 +5009,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			IngressReporter:          ingressReporter,
 			KubernetesServersWatcher: kubeServerWatcher,
 			PROXYProtocolMode:        cfg.Proxy.PROXYProtocolMode,
+			InventoryHandle:          process.inventoryHandle,
 		})
 		if err != nil {
 			return trace.Wrap(err)
