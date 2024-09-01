@@ -2466,6 +2466,8 @@ message InventoryHeartbeat {
   types.AppServerV3 AppServer = 2;
   // DatabaseServer is a complete db server spec to be heartbeated.
   types.DatabaseServerV3 DatabaseServer = 3;
+  // KubeServer is a complete kube server spec to be heartbeated.
+  types.KubernetesServerV3 KubernetesServer = 4;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

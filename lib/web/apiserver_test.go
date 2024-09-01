@@ -119,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/inventory"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -9065,6 +9066,12 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		ResourceMatchers:         nil,
 		OnReconcile:              func(kc types.KubeClusters) {},
 		KubernetesServersWatcher: watcher,
+		InventoryHandle: inventory.NewDownstreamHandle(client.InventoryControlStream, clientproto.UpstreamInventoryHello{
+			ServerID: hostID,
+			Version:  teleport.Version,
+			Services: []types.SystemRole{role},
+			Hostname: "test",
+		}),
 	})
 	require.NoError(t, err)
 
