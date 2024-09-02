@@ -5013,7 +5013,7 @@ func TestDebugServiceConfig(t *testing.T) {
 		"enabled by default": {configFile: "", expectDebugServiceEnabled: true},
 		"disabled by commandline": {
 			configFile:                "",
-			commandLineFlags:          &CommandLineFlags{DisabledDebugService: true},
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
 			expectDebugServiceEnabled: false,
 		},
 		"disabled by configuration": {
@@ -5028,7 +5028,7 @@ debug_service:
 debug_service:
   enabled: "yes"
 `,
-			commandLineFlags:          &CommandLineFlags{DisabledDebugService: true},
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
 			expectDebugServiceEnabled: false,
 		},
 	} {
