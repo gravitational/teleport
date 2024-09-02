@@ -32,7 +32,7 @@ type Props = {
   severity: Severity;
   id: string;
   link?: string;
-  linkCTA?: string;
+  linkText?: string;
   onDismiss: () => void;
 };
 
@@ -41,12 +41,12 @@ export function StandardBanner({
   message = '',
   severity = 'info',
   link = '',
-  linkCTA = '',
+  linkText = '',
   onDismiss,
 }: Props) {
   const linkValid = isValidTeleportLink(link);
-  const details = linkValid ? undefined : bannerDetails(link, linkCTA);
-  const primaryAction = linkValid ? action(id, link, linkCTA) : undefined;
+  const details = linkValid ? undefined : bannerDetails(link, linkText);
+  const primaryAction = linkValid ? action(id, link, linkText) : undefined;
 
   return (
     <Banner
@@ -70,12 +70,12 @@ const isValidTeleportLink = (link: string) => {
   }
 };
 
-const bannerDetails = (link: string, cta: string): string =>
-  cta ? `${cta}: ${link}` : link;
+const bannerDetails = (link: string, linkText: string): string =>
+  linkText ? `${linkText}: ${link}` : link;
 
-const action = (id: string, link: string, cta: string): Action => {
+const action = (id: string, link: string, linkText: string): Action => {
   return {
-    content: cta || 'Learn More',
+    content: linkText || 'Learn More',
     href: link,
     onClick: () =>
       userEventService.captureUserEvent({

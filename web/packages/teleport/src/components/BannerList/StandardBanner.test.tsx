@@ -110,7 +110,7 @@ describe('StandardBanner', () => {
           severity="info"
           id="some-id"
           link="https://goteleport.com/docs"
-          linkCTA="Open Docs"
+          linkText="Open Docs"
           onDismiss={() => {}}
         />
       );
@@ -121,8 +121,8 @@ describe('StandardBanner', () => {
       );
     });
 
-    it('renders valid URLs with default link CTA', () => {
-      const message = 'message-with-default-cta';
+    it('renders valid URLs with default link text', () => {
+      const message = 'message-with-default-text';
       render(
         <StandardBanner
           message={message}
@@ -158,13 +158,13 @@ describe('StandardBanner', () => {
     });
 
     it.each`
-      case               | url                               | cta           | expected
-      ${'invalid'}       | ${'{https://goteleport.com/docs'} | ${undefined}  | ${'{https://goteleport.com/docs'}
-      ${'external'}      | ${'https://www.google.com'}       | ${undefined}  | ${'https://www.google.com'}
-      ${'external, CTA'} | ${'https://example.com'}          | ${'Find Out'} | ${'Find Out: https://example.com'}
+      case                     | url                               | linkText      | expected
+      ${'invalid'}             | ${'{https://goteleport.com/docs'} | ${undefined}  | ${'{https://goteleport.com/docs'}
+      ${'external'}            | ${'https://www.google.com'}       | ${undefined}  | ${'https://www.google.com'}
+      ${'external, link text'} | ${'https://example.com'}          | ${'Find Out'} | ${'Find Out: https://example.com'}
     `(
       'renders invalid and external URLs as text: $case',
-      ({ url, cta, expected }) => {
+      ({ url, linkText, expected }) => {
         const message = 'some-message';
         render(
           <StandardBanner
@@ -172,7 +172,7 @@ describe('StandardBanner', () => {
             severity="info"
             id="some-id"
             link={url}
-            linkCTA={cta}
+            linkText={linkText}
             onDismiss={() => {}}
           />
         );
