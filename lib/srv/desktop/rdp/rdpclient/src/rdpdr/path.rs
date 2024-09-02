@@ -139,6 +139,7 @@ fn crop_first_n_letters(s: &mut String, n: usize) {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PathError(pub String);
 

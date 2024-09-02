@@ -241,7 +241,7 @@ function CreateMfaBox({
 
   return (
     <>
-      Multi-factor type
+      <Box mb={2}>Multi-factor type</Box>
       <RadioGroup
         name="mfaOption"
         options={mfaOptions}

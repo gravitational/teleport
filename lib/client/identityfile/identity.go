@@ -182,6 +182,8 @@ type WriteConfig struct {
 	OutputPath string
 	// KeyRing contains the credentials to write to the identity file.
 	KeyRing *client.KeyRing
+	// WindowsDesktopCerts contains windows desktop certs to write.
+	WindowsDesktopCerts map[string][]byte
 	// Format is the output format for the identity file.
 	Format Format
 	// KubeProxyAddr is the public address of the proxy with its kubernetes
@@ -283,7 +285,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 	case FormatWindows:
-		for k, cert := range cfg.KeyRing.WindowsDesktopCerts {
+		for k, cert := range cfg.WindowsDesktopCerts {
 			certPath := cfg.OutputPath + "." + k + ".der"
 			filesWritten = append(filesWritten, certPath)
 			if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, certPath); err != nil {

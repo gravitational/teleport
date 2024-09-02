@@ -53,7 +53,7 @@ const (
 )
 
 var (
-	testRSAPrivateKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
+	testRSA2048PrivateKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEowIBAAKCAQEAqiD2rRJ5kq7hP55eOCM9DtdkWPMI8PBKgxaAiQ9J9YF3aNur
 98b8kACcTQ8ixSkHsLccVqRdt/Cnb7jtBSrwxJ9BN09fZEiyCvy7lwxNGBMQEaov
 9UU722nvuWKb+EkHzcVV9ie9i8wM88xpzzYO8eda8FZjHxaaoe2lkrHiiOFQRubJ
@@ -116,17 +116,17 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 
 	testRawSSHKeyPair = &types.SSHKeyPair{
 		PublicKey:      testRSASSHPublicKey,
-		PrivateKey:     testRSAPrivateKeyPEM,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 	testRawTLSKeyPair = &types.TLSKeyPair{
 		Cert:    testRSACert,
-		Key:     testRSAPrivateKeyPEM,
+		Key:     testRSA2048PrivateKeyPEM,
 		KeyType: types.PrivateKeyType_RAW,
 	}
 	testRawJWTKeyPair = &types.JWTKeyPair{
 		PublicKey:      testRSAPublicKeyPEM,
-		PrivateKey:     testRSAPrivateKeyPEM,
+		PrivateKey:     testRSA2048PrivateKeyPEM,
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	}
 
@@ -271,6 +271,11 @@ func TestManager(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
+	sshSubjectKey, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	sshSubjectPubKey, err := ssh.NewPublicKey(sshSubjectKey)
+	require.NoError(t, err)
+
 	pack := newTestPack(ctx, t)
 
 	for _, backendDesc := range pack.backends {
@@ -334,6 +339,20 @@ func TestManager(t *testing.T) {
 			pubkeyPem, err := keys.MarshalPublicKey(jwtSigner.Public())
 			require.NoError(t, err)
 			require.Equal(t, jwtKeyPair.PublicKey, pubkeyPem)
+
+			// Try signing an SSH cert.
+			sshCert := ssh.Certificate{
+				Key:         sshSubjectPubKey,
+				ValidBefore: uint64(time.Now().Add(time.Hour).Unix()),
+			}
+			require.NoError(t, sshCert.SignCert(rand.Reader, sshSigner))
+			// Verify the signature.
+			checker := ssh.CertChecker{
+				IsUserAuthority: func(pub ssh.PublicKey) bool {
+					return pub == sshSigner.PublicKey()
+				},
+			}
+			require.NoError(t, checker.CheckCert("root", &sshCert))
 
 			// Test what happens when the CA has only raw keys, which will be the
 			// initial state when migrating from software to a HSM/KMS backend.
@@ -544,7 +563,7 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		config:              servicecfg.KeystoreConfig{},
 		opts:                &baseOpts,
 		backend:             softwareBackend,
-		unusedRawKey:        testRSAPrivateKeyPEM,
+		unusedRawKey:        testRSA2048PrivateKeyPEM,
 		deletionDoesNothing: true,
 	})
 
