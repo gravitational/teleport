@@ -85,18 +85,3 @@ const isValidTeleportLink = (link: string) => {
     return false;
   }
 };
-
-const bannerDetails = (link: string, linkText: string): string =>
-  linkText ? `${linkText}: ${link}` : link;
-
-const action = (id: string, link: string, linkText: string): Action => {
-  return {
-    content: linkText || 'Learn More',
-    href: link,
-    onClick: () =>
-      userEventService.captureUserEvent({
-        event: CaptureEvent.BannerClickEvent,
-        alert: id,
-      }),
-  };
-};
