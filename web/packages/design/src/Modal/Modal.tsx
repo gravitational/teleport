@@ -17,13 +17,86 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
 
 import RootRef from './RootRef';
 
-export default class Modal extends React.Component {
+type Props = {
+  /**
+   * If `true`, the modal is open.
+   */
+  open: boolean;
+  className?: string;
+  /**
+   * Styles passed to the modal, the parent of the children.
+   */
+  // TODO(ravicious): The type for modalCss might need some work after we migrate the components
+  // that use <Modal> to TypeScript.
+  modalCss?: StyleFunction<any>;
+  children?: React.ReactElement;
+  /**
+   * Properties applied to the [`Backdrop`](/api/backdrop/) element.
+   *
+   * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
+   */
+  BackdropProps?: object;
+  /**
+   * If `true`, the modal will not automatically shift focus to itself when it opens, and
+   * replace it to the last focused element when it closes.
+   * This also works correctly with any modal children that have the `disableAutoFocus` prop.
+   *
+   * Generally this should never be set to `true` as it makes the modal less
+   * accessible to assistive technologies, like screen readers.
+   */
+  disableAutoFocus?: boolean;
+  /**
+   * If `true`, clicking the backdrop will not fire any callback.
+   */
+  disableBackdropClick?: boolean;
+  /**
+   * If `true`, the modal will not prevent focus from leaving the modal while open.
+   *
+   * Generally this should never be set to `true` as it makes the modal less
+   * accessible to assistive technologies, like screen readers.
+   */
+  disableEnforceFocus?: boolean;
+  /**
+   * If `true`, hitting escape will not fire any callback.
+   */
+  disableEscapeKeyDown?: boolean;
+  /**
+   * If `true`, the modal will not restore focus to previously focused element once
+   * modal is hidden.
+   */
+  disableRestoreFocus?: boolean;
+  /**
+   * If `true`, the backdrop is not rendered.
+   */
+  hideBackdrop?: boolean;
+  /**
+   * Callback fired when the backdrop is clicked.
+   */
+  onBackdropClick?: (event: React.MouseEvent) => void;
+  /**
+   * Callback fired when the component requests to be closed.
+   * The `reason` parameter can optionally be used to control the response to `onClose`.
+   */
+  onClose?: (
+    event: React.UIEvent,
+    reason: 'escapeKeyDown' | 'backdropClick'
+  ) => void;
+  /**
+   * Callback fired when the escape key is pressed,
+   * `disableEscapeKeyDown` is false and the modal is in focus.
+   */
+  onEscapeKeyDown?: (event: React.KeyboardEvent) => void;
+};
+
+export default class Modal extends React.Component<Props> {
+  lastFocus: HTMLElement | undefined;
+  modalRef: HTMLElement | undefined;
+  dialogRef: HTMLElement | undefined;
   mounted = false;
 
   componentDidMount() {
@@ -33,11 +106,11 @@ export default class Modal extends React.Component {
     }
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps: Props) {
     if (prevProps.open && !this.props.open) {
       this.handleClose();
     } else if (!prevProps.open && this.props.open) {
-      this.lastFocus = document.activeElement;
+      this.lastFocus = document.activeElement as HTMLElement;
       this.handleOpen();
     }
   }
@@ -129,11 +202,11 @@ export default class Modal extends React.Component {
       return;
     }
 
-    const currentActiveElement = document.activeElement;
+    const currentActiveElement = document.activeElement as HTMLElement;
 
     if (!this.dialogRef.contains(currentActiveElement)) {
       if (!this.dialogRef.hasAttribute('tabIndex')) {
-        this.dialogRef.setAttribute('tabIndex', -1);
+        this.dialogRef.setAttribute('tabIndex', '-1');
       }
 
       this.lastFocus = currentActiveElement;
@@ -186,83 +259,6 @@ export default class Modal extends React.Component {
   }
 }
 
-Modal.propTypes = {
-  /**
-   * Properties applied to the [`Backdrop`](/api/backdrop/) element.
-   *
-   * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
-   */
-  BackdropProps: PropTypes.object,
-  /**
-   * A single child content element.
-   */
-  children: PropTypes.element,
-  /**
-   * If `true`, the modal will not automatically shift focus to itself when it opens, and
-   * replace it to the last focused element when it closes.
-   * This also works correctly with any modal children that have the `disableAutoFocus` prop.
-   *
-   * Generally this should never be set to `true` as it makes the modal less
-   * accessible to assistive technologies, like screen readers.
-   */
-  disableAutoFocus: PropTypes.bool,
-  /**
-   * If `true`, clicking the backdrop will not fire any callback.
-   */
-  disableBackdropClick: PropTypes.bool,
-  /**
-   * If `true`, the modal will not prevent focus from leaving the modal while open.
-   *
-   * Generally this should never be set to `true` as it makes the modal less
-   * accessible to assistive technologies, like screen readers.
-   */
-  disableEnforceFocus: PropTypes.bool,
-  /**
-   * If `true`, hitting escape will not fire any callback.
-   */
-  disableEscapeKeyDown: PropTypes.bool,
-  /**
-   * If `true`, the modal will not restore focus to previously focused element once
-   * modal is hidden.
-   */
-  disableRestoreFocus: PropTypes.bool,
-  /**
-   * If `true`, the backdrop is not rendered.
-   */
-  hideBackdrop: PropTypes.bool,
-  /**
-   * Callback fired when the backdrop is clicked.
-   */
-  onBackdropClick: PropTypes.func,
-  /**
-   * Callback fired when the component requests to be closed.
-   * The `reason` parameter can optionally be used to control the response to `onClose`.
-   *
-   * @param {object} event The event source of the callback
-   * @param {string} reason Can be:`"escapeKeyDown"`, `"backdropClick"`
-   */
-  onClose: PropTypes.func,
-  /**
-   * Callback fired when the escape key is pressed,
-   * `disableEscapeKeyDown` is false and the modal is in focus.
-   */
-  onEscapeKeyDown: PropTypes.func,
-  /**
-   * If `true`, the modal is open.
-   */
-  open: PropTypes.bool.isRequired,
-  className: PropTypes.string,
-};
-
-Modal.defaultProps = {
-  disableAutoFocus: false,
-  disableBackdropClick: false,
-  disableEnforceFocus: false,
-  disableEscapeKeyDown: false,
-  disableRestoreFocus: false,
-  hideBackdrop: false,
-};
-
 function Backdrop(props) {
   const { invisible, ...rest } = props;
   return (
@@ -275,7 +271,7 @@ function Backdrop(props) {
   );
 }
 
-const StyledBackdrop = styled.div`
+const StyledBackdrop = styled.div<{ invisible: boolean }>`
   z-index: -1;
   position: fixed;
   right: 0;
@@ -288,12 +284,12 @@ const StyledBackdrop = styled.div`
   touch-action: none;
 `;
 
-const StyledModal = styled.div`
+const StyledModal = styled.div<{ modalCss: StyleFunction<any> }>`
   position: fixed;
   z-index: 1200;
   right: 0;
   bottom: 0;
   top: 0;
   left: 0;
-  ${props => props.modalCss && props.modalCss(props)}
+  ${props => props.modalCss?.(props)}
 `;
