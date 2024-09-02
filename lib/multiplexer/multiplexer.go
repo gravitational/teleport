@@ -483,10 +483,8 @@ const (
 	invalidProxyLineError                 = "invalid PROXY line"
 	invalidProxyV2LineError               = "invalid PROXY v2 line"
 	invalidProxySignatureError            = "could not verify PROXY signature for connection"
-	missingProxyLineError                 = `connection (%s -> %s) rejected because PROXY protocol is enabled but required
-PROXY protocol line wasn't received. 
-Make sure you have correct configuration, only enable "proxy_protocol: on" in config if Teleport is running behind L4 
-load balancer with enabled PROXY protocol.`
+	missingProxyLineError                 = `connection (%s -> %s) rejected: PROXY protocol required, but PROXY protocol line not received. Please verify your configuration. 
+Enable "proxy_protocol: on" only if Teleport is behind an L4 load balancer with PROXY protocol enabled.`
 	unknownProtocolError     = "unknown protocol"
 	unexpectedPROXYLineError = `received unexpected PROXY protocol line. Connection will be allowed, but this is usually a result of misconfiguration - 
 if Teleport is running behind L4 load balancer with enabled PROXY protocol you should explicitly set config field "proxy_protocol" to "on".
@@ -655,30 +653,29 @@ func (m *Mux) checkPROXYProtocolRequirement(conn net.Conn, unsignedPROXYLineRece
 		return trace.Wrap(err)
 	}
 
-	// We try to get inner multiplexer connection, if we succeed and there is on, it means conn was passed
-	// to us from another multiplexer listener and unsigned PROXY protocol requirement was handled there.
-	innerConn := unwrapMuxConn(conn)
-
-	if !selfConnection && innerConn == nil && !unsignedPROXYLineReceived {
+	if !selfConnection && !isInternalConn(conn) && !unsignedPROXYLineReceived {
 		return trace.BadParameter(missingProxyLineError, conn.RemoteAddr().String(), conn.LocalAddr().String())
 	}
 
 	return nil
 }
 
-func unwrapMuxConn(conn net.Conn) *Conn {
+// isInternalConn determines if the connection is a multiplexer Conn.
+// If the check is successful, it indicates that the connection was provided by another multiplexer listener,
+// and that the unsigned PROXY protocol requirement has already been handled.
+func isInternalConn(conn net.Conn) bool {
 	type netConn interface {
 		NetConn() net.Conn
 	}
 
 	for {
-		if muxConn, ok := conn.(*Conn); ok {
-			return muxConn
+		if _, ok := conn.(*Conn); ok {
+			return true
 		}
 
 		connGetter, ok := conn.(netConn)
 		if !ok {
-			return nil
+			return false
 		}
 		conn = connGetter.NetConn()
 	}
