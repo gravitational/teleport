@@ -1189,18 +1189,12 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	// TODO use cluster features instead of pinging auth server
-	pingResp, err := clt.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	features := pingResp.GetServerFeatures()
-	entitlement := modules.GetProtoEntitlement(features, entitlements.AccessMonitoring)
+	features := h.GetClusterFeatures()
+	entitlement := modules.GetProtoEntitlement(&features, entitlements.AccessMonitoring)
 	// ensure entitlement is set & feature is configured
 	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), features, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
