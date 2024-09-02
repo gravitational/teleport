@@ -19,11 +19,15 @@ package utils
 type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable](elements ...T) Set[T] {
-	s := make(map[T]struct{}, len(elements))
+	s := NewSetWithCapacity[T](len(elements))
 	for _, e := range elements {
 		s[e] = struct{}{}
 	}
 	return s
+}
+
+func NewSetWithCapacity[T comparable](n int) Set[T] {
+	return make(map[T]struct{}, n)
 }
 
 func (s Set[T]) Add(element T) {
@@ -34,7 +38,13 @@ func (s Set[T]) Remove(element T) {
 	delete(s, element)
 }
 
-func (s Set[T]) Has(element T) bool {
+func (s Set[T]) Contains(element T) bool {
 	_, present := s[element]
 	return present
+}
+
+func (s Set[T]) Subtract(other Set[T]) {
+	for k := range other {
+		delete(s, k)
+	}
 }

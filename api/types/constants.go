@@ -548,8 +548,6 @@ const (
 
 	KindIdentityCenterPrincipalAssignment = "aws_iam_ic_principal_assignment"
 
-	KindIdentityCenterPermissionSetBinding = "aws_iam_ic_permission_set_binding"
-
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
@@ -667,6 +665,8 @@ const (
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
+
+	OriginAWSIdentityCenter = common.OriginAWSIdentityCenter
 
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
