@@ -326,8 +326,8 @@ The join method will be configured using the ProvisionTokenV2 resource:
 syntax = "proto3";
 
 message ProvisionTokenSpecV2SPIFFE{
-  // Rule is a set of properties the Kubernetes-issued token might have to be
-  // allowed to use this ProvisionToken
+  // Rule is a set of properties the SPIFFE SVID must have to be allowed to use
+  // this ProvisionToken
   message Rule {
     // SPIFFEID matches against the full SPIFFE ID of the joining client's SVID.
     // It should be prefixed with spiffe:// and glob-like patterns are 
