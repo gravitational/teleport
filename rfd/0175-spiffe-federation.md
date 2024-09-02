@@ -192,7 +192,8 @@ The `current_bundle_refresh_hint` and `current_bundle_synced_at` fields will be
 used to determine when the next fetch should occur. If the `current_bundle` is
 older than the `current_bundle_refresh_hint` from the `current_bundle_synced_at`,
 a new fetch will be initiated.  If unspecified, it will be assumed that the
-bundle should be refreshed every 60 minutes.
+bundle should be refreshed every 5 minutes (as per 
+https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md#41-adding-and-removing-keys).
 
 In addition, this task will watch the `SPIFFEFederation` resources and
 immediately fetch the trust bundle when a new resource is created or updated.
