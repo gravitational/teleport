@@ -176,7 +176,6 @@ type Handler struct {
 	// featureWatcherStop is a channel used to emit a stop signal to the
 	// features watcher goroutine
 	featureWatcherStop chan struct{}
-	featureWatcherOnce sync.Once
 	// featureWatcherReady is a chan that the feature watcher closes
 	// to signal it is ready. Used in tests.
 	featureWatcherReady chan struct{}
