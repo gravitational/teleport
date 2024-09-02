@@ -44,35 +44,33 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
 func (h *Handler) startFeatureWatcher() {
-	h.featureWatcherOnce.Do(func() {
-		ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
-		h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
-		ctx := context.Background()
+	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
+	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
+	ctx := context.Background()
 
-		// close ready channel to signal it started the main loop
-		if h.featureWatcherReady != nil {
-			close(h.featureWatcherReady)
-		}
+	// close ready channel to signal it started the main loop
+	if h.featureWatcherReady != nil {
+		close(h.featureWatcherReady)
+	}
 
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.Chan():
-				h.log.Info("Pinging auth server for features")
-				pingResponse, err := h.GetProxyClient().Ping(ctx)
-				if err != nil {
-					h.log.WithError(err).Error("Auth server ping failed")
-					continue
-				}
-
-				h.SetClusterFeatures(*pingResponse.ServerFeatures)
-				h.log.Debug("Done updating proxy features")
-			case <-h.featureWatcherStop:
-				h.log.Info("Feature service has stopped")
-				return
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.Chan():
+			h.log.Info("Pinging auth server for features")
+			pingResponse, err := h.GetProxyClient().Ping(ctx)
+			if err != nil {
+				h.log.WithError(err).Error("Auth server ping failed")
+				continue
 			}
+
+			h.SetClusterFeatures(*pingResponse.ServerFeatures)
+			h.log.Debug("Done updating proxy features")
+		case <-h.featureWatcherStop:
+			h.log.Info("Feature service has stopped")
+			return
 		}
-	})
+	}
 }
 
 // stopFeatureWatcher stops the feature watcher
