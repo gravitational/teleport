@@ -1,4 +1,4 @@
-.version: &version "16.2.0"
+.version: &version "16.0.0-dev.camh.emkcc.1"
 
 name: teleport-cluster
 apiVersion: v2
