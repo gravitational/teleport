@@ -44,14 +44,30 @@ export function StandardBanner({
   linkText = '',
   onDismiss,
 }: Props) {
-  const linkValid = isValidTeleportLink(link);
-  const details = linkValid ? undefined : bannerDetails(link, linkText);
-  const primaryAction = linkValid ? action(id, link, linkText) : undefined;
+  let primaryAction: Action | undefined;
+  let invalidLinkFallback: string | undefined;
+
+  // We want to only use the provided link if it's valid (that is, when it
+  // doesn't parse or it's from outside Teleport domain). Otherwise, we display
+  // it as plain text.
+  if (isValidTeleportLink(link)) {
+    primaryAction = {
+      content: linkText || 'Learn More',
+      href: link,
+      onClick: () =>
+        userEventService.captureUserEvent({
+          event: CaptureEvent.BannerClickEvent,
+          alert: id,
+        }),
+    };
+  } else {
+    invalidLinkFallback = linkText ? `${linkText}: ${link}` : link;
+  }
 
   return (
     <Banner
       kind={severity}
-      details={details}
+      details={invalidLinkFallback}
       primaryAction={primaryAction}
       onDismiss={onDismiss}
       dismissible
