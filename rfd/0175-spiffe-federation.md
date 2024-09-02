@@ -16,7 +16,10 @@ Implement support for SPIFFE Federation within Teleport Workload Identity,
 including support for a SPIFFE based join method based on the federation
 mechanism.
 
-See https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md
+SPIFFE Federation is a standardised mechanism for exchanging trust bundles 
+between trust domains. This enables workloads in one trust domain to validate
+the identity of workloads in another trust domain. See
+https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md
 for the SPIFFE Federation specification. This will be referred to as
 "the specification" throughout this document.
 
