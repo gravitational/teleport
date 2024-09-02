@@ -79,10 +79,20 @@ const (
 	);
 	CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id)
 		WHERE session_id != '00000000-0000-0000-0000-000000000000';`
-	dateIndex                       = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
-	schemaV1TableWithDateIndex      = schemaV1Table + "\n" + dateIndex
-	schemaV1CockroachSetRowExpiry   = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + (%d * INTERVAL ''1 microsecond'')) AT TIME ZONE ''UTC'' ');"
-	schemaV1CockroachUnsetRowExpiry = "ALTER TABLE events RESET (ttl_expiration_expression);"
+	dateIndex                  = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
+	schemaV1TableWithDateIndex = schemaV1Table + "\n" + dateIndex
+
+	// crdb will throw an error if the (n)::INTERVAL can't be represented as an
+	// INTERVAL literal, and the sum between a TIMESTAMPTZ and an INTERVAL will
+	// likewise fail if the result value can't be represented as a TIMESTAMPTZ
+	// (any of this should only apply with wildly impractical expiry values in
+	// the range of thousands of years)
+	schemaV1CockroachSetRowExpirySeconds = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + ((%d)::INTERVAL)) AT TIME ZONE ''UTC''');"
+	// the asymmetry here is intended, crdb requires "RESET (ttl)" to disable
+	// row-level TTL on a table, whereas "RESET (ttl_expiration_expression)"
+	// would remove the expression in favor of ttl_expire_after (and it will
+	// error out if ttl_expire_after is unset)
+	schemaV1CockroachUnsetRowExpiry = "ALTER TABLE events RESET (ttl);"
 )
 
 // Config is the configuration struct to pass to New.
@@ -264,11 +274,10 @@ func configureCockroachDBRetention(ctx context.Context, cfg *Config, pool *pgxpo
 		expiryQuery = schemaV1CockroachUnsetRowExpiry
 	} else {
 		cfg.Log.DebugContext(ctx, "Configuring CockroachDB native row expiry")
-		expiryQuery = fmt.Sprintf(schemaV1CockroachSetRowExpiry, cfg.RetentionPeriod)
+		expiryQuery = fmt.Sprintf(schemaV1CockroachSetRowExpirySeconds, int64(cfg.RetentionPeriod.Seconds()))
 	}
 	_, err := pool.Exec(ctx, expiryQuery, pgx.QueryExecModeExec)
 	return trace.Wrap(err)
-
 }
 
 func buildSchema(isCockroach bool, cfg *Config) (schemas []string, err error) {
