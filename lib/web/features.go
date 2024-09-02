@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -50,7 +50,9 @@ func (h *Handler) startFeatureWatcher() {
 		ctx := context.Background()
 
 		// close ready channel to signal it started the main loop
-		close(h.featureWatcherReady)
+		if h.featureWatcherReady != nil {
+			close(h.featureWatcherReady)
+		}
 
 		defer ticker.Stop()
 		for {
