@@ -5070,6 +5070,14 @@ debug_service:
 `,
 			expectDebugServiceEnabled: false,
 		},
+		"commandline flag has priority over config file": {
+			configFile: `
+debug_service:
+  enabled: "yes"
+`,
+			commandLineFlags:          &CommandLineFlags{DisabledDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			filePath := filepath.Join(t.TempDir(), "config.yaml")
