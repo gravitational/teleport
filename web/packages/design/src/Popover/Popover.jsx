@@ -40,10 +40,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React from 'react';
+import React, { createRef } from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-import ReactDOM from 'react-dom';
 
 import Modal from '../Modal';
 
@@ -102,6 +101,7 @@ function getAnchorEl(anchorEl) {
 }
 
 export default class Popover extends React.Component {
+  paperRef = createRef();
   handleGetOffsetTop = getOffsetTop;
 
   handleGetOffsetLeft = getOffsetLeft;
@@ -117,7 +117,7 @@ export default class Popover extends React.Component {
           return;
         }
 
-        this.setPositioningStyles(this.paperRef);
+        this.setPositioningStyles(this.paperRef.current);
       };
     }
   }
@@ -308,9 +308,7 @@ export default class Popover extends React.Component {
           <StyledPopover
             popoverCss={popoverCss}
             data-mui-test="Popover"
-            ref={ref => {
-              this.paperRef = ReactDOM.findDOMNode(ref);
-            }}
+            ref={this.paperRef}
           >
             {children}
           </StyledPopover>
