@@ -168,7 +168,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)
