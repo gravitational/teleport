@@ -85,12 +85,11 @@ func TestAlertSorting(t *testing.T) {
 }
 
 // TestCheckAndSetDefaults verifies that only valid URLs are set on the link
-// label and that only valid CTA text can be used.
+// label and that only valid link text can be used.
 func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 	tests := []struct {
 		options []AlertOption
 		name    string
-		cta     string
 		assert  require.ErrorAssertionFunc
 	}{
 		{
@@ -99,10 +98,10 @@ func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 			assert:  require.NoError,
 		},
 		{
-			name: "valid link with CTA",
+			name: "valid link with link text",
 			options: []AlertOption{
 				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
-				WithAlertLabel(AlertLinkCTA, "Contact Support"),
+				WithAlertLabel(AlertLinkText, "Contact Support"),
 			},
 			assert: require.NoError,
 		},
@@ -117,10 +116,10 @@ func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 			assert:  require.Error,
 		},
 		{
-			name: "valid link with invalid CTA",
+			name: "valid link with invalid link text",
 			options: []AlertOption{
 				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
-				WithAlertLabel(AlertLinkCTA, "Contact!Support"),
+				WithAlertLabel(AlertLinkText, "Contact!Support"),
 			},
 			assert: require.Error,
 		},
