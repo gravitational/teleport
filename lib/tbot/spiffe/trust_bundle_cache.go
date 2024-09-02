@@ -170,6 +170,8 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 	}, nil
 }
 
+const trustBundleInitFailureBackoff = 10 * time.Second
+
 // Run initializes the cache and begins watching for events. It will block until
 // the context is canceled, at which point it will return nil.
 // Implements the tbot Service interface.
@@ -185,15 +187,15 @@ func (m *TrustBundleCache) Run(ctx context.Context) error {
 			}
 			m.logger.ErrorContext(
 				ctx,
-				"Cache failed, will attempt to re-initialize",
+				"Cache failed, will attempt to re-initialize after back off",
 				"error", err,
+				"backoff", trustBundleInitFailureBackoff,
 			)
 		}
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-time.After(5 * time.Second):
-			// TODO: Less bad here pls
+		case <-time.After(trustBundleInitFailureBackoff):
 			continue
 		}
 	}
