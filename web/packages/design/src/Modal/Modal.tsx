@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { createRef, cloneElement } from 'react';
 import styled, { StyleFunction } from 'styled-components';
 import { createPortal } from 'react-dom';
-
-import RootRef from './RootRef';
 
 type Props = {
   /**
@@ -95,8 +93,7 @@ type Props = {
 
 export default class Modal extends React.Component<Props> {
   lastFocus: HTMLElement | undefined;
-  modalRef: HTMLElement | undefined;
-  dialogRef: HTMLElement | undefined;
+  modalRef = createRef<HTMLElement>();
   mounted = false;
 
   componentDidMount() {
@@ -122,11 +119,26 @@ export default class Modal extends React.Component<Props> {
     }
   }
 
+  dialogEl = (): Element => {
+    const modalEl = this.modalRef.current;
+    if (!modalEl) {
+      return;
+    }
+
+    const isBackdropRenderedFirst = !this.props.hideBackdrop;
+
+    if (isBackdropRenderedFirst) {
+      return modalEl.children[1];
+    }
+
+    return modalEl.firstElementChild;
+  };
+
   handleOpen = () => {
     document.addEventListener('keydown', this.handleDocumentKeyDown);
     document.addEventListener('focus', this.enforceFocus, true);
 
-    if (this.dialogRef) {
+    if (this.dialogEl()) {
       this.handleOpened();
     }
   };
@@ -134,7 +146,7 @@ export default class Modal extends React.Component<Props> {
   handleOpened = () => {
     this.autoFocus();
     // Fix a bug on Chrome where the scroll isn't initially 0.
-    this.modalRef.scrollTop = 0;
+    this.modalRef.current.scrollTop = 0;
   };
 
   handleClose = () => {
@@ -177,40 +189,33 @@ export default class Modal extends React.Component<Props> {
 
   enforceFocus = () => {
     // The Modal might not already be mounted.
-    if (this.props.disableEnforceFocus || !this.mounted || !this.dialogRef) {
+    if (this.props.disableEnforceFocus || !this.mounted || !this.dialogEl()) {
       return;
     }
 
     const currentActiveElement = document.activeElement;
 
-    if (!this.dialogRef.contains(currentActiveElement)) {
-      this.dialogRef.focus();
+    if (!this.dialogEl().contains(currentActiveElement)) {
+      // Technically, dialogEl can be something else than an HTML element with the focus method.
+      this.dialogEl()['focus']?.();
     }
-  };
-
-  handleModalRef = ref => {
-    this.modalRef = ref;
-  };
-
-  onRootRef = ref => {
-    this.dialogRef = ref;
   };
 
   autoFocus() {
     // We might render an empty child.
-    if (this.props.disableAutoFocus || !this.dialogRef) {
+    if (this.props.disableAutoFocus || !this.dialogEl()) {
       return;
     }
 
     const currentActiveElement = document.activeElement as HTMLElement;
 
-    if (!this.dialogRef.contains(currentActiveElement)) {
-      if (!this.dialogRef.hasAttribute('tabIndex')) {
-        this.dialogRef.setAttribute('tabIndex', '-1');
+    if (!this.dialogEl().contains(currentActiveElement)) {
+      if (!this.dialogEl().hasAttribute('tabIndex')) {
+        this.dialogEl().setAttribute('tabIndex', '-1');
       }
 
       this.lastFocus = currentActiveElement;
-      this.dialogRef.focus();
+      this.dialogEl()['focus']?.();
     }
   }
 
@@ -233,8 +238,6 @@ export default class Modal extends React.Component<Props> {
     const { BackdropProps, children, modalCss, hideBackdrop, open, className } =
       this.props;
 
-    const childProps = {};
-
     if (!open) {
       return null;
     }
@@ -243,16 +246,14 @@ export default class Modal extends React.Component<Props> {
       <StyledModal
         modalCss={modalCss}
         data-testid="Modal"
-        ref={this.handleModalRef}
+        ref={this.modalRef}
         className={className}
         onClick={e => e.stopPropagation()}
       >
         {!hideBackdrop && (
           <Backdrop onClick={this.handleBackdropClick} {...BackdropProps} />
         )}
-        <RootRef rootRef={this.onRootRef}>
-          {React.cloneElement(children, childProps)}
-        </RootRef>
+        {cloneElement(children, {})}
       </StyledModal>,
       document.body
     );
@@ -284,7 +285,10 @@ const StyledBackdrop = styled.div<{ invisible: boolean }>`
   touch-action: none;
 `;
 
-const StyledModal = styled.div<{ modalCss: StyleFunction<any> }>`
+const StyledModal = styled.div<{
+  modalCss: StyleFunction<any>;
+  ref: React.ForwardedRef<HTMLElement>;
+}>`
   position: fixed;
   z-index: 1200;
   right: 0;
