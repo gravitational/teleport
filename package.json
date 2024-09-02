@@ -91,5 +91,5 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@9.8.0"
+  "packageManager": "pnpm@9.9.0"
 }
