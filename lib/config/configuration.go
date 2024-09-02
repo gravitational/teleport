@@ -259,7 +259,7 @@ type CommandLineFlags struct {
 	ProfileSeconds int
 
 	// DisableDebugService disables the debug service.
-	DisabledDebugService bool
+	DisableDebugService bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -2658,7 +2658,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
-	if clf.DisabledDebugService {
+	if clf.DisableDebugService {
 		cfg.DebugService.Enabled = false
 	}
 
