@@ -49,7 +49,7 @@ jobs:
 
           # Check if a new branch has been cut, but not released yet
           NEXT_MAJOR_VERSION="$(( LATEST_RELEASE_VERSION + 1 ))"
-          if git rev-parse --verify "origin/branch/v${NEXT_MAJOR_VERSION}" 2>&1 > /dev/null; then
+          if git rev-parse --verify "origin/branch/v${NEXT_MAJOR_VERSION}" >/dev/null 2>&1; then
             echo "Found unreleased version ${NEXT_MAJOR_VERSION}"
             MAJOR_VERSIONS_TO_CHECK+=("${NEXT_MAJOR_VERSION}")
           fi
@@ -97,7 +97,7 @@ jobs:
             [./e/windowsauth]=windows
           )
           DEFAULT_GOOS=$(go env GOOS)
-          
+
           declare -a FAILING_MODULES=()
           for MODULE_DIRECTORY_PATH in "${MODULE_DIRECTORY_PATHS[@]}"; do
             MODULE_NAME=$(go list -C "${MODULE_DIRECTORY_PATH}" -m)
@@ -167,7 +167,7 @@ jobs:
             | jq -r '"logurl=\(.html_url)"' >> "$GITHUB_OUTPUT"
       - name: Send failure report to slack
         if: needs.run.result != 'success'
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e # v1.26.0
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
         with:
@@ -191,7 +191,7 @@ jobs:
 
       - name: Send success report to slack
         if: needs.run.result == 'success'
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e # v1.26.0
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0 # v1.27.0
         env:
           SLACK_BOT_TOKEN: ${{ secrets.TOOLING_ALERTS_SLACK_TOKEN }}
         with:
