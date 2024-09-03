@@ -491,7 +491,7 @@ function ResourceRequestRoles({
               <LabelInput mb={0} style={{ cursor: 'pointer' }}>
                 Roles
               </LabelInput>
-              <Text typography="body4" mb={2}>
+              <Text typography="newBody4" mb={2}>
                 {selectedRoles.length} role
                 {selectedRoles.length !== 1 ? 's' : ''} selected
               </Text>
