@@ -237,6 +237,54 @@
         }
       }
     },
+    "pnpm@9.7.0": {
+      "last_modified": "2024-08-14T11:41:26Z",
+      "resolved": "github:NixOS/nixpkgs/0cb2fd7c59fed0cd82ef858cbcbdb552b9a33465#pnpm",
+      "source": "devbox-search",
+      "version": "9.7.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/7yqhmcg3ndbfs607vc1mcqx6c1ghdiw3-pnpm-9.7.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/7yqhmcg3ndbfs607vc1mcqx6c1ghdiw3-pnpm-9.7.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/inswgrwgmykgdcc61din1v80y0xcqz04-pnpm-9.7.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/inswgrwgmykgdcc61din1v80y0xcqz04-pnpm-9.7.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/jz0ki1kj6qhf147bxdvh4cv9n73riflx-pnpm-9.7.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/jz0ki1kj6qhf147bxdvh4cv9n73riflx-pnpm-9.7.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/rq6s344bdlg0i6p99w6y8b58crgvdnhs-pnpm-9.7.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/rq6s344bdlg0i6p99w6y8b58crgvdnhs-pnpm-9.7.0"
+        }
+      }
+    },
     "protobuf3_20@3.20.3": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#protobuf3_20",
@@ -321,12 +369,6 @@
       "resolved": "github:NixOS/nixpkgs/3c614fbc76fc152f3e1bc4b2263da6d90adf80fb#yamllint",
       "source": "devbox-search",
       "version": "1.32.0"
-    },
-    "yarn@1.22.19": {
-      "last_modified": "2023-05-21T19:52:09Z",
-      "resolved": "github:NixOS/nixpkgs/9356eead97d8d16956b0226d78f76bd66e06cb60#yarn",
-      "source": "devbox-search",
-      "version": "1.22.19"
     },
     "zlib@latest": {
       "last_modified": "2023-05-14T19:13:12Z",
