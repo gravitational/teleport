@@ -45,7 +45,9 @@ func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals
 	}
 
 	// If local registration is happening and no remote address was passed in
-	// (which means no advertise IP was set), use localhost.
+	// (which means no advertise IP was set), use localhost. This behavior must
+	// be kept consistent with the equivalen behavior in cert rotation/re-register
+	// logic in lib/service.
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
