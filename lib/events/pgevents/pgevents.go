@@ -82,12 +82,14 @@ const (
 	dateIndex                  = "CREATE INDEX events_creation_time_idx ON events USING brin (creation_time);"
 	schemaV1TableWithDateIndex = schemaV1Table + "\n" + dateIndex
 
-	// crdb will throw an error if the (n)::INTERVAL can't be represented as an
-	// INTERVAL literal, and the sum between a TIMESTAMPTZ and an INTERVAL will
-	// likewise fail if the result value can't be represented as a TIMESTAMPTZ
-	// (any of this should only apply with wildly impractical expiry values in
-	// the range of thousands of years)
-	schemaV1CockroachSetRowExpirySeconds = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + ((%d)::INTERVAL)) AT TIME ZONE ''UTC''');"
+	// the 'n'::INTERVAL expression will saturate at around 292 years (which is
+	// perfectly acceptable for a retention period of the audit log), and the
+	// sum between a TIMESTAMPTZ set around 2024 and an INTERVAL of up to 292
+	// years is always representable
+	//
+	// the string to INTERVAL cast should be stable, unlike any integer to
+	// INTERVAL cast (see https://github.com/cockroachdb/cockroach/issues/57876)
+	schemaV1CockroachSetRowExpirySeconds = "ALTER TABLE events SET (ttl_expiration_expression = '((creation_time AT TIME ZONE ''UTC'') + (''%d''::INTERVAL)) AT TIME ZONE ''UTC''');"
 	// the asymmetry here is intended, crdb requires "RESET (ttl)" to disable
 	// row-level TTL on a table, whereas "RESET (ttl_expiration_expression)"
 	// would remove the expression in favor of ttl_expire_after (and it will
