@@ -129,6 +129,11 @@ define notarize_tsh_app
 	$(call notarize_app_bundle,$(TSH_APP_BUNDLE),$(TSH_BUNDLEID),$(TSH_APP_ENTITLEMENTS))
 endef
 
+NOTARIZE_TCTL_APP = $(if $(SHOULD_NOTARIZE),$(notarize_tctl_app),$(not_notarizing_cmd))
+define notarize_tctl_app
+	$(call notarize_app_bundle,$(TCTL_APP_BUNDLE),$(TCTL_BUNDLEID),$(TCTL_APP_ENTITLEMENTS))
+endef
+
 NOTARIZE_TELEPORT_PKG = $(if $(SHOULD_NOTARIZE),$(notarize_teleport_pkg),$(not_notarizing_cmd))
 define notarize_teleport_pkg
 	$(call notarize_pkg,$(TELEPORT_PKG_UNSIGNED),$(TELEPORT_PKG_SIGNED))
