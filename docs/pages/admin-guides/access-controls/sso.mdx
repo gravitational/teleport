@@ -239,7 +239,7 @@ The following authentication connectors are supported:
 Before you can create an authentication connector, you must enable
 authentication via that connector's protocol.
 
-To set the default authentication type as `saml`, `oidc` or `github`
+To set the default authentication type as `saml`, `oidc`, or `github`,
 create a `cluster_auth_preference` resource.
 
 Create a file called `cap.yaml`:
@@ -261,11 +261,10 @@ Create the resource:
   $ tctl create -f cap.yaml
   ```
 
-(!docs/pages/includes/sso/idp-initiated.mdx!)
 
 Next, define an authentication connector. Create a file called `connector.yaml`
 based on one of the following examples. Teleport Community Edition only supports
-GitHub as a SSO option.
+GitHub as an SSO option.
 
 <Tabs>
 <TabItem label="Okta">
@@ -278,7 +277,7 @@ GitHub as a SSO option.
 
 (!docs/pages/includes/sso/saml-slo.mdx!)
 
-You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
+You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch
 the entity descriptor from your IDP. 
 
 We recommend "pinning" the entity descriptor by including the XML rather than
