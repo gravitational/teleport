@@ -7,4 +7,4 @@ scope:
   - list
   - paragraph
 ignore:
-   - ignore.txt
+   - "spelling/ignore.txt"
