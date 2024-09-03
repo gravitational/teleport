@@ -316,8 +316,6 @@ rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
-	if [[ ! $$(cbindgen --version 2>/dev/null) ]]; then cargo install cbindgen; fi
-	cbindgen --quiet --crate rdp-client --output ../lib/srv/desktop/rdp/rdpclient/librdprs.h --lang c ../lib/srv/desktop/rdp/rdpclient/
 endif
 
 # If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
