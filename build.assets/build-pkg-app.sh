@@ -177,7 +177,7 @@ or name of the key to sign packages"
   target="$tmp/$PACKAGE_NAME-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
   local pkg_component_plist="$tmp/$PACKAGE_NAME-component.plist"
-  local pkg_scripts="$buildassets/macos/scripts"
+  local pkg_scripts="$buildassets/macos/scripts/$PACKAGE_NAME"
   make_non_relocatable_plist "$pkg_root" "$pkg_component_plist"
   pkgbuild \
     --root "$pkg_root" \
