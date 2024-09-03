@@ -35,6 +35,10 @@ type UserToken interface {
 	GetCreated() time.Time
 	// SetCreated sets Created
 	SetCreated(time.Time)
+	// GetCreatedBy returns CreatedBy
+	GetCreatedBy() CreatedBy
+	// SetCreatedBy sets CreatedBy
+	SetCreatedBy(CreatedBy)
 	// GetURL returns URL
 	GetURL() string
 	// SetURL returns URL
@@ -83,9 +87,19 @@ func (u *UserTokenV3) GetCreated() time.Time {
 	return u.Spec.Created
 }
 
-// SetCreated sets the name of the resource
+// SetCreated sets Created
 func (u *UserTokenV3) SetCreated(t time.Time) {
 	u.Spec.Created = t
+}
+
+// GetCreatedBy returns CreatedBy
+func (u *UserTokenV3) GetCreatedBy() CreatedBy {
+	return u.Spec.CreatedBy
+}
+
+// SetCreatedBy sets CreatedBy
+func (u *UserTokenV3) SetCreatedBy(cb CreatedBy) {
+	u.Spec.CreatedBy = cb
 }
 
 // GetURL returns URL

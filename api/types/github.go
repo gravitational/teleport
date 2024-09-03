@@ -73,8 +73,8 @@ type GithubConnector interface {
 	GetAPIEndpointURL() string
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
-	// GetAllowAsMFAMethod returns the connector's MFA settings.
-	GetAllowAsMFAMethod() AllowAsMFAMethod
+	// GetAllowAsMFAMethod returns the whether this connector supports MFA checks.
+	GetAllowAsMFAMethod() bool
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -201,7 +201,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 && c.GetAllowAsMFAMethod() != AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY {
+	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
 		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
 
@@ -291,8 +291,8 @@ func (c *GithubConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettin
 }
 
 // GetAllowAsMFAMethod returns the connector's MFA settings.
-func (c *GithubConnectorV3) GetAllowAsMFAMethod() AllowAsMFAMethod {
-	return c.Spec.AllowAsMFAMethod
+func (c *GithubConnectorV3) GetAllowAsMFAMethod() bool {
+	return c.Spec.AllowAsMFAMethod == AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
 }
 
 // MapClaims returns a list of logins based on the provided claims,

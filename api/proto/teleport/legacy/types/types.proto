@@ -2200,10 +2200,16 @@ message UserTokenSpecV3 {
   // Usage is an optional field that provides more information about how this token will be used.
   UserTokenUsage Usage = 3 [(gogoproto.jsontag) = "usage,omitempty"];
   // Created holds information about when the token was created
+  // TODO: deprecate.
   google.protobuf.Timestamp Created = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "created,omitempty"
+  ];
+  // CreatedBy holds information about the person or agent who created this token
+  CreatedBy CreatedBy = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "created_by,omitempty"
   ];
 }
 
@@ -3550,17 +3556,18 @@ message LoginStatus {
   reserved "RecoveryAttemptLockExpires";
 }
 
-// CreatedBy holds information about the person or agent who created the user
+// CreatedBy holds information about the person or agent who created the resource
 message CreatedBy {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
-  // Identity if present means that user was automatically created by identity
+  // Connector is contains details of the auth connector and external identity
+  // used to created the resource.
   ConnectorRef Connector = 1 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "connector,omitempty"
   ];
-  // Time specifies when user was created
+  // Time specifies when the resource was created
   google.protobuf.Timestamp Time = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false,
@@ -3615,6 +3622,7 @@ message MFADevice {
     TOTPDevice totp = 8;
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
   }
 }
 
@@ -3679,6 +3687,11 @@ message WebauthnDevice {
   google.protobuf.BoolValue credential_backed_up = 10;
 }
 
+message SSOMFADevice {
+  string connector_id = 1;
+  string connector_type = 2;
+}
+
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
 message WebauthnLocalAuth {
   // UserID is the random user handle generated for the user.
@@ -3686,13 +3699,13 @@ message WebauthnLocalAuth {
   bytes UserID = 1 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
-// ConnectorRef holds information about OIDC connector
+// ConnectorRef holds Auth Connector information
 message ConnectorRef {
   // Type is connector type
   string Type = 1 [(gogoproto.jsontag) = "type"];
   // ID is connector ID
   string ID = 2 [(gogoproto.jsontag) = "id"];
-  // Identity is external identity of the user
+  // Identity is external identity of the user, mapped to their Teleport username
   string Identity = 3 [(gogoproto.jsontag) = "identity"];
 }
 
@@ -4442,10 +4455,26 @@ message OIDCConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks.
+  OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
+}
 
-  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-  // method or not.
-  AllowAsMFAMethod AllowAsMFAMethod = 19 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
+// OIDCConnectorMFASettings contains a subset of OIDCConnectorSpec's settings
+// which will only apply to the SSO MFA flow. If unset, this connector will
+// not support MFA requests.
+message OIDCConnectorMFASettings {
+  // ClientID is the id of the authentication client (Teleport Auth server).
+  string client_id = 1;
+  // ClientSecret is used to authenticate the client.
+  string client_secret = 2;
+  // ACR is an Authentication Context Class Reference value. The meaning of the ACR
+  // value is context-specific and varies for identity providers.
+  string acr = 3;
+  // Scope specifies additional scopes set by provider.
+  repeated string scope = 4;
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.
+  // If not specified, it defaults to select_account for backwards compatibility.
+  string prompt = 5;
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4628,9 +4657,15 @@ message SAMLConnectorSpecV2 {
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
-  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-  // method or not.
-  AllowAsMFAMethod AllowAsMFAMethod = 17 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
+  SAMLConnectorMFASettings MFASettings = 17;
+}
+
+message SAMLConnectorMFASettings {
+  // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+  // parameters in one XML file rather than supplying them in the individual elements.
+  string entity_descriptor = 1;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML.
+  string entity_descriptor_url = 2;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -5155,7 +5190,7 @@ message LockSpecV2 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "created_at,omitempty"
   ];
-  // CreatedBy is the username of the author of the lock.
+  // CreatedBy holds information about the person or agent who created the lock
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 

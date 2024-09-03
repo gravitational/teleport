@@ -29,6 +29,8 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
+	"github.com/gravitational/teleport"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -452,6 +454,81 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind s
 	}
 
 	return convertedToken, nil
+}
+
+func (a *Server) CreateSSOMFAToken(ctx context.Context, username, connectorType, connectorName string) (*types.UserTokenV3, error) {
+	req := authclient.CreateUserTokenRequest{
+		Name: username,
+		Type: authclient.UserTokenTypeSSOMFA,
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newToken, err := a.newUserToken(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Tie the token to the Auth connector that created it. This will be used
+	// to populate audit events and perform additional validation checks.
+	newToken.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{
+			Name: teleport.UserSystem,
+		},
+		Time: a.clock.Now(),
+		Connector: &types.ConnectorRef{
+			Type:     connectorType,
+			ID:       connectorName,
+			Identity: username,
+		},
+	})
+
+	token, err := a.CreateUserToken(ctx, newToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.SSOMFATokenCreateEvent,
+			Code: events.SSOMFATokenCreateCode,
+		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.TTL.String(),
+			Expires: a.GetClock().Now().UTC().Add(req.TTL),
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit create privilege token event.")
+	}
+
+	convertedToken, ok := token.(*types.UserTokenV3)
+	if !ok {
+		return nil, trace.BadParameter("unexpected UserToken type %T", token)
+	}
+
+	return convertedToken, nil
+}
+
+// verifyUserToken verifies that the token is not expired and is of the allowed kinds.
+func (a *Server) verifyMFASSOToken(token types.UserToken, allowedKinds ...string) error {
+	if token.Expiry().Before(a.clock.Now().UTC()) {
+		// Provide obscure message on purpose, while logging the real error server side.
+		log.Debugf("Expired token(%s) type(%s)", token.GetName(), token.GetSubKind())
+		return trace.AccessDenied("invalid token")
+	}
+
+	for _, kind := range allowedKinds {
+		if token.GetSubKind() == kind {
+			return nil
+		}
+	}
+
+	log.Debugf("Invalid token(%s) type(%s), expected type: %v", token.GetName(), token.GetSubKind(), allowedKinds)
+	return trace.AccessDenied("invalid token")
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.

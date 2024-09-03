@@ -3690,6 +3690,18 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
+	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userSSODev, err := a.getUserSSOMFADevice(ctx, readOnlyAuthPref, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if userSSODev != nil {
+		devs = append(devs, userSSODev)
+	}
+
 	return &proto.GetMFADevicesResponse{
 		Devices: devs,
 	}, nil
@@ -3764,6 +3776,8 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
+	// TODO: handle device deletion failing (dne). Maybe disable it for the user in a user field?
+
 	// Find the device to delete and count devices.
 	for _, d := range devs {
 		// Match device by name or ID.
@@ -3791,23 +3805,17 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.NotFound("MFA device %q does not exist", deviceName)
 	}
 
-	ssoChallenge, err := a.getAuthConnectorChallenge(ctx, readOnlyAuthPref)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ssoMFASupported := ssoChallenge != nil
-
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
 	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if !ssoMFASupported && knownDevices <= minDevices {
+		if knownDevices <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if !ssoMFASupported && sfToCount[sf] <= minDevices {
+		if sfToCount[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
@@ -6553,9 +6561,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
-	challenge.AuthConnectorChallenge, err = a.getAuthConnectorChallenge(ctx, apref)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if groupedDevs.SSO != nil {
+		challenge.AuthConnectorChallenge = &proto.AuthConnectorChallenge{
+			ID:   groupedDevs.SSO.ConnectorId,
+			Type: groupedDevs.SSO.ConnectorType,
+		}
 	}
 
 	clusterName, err := a.GetClusterName()
@@ -6579,102 +6589,82 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	return challenge, nil
 }
 
-func (a *Server) getAuthConnectorChallenge(ctx context.Context, apref readonly.AuthPreference) (*proto.AuthConnectorChallenge, error) {
-	switch apref.GetMFAConnectorType() {
-	case constants.OIDC:
-		if apref.GetMFAConnectorName() != "" {
-			oidcConnector, err := a.GetOIDCConnector(ctx, apref.GetMFAConnectorName(), false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+func (a *Server) getUserSSOMFADevice(ctx context.Context, apref readonly.AuthPreference, username string) (*types.MFADevice, error) {
+	user, err := a.GetUser(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-			switch oidcConnector.GetAllowAsMFAMethod() {
-			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-				return &proto.AuthConnectorChallenge{
-					Type: constants.OIDC,
-					ID:   oidcConnector.GetName(),
-				}, nil
-			}
-		}
-
-		oidcConnectors, err := a.GetOIDCConnectors(ctx, false)
-		if err != nil {
+	cb := user.GetCreatedBy()
+	if cb.Connector == nil {
+		return nil, nil
+	}
+	switch cb.Connector.Type {
+	case constants.SAML:
+		if connector, err := a.GetSAMLConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
 			return nil, trace.Wrap(err)
 		}
-		for _, oidcConnector := range oidcConnectors {
-			switch oidcConnector.GetAllowAsMFAMethod() {
-			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-				return &proto.AuthConnectorChallenge{
-					Type: constants.OIDC,
-					ID:   oidcConnector.GetName(),
-				}, nil
-			}
-		}
-	case constants.SAML:
-		if apref.GetMFAConnectorName() != "" {
-			samlConnector, err := a.GetSAMLConnector(ctx, apref.GetMFAConnectorName(), false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			switch samlConnector.GetAllowAsMFAMethod() {
-			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-				return &proto.AuthConnectorChallenge{
-					Type: constants.SAML,
-					ID:   samlConnector.GetName(),
-				}, nil
-			}
-		} else {
-			samlConnectors, err := a.GetSAMLConnectors(ctx, false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, samlConnector := range samlConnectors {
-				switch samlConnector.GetAllowAsMFAMethod() {
-				case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-					return &proto.AuthConnectorChallenge{
-						Type: constants.SAML,
-						ID:   samlConnector.GetName(),
-					}, nil
-				}
-			}
+	case constants.OIDC:
+		if connector, err := a.GetOIDCConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
+			return nil, trace.Wrap(err)
 		}
 	case constants.Github:
-		if apref.GetMFAConnectorName() != "" {
-			githubConnector, err := a.GetGithubConnector(ctx, apref.GetMFAConnectorName(), false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			switch githubConnector.GetAllowAsMFAMethod() {
-			case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-				return &proto.AuthConnectorChallenge{
-					Type: constants.Github,
-					ID:   githubConnector.GetName(),
-				}, nil
-			}
-		} else {
-			githubConnectors, err := a.GetGithubConnectors(ctx, false)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			for _, githubConnector := range githubConnectors {
-				switch githubConnector.GetAllowAsMFAMethod() {
-				case types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES, types.AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-					return &proto.AuthConnectorChallenge{
-						Type: constants.Github,
-						ID:   githubConnector.GetName(),
-					}, nil
-				}
-			}
+		if connector, err := a.GetGithubConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
+			return nil, trace.Wrap(err)
 		}
+	default:
+		return nil, trace.BadParameter("user created by unknown auth connector type %v", cb.Connector.Type)
 	}
-	return nil, nil
+
+	return &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: cb.Connector.ID,
+		},
+		Device: &types.MFADevice_Sso{
+			Sso: &types.SSOMFADevice{
+				ConnectorId:   cb.Connector.ID,
+				ConnectorType: cb.Connector.Type,
+			},
+		},
+	}, nil
+}
+
+type externalConnector interface {
+	// GetName returns the name of the resource
+	GetName() string
+	// GetKind returns resource kind (saml, oidc, or github)
+	GetKind() string
+	// GetAllowAsMFAMethod returns the whether this connector supports MFA checks.
+	GetAllowAsMFAMethod() bool
+}
+
+func (a *Server) getUserConnector(ctx context.Context, apref readonly.AuthPreference, username string) (externalConnector, error) {
+	user, err := a.GetUser(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cb := user.GetCreatedBy()
+	if cb.Connector == nil {
+		return nil, nil
+	}
+
+	switch cb.Connector.Type {
+	case constants.SAML:
+		return a.GetSAMLConnector(ctx, cb.Connector.ID, false)
+	case constants.OIDC:
+		return a.GetOIDCConnector(ctx, cb.Connector.ID, false)
+	case constants.Github:
+		return a.GetGithubConnector(ctx, cb.Connector.ID, false)
+	default:
+		return nil, trace.BadParameter("unexpected user connector type %v", cb.Connector.Type)
+	}
 }
 
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.SSOMFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
@@ -6691,6 +6681,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
+		case *types.MFADevice_Sso:
+			res.SSO = dev.GetSso()
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
@@ -6888,25 +6880,49 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_TokenID:
-		privilegeToken, err := a.GetUserToken(ctx, res.TokenID)
+		mfaToken, err := a.GetUserToken(ctx, res.TokenID)
 		switch {
 		case err != nil:
 			return nil, trace.AccessDenied("access denied")
-		case privilegeToken.GetUser() != user:
+		case mfaToken.GetUser() != user:
 			return nil, trace.AccessDenied("access denied")
 		}
 
-		if err := a.verifyUserToken(privilegeToken, authclient.UserTokenTypePrivilege); err != nil {
+		if err := a.verifyUserToken(mfaToken, authclient.UserTokenTypeSSOMFA); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		// TODO: allow reuse?
 		if err := a.DeleteUserToken(ctx, res.TokenID); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		tokenConnector := mfaToken.GetCreatedBy().Connector
+		if tokenConnector == nil {
+			return nil, trace.BadParameter("unknown token origin, expected an auth connector")
+		}
+
+		// Validate that the connector that created the token matches the connector that created
+		// the user. This prevents race conditions around overlapping identites between connector
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		userSSODev, err := a.getUserSSOMFADevice(ctx, cap, user)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if userSSODev.GetName() != tokenConnector.ID {
+			return nil, trace.BadParameter("mismatched user and token origin; user created by %v but token created by %v", userSSODev.GetName(), tokenConnector.ID)
+		} else if userSSODev.MFAType() != tokenConnector.Type {
+			return nil, trace.BadParameter("mismatched user and token origin type; user created by %v connector but token created by %v connector", userSSODev.MFAType(), tokenConnector.Type)
+		}
+
 		return &authz.MFAAuthData{
+			Device:     userSSODev,
 			User:       user,
-			SSO:        true,
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 

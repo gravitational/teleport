@@ -443,6 +443,10 @@ const (
 	// second factor re-authentication which in other cases would be required eg:
 	// allowing user to add a mfa device if they don't have any registered.
 	UserTokenTypePrivilegeException = "privilege_exception"
+	// UserTokenTypeSSOMFA describes a token type that that can be used as a one-time MFA
+	// token. This type of token can only be created for the user after passing an MFA flow
+	// through an SSO Auth connector configured for MFA.
+	UserTokenTypeSSOMFA = "sso_mfa"
 
 	// userTokenTypePrivilegeOTP is used to hold OTP data during (otherwise)
 	// token-less registrations.
@@ -504,7 +508,7 @@ func (r *CreateUserTokenRequest) CheckAndSetDefaults() error {
 	case UserTokenTypeRecoveryApproved:
 		r.TTL = defaults.RecoveryApprovedTokenTTL
 
-	case UserTokenTypePrivilege, UserTokenTypePrivilegeException, userTokenTypePrivilegeOTP:
+	case UserTokenTypePrivilege, UserTokenTypePrivilegeException, userTokenTypePrivilegeOTP, UserTokenTypeSSOMFA:
 		r.TTL = defaults.PrivilegeTokenTTL
 
 	default:

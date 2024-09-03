@@ -105,7 +105,7 @@ type SAMLConnector interface {
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
 	// GetAllowAsMFAMethod returns the connector's MFA settings.
-	GetAllowAsMFAMethod() AllowAsMFAMethod
+	GetAllowAsMFAMethod() bool
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -394,8 +394,8 @@ func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 }
 
 // GetAllowAsMFAMethod returns the connector's MFA settings.
-func (o *SAMLConnectorV2) GetAllowAsMFAMethod() AllowAsMFAMethod {
-	return o.Spec.AllowAsMFAMethod
+func (o *SAMLConnectorV2) GetAllowAsMFAMethod() bool {
+	return o.Spec.MFASettings != nil
 }
 
 // setStaticFields sets static resource header and metadata fields.

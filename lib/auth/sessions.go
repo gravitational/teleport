@@ -450,11 +450,7 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if mfaData.SSO {
-			verifiedMFADeviceID = "sso-mfa-connector-name-todo"
-		} else {
-			verifiedMFADeviceID = mfaData.Device.Id
-		}
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	sess, err := a.CreateAppSessionFromReq(ctx, NewAppSessionRequest{

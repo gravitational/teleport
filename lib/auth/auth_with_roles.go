@@ -3002,11 +3002,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if mfaData.SSO {
-			verifiedMFADeviceID = "sso-mfa-connector-name-todo"
-		} else {
-			verifiedMFADeviceID = mfaData.Device.Id
-		}
+		verifiedMFADeviceID = mfaData.Device.Id
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone

@@ -109,7 +109,7 @@ type OIDCConnector interface {
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
 	// GetAllowAsMFAMethod returns the connector's MFA settings.
-	GetAllowAsMFAMethod() AllowAsMFAMethod
+	GetAllowAsMFAMethod() bool
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -399,7 +399,7 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("ClientID: missing client id")
 	}
 
-	if len(o.GetClaimsToRoles()) == 0 && o.GetAllowAsMFAMethod() != AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY {
+	if len(o.GetClaimsToRoles()) == 0 {
 		return trace.BadParameter("claims_to_roles is empty, authorization with connector would never assign any roles")
 	}
 	for _, v := range o.Spec.ClaimsToRoles {
@@ -499,8 +499,8 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // GetAllowAsMFAMethod returns the connector's MFA settings.
-func (o *OIDCConnectorV3) GetAllowAsMFAMethod() AllowAsMFAMethod {
-	return o.Spec.AllowAsMFAMethod
+func (o *OIDCConnectorV3) GetAllowAsMFAMethod() bool {
+	return o.Spec.MFASettings != nil
 }
 
 // Check returns nil if all parameters are great, err otherwise
