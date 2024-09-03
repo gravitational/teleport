@@ -2567,8 +2567,7 @@ message AccessRequestSpecV3 {
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 
-  repeated IdentityCenterAccountAssignment AccountAssignments = 99 [
-    (gogoproto.stdtime) = true,
+  repeated IdentityCenterAccountAssignment RequestedAccountAssignments = 99 [
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "account_asignmnets,omitempty"
   ];

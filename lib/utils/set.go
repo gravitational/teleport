@@ -16,13 +16,13 @@
 
 package utils
 
+import "maps"
+
 type Set[T comparable] map[T]struct{}
 
 func NewSet[T comparable](elements ...T) Set[T] {
 	s := NewSetWithCapacity[T](len(elements))
-	for _, e := range elements {
-		s[e] = struct{}{}
-	}
+	s.AddAll(elements)
 	return s
 }
 
@@ -30,8 +30,24 @@ func NewSetWithCapacity[T comparable](n int) Set[T] {
 	return make(map[T]struct{}, n)
 }
 
-func (s Set[T]) Add(element T) {
+// Add adds a single element to the set, returning a reference to the updated
+// set.
+func (s Set[T]) Add(element T) Set[T] {
 	s[element] = struct{}{}
+	return s
+}
+
+func (s Set[T]) AddAll(elements []T) {
+	for _, element := range elements {
+		s[element] = struct{}{}
+	}
+}
+
+// Union updates the set to be the union of the original set and `other`
+func (s Set[T]) Union(other Set[T]) {
+	for element := range other {
+		s[element] = struct{}{}
+	}
 }
 
 func (s Set[T]) Remove(element T) {
@@ -43,8 +59,45 @@ func (s Set[T]) Contains(element T) bool {
 	return present
 }
 
-func (s Set[T]) Subtract(other Set[T]) {
+func (s Set[T]) Clone() Set[T] {
+	return maps.Clone(s)
+}
+
+// Subtract removes all elements in `other` from the set (i.e `s` becomes the
+// Set Difference of `s` and `other`), returning a reference to the mutated set.
+func (s Set[T]) Subtract(other Set[T]) Set[T] {
 	for k := range other {
 		delete(s, k)
 	}
+	return s
 }
+
+// Elements returns the elements in the set. Order of the elements is undefined.
+// NOTE: Due to the underlying map type, a set can be naturally ranged over like
+// a map, for example:
+//
+//	alphabet := NewSet("alpha", "beta", "gamma")
+//	for l := range alphabet {
+//		fmt.Printf("%s is a letter", l)
+//	}
+//
+// Prefer using the natural range iteration where possible
+func (s Set[T]) Elements() []T {
+	elements := make([]T, 0, len(s))
+	for e := range s {
+		elements = append(elements, e)
+	}
+	return elements
+}
+
+// // ElementsIter returns an iterator yielding elements of the set. Order of the
+// // elements is undefined.
+// func (s Set[T]) ElementsIter() iter.Seq[T] {
+// 	return func(yield func(T) bool) {
+// 		for e := range s {
+// 			if !yield(e) {
+// 				return
+// 			}
+// 		}
+// 	}
+// }
