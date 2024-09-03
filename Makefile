@@ -78,6 +78,18 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
+GOEXPERIMENT = boringcrypto
+OPENSSL_FIPS = 1
+export GOEXPERIMENT OPENSSL_FIPS
+ifeq ($(BUILDBOX_MODE),cross)
+# We need to set CGO_ENABLED=0 when building rdpclient as the build of
+# boring-sys builds and runs a Go program as part of its integrity testing.
+# (https://github.com/google/boringssl/blob/master/crypto/fipsmodule/FIPS.md#integrity-testing)
+# If CGO_ENABLED=1, this fails for odd reasons (it tries to use the cross
+# assembler to build ASM for the host).
+# It also needs to know the cross-compiler sysroot to properly cross-compile.
+RDPCLIENT_ENV = CGO_ENABLED=0 BORING_BSSL_FIPS_SYSROOT=$(CROSSTOOLNG_SYSROOT)
+endif
 endif
 
 # Look for the PAM header "security/pam_appl.h" to determine if we should
@@ -447,7 +459,8 @@ endif
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
-	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
@@ -517,8 +530,7 @@ $(RELEASE_DIR):
 #
 # make release - Produces a binary release tarball.
 #
-.PHONY:
-export
+.PHONY: release
 release:
 	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
@@ -527,6 +539,12 @@ else ifeq ("$(OS)", "darwin")
 	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
+endif
+
+.PHONY: release-ent
+release-ent:
+ifneq (,$(wildcard e/Makefile))
+	$(MAKE) -C e release
 endif
 
 # These are aliases used to make build commands uniform.

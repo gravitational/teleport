@@ -110,3 +110,14 @@ func (b *SPIFFEFederationService) UpsertSPIFFEFederation(
 	upserted, err := b.service.UpsertResource(ctx, federation)
 	return upserted, trace.Wrap(err)
 }
+
+// UpdateSPIFFEFederation updates a specific SPIFFEFederation.
+func (b *SPIFFEFederationService) UpdateSPIFFEFederation(
+	ctx context.Context, federation *machineidv1.SPIFFEFederation,
+) (*machineidv1.SPIFFEFederation, error) {
+	if err := services.ValidateSPIFFEFederation(federation); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated, err := b.service.ConditionalUpdateResource(ctx, federation)
+	return updated, trace.Wrap(err)
+}

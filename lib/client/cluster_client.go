@@ -246,8 +246,6 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: privKey,
 			Cert:       certs.TLS,
 		}
-	case proto.UserCertsRequest_WindowsDesktop:
-		keyRing.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = certs.TLS
 	}
 
 	return keyRing, nil
@@ -391,23 +389,22 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 	}
 
 	return privateKey, &proto.UserCertsRequest{
-		SSHPublicKey:          sshPublicKey,
-		TLSPublicKey:          tlsPublicKey,
-		Username:              tlsCert.Subject.CommonName,
-		Expires:               expires,
-		RouteToCluster:        params.RouteToCluster,
-		KubernetesCluster:     params.KubernetesCluster,
-		AccessRequests:        params.AccessRequests,
-		DropAccessRequests:    params.DropAccessRequests,
-		RouteToDatabase:       params.RouteToDatabase,
-		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
-		RouteToApp:            params.RouteToApp,
-		NodeName:              params.NodeName,
-		Usage:                 params.usage(),
-		Format:                c.tc.CertificateFormat,
-		RequesterName:         params.RequesterName,
-		SSHLogin:              c.tc.HostLogin,
-		AttestationStatement:  keyRing.PrivateKey.GetAttestationStatement().ToProto(),
+		SSHPublicKey:         sshPublicKey,
+		TLSPublicKey:         tlsPublicKey,
+		Username:             tlsCert.Subject.CommonName,
+		Expires:              expires,
+		RouteToCluster:       params.RouteToCluster,
+		KubernetesCluster:    params.KubernetesCluster,
+		AccessRequests:       params.AccessRequests,
+		DropAccessRequests:   params.DropAccessRequests,
+		RouteToDatabase:      params.RouteToDatabase,
+		RouteToApp:           params.RouteToApp,
+		NodeName:             params.NodeName,
+		Usage:                params.usage(),
+		Format:               c.tc.CertificateFormat,
+		RequesterName:        params.RequesterName,
+		SSHLogin:             c.tc.HostLogin,
+		AttestationStatement: keyRing.PrivateKey.GetAttestationStatement().ToProto(),
 	}, nil
 }
 
@@ -419,12 +416,16 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		return nil, trace.Wrap(err)
 	}
 
+	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	keyRing, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFAPrompt:         mfaPrompt,
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
-		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
+		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
@@ -473,7 +474,11 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			}
 		}
 
-		resp, err := authClient.IsMFARequired(ctx, params.isMFARequiredRequest(c.tc.HostLogin))
+		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+		if err != nil {
+			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
+		}
+		resp, err := authClient.IsMFARequired(ctx, mfaRequiredReq)
 		if err != nil {
 			return nil, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, trace.Wrap(err)
 		}
@@ -686,7 +691,6 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 				Cert:       newCerts.TLS,
 				PrivateKey: params.PrivateKey,
 			}
-
 		case proto.UserCertsRequest_Database:
 			dbCert, err := makeDatabaseClientPEM(certsReq.RouteToDatabase.Protocol, newCerts.TLS, params.PrivateKey)
 			if err != nil {
@@ -699,13 +703,6 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 				Cert:       dbCert,
 				PrivateKey: params.PrivateKey,
 			}
-
-		case proto.UserCertsRequest_WindowsDesktop:
-			if keyRing.WindowsDesktopCerts == nil {
-				keyRing.WindowsDesktopCerts = make(map[string][]byte)
-			}
-			keyRing.WindowsDesktopCerts[certsReq.RouteToWindowsDesktop.WindowsDesktop] = newCerts.TLS
-
 		case proto.UserCertsRequest_App:
 			if keyRing.AppTLSCredentials == nil {
 				keyRing.AppTLSCredentials = make(map[string]TLSCredential)
