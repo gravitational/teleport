@@ -1680,7 +1680,7 @@ pkg: | $(RELEASE_DIR)
 	mv tsh*.pkg* $(BUILDDIR)/
 
 	@echo Building tctl-$(VERSION).pkg
-	./build.assets/build-pkg-app.sh -n tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-app.sh -p tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tctl*.pkg* $(BUILDDIR)/
 
 	@echo Building teleport-bin-$(VERSION).pkg
