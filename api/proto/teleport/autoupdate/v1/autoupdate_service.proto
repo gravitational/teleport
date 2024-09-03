@@ -1,0 +1,97 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.autoupdate.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/autoupdate/v1/autoupdate.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
+
+// AutoupdateService provides an API to manage autoupdates.
+service AutoupdateService {
+  // GetAutoupdateConfig gets the current autoupdate config singleton.
+  rpc GetAutoupdateConfig(GetAutoupdateConfigRequest) returns (AutoupdateConfig);
+
+  // CreateAutoupdateConfig creates a new AutoupdateConfig.
+  rpc CreateAutoupdateConfig(CreateAutoupdateConfigRequest) returns (AutoupdateConfig);
+
+  // CreateAutoupdateConfig updates AutoupdateConfig singleton.
+  rpc UpdateAutoupdateConfig(UpdateAutoupdateConfigRequest) returns (AutoupdateConfig);
+
+  // UpsertAutoupdateConfig creates a new AutoupdateConfig or replaces an existing AutoupdateConfig.
+  rpc UpsertAutoupdateConfig(UpsertAutoupdateConfigRequest) returns (AutoupdateConfig);
+
+  // DeleteAutoupdateConfig hard deletes the specified AutoupdateConfig.
+  rpc DeleteAutoupdateConfig(DeleteAutoupdateConfigRequest) returns (google.protobuf.Empty);
+
+  // GetAutoupdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoupdateVersion(GetAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // CreateAutoupdateVersion creates a new AutoupdateVersion.
+  rpc CreateAutoupdateVersion(CreateAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // UpdateAutoupdateVersion updates AutoupdateVersion singleton.
+  rpc UpdateAutoupdateVersion(UpdateAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // UpsertAutoupdateVersion creates a new AutoupdateVersion or replaces an existing AutoupdateVersion.
+  rpc UpsertAutoupdateVersion(UpsertAutoupdateVersionRequest) returns (AutoupdateVersion);
+
+  // DeleteAutoupdateVersion hard deletes the specified AutoupdateVersionRequest.
+  rpc DeleteAutoupdateVersion(DeleteAutoupdateVersionRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetAutoupdateConfig.
+message GetAutoupdateConfigRequest {}
+
+// Request for CreateAutoupdateConfig.
+message CreateAutoupdateConfigRequest {
+  AutoupdateConfig config = 1;
+}
+
+// Request for UpdateAutoupdateConfig.
+message UpdateAutoupdateConfigRequest {
+  AutoupdateConfig config = 1;
+}
+
+// Request for UpsertAutoupdateConfig.
+message UpsertAutoupdateConfigRequest {
+  AutoupdateConfig config = 1;
+}
+
+// Request for DeleteAutoupdateConfig.
+message DeleteAutoupdateConfigRequest {}
+
+// Request for GetAutoupdateVersion.
+message GetAutoupdateVersionRequest {}
+
+// Request for CreateAutoupdateVersion.
+message CreateAutoupdateVersionRequest {
+  AutoupdateVersion version = 1;
+}
+
+// Request for UpdateAutoupdateConfig.
+message UpdateAutoupdateVersionRequest {
+  AutoupdateVersion version = 1;
+}
+
+// Request for UpsertAutoupdateVersion.
+message UpsertAutoupdateVersionRequest {
+  AutoupdateVersion version = 1;
+}
+
+// Request for DeleteAutoupdateVersion.
+message DeleteAutoupdateVersionRequest {}
