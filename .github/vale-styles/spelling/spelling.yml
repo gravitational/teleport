@@ -1,8 +1,10 @@
 extends: spelling
-message: "Incorrect spelling: %s"
+message: "Incorrect spelling: %s. To ignore the spellchecker for this word, either (a) wrap it in `backticks` (if it is code) or (b) add the word to .github/vale-styles/spelling/ignore.txt."
 level: error
 scope:
   - heading
   - table
   - list
   - paragraph
+ignore:
+   - ignore.txt
