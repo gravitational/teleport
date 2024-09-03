@@ -18,11 +18,11 @@ download() {
     if type curl &>/dev/null; then
         set -x
         # shellcheck disable=SC2086
-        $SUDO $CURL -o "$TMP_PATH" "$URL"
+        $CURL -o "$TMP_PATH" "$URL"
     else
         set -x
         # shellcheck disable=SC2086
-        $SUDO $CURL -O "$TMP_PATH" "$URL"
+        $CURL -O "$TMP_PATH" "$URL"
     fi
     set +x
 }
@@ -70,12 +70,6 @@ fetch_and_run() {
         SHA_COMMAND="sha256sum"
     else
         echo "ERROR: This script requires sha256sum or shasum to validate the download. Please install it and try again."
-        exit 1
-    fi
-
-    if [ -z "$SUDO" ] && [ -z "$IS_ROOT" ]; then
-        echo "ERROR:  The installer requires a way to run commands as root."
-        echo "Either run this script as root or install sudo/doas."
         exit 1
     fi
 

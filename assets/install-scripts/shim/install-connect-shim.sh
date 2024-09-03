@@ -18,11 +18,11 @@ download() {
     if type curl &>/dev/null; then
         set -x
         # shellcheck disable=SC2086
-        $SUDO $CURL -o "$TMP_PATH" "$URL"
+        $CURL -o "$TMP_PATH" "$URL"
     else
         set -x
         # shellcheck disable=SC2086
-        $SUDO $CURL -O "$TMP_PATH" "$URL"
+        $CURL -O "$TMP_PATH" "$URL"
     fi
     set +x
 }
@@ -73,26 +73,6 @@ fetch_and_run() {
         exit 1
     fi
 
-    # check if can run as admin either by running as root or by
-    # having 'sudo' or 'doas' installed
-    IS_ROOT=""
-    SUDO=""
-    if [ "$(id -u)" = 0 ]; then
-        # running as root, no need for sudo/doas
-        IS_ROOT="YES"
-        SUDO=""
-    elif type sudo &>/dev/null; then
-        SUDO="sudo"
-    elif type doas &>/dev/null; then
-        SUDO="doas"
-    fi
-
-    if [ -z "$SUDO" ] && [ -z "$IS_ROOT" ]; then
-        echo "ERROR:  The installer requires a way to run commands as root."
-        echo "Either run this script as root or install sudo/doas."
-        exit 1
-    fi
-
     SCRIPT_VERSION=$(get_version "$TELEPORT_VERSION")
 
     # fetch install script
@@ -109,7 +89,7 @@ fetch_and_run() {
     set -x
     cd "$TEMP_DIR"
     # shellcheck disable=SC2086
-    $SUDO $SHA_COMMAND -c $TMP_CHECKSUM
+    $SHA_COMMAND -c $TMP_CHECKSUM
     cd -
     set +x
 
@@ -131,4 +111,3 @@ if ! echo "$1" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
 fi
 
 fetch_and_run
-
