@@ -4,7 +4,6 @@
 package crdb
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -181,7 +180,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 			_, err := c.Exec(ctx,
 				// Upsert is cockroachdb-specific.
 				"UPSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)",
-				nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+				nonNilKey(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 			return trace.Wrap(err)
 		})
 		return struct{}{}, trace.Wrap(err)
@@ -218,7 +217,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 					" ON CONFLICT (key) DO UPDATE SET"+
 					" value = excluded.value, expires = excluded.expires, revision = excluded.revision"+
 					" WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-				nonNil(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
+				nonNilKey(i.Key), nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -244,7 +243,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // CompareAndSwap implements [backend.Backend].
 func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith backend.Item) (*backend.Lease, error) {
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 
@@ -262,7 +261,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected, replaceWith back
 				"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 					" WHERE kv.key = $4 AND kv.value = $5 AND (kv.expires IS NULL OR kv.expires > now())",
 				nonNil(replaceWith.Value), zeronull.Timestamptz(replaceWith.Expires), revision,
-				nonNil(replaceWith.Key), nonNil(expected.Value))
+				nonNilKey(replaceWith.Key), nonNil(expected.Value))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -301,7 +300,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			tag, err := c.Exec(ctx,
 				"UPDATE kv SET value = $1, expires = $2, revision = $3"+
 					" WHERE kv.key = $4 AND (kv.expires IS NULL OR kv.expires > now())",
-				nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNil(i.Key))
+				nonNil(i.Value), zeronull.Timestamptz(i.Expires), revision, nonNilKey(i.Key))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -346,7 +345,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, i backend.Item) (*backe
 					"WHERE kv.key = $4 AND kv.revision = $5 AND "+
 					"(kv.expires IS NULL OR kv.expires > now())",
 				nonNil(i.Value), zeronull.Timestamptz(i.Expires), newRevision,
-				nonNil(i.Key), expectedRevision)
+				nonNilKey(i.Key), expectedRevision)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -385,7 +384,7 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 			batch.Queue("SET transaction_read_only TO on")
 
 			batch.Queue("SELECT kv.value, kv.expires, kv.revision FROM kv"+
-				" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key),
+				" WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNilKey(key),
 			).QueryRow(func(row pgx.Row) error {
 				var value []byte
 				var expires time.Time
@@ -454,7 +453,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 					"SELECT kv.key, kv.value, kv.expires, kv.revision FROM kv"+
 						" WHERE kv.key BETWEEN $1 AND $2 AND ($3::bytea is NULL or kv.key > $3) AND (kv.expires IS NULL OR kv.expires > now())"+
 						" ORDER BY kv.key LIMIT $4",
-					nonNil(startKey), nonNil(endKey), exclusiveStartKey, pageLimit,
+					nonNilKey(startKey), nonNilKey(endKey), exclusiveStartKey, pageLimit,
 				).Query(func(rows pgx.Rows) error {
 					var err error
 					items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
@@ -491,7 +490,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 		if len(items) < pageLimit || len(results.Items) >= limit {
 			break
 		}
-		exclusiveStartKey = nonNil(items[len(items)-1].Key)
+		exclusiveStartKey = nonNilKey(items[len(items)-1].Key)
 	}
 
 	return results, nil
@@ -508,7 +507,7 @@ func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 			ctx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
 			defer cancel()
 			tag, err := c.Exec(ctx,
-				"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNil(key))
+				"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())", nonNilKey(key))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -547,7 +546,7 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 			tag, err := c.Exec(ctx,
 				"DELETE FROM kv WHERE kv.key = $1 AND kv.revision = $2 AND "+
 					"(kv.expires IS NULL OR kv.expires > now())",
-				nonNil(key), expectedRevision)
+				nonNilKey(key), expectedRevision)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -583,7 +582,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 			defer cancel()
 			_, err := c.Exec(ctx,
 				"DELETE FROM kv WHERE kv.key BETWEEN $1 AND $2",
-				nonNil(startKey), nonNil(endKey),
+				nonNilKey(startKey), nonNilKey(endKey),
 			)
 			return trace.Wrap(err)
 		})
@@ -612,7 +611,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 			tag, err := c.Exec(ctx,
 				"UPDATE kv SET expires = $1, revision = $2"+
 					" WHERE kv.key = $3 AND (kv.expires IS NULL OR kv.expires > now())",
-				zeronull.Timestamptz(expires.UTC()), revision, nonNil(lease.Key))
+				zeronull.Timestamptz(expires.UTC()), revision, nonNilKey(lease.Key))
 			if err != nil {
 				return trace.Wrap(err)
 			}

@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"time"
 
@@ -205,7 +204,7 @@ func unmarshalFromItem(item *backend.Item) (*loginrulepb.LoginRule, error) {
 }
 
 func ruleNameFromKey(key backend.Key) string {
-	return string(bytes.TrimPrefix(key, loginRuleKey("")))
+	return string(key.TrimPrefix(loginRuleKey("")))
 }
 
 func loginRuleKey(name string) backend.Key {
