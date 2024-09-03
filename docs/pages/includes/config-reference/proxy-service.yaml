@@ -119,7 +119,7 @@ proxy_service:
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
 
-    # Address advertised to PostgresSQL clients. If not set, public_addr is
+    # Address advertised to PostgreSQL clients. If not set, public_addr is
     # used.
     postgres_public_addr: "postgres.teleport.example.com:443"
 
