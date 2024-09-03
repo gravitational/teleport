@@ -3,15 +3,15 @@ module github.com/gravitational/teleport
 go 1.22.6
 
 require (
-	cloud.google.com/go/cloudsqlconn v1.11.1
-	cloud.google.com/go/compute v1.27.4
+	cloud.google.com/go/cloudsqlconn v1.12.0
+	cloud.google.com/go/compute v1.28.0
 	cloud.google.com/go/compute/metadata v0.5.0
-	cloud.google.com/go/container v1.38.0
+	cloud.google.com/go/container v1.39.0
 	cloud.google.com/go/firestore v1.16.0
-	cloud.google.com/go/iam v1.1.12
-	cloud.google.com/go/kms v1.18.4
-	cloud.google.com/go/resourcemanager v1.9.11
-	cloud.google.com/go/spanner v1.65.0
+	cloud.google.com/go/iam v1.2.0
+	cloud.google.com/go/kms v1.19.0
+	cloud.google.com/go/resourcemanager v1.10.0
+	cloud.google.com/go/spanner v1.67.0
 	cloud.google.com/go/storage v1.43.0
 	connectrpc.com/connect v1.16.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.13.0
@@ -203,9 +203,9 @@ require (
 	golang.org/x/sys v0.24.0
 	golang.org/x/term v0.23.0
 	golang.org/x/text v0.17.0
-	golang.org/x/time v0.5.0
+	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/api v0.190.0
+	google.golang.org/api v0.193.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd
 	google.golang.org/grpc v1.66.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
@@ -240,11 +240,11 @@ require github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirec
 
 require (
 	cel.dev/expr v0.15.0 // indirect
-	cloud.google.com/go v0.115.0 // indirect
-	cloud.google.com/go/auth v0.7.3 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.3 // indirect
-	cloud.google.com/go/longrunning v0.5.11 // indirect
-	cloud.google.com/go/pubsub v1.40.0 // indirect
+	cloud.google.com/go v0.115.1 // indirect
+	cloud.google.com/go/auth v0.9.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
+	cloud.google.com/go/longrunning v0.5.12 // indirect
+	cloud.google.com/go/pubsub v1.41.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
@@ -525,10 +525,10 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
-	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
+	golang.org/x/xerrors v0.0.0-20240716161551-93cc26a95ae9 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
-	google.golang.org/genproto v0.0.0-20240730163845-b1a4ccb954bf // indirect
+	google.golang.org/genproto v0.0.0-20240814211410-ddb44dafa142 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240822170219-fc7c04adadcd // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect

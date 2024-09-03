@@ -21,16 +21,16 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.115.0 // indirect
-	cloud.google.com/go/auth v0.7.3 // indirect
-	cloud.google.com/go/auth/oauth2adapt v0.2.3 // indirect
-	cloud.google.com/go/compute v1.27.4 // indirect
+	cloud.google.com/go v0.115.1 // indirect
+	cloud.google.com/go/auth v0.9.0 // indirect
+	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
+	cloud.google.com/go/compute v1.28.0 // indirect
 	cloud.google.com/go/compute/metadata v0.5.0 // indirect
-	cloud.google.com/go/container v1.38.0 // indirect
-	cloud.google.com/go/iam v1.1.12 // indirect
-	cloud.google.com/go/kms v1.18.4 // indirect
-	cloud.google.com/go/longrunning v0.5.11 // indirect
-	cloud.google.com/go/resourcemanager v1.9.11 // indirect
+	cloud.google.com/go/container v1.39.0 // indirect
+	cloud.google.com/go/iam v1.2.0 // indirect
+	cloud.google.com/go/kms v1.19.0 // indirect
+	cloud.google.com/go/longrunning v0.5.12 // indirect
+	cloud.google.com/go/resourcemanager v1.10.0 // indirect
 	connectrpc.com/connect v1.16.2 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.13.0 // indirect
@@ -285,8 +285,8 @@ require (
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.23.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	google.golang.org/api v0.190.0 // indirect
-	google.golang.org/genproto v0.0.0-20240730163845-b1a4ccb954bf // indirect
+	google.golang.org/api v0.193.0 // indirect
+	google.golang.org/genproto v0.0.0-20240814211410-ddb44dafa142 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240822170219-fc7c04adadcd // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd // indirect
 	google.golang.org/grpc v1.66.0 // indirect
