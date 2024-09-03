@@ -194,8 +194,8 @@ importers:
         specifier: ^1.7.22
         version: 1.7.22
       '@swc/plugin-styled-components':
-        specifier: ^2.0.12
-        version: 2.0.12
+        specifier: ^3.0.1
+        version: 3.0.1
       '@types/jsdom':
         specifier: ^21.1.7
         version: 21.1.7
@@ -2251,8 +2251,8 @@ packages:
     peerDependencies:
       '@swc/core': '*'
 
-  '@swc/plugin-styled-components@2.0.12':
-    resolution: {integrity: sha512-ZlA2T++rRRH734gt3+/FGfQc/oIWVQ69xl+FbeWQflB8YYG30/ADCqDOJ90XXo21hk3FZ0sMilXfaqqFUvYy0g==}
+  '@swc/plugin-styled-components@3.0.1':
+    resolution: {integrity: sha512-wX9O8Enp8CtgQePdpW9YP/8m0SXoNPM7Q5C1zZM6CZkN9ft1gcPF/7+uDngHeF0O0VLn11o2tqNSLZbxBuBf2w==}
 
   '@swc/types@0.1.12':
     resolution: {integrity: sha512-wBJA+SdtkbFhHjTMYH+dEH1y4VpfGdAc2Kw/LK09i9bXd/K6j6PkDcFCEzb6iVfZMkPRrl/q0e3toqTAJdkIVA==}
@@ -9214,7 +9214,7 @@ snapshots:
       '@swc/counter': 0.1.3
       jsonc-parser: 3.3.1
 
-  '@swc/plugin-styled-components@2.0.12':
+  '@swc/plugin-styled-components@3.0.1':
     dependencies:
       '@swc/counter': 0.1.3
 
