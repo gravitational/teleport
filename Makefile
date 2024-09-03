@@ -429,7 +429,7 @@ tsh-app:
 
 .PHONY: tctl-app
 tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
-tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/tctl.entitlements
+tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
 tctl-app:
 	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
 	mkdir -p "$(TCTL_APP_BUNDLE)/Contents/MacOS/"
