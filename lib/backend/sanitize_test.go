@@ -172,7 +172,7 @@ func (n *nopBackend) Delete(_ context.Context, _ Key) error {
 	return nil
 }
 
-func (n *nopBackend) DeleteRange(_ context.Context, _ []byte, _ []byte) error {
+func (n *nopBackend) DeleteRange(_ context.Context, _ Key, _ Key) error {
 	return nil
 }
 
