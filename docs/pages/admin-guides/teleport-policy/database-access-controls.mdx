@@ -17,7 +17,6 @@ Teleport continuously scans connected databases and imports objects, such as tab
 
 The labels assigned to these objects are matched against the `spec.allow.db_permissions` section of each user role. This results in a set of permissions that will be applied when the user connects to the database.
 
-For more details of this process see [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 
 Teleport Policy calculates the effective permissions for each user in advance, and thanks to automatic synchronization, it provides real-time insights into database access for individual Teleport users.
 
