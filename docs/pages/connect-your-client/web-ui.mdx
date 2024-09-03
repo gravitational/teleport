@@ -14,7 +14,7 @@ The Web UI allows you to list and join active SSH sessions via a web-based termi
 
 Any active SSH sessions that you are allowed to list will be listed on the "Active Sessions" page, which can be 
 accessed from the navigation bar on the left side. If you don't see the "Active Sessions" tab, it means that your user's role doesn't grant
-you `list` access for the `ssh_session` resource. Please refer to the [Teleport Access Controls Reference](../access-controls/reference.mdx)
+you `list` access for the `ssh_session` resource. Please refer to the [Teleport Access Controls Reference](../reference/access-controls/roles.mdx)
 and make sure your role has all the necessary permissions.
 
 Upon clicking on the "Join" button to join an active session, you must choose from one of 3 participant modes to join the session in: 
@@ -27,7 +27,7 @@ Upon clicking on the "Join" button to join an active session, you must choose fr
 
 If the launch button is missing, then you don't have permission to join in any participant mode. 
 For more information about the `join_sessions` allow policy, see [Configure an allow 
-policy](../access-controls/guides/moderated-sessions.mdx#configure-an-allow-policy).
+policy](../admin-guides/access-controls/guides/moderated-sessions.mdx).
 
 ## Idle timeout
 
