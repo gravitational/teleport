@@ -36,8 +36,8 @@ as the Auth Service.
   existing Teleport Auth Service pods.
 - The Auth Service ServiceAccount must be granted the `system:auth-delegator`
   ClusterRole. Clusters deployed with the [`teleport-cluster` Helm
-  chart](../../../reference/helm-reference/teleport-cluster.mdx) version 12 or
-  higher have the correct role by default.
+  chart](../../../reference/helm-reference/teleport-cluster.mdx) 
+  have the correct role by default.
 
 ## Step 1/5. Create a Kubernetes join token
 
@@ -65,7 +65,6 @@ instance running both the Application Service and Database Service should use a 
 Follow the instructions below to create the token depending on whether you have administrative access to the Auth Service pod:
 <Tabs>
 <TabItem label="Using tctl locally as your current user">
-Make sure your local `tctl` is at least at version 12 with `tctl version`.
 
 Create the token:
 
