@@ -622,13 +622,15 @@ include darwin-signing.mk
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: full build-archive
 
+SIGNED_BINARIES := $(BINARIES:%tsh=%tsh.app)
+SIGNED_BINARIES := $(SIGNED_BINARIES:%tctl=%tctl.app)
+
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) tctl-app
-	$(MAKE) build-archive BINARIES="$(filter tsh tctl,$(BINARIES)) tsh.app tctl.app"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -645,23 +647,26 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
-release-darwin: TARBINS := $(subst tsh,tsh.app,$(TARBINS))
+release-darwin: TARBINS := $(TARBINS:%tsh=%tsh.app)
+release-darwin: TARBINS := $(TARBINS:%tctl=%tctl.app)
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
 
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
-	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
 	lipo -create -output $(BUILDDIR)/tsh \
 		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
 		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+	lipo -create -output $(BUILDDIR)/tctl \
+		$(BUILDDIR_arm64)/tctl.app/Contents/MacOS/tctl \
+		$(BUILDDIR_amd64)/tctl.app/Contents/MacOS/tctl
 
 	$(NOTARIZE_BINARIES)
-	$(MAKE) tsh-app
-	$(MAKE) ARCH=universal build-archive BINARIES="$(subst tsh,tsh.app,$(BINARIES))"
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) ARCH=universal build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
@@ -1671,11 +1676,11 @@ pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
 
 	@echo Building tsh-$(VERSION).pkg
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-app.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tsh*.pkg* $(BUILDDIR)/
 
 	@echo Building tctl-$(VERSION).pkg
-	./build.assets/build-pkg-tsh.sh -n tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-app.sh -p tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mv tctl*.pkg* $(BUILDDIR)/
 
 	@echo Building teleport-bin-$(VERSION).pkg
