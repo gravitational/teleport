@@ -1,0 +1,8 @@
+extends: spelling
+message: "Incorrect spelling: %s"
+level: error
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
