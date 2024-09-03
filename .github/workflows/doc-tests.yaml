@@ -101,10 +101,6 @@ jobs:
           cat <<< "$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json)" > package.json
           yarn build-node
 
-      - name: Check spelling
-        working-directory: 'docs'
-        run: yarn spellcheck content/teleport
-
       - name: Lint docs formatting
         working-directory: 'docs'
         run: yarn markdown-lint
@@ -129,7 +125,7 @@ jobs:
       - name: Run the linter
         uses: errata-ai/vale-action@d89dee975228ae261d22c15adcd03578634d429c # v2.1.1
         with:
-          version: 2.30.0
+          version: 3.8.0
           # Take the comma-separated list of files returned by the "Check for
           # relevant changes" job.
           separator: ","

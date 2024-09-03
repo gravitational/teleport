@@ -48,6 +48,7 @@ description: {{.Description}}
 tocDepth: 3
 ---
 
+{/*vale spelling.spelling = NO*/}
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
