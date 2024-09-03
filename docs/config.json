@@ -2088,7 +2088,12 @@
     },
     {
       "source": "/choose-an-edition/migrate-to-cloud/",
-      "destination": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
       "permanent": true
     },
     {
