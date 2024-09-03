@@ -22,6 +22,8 @@ import (
 	"encoding/binary"
 
 	"github.com/google/uuid"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // revision is transparently converted to and from Postgres UUIDs.
@@ -54,6 +56,15 @@ func idFromRevision(revision revision) int64 {
 	u := binary.LittleEndian.Uint64(revision[:])
 	u &= 0x7fff_ffff_ffff_ffff
 	return int64(u)
+}
+
+// nonNilKey replaces an empty key with a non-nil one.
+func nonNilKey(b backend.Key) []byte {
+	if b == nil {
+		return []byte{}
+	}
+
+	return []byte(b.String())
 }
 
 // nonNil replaces a nil slice with an empty, non-nil one.

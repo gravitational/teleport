@@ -212,7 +212,7 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 		next = &out[pageSize]
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
-		nextKey = trimLastKey(string(lastKey), s.backendPrefix)
+		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
 	}
 
 	return out, next, nextKey, nil
@@ -259,7 +259,7 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 
 	var nextKey string
 	if len(resources) > pageSize {
-		nextKey = trimLastKey(string(lastKey), s.backendPrefix)
+		nextKey = trimLastKey(lastKey.String(), s.backendPrefix)
 		// Truncate the last item that was used to determine next row existence.
 		resources = resources[:pageSize]
 	}

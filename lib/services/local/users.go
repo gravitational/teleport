@@ -171,7 +171,7 @@ func (s *IdentityService) ListUsersExt(ctx context.Context, req *userspb.ListUse
 // the next user in the list while still allowing listing to operate
 // without missing any users.
 func nextUserToken(user types.User) string {
-	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
+	return backend.RangeEnd(backend.ExactKey(user.GetName())).String()[utf8.RuneLen(backend.Separator):]
 }
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
@@ -185,7 +185,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 	var current collector
 
 	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
-		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
 			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
 			return collector{}, false
@@ -243,7 +243,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
 	suffix := backend.Key(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
-		if !bytes.HasSuffix(item.Key, suffix) {
+		if !item.Key.HasSuffix(suffix) {
 			return nil, false
 		}
 
@@ -271,7 +271,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -609,8 +609,8 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 	var items userItems
 	for _, item := range result.Items {
-		suffix := bytes.TrimPrefix(item.Key, startKey)
-		items.Set(string(suffix), item) // Result of Set i
+		suffix := item.Key.TrimPrefix(startKey)
+		items.Set(suffix.String(), item) // Result of Set i
 	}
 
 	u, err := userFromUserItems(user, items)
