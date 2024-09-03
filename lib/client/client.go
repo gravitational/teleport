@@ -118,10 +118,9 @@ type ReissueParams struct {
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
-	DropAccessRequests    []string
-	RouteToDatabase       proto.RouteToDatabase
-	RouteToApp            proto.RouteToApp
-	RouteToWindowsDesktop proto.RouteToWindowsDesktop
+	DropAccessRequests []string
+	RouteToDatabase    proto.RouteToDatabase
+	RouteToApp         proto.RouteToApp
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -165,8 +164,6 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
-	case p.RouteToWindowsDesktop.WindowsDesktop != "":
-		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -175,7 +172,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequiredRequest, error) {
 	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
@@ -184,12 +181,12 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequire
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
-	case p.RouteToWindowsDesktop.WindowsDesktop != "":
-		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	case p.RouteToApp.Name != "":
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
+	default:
+		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
-	return req
+	return req, nil
 }
 
 // CertCachePolicy describes what should happen to the certificate cache when a

@@ -491,8 +491,6 @@ func TestVerifyEnabledService(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: "https://example.jamfcloud.com",
-						Username:    "llama",
-						Password:    "supersecret!!1!ONE",
 					},
 				},
 			},

@@ -123,7 +123,7 @@ func (p *pkcs11KeyStore) findUnusedID() (keyID, error) {
 
 // generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
 // identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm, _ ...rsaKeyOption) ([]byte, crypto.Signer, error) {
+func (p *pkcs11KeyStore) generateKey(ctx context.Context, alg cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
 	// the key identifiers are not created in a thread safe
 	// manner so all calls are serialized to prevent races.
 	p.semaphore <- struct{}{}

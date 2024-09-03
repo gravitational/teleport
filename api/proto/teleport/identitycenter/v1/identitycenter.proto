@@ -65,6 +65,10 @@ message AccountSpec {
 
   // PermissionSets...
   repeated PermissionSetRef permission_sets = 6;
+
+  // IsOrganizationOwner indicates that this account is the organisation owner,
+  // and may have restrictions about adding permission sets
+  bool is_organization_owner = 7;
 }
 
 // PermissionSet identifies a single permission set by name and ARN
@@ -98,33 +102,6 @@ message PrincipalAssignment {
   teleport.header.v1.Metadata metadata = 4;
   PrincipalAssignmentSpec spec = 5;
   PrincipalAssignmentStatus status = 6;
-}
-
-// PermissionSetBinding captures the relationship between a PermissionSet
-// and an Identity Center Account. This is the primary requestable resource
-// for user. A user having access to a PermissionSetAssignment resource implies
-// that there is a corresponding Account Assignment in AWS Identity Center that
-// grants that user the Permission Set specified in that resource, on the
-// AWS Account specified in that resource.
-//
-// The name "binding" was chosen to evoke the idea of binding parameters in a 
-// function (inspired by stc::bind in C++) and to avoid using the word "assignment"
-// which is implies an existing relationship - whereas this type only captures
-// two thirds of a potential Identity Center Account Assignment.
-message PermissionSetBinding {
-  string kind = 1;
-  string sub_kind = 2;
-  string version = 3;
-  teleport.header.v1.Metadata metadata = 4;
-  PermissionSetBindingSpec spec = 5;
-}
-
-// PermissionSetBindingSpec...
-message PermissionSetBindingSpec {
-  string display = 1;
-  PermissionSetRef permission_set = 2;
-  string account_name = 3;
-  string account_id = 4;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalAssignment
@@ -175,4 +152,5 @@ message PrincipalAssignmentStatus {
   State state = 1;
   repeated AccountAssignment assignments = 2;
   repeated string applications = 3;
+  string error = 4;
 }

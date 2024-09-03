@@ -81,6 +81,7 @@ Use the generated secrets to enable mutual TLS in your `clickhouse-server/config
 </openSSL>
 ```
 
+Restart the ClickHouse Server to enable this configuration.
 Additionally, your ClickHouse database user accounts must be configured to require a valid client certificate:
 
 ```sql
@@ -210,14 +211,14 @@ To configure the Teleport Database Service to trust a custom CA:
 
   ```diff
     roles: db
-    proxyAddr: <Var name="teleport.example.com:443" />
+    proxyAddr: teleport.example.com:443
     # Set to false if using Teleport Community Edition
     enterprise: true
-    authToken: <Var name="JOIN_TOKEN" />
+    authToken: JOIN_TOKEN
     databases:
       - name: example-clickhouse
         uri: clickhouse.example.com:8443
-        protocol: <Var name="protocol" />
+        protocol: <protocol>
   +     tls:
   +       ca_cert_file: "/etc/teleport-tls-db/db-ca/ca.pem"
         static_labels:

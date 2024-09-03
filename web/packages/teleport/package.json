@@ -31,7 +31,7 @@
     "@opentelemetry/resources": "1.25.1",
     "@opentelemetry/sdk-trace-base": "1.25.1",
     "@opentelemetry/sdk-trace-web": "1.25.1",
-    "@opentelemetry/semantic-conventions": "1.25.1",
+    "@opentelemetry/semantic-conventions": "1.26.0",
     "@xterm/xterm": "^5.5.0",
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.10.0",

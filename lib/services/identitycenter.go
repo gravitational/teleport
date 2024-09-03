@@ -170,30 +170,9 @@ func UnmarshalPermissionSet(data []byte, opts ...MarshalOption) (*identitycenter
 	return UnmarshalProtoResource[*identitycenterv1.PermissionSet](data, opts...)
 }
 
-type PermissionSetBindingID string
-
-type IdentityCenterPermissionSetBindings interface {
-	ListPermissionSetBindings(context.Context, pagination.PageRequestToken) ([]*identitycenterv1.PermissionSetBinding, pagination.NextPageToken, error)
-	CreatePermissionSetBinding(context.Context, *identitycenterv1.PermissionSetBinding) (*identitycenterv1.PermissionSetBinding, error)
-	GetPermissionSetBinding(context.Context, PermissionSetBindingID) (*identitycenterv1.PermissionSetBinding, error)
-	UpdatePermissionSetBinding(context.Context, *identitycenterv1.PermissionSetBinding) (*identitycenterv1.PermissionSetBinding, error)
-	DeletePermissionSetBinding(context.Context, PermissionSetBindingID) error
-}
-
-// MarshalPermissionSet marshals the assignment state object into a JSON byte array.
-func MarshalPermissionSetBinding(object *identitycenterv1.PermissionSetBinding, opts ...MarshalOption) ([]byte, error) {
-	return MarshalProtoResource(object, opts...)
-}
-
-// UnmarshalPermissionSet un-marshals the User State  object from a JSON byte array.
-func UnmarshalPermissionSetBinding(data []byte, opts ...MarshalOption) (*identitycenterv1.PermissionSetBinding, error) {
-	return UnmarshalProtoResource[*identitycenterv1.PermissionSetBinding](data, opts...)
-}
-
 // IdentityCenter combines all the resource managers used by the Identity Center plugin
 type IdentityCenter interface {
 	IdentityCenterAccounts
 	IdentityCenterPermissionSets
-	IdentityCenterPermissionSetBindings
 	IdentityCenterPrincipalAssignments
 }

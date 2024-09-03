@@ -116,6 +116,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -336,7 +337,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		svcCfg := local.IdentityCenterServiceConfig{
 			Backend: cfg.Backend,
 			Mode:    local.IdentityCenterServiceModeStrict,
-			Logger:  slog.Default().With(),
 		}
 		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
 		if err != nil {
@@ -592,6 +592,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				Clock: as.clock,
 			},
 		)
+	}
+
+	if as.terraformIDTokenValidator == nil {
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
+			Clock: as.clock,
+		})
 	}
 
 	// Add in a login hook for generating state during user login.
@@ -979,6 +985,11 @@ type Server struct {
 	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
 	// server. It can be overridden for the purpose of tests.
 	gcpIDTokenValidator gcpIDTokenValidator
+
+	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	terraformIDTokenValidator terraformCloudIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool

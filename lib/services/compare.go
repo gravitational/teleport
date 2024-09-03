@@ -67,6 +67,10 @@ func CompareResources[T any](resA, resB T) int {
 	return Different
 }
 
+func IgnoreProtoXXXFields() cmp.Option {
+	return ignoreProtoXXXFields()
+}
+
 // ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto
 // messages.
 func ignoreProtoXXXFields() cmp.Option {
