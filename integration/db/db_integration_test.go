@@ -331,7 +331,7 @@ func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
 			continue
 		}
 
-		waitForEvent(p.Root.Cluster.Process, service.TeleportReloadEvent)
+		// waitForEvent(p.Root.Cluster.Process, service.TeleportReloadEvent)
 		waitForEvent(p.Leaf.Cluster.Process, service.TeleportReadyEvent)
 
 		p.WaitForLeaf(t)

@@ -273,11 +273,6 @@ const (
 	// all listening sockets and exiting.
 	TeleportExitEvent = "TeleportExit"
 
-	// TeleportReloadEvent is generated to trigger in-process teleport
-	// service reload - all servers and clients will be re-created
-	// in a graceful way.
-	TeleportReloadEvent = "TeleportReload"
-
 	// TeleportPhaseChangeEvent is generated to indicate that the CA rotation
 	// phase has been updated, used in tests.
 	TeleportPhaseChangeEvent = "TeleportPhaseChange"
@@ -973,102 +968,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	if err := srv.Start(); err != nil {
 		return trace.Wrap(err, "startup failed")
 	}
-	// Wait and reload until called exit.
-	for {
-		srv, err = waitAndReload(ctx, sigC, cfg, srv, newTeleport)
-		if err != nil {
-			// This error means that was a clean shutdown
-			// and no reload is necessary.
-			if errors.Is(err, ErrTeleportExited) {
-				return nil
-			}
-			return trace.Wrap(err)
-		}
-	}
-}
-
-func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
-	err := srv.WaitForSignals(ctx, sigC)
-	if err == nil {
-		return nil, ErrTeleportExited
-	}
-	if !errors.Is(err, ErrTeleportReloading) {
-		return nil, trace.Wrap(err)
-	}
-	cfg.Logger.InfoContext(ctx, "Started in-process service reload.")
-	fileDescriptors, err := srv.ExportFileDescriptors()
-	if err != nil {
-		warnOnErr(ctx, srv.Close(), cfg.Logger)
-		return nil, trace.Wrap(err)
-	}
-	newCfg := cfg
-	newCfg.FileDescriptors = fileDescriptors
-	// our PID hasn't changed as we reload in-process, and if we're no longer
-	// the "main" Teleport process we don't want to overwrite the PID file
-	newCfg.PIDFile = ""
-	newSrv, err := newTeleport(&newCfg)
-	if err != nil {
-		warnOnErr(ctx, srv.Close(), cfg.Logger)
-		return nil, trace.Wrap(err, "failed to create a new service")
-	}
-	cfg.Logger.InfoContext(ctx, "Created new process.")
-	if err := newSrv.Start(); err != nil {
-		warnOnErr(ctx, srv.Close(), cfg.Logger)
-		return nil, trace.Wrap(err, "failed to start a new service")
-	}
-
-	// Wait for the new server to report that it has started
-	// before shutting down the old one.
-	startTimeoutCtx, startCancel := context.WithTimeout(ctx, signalPipeTimeout)
-	defer startCancel()
-	go func() {
-		// Avoid waiting for TeleportReadyEvent if it will never fire.
-		newSrv.WaitForEvent(startTimeoutCtx, ServiceExitedWithErrorEvent)
-		startCancel()
-	}()
-	if _, err := newSrv.WaitForEvent(startTimeoutCtx, TeleportReadyEvent); err != nil {
-		warnOnErr(ctx, newSrv.Close(), cfg.Logger)
-		warnOnErr(ctx, srv.Close(), cfg.Logger)
-		return nil, trace.BadParameter("the new service has failed to start")
-	}
-	cfg.Logger.InfoContext(ctx, "New service has started successfully.")
-	startCancel()
-
-	shutdownTimeout := cfg.Testing.ShutdownTimeout
-	if shutdownTimeout == 0 {
-		// The default shutdown timeout is very generous to avoid disrupting
-		// longer running connections.
-		shutdownTimeout = defaults.DefaultGracefulShutdownTimeout
-	}
-	cfg.Logger.InfoContext(ctx, "Gracefully shutting down the old service.", "grace_period", shutdownTimeout)
-	// After the new process has started, initiate the graceful shutdown of the old process
-	// new process could have generated connections to the new process's server
-	// so not all connections can be kept forever.
-	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
-	defer cancel()
-	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
-	if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
-		// The new service can start initiating connections to the old service
-		// keeping it from shutting down gracefully, or some external
-		// connections can keep hanging the old auth service and prevent
-		// the services from shutting down, so abort the graceful way
-		// after some time to keep going.
-		cfg.Logger.InfoContext(ctx, "Some connections to the old service were aborted after exceeding grace period.", "grace_period", shutdownTimeout)
-		// Make sure that all parts of the service have exited, this function
-		// can not allow execution to continue if the shutdown is not complete,
-		// otherwise subsequent Run executions will hold system resources in case
-		// if old versions of the service are not exiting completely.
-		timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
-		defer cancel()
-		srv.WaitWithContext(timeoutCtx)
-		if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
-			return nil, trace.BadParameter("the old service has failed to exit.")
-		}
-	} else {
-		cfg.Logger.InfoContext(ctx, "The old service was successfully shut down gracefully.")
-	}
-
-	return newSrv, nil
+	return trace.Wrap(srv.WaitForSignals(ctx, sigC))
 }
 
 // NewTeleport takes the daemon configuration, instantiates all required services
@@ -6760,10 +6660,14 @@ func (process *TeleportProcess) newExternalAuditStorageConfigurator() (*external
 	watcher, err := local.NewClusterExternalAuditWatcher(process.GracefulExitContext(), local.ClusterExternalAuditStorageWatcherConfig{
 		Backend: process.backend,
 		OnChange: func() {
-			// On change of cluster External Audit Storage, trigger teleport
-			// reload, because s3 uploader and athena components don't support
-			// live changes to their configuration.
-			process.BroadcastEvent(Event{Name: TeleportReloadEvent})
+			// this is only reached in Cloud on the Auth Service instance; we
+			// can't change the settings for athenaevents and s3sessions after
+			// they've been initialized, and we can't swap in new audit log and
+			// session recording backends, so instead we just hard close the
+			// process (no need for any graceful shutdowns, as the Auth Service
+			// doesn't really gracefully stop anything anyway) and let the
+			// orchestration start us again
+			process.Close()
 		},
 	})
 	if err != nil {
