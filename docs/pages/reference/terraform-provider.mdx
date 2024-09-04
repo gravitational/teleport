@@ -80,7 +80,7 @@ provider "teleport" {
 
 This section lists the different ways of passing credentials to the Terraform provider.
 You can find which method fits your use case in
-the [Teleport Terraform provider setup page](../management/dynamic-resources/terraform-provider.mdx)
+the [Teleport Terraform provider setup page](../admin-guides/infrastructure-as-code/terraform-provider.mdx)
 
 ### With an identity file
 
@@ -107,7 +107,7 @@ Detected security key tap
 ```
 
 You can find more information in
-the ["Run the Terraform provider locally" guide](../management/dynamic-resources/terraform-provider/local.mdx)
+the ["Run the Terraform provider locally" guide](../admin-guides/infrastructure-as-code/terraform-provider/local.mdx)
 
 #### Obtaining an identity file via `tbot`
 
@@ -115,8 +115,8 @@ the ["Run the Terraform provider locally" guide](../management/dynamic-resources
 short-lived credentials. Such credentials are harder to exfiltrate, and you can control more precisely who has access to
 which roles (e.g. you can allow only GitHub Actions pipelines targeting the `prod` environment to get certificates).
 
-You can follow [the Terraform Provider guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx) to set up
-`tbot` and have Terraform use its identity.
+You can follow [the Terraform Provider guide](../admin-guides/infrastructure-as-code/terraform-provider.mdx) to setup `tbot`
+and have Terraform use its identity.
 
 #### Obtaining an identity file via `tctl auth sign`
 
