@@ -413,14 +413,15 @@ func deriveTeleportEqual_20(this, that []string) bool {
 }
 
 // deriveTeleportEqual_21 returns whether this and that are equal.
-func deriveTeleportEqual_21(this, that *CORS) bool {
+func deriveTeleportEqual_21(this, that *CORSSpec) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			deriveTeleportEqual_20(this.AllowedOrigins, that.AllowedOrigins) &&
 			deriveTeleportEqual_20(this.AllowedMethods, that.AllowedMethods) &&
 			deriveTeleportEqual_20(this.AllowedHeaders, that.AllowedHeaders) &&
 			this.AllowCredentials == that.AllowCredentials &&
-			this.MaxAge == that.MaxAge
+			this.MaxAge == that.MaxAge &&
+			deriveTeleportEqual_20(this.ExposedHeaders, that.ExposedHeaders)
 }
 
 // deriveTeleportEqual_22 returns whether this and that are equal.

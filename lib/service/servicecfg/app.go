@@ -110,13 +110,17 @@ type CORS struct {
 	// Example: "Content-Type", "Authorization", "X-Custom-Header"
 	AllowedHeaders []string `yaml:"allowed_headers"`
 
+	// ExposedHeaders indicate which response headers should be made available to scripts running in
+	// the browser, in response to a cross-origin request.
+	ExposedHeaders []string `yaml:"exposed_headers"`
+
 	// AllowCredentials indicates whether credentials such as cookies or authorization headers
 	// are allowed to be included in the requests.
 	AllowCredentials bool `yaml:"allow_credentials"`
 
 	// MaxAge specifies how long (in seconds) the results of a preflight request can be cached.
 	// Example: 86400 (which equals 24 hours)
-	MaxAge int `yaml:"max_age"`
+	MaxAge uint `yaml:"max_age"`
 }
 
 // CheckAndSetDefaults validates an application.

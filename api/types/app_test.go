@@ -405,7 +405,7 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{Name: "api22"},
 			spec: AppSpecV3{
 				URI: "example.com",
-				CORS: &CORS{
+				CORS: &CORSSpec{
 					AllowedOrigins:   []string{"https://client.example.com"},
 					AllowedMethods:   []string{"GET", "POST"},
 					AllowedHeaders:   []string{"Content-Type", "Authorization"},
@@ -422,7 +422,7 @@ func TestNewAppV3(t *testing.T) {
 				},
 				Spec: AppSpecV3{
 					URI: "example.com",
-					CORS: &CORS{
+					CORS: &CORSSpec{
 						AllowedOrigins:   []string{"https://client.example.com"},
 						AllowedMethods:   []string{"GET", "POST"},
 						AllowedHeaders:   []string{"Content-Type", "Authorization"},

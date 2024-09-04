@@ -85,7 +85,7 @@ type Application interface {
 	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
-	GetCORS() *CORS
+	GetCORS() *CORSSpec
 }
 
 // NewAppV3 creates a new app resource.
@@ -327,7 +327,7 @@ func (a *AppV3) GetRequiredAppNames() []string {
 	return a.Spec.RequiredAppNames
 }
 
-func (a *AppV3) GetCORS() *CORS {
+func (a *AppV3) GetCORS() *CORSSpec {
 	return a.Spec.CORS
 }
 

@@ -957,6 +957,8 @@ message CORSSpec {
   bool allow_credentials = 4 [(gogoproto.jsontag) = "allow_credentials,omitempty"];
   // max_age indicates how long (in seconds) the results of a preflight request can be cached.
   uint32 max_age = 5 [(gogoproto.jsontag) = "max_age,omitempty"];
+  // exposed_headers indicates which headers are made available to scripts via the browser.
+  repeated string exposed_headers = 6 [(gogoproto.jsontag) = "exposed_headers,omitempty"];
 }
 
 // AppSpecV3 is the AppV3 resource spec.

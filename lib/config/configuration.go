@@ -1997,6 +1997,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				AllowedOrigins:   application.CORS.AllowedOrigins,
 				AllowedMethods:   application.CORS.AllowedMethods,
 				AllowedHeaders:   application.CORS.AllowedHeaders,
+				ExposedHeaders:   application.CORS.ExposedHeaders,
 				AllowCredentials: application.CORS.AllowCredentials,
 				MaxAge:           application.CORS.MaxAge,
 			}

@@ -386,13 +386,19 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Headers", strings.Join(corsPolicy.AllowedHeaders, ","))
 	}
 
+	if len(corsPolicy.ExposedHeaders) > 0 {
+		w.Header().Set("Access-Control-Expose-Headers", strings.Join(corsPolicy.ExposedHeaders, ","))
+	}
+
 	// The only valid value for this header is "true", so we will only set it if configured to true
 	if corsPolicy.AllowCredentials {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
 
 	// This will allow preflight responses to be cached for the specified duration
-	w.Header().Set("Access-Control-Max-Age", strconv.Itoa(int(corsPolicy.MaxAge)))
+	if corsPolicy.MaxAge > 0 {
+		w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsPolicy.MaxAge))
+	}
 
 	w.WriteHeader(http.StatusOK)
 
