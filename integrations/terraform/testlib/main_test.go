@@ -117,6 +117,7 @@ func (s *TerraformBaseSuite) SetupSuite() {
 				types.NewRule("access_list", unrestricted),
 				types.NewRule("node", unrestricted),
 				types.NewRule("bot", unrestricted),
+				types.NewRule("installer", unrestricted),
 			},
 		},
 	})

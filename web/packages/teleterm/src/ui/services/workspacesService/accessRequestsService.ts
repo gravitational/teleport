@@ -98,6 +98,33 @@ export class AccessRequestsService {
     });
   }
 
+  async addOrRemoveResources(requestedResources: ResourceRequest[]) {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        draftState.pending = {
+          kind: 'resource',
+          resources: new Map(),
+        };
+      }
+
+      const { resources } = draftState.pending;
+      const allAdded = requestedResources.every(r =>
+        resources.has(r.resource.uri)
+      );
+
+      requestedResources.forEach(request => {
+        if (allAdded) {
+          resources.delete(request.resource.uri);
+        } else {
+          resources.set(request.resource.uri, getRequiredProperties(request));
+        }
+      });
+    });
+  }
+
   async addResource(request: ResourceRequest): Promise<void> {
     if (!(await this.canUpdateRequest('resource'))) {
       return;

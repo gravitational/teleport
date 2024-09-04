@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 
@@ -428,20 +429,21 @@ func itemFromLock(l types.Lock) (*backend.Item, error) {
 // has order N cost.
 
 // fullUsersPrefix is the entire string preceding the name of a user in a key
-var fullUsersPrefix = string(backend.NewKey(webPrefix, usersPrefix)) + "/"
+var fullUsersPrefix = backend.ExactKey(webPrefix, usersPrefix)
 
 // splitUsernameAndSuffix is a helper for extracting usernames and suffixes from
 // backend key values.
-func splitUsernameAndSuffix(key string) (name string, suffix string, err error) {
-	if !strings.HasPrefix(key, fullUsersPrefix) {
+func splitUsernameAndSuffix(key backend.Key) (name string, suffix string, err error) {
+	if !key.HasPrefix(fullUsersPrefix) {
 		return "", "", trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
 	}
-	key = strings.TrimPrefix(key, fullUsersPrefix)
-	idx := strings.Index(key, "/")
-	if idx < 1 || idx >= len(key) {
+	k := key.TrimPrefix(fullUsersPrefix)
+
+	components := k.Components()
+	if len(components) < 2 {
 		return "", "", trace.BadParameter("expected format <name>/<suffix>, got %q", key)
 	}
-	return key[:idx], key[idx+1:], nil
+	return string(components[0]), k.String()[len(components[0])+utf8.RuneLen(backend.Separator):], nil
 }
 
 // collectUserItems handles the case where multiple items pertain to the same user resource.
@@ -450,12 +452,11 @@ func splitUsernameAndSuffix(key string) (name string, suffix string, err error) 
 func collectUserItems(items []backend.Item) (users map[string]userItems, rem []backend.Item, err error) {
 	users = make(map[string]userItems)
 	for _, item := range items {
-		key := string(item.Key)
-		if !strings.HasPrefix(key, fullUsersPrefix) {
+		if !item.Key.HasPrefix(fullUsersPrefix) {
 			rem = append(rem, item)
 			continue
 		}
-		name, suffix, err := splitUsernameAndSuffix(key)
+		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -124,6 +124,67 @@ test('getAddedItemsCount() returns added resource count for pending request', ()
   expect(service.getAddedItemsCount()).toBe(0);
 });
 
+test('addOrRemoveResources() adds all resources to pending request', async () => {
+  const { accessRequestsService: service } = getTestSetup(
+    getMockPendingResourceAccessRequest()
+  );
+  const server = makeServer({
+    uri: `${rootClusterUri}/servers/ser`,
+    hostname: 'ser',
+  });
+  const server2 = makeServer({
+    uri: `${rootClusterUri}/servers/ser2`,
+    hostname: 'ser2',
+  });
+
+  // add a single resource that isn't added should add to the request
+  await service.addOrRemoveResources([{ kind: 'server', resource: server }]);
+  let pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server.hostname, uri: server.uri },
+  });
+
+  // padding an array that contains some resources already added and some that aren't should add them all
+  await service.addOrRemoveResources([
+    { kind: 'server', resource: server },
+    { kind: 'server', resource: server2 },
+  ]);
+  pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server.hostname, uri: server.uri },
+  });
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server2.uri)
+  ).toStrictEqual({
+    kind: 'server',
+    resource: { hostname: server2.hostname, uri: server2.uri },
+  });
+
+  // passing an array of resources that are all already added should remove all the passed resources
+  await service.addOrRemoveResources([
+    { kind: 'server', resource: server },
+    { kind: 'server', resource: server2 },
+  ]);
+  pendingAccessRequest = service.getPendingAccessRequest();
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server.uri)
+  ).toStrictEqual(undefined);
+  expect(
+    pendingAccessRequest.kind === 'resource' &&
+      pendingAccessRequest.resources.get(server2.uri)
+  ).toStrictEqual(undefined);
+});
+
 test('addOrRemoveResource() adds resource to pending request', async () => {
   const { accessRequestsService: service } = getTestSetup(
     getMockPendingResourceAccessRequest()
