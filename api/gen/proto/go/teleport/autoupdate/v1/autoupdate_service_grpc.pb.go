@@ -34,16 +34,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutoupdateService_GetAutoupdateConfig_FullMethodName     = "/teleport.autoupdate.v1.AutoupdateService/GetAutoupdateConfig"
-	AutoupdateService_CreateAutoupdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/CreateAutoupdateConfig"
-	AutoupdateService_UpdateAutoupdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/UpdateAutoupdateConfig"
-	AutoupdateService_UpsertAutoupdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/UpsertAutoupdateConfig"
-	AutoupdateService_DeleteAutoupdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/DeleteAutoupdateConfig"
-	AutoupdateService_GetAutoupdateVersion_FullMethodName    = "/teleport.autoupdate.v1.AutoupdateService/GetAutoupdateVersion"
-	AutoupdateService_CreateAutoupdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/CreateAutoupdateVersion"
-	AutoupdateService_UpdateAutoupdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/UpdateAutoupdateVersion"
-	AutoupdateService_UpsertAutoupdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/UpsertAutoupdateVersion"
-	AutoupdateService_DeleteAutoupdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/DeleteAutoupdateVersion"
+	AutoupdateService_GetAutoUpdateConfig_FullMethodName     = "/teleport.autoupdate.v1.AutoupdateService/GetAutoUpdateConfig"
+	AutoupdateService_CreateAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/CreateAutoUpdateConfig"
+	AutoupdateService_UpdateAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/UpdateAutoUpdateConfig"
+	AutoupdateService_UpsertAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/UpsertAutoUpdateConfig"
+	AutoupdateService_DeleteAutoUpdateConfig_FullMethodName  = "/teleport.autoupdate.v1.AutoupdateService/DeleteAutoUpdateConfig"
+	AutoupdateService_GetAutoUpdateVersion_FullMethodName    = "/teleport.autoupdate.v1.AutoupdateService/GetAutoUpdateVersion"
+	AutoupdateService_CreateAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/CreateAutoUpdateVersion"
+	AutoupdateService_UpdateAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/UpdateAutoUpdateVersion"
+	AutoupdateService_UpsertAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/UpsertAutoUpdateVersion"
+	AutoupdateService_DeleteAutoUpdateVersion_FullMethodName = "/teleport.autoupdate.v1.AutoupdateService/DeleteAutoUpdateVersion"
 )
 
 // AutoupdateServiceClient is the client API for AutoupdateService service.
@@ -52,26 +52,26 @@ const (
 //
 // AutoupdateService provides an API to manage autoupdates.
 type AutoupdateServiceClient interface {
-	// GetAutoupdateConfig gets the current autoupdate config singleton.
-	GetAutoupdateConfig(ctx context.Context, in *GetAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error)
-	// CreateAutoupdateConfig creates a new AutoupdateConfig.
-	CreateAutoupdateConfig(ctx context.Context, in *CreateAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error)
-	// CreateAutoupdateConfig updates AutoupdateConfig singleton.
-	UpdateAutoupdateConfig(ctx context.Context, in *UpdateAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error)
-	// UpsertAutoupdateConfig creates a new AutoupdateConfig or replaces an existing AutoupdateConfig.
-	UpsertAutoupdateConfig(ctx context.Context, in *UpsertAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error)
-	// DeleteAutoupdateConfig hard deletes the specified AutoupdateConfig.
-	DeleteAutoupdateConfig(ctx context.Context, in *DeleteAutoupdateConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// GetAutoupdateVersion gets the current autoupdate version singleton.
-	GetAutoupdateVersion(ctx context.Context, in *GetAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error)
-	// CreateAutoupdateVersion creates a new AutoupdateVersion.
-	CreateAutoupdateVersion(ctx context.Context, in *CreateAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error)
-	// UpdateAutoupdateVersion updates AutoupdateVersion singleton.
-	UpdateAutoupdateVersion(ctx context.Context, in *UpdateAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error)
-	// UpsertAutoupdateVersion creates a new AutoupdateVersion or replaces an existing AutoupdateVersion.
-	UpsertAutoupdateVersion(ctx context.Context, in *UpsertAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error)
-	// DeleteAutoupdateVersion hard deletes the specified AutoupdateVersionRequest.
-	DeleteAutoupdateVersion(ctx context.Context, in *DeleteAutoupdateVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetAutoUpdateConfig gets the current autoupdate config singleton.
+	GetAutoUpdateConfig(ctx context.Context, in *GetAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error)
+	// CreateAutoUpdateConfig creates a new AutoUpdateConfig.
+	CreateAutoUpdateConfig(ctx context.Context, in *CreateAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error)
+	// CreateAutoUpdateConfig updates AutoUpdateConfig singleton.
+	UpdateAutoUpdateConfig(ctx context.Context, in *UpdateAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error)
+	// UpsertAutoUpdateConfig creates a new AutoUpdateConfig or replaces an existing AutoUpdateConfig.
+	UpsertAutoUpdateConfig(ctx context.Context, in *UpsertAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error)
+	// DeleteAutoUpdateConfig hard deletes the specified AutoUpdateConfig.
+	DeleteAutoUpdateConfig(ctx context.Context, in *DeleteAutoUpdateConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetAutoUpdateVersion gets the current autoupdate version singleton.
+	GetAutoUpdateVersion(ctx context.Context, in *GetAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error)
+	// CreateAutoUpdateVersion creates a new AutoUpdateVersion.
+	CreateAutoUpdateVersion(ctx context.Context, in *CreateAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error)
+	// UpdateAutoUpdateVersion updates AutoUpdateVersion singleton.
+	UpdateAutoUpdateVersion(ctx context.Context, in *UpdateAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error)
+	// UpsertAutoUpdateVersion creates a new AutoUpdateVersion or replaces an existing AutoUpdateVersion.
+	UpsertAutoUpdateVersion(ctx context.Context, in *UpsertAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error)
+	// DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
+	DeleteAutoUpdateVersion(ctx context.Context, in *DeleteAutoUpdateVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type autoupdateServiceClient struct {
@@ -82,100 +82,100 @@ func NewAutoupdateServiceClient(cc grpc.ClientConnInterface) AutoupdateServiceCl
 	return &autoupdateServiceClient{cc}
 }
 
-func (c *autoupdateServiceClient) GetAutoupdateConfig(ctx context.Context, in *GetAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error) {
+func (c *autoupdateServiceClient) GetAutoUpdateConfig(ctx context.Context, in *GetAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateConfig)
-	err := c.cc.Invoke(ctx, AutoupdateService_GetAutoupdateConfig_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateConfig)
+	err := c.cc.Invoke(ctx, AutoupdateService_GetAutoUpdateConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) CreateAutoupdateConfig(ctx context.Context, in *CreateAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error) {
+func (c *autoupdateServiceClient) CreateAutoUpdateConfig(ctx context.Context, in *CreateAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateConfig)
-	err := c.cc.Invoke(ctx, AutoupdateService_CreateAutoupdateConfig_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateConfig)
+	err := c.cc.Invoke(ctx, AutoupdateService_CreateAutoUpdateConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) UpdateAutoupdateConfig(ctx context.Context, in *UpdateAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error) {
+func (c *autoupdateServiceClient) UpdateAutoUpdateConfig(ctx context.Context, in *UpdateAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateConfig)
-	err := c.cc.Invoke(ctx, AutoupdateService_UpdateAutoupdateConfig_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateConfig)
+	err := c.cc.Invoke(ctx, AutoupdateService_UpdateAutoUpdateConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) UpsertAutoupdateConfig(ctx context.Context, in *UpsertAutoupdateConfigRequest, opts ...grpc.CallOption) (*AutoupdateConfig, error) {
+func (c *autoupdateServiceClient) UpsertAutoUpdateConfig(ctx context.Context, in *UpsertAutoUpdateConfigRequest, opts ...grpc.CallOption) (*AutoUpdateConfig, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateConfig)
-	err := c.cc.Invoke(ctx, AutoupdateService_UpsertAutoupdateConfig_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateConfig)
+	err := c.cc.Invoke(ctx, AutoupdateService_UpsertAutoUpdateConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) DeleteAutoupdateConfig(ctx context.Context, in *DeleteAutoupdateConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *autoupdateServiceClient) DeleteAutoUpdateConfig(ctx context.Context, in *DeleteAutoUpdateConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AutoupdateService_DeleteAutoupdateConfig_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AutoupdateService_DeleteAutoUpdateConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) GetAutoupdateVersion(ctx context.Context, in *GetAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error) {
+func (c *autoupdateServiceClient) GetAutoUpdateVersion(ctx context.Context, in *GetAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateVersion)
-	err := c.cc.Invoke(ctx, AutoupdateService_GetAutoupdateVersion_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateVersion)
+	err := c.cc.Invoke(ctx, AutoupdateService_GetAutoUpdateVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) CreateAutoupdateVersion(ctx context.Context, in *CreateAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error) {
+func (c *autoupdateServiceClient) CreateAutoUpdateVersion(ctx context.Context, in *CreateAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateVersion)
-	err := c.cc.Invoke(ctx, AutoupdateService_CreateAutoupdateVersion_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateVersion)
+	err := c.cc.Invoke(ctx, AutoupdateService_CreateAutoUpdateVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) UpdateAutoupdateVersion(ctx context.Context, in *UpdateAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error) {
+func (c *autoupdateServiceClient) UpdateAutoUpdateVersion(ctx context.Context, in *UpdateAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateVersion)
-	err := c.cc.Invoke(ctx, AutoupdateService_UpdateAutoupdateVersion_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateVersion)
+	err := c.cc.Invoke(ctx, AutoupdateService_UpdateAutoUpdateVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) UpsertAutoupdateVersion(ctx context.Context, in *UpsertAutoupdateVersionRequest, opts ...grpc.CallOption) (*AutoupdateVersion, error) {
+func (c *autoupdateServiceClient) UpsertAutoUpdateVersion(ctx context.Context, in *UpsertAutoUpdateVersionRequest, opts ...grpc.CallOption) (*AutoUpdateVersion, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(AutoupdateVersion)
-	err := c.cc.Invoke(ctx, AutoupdateService_UpsertAutoupdateVersion_FullMethodName, in, out, cOpts...)
+	out := new(AutoUpdateVersion)
+	err := c.cc.Invoke(ctx, AutoupdateService_UpsertAutoUpdateVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *autoupdateServiceClient) DeleteAutoupdateVersion(ctx context.Context, in *DeleteAutoupdateVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *autoupdateServiceClient) DeleteAutoUpdateVersion(ctx context.Context, in *DeleteAutoUpdateVersionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AutoupdateService_DeleteAutoupdateVersion_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AutoupdateService_DeleteAutoUpdateVersion_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,26 +188,26 @@ func (c *autoupdateServiceClient) DeleteAutoupdateVersion(ctx context.Context, i
 //
 // AutoupdateService provides an API to manage autoupdates.
 type AutoupdateServiceServer interface {
-	// GetAutoupdateConfig gets the current autoupdate config singleton.
-	GetAutoupdateConfig(context.Context, *GetAutoupdateConfigRequest) (*AutoupdateConfig, error)
-	// CreateAutoupdateConfig creates a new AutoupdateConfig.
-	CreateAutoupdateConfig(context.Context, *CreateAutoupdateConfigRequest) (*AutoupdateConfig, error)
-	// CreateAutoupdateConfig updates AutoupdateConfig singleton.
-	UpdateAutoupdateConfig(context.Context, *UpdateAutoupdateConfigRequest) (*AutoupdateConfig, error)
-	// UpsertAutoupdateConfig creates a new AutoupdateConfig or replaces an existing AutoupdateConfig.
-	UpsertAutoupdateConfig(context.Context, *UpsertAutoupdateConfigRequest) (*AutoupdateConfig, error)
-	// DeleteAutoupdateConfig hard deletes the specified AutoupdateConfig.
-	DeleteAutoupdateConfig(context.Context, *DeleteAutoupdateConfigRequest) (*emptypb.Empty, error)
-	// GetAutoupdateVersion gets the current autoupdate version singleton.
-	GetAutoupdateVersion(context.Context, *GetAutoupdateVersionRequest) (*AutoupdateVersion, error)
-	// CreateAutoupdateVersion creates a new AutoupdateVersion.
-	CreateAutoupdateVersion(context.Context, *CreateAutoupdateVersionRequest) (*AutoupdateVersion, error)
-	// UpdateAutoupdateVersion updates AutoupdateVersion singleton.
-	UpdateAutoupdateVersion(context.Context, *UpdateAutoupdateVersionRequest) (*AutoupdateVersion, error)
-	// UpsertAutoupdateVersion creates a new AutoupdateVersion or replaces an existing AutoupdateVersion.
-	UpsertAutoupdateVersion(context.Context, *UpsertAutoupdateVersionRequest) (*AutoupdateVersion, error)
-	// DeleteAutoupdateVersion hard deletes the specified AutoupdateVersionRequest.
-	DeleteAutoupdateVersion(context.Context, *DeleteAutoupdateVersionRequest) (*emptypb.Empty, error)
+	// GetAutoUpdateConfig gets the current autoupdate config singleton.
+	GetAutoUpdateConfig(context.Context, *GetAutoUpdateConfigRequest) (*AutoUpdateConfig, error)
+	// CreateAutoUpdateConfig creates a new AutoUpdateConfig.
+	CreateAutoUpdateConfig(context.Context, *CreateAutoUpdateConfigRequest) (*AutoUpdateConfig, error)
+	// CreateAutoUpdateConfig updates AutoUpdateConfig singleton.
+	UpdateAutoUpdateConfig(context.Context, *UpdateAutoUpdateConfigRequest) (*AutoUpdateConfig, error)
+	// UpsertAutoUpdateConfig creates a new AutoUpdateConfig or replaces an existing AutoUpdateConfig.
+	UpsertAutoUpdateConfig(context.Context, *UpsertAutoUpdateConfigRequest) (*AutoUpdateConfig, error)
+	// DeleteAutoUpdateConfig hard deletes the specified AutoUpdateConfig.
+	DeleteAutoUpdateConfig(context.Context, *DeleteAutoUpdateConfigRequest) (*emptypb.Empty, error)
+	// GetAutoUpdateVersion gets the current autoupdate version singleton.
+	GetAutoUpdateVersion(context.Context, *GetAutoUpdateVersionRequest) (*AutoUpdateVersion, error)
+	// CreateAutoUpdateVersion creates a new AutoUpdateVersion.
+	CreateAutoUpdateVersion(context.Context, *CreateAutoUpdateVersionRequest) (*AutoUpdateVersion, error)
+	// UpdateAutoUpdateVersion updates AutoUpdateVersion singleton.
+	UpdateAutoUpdateVersion(context.Context, *UpdateAutoUpdateVersionRequest) (*AutoUpdateVersion, error)
+	// UpsertAutoUpdateVersion creates a new AutoUpdateVersion or replaces an existing AutoUpdateVersion.
+	UpsertAutoUpdateVersion(context.Context, *UpsertAutoUpdateVersionRequest) (*AutoUpdateVersion, error)
+	// DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
+	DeleteAutoUpdateVersion(context.Context, *DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAutoupdateServiceServer()
 }
 
@@ -218,35 +218,35 @@ type AutoupdateServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAutoupdateServiceServer struct{}
 
-func (UnimplementedAutoupdateServiceServer) GetAutoupdateConfig(context.Context, *GetAutoupdateConfigRequest) (*AutoupdateConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAutoupdateConfig not implemented")
+func (UnimplementedAutoupdateServiceServer) GetAutoUpdateConfig(context.Context, *GetAutoUpdateConfigRequest) (*AutoUpdateConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateConfig not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) CreateAutoupdateConfig(context.Context, *CreateAutoupdateConfigRequest) (*AutoupdateConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoupdateConfig not implemented")
+func (UnimplementedAutoupdateServiceServer) CreateAutoUpdateConfig(context.Context, *CreateAutoUpdateConfigRequest) (*AutoUpdateConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoUpdateConfig not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) UpdateAutoupdateConfig(context.Context, *UpdateAutoupdateConfigRequest) (*AutoupdateConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoupdateConfig not implemented")
+func (UnimplementedAutoupdateServiceServer) UpdateAutoUpdateConfig(context.Context, *UpdateAutoUpdateConfigRequest) (*AutoUpdateConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoUpdateConfig not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) UpsertAutoupdateConfig(context.Context, *UpsertAutoupdateConfigRequest) (*AutoupdateConfig, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoupdateConfig not implemented")
+func (UnimplementedAutoupdateServiceServer) UpsertAutoUpdateConfig(context.Context, *UpsertAutoUpdateConfigRequest) (*AutoUpdateConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoUpdateConfig not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) DeleteAutoupdateConfig(context.Context, *DeleteAutoupdateConfigRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoupdateConfig not implemented")
+func (UnimplementedAutoupdateServiceServer) DeleteAutoUpdateConfig(context.Context, *DeleteAutoUpdateConfigRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateConfig not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) GetAutoupdateVersion(context.Context, *GetAutoupdateVersionRequest) (*AutoupdateVersion, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAutoupdateVersion not implemented")
+func (UnimplementedAutoupdateServiceServer) GetAutoUpdateVersion(context.Context, *GetAutoUpdateVersionRequest) (*AutoUpdateVersion, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAutoUpdateVersion not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) CreateAutoupdateVersion(context.Context, *CreateAutoupdateVersionRequest) (*AutoupdateVersion, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoupdateVersion not implemented")
+func (UnimplementedAutoupdateServiceServer) CreateAutoUpdateVersion(context.Context, *CreateAutoUpdateVersionRequest) (*AutoUpdateVersion, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAutoUpdateVersion not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) UpdateAutoupdateVersion(context.Context, *UpdateAutoupdateVersionRequest) (*AutoupdateVersion, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoupdateVersion not implemented")
+func (UnimplementedAutoupdateServiceServer) UpdateAutoUpdateVersion(context.Context, *UpdateAutoUpdateVersionRequest) (*AutoUpdateVersion, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAutoUpdateVersion not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) UpsertAutoupdateVersion(context.Context, *UpsertAutoupdateVersionRequest) (*AutoupdateVersion, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoupdateVersion not implemented")
+func (UnimplementedAutoupdateServiceServer) UpsertAutoUpdateVersion(context.Context, *UpsertAutoUpdateVersionRequest) (*AutoUpdateVersion, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertAutoUpdateVersion not implemented")
 }
-func (UnimplementedAutoupdateServiceServer) DeleteAutoupdateVersion(context.Context, *DeleteAutoupdateVersionRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoupdateVersion not implemented")
+func (UnimplementedAutoupdateServiceServer) DeleteAutoUpdateVersion(context.Context, *DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAutoUpdateVersion not implemented")
 }
 func (UnimplementedAutoupdateServiceServer) mustEmbedUnimplementedAutoupdateServiceServer() {}
 func (UnimplementedAutoupdateServiceServer) testEmbeddedByValue()                           {}
@@ -269,182 +269,182 @@ func RegisterAutoupdateServiceServer(s grpc.ServiceRegistrar, srv AutoupdateServ
 	s.RegisterService(&AutoupdateService_ServiceDesc, srv)
 }
 
-func _AutoupdateService_GetAutoupdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAutoupdateConfigRequest)
+func _AutoupdateService_GetAutoUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutoUpdateConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).GetAutoupdateConfig(ctx, in)
+		return srv.(AutoupdateServiceServer).GetAutoUpdateConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_GetAutoupdateConfig_FullMethodName,
+		FullMethod: AutoupdateService_GetAutoUpdateConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).GetAutoupdateConfig(ctx, req.(*GetAutoupdateConfigRequest))
+		return srv.(AutoupdateServiceServer).GetAutoUpdateConfig(ctx, req.(*GetAutoUpdateConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_CreateAutoupdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAutoupdateConfigRequest)
+func _AutoupdateService_CreateAutoUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAutoUpdateConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).CreateAutoupdateConfig(ctx, in)
+		return srv.(AutoupdateServiceServer).CreateAutoUpdateConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_CreateAutoupdateConfig_FullMethodName,
+		FullMethod: AutoupdateService_CreateAutoUpdateConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).CreateAutoupdateConfig(ctx, req.(*CreateAutoupdateConfigRequest))
+		return srv.(AutoupdateServiceServer).CreateAutoUpdateConfig(ctx, req.(*CreateAutoUpdateConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_UpdateAutoupdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateAutoupdateConfigRequest)
+func _AutoupdateService_UpdateAutoUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAutoUpdateConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).UpdateAutoupdateConfig(ctx, in)
+		return srv.(AutoupdateServiceServer).UpdateAutoUpdateConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_UpdateAutoupdateConfig_FullMethodName,
+		FullMethod: AutoupdateService_UpdateAutoUpdateConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).UpdateAutoupdateConfig(ctx, req.(*UpdateAutoupdateConfigRequest))
+		return srv.(AutoupdateServiceServer).UpdateAutoUpdateConfig(ctx, req.(*UpdateAutoUpdateConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_UpsertAutoupdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertAutoupdateConfigRequest)
+func _AutoupdateService_UpsertAutoUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertAutoUpdateConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).UpsertAutoupdateConfig(ctx, in)
+		return srv.(AutoupdateServiceServer).UpsertAutoUpdateConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_UpsertAutoupdateConfig_FullMethodName,
+		FullMethod: AutoupdateService_UpsertAutoUpdateConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).UpsertAutoupdateConfig(ctx, req.(*UpsertAutoupdateConfigRequest))
+		return srv.(AutoupdateServiceServer).UpsertAutoUpdateConfig(ctx, req.(*UpsertAutoUpdateConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_DeleteAutoupdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAutoupdateConfigRequest)
+func _AutoupdateService_DeleteAutoUpdateConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAutoUpdateConfigRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).DeleteAutoupdateConfig(ctx, in)
+		return srv.(AutoupdateServiceServer).DeleteAutoUpdateConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_DeleteAutoupdateConfig_FullMethodName,
+		FullMethod: AutoupdateService_DeleteAutoUpdateConfig_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).DeleteAutoupdateConfig(ctx, req.(*DeleteAutoupdateConfigRequest))
+		return srv.(AutoupdateServiceServer).DeleteAutoUpdateConfig(ctx, req.(*DeleteAutoUpdateConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_GetAutoupdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAutoupdateVersionRequest)
+func _AutoupdateService_GetAutoUpdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutoUpdateVersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).GetAutoupdateVersion(ctx, in)
+		return srv.(AutoupdateServiceServer).GetAutoUpdateVersion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_GetAutoupdateVersion_FullMethodName,
+		FullMethod: AutoupdateService_GetAutoUpdateVersion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).GetAutoupdateVersion(ctx, req.(*GetAutoupdateVersionRequest))
+		return srv.(AutoupdateServiceServer).GetAutoUpdateVersion(ctx, req.(*GetAutoUpdateVersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_CreateAutoupdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateAutoupdateVersionRequest)
+func _AutoupdateService_CreateAutoUpdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAutoUpdateVersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).CreateAutoupdateVersion(ctx, in)
+		return srv.(AutoupdateServiceServer).CreateAutoUpdateVersion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_CreateAutoupdateVersion_FullMethodName,
+		FullMethod: AutoupdateService_CreateAutoUpdateVersion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).CreateAutoupdateVersion(ctx, req.(*CreateAutoupdateVersionRequest))
+		return srv.(AutoupdateServiceServer).CreateAutoUpdateVersion(ctx, req.(*CreateAutoUpdateVersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_UpdateAutoupdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateAutoupdateVersionRequest)
+func _AutoupdateService_UpdateAutoUpdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateAutoUpdateVersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).UpdateAutoupdateVersion(ctx, in)
+		return srv.(AutoupdateServiceServer).UpdateAutoUpdateVersion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_UpdateAutoupdateVersion_FullMethodName,
+		FullMethod: AutoupdateService_UpdateAutoUpdateVersion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).UpdateAutoupdateVersion(ctx, req.(*UpdateAutoupdateVersionRequest))
+		return srv.(AutoupdateServiceServer).UpdateAutoUpdateVersion(ctx, req.(*UpdateAutoUpdateVersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_UpsertAutoupdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpsertAutoupdateVersionRequest)
+func _AutoupdateService_UpsertAutoUpdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertAutoUpdateVersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).UpsertAutoupdateVersion(ctx, in)
+		return srv.(AutoupdateServiceServer).UpsertAutoUpdateVersion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_UpsertAutoupdateVersion_FullMethodName,
+		FullMethod: AutoupdateService_UpsertAutoUpdateVersion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).UpsertAutoupdateVersion(ctx, req.(*UpsertAutoupdateVersionRequest))
+		return srv.(AutoupdateServiceServer).UpsertAutoUpdateVersion(ctx, req.(*UpsertAutoUpdateVersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutoupdateService_DeleteAutoupdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteAutoupdateVersionRequest)
+func _AutoupdateService_DeleteAutoUpdateVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAutoUpdateVersionRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutoupdateServiceServer).DeleteAutoupdateVersion(ctx, in)
+		return srv.(AutoupdateServiceServer).DeleteAutoUpdateVersion(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutoupdateService_DeleteAutoupdateVersion_FullMethodName,
+		FullMethod: AutoupdateService_DeleteAutoUpdateVersion_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutoupdateServiceServer).DeleteAutoupdateVersion(ctx, req.(*DeleteAutoupdateVersionRequest))
+		return srv.(AutoupdateServiceServer).DeleteAutoUpdateVersion(ctx, req.(*DeleteAutoUpdateVersionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -457,44 +457,44 @@ var AutoupdateService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AutoupdateServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetAutoupdateConfig",
-			Handler:    _AutoupdateService_GetAutoupdateConfig_Handler,
+			MethodName: "GetAutoUpdateConfig",
+			Handler:    _AutoupdateService_GetAutoUpdateConfig_Handler,
 		},
 		{
-			MethodName: "CreateAutoupdateConfig",
-			Handler:    _AutoupdateService_CreateAutoupdateConfig_Handler,
+			MethodName: "CreateAutoUpdateConfig",
+			Handler:    _AutoupdateService_CreateAutoUpdateConfig_Handler,
 		},
 		{
-			MethodName: "UpdateAutoupdateConfig",
-			Handler:    _AutoupdateService_UpdateAutoupdateConfig_Handler,
+			MethodName: "UpdateAutoUpdateConfig",
+			Handler:    _AutoupdateService_UpdateAutoUpdateConfig_Handler,
 		},
 		{
-			MethodName: "UpsertAutoupdateConfig",
-			Handler:    _AutoupdateService_UpsertAutoupdateConfig_Handler,
+			MethodName: "UpsertAutoUpdateConfig",
+			Handler:    _AutoupdateService_UpsertAutoUpdateConfig_Handler,
 		},
 		{
-			MethodName: "DeleteAutoupdateConfig",
-			Handler:    _AutoupdateService_DeleteAutoupdateConfig_Handler,
+			MethodName: "DeleteAutoUpdateConfig",
+			Handler:    _AutoupdateService_DeleteAutoUpdateConfig_Handler,
 		},
 		{
-			MethodName: "GetAutoupdateVersion",
-			Handler:    _AutoupdateService_GetAutoupdateVersion_Handler,
+			MethodName: "GetAutoUpdateVersion",
+			Handler:    _AutoupdateService_GetAutoUpdateVersion_Handler,
 		},
 		{
-			MethodName: "CreateAutoupdateVersion",
-			Handler:    _AutoupdateService_CreateAutoupdateVersion_Handler,
+			MethodName: "CreateAutoUpdateVersion",
+			Handler:    _AutoupdateService_CreateAutoUpdateVersion_Handler,
 		},
 		{
-			MethodName: "UpdateAutoupdateVersion",
-			Handler:    _AutoupdateService_UpdateAutoupdateVersion_Handler,
+			MethodName: "UpdateAutoUpdateVersion",
+			Handler:    _AutoupdateService_UpdateAutoUpdateVersion_Handler,
 		},
 		{
-			MethodName: "UpsertAutoupdateVersion",
-			Handler:    _AutoupdateService_UpsertAutoupdateVersion_Handler,
+			MethodName: "UpsertAutoUpdateVersion",
+			Handler:    _AutoupdateService_UpsertAutoUpdateVersion_Handler,
 		},
 		{
-			MethodName: "DeleteAutoupdateVersion",
-			Handler:    _AutoupdateService_DeleteAutoupdateVersion_Handler,
+			MethodName: "DeleteAutoUpdateVersion",
+			Handler:    _AutoupdateService_DeleteAutoUpdateVersion_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
