@@ -695,7 +695,7 @@ func TestGithubAuthCompat(t *testing.T) {
 			// The proxy should get back the keys exactly as it sent them. Older
 			// proxies won't look for the new split keys, and they do check for
 			// the old single key to tell if this was a console or web request.
-			require.Equal(t, tc.pubKey, resp.Req.PublicKey)
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking that deprecated field is set.
 			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
 			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 
