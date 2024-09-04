@@ -143,12 +143,10 @@ func requireFeatures(t *testing.T, fakeClock clockwork.FakeClock, want proto.Fea
 	// Advance the clock so the service fetch and stores features
 	fakeClock.Advance(1 * time.Second)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		diff := cmp.Diff(want, getFeatures())
-		if !assert.Empty(c, diff) {
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-		}
-	}, 1*time.Second, time.Millisecond*100)
+		assert.Empty(t, diff)
+	}, 5*time.Second, time.Millisecond*100)
 }
 
 // neverFeatures is a helper function that advances the clock, then

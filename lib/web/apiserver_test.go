@@ -4704,17 +4704,15 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are eventually enabled.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(c, err)
-		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(c, err)
+		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		if assert.Empty(c, diff) {
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-		}
+		assert.Empty(t, diff)
 
 	}, time.Second*5, time.Millisecond*50)
 
@@ -4742,17 +4740,15 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	// request and verify again
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(c, err)
-		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(c, err)
+		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		if assert.Empty(c, diff) {
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-		}
+		assert.Empty(t, diff)
 
 	}, time.Second*5, time.Millisecond*50)
 }
@@ -4827,25 +4823,21 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	}
 
 	clt := env.proxies[0].newClient(t)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		t.Helper()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Make a request.
 		endpoint := clt.Endpoint("web", "config.js")
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(c, err)
-		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		assert.NoError(t, err)
+		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
 		// Response is type application/javascript, we need to strip off the variable name
 		// and the semicolon at the end, then we are left with json like object.
 		var cfg webclient.WebConfig
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		assert.NoError(c, err)
+		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
-		if assert.Empty(c, diff) {
-			t.Logf("Feature diff (-want +got):\n%s", diff)
-		}
-
+		assert.Empty(t, diff)
 	}, time.Second*5, time.Millisecond*50)
 }
 
