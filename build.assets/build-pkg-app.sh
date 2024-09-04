@@ -164,9 +164,9 @@ or name of the key to sign packages"
   local target="$tmp/root/$PACKAGE_NAME.app"
   cp -r "$tmp/teleport/$PACKAGE_NAME.app" "$target"
 
-  local entitlements="$buildassets/macos/$TSH_SKELETON/$PACKAGE_NAME*.entitlements"
+  local entitlements="$buildassets/macos/$TSH_SKELETON/$TSH_SKELETON.entitlements"
   if [[ "$PACKAGE_NAME" == "tctl" ]]; then
-    entitlements="$buildassets/macos/$TCTL_SKELETON/$PACKAGE_NAME*.entitlements"
+    entitlements="$buildassets/macos/$TCTL_SKELETON/$TCTL_SKELETON.entitlements"
   fi
 
   # Sign app.
