@@ -10,7 +10,7 @@ PACKAGE_ARCH=amd64   # -a, default to amd64 for backward-compatibilty.
 PACKAGE_NAME=tsh     # -p, name of app, defaulted to tsh
 
 usage() {
-  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
+  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n] [-p tsh|tctl]"
 }
 
 # make_non_relocatable_plist changes the default component plist of the $root
@@ -64,6 +64,11 @@ main() {
         PACKAGE_ARCH="$OPTARG"
         ;;
       p)
+        if [[ "$OPTARG" != "tsh" && "$OPTARG" != "tctl" ]]; then
+          log "$0: invalid value for -$opt, want 'tsh' or 'tctl'"
+          usage
+          exit 1
+        fi
         PACKAGE_NAME="$OPTARG"
         ;;
       n)
@@ -159,11 +164,17 @@ or name of the key to sign packages"
   local target="$tmp/root/$PACKAGE_NAME.app"
   cp -r "$tmp/teleport/$PACKAGE_NAME.app" "$target"
 
+  local entitlements="$buildassets/macos/$TSH_SKELETON/$PACKAGE_NAME*.entitlements"
+  if [[ "$PACKAGE_NAME" == "tctl" ]]; then
+    entitlements="$buildassets/macos/$TCTL_SKELETON/$PACKAGE_NAME*.entitlements"
+  fi
+
   # Sign app.
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
     -i "$BUNDLEID" \
+    --entitlements "$entitlements" \
     --timestamp \
     "$target"
 
