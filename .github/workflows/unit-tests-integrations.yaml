@@ -11,6 +11,8 @@ on:
       - '/go.mod'
       - '/go.sum'
       - 'integrations/**'
+      - 'api/proto/**'
+      - 'proto/**'
       - 'api/types/**'
       - 'gen/**'
       - 'lib/tbot/**'
