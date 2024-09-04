@@ -323,7 +323,7 @@
     },
     {
       "source": "/agents/deploy-agents-terraform/",
-      "destination": "/enroll-resources/agents/deploy-agents-terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
       "permanent": true
     },
     {
