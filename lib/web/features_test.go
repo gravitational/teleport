@@ -33,26 +33,39 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
+
+// mockedPingTestProxy is a test proxy with a mocked Ping method
+// that returns the internal features
+type mockedFeatureGetter struct {
+	authclient.ClientI
+	features proto.Features
+}
+
+func (m *mockedFeatureGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return proto.PingResponse{
+		ServerFeatures: utils.CloneProtoMsg(&m.features),
+	}, nil
+}
+
+func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
+	m.features = f
+}
 
 func TestFeaturesWatcher(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	mockedFeatures := proto.Features{
+
+	mockClient := &mockedFeatureGetter{features: proto.Features{
 		Kubernetes:     true,
 		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
-	}
+	}}
 
 	handler := &Handler{
 		cfg: Config{
 			FeatureWatchInterval: 100 * time.Millisecond,
-			ProxyClient: &mockedPingTestProxy{
-				mockedPing: func(ctx context.Context) (proto.PingResponse, error) {
-					return proto.PingResponse{
-						ServerFeatures: &mockedFeatures,
-					}, nil
-				},
-			},
+			ProxyClient:          mockClient,
 		},
 		clock:              clock,
 		clusterFeatures:    proto.Features{},
@@ -85,7 +98,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
 	entitlements.BackfillFeatures(&features)
-	mockedFeatures = features
+	mockClient.setFeatures(features)
 	expected = utils.CloneProtoMsg(&features)
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
@@ -102,7 +115,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
 	entitlements.BackfillFeatures(&features)
-	mockedFeatures = features
+	mockClient.setFeatures(features)
 
 	expected = &proto.Features{
 		Kubernetes: true,
@@ -128,7 +141,7 @@ func TestFeaturesWatcher(t *testing.T) {
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}
 	entitlements.BackfillFeatures(&features)
-	mockedFeatures = features
+	mockClient.setFeatures(features)
 	expected = utils.CloneProtoMsg(&features)
 	// assert the handler never get these last features as the watcher is stopped
 	neverFeatures(t, clock, *expected, handler.GetClusterFeatures)
