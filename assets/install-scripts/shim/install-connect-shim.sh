@@ -27,6 +27,8 @@ download() {
     set +x
 }
 
+# get_version returns either the requested version, if available, or a default (16.2.0)
+# otherwise
 get_version() {
     REQUESTED=$1
     MIN=16.1.8 # minimum install script version
@@ -88,8 +90,7 @@ fetch_and_run() {
 
     set -x
     cd "$TEMP_DIR"
-    # shellcheck disable=SC2086
-    $SHA_COMMAND -c $TMP_CHECKSUM
+    $SHA_COMMAND -c "$TMP_CHECKSUM"
     cd -
     set +x
 

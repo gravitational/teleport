@@ -27,9 +27,11 @@ download() {
     set +x
 }
 
+# get_version returns either the requested version, if available, or a default (16.2.0)
+# otherwise
 get_version() {
     REQUESTED=$1
-    MIN=16.2.0 # minimum install script version
+    MIN=16.1.8 # minimum install script version
 
     IFS='.' read -r -a requested_parts <<<"$REQUESTED"
     IFS='.' read -r -a min_parts <<<"$MIN"
