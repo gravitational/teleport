@@ -181,6 +181,10 @@ type AuthPreference interface {
 
 	// Clone makes a deep copy of the AuthPreference.
 	Clone() AuthPreference
+
+	// GetOwners returns the list of owner usernames
+	// todo mberg
+	GetOwners() []string
 }
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.

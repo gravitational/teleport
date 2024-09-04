@@ -61,7 +61,7 @@ type AccessChecker interface {
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
-	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string) error
+	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, u string) error
 
 	// CheckLoginDuration checks if role set can login up to given duration and
 	// returns a combined list of allowed logins.

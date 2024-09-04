@@ -3046,10 +3046,27 @@ func (p boolParser) Parse(string) (interface{}, error) {
 // CheckAccessToRule checks if the RoleSet provides access in the given
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, currentUser string) error {
 	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	clusterAuthPref, err := ctx.GetAuthPreference()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	isOwner := false
+	for _, o := range clusterAuthPref.GetOwners() {
+		if o == currentUser {
+			isOwner = true
+		}
+	}
+
+	if isOwner && (resource == types.KindUser || resource == types.KindRole) {
+		// grant owner access
+		return nil
 	}
 
 	return set.checkAccessToRuleImpl(checkAccessParams{

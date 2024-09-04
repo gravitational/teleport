@@ -47,6 +47,9 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
+	// GetAuthPreference
+	// todo mberg
+	GetAuthPreference() (types.AuthPreference, error)
 }
 
 var (
