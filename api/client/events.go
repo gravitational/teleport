@@ -22,6 +22,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -103,6 +104,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *provisioningv1.PrincipalState:
 			out.Resource = &proto.Event_PrincipalState{
 				PrincipalState: r,
+			}
+		case *identitycenterv1.Account:
+			out.Resource = &proto.Event_IdentityCenterAccount{
+				IdentityCenterAccount: r,
+			}
+		case *identitycenterv1.PrincipalAssignment:
+			out.Resource = &proto.Event_PrincipalAssignment{
+				PrincipalAssignment: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -548,6 +557,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetPrincipalState(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetPrincipalAssignment(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

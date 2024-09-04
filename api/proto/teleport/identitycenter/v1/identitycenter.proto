@@ -65,6 +65,10 @@ message AccountSpec {
 
   // PermissionSets...
   repeated PermissionSetRef permission_sets = 6;
+
+  // IsOrganizationOwner indicates that this account is the organisation owner,
+  // and may have restrictions about adding permission sets
+  bool is_organization_owner = 7;
 }
 
 // PermissionSet identifies a single permission set by name and ARN
@@ -177,4 +181,5 @@ message PrincipalAssignmentStatus {
   State state = 1;
   repeated AccountAssignment assignments = 2;
   repeated string applications = 3;
+  string error = 4;
 }

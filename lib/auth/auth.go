@@ -337,7 +337,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		svcCfg := local.IdentityCenterServiceConfig{
 			Backend: cfg.Backend,
 			Mode:    local.IdentityCenterServiceModeStrict,
-			Logger:  slog.Default().With(),
 		}
 		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
 		if err != nil {

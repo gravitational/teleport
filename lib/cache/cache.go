@@ -534,7 +534,7 @@ type Cache struct {
 	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
 	provisioningStatesCache      services.ProvisioningStates
-	identityCenterCache          services.IdentityCenter
+	identityCenterCache          *local.IdentityCenterService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool

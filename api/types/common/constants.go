@@ -75,13 +75,14 @@ const (
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{
-	OriginDefaults,
-	OriginConfigFile,
-	OriginDynamic,
+	OriginAWSIdentityCenter,
 	OriginCloud,
+	OriginConfigFile,
+	OriginDefaults,
+	OriginDiscoveryKubernetes,
+	OriginDynamic,
+	OriginEntraID,
 	OriginKubernetes,
 	OriginOkta,
 	OriginSCIM,
-	OriginDiscoveryKubernetes,
-	OriginEntraID,
 }

@@ -1475,16 +1475,10 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = sortedServiceProviders.AsResources()
 	case types.KindIdentityCenterAccount:
 		// unused at the moment.
-		ac, err := s.GetIdentityCenterAccount(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		sortedICAccounts := services.IdentityCenterAccounts2(ac)
-		if err := sortedICAccounts.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = sortedICAccounts.AsResources()
+		// ac, err := s.GetIdentityCenterAccount(ctx)
+		// if err != nil {
+		// 	return nil, trace.Wrap(err)
+		// }
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
 	}

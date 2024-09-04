@@ -45,20 +45,20 @@ func (identityCenterAccountExecutor) getAll(ctx context.Context, cache *Cache, l
 }
 
 func (identityCenterAccountExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccount) error {
-	_, err := cache.IdentityCenter.CreateIdentityCenterAccount(ctx, resource.Account)
+	_, err := cache.identityCenterCache.CreateIdentityCenterAccount(ctx, resource.Account)
 	if trace.IsAlreadyExists(err) {
-		_, err = cache.IdentityCenter.UpdateIdentityCenterAccount(ctx, resource.Account)
+		_, err = cache.identityCenterCache.UpdateIdentityCenterAccount(ctx, resource.Account)
 	}
 	return trace.Wrap(err)
 }
 
 func (identityCenterAccountExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.IdentityCenter.DeleteIdentityCenterAccount(ctx,
+	return trace.Wrap(cache.identityCenterCache.DeleteIdentityCenterAccount(ctx,
 		services.IdentityCenterAccountID(resource.GetName())))
 }
 
 func (identityCenterAccountExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.IdentityCenter.DeleteAllIdentityCenterAccounts(ctx))
+	return trace.Wrap(cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx))
 }
 
 func (identityCenterAccountExecutor) getReader(cache *Cache, cacheOK bool) identityCenterAccountGetter {
@@ -109,20 +109,20 @@ func (principalAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loa
 }
 
 func (principalAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource *identitycenterv1.PrincipalAssignment) error {
-	_, err := cache.IdentityCenter.CreatePrincipalAssignment(ctx, resource)
+	_, err := cache.identityCenterCache.CreatePrincipalAssignment(ctx, resource)
 	if trace.IsAlreadyExists(err) {
-		_, err = cache.IdentityCenter.UpdatePrincipalAssignment(ctx, resource)
+		_, err = cache.identityCenterCache.UpdatePrincipalAssignment(ctx, resource)
 	}
 	return trace.Wrap(err)
 }
 
 func (principalAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return trace.Wrap(cache.IdentityCenter.DeletePrincipalAssignment(ctx,
+	return trace.Wrap(cache.identityCenterCache.DeletePrincipalAssignment(ctx,
 		services.PrincipalAssignmentID(resource.GetName())))
 }
 
 func (principalAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return trace.Wrap(cache.IdentityCenter.DeleteAllPrincipalAssignments(ctx))
+	return trace.Wrap(cache.identityCenterCache.DeleteAllPrincipalAssignments(ctx))
 }
 
 func (principalAssignmentExecutor) getReader(cache *Cache, cacheOK bool) principalAssignmentGetter {

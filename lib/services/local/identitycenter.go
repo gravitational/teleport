@@ -46,11 +46,10 @@ const (
 )
 
 const (
-	awsICPrefix                   = "identity_center"
-	awsAccountPrefix              = awsICPrefix + "/accounts"
-	awsPermissionSetPrefix        = awsICPrefix + "/permission_sets"
-	awsPermissionSetBindingPrefix = awsICPrefix + "/permission_set_bindings"
-	awsPrincipalAssignmentPrefix  = awsICPrefix + "/principal_assignments"
+	awsICPrefix                  = "identity_center"
+	awsAccountPrefix             = awsICPrefix + "/accounts"
+	awsPermissionSetPrefix       = awsICPrefix + "/permission_sets"
+	awsPrincipalAssignmentPrefix = awsICPrefix + "/principal_assignments"
 )
 
 type IdentityCenterServiceConfig struct {
@@ -82,11 +81,10 @@ func (cfg *IdentityCenterServiceConfig) CheckAndSetDefaults() error {
 // IdentityCenterService handles low-level CRUD operations for the identity-
 // center related resources
 type IdentityCenterService struct {
-	accounts              *generic.ServiceWrapper[*identitycenterv1.Account]
-	permissionSets        *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
-	permissionSetBindings *generic.ServiceWrapper[*identitycenterv1.PermissionSetBinding]
-	assignments           *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
-	mode                  IdentityServiceMode
+	accounts       *generic.ServiceWrapper[*identitycenterv1.Account]
+	permissionSets *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
+	assignments    *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
+	mode           IdentityServiceMode
 }
 
 var _ services.IdentityCenter = (*IdentityCenterService)(nil)
@@ -118,16 +116,6 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating permission sets service")
 	}
 
-	permissionSetBindingsSvc, err := generic.NewServiceWrapper(
-		cfg.Backend,
-		types.KindIdentityCenterPermissionSetBinding,
-		awsPermissionSetBindingPrefix,
-		services.MarshalPermissionSetBinding,
-		services.UnmarshalPermissionSetBinding)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating permission set bindings service")
-	}
-
 	assignmentsSvc, err := generic.NewServiceWrapper(
 		cfg.Backend,
 		types.KindIdentityCenterPrincipalAssignment,
@@ -139,11 +127,10 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 	}
 
 	svc := &IdentityCenterService{
-		mode:                  cfg.Mode,
-		accounts:              accountsSvc,
-		permissionSets:        permissionSetSvc,
-		permissionSetBindings: permissionSetBindingsSvc,
-		assignments:           assignmentsSvc,
+		mode:           cfg.Mode,
+		accounts:       accountsSvc,
+		permissionSets: permissionSetSvc,
+		assignments:    assignmentsSvc,
 	}
 
 	return svc, nil
@@ -309,53 +296,4 @@ func (svc *IdentityCenterService) UpdatePermissionSet(ctx context.Context, asmt 
 
 func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name services.PermissionSetID) error {
 	return trace.Wrap(svc.permissionSets.DeleteResource(ctx, string(name)))
-}
-
-func (svc *IdentityCenterService) ListPermissionSetBindings(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.PermissionSetBinding, pagination.NextPageToken, error) {
-	resp, nextPage, err := svc.permissionSetBindings.ListResources(ctx, identityCenterPageSize, string(page))
-	if err != nil {
-		return nil, "", trace.Wrap(err, "listing identity center permission set binding records")
-	}
-	return resp, pagination.NextPageToken(nextPage), nil
-}
-
-func (svc *IdentityCenterService) CreatePermissionSetBinding(ctx context.Context, binding *identitycenterv1.PermissionSetBinding) (*identitycenterv1.PermissionSetBinding, error) {
-	created, err := svc.permissionSetBindings.CreateResource(ctx, binding)
-	if err != nil {
-		return nil, trace.Wrap(err, "creating identity center permission set binding")
-	}
-	return created, nil
-}
-
-func (svc *IdentityCenterService) GetPermissionSetBinding(ctx context.Context, name services.PermissionSetBindingID) (*identitycenterv1.PermissionSetBinding, error) {
-	binding, err := svc.permissionSetBindings.GetResource(ctx, string(name))
-	if err != nil {
-		return nil, trace.Wrap(err, "fetching permission set")
-	}
-	return binding, nil
-}
-
-func (svc *IdentityCenterService) UpdatePermissionSetBinding(ctx context.Context, binding *identitycenterv1.PermissionSetBinding) (*identitycenterv1.PermissionSetBinding, error) {
-	var updatedBinding *identitycenterv1.PermissionSetBinding
-	var err error
-
-	switch svc.mode {
-	case IdentityCenterServiceModeStrict:
-		updatedBinding, err = svc.permissionSetBindings.ConditionalUpdateResource(ctx, binding)
-
-	case IdentityCenterServiceModeRelaxed:
-		updatedBinding, err = svc.permissionSetBindings.UpdateResource(ctx, binding)
-
-	default:
-		return nil, trace.BadParameter("invalid service mode: %v", svc.mode)
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err, "updating permission set record")
-	}
-	return updatedBinding, nil
-}
-
-func (svc *IdentityCenterService) DeletePermissionSetBinding(ctx context.Context, name services.PermissionSetBindingID) error {
-	return trace.Wrap(svc.permissionSetBindings.DeleteResource(ctx, string(name)))
 }

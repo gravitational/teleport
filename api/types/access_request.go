@@ -133,6 +133,8 @@ type AccessRequest interface {
 	SetDryRun(bool)
 	// Copy returns a copy of the access request resource.
 	Copy() AccessRequest
+
+	GetRequestedAccountAssignments() []*IdentityCenterAccountAssignment
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -471,6 +473,10 @@ func (r *AccessRequestV3) SetRevision(rev string) {
 // GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
 	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
+}
+
+func (r *AccessRequestV3) GetRequestedAccountAssignments() []*IdentityCenterAccountAssignment {
+	return append([]*IdentityCenterAccountAssignment{}, r.Spec.RequestedAccountAssignments...)
 }
 
 // SetRequestedResourceIDs sets the resource IDs to which access is being requested.
