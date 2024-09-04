@@ -507,4 +507,8 @@ const (
 	EnvVarTerraformJoinMethod = "TF_TELEPORT_JOIN_METHOD"
 	// EnvVarTerraformJoinToken is the environment variable configuring the Terraform provider native MachineID join token.
 	EnvVarTerraformJoinToken = "TF_TELEPORT_JOIN_TOKEN"
+	// EnvVarTerraformCloudJoinAudienceTag is the environment variable configuring the Terraform provider's native Machine ID
+	// joining. The audience tag specifies the optional suffix for the TF_WORKLOAD_IDENTITY_AUDIENCE variable when
+	// specifically using the `terraform` join method.
+	EnvVarTerraformCloudJoinAudienceTag = "TF_TELEPORT_JOIN_AUDIENCE_TAG"
 )

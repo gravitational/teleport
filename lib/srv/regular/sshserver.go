@@ -300,7 +300,8 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // GetCreateHostUser determines whether users should be created on the
 // host automatically
 func (s *Server) GetCreateHostUser() bool {
-	return s.createHostUser
+	// we shouldn't allow creating host users on a proxy server
+	return !s.proxyMode && s.createHostUser
 }
 
 // GetHostUsers returns the HostUsers instance being used to manage
@@ -312,6 +313,11 @@ func (s *Server) GetHostUsers() srv.HostUsers {
 // GetHostSudoers returns the HostSudoers instance being used to manage
 // sudoers file provisioning
 func (s *Server) GetHostSudoers() srv.HostSudoers {
+	// we shouldn't allow modifying sudoers on a proxy server
+	if s.proxyMode {
+		return nil
+	}
+
 	if s.sudoers == nil {
 		return &srv.HostSudoersNotImplemented{}
 	}

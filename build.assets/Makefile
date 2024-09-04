@@ -592,9 +592,11 @@ release: $(BUILDBOX_TARGET)
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 
-.PHONY: release-ng-amd64 release-ng-arm64 release-ng-386 release-ng-arm
+.PHONY: release-ng-amd64 release-ng-amd64-fips release-ng-arm64 release-ng-386 release-ng-arm
 release-ng-amd64:
 	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes
+release-ng-amd64-fips:
+	$(MAKE) release-ng ARCH=amd64 FIDO2=yes PIV=yes FIPS=yes RELEASE_TARGET=release-ent
 release-ng-arm64:
 	$(MAKE) release-ng ARCH=arm64 FIDO2=yes PIV=yes
 release-ng-386:
@@ -603,19 +605,21 @@ release-ng-arm:
 	$(MAKE) release-ng ARCH=arm
 
 .PHONY: release-ng
+release-ng: RELEASE_TARGET = release-unix-preserving-webassets
 release-ng: webassets buildbox-ng
 	docker run --rm --interactive $(shell test -t 0 && echo --tty) \
 		--volume $(shell pwd)/..:/home/teleport \
 		--workdir /home/teleport \
 		--user $(shell id -u):$(shell id -g) \
 		$(BUILDBOX_NG) \
-		make -e release-unix-preserving-webassets \
+		make -e $(RELEASE_TARGET) \
 			ADDFLAGS="$(ADDFLAGS)" \
 			OS="$(OS)" \
 			ARCH="$(ARCH)" \
 			RUNTIME="$(GOLANG_VERSION)" \
 			FIDO2="$(FIDO2)" \
 			PIV="$(PIV)" \
+			FIPS="$(FIPS)" \
 			REPRODUCIBLE=yes
 
 #

@@ -363,13 +363,8 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 	}
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
-		OutputPath: a.output,
-		KeyRing: &client.KeyRing{
-			// the godocs say the map key is the desktop server name,
-			// but in this case we're just generating a cert that's not
-			// specific to a particular desktop
-			WindowsDesktopCerts: map[string][]byte{a.windowsUser: certDER},
-		},
+		OutputPath:           a.output,
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
