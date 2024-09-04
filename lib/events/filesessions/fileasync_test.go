@@ -138,6 +138,7 @@ func TestMovesCorruptedUploads(t *testing.T) {
 	sessionID := session.NewID()
 	uploadPath := filepath.Join(scanDir, sessionID.String()+".tar")
 	errorPath := filepath.Join(scanDir, sessionID.String()+".error")
+	badFilePath := filepath.Join(scanDir, "not-a-uuid.tar")
 
 	// create a "corrupted" upload and error file in the scan dir
 	b := make([]byte, 4096)
@@ -145,10 +146,15 @@ func TestMovesCorruptedUploads(t *testing.T) {
 	require.NoError(t, os.WriteFile(uploadPath, b, 0o600))
 	require.NoError(t, uploader.writeSessionError(sessionID, errors.New("this is a corrupted upload")))
 
+	// create a file with an invalid name (not a session ID)
+	badFile, err := os.Create(badFilePath)
+	require.NoError(t, err)
+	require.NoError(t, badFile.Close())
+
 	stats, err := uploader.Scan(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, stats.Scanned)
-	require.Equal(t, 1, stats.Corrupted)
+	require.Equal(t, 2, stats.Scanned)
+	require.Equal(t, 2, stats.Corrupted)
 	require.Equal(t, 0, stats.Started)
 
 	require.NoFileExists(t, uploadPath)
@@ -157,11 +163,13 @@ func TestMovesCorruptedUploads(t *testing.T) {
 	require.FileExists(t, filepath.Join(corruptedDir, filepath.Base(uploadPath)))
 	require.FileExists(t, filepath.Join(corruptedDir, filepath.Base(errorPath)))
 
-	// run a second scan to verify that the file is no longer processed
+	// run a second scan to verify that:
+	// 1. the corrupted file is no longer processed
+	// 2. the file with the bad name was still flagged as corrupted
 	stats, err = uploader.Scan(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 0, stats.Scanned)
-	require.Equal(t, 0, stats.Corrupted)
+	require.Equal(t, 1, stats.Scanned)
+	require.Equal(t, 1, stats.Corrupted)
 	require.Equal(t, 0, stats.Started)
 }
 
