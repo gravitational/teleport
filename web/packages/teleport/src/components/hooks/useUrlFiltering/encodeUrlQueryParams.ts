@@ -18,14 +18,21 @@
 
 import { SortType } from 'design/DataTable/types';
 
-export function encodeUrlQueryParams(
-  pathname: string,
-  searchString: string,
-  sort: SortType | null,
-  kinds: string[] | null,
-  isAdvancedSearch: boolean,
-  pinnedOnly: boolean
-) {
+export function encodeUrlQueryParams({
+  pathname,
+  searchString = '',
+  sort,
+  kinds,
+  isAdvancedSearch = false,
+  pinnedOnly = false,
+}: {
+  pathname: string;
+  searchString?: string;
+  sort?: SortType | null;
+  kinds?: string[] | null;
+  isAdvancedSearch?: boolean;
+  pinnedOnly?: boolean;
+}) {
   const urlParams = new URLSearchParams();
 
   if (searchString) {
