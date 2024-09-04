@@ -31,6 +31,7 @@ import { BoxProps } from 'design/Box';
 import type {
   NotificationItem,
   NotificationItemContent,
+  NotificationItemObjectContent,
   NotificationSeverity,
 } from './types';
 
@@ -66,6 +67,7 @@ const autoRemoveDurationMs = 5_000; // 5s
 
 export function Notification(props: NotificationProps) {
   const { item, onRemove, ...styleProps } = props;
+  const content = toObjectContent(item.content);
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const timeoutHandler = useRef<number>();
@@ -120,7 +122,7 @@ export function Notification(props: NotificationProps) {
             severity={item.severity}
             size="medium"
             color={iconColor}
-            customIcon={icon(item.content)}
+            customIcon={content.icon}
           />
           {/* Right margin leaves room for the close button. Note that we
               wouldn't have to do it if the close button was in layout, but we
@@ -128,11 +130,11 @@ export function Notification(props: NotificationProps) {
               then occupy too much vertical space where it used to be, causing
               other problems. */}
           <Box flex="1" mr={4}>
-            <Text typography="h3">{title(item.content)}</Text>
-            <Text typography="body3">{subtitle(item.content)}</Text>
+            <Text typography="h3">{content.title}</Text>
+            <Text typography="body3">{content.subtitle}</Text>
           </Box>
         </Flex>
-        <NotificationBody content={item.content} isExpanded={isExpanded} />
+        <NotificationBody content={content} isExpanded={isExpanded} />
       </Flex>
       <CloseIcon
         style={{
@@ -177,14 +179,10 @@ const NotificationIcon = ({
   }
 };
 
-const title = (content: NotificationItemContent) =>
-  typeof content === 'string' ? content : content.title;
-
-const subtitle = (content: NotificationItemContent) =>
-  typeof content === 'string' ? undefined : content.subtitle;
-
-const icon = (content: NotificationItemContent) =>
-  typeof content === 'string' ? undefined : content.icon;
+const toObjectContent = (
+  content: NotificationItemContent
+): NotificationItemObjectContent =>
+  typeof content === 'string' ? { description: content } : content;
 
 const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {
@@ -230,14 +228,10 @@ const NotificationBody = ({
   content,
   isExpanded,
 }: {
-  content: NotificationItemContent;
+  content: NotificationItemObjectContent;
   isExpanded: boolean;
 }) => {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
-
-  if (typeof content === 'string') {
-    return undefined;
-  }
 
   return (
     <>

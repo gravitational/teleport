@@ -36,7 +36,7 @@ export interface NotificationItem {
 export type NotificationItemContent = string | NotificationItemObjectContent;
 
 export type NotificationItemObjectContent = {
-  title: string;
+  title?: string;
   subtitle?: string;
   list?: string[];
   description?: string;
