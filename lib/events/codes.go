@@ -384,8 +384,6 @@ const (
 	RecoveryTokenCreateCode = "T6001I"
 	// PrivilegeTokenCreateCode is the privilege token create event code.
 	PrivilegeTokenCreateCode = "T6002I"
-	// PrivilegeTokenCreateCode is the privilege token create event code.
-	SSOMFATokenCreateCode = "T6003I"
 
 	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
 	TrustedClusterCreateCode = "T7000I"

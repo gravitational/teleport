@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1635,6 +1636,65 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *webauthntypes.SSOMFASessionData) error {
+	switch {
+	case sd == nil:
+		return trace.BadParameter("missing parameter sd")
+	case sd.TokenID == "":
+		return trace.BadParameter("missing parameter ID")
+	case sd.RequestID == "":
+		return trace.BadParameter("missing parameter RequestID")
+	case sd.ConnectorID == "":
+		return trace.BadParameter("missing parameter ConnectorID")
+	case sd.ConnectorType == "":
+		return trace.BadParameter("missing parameter ConnectorType")
+	case sd.Username == "":
+		return trace.BadParameter("missing parameter Username")
+	}
+
+	value, err := json.Marshal(sd)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = s.Put(ctx, backend.Item{
+		Key:     ssoMFASessionDataKey(sd.Username, sd.TokenID),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
+	})
+	return trace.Wrap(err)
+}
+
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, user, sessionID string) (*webauthntypes.SSOMFASessionData, error) {
+	switch {
+	case user == "":
+		return nil, trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return nil, trace.BadParameter("missing parameter sessionID")
+	}
+
+	item, err := s.Get(ctx, ssoMFASessionDataKey(user, sessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sd := &webauthntypes.SSOMFASessionData{}
+	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
+}
+
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, user, sessionID string) error {
+	switch {
+	case user == "":
+		return trace.BadParameter("missing parameter user")
+	case sessionID == "":
+		return trace.BadParameter("missing parameter sessionID")
+	}
+
+	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(user, sessionID)))
+}
+
+func ssoMFASessionDataKey(user, sessionID string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, ssoMFASessionData, sessionID)
+}
+
 // UpsertGithubConnector creates or updates a Github connector
 func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error) {
 	if err := services.CheckAndSetDefaults(connector); err != nil {
@@ -1918,4 +1978,5 @@ const (
 	recoveryCodesPrefix       = "recoverycodes"
 	attestationsPrefix        = "key_attestations"
 	userPreferencesPrefix     = "user_preferences"
+	ssoMFASessionData         = "ssomfasessiondata"
 )

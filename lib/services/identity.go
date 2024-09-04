@@ -246,6 +246,19 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
+	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
+	// storage, for the purpose of later verifying an MFA authentication attempt.
+	// SSO MFA session data is expected to expire according to backend settings.
+	UpsertSSOMFASessionData(ctx context.Context, sd *wantypes.SSOMFASessionData) error
+
+	// GetSSOMFASessionData retrieves a previously-stored SSO MFA session data by ID,
+	// if it exists and has not expired.
+	GetSSOMFASessionData(ctx context.Context, user, sessionID string) (*wantypes.SSOMFASessionData, error)
+
+	// DeleteSSOMFASessionData deletes SSO MFA session data by ID, if it exists
+	// and has not expired.
+	DeleteSSOMFASessionData(ctx context.Context, user, sessionID string) error
+
 	// CreateUserToken creates a new user token.
 	CreateUserToken(ctx context.Context, token types.UserToken) (types.UserToken, error)
 

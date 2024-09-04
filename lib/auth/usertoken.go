@@ -29,14 +29,13 @@ import (
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 
-	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -456,61 +455,26 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind s
 	return convertedToken, nil
 }
 
-func (a *Server) CreateSSOMFAToken(ctx context.Context, username, connectorType, connectorName string) (*types.UserTokenV3, error) {
-	req := authclient.CreateUserTokenRequest{
-		Name: username,
-		Type: authclient.UserTokenTypeSSOMFA,
-	}
-
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	newToken, err := a.newUserToken(req)
+func (a *Server) CreateSSOMFASession(ctx context.Context, reqID, username, connectorType, connectorID string, ext *mfav1.ChallengeExtensions) (string, error) {
+	tokenID, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	// Tie the token to the Auth connector that created it. This will be used
-	// to populate audit events and perform additional validation checks.
-	newToken.SetCreatedBy(types.CreatedBy{
-		User: types.UserRef{
-			Name: teleport.UserSystem,
-		},
-		Time: a.clock.Now(),
-		Connector: &types.ConnectorRef{
-			Type:     connectorType,
-			ID:       connectorName,
-			Identity: username,
-		},
-	})
-
-	token, err := a.CreateUserToken(ctx, newToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sd := &webauthntypes.SSOMFASessionData{
+		TokenID:             tokenID,
+		RequestID:           reqID,
+		Username:            username,
+		ConnectorID:         connectorID,
+		ConnectorType:       connectorType,
+		ChallengeExtensions: ext,
 	}
 
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
-		Metadata: apievents.Metadata{
-			Type: events.SSOMFATokenCreateEvent,
-			Code: events.SSOMFATokenCreateCode,
-		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:    req.Name,
-			TTL:     req.TTL.String(),
-			Expires: a.GetClock().Now().UTC().Add(req.TTL),
-		},
-	}); err != nil {
-		log.WithError(err).Warn("Failed to emit create privilege token event.")
+	if err := a.UpsertSSOMFASessionData(ctx, sd); err != nil {
+		return "", trace.Wrap(err)
 	}
 
-	convertedToken, ok := token.(*types.UserTokenV3)
-	if !ok {
-		return nil, trace.BadParameter("unexpected UserToken type %T", token)
-	}
-
-	return convertedToken, nil
+	return tokenID, nil
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.
