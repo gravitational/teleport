@@ -141,7 +141,8 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
-  | 'entra-id';
+  | 'entra-id'
+  | 'datadog';
 
 export type PluginStatus<S = any> = {
   name: string;
