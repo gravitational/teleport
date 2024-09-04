@@ -4704,9 +4704,9 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are eventually enabled.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err = clt.Get(ctx, endpoint, nil)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
 		str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
 		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
