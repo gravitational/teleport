@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -95,6 +96,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -111,6 +113,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -138,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -10152,6 +10156,197 @@ func Test_consumeTokenForAPICall(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGithubAuthCompat asserts that the proxy can handle github login flows
+// from tsh clients that send split keys in the new format, or only a single key
+// in the old format.
+func TestGithubAuthCompat(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	env.server.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
+		return &auth.GithubUserResponse{
+				Login: "alice",
+			}, []auth.GithubTeamResponse{{
+				Name: "devs",
+				Slug: "devs",
+				Org:  auth.GithubOrgResponse{Login: "octocats"},
+			}}, nil
+	}
+
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "octocats",
+				Team:         "devs",
+				Roles:        []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertGithubConnector(ctx, connector)
+	require.NoError(t, err)
+
+	access, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, access)
+	require.NoError(t, err)
+
+	clt := env.proxies[0].newClient(t)
+
+	// The response in the callback will be encrypted with this key.
+	secretKey, err := secret.NewKey()
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectLoginError             string
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc:             "no keys",
+			expectLoginError: "Failed to login",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Initiate the github SSO login.
+			loginResponse, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "github", "login", "console"), client.SSOLoginConsoleReq{
+				RedirectURL: (&url.URL{
+					Scheme:   "http",
+					Host:     "localhost",
+					Path:     "callback",
+					RawQuery: url.Values{"secret_key": []string{secretKey.String()}}.Encode(),
+				}).String(),
+				ConnectorID: "github",
+				SSOUserPublicKeys: client.SSOUserPublicKeys{
+					PublicKey: tc.pubKey,
+					SSHPubKey: tc.sshPubKey,
+					TLSPubKey: tc.tlsPubKey,
+				},
+				CertTTL: time.Hour,
+			})
+			if tc.expectLoginError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectLoginError)
+				return
+			}
+			require.NoError(t, err)
+
+			// Retrieve the state token from the redirect URL in the response.
+			stateToken := stateTokenFromConsoleLoginResponse(t, loginResponse.Bytes())
+
+			// Send the callback to the proxy to complete the login.
+			callbackResponse, err := clt.Get(ctx, clt.Endpoint("webapi", "github", "callback"), url.Values{
+				"state": []string{stateToken},
+				"code":  []string{"success"},
+			})
+			require.NoError(t, err)
+
+			// Retrieve the login response from the callback response HTML.
+			sshLoginResponse := sshLoginResponseFromCallbackResponse(t, callbackResponse.Reader(), secretKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := apisshutils.ParseCertificate(sshLoginResponse.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, sshLoginResponse.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(sshLoginResponse.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, sshLoginResponse.TLSCert)
+			}
+		})
+	}
+}
+
+func stateTokenFromConsoleLoginResponse(t *testing.T, responseBody []byte) string {
+	var loginResp client.SSOLoginConsoleResponse
+	require.NoError(t, json.Unmarshal(responseBody, &loginResp))
+	u, err := url.Parse(loginResp.RedirectURL)
+	require.NoError(t, err, "parsing login redirect URL")
+	q, err := url.ParseQuery(u.RawQuery)
+	require.NoError(t, err, "parsing login redirect URL query params")
+	require.Contains(t, q, "state", "redirect query did not contain state token")
+	return q["state"][0]
+}
+
+// The login response we're after with the certs in it is:
+// - JSON
+// - encrypted with [secretKey]
+// - in a query param
+// - in a redirect URL
+// - in an HTML document
+func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.SSHLoginResponse {
+	// First pull the URL from the HTML meta redirect.
+	redirectURL, err := app.GetURLFromMetaRedirect(responseBody)
+	require.NoError(t, err)
+
+	// Then get the encrypted JSON out of the query param.
+	u, err := url.Parse(redirectURL)
+	require.NoError(t, err)
+	require.Contains(t, u.Query(), "response", "redirect query did not contain response")
+	ciphertext := u.Query().Get("response")
+
+	// Then unencrypt.
+	callbackPlaintext, err := secretKey.Open([]byte(ciphertext))
+	require.NoError(t, err, "unencrypting github callback response")
+
+	// Then unmarshal the JSON.
+	var sshLoginResponse authclient.SSHLoginResponse
+	require.NoError(t, json.Unmarshal(callbackPlaintext, &sshLoginResponse))
+	return &sshLoginResponse
 }
 
 func TestGithubConnector(t *testing.T) {

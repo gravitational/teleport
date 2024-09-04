@@ -1008,6 +1008,10 @@ type Server struct {
 	// directly by [Server].
 	// Used for testing.
 	bcryptCostOverride *int
+
+	// GithubUserAndTeamsOverride overrides the user and teams that would
+	// normally be fetched from the GitHub API. Used for testing.
+	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
