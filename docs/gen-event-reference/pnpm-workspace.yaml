@@ -1,0 +1,2 @@
+# This file only exists to declare a separate pnpm workspace so installations
+# don't affect the main Teleport pnpm-lock.yaml.
