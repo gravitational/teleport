@@ -391,7 +391,7 @@ function TokenDelete({
           <Text bold as="span">
             {` ${token.safeName}`}
           </Text>
-          This will not remove any resources that used this token to join the
+          . This will not remove any resources that used this token to join the
           cluster. This will remove the ability for any new resources or
           resources using non-renewable certificates from joining with this
           token.
