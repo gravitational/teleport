@@ -76,9 +76,6 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
-	types.NewRule(types.KindOIDCRequest, RW()),
-	types.NewRule(types.KindSAMLRequest, RW()),
-	types.NewRule(types.KindGithubRequest, RW()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
