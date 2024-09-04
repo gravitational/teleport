@@ -190,6 +190,7 @@ export function RequestCheckout<T extends PendingListItem>({
         <ArrowBack
           size="large"
           mr={3}
+          data-testid="close-checkout"
           onClick={onClose}
           style={{ cursor: 'pointer' }}
         />
