@@ -29,6 +29,7 @@ spec:
         - device
         - okta_import_rule
         - access_list
+        - installer
         verbs: ['list','create','read','update','delete']
 version: v6
 ---

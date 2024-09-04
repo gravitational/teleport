@@ -455,6 +455,21 @@ var (
 		Namespaced:             true,
 		ForceSetKind:           "apitypes.KindNode",
 	}
+
+	installer = payload{
+		Name:                   "Installer",
+		TypeName:               "InstallerV1",
+		VarName:                "installer",
+		GetMethod:              "GetInstaller",
+		CreateMethod:           "SetInstaller",
+		UpdateMethod:           "SetInstaller",
+		DeleteMethod:           "DeleteInstaller",
+		ID:                     `"installer"`,
+		Kind:                   "installer",
+		HasStaticID:            false,
+		TerraformResourceType:  "teleport_installer",
+		HasCheckAndSetDefaults: true,
+	}
 )
 
 func main() {
@@ -502,6 +517,8 @@ func genTFSchema() {
 	generateDataSource(accessList, pluralDataSource)
 	generateResource(server, pluralResource)
 	generateDataSource(server, pluralDataSource)
+	generateResource(installer, pluralResource)
+	generateDataSource(installer, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
@@ -574,6 +591,7 @@ var (
 		"trusted_cluster":            tfschema.GenSchemaTrustedClusterV2,
 		"user":                       tfschema.GenSchemaUserV2,
 		"server":                     tfschema.GenSchemaServerV2,
+		"installer":                  tfschema.GenSchemaInstallerV1,
 	}
 
 	// hiddenFields are fields that are not outputted to the reference doc.
