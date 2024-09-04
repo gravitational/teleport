@@ -650,9 +650,32 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := oas.auth.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
+	sshPubKey, tlsPubKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SshPublicKey,
+		req.TlsPublicKey,
+	)
+	if err != nil {
+		return nil, req.ClientLoginIP, trace.Wrap(err)
+	}
+	if len(sshPubKey) > 0 || len(tlsPubKey) > 0 {
+		sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+			keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+			keys.AttestationStatementFromProto(req.SshAttestationStatement),
+			keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+		)
+		sshCert, tlsCert, err := oas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
+			UserState:               userState,
+			SessionTTL:              params.SessionTTL,
+			SSHPubKey:               sshPubKey,
+			TLSPubKey:               tlsPubKey,
+			Compatibility:           req.Compatibility,
+			RouteToCluster:          req.RouteToCluster,
+			KubernetesCluster:       req.KubernetesCluster,
+			LoginIP:                 req.ClientLoginIP,
+			SSHAttestationStatement: sshAttestationStatement,
+			TLSAttestationStatement: tlsAttestationStatement,
+		})
 		if err != nil {
 			return nil, req.ClientLoginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}
@@ -682,7 +705,9 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 func OIDCAuthRequestFromProto(req *types.OIDCAuthRequest) authclient.OIDCAuthRequest {
 	return authclient.OIDCAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
+		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Returning deprecated field that may be expected by older clients.
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,

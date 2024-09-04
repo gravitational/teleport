@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -21,16 +22,20 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	directory "google.golang.org/api/admin/directory/v1"
 	"google.golang.org/api/cloudidentity/v1"
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/entitlements"
@@ -39,12 +44,15 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -171,11 +179,11 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false /* tls */)
+	idp := NewFakeOIDCIdP(t, false)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
@@ -187,7 +195,7 @@ func TestUserInfoBlockHTTP(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify HTTP endpoints return trace.NotFound.
-	_, err = claimsFromUserInfo(oidcClient.client, idp.s.URL, "")
+	_, err = claimsFromUserInfo(oidcClient.client, idp.S.URL, "")
 	fixtures.AssertNotFound(t, err)
 }
 
@@ -197,11 +205,11 @@ func TestUserInfoBadStatus(t *testing.T) {
 	t.Parallel()
 
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, true /* tls */)
+	idp := NewFakeOIDCIdP(t, true)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
@@ -211,7 +219,7 @@ func TestUserInfoBadStatus(t *testing.T) {
 	oidcClient := createInsecureOIDCClient(t, connector)
 
 	// Verify HTTP endpoints return trace.AccessDenied.
-	_, err = claimsFromUserInfo(oidcClient, idp.s.URL, "")
+	_, err = claimsFromUserInfo(oidcClient, idp.S.URL, "")
 	fixtures.AssertAccessDenied(t, err)
 }
 
@@ -327,7 +335,7 @@ func TestSSODiagnostic(t *testing.T) {
 			}
 
 			// Create configurable IdP to use in tests.
-			idp := newFakeIDP(t, false /* tls */)
+			idp := NewFakeOIDCIdP(t, false /* tls */)
 
 			// create role referenced in request.
 			_, err := auth.CreateRole(ctx, s.a, "access", types.RoleSpecV6{
@@ -339,7 +347,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 			// connector spec
 			spec := types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
+				IssuerURL:     idp.S.URL,
 				ClientID:      "00000000000000000000000000000000",
 				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 				Display:       "Test",
@@ -486,11 +494,11 @@ func TestPingProvider(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false /* tls */)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	// Create and upsert oidc connector into identity
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		Provider:      teleport.Ping,
@@ -508,7 +516,7 @@ func TestPingProvider(t *testing.T) {
 			SSOTestFlow: true,
 			ConnectorID: "test-connector",
 			ConnectorSpec: &types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
+				IssuerURL:     idp.S.URL,
 				ClientID:      "00000000000000000000000000000000",
 				ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 				Provider:      teleport.Ping,
@@ -535,11 +543,11 @@ func TestOIDCClientProviderSync(t *testing.T) {
 
 	ctx := context.Background()
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false /* tls */)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	// Create OIDC connector and client.
 	connector, err := types.NewOIDCConnector("test-connector", types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		Provider:      teleport.Ping,
@@ -597,9 +605,9 @@ func TestOIDCClientCache(t *testing.T) {
 	s := setUpSuite(t)
 
 	// Create configurable IdP to use in tests.
-	idp := newFakeIDP(t, false /* tls */)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 	connectorSpec := types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "00000000000000000000000000000000",
 		ClientSecret:  "0000000000000000000000000000000000000000000000000000000000000000",
 		Provider:      teleport.Ping,
@@ -634,7 +642,7 @@ func TestOIDCClientCache(t *testing.T) {
 		{
 			desc: "IssuerURL",
 			mutateConnector: func(conn types.OIDCConnector) {
-				conn.SetIssuerURL(newFakeIDP(t, false /* tls */).s.URL)
+				conn.SetIssuerURL(NewFakeOIDCIdP(t, false /* tls */).S.URL)
 			},
 			clientAssertion: require.NotSame,
 		},
@@ -688,50 +696,6 @@ func TestOIDCClientCache(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
-}
-
-// fakeIDP is a configurable OIDC IdP that can be used to mock responses in
-// tests. At the moment it creates an HTTP server and only responds to the
-// "/.well-known/openid-configuration" endpoint.
-type fakeIDP struct {
-	s *httptest.Server
-}
-
-// newFakeIDP creates a new instance of a configurable IdP.
-func newFakeIDP(t *testing.T, tls bool) *fakeIDP {
-	var s fakeIDP
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-	})
-	mux.HandleFunc("/", s.configurationHandler)
-
-	if tls {
-		s.s = httptest.NewTLSServer(mux)
-	} else {
-		s.s = httptest.NewServer(mux)
-	}
-
-	t.Cleanup(s.s.Close)
-	return &s
-}
-
-// configurationHandler returns OpenID configuration.
-func (s *fakeIDP) configurationHandler(w http.ResponseWriter, r *http.Request) {
-	resp := fmt.Sprintf(`
-{
-	"issuer": "%v",
-	"authorization_endpoint": "%v",
-	"token_endpoint": "%v",
-	"jwks_uri": "%v",
-	"userinfo_endpoint": "%v/userinfo",
-	"subject_types_supported": ["public"],
-	"id_token_signing_alg_values_supported": ["HS256", "RS256"]
-}`, s.s.URL, s.s.URL, s.s.URL, s.s.URL, s.s.URL)
-
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintln(w, resp)
 }
 
 func TestOIDCGoogle(t *testing.T) {
@@ -912,7 +876,7 @@ func TestEmailVerifiedClaim(t *testing.T) {
 func TestUsernameClaim(t *testing.T) {
 	ctx := context.Background()
 	s := setUpSuite(t)
-	idp := newFakeIDP(t, false)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	diagCtx := auth.SSODiagContext{}
 
@@ -946,7 +910,7 @@ func TestUsernameClaim(t *testing.T) {
 		{
 			desc: "username_claim specified with correct claim (login hooks called)",
 			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
+				IssuerURL:     idp.S.URL,
 				ClientID:      "000",
 				ClientSecret:  "0000",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
@@ -958,7 +922,7 @@ func TestUsernameClaim(t *testing.T) {
 		{
 			desc: "username_claim specified with incorrect claim",
 			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
+				IssuerURL:     idp.S.URL,
 				ClientID:      "000",
 				ClientSecret:  "0000",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
@@ -970,7 +934,7 @@ func TestUsernameClaim(t *testing.T) {
 		{
 			desc: "no username_claim specified, default to using email",
 			spec: types.OIDCConnectorSpecV3{
-				IssuerURL:     idp.s.URL,
+				IssuerURL:     idp.S.URL,
 				ClientID:      "000",
 				ClientSecret:  "0000",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
@@ -1016,10 +980,10 @@ func TestReqMaxAge(t *testing.T) {
 
 	ctx := context.Background()
 	s := setUpSuite(t)
-	idp := newFakeIDP(t, false)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	connectorSpec := types.OIDCConnectorSpecV3{
-		IssuerURL:     idp.s.URL,
+		IssuerURL:     idp.S.URL,
 		ClientID:      "000",
 		ClientSecret:  "0000",
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "groups", Value: "everyone", Roles: []string{"access"}}},
@@ -1183,7 +1147,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t, ValidLicense{})
 
-	idp := newFakeIDP(t, false /* tls */)
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	emptyRole, err := auth.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -1237,7 +1201,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
+		IssuerURL:    idp.S.URL,
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
@@ -1262,7 +1226,7 @@ func TestOIDCAuthRequest(t *testing.T) {
 		Type:        constants.OIDC,
 		SSOTestFlow: true,
 		ConnectorSpec: &types.OIDCConnectorSpecV3{
-			IssuerURL:    idp.s.URL,
+			IssuerURL:    idp.S.URL,
 			ClientID:     "example-client-id",
 			ClientSecret: "example-client-secret",
 			RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
@@ -1364,11 +1328,161 @@ func TestOIDCAuthRequest(t *testing.T) {
 	}
 }
 
-func TestOIDCLicense(t *testing.T) {
-	idp := newFakeIDP(t, false /* tls */)
+// TestOIDCAuthCompat attempts to test OIDC SSO authentication from the
+// perspective of an Auth service receiving requests from a proxy service. The
+// Auth service on major version N should support proxies on version N and N-1,
+// which may send a single user public key or split SSH and TLS public keys.
+func TestOIDCAuthCompat(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.OIDC: {Enabled: true},
+		}},
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+		require.NoError(t, err)
+		reg := plugin.NewRegistry()
+		reg.Add(authPlugin)
+		cfg.APIConfig.PluginRegistry = reg
+	})
+
+	// There is no real OIDC IdP, override valid claims for a test user.
+	SetStaticOIDCTestClaims(t, srv.Auth(), map[string]any{
+		"groups": []string{"devs"},
+		"email":  "alice@example.com",
+		"sub":    "00001234abcd",
+	})
+
+	idp := NewFakeOIDCIdP(t, false /* tls */)
 
 	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
-		IssuerURL:    idp.s.URL,
+		IssuerURL:    idp.S.URL,
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "groups",
+				Value: "devs",
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().CreateOIDCConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	_, err = auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(auth.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc: "no keys",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req, err := proxyClient.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
+				ConnectorID:  conn.GetName(),
+				Type:         constants.OIDC,
+				PublicKey:    tc.pubKey,
+				SshPublicKey: tc.sshPubKey,
+				TlsPublicKey: tc.tlsPubKey,
+				CertTTL:      apidefaults.MinCertDuration,
+				CheckUser:    true,
+			})
+			require.NoError(t, err, "creating OIDC auth request")
+
+			values := url.Values{
+				"code":  []string{"XXX-code"},
+				"state": []string{req.StateToken},
+			}
+			resp, err := proxyClient.ValidateOIDCAuthCallback(ctx, values)
+			require.NoError(t, err, "validating OIDC auth callback")
+
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey)
+			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.TLSCert)
+			}
+		})
+	}
+}
+
+func TestOIDCLicense(t *testing.T) {
+	idp := NewFakeOIDCIdP(t, false /* tls */)
+
+	conn, err := types.NewOIDCConnector("example", types.OIDCConnectorSpecV3{
+		IssuerURL:    idp.S.URL,
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
 		RedirectURLs: []string{"https://localhost:3080/v1/webapi/oidc/callback"},

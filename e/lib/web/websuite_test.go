@@ -111,6 +111,7 @@ type webSuiteOptions struct {
 	customPlugin                plugin.Plugin
 	accessGraphFeatures         string
 	runWhileLockedRetryInterval time.Duration
+	clock                       clockwork.FakeClock
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -125,19 +126,28 @@ func withRunWhileLockedRetryInterval(interval time.Duration) webSuiteOption {
 	}
 }
 
+func withClock(clock clockwork.FakeClock) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.clock = clock
+	}
+}
+
 func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	var options webSuiteOptions
 	for _, v := range opts {
 		v(&options)
+	}
+	if options.clock == nil {
+		// Old versions of clockwork used this as the initial time, setting it
+		// explicitly as a quick fix.
+		options.clock = clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC))
 	}
 	u, err := user.Current()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &webSuite{
-		// Old versions of clockwork used this as the initial time, setting it
-		// explicitly as a quick fix.
-		clock:  clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)),
+		clock:  options.clock,
 		user:   u.Username,
 		ctx:    ctx,
 		cancel: cancel,

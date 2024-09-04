@@ -80,18 +80,20 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		ClientRedirectURL:    req.RedirectURL,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		CheckUser:            true,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		ProxyAddress:         r.Host,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-		ClientLoginIP:        remoteAddr,
-		ClientUserAgent:      r.UserAgent(),
+		ConnectorID:             req.ConnectorID,
+		ClientRedirectURL:       req.RedirectURL,
+		SshPublicKey:            req.SSHPubKey,
+		TlsPublicKey:            req.TLSPubKey,
+		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
+		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
+		CertTTL:                 req.CertTTL,
+		CheckUser:               true,
+		Compatibility:           req.Compatibility,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		ProxyAddress:            r.Host,
+		ClientLoginIP:           remoteAddr,
+		ClientUserAgent:         r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
@@ -167,7 +169,7 @@ func (p *Plugin) oidcCallback(w http.ResponseWriter, r *http.Request, params htt
 	}
 
 	logger.Info("Callback redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
+	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 {
 		logger.Error("Not a web or console login request.")
 		return client.LoginFailedRedirectURL
 	}
@@ -247,16 +249,18 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		ClientRedirectURL:    req.RedirectURL,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-		ClientLoginIP:        remoteAddr,
-		ClientUserAgent:      r.UserAgent(),
+		ConnectorID:             req.ConnectorID,
+		ClientRedirectURL:       req.RedirectURL,
+		SshPublicKey:            req.SSHPubKey,
+		TlsPublicKey:            req.TLSPubKey,
+		CertTTL:                 req.CertTTL,
+		Compatibility:           req.Compatibility,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
+		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
+		ClientLoginIP:           remoteAddr,
+		ClientUserAgent:         r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")
@@ -346,7 +350,7 @@ func (p *Plugin) samlACSHandle(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	logger.Debug("Callback redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
+	if len(response.Req.SSHPubKey) == 0 && len(response.Req.TLSPubKey) == 0 {
 		logger.Error("Not a web or console login request.")
 		return client.LoginFailedRedirectURL
 	}

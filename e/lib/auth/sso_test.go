@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-func newTestTLSServer(t *testing.T, license License) *auth.TestTLSServer {
+func newTestTLSServer(t *testing.T, license License, opts ...auth.TestTLSServerOption) *auth.TestTLSServer {
 	t.Helper()
 	as, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -17,7 +17,7 @@ func newTestTLSServer(t *testing.T, license License) *auth.TestTLSServer {
 	})
 	require.NoError(t, err)
 
-	srv, err := as.NewTestTLSServer()
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 
 	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: as.AuthServer, License: license})

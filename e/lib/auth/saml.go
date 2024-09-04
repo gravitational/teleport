@@ -393,7 +393,9 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) authclient.SAMLAuthRequest {
 	return authclient.SAMLAuthRequest{
 		ID:                req.ID,
-		PublicKey:         req.PublicKey,
+		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Returning deprecated field that may be expected by older clients.
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -699,9 +701,35 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if request != nil && len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := sas.auth.CreateSessionCert(userState, sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
-			request.KubernetesCluster, loginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
+	var sshPubKey, tlsPubKey []byte
+	if request != nil {
+		sshPubKey, tlsPubKey, err = authclient.UserPublicKeys(
+			request.PublicKey, //nolint:staticcheck // SA1019. Check deprecated field that may be set by older clients.
+			request.SshPublicKey,
+			request.TlsPublicKey,
+		)
+		if err != nil {
+			return nil, request.ClientLoginIP, trace.Wrap(err)
+		}
+	}
+	if len(sshPubKey) > 0 || len(tlsPubKey) > 0 {
+		sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+			keys.AttestationStatementFromProto(request.AttestationStatement), //nolint:staticcheck // SA1019. Check deprecated field that may be set by older clients.
+			keys.AttestationStatementFromProto(request.SshAttestationStatement),
+			keys.AttestationStatementFromProto(request.TlsAttestationStatement),
+		)
+		sshCert, tlsCert, err := sas.auth.CreateSessionCerts(ctx, &auth.SessionCertsRequest{
+			UserState:               userState,
+			SessionTTL:              sessionTTL,
+			SSHPubKey:               sshPubKey,
+			TLSPubKey:               tlsPubKey,
+			Compatibility:           request.Compatibility,
+			RouteToCluster:          request.RouteToCluster,
+			KubernetesCluster:       request.KubernetesCluster,
+			LoginIP:                 loginIP,
+			SSHAttestationStatement: sshAttestationStatement,
+			TLSAttestationStatement: tlsAttestationStatement,
+		})
 		if err != nil {
 			return nil, loginIP, trace.Wrap(err, "Failed to create session certificate.")
 		}

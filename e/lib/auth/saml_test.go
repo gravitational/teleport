@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/flate"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509/pkix"
@@ -22,22 +23,27 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1160,6 +1166,146 @@ func TestSAMLAuthRequest(t *testing.T) {
 			requestCopy, err := clientReader.GetSAMLAuthRequest(ctx, request.ID)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+// TestSAMLAuthCompat attempts to test SAML SSO authentication from the
+// perspective of an Auth service receiving requests from a proxy service. The
+// Auth service on major version N should support proxies on version N and N-1,
+// which may send a single user public key or split SSH and TLS public keys.
+func TestSAMLAuthCompat(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.SAML: {Enabled: true},
+		}},
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t, ValidLicense{}, func(cfg *auth.TestTLSServerConfig) {
+		authPlugin, err := NewPlugin(Config{License: ValidLicense{}})
+		require.NoError(t, err)
+		reg := plugin.NewRegistry()
+		reg.Add(authPlugin)
+		cfg.APIConfig.PluginRegistry = reg
+	})
+
+	_, err := auth.CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// Create a fake SAML IdP that will authorize a fake user.
+	idp := NewFakeSAMLIdP(t, srv.Clock())
+
+	conn, err := types.NewSAMLConnector("example", types.SAMLConnectorSpecV2{
+		SSO:                      idp.SSOURL.String(),
+		Issuer:                   idp.MetadataURL.String(),
+		Cert:                     idp.CertPEM,
+		AssertionConsumerService: "https://teleport.example.com/webapi/saml/acs",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "groups",
+			Value: "devs",
+			Roles: []string{"access"},
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = srv.Auth().CreateSAMLConnector(context.Background(), conn)
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(auth.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc: "no keys",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			req, err := proxyClient.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+				ConnectorID:  conn.GetName(),
+				PublicKey:    tc.pubKey,
+				SshPublicKey: tc.sshPubKey,
+				TlsPublicKey: tc.tlsPubKey,
+				CertTTL:      time.Hour,
+			})
+			require.NoError(t, err)
+
+			// Simulate the proxy redirecting to the SAML IdP and getting a
+			// response back, so we can ask auth to validate it and check the
+			// result.
+			samlResponse, err := idp.ServeSSO(req.RedirectURL)
+			require.NoError(t, err)
+
+			resp, err := proxyClient.ValidateSAMLResponse(ctx, samlResponse, conn.GetName(), "")
+			require.NoError(t, err, "validating SAML auth callback")
+
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey)
+			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.TLSCert)
+			}
 		})
 	}
 }
