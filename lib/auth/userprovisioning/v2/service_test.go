@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package statichostuser
+package v2
 
 import (
 	"context"
@@ -25,10 +25,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
-	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -44,13 +44,15 @@ func staticHostUserName(i int) string {
 func makeStaticHostUser(i int) *userprovisioningpb.StaticHostUser {
 	name := staticHostUserName(i)
 	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
-		Login:  name,
-		Groups: []string{"foo", "bar"},
-		NodeLabels: &wrappers.LabelValues{
-			Values: map[string]wrappers.StringValues{
-				"foo": {
-					Values: []string{"bar"},
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
 				},
+				Groups: []string{"foo", "bar"},
 			},
 		},
 	})
@@ -121,7 +123,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				hostUser.Spec.Login = "bob"
+				hostUser.Spec.Matchers[0].Groups = []string{"baz", "quux"}
 				_, err = svc.UpdateStaticHostUser(ctx, &userprovisioningpb.UpdateStaticHostUserRequest{
 					User: hostUser,
 				})

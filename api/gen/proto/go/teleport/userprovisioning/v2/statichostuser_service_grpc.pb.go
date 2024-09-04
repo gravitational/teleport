@@ -16,9 +16,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             (unknown)
-// source: teleport/userprovisioning/v1/statichostuser_service.proto
+// source: teleport/userprovisioning/v2/statichostuser_service.proto
 
-package userprovisioningv1
+package userprovisioningv2
 
 import (
 	context "context"
@@ -34,12 +34,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StaticHostUsersService_GetStaticHostUser_FullMethodName    = "/teleport.userprovisioning.v1.StaticHostUsersService/GetStaticHostUser"
-	StaticHostUsersService_ListStaticHostUsers_FullMethodName  = "/teleport.userprovisioning.v1.StaticHostUsersService/ListStaticHostUsers"
-	StaticHostUsersService_CreateStaticHostUser_FullMethodName = "/teleport.userprovisioning.v1.StaticHostUsersService/CreateStaticHostUser"
-	StaticHostUsersService_UpdateStaticHostUser_FullMethodName = "/teleport.userprovisioning.v1.StaticHostUsersService/UpdateStaticHostUser"
-	StaticHostUsersService_UpsertStaticHostUser_FullMethodName = "/teleport.userprovisioning.v1.StaticHostUsersService/UpsertStaticHostUser"
-	StaticHostUsersService_DeleteStaticHostUser_FullMethodName = "/teleport.userprovisioning.v1.StaticHostUsersService/DeleteStaticHostUser"
+	StaticHostUsersService_GetStaticHostUser_FullMethodName    = "/teleport.userprovisioning.v2.StaticHostUsersService/GetStaticHostUser"
+	StaticHostUsersService_ListStaticHostUsers_FullMethodName  = "/teleport.userprovisioning.v2.StaticHostUsersService/ListStaticHostUsers"
+	StaticHostUsersService_CreateStaticHostUser_FullMethodName = "/teleport.userprovisioning.v2.StaticHostUsersService/CreateStaticHostUser"
+	StaticHostUsersService_UpdateStaticHostUser_FullMethodName = "/teleport.userprovisioning.v2.StaticHostUsersService/UpdateStaticHostUser"
+	StaticHostUsersService_UpsertStaticHostUser_FullMethodName = "/teleport.userprovisioning.v2.StaticHostUsersService/UpsertStaticHostUser"
+	StaticHostUsersService_DeleteStaticHostUser_FullMethodName = "/teleport.userprovisioning.v2.StaticHostUsersService/DeleteStaticHostUser"
 )
 
 // StaticHostUsersServiceClient is the client API for StaticHostUsersService service.
@@ -310,7 +310,7 @@ func _StaticHostUsersService_DeleteStaticHostUser_Handler(srv interface{}, ctx c
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var StaticHostUsersService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "teleport.userprovisioning.v1.StaticHostUsersService",
+	ServiceName: "teleport.userprovisioning.v2.StaticHostUsersService",
 	HandlerType: (*StaticHostUsersServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -339,5 +339,5 @@ var StaticHostUsersService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "teleport/userprovisioning/v1/statichostuser_service.proto",
+	Metadata: "teleport/userprovisioning/v2/statichostuser_service.proto",
 }

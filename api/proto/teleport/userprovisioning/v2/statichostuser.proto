@@ -14,12 +14,12 @@
 
 syntax = "proto3";
 
-package teleport.userprovisioning.v1;
+package teleport.userprovisioning.v2;
 
 import "teleport/header/v1/metadata.proto";
-import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/label/v1/label.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1;userprovisioningv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2;userprovisioningv2";
 
 // StaticHostUser is a resource that represents host users that should be
 // created on matching nodes.
@@ -29,7 +29,7 @@ message StaticHostUser {
   // sub_kind is an optional resource sub kind, used in some resources.
   string sub_kind = 2;
   // version is the resource version. It must be specified.
-  // Supported values are: `v1`.
+  // Supported values are: `v2`.
   string version = 3;
   // metadata is resource metadata.
   teleport.header.v1.Metadata metadata = 4;
@@ -37,22 +37,25 @@ message StaticHostUser {
   StaticHostUserSpec spec = 5;
 }
 
-// StaticHostUserSpec is the static host user spec.
-message StaticHostUserSpec {
-  // login is the login to create on the node.
-  string login = 1;
-  // groups is a list of additional groups to add the user to.
-  repeated string groups = 2;
-  // sudoers is a list of sudoer entries to add.
-  repeated string sudoers = 3;
-  // uid is the new user's uid.
-  string uid = 4;
-  // gid is the new user's gid.
-  string gid = 5;
+// Matcher is a matcher for nodes to add the user to.
+message Matcher {
   // node_labels is a map of node labels that will create a user from this
   // resource.
-  wrappers.LabelValues node_labels = 6;
+  repeated teleport.label.v1.Label node_labels = 1;
   // node_labels_expression is a predicate expression to create a user from
   // this resource.
-  string node_labels_expression = 7;
+  string node_labels_expression = 2;
+  // groups is a list of additional groups to add the user to.
+  repeated string groups = 3;
+  // sudoers is a list of sudoer entries to add.
+  repeated string sudoers = 4;
+  // uid is the new user's uid.
+  int64 uid = 5;
+  // gid is the new user's gid.
+  int64 gid = 6;
+}
+
+// StaticHostUserSpec is the static host user spec.
+message StaticHostUserSpec {
+  repeated Matcher matchers = 1;
 }
