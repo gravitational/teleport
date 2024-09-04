@@ -44,7 +44,7 @@ const (
 	PriorityAnnotation         = types.TeleportNamespace + types.ReqAnnotationPriority
 )
 
-// OpsgenieBaseSuite is the OpsGenie access plugin test suite.
+// OpsgenieBaseSuite is the Opsgenie access plugin test suite.
 // It implements the testify.TestingSuite interface.
 type OpsgenieBaseSuite struct {
 	*integration.AccessRequestSuite
@@ -144,7 +144,7 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForSchedules() {
 	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
 
 	// Validate the alert has been created in OpsGenie and its ID is stored in
-	// the plugin_data.
+	// the plugin data.
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data opsgenie.PluginData) bool {
 		return data.AlertID != ""
 	})
@@ -188,8 +188,7 @@ func (s *OpsgenieSuiteOSS) TestAlertCreationForTeams() {
 
 func (s *OpsgenieSuiteOSS) TestPriorityOverride() {
 	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	t.Cleanup(cancel)
+	ctx := context.Background()
 
 	s.AnnotateRequesterRoleAccessRequests(
 		ctx,
