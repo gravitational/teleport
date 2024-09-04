@@ -713,7 +713,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
-		Token:    rawResponse.Token,
+		MFAToken: rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -787,7 +787,7 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
-		Token:    rawResponse.Token,
+		MFAToken: rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -852,7 +852,7 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
-		Token:    rawResponse.Token,
+		MFAToken: rawResponse.Token,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(

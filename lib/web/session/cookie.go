@@ -94,16 +94,52 @@ const (
 	SSOMFAToken = "__Host-sso_mfa_token"
 )
 
+// Cookie stores information about active user and session
+type SSOMFACookie struct {
+	RequestID string `json:"request_id"`
+	MFAToken  string `json:"mfa_token"`
+}
+
+// EncodeCookie returns the string representation of a [Cookie]
+// that should be used to store the user session in the cookies
+// of a [http.ResponseWriter].
+func EncodeSSOMFACookie(requestID, mfaToken string) (string, error) {
+	bytes, err := json.Marshal(SSOMFACookie{RequestID: requestID, MFAToken: mfaToken})
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+// DecodeCookie returns the [Cookie] from the provided string.
+func DecodeSSOMFACookie(b string) (*SSOMFACookie, error) {
+	bytes, err := hex.DecodeString(b)
+	if err != nil {
+		return nil, err
+	}
+	var c SSOMFACookie
+	if err := json.Unmarshal(bytes, &c); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 // SetMFACookie set's the SAML session cookie named by [SSOMFAToken].
-func SetMFACookie(w http.ResponseWriter, token string, maxAgeSeconds int) {
+func SetMFACookie(w http.ResponseWriter, requestID, token string) error {
+	d, err := EncodeSSOMFACookie(requestID, token)
+	if err != nil {
+		return err
+	}
+
 	http.SetCookie(w, &http.Cookie{
 		Name:     SSOMFAToken,
-		Value:    token,
-		MaxAge:   maxAgeSeconds,
+		Value:    d,
+		MaxAge:   300, // 5 minutes
 		HttpOnly: true,
 		Secure:   true,
 		Path:     "/",
 	})
+	return nil
 }
 
 // ClearMFACookie wipes the session cookie to invalidate SAML user session.

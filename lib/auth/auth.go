@@ -3476,7 +3476,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions, req.SSOClientRedirectURL)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -6459,7 +6459,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions, ssoClientRedirectURL string) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -6561,10 +6561,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
 	}
 
-	if groupedDevs.SSO != nil {
-		challenge.AuthConnectorChallenge = &proto.AuthConnectorChallenge{
-			ID:   groupedDevs.SSO.ConnectorId,
-			Type: groupedDevs.SSO.ConnectorType,
+	if groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO, ssoClientRedirectURL, challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -6627,6 +6626,59 @@ func (a *Server) getUserSSOMFADevice(ctx context.Context, apref readonly.AuthPre
 			},
 		},
 	}, nil
+}
+
+func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFAConnector *types.SSOMFADevice, ssoClientRedirectURL string, ext *mfav1.ChallengeExtensions) (*proto.SSOChallenge, error) {
+	chal := new(proto.SSOChallenge)
+	switch ssoMFAConnector.ConnectorType {
+	case constants.SAML:
+		resp, err := a.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
+			ConnectorID:       ssoMFAConnector.ConnectorId,
+			Type:              ssoMFAConnector.ConnectorType,
+			ClientRedirectURL: ssoClientRedirectURL,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chal.RequestId = resp.ID
+		chal.RedirectUrl = resp.RedirectURL
+	case constants.OIDC:
+		resp, err := a.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
+			ConnectorID:       ssoMFAConnector.ConnectorId,
+			Type:              ssoMFAConnector.ConnectorType,
+			ClientRedirectURL: ssoClientRedirectURL,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chal.RequestId = resp.StateToken
+		chal.RedirectUrl = resp.RedirectURL
+	case constants.Github:
+		resp, err := a.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+			ConnectorID:       ssoMFAConnector.ConnectorId,
+			Type:              ssoMFAConnector.ConnectorType,
+			ClientRedirectURL: ssoClientRedirectURL,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		chal.RequestId = resp.StateToken
+		chal.RedirectUrl = resp.RedirectURL
+	default:
+		return nil, trace.BadParameter("unexpected sso connector type %v", ssoMFAConnector.ConnectorType)
+	}
+
+	if err := a.UpsertSSOMFASessionData(ctx, &wantypes.SSOMFASessionData{
+		RequestID:           chal.RequestId,
+		Username:            user,
+		ConnectorID:         ssoMFAConnector.ConnectorId,
+		ConnectorType:       ssoMFAConnector.ConnectorType,
+		ChallengeExtensions: ext,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
 }
 
 type externalConnector interface {
@@ -6879,27 +6931,20 @@ func (a *Server) validateMFAAuthResponseInternal(
 			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 		}, nil
 
-	case *proto.MFAAuthenticateResponse_TokenID:
-		mfaToken, err := a.GetUserToken(ctx, res.TokenID)
-		switch {
-		case err != nil:
-			return nil, trace.AccessDenied("access denied")
-		case mfaToken.GetUser() != user:
+	case *proto.MFAAuthenticateResponse_SSO:
+		mfaSess, err := a.GetSSOMFASession(ctx, user, res.SSO.RequestId)
+		if err != nil {
 			return nil, trace.AccessDenied("access denied")
 		}
 
-		if err := a.verifyUserToken(mfaToken, authclient.UserTokenTypeSSOMFA); err != nil {
-			return nil, trace.Wrap(err)
+		if res.SSO.Token != mfaSess.Token {
+			return nil, trace.AccessDenied("access denied")
 		}
 
-		// TODO: allow reuse?
-		if err := a.DeleteUserToken(ctx, res.TokenID); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		tokenConnector := mfaToken.GetCreatedBy().Connector
-		if tokenConnector == nil {
-			return nil, trace.BadParameter("unknown token origin, expected an auth connector")
+		if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+			if err := a.DeleteSSOMFASessionData(ctx, user, res.SSO.RequestId); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		// Validate that the connector that created the token matches the connector that created
@@ -6914,16 +6959,16 @@ func (a *Server) validateMFAAuthResponseInternal(
 			return nil, trace.Wrap(err)
 		}
 
-		if userSSODev.GetName() != tokenConnector.ID {
-			return nil, trace.BadParameter("mismatched user and token origin; user created by %v but token created by %v", userSSODev.GetName(), tokenConnector.ID)
-		} else if userSSODev.MFAType() != tokenConnector.Type {
-			return nil, trace.BadParameter("mismatched user and token origin type; user created by %v connector but token created by %v connector", userSSODev.MFAType(), tokenConnector.Type)
+		if userSSODev.GetName() != mfaSess.ConnectorID {
+			return nil, trace.BadParameter("mismatched origin for user and mfa session; user created by %v but mfa session created by %v", userSSODev.GetName(), mfaSess.ConnectorID)
+		} else if userSSODev.MFAType() != mfaSess.ConnectorType {
+			return nil, trace.BadParameter("mismatched orgin type for user and mfa session; user created by %v connector but mfa session created by %v connector", userSSODev.MFAType(), mfaSess.ConnectorType)
 		}
 
 		return &authz.MFAAuthData{
 			Device:     userSSODev,
 			User:       user,
-			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+			AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
 		}, nil
 
 	default:

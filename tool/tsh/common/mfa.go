@@ -314,36 +314,6 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 	var dev *types.MFADevice
 	if err := client.RetryWithRelogin(ctx, tc, func() error {
-		clusterClient, err := tc.ConnectToCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer clusterClient.Close()
-		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rootAuthClient.Close()
-
-		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
-		// to the server logic. The CLI layer should ideally be thin.
-
-		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
-		if c.allowPasswordless {
-			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
-		}
-
-		// Issue the authn challenge.
-		// Required for the registration challenge.
-		authChallenge, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-			ChallengeExtensions: &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Tweak Windows platform messages so it's clear we whether we are prompting
 		// for the *registered* or *new* device.
 		// We do it here, preemptively, because it's the simpler solution (instead
@@ -355,9 +325,32 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 
 		// Prompt for authentication.
 		// Does nothing if no challenges were issued (aka user has no devices).
-		authnResp, err := tc.NewMFAPrompt(mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered)).Run(ctx, authChallenge)
+		chalReq := &proto.CreateAuthenticateChallengeRequest{
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
+			},
+		}
+		authnResp, err := tc.PerformMFACeremony(ctx, chalReq, mfa.WithPromptDeviceType(mfa.DeviceDescriptorRegistered))
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		// TODO(awly): mfa: move this logic somewhere under /lib/auth/, closer
+		// to the server logic. The CLI layer should ideally be thin.
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+		rootAuthClient, err := clusterClient.ConnectToRootCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuthClient.Close()
+
+		usage := proto.DeviceUsage_DEVICE_USAGE_MFA
+		if c.allowPasswordless {
+			usage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 		}
 
 		// Issue the registration challenge.

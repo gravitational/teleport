@@ -2281,7 +2281,7 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	user := actx.User.GetName()
 
 	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, chalExt, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}

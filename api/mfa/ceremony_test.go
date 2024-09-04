@@ -87,7 +87,7 @@ func TestPerformMFACeremony(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := mfa.PerformMFACeremony(ctx, tt.ceremonyClient, &proto.CreateAuthenticateChallengeRequest{
+			resp, err := mfa.PerformMFACeremony(ctx, tt.ceremonyClient, tt.ceremonyClient, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},

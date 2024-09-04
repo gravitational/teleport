@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
@@ -73,19 +74,17 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAut
 		// If changing state to approved, create an MFA challenge and prompt for MFA.
 		var mfaResponse *proto.MFAAuthenticateResponse
 		if state == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
-			chall, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			challengeRequest := &proto.CreateAuthenticateChallengeRequest{
 				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 					ContextUser: &proto.ContextUser{},
 				},
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 				},
-			})
-			if err != nil {
-				return trace.Wrap(err)
 			}
 
-			mfaResponse, err = c.clusterClient.PromptMFA(ctx, chall)
+			var err error
+			mfaResponse, err = mfa.PerformMFACeremony(ctx, rootAuthClient, c.clusterClient, challengeRequest)
 			if err != nil {
 				return trace.Wrap(err)
 			}

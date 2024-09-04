@@ -1211,18 +1211,18 @@ message MFAAuthenticateChallenge {
   // communications, in case of streaming RPCs. It may also return empty
   // challenges for all other fields.
   MFARequired MFARequired = 4;
-  // AuthConnectorChallenge is an auth connector challenge. If set, the client
-  // will attempt to craete an auth request with this connector to aquire a
-  // privileged token as a substitue for local MFA.
-  AuthConnectorChallenge AuthConnectorChallenge = 5;
+  // SSO Challenge is an sso MFA challenge. If set, the client can go to the
+  // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA
+  // token. This token and sso request pair can then be used as MFA verification.
+  SSOChallenge SSOChallenge = 5;
 }
 
-// AuthConnectorChallenge contains auth connector details for authentication.
-message AuthConnectorChallenge {
-  // Type is the auth connector type.
-  string Type = 1;
-  // ID is the auth connector ID.
-  string ID = 2;
+// SSOChallenge contains SSO auth request details to perform an SSO MFA check.
+message SSOChallenge {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // RedirectUrl is an IdP redirect URL to initate the SSO MFA flow.
+  string redirect_url = 2;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1232,8 +1232,7 @@ message MFAAuthenticateResponse {
     // Removed: U2FResponse U2F = 1;
     TOTPResponse TOTP = 2;
     webauthn.CredentialAssertionResponse Webauthn = 3;
-    // TokenID is a privileged token ID used as a substitute for local MFA.
-    string TokenID = 4;
+    SSOResponse SSO = 4;
   }
 }
 
@@ -1248,6 +1247,14 @@ message TOTPChallenge {
 // TOTPResponse is a response to TOTPChallenge.
 message TOTPResponse {
   string Code = 1;
+}
+
+// SSOResponse is a response to SSOChallenge.
+message SSOResponse {
+  // RequestId is the ID of an SSO auth request.
+  string request_id = 1;
+  // Token is a secret token used to verify the user's SSO MFA session.
+  string token = 2;
 }
 
 // MFARegisterChallenge is a challenge for registering a new MFA device.
@@ -1876,6 +1883,10 @@ message CreateAuthenticateChallengeRequest {
   // ChallengeExtensions are extensions that will be apply to the issued MFA challenge.
   // Required, except for v15 clients and older.
   teleport.mfa.v1.ChallengeExtensions ChallengeExtensions = 6 [(gogoproto.jsontag) = "challenge_extensions,omitempty"];
+  // SSOClientRedirectURL should be supplied If the client supports SSO MFA checks.
+  // If unset, the server will only return non-SSO challenges, or an error if SSO
+  // challenges are required.
+  string SSOClientRedirectURL = 7 [(gogoproto.jsontag) = "sso_client_redirect_url,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.

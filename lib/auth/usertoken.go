@@ -455,26 +455,50 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind s
 	return convertedToken, nil
 }
 
-func (a *Server) CreateSSOMFASession(ctx context.Context, reqID, username, connectorType, connectorID string, ext *mfav1.ChallengeExtensions) (string, error) {
-	tokenID, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+func (a *Server) CreateSSOMFASession(ctx context.Context, username, sessionID string) (*webauthntypes.SSOMFASessionData, error) {
+	sd, err := a.CreateSSOMFASession(ctx, username, sessionID)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	sd := &webauthntypes.SSOMFASessionData{
-		TokenID:             tokenID,
-		RequestID:           reqID,
-		Username:            username,
-		ConnectorID:         connectorID,
-		ConnectorType:       connectorType,
-		ChallengeExtensions: ext,
+	return sd, nil
+}
+
+func (a *Server) GetSSOMFASession(ctx context.Context, username, sessionID string) (*webauthntypes.SSOMFASessionData, error) {
+	sd, err := a.GetSSOMFASessionData(ctx, username, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sd, nil
+}
+
+func (a *Server) UpdateSSOMFASessionWithToken(ctx context.Context, sd *webauthntypes.SSOMFASessionData) (token string, err error) {
+	sd.Token, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
 
 	if err := a.UpsertSSOMFASessionData(ctx, sd); err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return tokenID, nil
+	return sd.Token, nil
+}
+
+func (a *Server) ValidateSSOMFASession(ctx context.Context, username, sessionID, token string, ext *mfav1.ChallengeExtensions) error {
+	sd, err := a.GetSSOMFASessionData(ctx, username, sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sd.Token != token {
+		return trace.AccessDenied("invalid SSO MFA challenge response")
+	}
+
+	// TODO: verify extensions, decide deletion
+
+	return nil
 }
 
 // verifyUserToken verifies that the token is not expired and is of the allowed kinds.

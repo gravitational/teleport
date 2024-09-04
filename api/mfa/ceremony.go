@@ -25,11 +25,12 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
-// MFACeremonyClient is a client that can perform an MFA ceremony, from retrieving
-// the MFA challenge to prompting for an MFA response from the user.
-type MFACeremonyClient interface {
+type MFACeremonyChallengeClient interface {
 	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
 	CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+}
+
+type MFACeremonyPromptClient interface {
 	// PromptMFA prompts the user for MFA.
 	PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
 }
@@ -37,7 +38,7 @@ type MFACeremonyClient interface {
 // PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 // and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 // an MFA challenge response for the user.
-func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+func PerformMFACeremony(ctx context.Context, chalClient MFACeremonyChallengeClient, promptClient MFACeremonyPromptClient, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	if challengeRequest == nil {
 		return nil, trace.BadParameter("missing challenge request")
 	}
@@ -50,7 +51,7 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 		return nil, trace.BadParameter("mfa challenge scope must be specified")
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
+	chal, err := chalClient.CreateAuthenticateChallenge(ctx, challengeRequest)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the client
 		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
@@ -67,7 +68,11 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 		return nil, &ErrMFANotRequired
 	}
 
-	return clt.PromptMFA(ctx, chal, promptOpts...)
+	if challengeRequest.SSOClientRedirectURL != "" && chal.SSOChallenge != nil {
+		promptOpts = append(promptOpts, WithSSOClientRedirectURL(challengeRequest.SSOClientRedirectURL))
+	}
+
+	return promptClient.PromptMFA(ctx, chal, promptOpts...)
 }
 
 type MFACeremony func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)

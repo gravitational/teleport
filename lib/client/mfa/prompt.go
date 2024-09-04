@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/client/sso"
 )
 
 // PromptConfig contains common mfa prompt config options.
@@ -52,8 +53,9 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-	// SSOLoginFunc performs SSO auth flow with the given auth connector details.
-	SSOLoginFunc func(ctx context.Context, connectorName string, connectorType string) (*proto.MFAAuthenticateResponse, error)
+	// RedirectorFunc creates a new SSO challenge redirector. If unset, the client will
+	// not receive an SSO challenge even if the cluster is configured to provide one.
+	RedirectorFunc func(ctx context.Context) (*sso.Redirector, error)
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.
@@ -82,7 +84,7 @@ type RunOpts struct {
 func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
-	promptSSO := chal.AuthConnectorChallenge != nil && c.SSOLoginFunc != nil
+	promptSSO := chal.SSOChallenge != nil && c.RedirectorFunc != nil
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {

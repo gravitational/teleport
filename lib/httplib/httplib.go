@@ -262,7 +262,7 @@ func RewritePaths(next http.Handler, rewrites ...RewritePair) http.Handler {
 // OriginLocalRedirectURI will take an incoming URL including optionally the host and scheme and return the URI
 // associated with the URL.  Additionally, it will ensure that the URI does not include any techniques potentially
 // used to redirect to a different origin.
-func OriginLocalRedirectURI(redirectURL string, token string) (string, error) {
+func OriginLocalRedirectURI(redirectURL string) (string, error) {
 	parsedURL, err := url.Parse(redirectURL)
 	if err != nil {
 		return "", trace.Wrap(err)

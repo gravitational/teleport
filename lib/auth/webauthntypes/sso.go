@@ -22,16 +22,17 @@ import mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1
 
 // SSOMFASessionData SSO MFA Session data.
 type SSOMFASessionData struct {
-	// TokenID is the token used to identify and utilize this SSO MFA session data.
-	TokenID string `json:"token,omitempty"`
-	// RequestID is the ID of the corresponding SSO Auth request.
+	// RequestID is the ID of the corresponding SSO Auth request, which is used to
+	// identity this session.
 	RequestID string `json:"request_id,omitempty"`
+	// Username is the Teleport username.
+	Username string `json:"username,omitempty"`
+	// Token is the token used to identify and utilize this SSO MFA session data.
+	Token string `json:"token,omitempty"`
 	// ConnectorID is id of the corresponding Auth connector.
 	ConnectorID string `json:"connector_id,omitempty"`
 	// ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
 	ConnectorType string `json:"connector_type,omitempty"`
-	// Username is the Teleport username.
-	Username string `json:"username,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this SSO MFA session.
 	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
 }

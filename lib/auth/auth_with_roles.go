@@ -3686,7 +3686,7 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 	}
 
 	// Only the Proxy service can create web sessions via OIDC connector.
-	if req.CreateWebSession && !req.CreatePrivilegedToken && !a.hasBuiltinRole(types.RoleProxy) {
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
@@ -3844,7 +3844,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 	}
 
 	// Only the Proxy service can create web sessions via SAML connector.
-	if req.CreateWebSession && !req.CreatePrivilegedToken && !a.hasBuiltinRole(types.RoleProxy) {
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
@@ -4058,7 +4058,7 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 	}
 
 	// Only the Proxy service can create web sessions via Github connector.
-	if req.CreateWebSession && !req.CreatePrivilegedToken && !a.hasBuiltinRole(types.RoleProxy) {
+	if req.CreateWebSession && !a.hasBuiltinRole(types.RoleProxy) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 

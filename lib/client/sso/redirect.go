@@ -116,6 +116,9 @@ type Redirector struct {
 
 	server *httptest.Server
 	mux    *http.ServeMux
+	// clientCallbackURL is set once the redirector's local http server
+	// is running.
+	clientCallbackURL string
 	// redirectURL will be set based on the response from the Teleport
 	// proxy server, will contain target redirect URL
 	// to launch SSO workflow
@@ -198,11 +201,50 @@ func NewRedirector(ctx context.Context, config RedirectorConfig) (*Redirector, e
 	rd.mux.HandleFunc(rd.shortPath, func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, rd.redirectURL.Value(), http.StatusFound)
 	})
+
+	if err := rd.startServer(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return rd, nil
 }
 
+// startServer starts an http server to handle the sso client callback.
+func (rd *Redirector) startServer() error {
+	if rd.BindAddr != "" {
+		logrus.Debugf("Binding to %v.", rd.BindAddr)
+		listener, err := net.Listen("tcp", rd.BindAddr)
+		if err != nil {
+			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
+		}
+		rd.server = &httptest.Server{
+			Listener: listener,
+			Config: &http.Server{
+				Handler:           rd.mux,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			},
+		}
+		rd.server.Start()
+	} else {
+		rd.server = httptest.NewServer(rd.mux)
+	}
+
+	// Prepare callback URL.
+	u, err := url.Parse(rd.baseURL() + "/callback")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
+	rd.clientCallbackURL = u.String()
+
+	return nil
+}
+
 func (rd *Redirector) SSOLoginCeremony(ctx context.Context) (*authclient.SSHLoginResponse, error) {
-	if err := rd.Start(); err != nil {
+	if err := rd.initiate(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rd.Close()
@@ -223,6 +265,7 @@ func (rd *Redirector) SSOLoginCeremony(ctx context.Context) (*authclient.SSHLogi
 		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
 	}
 
+	logrus.Infof("Waiting for response at: %v.", rd.server.URL)
 	select {
 	case err := <-rd.ErrorC():
 		log.Debugf("Got an error: %v.", err)
@@ -273,39 +316,13 @@ func OpenURLInBrowser(browser string, URL string) error {
 	return nil
 }
 
-// Start launches local http server on the machine,
+// initiate launches local http server on the machine,
 // initiates SSO login request sequence with the Teleport Proxy
-func (rd *Redirector) Start() error {
-	if rd.BindAddr != "" {
-		logrus.Debugf("Binding to %v.", rd.BindAddr)
-		listener, err := net.Listen("tcp", rd.BindAddr)
-		if err != nil {
-			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
-		}
-		rd.server = &httptest.Server{
-			Listener: listener,
-			Config: &http.Server{
-				Handler:           rd.mux,
-				ReadTimeout:       apidefaults.DefaultIOTimeout,
-				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
-				WriteTimeout:      apidefaults.DefaultIOTimeout,
-				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-			},
-		}
-		rd.server.Start()
-	} else {
-		rd.server = httptest.NewServer(rd.mux)
-	}
-	logrus.Infof("Waiting for response at: %v.", rd.server.URL)
-
-	// communicate callback redirect URL to the Teleport Proxy
-	u, err := url.Parse(rd.baseURL() + "/callback")
+func (rd *Redirector) initiate() error {
+	redirectURL, err := rd.InitiateSSOLoginFn(rd.clientCallbackURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
-
-	redirectURL, err := rd.InitiateSSOLoginFn(u.String())
 
 	// notice late binding of the redirect URL here, it is referenced
 	// in the callback handler, but is known only after the request
@@ -401,6 +418,7 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 		connectorName = rd.ConnectorID
 	}
 	query := clone.Query()
+	// TODO: is this necessary?
 	query.Set("auth", connectorName)
 	clone.RawQuery = query.Encode()
 	terminalRedirectURL := clone.String()

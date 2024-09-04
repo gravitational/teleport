@@ -21,7 +21,6 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
-import "teleport/mfa/v1/mfa.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -4568,16 +4567,6 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-
-  // CreateMFASession is an option to create an MFA session instead of a login session.
-  // The SSO MFA flow will result in an SSO MFA token which can be used by the user to
-  // pass an MFA check in Teleport. This action is only allowed if the auth connector is
-  // configured for MFA checks and the user is pre-authenticated (not first time login).
-  bool CreateMFASession = 20 [(gogoproto.jsontag) = "create_mfa_session,omitempty"];
-
-  // MFAChallengeExtensions are extensions that will be apply to the MFA Session.
-  // Required if CreateMFASession is true.
-  teleport.mfa.v1.ChallengeExtensions MFAChallengeExtensions = 21 [(gogoproto.jsontag) = "mfa_challenge_extensions,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4733,16 +4722,6 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-
-  // CreateMFASession is an option to create an MFA session instead of a login session.
-  // The SSO MFA flow will result in an SSO MFA token which can be used by the user to
-  // pass an MFA check in Teleport. This action is only allowed if the auth connector is
-  // configured for MFA checks and the user is pre-authenticated (not first time login).
-  bool CreateMFASession = 19 [(gogoproto.jsontag) = "create_mfa_session,omitempty"];
-
-  // MFAChallengeExtensions are extensions that will be apply to the MFA Session.
-  // Required if CreateMFASession is true.
-  teleport.mfa.v1.ChallengeExtensions MFAChallengeExtensions = 20 [(gogoproto.jsontag) = "mfa_challenge_extensions,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4875,14 +4854,6 @@ message GithubAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing
   // a DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-  // CreateMFASession is an option to create an MFA session instead of a login session.
-  // The SSO MFA flow will result in an SSO MFA token which can be used by the user to
-  // pass an MFA check in Teleport. This action is only allowed if the auth connector is
-  // configured for MFA checks and the user is pre-authenticated (not first time login).
-  bool CreateMFASession = 19 [(gogoproto.jsontag) = "create_mfa_session,omitempty"];
-  // MFAChallengeExtensions are extensions that will be apply to the MFA Session.
-  // Required if CreateMFASession is true.
-  teleport.mfa.v1.ChallengeExtensions MFAChallengeExtensions = 20 [(gogoproto.jsontag) = "mfa_challenge_extensions,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

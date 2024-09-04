@@ -251,9 +251,9 @@ type Identity interface {
 	// SSO MFA session data is expected to expire according to backend settings.
 	UpsertSSOMFASessionData(ctx context.Context, sd *wantypes.SSOMFASessionData) error
 
-	// GetSSOMFASessionData retrieves a previously-stored SSO MFA session data by ID,
-	// if it exists and has not expired.
-	GetSSOMFASessionData(ctx context.Context, user, sessionID string) (*wantypes.SSOMFASessionData, error)
+	// GetSSOMFASessionData retrieves a previously-stored SSO MFA session data by
+	// username and request ID, if it exists and has not expired.
+	GetSSOMFASessionData(ctx context.Context, user, requestID string) (*wantypes.SSOMFASessionData, error)
 
 	// DeleteSSOMFASessionData deletes SSO MFA session data by ID, if it exists
 	// and has not expired.

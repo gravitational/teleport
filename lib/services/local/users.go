@@ -1640,7 +1640,7 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *webau
 	switch {
 	case sd == nil:
 		return trace.BadParameter("missing parameter sd")
-	case sd.TokenID == "":
+	case sd.Token == "":
 		return trace.BadParameter("missing parameter ID")
 	case sd.RequestID == "":
 		return trace.BadParameter("missing parameter RequestID")
@@ -1657,22 +1657,22 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *webau
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(ctx, backend.Item{
-		Key:     ssoMFASessionDataKey(sd.Username, sd.TokenID),
+		Key:     ssoMFASessionDataKey(sd.Username, sd.Token),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
 	})
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, user, sessionID string) (*webauthntypes.SSOMFASessionData, error) {
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, user, requestID string) (*webauthntypes.SSOMFASessionData, error) {
 	switch {
 	case user == "":
 		return nil, trace.BadParameter("missing parameter user")
-	case sessionID == "":
+	case requestID == "":
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
 
-	item, err := s.Get(ctx, ssoMFASessionDataKey(user, sessionID))
+	item, err := s.Get(ctx, ssoMFASessionDataKey(user, requestID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1691,8 +1691,8 @@ func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, user, ses
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(user, sessionID)))
 }
 
-func ssoMFASessionDataKey(user, sessionID string) []byte {
-	return backend.Key(webPrefix, usersPrefix, user, ssoMFASessionData, sessionID)
+func ssoMFASessionDataKey(user, requestID string) []byte {
+	return backend.Key(webPrefix, usersPrefix, user, ssoMFASessionData, requestID)
 }
 
 // UpsertGithubConnector creates or updates a Github connector

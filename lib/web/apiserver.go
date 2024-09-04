@@ -1948,7 +1948,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),
 			ClientRedirectURL: response.Req.ClientRedirectURL,
-			Token:             response.Token,
+			MFAToken:          response.MFAToken,
 		}
 
 		if err := SSOSetWebSessionAndRedirectURL(w, r, res, true); err != nil {
@@ -1982,7 +1982,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		TLSCert:           response.TLSCert,
 		HostSigners:       response.HostSigners,
 		FIPS:              h.cfg.FIPS,
-		Token:             response.Token,
+		Token:             response.MFAToken,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error constructing ssh response")
@@ -5000,7 +5000,8 @@ type SSOCallbackResponse struct {
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
-	Token             string
+	RequestID         string
+	MFAToken          string
 }
 
 // SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
@@ -5021,11 +5022,11 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if response.Token != "" {
-		websession.SetMFACookie(w, response.Token, 60)
+	if response.MFAToken != "" {
+		websession.SetMFACookie(w, response.RequestID, response.MFAToken)
 	}
 
-	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL, response.Token)
+	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}

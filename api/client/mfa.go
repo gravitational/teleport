@@ -34,7 +34,7 @@ func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto
 		return nil, trace.Wrap(&mfa.ErrMFANotSupported, "missing MFAPromptConstructor field, client cannot perform MFA ceremony")
 	}
 
-	return mfa.PerformMFACeremony(ctx, c, challengeRequest, promptOpts...)
+	return mfa.PerformMFACeremony(ctx, c, c, challengeRequest, promptOpts...)
 }
 
 // PromptMFA prompts the user for MFA. Implements [mfa.MFACeremonyClient].

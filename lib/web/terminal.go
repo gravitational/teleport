@@ -42,7 +42,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
@@ -472,10 +471,20 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamEvents(ctx, tc)
 
-	if mfaToken, err := r.Cookie(websession.SSOMFAToken); err == nil {
+	if cookie, err := r.Cookie(websession.SSOMFAToken); err == nil {
+		c, err := websession.DecodeSSOMFACookie(cookie.Value)
+		if err != nil {
+			t.log.WithError(err).Info("Failed decoding sso mfa token")
+			t.stream.WriteError(err.Error())
+			return
+		}
+
 		tc.MFAResponse = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_TokenID{
-				TokenID: mfaToken.Value,
+			Response: &authproto.MFAAuthenticateResponse_SSO{
+				SSO: &authproto.SSOResponse{
+					RequestId: c.RequestID,
+					Token:     c.MFAToken,
+				},
 			},
 		}
 	}
@@ -636,56 +645,13 @@ func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec, cert
 		var envelopeType string
 		// Convert from proto to JSON types.
 		switch {
-		case chal.GetAuthConnectorChallenge() != nil:
-			clientRedirectURL := fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin)
-			var redirectURL string
-			switch chal.GetAuthConnectorChallenge().Type {
-			case constants.OIDC:
-				resp, err := clt.CreateOIDCAuthRequest(ctx, types.OIDCAuthRequest{
-					Username:              certsReq.Username,
-					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
-					Type:                  chal.GetAuthConnectorChallenge().Type,
-					CheckUser:             true,
-					ClientRedirectURL:     clientRedirectURL,
-					CreatePrivilegedToken: true,
-					CreateWebSession:      true,
-				})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				redirectURL = resp.RedirectURL
-			case constants.SAML:
-				resp, err := clt.CreateSAMLAuthRequest(ctx, types.SAMLAuthRequest{
-					Username:              certsReq.Username,
-					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
-					Type:                  chal.GetAuthConnectorChallenge().Type,
-					ClientRedirectURL:     clientRedirectURL,
-					CreatePrivilegedToken: true,
-					CreateWebSession:      true,
-				})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				redirectURL = resp.RedirectURL
-			case constants.Github:
-				resp, err := clt.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
-					Username:              certsReq.Username,
-					ConnectorID:           chal.GetAuthConnectorChallenge().ID,
-					Type:                  chal.GetAuthConnectorChallenge().Type,
-					ClientRedirectURL:     clientRedirectURL,
-					CreatePrivilegedToken: true,
-					CreateWebSession:      true,
-				})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				redirectURL = resp.RedirectURL
-			}
-
+		case chal.GetSSOChallenge() != nil:
+			// TODO add clientREdirectURL to chall
+			// clientRedirectURL := fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin)
 			envelopeType = defaults.WebsocketIdPChallenge
 			challenge = &client.MFAAuthenticateChallenge{
 				IdPChallenge: client.IdPChallenge{
-					RedirectURL: redirectURL,
+					RedirectURL: chal.GetSSOChallenge().RedirectUrl,
 				},
 			}
 		case chal.GetWebauthnChallenge() != nil:

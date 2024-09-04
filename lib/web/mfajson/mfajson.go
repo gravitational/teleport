@@ -45,9 +45,20 @@ func Decode(b []byte, typ string) (*authproto.MFAAuthenticateResponse, error) {
 			},
 		}
 	case defaults.WebsocketIdPChallenge:
+		ssoResponse := struct {
+			RequestID string `json:"request_id"`
+			MFAToken  string `json:"mfa_token"`
+		}{}
+		if err := json.Unmarshal(b, &ssoResponse); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		resp = &authproto.MFAAuthenticateResponse{
-			Response: &authproto.MFAAuthenticateResponse_TokenID{
-				TokenID: string(b),
+			Response: &authproto.MFAAuthenticateResponse_SSO{
+				SSO: &authproto.SSOResponse{
+					RequestId: ssoResponse.RequestID,
+					Token:     ssoResponse.MFAToken,
+				},
 			},
 		}
 	default:
