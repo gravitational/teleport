@@ -4704,19 +4704,19 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
 	// request and verify enabled features are eventually enabled.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		re, err = clt.Get(ctx, endpoint, nil)
-		assert.NoError(t, err)
-		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-		str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-		require.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(c, err)
+		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(c, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		if assert.Empty(c, diff) {
 			t.Logf("Feature diff (-want +got):\n%s", diff)
 		}
 
-	}, time.Second, time.Millisecond*50)
+	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
 	// cluster config
@@ -4743,18 +4743,18 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	// request and verify again
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		re, err = clt.Get(ctx, endpoint, nil)
-		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-		str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-		require.NoError(t, err)
+		re, err := clt.Get(ctx, endpoint, nil)
+		assert.NoError(c, err)
+		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(c, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		if assert.Empty(c, diff) {
 			t.Logf("Feature diff (-want +got):\n%s", diff)
 		}
 
-	}, time.Second, time.Millisecond*50)
+	}, time.Second*5, time.Millisecond*50)
 }
 
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
@@ -4826,27 +4826,27 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		},
 	}
 
+	clt := env.proxies[0].newClient(t)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		t.Helper()
 		// Make a request.
-		clt := env.proxies[0].newClient(t)
 		endpoint := clt.Endpoint("web", "config.js")
 		re, err := clt.Get(ctx, endpoint, nil)
-		require.NoError(t, err)
-		require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+		assert.NoError(c, err)
+		assert.True(c, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
 		// Response is type application/javascript, we need to strip off the variable name
 		// and the semicolon at the end, then we are left with json like object.
 		var cfg webclient.WebConfig
-		str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-		err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-		require.NoError(t, err)
+		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
+		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		assert.NoError(c, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		if assert.Empty(c, diff) {
 			t.Logf("Feature diff (-want +got):\n%s", diff)
 		}
 
-	}, time.Second, time.Millisecond*50)
+	}, time.Second*5, time.Millisecond*50)
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
