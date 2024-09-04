@@ -48,7 +48,7 @@ Proxy version: (=teleport.version=)
 Proxy: <Var name="teleport.example.com:443" />
 ```
 
-### Step 1/2. Generate temporary bot credentials
+## Step 1/2. Generate temporary bot credentials
 
 In this step, you will use `tctl` and your local credentials to create a temporary bot in Teleport for the Terraform
 provider. The bot will exist for one hour and will be granted the default `terraform-provider` role that can edit every
@@ -72,7 +72,7 @@ Detected security key tap
 ```
 
 
-### Step 2/2. Run the terraform provider
+## Step 2/2. Run the Terraform provider
 
 At this point, you got valid credentials in your shell's environment variables for one hour.
 You can run the Teleport Terraform provider from this shell.
@@ -154,7 +154,7 @@ You can now start developing locally with the Teleport Terraform provider.
 
 Do not forget to obtain new temporary credentials every hour by re-running `eval $(tctl terraform env)`.
 
-### Next steps
+## Next steps
 
 - Follow [the user and role IaC guide](../user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
