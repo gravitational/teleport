@@ -330,6 +330,9 @@ jobs:
       run: terraform plan -no-color
 ```
 
+Commit the changes and push to the `main` branch to trigger the GitHub Actions workflow.
+You should see a successful Terraform plan in the workflow logs.
+
 </TabItem>
 <TabItem label="GitLab CI">
 
@@ -372,9 +375,12 @@ terraform-job:
     - terraform plan
 ```
 
+Commit the changes and push to any branch to trigger a Gitlab CI pipeline.
+You should see a successful Terraform plan in the pipeline logs.
+
 </TabItem>
 <TabItem label="CircleCI">
-In the repo containing your Terraform code and add the following CircleCI config:
+In the repo containing your Terraform code add the following CircleCI config in `.circleci/config.yml`:
 ```yaml
 version: '2.1'
 orbs:
@@ -383,14 +389,18 @@ workflows:
   deploy_infrastructure:
     jobs:
       - terraform/init:
+          tag: 1.9.5
           checkout: true
-          context: <Var name="context-id" />
+          context: <Var name="teleport-access" />
       - terraform/plan:
-          checkout: true
-          context: <Var name="context-id" />
+          tag: 1.9.5
+          context: <Var name="teleport-access" />
           requires:
             - terraform/init
 ```
+
+Commit the changes and push to any branch to trigger a CircleCI pipeline.
+You should see a successful Terraform plan in the pipeline logs.
 
 </TabItem>
 <TabItem label="AWS">
