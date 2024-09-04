@@ -23,8 +23,7 @@ under the Permission Management section.
 
 Teleport and Teleport Policy's Access Graph synchronize various resources, including SSH authorized keys and private keys.
 
-These resources are then visualized using the graph representation detailed in the
-[Access Graph page](./access-graph.mdx).
+These resources are then visualized using Teleport Access Graph.
 
 ### Importing SSH Authorized Keys
 
@@ -72,8 +71,10 @@ It also never sends the private key path or any other sensitive information.
 - A running Teleport Enterprise cluster v15.4.16/v16.2.0 or later.
 - For self-hosted clusters, an updated `license.pem` with Teleport Policy enabled.
 - For self-hosted clusters, a running Access Graph node v1.22.0 or later.
-Check [Access Graph page](./access-graph.mdx) for details on
-how to set up Access Graph.
+
+Check [How to use Teleport Policy](../policy-how-to-use.mdx) for details on how
+to set up Access Graph.
+
 - For self-hosted clusters, the node running the Access Graph service must be reachable
 from Teleport Auth Service.
 - A Linux/macOS server running the Teleport SSH Service.
