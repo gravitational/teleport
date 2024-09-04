@@ -6865,7 +6865,7 @@ message SPIFFEFederationDelete {
   ];
 }
 
-// AutoUpdateConfigCreate is emitted when a auto update config is created.
+// AutoUpdateConfigCreate is emitted when an auto update config is created.
 message AutoUpdateConfigCreate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
@@ -6958,7 +6958,7 @@ message AutoUpdateConfigDelete {
   ];
 }
 
-// AutoUpdateVersionCreate is emitted when a auto update version is created.
+// AutoUpdateVersionCreate is emitted when an auto update version is created.
 message AutoUpdateVersionCreate {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [

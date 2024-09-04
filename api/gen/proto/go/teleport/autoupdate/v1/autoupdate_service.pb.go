@@ -537,7 +537,7 @@ var file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = []byte{
 	0x6f, 0x6e, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x20, 0x0a, 0x1e, 0x44,
 	0x65, 0x6c, 0x65, 0x74, 0x65, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x56,
 	0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x32, 0xbf, 0x09,
-	0x0a, 0x11, 0x41, 0x75, 0x74, 0x6f, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x72, 0x76,
+	0x0a, 0x11, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x65, 0x72, 0x76,
 	0x69, 0x63, 0x65, 0x12, 0x73, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x41, 0x75, 0x74, 0x6f, 0x55, 0x70,
 	0x64, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x32, 0x2e, 0x74, 0x65, 0x6c,
 	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x61, 0x75, 0x74, 0x6f, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65,
@@ -656,26 +656,26 @@ var file_teleport_autoupdate_v1_autoupdate_service_proto_depIdxs = []int32{
 	11, // 3: teleport.autoupdate.v1.CreateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
 	11, // 4: teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
 	11, // 5: teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest.version:type_name -> teleport.autoupdate.v1.AutoUpdateVersion
-	0,  // 6: teleport.autoupdate.v1.AutoupdateService.GetAutoUpdateConfig:input_type -> teleport.autoupdate.v1.GetAutoUpdateConfigRequest
-	1,  // 7: teleport.autoupdate.v1.AutoupdateService.CreateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.CreateAutoUpdateConfigRequest
-	2,  // 8: teleport.autoupdate.v1.AutoupdateService.UpdateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest
-	3,  // 9: teleport.autoupdate.v1.AutoupdateService.UpsertAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest
-	4,  // 10: teleport.autoupdate.v1.AutoupdateService.DeleteAutoUpdateConfig:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateConfigRequest
-	5,  // 11: teleport.autoupdate.v1.AutoupdateService.GetAutoUpdateVersion:input_type -> teleport.autoupdate.v1.GetAutoUpdateVersionRequest
-	6,  // 12: teleport.autoupdate.v1.AutoupdateService.CreateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.CreateAutoUpdateVersionRequest
-	7,  // 13: teleport.autoupdate.v1.AutoupdateService.UpdateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest
-	8,  // 14: teleport.autoupdate.v1.AutoupdateService.UpsertAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest
-	9,  // 15: teleport.autoupdate.v1.AutoupdateService.DeleteAutoUpdateVersion:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateVersionRequest
-	10, // 16: teleport.autoupdate.v1.AutoupdateService.GetAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	10, // 17: teleport.autoupdate.v1.AutoupdateService.CreateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	10, // 18: teleport.autoupdate.v1.AutoupdateService.UpdateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	10, // 19: teleport.autoupdate.v1.AutoupdateService.UpsertAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
-	12, // 20: teleport.autoupdate.v1.AutoupdateService.DeleteAutoUpdateConfig:output_type -> google.protobuf.Empty
-	11, // 21: teleport.autoupdate.v1.AutoupdateService.GetAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	11, // 22: teleport.autoupdate.v1.AutoupdateService.CreateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	11, // 23: teleport.autoupdate.v1.AutoupdateService.UpdateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	11, // 24: teleport.autoupdate.v1.AutoupdateService.UpsertAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
-	12, // 25: teleport.autoupdate.v1.AutoupdateService.DeleteAutoUpdateVersion:output_type -> google.protobuf.Empty
+	0,  // 6: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:input_type -> teleport.autoupdate.v1.GetAutoUpdateConfigRequest
+	1,  // 7: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.CreateAutoUpdateConfigRequest
+	2,  // 8: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateConfigRequest
+	3,  // 9: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateConfigRequest
+	4,  // 10: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateConfigRequest
+	5,  // 11: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:input_type -> teleport.autoupdate.v1.GetAutoUpdateVersionRequest
+	6,  // 12: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.CreateAutoUpdateVersionRequest
+	7,  // 13: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpdateAutoUpdateVersionRequest
+	8,  // 14: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:input_type -> teleport.autoupdate.v1.UpsertAutoUpdateVersionRequest
+	9,  // 15: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:input_type -> teleport.autoupdate.v1.DeleteAutoUpdateVersionRequest
+	10, // 16: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	10, // 17: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	10, // 18: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	10, // 19: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateConfig:output_type -> teleport.autoupdate.v1.AutoUpdateConfig
+	12, // 20: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateConfig:output_type -> google.protobuf.Empty
+	11, // 21: teleport.autoupdate.v1.AutoUpdateService.GetAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	11, // 22: teleport.autoupdate.v1.AutoUpdateService.CreateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	11, // 23: teleport.autoupdate.v1.AutoUpdateService.UpdateAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	11, // 24: teleport.autoupdate.v1.AutoUpdateService.UpsertAutoUpdateVersion:output_type -> teleport.autoupdate.v1.AutoUpdateVersion
+	12, // 25: teleport.autoupdate.v1.AutoUpdateService.DeleteAutoUpdateVersion:output_type -> google.protobuf.Empty
 	16, // [16:26] is the sub-list for method output_type
 	6,  // [6:16] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name

@@ -21,8 +21,8 @@ import "teleport/autoupdate/v1/autoupdate.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
 
-// AutoupdateService provides an API to manage autoupdates.
-service AutoupdateService {
+// AutoUpdateService provides an API to manage autoupdates.
+service AutoUpdateService {
   // GetAutoUpdateConfig gets the current autoupdate config singleton.
   rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
 

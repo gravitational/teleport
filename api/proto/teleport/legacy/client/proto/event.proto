@@ -179,8 +179,8 @@ message Event {
     // StaticHostUser is a resource for static host users.
     teleport.userprovisioning.v1.StaticHostUser StaticHostUser = 63;
     // AutoUpdateConfig is a resource for autoupdate config.
-    teleport.autoupdate.v1.AutoUpdateConfig AutoupdateConfig = 64;
+    teleport.autoupdate.v1.AutoUpdateConfig AutoUpdateConfig = 64;
     // AutoUpdateVersion is a resource for autoupdate version.
-    teleport.autoupdate.v1.AutoUpdateVersion AutoupdateVersion = 65;
+    teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
   }
 }

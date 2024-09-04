@@ -13819,7 +13819,7 @@ func (m *SPIFFEFederationDelete) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_SPIFFEFederationDelete proto.InternalMessageInfo
 
-// AutoUpdateConfigCreate is emitted when a auto update config is created.
+// AutoUpdateConfigCreate is emitted when an auto update config is created.
 type AutoUpdateConfigCreate struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
@@ -13963,7 +13963,7 @@ func (m *AutoUpdateConfigDelete) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_AutoUpdateConfigDelete proto.InternalMessageInfo
 
-// AutoUpdateVersionCreate is emitted when a auto update version is created.
+// AutoUpdateVersionCreate is emitted when an auto update version is created.
 type AutoUpdateVersionCreate struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
