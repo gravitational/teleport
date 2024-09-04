@@ -20,12 +20,10 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -219,7 +217,7 @@ type Watch struct {
 // String returns a user-friendly description
 // of the watcher
 func (w *Watch) String() string {
-	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))))
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, w.Prefixes)
 }
 
 // Watcher returns watcher
@@ -380,7 +378,7 @@ func (it Items) Swap(i, j int) {
 
 // Less is part of sort.Interface.
 func (it Items) Less(i, j int) bool {
-	return bytes.Compare(it[i].Key, it[j].Key) < 0
+	return it[i].Key.Compare(it[j].Key) < 0
 }
 
 // TTL returns TTL in duration units, rounds up to one second
@@ -429,27 +427,6 @@ func (p earliest) Less(i, j int) bool {
 
 func (p earliest) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
-}
-
-// Separator is used as a separator between key parts
-const Separator = '/'
-
-// NewKey joins parts into path separated by Separator,
-// makes sure path always starts with Separator ("/")
-func NewKey(parts ...string) Key {
-	return internalKey("", parts...)
-}
-
-// ExactKey is like Key, except a Separator is appended to the result
-// path of Key. This is to ensure range matching of a path will only
-// math child paths and not other paths that have the resulting path
-// as a prefix.
-func ExactKey(parts ...string) Key {
-	return append(NewKey(parts...), Separator)
-}
-
-func internalKey(internalPrefix string, parts ...string) Key {
-	return Key(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
 
 // CreateRevision generates a new identifier to be used
