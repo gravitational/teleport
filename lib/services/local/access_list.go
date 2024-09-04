@@ -248,15 +248,26 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
 	count := uint(0)
+	listCount := uint(0)
 	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		var err error
-		count, err = a.memberService.WithPrefix(accessListName).CountResources(ctx)
-		return trace.Wrap(err)
+		members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, member := range members {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				listCount++
+			} else {
+				count++
+			}
+		}
+		return nil
 	})
 
-	return uint32(count), trace.Wrap(err)
+	return uint32(count), uint32(listCount), trace.Wrap(err)
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.

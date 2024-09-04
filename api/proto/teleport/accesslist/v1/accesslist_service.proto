@@ -166,6 +166,8 @@ message CountAccessListMembersRequest {
 message CountAccessListMembersResponse {
   // count is the number of access list members in the access list.
   uint32 count = 1;
+  // list_count is the number of access list members of type list in the access list.
+  uint32 list_count = 2;
 }
 
 // ListAccessListMembersRequest is the request for getting paginated access list

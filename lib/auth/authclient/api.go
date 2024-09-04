@@ -1151,7 +1151,7 @@ type Cache interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	// May return a DynamicAccessListError if the requested access list has an
 	// implicit member list and the underlying implementation does not have

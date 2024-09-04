@@ -151,15 +151,15 @@ func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error) {
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
 	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
 		AccessListName: accessListName,
 	})
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, 0, trace.Wrap(err)
 	}
 
-	return resp.Count, nil
+	return resp.Count, resp.ListCount, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.

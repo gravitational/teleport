@@ -94,9 +94,14 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 
 	var memberCount *uint32
+	var memberListCount *uint32
 	if msg.Status != nil && msg.Status.MemberCount != nil {
 		memberCount = new(uint32)
 		*memberCount = *msg.Status.MemberCount
+	}
+	if msg.Status != nil && msg.Status.MemberListCount != nil {
+		memberListCount = new(uint32)
+		*memberListCount = *msg.Status.MemberListCount
 	}
 
 	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
@@ -127,6 +132,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	}
 	accessList.Status = accesslist.Status{
 		MemberCount: memberCount,
+		MemberListCount: memberListCount,
 	}
 
 	for _, opt := range opts {
@@ -147,7 +153,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 
 		var kind accesslistv1.MembershipKind
 		if enumVal, ok := accesslistv1.MembershipKind_value[owner.MembershipKind]; ok {
-			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+			kind = accesslistv1.MembershipKind(enumVal)
 		}
 
 		owners[i] = &accesslistv1.AccessListOwner{
@@ -180,9 +186,14 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	}
 
 	var memberCount *uint32
+	var memberListCount *uint32
 	if accessList.Status.MemberCount != nil {
 		memberCount = new(uint32)
 		*memberCount = *accessList.Status.MemberCount
+	}
+	if accessList.Status.MemberListCount != nil {
+		memberListCount = new(uint32)
+		*memberListCount = *accessList.Status.MemberListCount
 	}
 
 	return &accesslistv1.AccessList{
@@ -217,6 +228,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 		},
 		Status: &accesslistv1.AccessListStatus{
 			MemberCount: memberCount,
+			MemberListCount: memberListCount,
 		},
 	}
 }

@@ -241,6 +241,8 @@ type Grants struct {
 type Status struct {
 	// MemberCount is the number of members in the access list.
 	MemberCount *uint32
+	// MemberListCount is the number of members in the access list that are lists themselves.
+	MemberListCount *uint32
 }
 
 // NewAccessList will create a new access list.

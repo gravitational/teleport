@@ -286,6 +286,8 @@ message ReviewChanges {
 
 // AccessListStatus contains dynamic fields calculated during retrieval.
 message AccessListStatus {
-  // member_count is the number of members in the in the access list.
+  // member_count is the number of members in the access list.
   optional uint32 member_count = 1;
+  // member_list_count is the number of members in the access list of type list.
+  optional uint32 member_list_count = 2;
 }

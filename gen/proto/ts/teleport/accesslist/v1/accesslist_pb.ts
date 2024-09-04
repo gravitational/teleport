@@ -430,11 +430,17 @@ export interface ReviewChanges {
  */
 export interface AccessListStatus {
     /**
-     * member_count is the number of members in the in the access list.
+     * member_count is the number of members in the access list.
      *
      * @generated from protobuf field: optional uint32 member_count = 1;
      */
     memberCount?: number;
+    /**
+     * member_list_count is the number of members in the access list of type list.
+     *
+     * @generated from protobuf field: optional uint32 member_list_count = 2;
+     */
+    memberListCount?: number;
 }
 /**
  * ReviewFrequency is the frequency of reviews.
@@ -1412,7 +1418,8 @@ export const ReviewChanges = new ReviewChanges$Type();
 class AccessListStatus$Type extends MessageType<AccessListStatus> {
     constructor() {
         super("teleport.accesslist.v1.AccessListStatus", [
-            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
+            { no: 1, name: "member_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "member_list_count", kind: "scalar", opt: true, T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListStatus>): AccessListStatus {
@@ -1429,6 +1436,9 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
                 case /* optional uint32 member_count */ 1:
                     message.memberCount = reader.uint32();
                     break;
+                case /* optional uint32 member_list_count */ 2:
+                    message.memberListCount = reader.uint32();
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1444,6 +1454,9 @@ class AccessListStatus$Type extends MessageType<AccessListStatus> {
         /* optional uint32 member_count = 1; */
         if (message.memberCount !== undefined)
             writer.tag(1, WireType.Varint).uint32(message.memberCount);
+        /* optional uint32 member_list_count = 2; */
+        if (message.memberListCount !== undefined)
+            writer.tag(2, WireType.Varint).uint32(message.memberListCount);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
