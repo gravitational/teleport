@@ -45,9 +45,10 @@ GitLab CI, ...)
 
 You need either:
 - A GCP or AWS VM with terraform installed
-- A working GitHub Actions, GitLab CI or CircleCI setup
+- A git repo able to run GitHub Actions, GitLab CI or CircleCI jobs
 
 You also need:
+
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 ## Step 1/4. Create the Terraform provider bot
@@ -296,36 +297,39 @@ so the Terraform state is persisted across CI pipelines.
 
 <Tabs>
 <TabItem label="GitHub Actions">
- In the repo containing your Terraform code and add the following GitHub Actions workflow:
- ```yaml
- # This is a basic workflow to help you get started.
- # It will take the following action whenever a push is made to the "main" branch.
- on:
-   push:
-     branches:
-     - main
- jobs:
-   demo:
-     permissions:
-       # The "id-token: write" permission is required or Machine ID will not be
-       # able to authenticate with the cluster.
-       id-token: write
-       contents: read
-     name: terraform-plan
-     runs-on: ubuntu-latest
+In the repo containing your Terraform code, create a `.github/workflows/teleport-terraform.yaml` file with the
+following content:
 
-     # You can find more advanced TF workflows at https://github.com/hashicorp/setup-terraform
-     steps:
-     - uses: actions/checkout@v4
-     - uses: hashicorp/setup-terraform@v3
-       uses: actions/checkout@v3
-     - name: Terraform Init
-       id: init
-       run: terraform init
-     - name: Terraform Plan
-       id: plan
-       run: terraform plan -no-color
- ```
+```yaml
+name: Teleport Terraform Demo
+# This is a basic workflow to help you get started.
+# It will take the following action whenever a push is made to the "main" branch.
+on:
+  push:
+    branches:
+    - main
+jobs:
+  demo:
+    permissions:
+      # The "id-token: write" permission is required or Machine ID will not be
+      # able to authenticate with the cluster.
+      id-token: write
+      contents: read
+    name: terraform-plan
+    runs-on: ubuntu-latest
+
+    # You can find more advanced TF workflows at https://github.com/hashicorp/setup-terraform
+    steps:
+    - uses: actions/checkout@v4
+    - uses: hashicorp/setup-terraform@v3
+    - name: Terraform Init
+      id: init
+      run: terraform init
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -no-color
+```
+
 </TabItem>
 <TabItem label="GitLab CI">
 In the repo containing your Terraform code and add the following GitLab CI pipeline:
