@@ -1,0 +1,17 @@
+{
+  "name": "gen-audit-event-reference",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite --config events.vite.config.mts build",
+    "gen-docs": "node index.js ../pages/reference/audit-events.mdx",
+    "test": "NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules\" jest"
+  },
+  "devDependencies": {
+    "vite-tsconfig-paths": "^5.0.1"
+  },
+  "packageManager": "pnpm@9.8.0",
+  "dependencies": {
+    "jest": "^29.7.0"
+  }
+}
