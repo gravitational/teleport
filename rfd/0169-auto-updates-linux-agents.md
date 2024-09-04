@@ -87,7 +87,7 @@ The cache is considered healthy when all instance heartbeats present on the back
 At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
 This plan is protected by optimistic locking, and contains the following data:
 
-Data key: `/autoupdate/[name of group](/[page-id])` (e.g., `/autoupdate/staging/8745823`)
+Data key: `/autoupdate/[name of group](/[page uuid])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`)
 
 Data value JSON:
 - `start_time`: timestamp of current window start time
@@ -95,6 +95,7 @@ Data value JSON:
 - `schedule`: type of schedule that triggered the rollout
 - `hosts`: list of host UUIDs in randomized order
 - `next_page`: additional UUIDs, if list is greater than 100,000 UUIDs
+- `auth_server`: ID of auth server writing the plan
 
 Expiration time of each key is 2 weeks.
 
@@ -110,20 +111,20 @@ Each page will duplicate all values besides `hosts`, which will be different for
 All pages besides the first page will be suffixed with a randomly generated number.
 Pages will be written in reverse order, in a linked-link, before the final atomic non-suffixed write of the first page.
 If the non-suffixed write fails, the auth server is responsible for cleaning up the unusable pages.
-If cleanup fails, the unusable pages will expire after 2 weeks.
+If cleanup fails, the unusable pages will expire from the backend after 2 weeks.
 
 ```
 Winning auth:
-  WRITE: /autoupdate/staging/4324234 | next_page: null
-  WRITE: /autoupdate/staging/8745823 | next_page: 4324234
-  WRITE: /autoupdate/staging | next_page: 8745823
+  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56 | next_page: null
+  WRITE: /autoupdate/staging/9ae65c11-35f2-483c-987e-73ef36989d3b | next_page: 58526ba2-c12d-4a49-b5a4-1b694b82bf56
+  WRITE: /autoupdate/staging | next_page: 9ae65c11-35f2-483c-987e-73ef36989d3b
 
 Losing auth:
-  WRITE: /autoupdate/staging/2342343 | next_page: null
-  WRITE: /autoupdate/staging/7678686 | next_page: 2342343
-  WRITE CONFLICT: /autoupdate/staging | next_page: 7678686
-  DELETE: /autoupdate/staging/7678686
-  DELETE: /autoupdate/staging/2342343
+  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530 | next_page: null
+  WRITE: /autoupdate/staging/dc27497b-ce25-4d85-b537-d0639996110d | next_page: dd850e65-d2b2-4557-8ffb-def893c52530
+  WRITE CONFLICT: /autoupdate/staging | next_page: dc27497b-ce25-4d85-b537-d0639996110d
+  DELETE: /autoupdate/staging/dc27497b-ce25-4d85-b537-d0639996110d
+  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530
 ```
 
 #### Rollout
@@ -210,7 +211,7 @@ spec:
   agent_schedules:
     # schedule is "regular" or "critical"
     regular:
-      # name of the group
+      # name of the group. Must only contain valid backend / resource name characters.
     - name: staging-group
       # days specifies the days of the week when the group may be updated.
       #  default: ["*"] (all days)
@@ -684,57 +685,57 @@ package teleport.autoupdate.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
 
-// AutoupdateService serves agent and client automatic version updates.
-service AutoupdateService {
-  // GetAutoupdateConfig updates the autoupdate config.
-  rpc GetAutoupdateConfig(GetAutoupdateConfigRequest) returns (AutoupdateConfig);
-  // CreateAutoupdateConfig creates the autoupdate config.
-  rpc CreateAutoupdateConfig(CreateAutoupdateConfigRequest) returns (AutoupdateConfig);
-  // UpdateAutoupdateConfig updates the autoupdate config.
-  rpc UpdateAutoupdateConfig(UpdateAutoupdateConfigRequest) returns (AutoupdateConfig);
-  // UpsertAutoupdateConfig overwrites the autoupdate config.
-  rpc UpsertAutoupdateConfig(UpsertAutoupdateConfigRequest) returns (AutoupdateConfig);
-  // ResetAutoupdateConfig restores the autoupdate config to default values.
-  rpc ResetAutoupdateConfig(ResetAutoupdateConfigRequest) returns (AutoupdateConfig);
+// AutoUpdateService serves agent and client automatic version updates.
+service AutoUpdateService {
+  // GetAutoUpdateConfig updates the autoupdate config.
+  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // CreateAutoUpdateConfig creates the autoupdate config.
+  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // UpdateAutoUpdateConfig updates the autoupdate config.
+  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // UpsertAutoUpdateConfig overwrites the autoupdate config.
+  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // ResetAutoUpdateConfig restores the autoupdate config to default values.
+  rpc ResetAutoUpdateConfig(ResetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
 
-  // GetAutoupdateVersion returns the autoupdate version.
-  rpc GetAutoupdateVersion(GetAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // CreateAutoupdateVersion creates the autoupdate version.
-  rpc CreateAutoupdateVersion(CreateAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // UpdateAutoupdateVersion updates the autoupdate version.
-  rpc UpdateAutoupdateVersion(UpdateAutoupdateVersionRequest) returns (AutoupdateVersion);
-  // UpsertAutoupdateVersion overwrites the autoupdate version.
-  rpc UpsertAutoupdateVersion(UpsertAutoupdateVersionRequest) returns (AutoupdateVersion);
+  // GetAutoUpdateVersion returns the autoupdate version.
+  rpc GetAutoUpdateVersion(GetAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+  // CreateAutoUpdateVersion creates the autoupdate version.
+  rpc CreateAutoUpdateVersion(CreateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+  // UpdateAutoUpdateVersion updates the autoupdate version.
+  rpc UpdateAutoUpdateVersion(UpdateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+  // UpsertAutoUpdateVersion overwrites the autoupdate version.
+  rpc UpsertAutoUpdateVersion(UpsertAutoUpdateVersionRequest) returns (AutoUpdateVersion);
 
   // GetAgentRolloutPlan returns the agent rollout plan and current progress.
   rpc GetAgentRolloutPlan(GetAgentRolloutPlanRequest) returns (AgentRolloutPlan);
-  // GetAutoupdateVersion streams the agent rollout plan's list of all hosts.
+  // GetAutoUpdateVersion streams the agent rollout plan's list of all hosts.
   rpc GetAgentRolloutPlanHosts(GetAgentRolloutPlanHostsRequest) returns (stream AgentRolloutPlanHost);
 }
 
-// GetAutoupdateConfigRequest requests the contents of the AutoupdateConfig.
-message GetAutoupdateConfigRequest {}
+// GetAutoUpdateConfigRequest requests the contents of the AutoUpdateConfig.
+message GetAutoUpdateConfigRequest {}
 
-// CreateAutoupdateConfigRequest requests creation of the the AutoupdateConfig.
-message CreateAutoupdateConfigRequest {
-  AutoupdateConfig autoupdate_config = 1;
+// CreateAutoUpdateConfigRequest requests creation of the the AutoUpdateConfig.
+message CreateAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
 }
 
-// UpdateAutoupdateConfigRequest requests an update of the the AutoupdateConfig.
-message UpdateAutoupdateConfigRequest {
-  AutoupdateConfig autoupdate_config = 1;
+// UpdateAutoUpdateConfigRequest requests an update of the the AutoUpdateConfig.
+message UpdateAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
 }
 
-// UpsertAutoupdateConfigRequest requests an upsert of the the AutoupdateConfig.
-message UpsertAutoupdateConfigRequest {
-  AutoupdateConfig autoupdate_config = 1;
+// UpsertAutoUpdateConfigRequest requests an upsert of the the AutoUpdateConfig.
+message UpsertAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
 }
 
-// ResetAutoupdateConfigRequest requests a reset of the the AutoupdateConfig to default values.
-message ResetAutoupdateConfigRequest {}
+// ResetAutoUpdateConfigRequest requests a reset of the the AutoUpdateConfig to default values.
+message ResetAutoUpdateConfigRequest {}
 
-// AutoupdateConfig holds dynamic configuration settings for automatic updates.
-message AutoupdateConfig {
+// AutoUpdateConfig holds dynamic configuration settings for automatic updates.
+message AutoUpdateConfig {
   // kind is the kind of the resource.
   string kind = 1;
   // sub_kind is the sub kind of the resource.
@@ -744,27 +745,27 @@ message AutoupdateConfig {
   // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
-  AutoupdateConfigSpec spec = 7;
+  AutoUpdateConfigSpec spec = 7;
 }
 
-// AutoupdateConfigSpec is the spec for the autoupdate config.
-message AutoupdateConfigSpec {
+// AutoUpdateConfigSpec is the spec for the autoupdate config.
+message AutoUpdateConfigSpec {
   // agent_autoupdate specifies whether agent autoupdates are enabled.
   bool agent_autoupdate = 1;
   // agent_schedules specifies schedules for updates of grouped agents.
-  AgentAutoupdateSchedules agent_schedules = 3;
+  AgentAutoUpdateSchedules agent_schedules = 3;
 }
 
-// AgentAutoupdateSchedules specifies update scheduled for grouped agents.
-message AgentAutoupdateSchedules {
+// AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
+message AgentAutoUpdateSchedules {
   // regular schedules for non-critical versions.
-  repeated AgentAutoupdateGroup regular = 1;
+  repeated AgentAutoUpdateGroup regular = 1;
   // critical schedules for urgently needed versions.
-  repeated AgentAutoupdateGroup critical = 2;
+  repeated AgentAutoUpdateGroup critical = 2;
 }
 
-// AgentAutoupdateGroup specifies the update schedule for a group of agents.
-message AgentAutoupdateGroup {
+// AgentAutoUpdateGroup specifies the update schedule for a group of agents.
+message AgentAutoUpdateGroup {
   // name of the group
   string name = 1;
   // days to run update
@@ -800,29 +801,29 @@ enum Day {
   DAY_SATURDAY = 8;
 }
 
-// GetAutoupdateVersionRequest requests the autoupdate_version singleton resource.
-message GetAutoupdateVersionRequest {}
+// GetAutoUpdateVersionRequest requests the autoupdate_version singleton resource.
+message GetAutoUpdateVersionRequest {}
 
-// GetAutoupdateVersionRequest requests creation of the autoupdate_version singleton resource.
-message CreateAutoupdateVersionRequest {
+// GetAutoUpdateVersionRequest requests creation of the autoupdate_version singleton resource.
+message CreateAutoUpdateVersionRequest {
   // autoupdate_version resource contents
-  AutoupdateVersion autoupdate_version = 1;
+  AutoUpdateVersion autoupdate_version = 1;
 }
 
-// GetAutoupdateVersionRequest requests an update of the autoupdate_version singleton resource.
-message UpdateAutoupdateVersionRequest {
+// GetAutoUpdateVersionRequest requests an update of the autoupdate_version singleton resource.
+message UpdateAutoUpdateVersionRequest {
   // autoupdate_version resource contents
-  AutoupdateVersion autoupdate_version = 1;
+  AutoUpdateVersion autoupdate_version = 1;
 }
 
-// GetAutoupdateVersionRequest requests an upsert of the autoupdate_version singleton resource.
-message UpsertAutoupdateVersionRequest {
+// GetAutoUpdateVersionRequest requests an upsert of the autoupdate_version singleton resource.
+message UpsertAutoUpdateVersionRequest {
   // autoupdate_version resource contents
-  AutoupdateVersion autoupdate_version = 1;
+  AutoUpdateVersion autoupdate_version = 1;
 }
 
-// AutoupdateVersion holds dynamic configuration settings for autoupdate versions.
-message AutoupdateVersion {
+// AutoUpdateVersion holds dynamic configuration settings for autoupdate versions.
+message AutoUpdateVersion {
   // kind is the kind of the resource.
   string kind = 1;
   // sub_kind is the sub kind of the resource.
@@ -832,11 +833,11 @@ message AutoupdateVersion {
   // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
-  AutoupdateVersionSpec spec = 5;
+  AutoUpdateVersionSpec spec = 5;
 }
 
-// AutoupdateVersionSpec is the spec for the autoupdate version.
-message AutoupdateVersionSpec {
+// AutoUpdateVersionSpec is the spec for the autoupdate version.
+message AutoUpdateVersionSpec {
   // agent_version is the desired agent version for new rollouts.
   string agent_version = 1;
   // agent_version schedule is the schedule to use for rolling out the agent_version.
@@ -883,7 +884,7 @@ message AgentRolloutPlan {
   AgentRolloutPlanStatus status = 6;
 }
 
-// AutoupdateVersionSpec is the spec for the AgentRolloutPlan.
+// AutoUpdateVersionSpec is the spec for the AgentRolloutPlan.
 message AgentRolloutPlanSpec {
   // start_time of the rollout
   google.protobuf.Timestamp start_time = 1;
@@ -895,7 +896,7 @@ message AgentRolloutPlanSpec {
   int64 host_count = 4;
 }
 
-// AutoupdateVersionStatus is the status for the AgentRolloutPlan.
+// AutoUpdateVersionStatus is the status for the AgentRolloutPlan.
 message AgentRolloutPlanStatus {
   // last_active_host_index specifies the index of the last host that may be updated.
   int64 last_active_host_index = 1;
@@ -914,7 +915,7 @@ message AgentRolloutPlanHost {
 
 ## Execution Plan
 
-1. Implement Teleport APIs for new scheduling system (without backpressure)
+1. Implement Teleport APIs for new scheduling system (without backpressure or group interdependence)
 2. Implement new Linux server auto-updater in Go.
 3. Implement changes to Kubernetes auto-updater.
 4. Test extensively on all supported Linux distributions.
@@ -923,4 +924,4 @@ message AgentRolloutPlanHost {
 7. Release documentation changes.
 8. Communicate to users that they should update their updater.
 9. Deprecate old auto-updater endpoints.
-10. Add groups and backpressure features.
+10. Add group interdependence and backpressure features.
