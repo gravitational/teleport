@@ -25,19 +25,19 @@ import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 import type { NotificationItem } from 'shared/components/Notification';
 
-export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
+export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
   const [showDropdown, setShowDropdown] = useState(false);
   const ref = useRef(null);
   const theme = useTheme();
 
   const toggleDropdown = () => {
-    if (warnings.length > 0) {
+    if (alerts.length > 0) {
       setShowDropdown(prevState => !prevState);
     }
   };
 
   // Dropdown is always closed if there are no errors to show
-  if (warnings.length === 0 && showDropdown) setShowDropdown(false);
+  if (alerts.length === 0 && showDropdown) setShowDropdown(false);
 
   // Close the dropdown if it's open and the user clicks outside of it
   useClickOutside(ref, () => {
@@ -51,8 +51,8 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
   return (
     <>
       <StyledButton
-        title={'Warnings'}
-        hasWarnings={warnings.length > 0}
+        title={'Alerts'}
+        hasAlerts={alerts.length > 0}
         px={2}
         onClick={toggleDropdown}
       >
@@ -60,12 +60,10 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           alignItems="center"
           justifyContent="space-between"
           color={
-            warnings.length
-              ? theme.colors.text.main
-              : theme.colors.text.disabled
+            alerts.length ? theme.colors.text.main : theme.colors.text.disabled
           }
         >
-          <Warning size={20} mr={2} /> {warnings.length}
+          <Warning size={20} mr={2} /> {alerts.length}
         </Flex>
       </StyledButton>
       {showDropdown && (
@@ -73,23 +71,23 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           mt={3}
           p={2}
           style={{
-            maxHeight: window.innerHeight / 4,
+            maxHeight: window.innerHeight / 3,
           }}
         >
           <Flex alignItems="center" justifyContent="space-between">
             <H3 px={3} style={{ overflow: 'visible' }}>
-              {warnings.length} {warnings.length > 1 ? 'Warnings' : 'Warning'}
+              {alerts.length} {alerts.length > 1 ? 'Alerts' : 'Alert'}
             </H3>
             <ButtonIcon size={1} ml={1} mr={2} onClick={toggleDropdown}>
               <Cross size="medium" />
             </ButtonIcon>
           </Flex>
-          <StyledOverflow flexWrap="wrap" gap={2}>
-            {warnings.map(warning => (
+          <StyledOverflow flexDirection="column" gap={2}>
+            {alerts.map(alert => (
               <StyledNotification
-                key={warning.id}
-                item={warning}
-                onRemove={() => onRemoveWarning(warning.id)}
+                key={alert.id}
+                item={alert}
+                onRemove={() => onRemoveAlert(alert.id)}
                 Icon={Warning}
                 getColor={theme => theme.colors.warning.main}
                 isAutoRemovable={false}
@@ -107,13 +105,13 @@ const StyledButton = styled(Button)`
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
   background-color: ${props =>
-    props.hasWarnings
+    props.hasAlerts
       ? props.theme.colors.warning.main
       : props.theme.colors.spotBackground[1]};
   &:hover,
   &:focus {
     background-color: ${props =>
-      props.hasWarnings
+      props.hasAlerts
         ? props.theme.colors.warning.hover
         : props.theme.colors.spotBackground[2]};
   }
@@ -141,6 +139,6 @@ const StyledOverflow = styled(Flex)`
 `;
 
 type Props = {
-  warnings: NotificationItem[];
-  onRemoveWarning: (id: string) => void;
+  alerts: NotificationItem[];
+  onRemoveAlert: (id: string) => void;
 };
