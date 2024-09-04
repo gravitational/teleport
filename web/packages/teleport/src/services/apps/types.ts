@@ -23,9 +23,9 @@ import { ResourceLabel } from 'teleport/services/agents';
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 type PermissionSet = {
-  name : string; 
+  name: string;
   arn: string;
-}
+};
 
 export interface App {
   kind: 'app';

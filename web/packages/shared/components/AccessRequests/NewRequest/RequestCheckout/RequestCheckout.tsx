@@ -687,7 +687,7 @@ function getPrettyResourceKind(kind: ResourceKind): string {
     case 'saml_idp_service_provider':
       return 'SAML Application';
     case 'aws_iam_ic_account':
-        return 'AWS Identity Center Account';
+      return 'AWS Identity Center Account';
     default:
       kind satisfies never;
       return kind;

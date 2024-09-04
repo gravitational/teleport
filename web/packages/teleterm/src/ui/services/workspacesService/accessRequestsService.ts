@@ -247,7 +247,7 @@ type SharedResourceAccessRequestKind =
   | 'node'
   | 'kube_cluster'
   | 'saml_idp_service_provider'
-  | 'aws_iam_ic_account'
+  | 'aws_iam_ic_account';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.

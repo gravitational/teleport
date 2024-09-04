@@ -168,6 +168,8 @@ message AccountAssignment {
 
   // AccountId holds the AWS account ID fo thr target account
   string account_id = 2;
+  string account_name = 3;
+  string permission_set_name = 4;
 }
 
 // PrincipalAssignmentAssignmentStatus

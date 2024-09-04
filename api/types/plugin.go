@@ -75,7 +75,7 @@ const (
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
 
-	PluginTypeAWSIC = "aws-iam-ic"
+	PluginTypeAWSIC = "aws-ic"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.

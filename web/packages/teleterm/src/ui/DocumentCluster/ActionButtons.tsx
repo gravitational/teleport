@@ -228,7 +228,7 @@ function AppButton(props: {
 }) {
   if (props.app.permissionSets) {
     return (
-      <IdentityCenterLaunchButton 
+      <IdentityCenterLaunchButton
         permissionSets={props.app.permissionSets}
         getLaunchUrl={arn =>
           getAwsAppLaunchUrl({

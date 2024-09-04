@@ -141,7 +141,8 @@ export type PluginKind =
   | 'okta'
   | 'servicenow'
   | 'jamf'
-  | 'entra-id';
+  | 'entra-id'
+  | 'aws-ic';
 
 export type PluginStatus<S = any> = {
   name: string;

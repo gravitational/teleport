@@ -90,6 +90,6 @@ export default function makeApp(json: any): App {
     samlAppSsoUrl,
     requiresRequest,
     integration,
-    permission_sets
+    permission_sets,
   };
 }
