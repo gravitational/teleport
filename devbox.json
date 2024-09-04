@@ -16,6 +16,7 @@
     "rustup@latest",
     "wasm-pack@latest",
     "wasm-bindgen-cli@latest",
+    "pkg-config@latest",
 
     "buf@1.26.1",
     "go@1.21.4",
@@ -25,7 +26,7 @@
     "llvmPackages_14.clangUseLLVM@14.0.6",
     "nodejs@20.11.1",
     "protobuf3_20@3.20.3",
-    "yarn@1.22.19",
+    "pnpm@9.7.0",
 
     "path:build.assets/flake#conditional",
     "path:build.assets/flake#grpc-tools",
