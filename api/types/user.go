@@ -150,6 +150,11 @@ type User interface {
 	// who were created before this property was introduced and didn't perform any
 	// password-related activity since then. See RFD 0159 for details.
 	SetPasswordState(PasswordState)
+	// GetOwner returns true if the user is an owner
+	GetOwner() bool
+	// SetOwner attempts to set or remove the user as an owner, returns an error if invalid. May be invalid if:
+	// 1. user requesting is not an owner, 2. minimum assignment is broken, 3. maximum assignment is broken.
+	SetOwner(bool) error
 }
 
 // NewUser creates new empty user
@@ -293,6 +298,17 @@ func (u *UserV2) GetTrustedDeviceIDs() []string {
 // SetTrustedDeviceIDs assigns the IDs of the user's trusted devices.
 func (u *UserV2) SetTrustedDeviceIDs(ids []string) {
 	u.Spec.TrustedDeviceIDs = ids
+}
+
+// GetOwner todo
+func (u *UserV2) GetOwner() []string {
+	return u.Spec.Owner
+}
+
+// SetOwner todo
+func (u *UserV2) SetOwner(set bool) error {
+	u.Spec.Owner = set
+	return nil
 }
 
 // setStaticFields sets static resource header and metadata fields.

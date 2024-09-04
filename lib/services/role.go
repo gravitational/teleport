@@ -895,8 +895,10 @@ func ReadNoSecrets() []string {
 type RoleGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
-	// VerifyMinimumRoleRemoval returns true if it is safe to remove a role with a minimum requirement
-	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) (bool, error)
+	// VerifyMinimumRoleRemoval returns an error if the role cannot be removed from a user
+	VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, min int64) error
+	// VerifyMaximumRoleAssignment returns an error if the role cannot be assigned to another user
+	VerifyMaximumRoleAssignment(ctx context.Context, role types.Role, min int64) error
 }
 
 // ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.

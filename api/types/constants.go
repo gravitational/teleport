@@ -1012,6 +1012,14 @@ const (
 	// This is a restricted label: it may not be applied to roles outside of Teleport
 	TeleportMinimumAssignment = TeleportRestrictedLabelPrefix + "minimum-assignment"
 
+	// TeleportMaximumAssignment indicates the Teleport resource must be assigned to a minimum number of members
+	// Valid values are:
+	// - 0: Default, no minimum
+	// - >0: Maximum
+	//
+	// This is a restricted label: it may not be applied to roles outside of Teleport
+	TeleportMaximumAssignment = TeleportRestrictedLabelPrefix + "maximum-assignment"
+
 	// TeleportResourceRevision marks a teleport-managed resource with a reversion
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"

@@ -106,14 +106,84 @@ func ValidateRoleChangesWithMinimums(ctx context.Context, user, req types.User, 
 				}
 
 				// check to see if the role can be removed without breaking the minimum assignment requirement
-				ok, err := roleGetter.VerifyMinimumRoleRemoval(ctx, r, minimum)
+				err = roleGetter.VerifyMinimumRoleRemoval(ctx, r, minimum)
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				// check if we decrease this count by 1, will the number of assigned drop below the minimum value
-				if !ok {
-					return trace.BadParameter("Unable to remove role %v from user %v as this violates the minimum role assignment", r.GetName(), user.GetName())
-				}
+			}
+		}
+	}
+
+	return nil
+}
+
+type maxRole struct {
+	max  int64
+	role types.Role
+}
+
+// ValidateRoleChangesWithMaximums checks that role changes involving adding a role with maximum requirements is valid
+// todo mberg re-write
+func ValidateRoleChangesWithMaximums(ctx context.Context, user, req types.User, roleGetter RoleGetter) error {
+	userRoles := user.GetRoles()
+	requestRoles := req.GetRoles()
+
+	if slices.Equal(userRoles, requestRoles) {
+		// no change in roles, nothing to verify - continue
+		return nil
+	}
+
+	// Only check maximum assignment if user does not have the role, and the request adds the role
+	requestedMaximumRoles := make(map[string]maxRole, len(requestRoles))
+	for _, requestRole := range requestRoles {
+		r, err := roleGetter.GetRole(ctx, requestRole)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		labels := r.GetAllLabels()
+		label, ok := labels[types.TeleportMaximumAssignment]
+		m, err := strconv.ParseInt(label, 10, 64)
+		if err != nil {
+			// only count maximum labels if valid numeric value
+			return nil
+		}
+
+		if ok {
+			requestedMaximumRoles[r.GetName()] = maxRole{
+				max:  m,
+				role: r,
+			}
+		}
+	}
+
+	existingMaximumRoles := make(map[string]int64, len(userRoles))
+	for _, userRole := range userRoles {
+		r, err := roleGetter.GetRole(ctx, userRole)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		labels := r.GetAllLabels()
+		label, ok := labels[types.TeleportMaximumAssignment]
+		m, err := strconv.ParseInt(label, 10, 64)
+		if err != nil {
+			// only count maximum labels if valid numeric value
+			return nil
+		}
+		if ok {
+			existingMaximumRoles[r.GetName()] = m
+		}
+	}
+
+	// for roles with the maximum label, check to see if the user previously has the role assigned.
+	// if not, verify we can add the role without breaking the maximum value.
+	for k, v := range requestedMaximumRoles {
+		_, ok := existingMaximumRoles[k]
+		if !ok {
+			err := roleGetter.VerifyMaximumRoleAssignment(ctx, v.role, v.max)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		}
 	}

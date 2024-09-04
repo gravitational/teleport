@@ -496,6 +496,8 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 		omitEditorEvent = true
 	}
 
+	prevUser.GetAllLabels()
+
 	roles := prevUser.GetRoles()
 	for _, role := range roles {
 		r, err := s.cache.GetRole(ctx, role)

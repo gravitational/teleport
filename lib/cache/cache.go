@@ -2024,6 +2024,54 @@ func (c *Cache) VerifyMinimumRoleRemoval(ctx context.Context, role types.Role, m
 	return count > min+1, trace.Wrap(err)
 }
 
+// VerifyMaximumRoleAssignment returns an error if the role cannot be assigned to another user (the maximum has been met).
+func (c *Cache) VerifyMaximumRoleAssignment(ctx context.Context, role types.Role, max int64) error {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.users)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	users, err := rg.reader.GetUsers(ctx, false)
+	if trace.IsNotFound(err) && rg.IsCacheRead() {
+		// release read lock early
+		rg.Release()
+		// fallback is sane because method is never used
+		// in construction of derivative caches.
+		if users, err = c.Config.Users.GetUsers(ctx, false); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	count := int64(0)
+	for _, user := range users {
+		// if the count equals the max, user cannot be assigned the role
+		if count == max {
+			return trace.BadParameter("maximum role assignment exceeded")
+		}
+
+		roles := user.GetRoles()
+		for _, i := range roles {
+			r, err := c.GetRole(ctx, i)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if r == role {
+				count++
+			}
+		}
+	}
+
+	if count == max {
+		return trace.BadParameter("maximum role assignment exceeded")
+	} else {
+		return nil
+	}
+}
+
 // GetNamespace returns namespace
 func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
