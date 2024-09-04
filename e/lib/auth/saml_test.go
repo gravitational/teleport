@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -47,10 +48,19 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestCreateSAMLUser(t *testing.T) {
-	t.Parallel()
+type samlTestFixture struct {
+	testContext context.Context
+	authServer  *auth.Server
+	samlService *SAMLAuthService
+	clock       clockwork.FakeClock
+}
 
-	ctx := context.Background()
+func newSAMLTestFixture(t *testing.T) *samlTestFixture {
+	// create a test context and ensure it is canceled at the end of the test
+	// to force resource cleanup
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	clock := clockwork.NewFakeClockAt(time.Now())
 
 	b, err := memory.New(memory.Config{
@@ -77,10 +87,25 @@ func TestCreateSAMLUser(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, a.Close()) })
+
 	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
 
+	return &samlTestFixture{
+		testContext: ctx,
+		authServer:  a,
+		samlService: sas,
+		clock:       clock,
+	}
+}
+
+func TestCreateSAMLUser(t *testing.T) {
+	t.Parallel()
+
+	f := newSAMLTestFixture(t)
+
 	// Dry-run creation of SAML user.
-	user, err := sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+	user, err := f.samlService.createSAMLUser(f.testContext, &CreateSAMLUserParams{
 		CreateUserParams: auth.CreateUserParams{
 			ConnectorName: "samlService",
 			Username:      "foo@example.com",
@@ -92,11 +117,11 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Equal(t, "foo@example.com", user.GetName())
 
 	// Dry-run must not create a user.
-	_, err = a.GetUser(ctx, "foo@example.com", false)
+	_, err = f.authServer.GetUser(f.testContext, "foo@example.com", false)
 	require.Error(t, err)
 
 	// Create SAML user with 1 minute expiry.
-	_, err = sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+	_, err = f.samlService.createSAMLUser(f.testContext, &CreateSAMLUserParams{
 		CreateUserParams: auth.CreateUserParams{
 			ConnectorName: "samlService",
 			Username:      "foo@example.com",
@@ -107,12 +132,12 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.NoError(t, err)
 
 	// Within that 1 minute period the user should still exist.
-	user, err = a.GetUser(ctx, "foo@example.com", false)
+	user, err = f.authServer.GetUser(f.testContext, "foo@example.com", false)
 	require.NoError(t, err)
 
 	// Create the same user again and validate that the user was
 	// successfully updated
-	user2, err := sas.createSAMLUser(ctx, &CreateSAMLUserParams{
+	user2, err := f.samlService.createSAMLUser(f.testContext, &CreateSAMLUserParams{
 		CreateUserParams: auth.CreateUserParams{
 			ConnectorName: "samlService",
 			Username:      "foo@example.com",
@@ -125,9 +150,164 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Equal(t, user.GetName(), user2.GetName())
 
 	// Advance time 2 minutes, the user should be gone.
-	clock.Advance(2 * time.Minute)
-	_, err = a.GetUser(ctx, "foo@example.com", false)
+	f.clock.Advance(2 * time.Minute)
+	_, err = f.authServer.GetUser(f.testContext, "foo@example.com", false)
 	require.Error(t, err)
+}
+
+func TestSAMLPermanentUserPostProcessing(t *testing.T) {
+	const username = "paul@apple-records.example.com"
+
+	t.Parallel()
+
+	// GIVEN a Teleport cluster with a SAML login service and various roles
+	// configured
+	f := newSAMLTestFixture(t)
+
+	for _, roleName := range []string{"amateur", "pro", "quartet", "walrus", "bass-player", "vegetarian", "scouser"} {
+		r, err := types.NewRole(roleName, types.RoleSpecV6{})
+		require.NoError(t, err)
+
+		_, err = f.authServer.CreateRole(f.testContext, r)
+		require.NoError(t, err)
+	}
+
+	// ALSO GIVEN a SAML connector configured with an attribute-to-role mapping
+	connector, err := types.NewSAMLConnector(
+		"test-ctor",
+		types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "https://example.com/saml/v2",
+			EntityDescriptorURL:      "https://example.com/saml/v2/identity_descriptor",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "groups",
+					Value: "quarrymen",
+					Roles: []string{"amateur", "quintet"},
+				}, {
+					Name:  "groups",
+					Value: "beatles",
+					Roles: []string{"pro", "quartet", "walrus"},
+				}, {
+					Name:  "instruments",
+					Value: "bass",
+					Roles: []string{"bass-player"},
+				},
+			},
+		})
+	require.NoError(t, err, "failed creating SAML connector")
+
+	// ALSO GIVEN a user configured with various traits and roles
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+	user.SetOrigin(types.OriginOkta)
+	user.SetRoles([]string{"bass-player", "amateur", "vegetarian"})
+	originalTraits := map[string][]string{
+		"groups":   {"quarrymen", "beatles", "wings"},
+		"fullName": {"James Paul McCartney"},
+	}
+	user.SetTraits(originalTraits)
+	createdUser, err := f.authServer.Services.CreateUser(f.testContext, user)
+	require.NoError(t, err)
+	// the user service _may_ modify the `createdUser` object when we update it
+	// as part of the test, so if we want to assert that the update process has
+	// changed any properties we need to cache them here rather than pulling
+	// them out of `createdUser` at assertion time.
+	createdUserRevision := createdUser.GetRevision()
+
+	// ALSO GIVEN an AccessList containing that user, which grants a role
+	acl := newAccessList(t, "from-liverpool", []string{"scouser"})
+	_, _, err = f.authServer.UpsertAccessListWithMembers(f.testContext, acl,
+		[]*accesslist.AccessListMember{
+			newAccessListMember(t, acl.GetName(), username),
+		})
+	require.NoError(t, err)
+
+	// WHEN I simulate a SAML login by invoking the user post-login processor
+	// with a set of SAML assertions that do not match the existing traits of
+	// the target user
+	authRequest := &types.SAMLAuthRequest{}
+	assertionInfo := &saml2.AssertionInfo{
+		NameID: "paul@apple-records.example.com",
+		Values: saml2.Values{
+			"groups": samltypes.Attribute{
+				Name: "groups",
+				Values: []samltypes.AttributeValue{
+					{Value: "beatles"},
+					{Value: "wings"},
+				}},
+			"instruments": samltypes.Attribute{
+				Name: "instruments",
+				Values: []samltypes.AttributeValue{
+					{Value: "bass"},
+					{Value: "piano"},
+					{Value: "guitar"},
+				}},
+		},
+	}
+	diagContext := auth.NewSSODiagContext(types.KindSAML, f.samlService.auth)
+	postProcessedUserState, err := f.samlService.postProcessUser(
+		f.testContext,
+		createdUser,
+		connector,
+		diagContext,
+		authRequest,
+		assertionInfo)
+
+	// EXPECT that the operation succeeds
+	require.NoError(t, err)
+	require.NotNil(t, postProcessedUserState)
+
+	// ALSO EXPECT that the returned UserState
+	//  a) preserves trait values where no SAML value overrides it, and
+	//  b) reflects trait values derived from the supplied SAML assertions where
+	//     specified
+	expectedTraits := map[string][]string{
+		"groups":      {"beatles", "wings"},
+		"instruments": {"bass", "piano", "guitar"},
+		"fullName":    {"James Paul McCartney"},
+	}
+	for trait, values := range expectedTraits {
+		require.Contains(t, postProcessedUserState.GetTraits(), trait)
+		require.ElementsMatch(t, values, postProcessedUserState.GetTraits()[trait])
+	}
+	require.Len(t, postProcessedUserState.GetTraits(), len(expectedTraits))
+
+	// ALSO EXPECT that the returned UserState has a role-set derived
+	// applying the AttributesToRoles to the updated, SAML-derived traits
+	// INCLUDING any Access-List granted roles
+	expectedSAMLRoles := []string{"pro", "quartet", "walrus", "bass-player"}
+	expectedCombinedRoles := append(expectedSAMLRoles, "scouser")
+	require.ElementsMatch(t, expectedCombinedRoles, postProcessedUserState.GetRoles())
+
+	// ALSO EXPECT that the underlying user record has been updated as a side-effect
+	updatedUser, err := f.authServer.GetUser(f.testContext, username, false)
+	require.NoError(t, err)
+	require.NotEqual(t, createdUserRevision, updatedUser.GetRevision(),
+		"Underlying User record revision was unchanged (%s)", updatedUser.GetRevision())
+
+	// ALSO EXPECT that the underlying user record has the new, calculated
+	// role-set so that it can be reflected in the user interface (EXCLUDING the
+	// roles granted via Access Lists)
+	require.ElementsMatch(t, expectedSAMLRoles, updatedUser.GetRoles())
+
+	// ALSO EXPECT that the underlying user record traits have been preserved,
+	// regardless of the supplied SAML assertions.
+	//
+	// NOTE: I'm not sure this is actually the behavior we want, but its what
+	// the code is doing at the time this test was written, so I'm preserving
+	// it for backwards compatibility
+	for trait, values := range originalTraits {
+		require.Contains(t, updatedUser.GetTraits(), trait)
+		require.ElementsMatch(t, values, updatedUser.GetTraits()[trait])
+	}
+	require.Len(t, updatedUser.GetTraits(), len(originalTraits))
+
+	// ALSO EXPECT that the user state has been saved, and that the UserState
+	// returned by `postProcessUser()` reflects the same data as the saved state
+	// record.
+	us, err := f.authServer.GetUserLoginState(f.testContext, username)
+	require.NoError(t, err)
+	require.Equal(t, postProcessedUserState, us)
 }
 
 func TestEncryptedSAML(t *testing.T) {
