@@ -141,14 +141,14 @@ production.
    }
    
    module "prod_role" {
-     source = "./env_role"
+     source        = "./env_role"
      env_label     = "prod"
      principals    = {}
      request_roles = []
    }
 
    module "dev_role" {
-     source = "./env_role"
+     source        = "./env_role"
      env_label     = "dev"
      principals    = {}
      request_roles = [module.prod_role.role_name]
@@ -239,7 +239,7 @@ and `system:masters` Kubernetes group:
 ```hcl
 module "dev_role" {
   principals = {
-    logins = ["dev"]
+    logins            = ["dev"]
     kubernetes_groups = ["developers"]
   }
   // ...
@@ -247,7 +247,7 @@ module "dev_role" {
 
 module "prod_role" {
   principals = {
-    logins = ["root"]
+    logins            = ["root"]
     kubernetes_groups = ["system:masters"]
   }
   // ...
@@ -272,7 +272,7 @@ do so, you can:
 - Create a new `teleport_user` resource that includes the roles
   ([documentation](../managing-resources/user-and-role.mdx).
 
-If you plan to skip this stip, make sure to remove the `module "saml"` or
+If you plan to skip this step, make sure to remove the `module "saml"` or
 `module "oidc"` block from your Terraform configuration.
 
 </Admonition>
@@ -385,14 +385,14 @@ If you plan to skip this stip, make sure to remove the `module "saml"` or
    ```hcl
         saml_attributes_to_roles = [
           {
-            name = "group"
+            name  = "group"
             value = "developers"
             roles = [
               module.dev_role.role_name
             ]
           },
           {
-            name = "group"
+            name  = "group"
             value = "admins"
             roles = module.dev_role.reviewer_role_names
           }
