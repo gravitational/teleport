@@ -28,7 +28,7 @@ export default function useTable<T>({
   columns,
   pagination,
   showFirst,
-  clientSearchConfig,
+  clientSearch,
   searchableProps,
   customSearchMatchers = [],
   serversideProps,
@@ -52,7 +52,7 @@ export default function useTable<T>({
 
     return {
       data: [],
-      searchValue: clientSearchConfig?.initialSearchValue || '',
+      searchValue: clientSearch?.initialSearchValue || '',
       sort: col
         ? {
             key: (col.altSortKey || col.key) as string,
@@ -162,8 +162,8 @@ export default function useTable<T>({
 
   function setSearchValue(searchValue: string) {
     updateData(state.sort, searchValue, true /* resetCurrentPage */);
-    if (clientSearchConfig?.updateUrlQueryParams) {
-      clientSearchConfig.updateUrlQueryParams(searchValue);
+    if (clientSearch?.onSearchValueChange) {
+      clientSearch.onSearchValueChange(searchValue);
     }
   }
 
@@ -215,7 +215,7 @@ export default function useTable<T>({
     fetching,
     serversideProps,
     customSort,
-    clientSearchConfig,
+    clientSearch,
     ...props,
   };
 }

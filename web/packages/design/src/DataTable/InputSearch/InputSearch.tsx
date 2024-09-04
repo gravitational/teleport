@@ -28,6 +28,8 @@ import {
   ColorProps,
 } from 'design/system';
 
+const searchInputName = 'searchValue';
+
 export default function InputSearch({
   searchValue,
   setSearchValue,
@@ -36,11 +38,11 @@ export default function InputSearch({
 }: Props) {
   function submitSearch(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); // prevent form default
-    const { searchValue } = e.target as typeof e.target & {
-      searchValue: { value: string };
-    };
 
-    setSearchValue(searchValue.value);
+    const formData = new FormData(e.currentTarget);
+    const searchValue = formData.get(searchInputName) as string;
+
+    setSearchValue(searchValue);
   }
 
   return (
@@ -51,7 +53,7 @@ export default function InputSearch({
           placeholder="Search..."
           px={3}
           defaultValue={searchValue}
-          name="searchValue"
+          name={searchInputName}
           autoFocus
         />
         <ChildWrapperBackground>

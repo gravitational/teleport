@@ -40,7 +40,7 @@ export type TableProps<T> = {
    * supports any table except when "serversideProps"
    * field is defined
    */
-  clientSearchConfig?: {
+  clientSearch?: {
     /**
      * By default, no initial search is applied (empty search),
      * unless "initialSearchValue" is defined.
@@ -49,7 +49,7 @@ export type TableProps<T> = {
     /**
      * After setting a new search value, this function will be called.
      */
-    updateUrlQueryParams(searchString: string): void;
+    onSearchValueChange(searchString: string): void;
   };
   isSearchable?: boolean;
   searchableProps?: Extract<keyof T, string>[];
