@@ -470,6 +470,7 @@ func TestAuthenticationSection(t *testing.T) {
 				tt.expectError(t, err)
 				return
 			}
+			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication, tt.expected))
 		})
