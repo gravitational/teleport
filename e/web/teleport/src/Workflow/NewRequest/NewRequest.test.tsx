@@ -225,6 +225,27 @@ test('select all nodes hostnames in checkout', async () => {
   expect(hostnames).toHaveLength(2);
 });
 
+test('adding resources with bulk action properly adds/removes nodes', async () => {
+  render(Component);
+
+  let hostnames = await screen.findAllByText(/hostname-node/);
+  expect(hostnames).toHaveLength(1);
+  await screen.getByTestId('select_all').click();
+  const addButtons = await screen.findAllByText(/remove from request/i);
+
+  await userEvent.click(addButtons[0]);
+  const proceedToRequest = await screen.findByText('Proceed to Request');
+  await userEvent.click(proceedToRequest);
+
+  expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
+  hostnames = await screen.findAllByText('hostname-node1');
+
+  await userEvent.click(await screen.findByTestId('close-checkout'));
+  await userEvent.click(await screen.findByText(/add\/remove from request/i));
+  expect(proceedToRequest).toBeDisabled();
+  expect(await screen.findByText('Resources Added (0)')).toBeInTheDocument();
+});
+
 test('select all buttons work properly', async () => {
   render(Component);
 

@@ -122,7 +122,7 @@ export function UnifiedResourcesE() {
       const resourceName =
         resource.kind === 'node' ? resource.hostname : resourceId;
       if (allAdded) {
-        delete newResources[resource.kind][resourceName];
+        delete newResources[resource.kind][resourceId];
       } else {
         newResources[resource.kind][resourceId] = resourceName;
       }

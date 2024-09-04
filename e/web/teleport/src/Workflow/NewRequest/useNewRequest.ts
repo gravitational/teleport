@@ -478,8 +478,7 @@ export function useNewRequest(ctx: Ctx) {
       resources.forEach(({ resource }) => {
         const key = getResourceId(resource);
         const kind = resource.kind;
-        const name = kind === 'node' ? resource.hostname : key;
-        delete newMap[kind][name];
+        delete newMap[kind][key];
       });
       setAddedResources(newMap);
       return;
