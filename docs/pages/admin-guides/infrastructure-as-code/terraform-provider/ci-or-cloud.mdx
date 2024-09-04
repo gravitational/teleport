@@ -332,12 +332,25 @@ jobs:
 
 </TabItem>
 <TabItem label="GitLab CI">
-In the repo containing your Terraform code and add the following GitLab CI pipeline:
+
+Recover your cluster name:
+```code
+$ tctl status
+
+Cluster       <Var name="teleport.example.com"/>
+Version       16.2.0
+# ...
+```
+
+In the repo containing your Terraform code, create the `.gitlab-ci.yaml` file if it does exist, and add the following
+content:
+
 ```yaml
 stages:
   - plan
 image:
   name: hashicorp/terraform:1.9
+  entrypoint: [""]
 terraform-job:
   stage: plan
   # id_tokens configures ID Tokens that GitLab will automatically inject into
@@ -353,11 +366,12 @@ terraform-job:
       #
       # This helps the Teleport Auth Server know that the token is intended for
       # it, and not a different service or Teleport cluster.
-      aud: teleport.example.com
+      aud: "<Var name="teleport.example.com"/>"
   script:
     - terraform init
     - terraform plan
 ```
+
 </TabItem>
 <TabItem label="CircleCI">
 In the repo containing your Terraform code and add the following CircleCI config:
