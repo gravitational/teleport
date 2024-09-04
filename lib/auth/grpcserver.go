@@ -93,7 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
-	userprovisioningv1 "github.com/gravitational/teleport/lib/auth/userprovisioning/v2"
+	userprovisioningv2 "github.com/gravitational/teleport/lib/auth/userprovisioning/v2"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/v1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -5424,8 +5424,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
 	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
-	staticHostUserServer, err := userprovisioningv1.NewService(userprovisioningv1.ServiceConfig{
+	staticHostUserServer, err := userprovisioningv2.NewService(userprovisioningv2.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
 	})
