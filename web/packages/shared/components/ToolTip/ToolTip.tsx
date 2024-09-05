@@ -134,5 +134,5 @@ const ErrorIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
   color: ${p =>
     p.$muteIconColor
       ? p.theme.colors.text.disabled
-      : p.theme.colors.interactive.solid.danger.default.background};
+      : p.theme.colors.error.main};
 `;
