@@ -1,6 +1,6 @@
 {
-  "version": "0.2",
   "language": "en",
+  "version": "0.2",
   "words": [
     "AADUSER",
     "ABCDEFGHIJKL",
@@ -875,6 +875,7 @@
     "subchart",
     "subgroups",
     "subkind",
+    "subnetworks",
     "sudoer",
     "supervillain",
     "svid",

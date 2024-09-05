@@ -2,7 +2,7 @@ resource "terraform_data" "userdata" {
   count = var.agent_count
   input = {
     userdata = templatefile("${path.module}/userdata", {
-      agent_roles           = var.agent_roles
+      extra_labels          = yamlencode(var.agent_labels)
       proxy_service_address = var.proxy_service_address
       teleport_edition      = var.teleport_edition
       teleport_version      = var.teleport_version
