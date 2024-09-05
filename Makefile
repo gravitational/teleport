@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.2.0
+VERSION=16.2.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -763,8 +763,9 @@ $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 # PHONY is set so that we rely on Go's mod cache and not Make's cache.
 #
 CHANGELOG := $(TOOLINGDIR)/bin/changelog
+.PHONY: $(CHANGELOG)
 $(CHANGELOG):
-	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
+	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.1
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1725,7 +1726,7 @@ rustup-install-target-toolchain: rustup-set-version
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
 .PHONY: changelog
 changelog: $(CHANGELOG)
-	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+	@$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
