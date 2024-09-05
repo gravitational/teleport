@@ -17,7 +17,7 @@ Teleport supports exporting user SSH certificates with configurable key extensio
 In order to export the Teleport CA, execute the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed 's/^cert-authority //g'
+$ curl 'https://<Var name="proxy" />/webapi/auth/export?type=user' | sed 's/^cert-authority //g'
 ```
 
 Next, follow the instructions in the guide below to import your Teleport CA into GitHub:
@@ -48,14 +48,23 @@ spec:
 
 ## Step 3/3. Issue a user certificate
 
-A user certificate may be issued with the following command, where `<USERNAME>` is the Teleport user to generate the SSH certificate for:
+When you authenticated to Teleport to assume the `developer` role we defined
+earlier, Teleport added the certificate extensions you configured to your user
+certificate. You can then refer to this path in your local SSH configuration.
+
+For convenience, open a terminal and assign an environment variable to the
+location of your user certificate. Replace <Var name="example.teleport.sh" /> with
+the domain name of your Teleport cluster and <Var name="myuser" /> with the name
+of your Teleport user:
+
 ```code
-$ tctl auth sign --out out.cer --user=<USERNAME>
+$ export TELEPORT_CERT=~/.tsh/keys/<Var name="example.teleport.sh" />/<Var name="myuser" />-ssh/<Var name="example.teleport.sh" />-cert.pub
 ```
 
 To test that authentication with this signed certificate is working correctly, SSH into `github.com` with your organization's user:
+
 ```code
-$ ssh -i out.cer org-<ID>@github.com
+$ ssh -i $TELEPORT_CERT org-<ID>@github.com
 ```
 If authentication is successful,  a "You've successfully authenticated" message should be displayed in the terminal.
 
@@ -64,7 +73,7 @@ This newly generated certificate may then be used when interacting with GitHub o
 ```code
 Host github.com
  HostName github.com
- IdentityFile path/to/out.cer
+ IdentityFile path/to/cert.pub
 ```
 
 When using SSH Certificate Authorities, you should retrieve your GitHub repository's SSH URL from the GitHub UI so the correct SSH user is used for authentication. For more information, see [About SSH URLs with SSH certificates](https://docs.github.com/en/organizations/managing-git-access-to-your-organizations-repositories/about-ssh-certificate-authorities#about-ssh-urls-with-ssh-certificates).

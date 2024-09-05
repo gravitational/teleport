@@ -19,6 +19,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -395,7 +396,11 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 
 	if srv := process.getLocalAuth(); srv != nil {
 		clt = srv
-		remoteAddr = process.Config.AdvertiseIP
+		// auth server typically extracts remote addr from conn. since we're using the local auth
+		// directly we must supply a reasonable remote addr value. preferably the advertise IP, but
+		// otherwise localhost. this behavior must be kept consistent with the equivalent behavior
+		// in LocalRegister.
+		remoteAddr = cmp.Or(process.Config.AdvertiseIP, defaults.Localhost)
 	}
 
 	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
