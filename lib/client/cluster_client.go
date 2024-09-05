@@ -311,7 +311,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	keyRing, err = c.performMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
-			NodeName:       nodeName(targetNode{addr: target.Addr}),
+			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
