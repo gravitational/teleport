@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -729,62 +728,6 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return certs.SSH, certs.TLS, nil
-}
-
-// CreateSessionCert returns new user certs. The user must already be
-// authenticated.
-//
-// TODO(nklaassen): delete the after refs are removed from e. Replaced by
-// CreateSessionCerts.
-func (a *Server) CreateSessionCert(userState services.UserState, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	// It's safe to extract the access info directly from services.User because
-	// this occurs during the initial login before the first certs have been
-	// generated, so there's no possibility of any active access requests.
-	accessInfo := services.AccessInfoFromUserState(userState)
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := publicKey
-	cryptoPubKey, err := sshutils.CryptoPublicKey(publicKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := attestationReq
-	tlsPublicKeyAttestationStatement := attestationReq
-
-	certs, err := a.generateUserCert(ctx, certRequest{
-		user:                             userState,
-		ttl:                              sessionTTL,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
-		compatibility:                    compatibility,
-		checker:                          checker,
-		traits:                           userState.GetTraits(),
-		routeToCluster:                   routeToCluster,
-		kubernetesCluster:                kubernetesCluster,
-		loginIP:                          loginIP,
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	return certs.SSH, certs.TLS, nil
 }
 

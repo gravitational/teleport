@@ -207,41 +207,6 @@
   },
   "redirects": [
     {
-      "source": "/application-access/introduction/",
-      "destination": "/enroll-resources/application-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/github-sso/",
-      "destination": "/admin-guides/access-controls/sso/github-sso/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/circleci/",
-      "destination": "/enroll-resources/machine-id/deployment/circleci/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/gitlab/",
-      "destination": "/enroll-resources/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/jenkins/",
-      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/access-guides/ansible/",
-      "destination": "/enroll-resources/machine-id/access-guides/ansible/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
-      "permanent": true
-    },
-    {
       "source": "/machine-id/deployment/aws/",
       "destination": "/enroll-resources/machine-id/deployment/aws/",
       "permanent": true
@@ -1013,7 +978,7 @@
     },
     {
       "source": "/machine-id/access-guides/terraform/",
-      "destination": "/enroll-resources/machine-id/access-guides/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
