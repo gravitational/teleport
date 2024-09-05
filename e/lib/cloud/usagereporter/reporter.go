@@ -209,6 +209,7 @@ func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
 		types.WithAlertLabel(types.AlertLink, "https://goteleport.com/signup/cloud?utm_campaign=cloud&utm_medium=product&utm_source=upgrade"),
+		types.WithAlertLabel(types.AlertLinkText, "Upgrade Plan"),
 	)
 	if err != nil {
 		return trace.Wrap(err)
