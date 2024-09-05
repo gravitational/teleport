@@ -754,7 +754,7 @@ func TestUnhealthyAgent(t *testing.T) {
 	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
 
 	// set last-restart to the current timestamp to indicate the teleport service is unhealthy
-	tc.cfg["state-last-restart"] = time.Now().Format(time.UnixDate)
+	tc.cfg["state-last-restart"] = fmt.Sprintf("%d", time.Now().Unix())
 
 	// the first run w/ last-restart within a minute should result in us setting the unhealthy marker
 	// but not in an actual upgrade attempt.

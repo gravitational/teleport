@@ -301,14 +301,15 @@ schedule_appears_healthy() {
 # service_appears_healthy checks if the teleport.service is healthy. This is done
 # by checking if the last failed timestamp is within 1 minute.
 service_appears_healthy() {
-    if [[ $last_restart == "none" ]]; then
+    # Validate that content of the last-restart state are valid epoch.
+    if [[ $last_restart == "none" ]] || [[ ! $(date -d "@$last_restart") ]]; then
         return 0
     fi
 
     time_now="$(date +%s)"
 
     # If the last restart was within the last minute, consider the agent unhealthy.
-    threshold="$(date -d "$last_restart + 1 minute" +%s)"
+    threshold="$(( ${last_restart} + 60 ))"
     if (( time_now > threshold )); then
         return 0
     fi
