@@ -17,7 +17,11 @@ syntax = "proto3";
 package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
+import "teleport/discoveryconfig/v1/discoveryconfig.proto";
+import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
+import "teleport/secreports/v1/secreports.proto";
+import "teleport/userloginstate/v1/userloginstate.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -35,6 +39,8 @@ enum Operation {
 // Event returns cluster event
 message Event {
   reserved 7;
+  reserved 49;
+  reserved "ExternalCloudAudit";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -128,5 +134,22 @@ message Event {
     types.HeadlessAuthentication HeadlessAuthentication = 44;
     // AccessList is an AccessList resource.
     teleport.accesslist.v1.AccessList AccessList = 45;
+    // UserLoginState is a UserLoginState resource.
+    teleport.userloginstate.v1.UserLoginState UserLoginState = 46;
+    // AccessListMember is an access list member resource.
+    teleport.accesslist.v1.Member AccessListMember = 47;
+    // DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
+    teleport.discoveryconfig.v1.DiscoveryConfig DiscoveryConfig = 48;
+    // AuditQuery is an audit query resource.
+    teleport.secreports.v1.AuditQuery AuditQuery = 50;
+    // SecurityReport is a security report resource.
+    teleport.secreports.v1.Report Report = 51;
+    // SecurityReportState is a security report state resource.
+    teleport.secreports.v1.ReportState ReportState = 52;
+    // AccessListReview is an access list review resource.
+    teleport.accesslist.v1.Review AccessListReview = 53;
+    // KubernetesWaitingContainer is a Kubernetes ephemeral container
+    // waiting to be created.
+    teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer KubernetesWaitingContainer = 55;
   }
 }
