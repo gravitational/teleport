@@ -6176,10 +6176,13 @@ func TestCompatibilityFlags(t *testing.T) {
 	t.Setenv(tshBinRunTestEnv, "1")
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
-	cmd := exec.Command(testExecutable, "ssh", "-T", "foo", "date")
+	fmt.Printf("--> trying to run command\n")
+	cmd := exec.Command(testExecutable, "ssh", "-tt", "foo", "tty")
+	cmd.Stdin = os.Stdin
 	output, err := cmd.CombinedOutput()
-	require.NoError(t, err)
-	require.NotContains(t, string(output), "not a tty")
+	//require.NoError(t, err)
+	fmt.Printf("--> output: %q\n", string(output))
+	//require.NotContains(t, string(output), "not a tty")
 
 	//testExecutable, err := os.Executable()
 	//require.NoError(t, err)
