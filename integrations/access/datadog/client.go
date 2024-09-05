@@ -39,6 +39,10 @@ const (
 	statusEmitTimeout  = 10 * time.Second
 )
 
+const (
+	IncidentWritePermissions = "incident_write"
+)
+
 // Datadog is a wrapper around resty.Client.
 type Datadog struct {
 	// DatadogConfig specifies datadog client configuration.
@@ -112,7 +116,7 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, permission := range result.Data {
-		if permission.Attributes.Name == "incident_write" && permission.Attributes.Restricted {
+		if permission.Attributes.Name == IncidentWritePermissions && permission.Attributes.Restricted {
 			return trace.AccessDenied("missing incident_write permissions")
 		}
 	}
@@ -128,8 +132,7 @@ func (d *Datadog) CreateIncident(ctx context.Context, summary string, recipients
 		case common.RecipientKindTeam:
 			teams = append(teams, recipient.Name)
 		case common.RecipientKindEmail:
-			handle := fmt.Sprintf("@%s", recipient.Name)
-			emails = append(emails, NotificationHandle{Handle: handle})
+			emails = append(emails, NotificationHandle{Handle: recipient.Name})
 		}
 	}
 
