@@ -55,7 +55,7 @@ provider. The bot will exist for one hour and will be granted the default `terra
 resource the TF provider supports.
 
 `tctl` will then obtain credentials for the temporary bot and export them in your shell's environment variables.
-If [MFA for Administrative Actions](../../../access-controls/guides/mfa-for-admin-actions.mdx)
+If [MFA for Administrative Actions](../../../admin-guides/access-controls/guides/mfa-for-admin-actions.mdx)
 is enabled on your cluster, `tctl` will prompt for your MFA.
 
 Run the following command, do not remove the `eval` as it is required to load credentials in your shell:
@@ -156,9 +156,10 @@ Do not forget to obtain new temporary credentials every hour by re-running `eval
 
 ## Next steps
 
-- Follow [the user and role IaC guide](../user-and-role.mdx) to use the Terraform
+- Follow [the user and role IaC guide](../managing-resources/user-and-role.mdx) to use the Terraform
   Provider to create Teleport users and grant them roles.
-- Consult the list of Terraform-supported resources [in the Terraform reference}(../../reference/terraform-provider.mdx).
+- Consult the list of Terraform-supported
+  resources [in the Terraform reference](../../../reference/terraform-provider.mdx).
 - Once you have working Terraform code that configures your Teleport cluster, you might want to run it in the CI or
   from a bastion instead of running it locally. To do this, please follow the dedicated guides:
   - [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
