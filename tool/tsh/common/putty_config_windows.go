@@ -26,6 +26,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/mailgun/log"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
@@ -266,6 +267,8 @@ func onPuttyConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	log.Debugf("found matching hots %v", matches)
 
 	switch len(matches) {
 	case 0:
