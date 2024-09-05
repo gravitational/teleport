@@ -267,12 +267,14 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("found matching hots %v", matches)
+	log.Debugf("found matching host %v", matches)
 
 	switch len(matches) {
 	case 0:
 		return trace.NotFound("no matching hosts")
 	case 1:
+		log.Debug("Using host %v", matches[0])
+	default:
 		return trace.BadParameter("multiple matching hosts found")
 	}
 
