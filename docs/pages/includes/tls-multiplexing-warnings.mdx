@@ -1,0 +1,13 @@
+You must ensure that your reverse proxy is communicating with Teleport using HTTPS.
+When running Teleport in Kubernetes and using nginx as an ingress, this requires adding
+an annotation to the chart values:
+
+```yaml
+annotations:
+  ingress:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+```
+
+Deploying Teleport behind Cloudflare, whether using its proxy ("orange-clouding") or tunnels
+(`cloudflared`) should work with Teleport version 15.1 or higher. See the
+[TLS Routing FAQ](../reference/architecture/tls-routing.mdx) for more details.
