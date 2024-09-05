@@ -71,12 +71,15 @@ func (s ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 
 	return &ServiceWrapper[T]{
 		service: &Service[resourceMetadataAdapter[T]]{
-			backend:       s.service.backend,
-			resourceKind:  s.service.resourceKind,
-			pageLimit:     s.service.pageLimit,
-			backendPrefix: strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
-			marshalFunc:   s.service.marshalFunc,
-			unmarshalFunc: s.service.unmarshalFunc,
+			backend:                     s.service.backend,
+			resourceKind:                s.service.resourceKind,
+			pageLimit:                   s.service.pageLimit,
+			backendPrefix:               strings.Join(append([]string{s.service.backendPrefix}, parts...), string(backend.Separator)),
+			marshalFunc:                 s.service.marshalFunc,
+			unmarshalFunc:               s.service.unmarshalFunc,
+			validateFunc:                s.service.validateFunc,
+			keyFunc:                     s.service.keyFunc,
+			runWhileLockedRetryInterval: s.service.runWhileLockedRetryInterval,
 		},
 	}
 }
