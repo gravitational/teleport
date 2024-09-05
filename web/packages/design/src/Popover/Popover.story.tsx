@@ -21,7 +21,7 @@ import styled from 'styled-components';
 
 import { ButtonPrimary, Box, Flex, Text } from '..';
 
-import Popover from '.';
+import Popover, { GrowDirections, Origin } from '.';
 
 export default {
   title: 'Design/Popover',
@@ -39,8 +39,19 @@ export const Tooltip = () => (
   </Box>
 );
 
-class SimplePopover extends React.Component {
-  state = {
+type SimplePopoverState = {
+  anchorEl: Element | null;
+  anchorOrigin?: Origin;
+  transformOrigin?: Origin;
+  growDirections?: GrowDirections;
+  contentMultiplier: number;
+};
+
+class SimplePopover extends React.Component<{}, SimplePopoverState> {
+  btnRef: Element;
+  growContentTimer: ReturnType<typeof setInterval>;
+
+  state: SimplePopoverState = {
     anchorEl: null,
     contentMultiplier: 1,
   };
@@ -164,7 +175,6 @@ class SimplePopover extends React.Component {
             This is anchor element
           </ButtonPrimary>
           <Popover
-            id="simple-popper"
             open={open}
             anchorOrigin={anchorOrigin}
             transformOrigin={transformOrigin}

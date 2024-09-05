@@ -40,15 +40,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef } from 'react';
-import styled from 'styled-components';
-import PropTypes from 'prop-types';
+import React, { createRef, MutableRefObject } from 'react';
+import styled, { CSSProp, StyleFunction } from 'styled-components';
 
-import Modal from '../Modal';
+import Modal, { BackdropProps, Props as ModalProps } from '../Modal';
 
-import Transition from './Transition';
+type Dimensions = { width: number; height: number };
 
-function getOffsetTop(rect, vertical) {
+export type Origin = {
+  horizontal: HorizontalAnchor;
+  vertical: VerticalAnchor;
+};
+
+export type HorizontalAnchor = 'left' | 'center' | 'right' | number;
+export type VerticalAnchor = 'top' | 'center' | 'bottom' | number;
+export type GrowDirections = 'top-left' | 'bottom-right';
+
+type NumericOrigin = {
+  horizontal: number;
+  vertical: number;
+};
+
+function getOffsetTop(rect: Dimensions, vertical: VerticalAnchor): number {
   let offset = 0;
 
   if (typeof vertical === 'number') {
@@ -62,7 +75,7 @@ function getOffsetTop(rect, vertical) {
   return offset;
 }
 
-function getOffsetLeft(rect, horizontal) {
+function getOffsetLeft(rect: Dimensions, horizontal: HorizontalAnchor): number {
   let offset = 0;
 
   if (typeof horizontal === 'number') {
@@ -76,7 +89,7 @@ function getOffsetLeft(rect, horizontal) {
   return offset;
 }
 
-function getTransformOriginValue(transformOrigin) {
+function getTransformOriginValue(transformOrigin: Origin): string {
   return [transformOrigin.horizontal, transformOrigin.vertical]
     .map(n => {
       return typeof n === 'number' ? `${n}px` : n;
@@ -85,29 +98,41 @@ function getTransformOriginValue(transformOrigin) {
 }
 
 // Sum the scrollTop between two elements.
-function getScrollParent(parent, child) {
+function getScrollParent(parent: Element, child: Element): number {
   let element = child;
   let scrollTop = 0;
 
   while (element && element !== parent) {
-    element = element.parentNode;
+    element = element.parentElement;
     scrollTop += element.scrollTop;
   }
   return scrollTop;
 }
 
-function getAnchorEl(anchorEl) {
+function getAnchorEl(anchorEl: Element | (() => Element)): Element {
   return typeof anchorEl === 'function' ? anchorEl() : anchorEl;
 }
 
-export default class Popover extends React.Component {
-  paperRef = createRef();
-  handleGetOffsetTop = getOffsetTop;
+export default class Popover extends React.Component<Props> {
+  paperRef: MutableRefObject<HTMLDivElement> = createRef();
+  handleResize: () => void;
 
-  handleGetOffsetLeft = getOffsetLeft;
+  static defaultProps = {
+    anchorReference: 'anchorEl',
+    anchorOrigin: {
+      vertical: 'top',
+      horizontal: 'left',
+    },
+    marginThreshold: 16,
+    transformOrigin: {
+      vertical: 'top',
+      horizontal: 'left',
+    },
+    growDirections: 'bottom-right',
+  };
 
-  constructor() {
-    super();
+  constructor(props: Props) {
+    super(props);
 
     if (typeof window !== 'undefined') {
       this.handleResize = () => {
@@ -130,7 +155,7 @@ export default class Popover extends React.Component {
     }
   }
 
-  setPositioningStyles = element => {
+  setPositioningStyles = (element: HTMLElement) => {
     const positioning = this.getPositioningStyle(element);
 
     if (this.props.growDirections === 'bottom-right') {
@@ -151,7 +176,7 @@ export default class Popover extends React.Component {
     element.style.transformOrigin = positioning.transformOrigin;
   };
 
-  getPositioningStyle = element => {
+  getPositioningStyle = (element: HTMLElement) => {
     const { anchorReference, marginThreshold } = this.props;
 
     // Check if the parent has requested anchoring on an inner content node
@@ -228,7 +253,7 @@ export default class Popover extends React.Component {
 
   // Returns the top/left offset of the position
   // to attach to on the anchor element (or body if none is provided)
-  getAnchorOffset(contentAnchorOffset) {
+  getAnchorOffset(contentAnchorOffset: number): { top: number; left: number } {
     const { anchorEl, anchorOrigin } = this.props;
 
     // If an anchor element wasn't provided, just use the parent body element of this Popover
@@ -240,15 +265,14 @@ export default class Popover extends React.Component {
       contentAnchorOffset === 0 ? anchorOrigin.vertical : 'center';
 
     return {
-      top: anchorRect.top + this.handleGetOffsetTop(anchorRect, anchorVertical),
+      top: anchorRect.top + getOffsetTop(anchorRect, anchorVertical),
       left:
-        anchorRect.left +
-        this.handleGetOffsetLeft(anchorRect, anchorOrigin.horizontal),
+        anchorRect.left + getOffsetLeft(anchorRect, anchorOrigin.horizontal),
     };
   }
 
   // Returns the vertical offset of inner content to anchor the transform on if provided
-  getContentAnchorOffset(element) {
+  getContentAnchorOffset(element: HTMLElement): number {
     const { getContentAnchorEl, anchorReference } = this.props;
     let contentAnchorOffset = 0;
 
@@ -269,17 +293,16 @@ export default class Popover extends React.Component {
 
   // Return the base transform origin using the element
   // and taking the content anchor offset into account if in use
-  getTransformOrigin(elemRect, contentAnchorOffset = 0) {
+  getTransformOrigin(
+    elemRect: Dimensions,
+    contentAnchorOffset = 0
+  ): NumericOrigin {
     const { transformOrigin } = this.props;
 
     const vertical =
-      this.handleGetOffsetTop(elemRect, transformOrigin.vertical) +
-      contentAnchorOffset;
+      getOffsetTop(elemRect, transformOrigin.vertical) + contentAnchorOffset;
 
-    const horizontal = this.handleGetOffsetLeft(
-      elemRect,
-      transformOrigin.horizontal
-    );
+    const horizontal = getOffsetLeft(elemRect, transformOrigin.horizontal);
 
     return {
       vertical,
@@ -287,7 +310,7 @@ export default class Popover extends React.Component {
     };
   }
 
-  handleEntering = element => {
+  handleEntering = (element: HTMLElement) => {
     if (this.props.onEntering) {
       this.props.onEntering(element);
     }
@@ -295,8 +318,16 @@ export default class Popover extends React.Component {
     this.setPositioningStyles(element);
   };
 
+  setPaperRef = (el: HTMLDivElement) => {
+    if (el && !this.paperRef.current) {
+      this.handleEntering(el);
+    }
+    this.paperRef.current = el;
+  };
+
   render() {
     const { children, open, popoverCss, ...other } = this.props;
+    console.log(other);
 
     return (
       <Modal
@@ -304,157 +335,110 @@ export default class Popover extends React.Component {
         BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
       >
-        <Transition onEntering={this.handleEntering}>
-          <StyledPopover
-            popoverCss={popoverCss}
-            data-mui-test="Popover"
-            ref={this.paperRef}
-          >
-            {children}
-          </StyledPopover>
-        </Transition>
+        <StyledPopover
+          popoverCss={popoverCss}
+          data-mui-test="Popover"
+          ref={this.setPaperRef}
+        >
+          {children}
+        </StyledPopover>
       </Modal>
     );
   }
 }
 
-Popover.propTypes = {
+interface Props extends Omit<ModalProps, 'children' | 'open'> {
   /**
-   * This is callback property. It's called by the component on mount.
-   * This is useful when you want to trigger an action programmatically.
-   * It currently only supports updatePosition() action.
+   * This is callback property. It's called by the component on mount.  This is
+   * useful when you want to trigger an action programmatically.  It currently
+   * only supports updatePosition() action.
    *
-   * @param {object} actions This object contains all posible actions
-   * that can be triggered programmatically.
+   * @param actions This object contains all possible actions that can be
+   * triggered programmatically.
    */
-  action: PropTypes.func,
+  action?: (actions: { updatePosition: () => void }) => void;
+
   /**
-   * This is the DOM element, or a function that returns the DOM element,
-   * that may be used to set the position of the popover.
+   * This is the DOM element, or a function that returns the DOM element, that
+   * may be used to set the position of the popover.
    */
-  anchorEl: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
+  anchorEl?: Element | (() => Element);
+
   /**
-   * This is the point on the anchor where the popover's
-   * `anchorEl` will attach to. This is not used when the
-   * anchorReference is 'anchorPosition'.
-   *
-   * Options:
-   * vertical: [top, center, bottom];
-   * horizontal: [left, center, right].
+   * This is the point on the anchor where the popover's `anchorEl` will attach
+   * to.
    */
-  anchorOrigin: PropTypes.shape({
-    horizontal: PropTypes.oneOfType([
-      PropTypes.number,
-      PropTypes.oneOf(['left', 'center', 'right']),
-    ]).isRequired,
-    vertical: PropTypes.oneOfType([
-      PropTypes.number,
-      PropTypes.oneOf(['top', 'center', 'bottom']),
-    ]).isRequired,
-  }),
+  anchorOrigin?: Origin;
+
   /**
-   * This is the position that may be used
-   * to set the position of the popover.
-   * The coordinates are relative to
-   * the application's client area.
+   * These are the directions in which `Popover` will grow if its content
+   * increases its dimensions after `Popover` is opened.
    */
-  anchorPosition: PropTypes.shape({
-    left: PropTypes.number.isRequired,
-    top: PropTypes.number.isRequired,
-  }),
+  growDirections?: GrowDirections;
+
   /**
-   * These are the directions in which `Popover` will grow
-   * if its content increases its dimensions after `Popover` is opened.
+   * This determines which anchor prop to refer to to set the position of the
+   * popover.
    */
-  growDirections: PropTypes.oneOf(['top-left', 'bottom-right']),
-  /*
-   * This determines which anchor prop to refer to to set
-   * the position of the popover.
-   */
-  anchorReference: PropTypes.oneOf(['anchorEl', 'anchorPosition', 'none']),
+  anchorReference?: 'anchorEl' | 'none';
+
   /**
    * The content of the component.
    */
-  children: PropTypes.node,
+  children?: React.ReactNode;
+
   /**
    * This function is called in order to retrieve the content anchor element.
-   * It's the opposite of the `anchorEl` property.
-   * The content anchor element should be an element inside the popover.
-   * It's used to correctly scroll and set the position of the popover.
-   * The positioning strategy tries to make the content anchor element just above the
-   * anchor element.
+   * It's the opposite of the `anchorEl` property.  The content anchor element
+   * should be an element inside the popover.  It's used to correctly scroll and
+   * set the position of the popover.  The positioning strategy tries to make
+   * the content anchor element just above the anchor element.
    */
-  getContentAnchorEl: PropTypes.func,
+  getContentAnchorEl?: (paperElement: HTMLElement) => HTMLElement;
+
   /**
    * Specifies how close to the edge of the window the popover can appear.
    */
-  marginThreshold: PropTypes.number,
+  marginThreshold?: number;
+
   /**
    * Callback fired when the component requests to be closed.
    *
-   * @param {object} event The event source of the callback.
-   * @param {string} reason Can be:`"escapeKeyDown"`, `"backdropClick"`
+   * @param event The event source of the callback.
+   * @param reason Can be:`"escapeKeyDown"`, `"backdropClick"`
    */
-  onClose: PropTypes.func,
-  /**
-   * Callback fired before the component is entering.
-   */
-  onEnter: PropTypes.func,
-  /**
-   * Callback fired when the component has entered.
-   */
-  onEntered: PropTypes.func,
+  onClose?: (
+    event: React.MouseEvent | KeyboardEvent,
+    reason: 'escapeKeyDown' | 'backdropClick'
+  ) => void;
+
   /**
    * Callback fired when the component is entering.
    */
-  onEntering: PropTypes.func,
+  onEntering?: (paperElement: HTMLElement) => void;
+
   /**
    * If `true`, the popover is visible.
    */
-  open: PropTypes.bool.isRequired,
+  open: boolean;
+
   /**
-   * Properties applied to the [`Paper`](/api/paper/) element.
-   */
-  PaperProps: PropTypes.object,
-  /**
-   * @ignore
-   */
-  role: PropTypes.string,
-  /**
-   * This is the point on the popover which
-   * will attach to the anchor's origin.
+   * This is the point on the popover which will attach to the anchor's origin.
    *
    * Options:
    * vertical: [top, center, bottom, x(px)];
    * horizontal: [left, center, right, x(px)].
    */
-  transformOrigin: PropTypes.shape({
-    horizontal: PropTypes.oneOfType([
-      PropTypes.number,
-      PropTypes.oneOf(['left', 'center', 'right']),
-    ]).isRequired,
-    vertical: PropTypes.oneOfType([
-      PropTypes.number,
-      PropTypes.oneOf(['top', 'center', 'bottom']),
-    ]).isRequired,
-  }),
-};
+  transformOrigin?: Origin;
 
-Popover.defaultProps = {
-  anchorReference: 'anchorEl',
-  anchorOrigin: {
-    vertical: 'top',
-    horizontal: 'left',
-  },
-  marginThreshold: 16,
-  transformOrigin: {
-    vertical: 'top',
-    horizontal: 'left',
-  },
-  growDirections: 'bottom-right',
-};
+  /** Returns additional styles applied to the internal popover element. */
+  popoverCss?: () => CSSProp;
 
-export const StyledPopover = styled.div`
+  /** Properties applied to the backdrop element. */
+  backdropProps?: BackdropProps;
+}
+
+export const StyledPopover = styled.div<{ popoverCss?: () => CSSProp }>`
   box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: 4px;
   max-width: calc(100% - 32px);
@@ -465,5 +449,5 @@ export const StyledPopover = styled.div`
   overflow-x: hidden;
   overflow-y: auto;
   position: absolute;
-  ${props => props.popoverCss && props.popoverCss(props)}
+  ${props => props.popoverCss && props.popoverCss()}
 `;

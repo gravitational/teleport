@@ -16,7 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Popover, { StyledPopover } from './Popover';
+import Popover from './Popover';
+export {
+  StyledPopover,
+  type Origin,
+  type HorizontalAnchor,
+  type VerticalAnchor,
+  type GrowDirections,
+} from './Popover';
 
 export default Popover;
-export { StyledPopover };

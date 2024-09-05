@@ -21,18 +21,15 @@ import styled from 'styled-components';
 import { Popover, Flex, Text } from 'design';
 import { JustifyContentProps, FlexBasisProps } from 'design/system';
 
-type OriginProps = {
-  vertical: string;
-  horizontal: string;
-};
+import { Origin } from 'design/Popover';
 
 export const HoverTooltip: React.FC<
   PropsWithChildren<{
     tipContent: string | undefined;
     showOnlyOnOverflow?: boolean;
     className?: string;
-    anchorOrigin?: OriginProps;
-    transformOrigin?: OriginProps;
+    anchorOrigin?: Origin;
+    transformOrigin?: Origin;
     justifyContentProps?: JustifyContentProps;
     flexBasisProps?: FlexBasisProps;
   }>
