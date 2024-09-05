@@ -1,5 +1,21 @@
 # Changelog
 
+## 15.4.18 (09/05/24)
+
+* Fixed an issue that could result in duplicate session recordings being created. [#46264](https://github.com/gravitational/teleport/pull/46264)
+* Added API resources for auto update (config and version). [#46257](https://github.com/gravitational/teleport/pull/46257)
+* Added support for the teleport_installer resource to the Teleport Terraform provider. [#46202](https://github.com/gravitational/teleport/pull/46202)
+* Fixed an issue that would cause reissue of certificates to fail in some scenarios where a local auth service was present. [#46183](https://github.com/gravitational/teleport/pull/46183)
+* Updated OpenSSL to 3.0.15. [#46181](https://github.com/gravitational/teleport/pull/46181)
+* Extended Teleport ability to use non-default cluster domains in Kubernetes, avoiding the assumption of `cluster.local`. [#46151](https://github.com/gravitational/teleport/pull/46151)
+* Fixed retention period handling in the CockroachDB audit log storage backend. [#46148](https://github.com/gravitational/teleport/pull/46148)
+* Prevented Teleport Kubernetes access from resending resize events to the party that triggered the terminal resize, avoiding potential resize loops. [#46067](https://github.com/gravitational/teleport/pull/46067)
+* Fixed an issue where attempts to play/export certain session recordings would fail with `gzip: invalid header`. [#46034](https://github.com/gravitational/teleport/pull/46034)
+* Fixed a bug where Teleport services could not join the cluster using IAM, Azure, or TPM methods when the proxy service certificate did not contain IP SANs. [#46009](https://github.com/gravitational/teleport/pull/46009)
+* Updated the icons for server, application, and desktop resources. [#45991](https://github.com/gravitational/teleport/pull/45991)
+* Failure to share a local directory in a Windows desktop session is no longer considered a fatal error. [#45853](https://github.com/gravitational/teleport/pull/45853)
+* Fixed Okta role formatting in tsh login output. [#45582](https://github.com/gravitational/teleport/pull/45582)
+
 ## 15.4.17 (08/28/24)
 
 * Prevent connections from being randomly terminated by Teleport proxies when `proxy_protocol` is enabled and TLS is terminated before Teleport Proxy. [#45993](https://github.com/gravitational/teleport/pull/45993)
