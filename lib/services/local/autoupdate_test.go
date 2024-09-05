@@ -26,16 +26,18 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
-// TestAutoupdateServiceConfigCRUD verifies get/create/update/upsert/delete methods of the backend service
+// TestAutoUpdateServiceConfigCRUD verifies get/create/update/upsert/delete methods of the backend service
 // for autoupdate config resource.
-func TestAutoupdateServiceConfigCRUD(t *testing.T) {
+func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	t.Parallel()
 
 	bk, err := memory.New(memory.Config{})
@@ -45,18 +47,18 @@ func TestAutoupdateServiceConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := &autoupdate.AutoUpdateConfig{
+	config := &autoupdatepb.AutoUpdateConfig{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
-		Spec:     &autoupdate.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+		Spec:     &autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
 	}
 
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 	diff := cmp.Diff(config, created,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(autoupdate.AutoUpdateConfig{}, autoupdate.AutoUpdateConfigSpec{}, headerv1.Metadata{}),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.NotEmpty(t, created.GetMetadata().GetRevision())
@@ -65,7 +67,7 @@ func TestAutoupdateServiceConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 	diff = cmp.Diff(config, got,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(autoupdate.AutoUpdateConfig{}, autoupdate.AutoUpdateConfigSpec{}, headerv1.Metadata{}),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
@@ -89,9 +91,9 @@ func TestAutoupdateServiceConfigCRUD(t *testing.T) {
 	require.ErrorAs(t, err, &notFoundError)
 }
 
-// TestAutoupdateServiceVersionCRUD verifies get/create/update/upsert/delete methods of the backend service
+// TestAutoUpdateServiceVersionCRUD verifies get/create/update/upsert/delete methods of the backend service
 // for autoupdate version resource.
-func TestAutoupdateServiceVersionCRUD(t *testing.T) {
+func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	t.Parallel()
 
 	bk, err := memory.New(memory.Config{})
@@ -101,18 +103,18 @@ func TestAutoupdateServiceVersionCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	version := &autoupdate.AutoUpdateVersion{
+	version := &autoupdatepb.AutoUpdateVersion{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateVersion},
-		Spec:     &autoupdate.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+		Spec:     &autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
 	}
 
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 	diff := cmp.Diff(version, created,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(autoupdate.AutoUpdateVersion{}, autoupdate.AutoUpdateVersionSpec{}, headerv1.Metadata{}),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.NotEmpty(t, created.GetMetadata().GetRevision())
@@ -121,7 +123,7 @@ func TestAutoupdateServiceVersionCRUD(t *testing.T) {
 	require.NoError(t, err)
 	diff = cmp.Diff(version, got,
 		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		cmpopts.IgnoreUnexported(autoupdate.AutoUpdateVersion{}, autoupdate.AutoUpdateVersionSpec{}, headerv1.Metadata{}),
+		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
@@ -143,4 +145,79 @@ func TestAutoupdateServiceVersionCRUD(t *testing.T) {
 
 	_, err = service.UpdateAutoUpdateVersion(ctx, version)
 	require.ErrorAs(t, err, &notFoundError)
+}
+
+// TestAutoUpdateServiceInvalidNameCreate verifies that configuration and version
+// with not constant name is rejected to be created.
+func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
+	t.Parallel()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewAutoupdateService(bk)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	config := &autoupdatepb.AutoUpdateConfig{
+		Kind:     types.KindAutoUpdateConfig,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
+		Spec:     &autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+	}
+
+	createdConfig, err := service.CreateAutoUpdateConfig(ctx, config)
+	require.Error(t, err)
+	require.Nil(t, createdConfig)
+
+	version := &autoupdatepb.AutoUpdateVersion{
+		Kind:     types.KindAutoUpdateVersion,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-version-name"},
+		Spec:     &autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+	}
+
+	createdVersion, err := service.CreateAutoUpdateVersion(ctx, version)
+	require.Error(t, err)
+	require.Nil(t, createdVersion)
+}
+
+// TestAutoUpdateServiceInvalidNameUpdate verifies that configuration and version
+// with not constant name is rejected to be updated.
+func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
+	t.Parallel()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewAutoupdateService(bk)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Validate the config update restriction.
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true})
+	require.NoError(t, err)
+
+	createdConfig, err := service.UpsertAutoUpdateConfig(ctx, config)
+	require.NoError(t, err)
+
+	createdConfig.GetMetadata().Name = "invalid-auto-update-config-name"
+
+	createdConfig, err = service.UpdateAutoUpdateConfig(ctx, createdConfig)
+	require.Error(t, err)
+	require.Nil(t, createdConfig)
+
+	// Validate the version update restriction.
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"})
+	require.NoError(t, err)
+
+	createdVersion, err := service.UpsertAutoUpdateVersion(ctx, version)
+	require.NoError(t, err)
+
+	createdVersion.GetMetadata().Name = "invalid-auto-update-version-name"
+
+	createdVersion, err = service.UpdateAutoUpdateVersion(ctx, createdVersion)
+	require.Error(t, err)
+	require.Nil(t, createdVersion)
 }

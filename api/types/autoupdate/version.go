@@ -53,6 +53,9 @@ func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
 	if v.Metadata == nil {
 		return trace.BadParameter("Metadata is nil")
 	}
+	if v.Metadata.Name != types.MetaNameAutoUpdateVersion {
+		return trace.BadParameter("Name is not valid")
+	}
 	if v.Spec == nil {
 		return trace.BadParameter("Spec is nil")
 	}
