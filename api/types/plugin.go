@@ -681,7 +681,7 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *PluginDatadogSettings) CheckAndSetDefaults() error {
+func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
 	if c.FallbackRecipient == "" {
 		return trace.BadParameter("fallback_recipient must be set")
 	}

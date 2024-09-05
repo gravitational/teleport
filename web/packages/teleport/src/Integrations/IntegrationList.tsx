@@ -328,7 +328,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         icon = <IconContainer src={entraIdIcon} />;
         break;
       case 'datadog':
-        formattedText = 'Datadog';
+        formattedText = 'Datadog Incident Management';
         icon = <IconContainer src={datadogIcon} />;
         break;
     }

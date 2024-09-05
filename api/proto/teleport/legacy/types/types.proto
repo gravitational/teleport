@@ -6050,8 +6050,8 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
-    // Settings for the Datadog plugin
-    PluginDatadogSettings datadog = 15;
+    // Settings for the Datadog acess plugin
+    PluginDatadogAccessSettings datadog = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6297,8 +6297,8 @@ message PluginSCIMSettings {
   string default_role = 2;
 }
 
-// PluginDatadogSettings defines the settings for a Datadog integration plugin
-message PluginDatadogSettings {
+// PluginDatadogAccessSettings defines the settings for a Datadog access plugin
+message PluginDatadogAccessSettings {
   option (gogoproto.equal) = true;
 
   // FallbackRecipient specifies the default recipient

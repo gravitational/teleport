@@ -938,7 +938,7 @@ func TestPluginDatadogValidation(t *testing.T) {
 		{
 			name: "no api endpoint",
 			settings: &PluginSpecV1_Datadog{
-				Datadog: &PluginDatadogSettings{},
+				Datadog: &PluginDatadogAccessSettings{},
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
@@ -949,7 +949,7 @@ func TestPluginDatadogValidation(t *testing.T) {
 		{
 			name: "no static credentials",
 			settings: &PluginSpecV1_Datadog{
-				Datadog: &PluginDatadogSettings{
+				Datadog: &PluginDatadogAccessSettings{
 					FallbackRecipient: "example@goteleport.com",
 				},
 			},
@@ -961,7 +961,7 @@ func TestPluginDatadogValidation(t *testing.T) {
 		{
 			name: "static credentials labels not defined",
 			settings: &PluginSpecV1_Datadog{
-				Datadog: &PluginDatadogSettings{
+				Datadog: &PluginDatadogAccessSettings{
 					FallbackRecipient: "example@goteleport.com",
 				},
 			},
@@ -980,7 +980,7 @@ func TestPluginDatadogValidation(t *testing.T) {
 		{
 			name: "valid credentials",
 			settings: &PluginSpecV1_Datadog{
-				Datadog: &PluginDatadogSettings{
+				Datadog: &PluginDatadogAccessSettings{
 					FallbackRecipient: "example@goteleport.com",
 				},
 			},

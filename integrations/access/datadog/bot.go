@@ -35,9 +35,6 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-// AutoApprovalsAnnotation defines the datadog auto approvals label.
-const AutoApprovalsAnnotation = "datadog_auto_approvals"
-
 // Bot is a Datadog client that works with AccessRequest.
 // It is responsible for creating/updating Datadog incidents when access request
 // events occur.
