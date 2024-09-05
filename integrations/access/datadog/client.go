@@ -123,6 +123,7 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
+// Create Incident creates a new Datadog incident.
 func (d *Datadog) CreateIncident(ctx context.Context, summary string, recipients []common.Recipient, reqData pd.AccessRequestData) (IncidentsData, error) {
 	teams := make([]string, 0, len(recipients))
 	emails := make([]NotificationHandle, 0, len(recipients))

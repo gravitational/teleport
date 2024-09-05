@@ -20,9 +20,12 @@ package testlib
 
 import (
 	"context"
+	"regexp"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
-	"github.com/stretchr/testify/require"
 )
 
 func (s *DatadogBaseSuite) checkPluginData(ctx context.Context, reqID string, cond func(accessrequest.PluginData) bool) accessrequest.PluginData {
@@ -38,4 +41,21 @@ func (s *DatadogBaseSuite) checkPluginData(ctx context.Context, reqID string, co
 			return data
 		}
 	}
+}
+
+var summaryFieldRegexp = regexp.MustCompile(`([a-zA-Z ]+): (.+)`)
+
+func parseSummaryField(incidentSumamry string, field string) (string, error) {
+	matches := summaryFieldRegexp.FindAllStringSubmatch(incidentSumamry, -1)
+	if matches == nil {
+		return "", trace.Errorf("cannot parse fields from text %s", incidentSumamry)
+	}
+	var fields []string
+	for _, match := range matches {
+		if match[1] == field {
+			return match[2], nil
+		}
+		fields = append(fields, match[1])
+	}
+	return "", trace.Errorf("cannot find field %s in %v", field, fields)
 }
