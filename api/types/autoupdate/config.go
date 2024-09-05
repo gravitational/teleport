@@ -52,6 +52,9 @@ func ValidateAutoUpdateConfig(c *autoupdate.AutoUpdateConfig) error {
 	if c.Metadata == nil {
 		return trace.BadParameter("Metadata is nil")
 	}
+	if c.Metadata.Name != types.MetaNameAutoUpdateConfig {
+		return trace.BadParameter("Name is not valid")
+	}
 	if c.Spec == nil {
 		return trace.BadParameter("Spec is nil")
 	}
