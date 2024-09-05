@@ -945,8 +945,10 @@ func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 	return NewTeleport(cfg)
 }
 
-// Run starts teleport processes, waits for signals
-// and handles internal process reloads.
+// Run installs a signal handler for relevant control signals, starts the
+// Teleport process and waits for signals to terminate it or trigger a fork. It
+// will also close the process if a critical service exits with an error. The
+// process will be closed when the context is done.
 func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) error {
 	sigC := make(chan os.Signal, 1024)
 	// this should happen before the very first newTeleport, as that's the point
@@ -954,6 +956,14 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	signal.Notify(sigC, teleportSignals...)
 	defer signal.Stop(sigC)
 
+	return trace.Wrap(RunWithSignalChannel(ctx, cfg, newTeleport, sigC))
+}
+
+// RunWithSystemSignals starts the Teleport process and waits for signals to
+// terminate it or trigger a fork. It will also close the process if a critical
+// service exits with an error. The process will be closed when the context is
+// done.
+func RunWithSignalChannel(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess, sigC <-chan os.Signal) error {
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}

@@ -57,6 +57,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -5242,6 +5243,9 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -5261,22 +5265,10 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	helpers.EnableKubernetesService(t, config)
 	helpers.EnableDesktopService(config)
 
-	serviceCh := make(chan *service.TeleportProcess, 1)
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceCh <- svc
-				// panic if we end up restarting
-				close(serviceCh)
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceCh)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
 
 	credentialsUpdatedC := make(chan service.Event, 10)
 	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
@@ -5414,19 +5406,15 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	cancel()
 	// close the service without waiting for the connections to drain
 	require.NoError(t, svc.Close())
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
 }
 
 // TestRotateRollback tests cert authority rollback
 func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -5441,22 +5429,10 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceCh := make(chan *service.TeleportProcess, 1)
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceCh <- svc
-				// panic if we end up restarting
-				close(serviceCh)
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceCh)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
 
 	credentialsUpdatedC := make(chan service.Event, 10)
 	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
@@ -5570,20 +5546,16 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
+	require.NoError(t, svc.Close())
 }
 
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -5602,22 +5574,10 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	config, err := main.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceCh := make(chan *service.TeleportProcess, 1)
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceCh <- svc
-				// panic if we end up restarting
-				close(serviceCh)
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceCh)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
 
 	credentialsUpdatedC := make(chan service.Event, 10)
 	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
@@ -5806,13 +5766,6 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	cancel()
 	// close the service without waiting for the connections to drain
 	require.NoError(t, svc.Close())
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
 }
 
 // rotationConfig sets up default config used for CA rotation tests
@@ -5836,18 +5789,6 @@ func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout tim
 		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
 	}
 	return nil
-}
-
-// waitForProcessStart is waiting for the process to start
-func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.TeleportProcess, error) {
-	var svc *service.TeleportProcess
-	select {
-	case svc = <-serviceC:
-	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to start")
-	}
-	return svc, nil
 }
 
 // runAndMatch runs command and makes sure it matches the pattern

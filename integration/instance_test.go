@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -84,6 +85,9 @@ func TestInstanceCertReissue(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -121,27 +125,10 @@ func TestInstanceCertReissue(t *testing.T) {
 	authCfg.Log = utils.NewLoggerForTests()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
-	authRunErrCh := make(chan error, 1)
-	authProcCh := make(chan *service.TeleportProcess, 2)
-	go func() {
-		authRunErrCh <- service.Run(ctx, *authCfg, func(cfg *servicecfg.Config) (service.Process, error) {
-			proc, err := service.NewTeleport(cfg)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			authProcCh <- proc
-
-			return proc, nil
-		})
-	}()
-
-	timeout := time.After(time.Second * 30)
-	var authProc *service.TeleportProcess
-	select {
-	case <-timeout:
-		t.Fatal("timed out waiting for first auth identity")
-	case authProc = <-authProcCh:
-	}
+	authProc, err := service.NewTeleport(authCfg)
+	require.NoError(t, err)
+	require.NoError(t, authProc.Start())
+	eg.Go(func() error { return authProc.WaitForSignals(ctx, nil) })
 
 	authIdentity, err := authProc.GetIdentityForTesting(t, types.RoleInstance)
 	require.NoError(t, err)
@@ -150,11 +137,11 @@ func TestInstanceCertReissue(t *testing.T) {
 	authEventCh := make(chan service.Event)
 	authProc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, authEventCh)
 
-	select {
-	case <-timeout:
-		t.Fatal("timed out waiting for second auth identity")
-	case <-authEventCh:
-	}
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, err = authProc.WaitForEvent(timeoutCtx, service.TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second auth identity")
 
 	authIdentity, err = authProc.GetIdentityForTesting(t, types.RoleInstance)
 	require.NoError(t, err)
@@ -178,41 +165,17 @@ func TestInstanceCertReissue(t *testing.T) {
 	agentCfg.MaxRetryPeriod = time.Second
 	agentCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 
-	agentRunErrCh := make(chan error, 1)
-	agentProcCh := make(chan *service.TeleportProcess, 2)
-	go func() {
-		agentRunErrCh <- service.Run(ctx, *agentCfg, func(cfg *servicecfg.Config) (service.Process, error) {
-			proc, err := service.NewTeleport(cfg)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			agentProcCh <- proc
-
-			return proc, nil
-		})
-	}()
-
-	timeout = time.After(time.Second * 30)
-	var agentProc *service.TeleportProcess
-	select {
-	case <-timeout:
-		t.Fatal("timed out waiting for first agent identity")
-	case agentProc = <-agentProcCh:
-	}
+	agentProc, err := service.NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProc.Start())
+	eg.Go(func() error { return agentProc.WaitForSignals(ctx, nil) })
 
 	agentIdentity, err := agentProc.GetIdentityForTesting(t, types.RoleInstance)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{string(types.RoleNode)}, agentIdentity.SystemRoles)
 
-	agentEventCh := make(chan service.Event)
-	agentProc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, agentEventCh)
-
-	select {
-	case <-timeout:
-		t.Fatal("timed out waiting for second auth identity")
-	case <-agentEventCh:
-	}
+	_, err = agentProc.WaitForEvent(timeoutCtx, service.TeleportCredentialsUpdatedEvent)
+	require.NoError(t, err, "timed out waiting for second agent identity")
 
 	agentIdentity, err = agentProc.GetIdentityForTesting(t, types.RoleInstance)
 	require.NoError(t, err)

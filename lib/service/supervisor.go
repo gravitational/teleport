@@ -87,6 +87,8 @@ type Supervisor interface {
 	// value immediately. The broadcasting will stop when the context is done.
 	ListenForEvents(ctx context.Context, name string, eventC chan<- Event)
 
+	ListenForNewEvent(name string) (<-chan Event, context.CancelFunc)
+
 	// RegisterEventMapping registers event mapping -
 	// when the sequence in the event mapping triggers, the
 	// outbound event will be generated.
@@ -490,6 +492,29 @@ func (s *LocalSupervisor) ListenForEvents(ctx context.Context, name string, even
 		go waiter.notify(event)
 	}
 	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+}
+
+func (s *LocalSupervisor) ListenForNewEvent(name string) (<-chan Event, context.CancelFunc) {
+	s.Lock()
+	defer s.Unlock()
+
+	ctx, cancel := context.WithCancel(s.closeContext)
+
+	waiterC := make(chan Event)
+	waiter := &waiter{eventC: waiterC, context: ctx}
+	s.eventWaiters[name] = append(s.eventWaiters[name], waiter)
+
+	outputC := make(chan Event, 1)
+	go func() {
+		defer close(outputC)
+		select {
+		case <-ctx.Done():
+		case e := <-waiterC:
+			outputC <- e
+		}
+	}()
+
+	return outputC, cancel
 }
 
 func (s *LocalSupervisor) fanOut() {
