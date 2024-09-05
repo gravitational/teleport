@@ -36,7 +36,8 @@ func mockFetchRecipient(ctx context.Context, recipient string) (*common.Recipien
 
 func TestHandleAccessMonitoringRule(t *testing.T) {
 	amrh := NewRuleHandler(RuleHandlerConfig{
-		PluginType:             "fakePlugin",
+		PluginType:             "fakePluginType",
+		PluginName:             "fakePluginName",
 		FetchRecipientCallback: mockFetchRecipient,
 	})
 
@@ -44,7 +45,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		Notification: &pb.Notification{
-			Name:       "fakePlugin",
+			Name:       "fakePluginName",
 			Recipients: []string{"a", "b"},
 		},
 	})
