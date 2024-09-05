@@ -930,6 +930,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SPIFFE Federation Trust Bundle
 	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
+	h.GET("/webapi/spiffe/jwt-svid-jwks.json", h.WithLimiter(h.getSPIFFEBundle))
 
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))

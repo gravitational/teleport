@@ -91,3 +91,12 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 	}
 	return nil, nil
 }
+
+// getSPIFFEJWTJWKS returns the cluster's SPIFFE CA's JWT public keys in the
+// JWKS format. Intended for compatability with platforms that support OIDC
+// IDTokens for authentication, but are not fully SPIFFE aware.
+//
+// Mounted at /webapi/spiffe/jwt-svid-jwks.json
+func (h *Handler) getSPIFFEJWTJWKS(w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
