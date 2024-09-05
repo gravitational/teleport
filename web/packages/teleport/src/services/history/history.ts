@@ -128,9 +128,9 @@ function collectAllValues(record: RouteRecord) {
 
   for (const key in record) {
     if (typeof record[key] === 'string') {
-      result.push(record[key]);
+      result.push(record[key] as string);
     } else {
-      result.push(...collectAllValues(record[key]));
+      result.push(...collectAllValues(record[key] as RouteRecord));
     }
   }
 
