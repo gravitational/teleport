@@ -125,18 +125,19 @@ Or in JSON format:
 Replace `123456789012` and `my-redshift` with your AWS account ID and your
 Redshift database's cluster ID. 
 
-## Step 4/6. Create an IAM policy for the Database Service
+## Step 4/6. Configure IAM permissions for the Database Service
 
-Teleport needs AWS IAM permissions to be able to:
-- Manage IAM user or IAM role policies, for IAM authentication as database users.
-- Assume IAM roles, for IAM authentication as IAM roles.
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="Redshift databases" !)
 
-Before you can generate IAM permissions, you must provide the Teleport Database
-Service access to AWS credentials.
+### Create an IAM role for Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+### Grant permissions
+
+Attach the following AWS IAM permissions to the Database Service IAM role:
+
+(!docs/pages/includes/database-access/reference/aws-iam/redshift/access-policy.mdx dbUserRole="example-iam-role" !)
 
 ## Step 5/6. Start the Database Service
 
@@ -199,7 +200,7 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
 <TabItem label="Authenticate as IAM roles">
 
 ```code
-$ tsh db connect --db-user=role/my-iam-role --db-name=dev my-redshift
+$ tsh db connect --db-user=role/example-iam-role --db-name=dev my-redshift
 ```
 </TabItem>
 </Tabs>
