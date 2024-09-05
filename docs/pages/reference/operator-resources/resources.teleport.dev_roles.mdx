@@ -354,6 +354,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |max_kubernetes_connections|integer|MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.|
 |max_session_ttl|string|MaxSessionTTL defines how long a SSH session can last for.|
 |max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
+|mfa_verification_interval|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
 |port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
@@ -735,6 +736,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |max_kubernetes_connections|integer|MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.|
 |max_session_ttl|string|MaxSessionTTL defines how long a SSH session can last for.|
 |max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
+|mfa_verification_interval|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
 |port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
