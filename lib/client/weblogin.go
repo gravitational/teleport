@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
@@ -68,10 +67,11 @@ const (
 	WSS = "wss"
 )
 
-// SSOLoginConsoleReq is used to SSO for tsh
+// SSOLoginConsoleReq is passed by tsh to authenticate an SSO user and receive
+// short-lived certificates.
 type SSOLoginConsoleReq struct {
-	RedirectURL   string        `json:"redirect_url"`
-	PublicKey     []byte        `json:"public_key"`
+	RedirectURL string `json:"redirect_url"`
+	SSOUserPublicKeys
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
@@ -81,20 +81,18 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
 func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
-	if r.RedirectURL == "" {
+	switch {
+	case r.RedirectURL == "":
 		return trace.BadParameter("missing RedirectURL")
-	}
-	if len(r.PublicKey) == 0 {
-		return trace.BadParameter("missing PublicKey")
-	}
-	if r.ConnectorID == "" {
+	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
+	}
+	if err := r.SSOUserPublicKeys.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -143,9 +141,8 @@ func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthe
 	return nil, nil
 }
 
-// CreateSSHCertReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
+// CreateSSHCertReq is passed by tsh to authenticate a local user without MFA
+// and receive short-lived certificates.
 type CreateSSHCertReq struct {
 	// User is a teleport username
 	User string `json:"user"`
@@ -176,12 +173,14 @@ func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
 }
 
 // UserPublicKeys holds user-submitted public keys and attestation statements
-// used in login requests.
+// used in local login requests.
 type UserPublicKeys struct {
 	// PubKey is a public key the user wants as the subject of their SSH and TLS
 	// certificates. It must be in SSH authorized_keys format.
 	//
 	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be using
+	// separate keys.
 	PubKey []byte `json:"pub_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
@@ -193,6 +192,8 @@ type UserPublicKeys struct {
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
 	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
+	// TODO(nklaassen): DELETE IN 18.0.0 when all clients should be using
+	// separate keys.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
@@ -216,37 +217,73 @@ func (k *UserPublicKeys) CheckAndSetDefaults() error {
 	case k.AttestationStatement != nil && k.TLSAttestationStatement != nil:
 		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
-	if len(k.PubKey) > 0 {
-		// Normalize by splitting PubKey to SSHPubKey and TLSPubKey to reduce
-		// special case handling elsewhere. PubKey is deprecated.
-		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-		// the separated keys.
-		k.SSHPubKey = k.PubKey
-		cryptoPubKey, err := sshutils.CryptoPublicKey(k.PubKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		k.TLSPubKey, err = keys.MarshalPublicKey(cryptoPubKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		k.PubKey = nil
+	var err error
+	k.SSHPubKey, k.TLSPubKey, err = authclient.UserPublicKeys(k.PubKey, k.SSHPubKey, k.TLSPubKey)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if k.AttestationStatement != nil {
-		// Normalize by splitting AttestationStatement to
-		// SSHAttestationStatement and TLSAttestationStatement to reduce special
-		// case handling elsewhere. AttestationStatement is deprecated.
-		// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
-		// the separated attestation statements.
-		k.SSHAttestationStatement = k.AttestationStatement
-		k.TLSAttestationStatement = k.AttestationStatement
-		k.AttestationStatement = nil
+	k.SSHAttestationStatement, k.TLSAttestationStatement = authclient.UserAttestationStatements(k.AttestationStatement, k.SSHAttestationStatement, k.TLSAttestationStatement)
+	k.PubKey = nil
+	k.AttestationStatement = nil
+	return nil
+}
+
+// SSOUserPublicKeys holds user-submitted public keys and attestation statements
+// used in SSO login requests. This is identical to UserPublicKeys except for
+// the JSON tag on PublicKey, which is deprecated.
+//
+// TODO(nklaassen): DELETE IN 18.0.0 and replace with UserPublicKeys.
+type SSOUserPublicKeys struct {
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Soon to be deprecated after references are removed from teleport.e.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
+
+	// AttestationStatement is an attestation statement associated with the given public key.
+	//
+	// Soon to be deprecated after references are removed from teleport.e.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (k *SSOUserPublicKeys) CheckAndSetDefaults() error {
+	userPublicKeys := UserPublicKeys{
+		PubKey:                  k.PublicKey,
+		SSHPubKey:               k.SSHPubKey,
+		TLSPubKey:               k.TLSPubKey,
+		AttestationStatement:    k.AttestationStatement,
+		SSHAttestationStatement: k.SSHAttestationStatement,
+		TLSAttestationStatement: k.TLSAttestationStatement,
+	}
+	if err := userPublicKeys.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	*k = SSOUserPublicKeys{
+		PublicKey:               userPublicKeys.PubKey,
+		SSHPubKey:               userPublicKeys.SSHPubKey,
+		TLSPubKey:               userPublicKeys.TLSPubKey,
+		AttestationStatement:    userPublicKeys.AttestationStatement,
+		SSHAttestationStatement: userPublicKeys.SSHAttestationStatement,
+		TLSAttestationStatement: userPublicKeys.TLSAttestationStatement,
 	}
 	return nil
 }
 
-// AuthenticateSSHUserRequest are passed by web client to authenticate against
-// teleport server and receive a temporary cert signed by auth server authority.
+// AuthenticateSSHUserRequest is passed by tsh to authenticate a local user with
+// MFA and receive short-lived certificates.
 type AuthenticateSSHUserRequest struct {
 	// User is a teleport username
 	User string `json:"user"`

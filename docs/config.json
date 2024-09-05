@@ -128,7 +128,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.1.7",
+      "version": "16.2.0",
       "major_version": "16",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -323,7 +323,7 @@
     },
     {
       "source": "/agents/deploy-agents-terraform/",
-      "destination": "/enroll-resources/agents/deploy-agents-terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
       "permanent": true
     },
     {
@@ -2088,7 +2088,12 @@
     },
     {
       "source": "/choose-an-edition/migrate-to-cloud/",
-      "destination": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
       "permanent": true
     },
     {
@@ -2389,6 +2394,11 @@
     {
       "source": "/management/diagnostics/",
       "destination": "/admin-guides/management/diagnostics/",
+      "permanent": true
+    },
+    {
+      "source": "/management/diagnostics/logging/",
+      "destination": "/admin-guides/management/diagnostics/logging/",
       "permanent": true
     },
     {
