@@ -16117,7 +16117,7 @@ func (m *PluginSCIMSettings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginSCIMSettings proto.InternalMessageInfo
 
-// PluginDatadogAccessSettings defines the settings for a Datadog access plugin
+// PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
 type PluginDatadogAccessSettings struct {
 	// FallbackRecipient specifies the default recipient
 	FallbackRecipient    string   `protobuf:"bytes,1,opt,name=fallback_recipient,json=fallbackRecipient,proto3" json:"fallback_recipient,omitempty"`

@@ -73,7 +73,7 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
-	// PluginTypeDatadog indicates the Datadog access plugin
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
 )
 
@@ -335,7 +335,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 
 		staticCreds := p.Credentials.GetStaticCredentialsRef()
 		if staticCreds == nil {
-			return trace.BadParameter("Datadog plugin must be used with the static credentials ref type")
+			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")

@@ -43,7 +43,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// DatadogBaseSuite is the Datadog access plugin test suite.
+// DatadogBaseSuite is the Datadog Incident Management plugin test suite.
 // It implements the testify.TestingSuite interface.
 type DatadogBaseSuite struct {
 	*integration.AccessRequestSuite
@@ -79,7 +79,7 @@ func (s *DatadogBaseSuite) SetupTest() {
 	}
 }
 
-// startApp starts the Datadog plugin, waits for it to become ready and returns.
+// startApp starts the Datadog Incident Management plugin, waits for it to become ready and returns.
 func (s *DatadogBaseSuite) startApp() {
 	t := s.T()
 	t.Helper()

@@ -6050,7 +6050,7 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
-    // Settings for the Datadog acess plugin
+    // Settings for the Datadog Incident Management plugin
     PluginDatadogAccessSettings datadog = 15;
   }
 
@@ -6297,7 +6297,7 @@ message PluginSCIMSettings {
   string default_role = 2;
 }
 
-// PluginDatadogAccessSettings defines the settings for a Datadog access plugin
+// PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
 message PluginDatadogAccessSettings {
   option (gogoproto.equal) = true;
 

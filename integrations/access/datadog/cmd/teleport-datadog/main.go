@@ -44,7 +44,7 @@ func main() {
 	app.Command("configure", "Prints an example .TOML configuration file.")
 	app.Command("version", "Prints teleport-datadog version and exits.")
 
-	startCmd := app.Command("start", "Starts a Teleport Datadog plugin.")
+	startCmd := app.Command("start", "Starts a Teleport Datadog Incident Management plugin.")
 	path := startCmd.Flag("config", "TOML config file path").
 		Short('c').
 		Default("/etc/teleport-datadog.toml").

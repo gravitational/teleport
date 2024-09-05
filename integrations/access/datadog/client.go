@@ -87,7 +87,7 @@ func onAfterDatadogResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			defer cancel()
 
 			if err := sink.Emit(ctx, status); err != nil {
-				log.WithError(err).Errorf("Error while emitting Datadog plugin status: %v", err)
+				log.WithError(err).Errorf("Error while emitting Datadog Incident Management plugin status: %v", err)
 			}
 		}
 
