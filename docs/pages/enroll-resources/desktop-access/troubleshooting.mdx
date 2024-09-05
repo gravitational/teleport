@@ -393,3 +393,28 @@ to force the policy update:
 ```code
 $ gpupdate.exe /force
 ```
+
+## Directory Sharing
+
+### Failed to share directory
+
+Attempts to share a directory fail and a warning is presented that says:
+
+```
+Failed to share directory, drive redirection may be disabled on the RDP server.
+```
+
+**Solution:** Ensure that device redirection is enabled.
+
+Teleport's directory sharing feature leverages RDP device redirection.
+If device redirection is not enabled or allowed by the RDP server then the operation
+will fail.
+
+Device redirection is typically enabled by default, but may be disabled in group policy.
+The relevant settings are located under:
+
+```text
+Computer configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Device and Resource Redirection
+```
+
+Make sure that the option for *Do not allow drive redirection* is unset or disabled.
