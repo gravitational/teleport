@@ -34,9 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -57,10 +57,11 @@ type mockProxyAccessPoint struct {
 }
 
 type mockProxyService struct {
-	mockDialNode func(stream clientapi.ProxyService_DialNodeServer) error
+	peerv0.UnimplementedProxyServiceServer
+	mockDialNode func(stream peerv0.ProxyService_DialNodeServer) error
 }
 
-func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer) error {
+func (s *mockProxyService) DialNode(stream peerv0.ProxyService_DialNodeServer) error {
 	if s.mockDialNode != nil {
 		return s.mockDialNode(stream)
 	}
@@ -68,7 +69,7 @@ func (s *mockProxyService) DialNode(stream clientapi.ProxyService_DialNodeServer
 	return s.defaultDialNode(stream)
 }
 
-func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNodeServer) error {
+func (s *mockProxyService) defaultDialNode(stream peerv0.ProxyService_DialNodeServer) error {
 	sendErr := make(chan error)
 	recvErr := make(chan error)
 
@@ -81,9 +82,9 @@ func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNod
 		return trace.BadParameter("invalid dial request")
 	}
 
-	err = stream.Send(&clientapi.Frame{
-		Message: &clientapi.Frame_ConnectionEstablished{
-			ConnectionEstablished: &clientapi.ConnectionEstablished{},
+	err = stream.Send(&peerv0.DialNodeResponse{
+		Message: &peerv0.DialNodeResponse_ConnectionEstablished{
+			ConnectionEstablished: &peerv0.ConnectionEstablished{},
 		},
 	})
 	if err != nil {
@@ -102,9 +103,9 @@ func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNod
 
 	go func() {
 		for {
-			err := stream.Send(&clientapi.Frame{
-				Message: &clientapi.Frame_Data{
-					Data: &clientapi.Data{Bytes: []byte("pong")},
+			err := stream.Send(&peerv0.DialNodeResponse{
+				Message: &peerv0.DialNodeResponse_Data{
+					Data: &peerv0.Data{Bytes: []byte("pong")},
 				},
 			})
 			if err != nil {
@@ -256,7 +257,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream frameStream) {
+func sendMsg(t *testing.T, stream *clientFrameStream) {
 	err := stream.Send([]byte("ping"))
 	require.NoError(t, err)
 }

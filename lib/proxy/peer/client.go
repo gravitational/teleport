@@ -35,12 +35,12 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
-	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -400,15 +400,15 @@ func (c *Client) DialNode(
 	dst net.Addr,
 	tunnelType types.TunnelType,
 ) (net.Conn, error) {
-	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
-		NodeID:     nodeID,
-		TunnelType: tunnelType,
-		Source: &clientapi.NetAddr{
-			Addr:    src.String(),
+	stream, _, err := c.dial(proxyIDs, &peerv0.DialRequest{
+		NodeId:     nodeID,
+		TunnelType: string(tunnelType),
+		Source: &peerv0.NetAddr{
+			Address: src.String(),
 			Network: src.Network(),
 		},
-		Destination: &clientapi.NetAddr{
-			Addr:    dst.String(),
+		Destination: &peerv0.NetAddr{
+			Address: dst.String(),
 			Network: dst.Network(),
 		},
 	})
@@ -425,40 +425,36 @@ func (c *Client) DialNode(
 	return streamutils.NewConn(streamRW, src, dst), nil
 }
 
-// stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
-// [clientapi.ProxyService_DialNodeServer] interfaces.
-type stream interface {
-	Send(*clientapi.Frame) error
-	Recv() (*clientapi.Frame, error)
-}
-
-// frameStream implements [streamutils.Source].
-type frameStream struct {
-	stream stream
+// clientFrameStream wraps a client side stream as a [streamutils.Source].
+type clientFrameStream struct {
+	stream interface {
+		Send(*peerv0.DialNodeRequest) error
+		Recv() (*peerv0.DialNodeResponse, error)
+	}
 	cancel context.CancelFunc
 }
 
-func (s frameStream) Send(p []byte) error {
-	return trace.Wrap(s.stream.Send(&clientapi.Frame{Message: &clientapi.Frame_Data{Data: &clientapi.Data{Bytes: p}}}))
+func (s *clientFrameStream) Send(p []byte) error {
+	return trace.Wrap(s.stream.Send(&peerv0.DialNodeRequest{Message: &peerv0.DialNodeRequest_Data{
+		Data: &peerv0.Data{Bytes: p},
+	}}))
 }
 
-func (s frameStream) Recv() ([]byte, error) {
+func (s *clientFrameStream) Recv() ([]byte, error) {
 	frame, err := s.stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if frame.GetData() == nil {
+	data := frame.GetData()
+	if data == nil {
 		return nil, trace.BadParameter("received invalid frame")
 	}
 
-	return frame.GetData().Bytes, nil
+	return data.GetBytes(), nil
 }
 
-func (s frameStream) Close() error {
-	if s.cancel != nil {
-		s.cancel()
-	}
+func (s *clientFrameStream) Close() error {
+	s.cancel()
 	return nil
 }
 
@@ -505,10 +501,10 @@ func (c *Client) GetConnectionsCount() int {
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (frameStream, bool, error) {
+func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clientFrameStream, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
-		return frameStream{}, existing, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
 	var errs []error
@@ -523,7 +519,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (fr
 		ctx, cancel := context.WithCancel(context.Background())
 		context.AfterFunc(ctx, release)
 
-		stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+		stream, err := peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 		if err != nil {
 			cancel()
 			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
@@ -532,10 +528,8 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (fr
 			continue
 		}
 
-		err = stream.Send(&clientapi.Frame{
-			Message: &clientapi.Frame_DialRequest{
-				DialRequest: dialRequest,
-			},
+		err = stream.Send(&peerv0.DialNodeRequest{
+			Message: &peerv0.DialNodeRequest_DialRequest{DialRequest: dialRequest},
 		})
 		if err != nil {
 			cancel()
@@ -554,13 +548,13 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (fr
 			continue
 		}
 
-		return frameStream{
+		return &clientFrameStream{
 			stream: stream,
 			cancel: cancel,
 		}, existing, nil
 	}
 
-	return frameStream{}, existing, trace.NewAggregate(errs...)
+	return nil, false, trace.NewAggregate(errs...)
 }
 
 // getConnections returns connections to the supplied proxy ids.

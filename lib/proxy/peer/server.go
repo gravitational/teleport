@@ -32,9 +32,9 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,7 +53,7 @@ type ServerConfig struct {
 
 	// service is a custom ProxyServiceServer
 	// configurable for testing purposes.
-	service proto.ProxyServiceServer
+	service peerv0.ProxyServiceServer
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -85,8 +85,8 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 
 	if c.service == nil {
 		c.service = &proxyService{
-			c.ClusterDialer,
-			c.Log,
+			clusterDialer: c.ClusterDialer,
+			log:           c.Log,
 		}
 	}
 
@@ -136,7 +136,7 @@ func NewServer(config ServerConfig) (*Server, error) {
 		grpc.MaxConcurrentStreams(math.MaxUint32),
 	)
 
-	proto.RegisterProxyServiceServer(server, config.service)
+	peerv0.RegisterProxyServiceServer(server, config.service)
 
 	return &Server{
 		config: config,

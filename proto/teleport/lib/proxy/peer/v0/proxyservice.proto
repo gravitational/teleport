@@ -1,0 +1,79 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0;peerv0";
+
+// ProxyService is a proxy to proxy api.
+service ProxyService {
+  // DialNode opens a bidrectional stream to the requested node.
+  rpc DialNode(stream DialNodeRequest) returns (stream DialNodeResponse);
+}
+
+// Either a dial request (on the first message of the stream) or some data.
+message DialNodeRequest {
+  oneof message {
+    DialRequest dial_request = 1;
+    Data data = 3;
+  }
+
+  reserved 2; // ConnectionEstablished
+}
+
+// Either a "connection established" marker (on the first message of the stream)
+// or some data.
+message DialNodeResponse {
+  oneof message {
+    ConnectionEstablished connection_established = 2;
+    Data data = 3;
+  }
+
+  reserved 1; // DialRequest
+}
+
+// The details for connecting to a node.
+message DialRequest {
+  // The "<host id>.<cluster name>" of the node to connect to.
+  string node_id = 1;
+  // The type of service being accessed. This differentiates agents that create
+  // multiple reverse tunnels for different services.
+  string tunnel_type = 2;
+  // The original source address of the client.
+  NetAddr source = 3;
+  // The destination address to connect to over the reverse tunnel.
+  NetAddr destination = 4;
+}
+
+// A Go-style network address.
+message NetAddr {
+  // The network type; for example, "tcp" or "udp".
+  string network = 1;
+  // The address, whose format depends on the network; for tcp and udp, this
+  // will be "<host>:<port>".
+  string address = 2;
+}
+
+// A chunk of bytes in a connection.
+message Data {
+  bytes bytes = 1;
+}
+
+// A marker from the server to the client to signal that a connection to the
+// node has been successfully established.
+message ConnectionEstablished {}

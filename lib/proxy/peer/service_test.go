@@ -29,8 +29,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 )
 
 type mockClusterDialer struct {
@@ -44,7 +44,7 @@ func (m *mockClusterDialer) Dial(clusterName string, request DialParams) (net.Co
 	return m.MockDialCluster(clusterName, request)
 }
 
-func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
+func setupService(t *testing.T) (*proxyService, peerv0.ProxyServiceClient) {
 	server := grpc.NewServer()
 	t.Cleanup(server.Stop)
 
@@ -54,7 +54,7 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 	proxyService := &proxyService{
 		log: logrus.New(),
 	}
-	proto.RegisterProxyServiceServer(server, proxyService)
+	peerv0.RegisterProxyServiceServer(server, proxyService)
 
 	go server.Serve(listener)
 
@@ -62,7 +62,7 @@ func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 
-	client := proto.NewProxyServiceClient(conn)
+	client := peerv0.NewProxyServiceClient(conn)
 	return proxyService, client
 }
 
@@ -71,8 +71,8 @@ func TestInvalidFirstFrame(t *testing.T) {
 	stream, err := client.DialNode(context.Background())
 	require.NoError(t, err)
 
-	err = stream.Send(&proto.Frame{
-		Message: &proto.Frame_Data{},
+	err = stream.Send(&peerv0.DialNodeRequest{
+		Message: &peerv0.DialNodeRequest_Data{Data: &peerv0.Data{}},
 	})
 	require.NoError(t, err)
 
@@ -85,11 +85,11 @@ func TestSendReceive(t *testing.T) {
 	stream, err := client.DialNode(context.Background())
 	require.NoError(t, err)
 
-	dialRequest := &proto.DialRequest{
-		NodeID:      "test-id.test-cluster",
-		TunnelType:  types.NodeTunnel,
-		Source:      &proto.NetAddr{},
-		Destination: &proto.NetAddr{},
+	dialRequest := &peerv0.DialRequest{
+		NodeId:      "test-id.test-cluster",
+		TunnelType:  string(types.NodeTunnel),
+		Source:      &peerv0.NetAddr{},
+		Destination: &peerv0.NetAddr{},
 	}
 
 	local, remote := net.Pipe()
@@ -97,7 +97,7 @@ func TestSendReceive(t *testing.T) {
 		MockDialCluster: func(clusterName string, request DialParams) (net.Conn, error) {
 			require.Equal(t, "test-cluster", clusterName)
 			require.Equal(t, dialRequest.TunnelType, request.ConnType)
-			require.Equal(t, dialRequest.NodeID, request.ServerID)
+			require.Equal(t, dialRequest.NodeId, request.ServerID)
 
 			return remote, nil
 		},
@@ -106,9 +106,9 @@ func TestSendReceive(t *testing.T) {
 	send := []byte("ping")
 	recv := []byte("pong")
 
-	err = stream.Send(&proto.Frame{Message: &proto.Frame_DialRequest{
-		DialRequest: dialRequest,
-	}})
+	err = stream.Send(&peerv0.DialNodeRequest{
+		Message: &peerv0.DialNodeRequest_DialRequest{DialRequest: dialRequest},
+	})
 	require.NoError(t, err)
 
 	_, err = stream.Recv()
@@ -116,9 +116,11 @@ func TestSendReceive(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		send := append(send, byte(i))
-		err = stream.Send(&proto.Frame{Message: &proto.Frame_Data{Data: &proto.Data{
-			Bytes: send,
-		}}})
+		err = stream.Send(&peerv0.DialNodeRequest{
+			Message: &peerv0.DialNodeRequest_Data{Data: &peerv0.Data{
+				Bytes: send,
+			}},
+		})
 		require.NoError(t, err)
 
 		b := make([]byte, len(send))

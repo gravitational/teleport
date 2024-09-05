@@ -25,20 +25,46 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
+	peerv0.UnimplementedProxyServiceServer
 	clusterDialer ClusterDialer
 	log           logrus.FieldLogger
 }
 
+// serverFrameStream wraps a server side stream as a [streamutils.Source].
+type serverFrameStream struct {
+	stream interface {
+		Send(*peerv0.DialNodeResponse) error
+		Recv() (*peerv0.DialNodeRequest, error)
+	}
+}
+
+func (s *serverFrameStream) Send(p []byte) error {
+	return trace.Wrap(s.stream.Send(&peerv0.DialNodeResponse{Message: &peerv0.DialNodeResponse_Data{Data: &peerv0.Data{Bytes: p}}}))
+}
+
+func (s *serverFrameStream) Recv() ([]byte, error) {
+	frame, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	data := frame.GetData()
+	if data == nil {
+		return nil, trace.BadParameter("received invalid frame")
+	}
+
+	return data.GetBytes(), nil
+}
+
 // DialNode opens a bidirectional stream to the requested node.
-func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error {
+func (s *proxyService) DialNode(stream peerv0.ProxyService_DialNodeServer) error {
 	frame, err := stream.Recv()
 	if err != nil {
 		return trace.Wrap(err)
@@ -55,46 +81,46 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	log := s.log.WithFields(logrus.Fields{
-		"node": dial.NodeID,
-		"src":  dial.Source.Addr,
-		"dst":  dial.Destination.Addr,
+		"node": dial.NodeId,
+		"src":  dial.Source.Address,
+		"dst":  dial.Destination.Address,
 	})
 	log.Debugf("Dial request from peer.")
 
-	_, clusterName, err := splitServerID(dial.NodeID)
+	_, clusterName, err := splitServerID(dial.NodeId)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	source := &utils.NetAddr{
-		Addr:        dial.Source.Addr,
+		Addr:        dial.Source.Address,
 		AddrNetwork: dial.Source.Network,
 	}
 	destination := &utils.NetAddr{
-		Addr:        dial.Destination.Addr,
+		Addr:        dial.Destination.Address,
 		AddrNetwork: dial.Destination.Network,
 	}
 
 	nodeConn, err := s.clusterDialer.Dial(clusterName, DialParams{
 		From:     source,
 		To:       destination,
-		ServerID: dial.NodeID,
-		ConnType: dial.TunnelType,
+		ServerID: dial.NodeId,
+		ConnType: types.TunnelType(dial.TunnelType),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = stream.Send(&proto.Frame{
-		Message: &proto.Frame_ConnectionEstablished{
-			ConnectionEstablished: &proto.ConnectionEstablished{},
+	err = stream.Send(&peerv0.DialNodeResponse{
+		Message: &peerv0.DialNodeResponse_ConnectionEstablished{
+			ConnectionEstablished: &peerv0.ConnectionEstablished{},
 		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
+	streamRW, err := streamutils.NewReadWriter(&serverFrameStream{stream: stream})
 	if err != nil {
 		return trace.Wrap(err)
 	}

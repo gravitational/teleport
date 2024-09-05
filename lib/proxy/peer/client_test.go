@@ -27,9 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/connectivity"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
 )
 
 // TestClientConn checks the client's connection caching capabilities
@@ -46,21 +45,21 @@ func TestClientConn(t *testing.T) {
 	require.Len(t, client.conns, 2)
 
 	// dial first server and send a test data frame
-	stream, cached, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	stream, cached, err := client.dial([]string{"s1"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream.stream)
 	stream.Close()
 
 	// dial second server
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream.stream)
 	stream.Close()
 
 	// redial second server
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, cached)
 	require.NotNil(t, stream.stream)
@@ -69,7 +68,7 @@ func TestClientConn(t *testing.T) {
 	// close second server
 	// and attempt to redial it
 	server2.Shutdown()
-	stream, cached, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	stream, cached, err = client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.Error(t, err)
 	require.True(t, cached)
 	require.Nil(t, stream.stream)
@@ -90,10 +89,10 @@ func TestClientUpdate(t *testing.T) {
 	require.Contains(t, client.conns, "s1")
 	require.Contains(t, client.conns, "s2")
 
-	s1, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	s1, _, err := client.dial([]string{"s1"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s1.stream)
-	s2, _, err := client.dial([]string{"s2"}, &proto.DialRequest{})
+	s2, _, err := client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s2.stream)
 
@@ -114,7 +113,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 2)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is still going strong
-	_, _, err = client.dial([]string{"s2"}, &proto.DialRequest{})
+	_, _, err = client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.Error(t, err) // can't dial server2, obviously
 
 	// peer address change
@@ -124,7 +123,7 @@ func TestClientUpdate(t *testing.T) {
 	require.Len(t, client.conns, 1)
 	require.Contains(t, client.conns, "s1")
 	sendMsg(t, s1) // stream is not forcefully closed. ClientConn waits for a graceful shutdown before it closes.
-	s3, _, err := client.dial([]string{"s1"}, &proto.DialRequest{})
+	s3, _, err := client.dial([]string{"s1"}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, s3)
 
@@ -146,7 +145,7 @@ func TestCAChange(t *testing.T) {
 	require.NotNil(t, conn)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err := peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 
@@ -160,7 +159,7 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err = peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.Error(t, err)
 	require.Nil(t, stream)
 
@@ -171,7 +170,7 @@ func TestCAChange(t *testing.T) {
 	conn, err = client.connect("s1", server.config.Listener.Addr().String())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
-	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	stream, err = peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 }
@@ -184,7 +183,7 @@ func TestBackupClient(t *testing.T) {
 	// Force the first client connection to fail.
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, func(c *ServerConfig) {
 		c.service = &mockProxyService{
-			mockDialNode: func(stream proto.ProxyService_DialNodeServer) error {
+			mockDialNode: func(stream peerv0.ProxyService_DialNodeServer) error {
 				dialCalled = true
 				return trace.NotFound("tunnel not found")
 			},
@@ -196,7 +195,7 @@ func TestBackupClient(t *testing.T) {
 	require.NoError(t, err)
 	waitForConns(t, client.conns, time.Second*2)
 
-	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, &proto.DialRequest{})
+	_, _, err = client.dial([]string{def1.GetName(), def2.GetName()}, &peerv0.DialRequest{})
 	require.NoError(t, err)
 	require.True(t, dialCalled)
 }
