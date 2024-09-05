@@ -186,6 +186,46 @@ func MapWhile[A, B any](stream Stream[A], fn func(A) (B, bool)) Stream[B] {
 	}
 }
 
+// chain is a stream that performs a Chain operation.
+type chain[T any] struct {
+	streams []Stream[T]
+	err     error
+}
+
+func (stream *chain[T]) Next() bool {
+	for len(stream.streams) != 0 && stream.err == nil {
+		if stream.streams[0].Next() {
+			return true
+		}
+
+		stream.err = stream.streams[0].Done()
+		stream.streams[0] = nil
+		stream.streams = stream.streams[1:]
+	}
+
+	return false
+}
+
+func (stream *chain[T]) Item() T {
+	return stream.streams[0].Item()
+}
+
+func (stream *chain[T]) Done() error {
+	for _, s := range stream.streams {
+		s.Done()
+	}
+	stream.streams = nil
+
+	return stream.err
+}
+
+// Chain joins multiple streams in order, fully consuming one before moving to the next.
+func Chain[T any](streams ...Stream[T]) Stream[T] {
+	return &chain[T]{
+		streams: streams,
+	}
+}
+
 // empty is a stream that halts immediately
 type empty[T any] struct {
 	err error
@@ -239,6 +279,45 @@ func (stream *once[T]) Done() error {
 func Once[T any](item T) Stream[T] {
 	return &once[T]{
 		item: item,
+	}
+}
+
+// onceFunc is a stream that produces zero or one items based on
+// a lazily evaluated closure.
+type onceFunc[T any] struct {
+	fn   func() (T, error)
+	item T
+	err  error
+}
+
+func (stream *onceFunc[T]) Next() bool {
+	if stream.fn == nil {
+		return false
+	}
+
+	stream.item, stream.err = stream.fn()
+	stream.fn = nil
+	return stream.err == nil
+}
+
+func (stream *onceFunc[T]) Item() T {
+	return stream.item
+}
+
+func (stream *onceFunc[T]) Done() error {
+	if errors.Is(stream.err, io.EOF) {
+		return nil
+	}
+	return stream.err
+}
+
+// OnceFunc builds a stream from a closure that will yield exactly zero or one items. This stream
+// is the lazy equivalent of the Once/Fail/Empty combinators. A nil error value results
+// in a single-element stream. An error value of io.EOF results in an empty stream. All other error
+// values result in a failing stream.
+func OnceFunc[T any](fn func() (T, error)) Stream[T] {
+	return &onceFunc[T]{
+		fn: fn,
 	}
 }
 
@@ -327,6 +406,116 @@ func Take[T any](stream Stream[T], n int) ([]T, bool) {
 		items = append(items, stream.Item())
 	}
 	return items, true
+}
+
+type skip[T any] struct {
+	inner Stream[T]
+	skip  int
+}
+
+func (s *skip[T]) Next() bool {
+	for i := 0; i < s.skip; i++ {
+		if !s.inner.Next() {
+			return false
+		}
+	}
+	s.skip = 0
+	return s.inner.Next()
+}
+
+func (s *skip[T]) Item() T {
+	return s.inner.Item()
+}
+
+func (s *skip[T]) Done() error {
+	return s.inner.Done()
+}
+
+// Skip skips the first n items from a stream. Zero/negative values of n
+// have no effect.
+func Skip[T any](stream Stream[T], n int) Stream[T] {
+	return &skip[T]{
+		inner: stream,
+		skip:  n,
+	}
+}
+
+type flatten[T any] struct {
+	inner   Stream[Stream[T]]
+	current Stream[T]
+	err     error
+}
+
+func (stream *flatten[T]) Next() bool {
+	for {
+		if stream.current != nil {
+			if stream.current.Next() {
+				return true
+			}
+			stream.err = stream.current.Done()
+			stream.current = nil
+			if stream.err != nil {
+				return false
+			}
+		}
+
+		if !stream.inner.Next() {
+			return false
+		}
+
+		stream.current = stream.inner.Item()
+	}
+}
+
+func (stream *flatten[T]) Item() T {
+	return stream.current.Item()
+}
+
+func (stream *flatten[T]) Done() error {
+	if stream.current != nil {
+		stream.err = stream.current.Done()
+		stream.current = nil
+	}
+
+	ierr := stream.inner.Done()
+	if stream.err != nil {
+		return stream.err
+	}
+	return ierr
+}
+
+// Flatten flattens a stream of streams into a single stream of items.
+func Flatten[T any](stream Stream[Stream[T]]) Stream[T] {
+	return &flatten[T]{
+		inner: stream,
+	}
+}
+
+type mapErr[T any] struct {
+	inner Stream[T]
+	fn    func(error) error
+}
+
+func (stream *mapErr[T]) Next() bool {
+	return stream.inner.Next()
+}
+
+func (stream *mapErr[T]) Item() T {
+	return stream.inner.Item()
+}
+
+func (stream *mapErr[T]) Done() error {
+	return stream.fn(stream.inner.Done())
+}
+
+// MapErr maps over the error returned by Done(). The supplied function is called
+// for all invocations of Done(), meaning that it can change, suppress, or create
+// errors as needed.
+func MapErr[T any](stream Stream[T], fn func(error) error) Stream[T] {
+	return &mapErr[T]{
+		inner: stream,
+		fn:    fn,
+	}
 }
 
 type rateLimit[T any] struct {

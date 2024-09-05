@@ -128,6 +128,63 @@ func TestMapWhile(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestChain tests the Chain combinator.
+func TestChain(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	s, err := Collect(Chain(
+		Slice([]int{1, 2, 3}),
+		Slice([]int{4}),
+		Slice([]int{5, 6}),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
+
+	// single substream
+	s, err = Collect(Chain(Slice([]int{1, 2, 3})))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, s)
+
+	// no substreams
+	s, err = Collect(Chain[int]())
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// some empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Slice([]int{4, 5, 6}),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Equal(t, []int{4, 5, 6}, s)
+
+	// all empty substreams
+	s, err = Collect(Chain(
+		Empty[int](),
+		Empty[int](),
+	))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// late failure
+	s, err = Collect(Chain(
+		Slice([]int{7, 7, 7}),
+		Fail[int](fmt.Errorf("some error")),
+	))
+	require.Error(t, err)
+	require.Equal(t, []int{7, 7, 7}, s)
+
+	// early failure
+	s, err = Collect(Chain(
+		Fail[int](fmt.Errorf("some other error")),
+		Func(func() (int, error) { panic("unreachable") }),
+	))
+	require.Error(t, err)
+	require.Empty(t, s)
+}
+
 // TestFunc tests the Func stream.
 func TestFunc(t *testing.T) {
 	t.Parallel()
@@ -303,6 +360,32 @@ func TestEmpty(t *testing.T) {
 	require.Len(t, s, 0)
 }
 
+// TestOnceFunc tests the OnceFunc stream combinator.
+func TestOnceFunc(t *testing.T) {
+	t.Parallel()
+
+	// single-element variant
+	s, err := Collect(OnceFunc(func() (int, error) {
+		return 1, nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1}, s)
+
+	// empty stream case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, io.EOF
+	}))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// error case
+	s, err = Collect(OnceFunc(func() (int, error) {
+		return 1, fmt.Errorf("unexpected error")
+	}))
+	require.Error(t, err)
+	require.Empty(t, s)
+}
+
 func TestCollectPages(t *testing.T) {
 	t.Parallel()
 
@@ -420,6 +503,141 @@ func TestTake(t *testing.T) {
 			require.Equal(t, tc.expectMore, more)
 		})
 	}
+}
+
+// TestSkip tests the Skip combinator.
+func TestSkip(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	s, err := Collect(Skip(Slice([]int{1, 2, 3, 4}), 2))
+	require.NoError(t, err)
+	require.Equal(t, []int{3, 4}, s)
+
+	// skip all
+	s, err = Collect(Skip(Slice([]int{1, 2, 3, 4}), 4))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// skip none
+	s, err = Collect(Skip(Slice([]int{1, 2, 3, 4}), 0))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4}, s)
+
+	// negative skip
+	s, err = Collect(Skip(Slice([]int{1, 2, 3, 4}), -1))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4}, s)
+
+	// skip more than available
+	s, err = Collect(Skip(Slice([]int{1, 2, 3, 4}), 5))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// positive skip on empty stream
+	s, err = Collect(Skip(Empty[int](), 2))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// zero skip on empty stream
+	s, err = Collect(Skip(Empty[int](), 0))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// negative skip on empty stream
+	s, err = Collect(Skip(Empty[int](), -1))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// immediate failure
+	err = Drain(Skip(Fail[int](fmt.Errorf("unexpected error")), 1))
+	require.Error(t, err)
+
+	// failure during skip
+	err = Drain(Skip(Chain(
+		Slice([]int{1, 2}),
+		Fail[int](fmt.Errorf("unexpected error")),
+		Slice([]int{3, 4}),
+	), 3))
+	require.Error(t, err)
+}
+
+// TestFlatten tests the Flatten combinator.
+func TestFlatten(t *testing.T) {
+	t.Parallel()
+
+	// normal usage
+	s, err := Collect(Flatten(Slice([]Stream[int]{
+		Slice([]int{1, 2}),
+		Slice([]int{3, 4}),
+		Slice([]int{5, 6}),
+	})))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
+
+	// empty stream
+	s, err = Collect(Flatten(Empty[Stream[int]]()))
+	require.NoError(t, err)
+	require.Empty(t, s)
+
+	// empty substreams
+	s, err = Collect(Flatten(Slice([]Stream[int]{
+		Empty[int](),
+		Slice([]int{1, 2, 3}),
+		Empty[int](),
+		Slice([]int{4, 5, 6}),
+		Empty[int](),
+	})))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
+
+	// immediate failure
+	err = Drain(Flatten(Fail[Stream[int]](fmt.Errorf("unexpected error"))))
+	require.Error(t, err)
+
+	// failure during streaming
+	s, err = Collect(Flatten(Slice([]Stream[int]{
+		Slice([]int{1, 2}),
+		Fail[int](fmt.Errorf("unexpected error")),
+		Slice([]int{3, 4}),
+	})))
+	require.Error(t, err)
+	require.Equal(t, []int{1, 2}, s)
+}
+
+// TestMapErr tests the MapErr combinator.
+func TestMapErr(t *testing.T) {
+	t.Parallel()
+
+	// normal inject error
+	err := Drain(MapErr(Slice([]int{1, 2, 3}), func(err error) error {
+		require.NoError(t, err)
+		return fmt.Errorf("unexpected error")
+	}))
+	require.Error(t, err)
+
+	// empty inject error
+	err = Drain(MapErr(Empty[int](), func(err error) error {
+		require.NoError(t, err)
+		return fmt.Errorf("unexpected error")
+	}))
+	require.Error(t, err)
+
+	// normal suppress error
+	s, err := Collect(MapErr(Chain(Slice([]int{1, 2, 3}), Fail[int](fmt.Errorf("unexpected error"))), func(err error) error {
+		require.Error(t, err)
+		return nil
+	}))
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, s)
+
+	// empty suppress error
+	s, err = Collect(MapErr(Fail[int](fmt.Errorf("unexpected error")), func(err error) error {
+		require.Error(t, err)
+		return nil
+	}))
+	require.NoError(t, err)
+	require.Empty(t, s)
 }
 
 // TestRateLimitFailure verifies the expected failure conditions of the RateLimit helper.
