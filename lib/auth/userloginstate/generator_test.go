@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -398,14 +397,12 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(
 				newAccessListMembers(t, clock, "3", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
-				newAccessListMemberWithKind(t, clock, "1", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2")),
+				newAccessListMemberWithKind(t, clock, "2", accesslist.MembershipKindList, "3"),
+				newAccessListMemberWithKind(t, clock, "1", accesslist.MembershipKindList, "2")),
 			roles:   []string{"role1", "role2"},
 			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				map[string]string{
-					userloginstate.OriginalRolesAndTraitsSet: "true",
-				},
+				nil,
 				nil,
 				nil,
 				[]string{"role1", "role2"},
@@ -432,14 +429,12 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(
 				newAccessListMembers(t, clock, "3", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
-				newAccessListMemberWithKind(t, clock, "1", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2")),
+				newAccessListMemberWithKind(t, clock, "2", accesslist.MembershipKindList, "3"),
+				newAccessListMemberWithKind(t, clock, "1", accesslist.MembershipKindList, "2")),
 			roles:   []string{"role1", "role2"},
 			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				map[string]string{
-					userloginstate.OriginalRolesAndTraitsSet: "true",
-				},
+				nil,
 				nil,
 				nil,
 				[]string{"role1", "role2"},
@@ -461,17 +456,15 @@ func TestAccessLists(t *testing.T) {
 			},
 			members: append(
 				newAccessListMembers(t, clock, "1", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
-				newAccessListMemberWithKind(t, clock, "3", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
-				newAccessListMemberWithKind(t, clock, "4", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "3"),
-				newAccessListMemberWithKind(t, clock, "4", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2"),
+				newAccessListMemberWithKind(t, clock, "2", accesslist.MembershipKindList, "1"),
+				newAccessListMemberWithKind(t, clock, "3", accesslist.MembershipKindList, "1"),
+				newAccessListMemberWithKind(t, clock, "4", accesslist.MembershipKindList, "3"),
+				newAccessListMemberWithKind(t, clock, "4", accesslist.MembershipKindList, "2"),
 			),
 			roles:   nil,
 			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				map[string]string{
-					userloginstate.OriginalRolesAndTraitsSet: "true",
-				},
+				nil,
 				nil,
 				nil,
 				nil,
@@ -490,26 +483,24 @@ func TestAccessLists(t *testing.T) {
 				newAccessListWithOwners(t, clock, "3", emptyGrants, grants([]string{"oroleC"}, trait.Traits{"okey": {"oval3"}}), []accesslist.Owner{{
 					Name:           "2",
 					Description:    "hello",
-					MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()},
+					MembershipKind: accesslist.MembershipKindList},
 				}),
 			},
 			members: append(
 				newAccessListMembers(t, clock, "1", "user"),
-				newAccessListMemberWithKind(t, clock, "2", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "1"),
-				newAccessListMemberWithKind(t, clock, "3", accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(), "2"),
+				newAccessListMemberWithKind(t, clock, "2", accesslist.MembershipKindList, "1"),
+				newAccessListMemberWithKind(t, clock, "3", accesslist.MembershipKindList, "2"),
 			),
 			roles:   []string{"oroleA", "oroleB", "oroleC"},
 			wantErr: require.NoError,
 			expected: newUserLoginState(t, "user",
-				map[string]string{
-					userloginstate.OriginalRolesAndTraitsSet: "true",
-				},
+				nil,
 				nil,
 				nil,
 				[]string{"oroleA", "oroleB", "oroleC"},
 				trait.Traits{"okey": {"oval1", "oval2", "oval3"}}),
-			expectedRoleCount:  1,
-			expectedTraitCount: 1,
+			expectedRoleCount:  3,
+			expectedTraitCount: 3,
 		},
 	}
 

@@ -354,7 +354,10 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 
 func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAndMembersGetter, identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	seen := map[string]struct{}{}
-	var queue []string
+	queue := []string{accessList.GetName()}
+	depth := 0
+	ownershipErr := trace.NotFound("user %s is not an owner of the access list or its parents", identity.Username)
+
 	for _, owner := range accessList.GetOwners() {
 		if owner.MembershipKind == accesslist.MembershipKindList {
 			queue = append(queue, owner.Name)
@@ -362,6 +365,11 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 	}
 
 	for len(queue) > 0 {
+		depth++
+		if depth > accesslist.MaxAllowedDepth {
+			return trace.AccessDenied("exceeded maximum depth of %d while checking for access list ownership", accesslist.MaxAllowedDepth)
+		}
+
 		pal := queue[0]
 		queue = queue[1:]
 
@@ -384,9 +392,13 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 			}
 			continue
 		}
+
 		expires := member.Spec.Expires
 		if !expires.IsZero() && !time.Now().Before(expires) {
-			return trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
+			// avoid non-deterministic behaviour here - if user's ownership is expired, then
+			// continue checking, in case their ownership in a related list is still valid
+			ownershipErr = trace.AccessDenied("user %s's ownership has expired in the access list", identity.Username)
+			continue
 		}
 
 		subAccessList, err := members.GetAccessList(ctx, pal)
@@ -396,9 +408,9 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 		if UserMeetsRequirements(identity, subAccessList.Spec.OwnershipRequires) {
 			return nil
 		}
-
 	}
-	return trace.NotFound("user %s is not an owner of the access list or its parents", identity.Username)
+
+	return ownershipErr
 }
 
 // IsAccessListMember will return true if the user is a member for the current list.

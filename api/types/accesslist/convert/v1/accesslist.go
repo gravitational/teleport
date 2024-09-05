@@ -131,7 +131,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		return nil, trace.Wrap(err)
 	}
 	accessList.Status = accesslist.Status{
-		MemberCount: memberCount,
+		MemberCount:     memberCount,
 		MemberListCount: memberListCount,
 	}
 
@@ -227,7 +227,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			OwnerGrants: ownerGrants,
 		},
 		Status: &accesslistv1.AccessListStatus{
-			MemberCount: memberCount,
+			MemberCount:     memberCount,
 			MemberListCount: memberListCount,
 		},
 	}

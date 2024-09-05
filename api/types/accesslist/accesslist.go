@@ -80,10 +80,12 @@ func parseReviewFrequency(input string) ReviewFrequency {
 const MaxAllowedDepth = 10
 
 var (
-	// MembershipKindUnspecified is the unspecified membership kind.
+	// MembershipKindUnspecified is the default membership kind (treated as 'user').
 	MembershipKindUnspecified = accesslistv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED.String()
+
 	// MembershipKindUser is the user membership kind.
 	MembershipKindUser        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+
 	// MembershipKindList is the list membership kind.
 	MembershipKindList        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
 )
