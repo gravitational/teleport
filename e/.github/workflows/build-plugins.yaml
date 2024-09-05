@@ -252,4 +252,94 @@ jobs:
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-  
+
+  smoke-test-linux-amd64:
+    needs: [build-plugins, build-docker-images]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runs-on: ubuntu-22.04
+          - arch: arm64
+            runs-on: generic-arm64-runner
+    name: Smoke Test Linux ${{ matrix.arch }} Artifacts
+    runs-on: ${{ matrix.runs-on }}
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # generic-arm64 may need a bit of setup before using
+      - name: Ensure required packages are installed
+        if: ${{ matrix.runs-on == 'generic-arm64-runner' }}
+        uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: linux-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          access-plugins: >-
+            teleport-access-discord
+            teleport-access-email
+            teleport-access-jira
+            teleport-access-mattermost
+            teleport-access-msteams
+            teleport-access-pagerduty
+            teleport-access-slack
+            teleport-event-handler
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-containers@master
+        # Run even if the previous step failed
+        if: ${{ !cancelled() && (needs.build-docker-images.result == 'success') }}
+        with:
+          target: linux-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          ecr-registry: ${{ vars.ECR_PENDING_REPO_BASE }}
+          aws-role-to-assume: ${{ vars.OCI_ECR_AWS_ROLE }}
+          container-images: >-
+            teleport-plugin-discord
+            teleport-plugin-email
+            teleport-plugin-jira
+            teleport-plugin-mattermost
+            teleport-plugin-msteams
+            teleport-plugin-pagerduty
+            teleport-plugin-slack
+            teleport-plugin-event-handler
+
+  smoke-test-darwin-amd64:
+    needs: build-plugins
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runs-on: macos-13
+          - arch: arm64
+            runs-on: macos-13-xlarge
+    name: Smoke Test Darwin ${{ matrix.arch }} Artifacts
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ matrix.runs-on }}
+    steps:
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: darwin-${{ matrix.arch }}
+          version: ${{ inputs.teleport-version }}
+          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          access-plugins: >-
+            teleport-event-handler
+
+      - uses: gravitational/teleport.e/.github/actions/smoke-test-plugin-tarballs@master
+        with:
+          target: darwin-universal
+          s3-bucket: ${{ vars.ARTIFACT_SOURCE_BUCKET }}
+          aws-role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          version: ${{ inputs.teleport-version }}
