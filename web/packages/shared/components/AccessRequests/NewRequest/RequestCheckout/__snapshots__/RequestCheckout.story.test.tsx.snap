@@ -66,7 +66,7 @@ exports[`failed state 1`] = `
   min-width: 200px;
 }
 
-.c37 {
+.c38 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -77,7 +77,7 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c39 {
+.c40 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 4px;
@@ -85,7 +85,7 @@ exports[`failed state 1`] = `
   height: 34px;
 }
 
-.c42 {
+.c44 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -134,7 +134,7 @@ exports[`failed state 1`] = `
   cursor: auto;
 }
 
-.c45 {
+.c47 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -162,22 +162,22 @@ exports[`failed state 1`] = `
   text-transform: none;
 }
 
-.c45:hover,
-.c45:focus {
+.c47:hover,
+.c47:focus {
   background: #B29DFF;
 }
 
-.c45:active {
+.c47:active {
   background: #C5B6FF;
 }
 
-.c45:disabled {
+.c47:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c46 {
+.c48 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -205,22 +205,22 @@ exports[`failed state 1`] = `
   text-transform: none;
 }
 
-.c46:hover,
-.c46:focus {
+.c48:hover,
+.c48:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c46:active {
+.c48:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c46:disabled {
+.c48:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c41 {
+.c43 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -240,17 +240,17 @@ exports[`failed state 1`] = `
   width: 32px;
 }
 
-.c41:disabled {
+.c43:disabled {
   color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c41:not(:disabled):hover,
-.c41:not(:disabled):focus {
+.c43:not(:disabled):hover,
+.c43:not(:disabled):focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c41:not(:disabled):active {
+.c43:not(:disabled):active {
   background: rgba(255,255,255,0.18);
 }
 
@@ -261,14 +261,14 @@ exports[`failed state 1`] = `
   margin-right: 16px;
 }
 
-.c31 {
+.c32 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-left: 16px;
 }
 
-.c34 {
+.c35 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -297,14 +297,21 @@ exports[`failed state 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  margin-right: 8px;
 }
 
-.c32 {
+.c33 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
+}
+
+.c42 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-right: 8px;
 }
 
 .c28 {
@@ -328,6 +335,8 @@ exports[`failed state 1`] = `
 
 .c19 {
   display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .c23 {
@@ -342,7 +351,11 @@ exports[`failed state 1`] = `
   gap: 8px;
 }
 
-.c43 {
+.c30 {
+  display: flex;
+}
+
+.c45 {
   display: flex;
   gap: 8px;
 }
@@ -437,7 +450,7 @@ exports[`failed state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c36 .react-select-container {
+.c37 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -449,7 +462,7 @@ exports[`failed state 1`] = `
   border-radius: 4px;
 }
 
-.c36 .react-select__control {
+.c37 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -459,161 +472,161 @@ exports[`failed state 1`] = `
   box-shadow: none;
 }
 
-.c36 .react-select__control .react-select__dropdown-indicator {
+.c37 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c36 .react-select__control:hover,
-.c36 .react-select__control:focus,
-.c36 .react-select__control:active {
+.c37 .react-select__control:hover,
+.c37 .react-select__control:focus,
+.c37 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control:hover .react-select__dropdown-indicator,
-.c36 .react-select__control:focus .react-select__dropdown-indicator,
-.c36 .react-select__control:active .react-select__dropdown-indicator {
+.c37 .react-select__control:hover .react-select__dropdown-indicator,
+.c37 .react-select__control:focus .react-select__dropdown-indicator,
+.c37 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control .react-select__indicator:hover,
-.c36 .react-select__control .react-select__dropdown-indicator:hover,
-.c36 .react-select__control .react-select__indicator:focus,
-.c36 .react-select__control .react-select__dropdown-indicator:focus,
-.c36 .react-select__control .react-select__indicator:active,
-.c36 .react-select__control .react-select__dropdown-indicator:active {
+.c37 .react-select__control .react-select__indicator:hover,
+.c37 .react-select__control .react-select__dropdown-indicator:hover,
+.c37 .react-select__control .react-select__indicator:focus,
+.c37 .react-select__control .react-select__dropdown-indicator:focus,
+.c37 .react-select__control .react-select__indicator:active,
+.c37 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c36 .react-select__control--is-focused {
+.c37 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c36 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c37 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c36 .react-select__single-value {
+.c37 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c36 .react-select__placeholder {
+.c37 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c36 .react-select__multi-value {
+.c37 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__label {
+.c37 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove {
+.c37 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c36 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c37 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c36 .react-select__option:hover {
+.c37 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused {
+.c37 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-focused:hover {
+.c37 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__option--is-selected {
+.c37 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c36 .react-select__option--is-selected:hover {
+.c37 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 .react-select__clear-indicator {
+.c37 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c36 .react-select__clear-indicator:hover,
-.c36 .react-select__clear-indicator:focus {
+.c37 .react-select__clear-indicator:hover,
+.c37 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c36 .react-select__clear-indicator:hover svg,
-.c36 .react-select__clear-indicator:focus svg {
+.c37 .react-select__clear-indicator:hover svg,
+.c37 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c36 .react-select__menu {
+.c37 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c36 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c37 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c36 .react-select__indicator-separator {
+.c37 .react-select__indicator-separator {
   display: none;
 }
 
-.c36 .react-select__loading-indicator {
+.c37 .react-select__loading-indicator {
   display: none;
 }
 
-.c36 .react-select__control--is-disabled {
+.c37 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__single-value,
-.c36 .react-select__control--is-disabled .react-select__placeholder {
+.c37 .react-select__control--is-disabled .react-select__single-value,
+.c37 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__control--is-disabled .react-select__indicator {
+.c37 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c36 .react-select__input {
+.c37 .react-select__input {
   color: #FFFFFF;
 }
 
-.c35 {
+.c36 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c33 {
+.c34 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c33:hover {
+.c34:hover {
   cursor: pointer;
 }
 
-.c30 {
+.c31 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -623,7 +636,7 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c30:hover {
+.c31:hover {
   background-color: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.72);
 }
@@ -754,7 +767,7 @@ exports[`failed state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
-.c40 {
+.c41 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -831,25 +844,25 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c44 {
+.c46 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c38 {
+.c39 {
   outline: none;
   background: transparent;
 }
 
-.c38::placeholder {
+.c39::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c38:hover,
-.c38:focus,
-.c38:active {
+.c39:hover,
+.c39:focus,
+.c39:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -869,6 +882,7 @@ exports[`failed state 1`] = `
         >
           <span
             class="c6 icon icon-arrowback"
+            data-testid="close-checkout"
             style="cursor: pointer;"
           >
             <svg
@@ -1201,16 +1215,15 @@ exports[`failed state 1`] = `
               >
                 <label
                   class="c28"
-                  font-size="0"
                 >
                   Start Date
                 </label>
                 <div
-                  class="c29 c19 c30"
+                  class="c29 c30 c31"
                 >
                   Immediately
                   <span
-                    class="c31 icon icon-calendar"
+                    class="c32 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -1237,22 +1250,21 @@ exports[`failed state 1`] = `
             <label
               class="c28"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
               >
                 <div
-                  class="c32"
+                  class="c33"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c33"
+                  class="c34"
                   role="icon"
                 >
                   <span
-                    class="c34 c35"
+                    class="c35 c36"
                   >
                     <svg
                       fill="currentColor"
@@ -1276,7 +1288,7 @@ exports[`failed state 1`] = `
                 </span>
               </div>
               <div
-                class="c36"
+                class="c37"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -1348,11 +1360,10 @@ exports[`failed state 1`] = `
           </div>
           <label
             class="c28"
-            font-size="0"
           >
             Request Reason
             <textarea
-              class="c37 c38"
+              class="c38 c39"
               color="text.main"
               height="80px"
               placeholder="Describe your request... (optional)"
@@ -1360,21 +1371,21 @@ exports[`failed state 1`] = `
             />
           </label>
           <div
-            class="c39 c17 c40"
+            class="c40 c17 c41"
             height="34px"
           >
             <div
-              class="c20"
+              class="c42"
               font-size="1"
             >
               Additional Options
             </div>
             <button
-              class="c41"
+              class="c43"
               data-testid="additional-info-btn"
             >
               <span
-                class="c34 icon icon-chevronright"
+                class="c35 icon icon-chevronright"
               >
                 <svg
                   fill="currentColor"
@@ -1392,17 +1403,17 @@ exports[`failed state 1`] = `
             </button>
           </div>
           <div
-            class="c42 c43 c44"
+            class="c44 c45 c46"
           >
             <button
-              class="c45"
+              class="c47"
               kind="primary"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c46"
+              class="c48"
               kind="secondary"
               width="100%"
             >
@@ -1477,7 +1488,7 @@ exports[`loaded state 1`] = `
   min-width: 200px;
 }
 
-.c44 {
+.c45 {
   box-sizing: border-box;
   padding: 8px;
   height: 80px;
@@ -1488,7 +1499,7 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.54);
 }
 
-.c46 {
+.c47 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 4px;
@@ -1496,7 +1507,7 @@ exports[`loaded state 1`] = `
   height: 34px;
 }
 
-.c48 {
+.c50 {
   box-sizing: border-box;
   padding-top: 24px;
   padding-bottom: 24px;
@@ -1545,7 +1556,7 @@ exports[`loaded state 1`] = `
   cursor: auto;
 }
 
-.c51 {
+.c53 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1573,22 +1584,22 @@ exports[`loaded state 1`] = `
   text-transform: none;
 }
 
-.c51:hover,
-.c51:focus {
+.c53:hover,
+.c53:focus {
   background: #B29DFF;
 }
 
-.c51:active {
+.c53:active {
   background: #C5B6FF;
 }
 
-.c51:disabled {
+.c53:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c52 {
+.c54 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1616,16 +1627,16 @@ exports[`loaded state 1`] = `
   text-transform: none;
 }
 
-.c52:hover,
-.c52:focus {
+.c54:hover,
+.c54:focus {
   background: rgba(255,255,255,0.13);
 }
 
-.c52:active {
+.c54:active {
   background: rgba(255,255,255,0.18);
 }
 
-.c52:disabled {
+.c54:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -1720,7 +1731,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c39 {
+.c40 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1756,7 +1767,6 @@ exports[`loaded state 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  margin-right: 8px;
 }
 
 .c28 {
@@ -1768,11 +1778,19 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c40 {
+.c41 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-right: 4px;
+}
+
+.c49 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-right: 8px;
 }
 
 .c36 {
@@ -1796,6 +1814,8 @@ exports[`loaded state 1`] = `
 
 .c22 {
   display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .c31 {
@@ -1810,7 +1830,11 @@ exports[`loaded state 1`] = `
   gap: 8px;
 }
 
-.c49 {
+.c38 {
+  display: flex;
+}
+
+.c51 {
   display: flex;
   gap: 8px;
 }
@@ -1905,7 +1929,7 @@ exports[`loaded state 1`] = `
   border-top: 2px solid rgba(0,0,0,0);
 }
 
-.c43 .react-select-container {
+.c44 .react-select-container {
   box-sizing: border-box;
   display: block;
   font-size: 14px;
@@ -1917,7 +1941,7 @@ exports[`loaded state 1`] = `
   border-radius: 4px;
 }
 
-.c43 .react-select__control {
+.c44 .react-select__control {
   outline: none;
   min-height: 40px;
   height: fit-content;
@@ -1927,161 +1951,161 @@ exports[`loaded state 1`] = `
   box-shadow: none;
 }
 
-.c43 .react-select__control .react-select__dropdown-indicator {
+.c44 .react-select__control .react-select__dropdown-indicator {
   color: rgba(255,255,255,0.54);
 }
 
-.c43 .react-select__control:hover,
-.c43 .react-select__control:focus,
-.c43 .react-select__control:active {
+.c44 .react-select__control:hover,
+.c44 .react-select__control:focus,
+.c44 .react-select__control:active {
   border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c43 .react-select__control:hover .react-select__dropdown-indicator,
-.c43 .react-select__control:focus .react-select__dropdown-indicator,
-.c43 .react-select__control:active .react-select__dropdown-indicator {
+.c44 .react-select__control:hover .react-select__dropdown-indicator,
+.c44 .react-select__control:focus .react-select__dropdown-indicator,
+.c44 .react-select__control:active .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c43 .react-select__control .react-select__indicator:hover,
-.c43 .react-select__control .react-select__dropdown-indicator:hover,
-.c43 .react-select__control .react-select__indicator:focus,
-.c43 .react-select__control .react-select__dropdown-indicator:focus,
-.c43 .react-select__control .react-select__indicator:active,
-.c43 .react-select__control .react-select__dropdown-indicator:active {
+.c44 .react-select__control .react-select__indicator:hover,
+.c44 .react-select__control .react-select__dropdown-indicator:hover,
+.c44 .react-select__control .react-select__indicator:focus,
+.c44 .react-select__control .react-select__dropdown-indicator:focus,
+.c44 .react-select__control .react-select__indicator:active,
+.c44 .react-select__control .react-select__dropdown-indicator:active {
   color: #FFFFFF;
 }
 
-.c43 .react-select__control--is-focused {
+.c44 .react-select__control--is-focused {
   border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
 
-.c43 .react-select__control--is-focused .react-select__dropdown-indicator {
+.c44 .react-select__control--is-focused .react-select__dropdown-indicator {
   color: #FFFFFF;
 }
 
-.c43 .react-select__single-value {
+.c44 .react-select__single-value {
   color: #FFFFFF;
 }
 
-.c43 .react-select__placeholder {
+.c44 .react-select__placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c43 .react-select__multi-value {
+.c44 .react-select__multi-value {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__label {
+.c44 .react-select__multi-value .react-select__multi-value__label {
   color: #FFFFFF;
   padding: 0 6px;
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__remove {
+.c44 .react-select__multi-value .react-select__multi-value__remove {
   color: #FFFFFF;
 }
 
-.c43 .react-select__multi-value .react-select__multi-value__remove:hover {
+.c44 .react-select__multi-value .react-select__multi-value__remove:hover {
   background-color: rgba(255,255,255,0.07);
   color: #FF6257;
 }
 
-.c43 .react-select__option:hover {
+.c44 .react-select__option:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-focused {
+.c44 .react-select__option--is-focused {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-focused:hover {
+.c44 .react-select__option--is-focused:hover {
   cursor: pointer;
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__option--is-selected {
+.c44 .react-select__option--is-selected {
   background-color: rgba(255,255,255,0.13);
   color: inherit;
   font-weight: 500;
 }
 
-.c43 .react-select__option--is-selected:hover {
+.c44 .react-select__option--is-selected:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c43 .react-select__clear-indicator {
+.c44 .react-select__clear-indicator {
   color: rgba(255,255,255,0.72);
 }
 
-.c43 .react-select__clear-indicator:hover,
-.c43 .react-select__clear-indicator:focus {
+.c44 .react-select__clear-indicator:hover,
+.c44 .react-select__clear-indicator:focus {
   background-color: rgba(255,255,255,0.07);
 }
 
-.c43 .react-select__clear-indicator:hover svg,
-.c43 .react-select__clear-indicator:focus svg {
+.c44 .react-select__clear-indicator:hover svg,
+.c44 .react-select__clear-indicator:focus svg {
   color: #FF6257;
 }
 
-.c43 .react-select__menu {
+.c44 .react-select__menu {
   margin-top: 0px;
   background-color: #344179;
   box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
 }
 
-.c43 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+.c44 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,0.13);
   border-radius: 4px;
 }
 
-.c43 .react-select__indicator-separator {
+.c44 .react-select__indicator-separator {
   display: none;
 }
 
-.c43 .react-select__loading-indicator {
+.c44 .react-select__loading-indicator {
   display: none;
 }
 
-.c43 .react-select__control--is-disabled {
+.c44 .react-select__control--is-disabled {
   color: rgba(255,255,255,0.36);
   border: 1px solid rgba(255,255,255,0.36);
 }
 
-.c43 .react-select__control--is-disabled .react-select__single-value,
-.c43 .react-select__control--is-disabled .react-select__placeholder {
+.c44 .react-select__control--is-disabled .react-select__single-value,
+.c44 .react-select__control--is-disabled .react-select__placeholder {
   color: rgba(255,255,255,0.36);
 }
 
-.c43 .react-select__control--is-disabled .react-select__indicator {
+.c44 .react-select__control--is-disabled .react-select__indicator {
   color: rgba(255,255,255,0.36);
 }
 
-.c43 .react-select__input {
+.c44 .react-select__input {
   color: #FFFFFF;
 }
 
-.c42 {
+.c43 {
   height: 18px;
   width: 18px;
   color: inherit;
 }
 
-.c41 {
+.c42 {
   vertical-align: middle;
   display: inline-block;
   height: 18px;
 }
 
-.c41:hover {
+.c42:hover {
   cursor: pointer;
 }
 
-.c38 {
+.c39 {
   height: 40px;
   border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
@@ -2091,7 +2115,7 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c38:hover {
+.c39:hover {
   background-color: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.72);
 }
@@ -2226,7 +2250,7 @@ exports[`loaded state 1`] = `
   border-color: rgba(255,255,255,0.13);
 }
 
-.c47 {
+.c48 {
   border-color: rgba(255,255,255,0.13);
 }
 
@@ -2303,25 +2327,25 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c50 {
+.c52 {
   position: sticky;
   bottom: 0;
   background: #0C143D;
   border-top: 1px solid rgba(255,255,255,0.13);
 }
 
-.c45 {
+.c46 {
   outline: none;
   background: transparent;
 }
 
-.c45::placeholder {
+.c46::placeholder {
   color: rgba(255,255,255,0.54);
 }
 
-.c45:hover,
-.c45:focus,
-.c45:active {
+.c46:hover,
+.c46:focus,
+.c46:active {
   border: 1px solid rgba(255,255,255,0.72);
 }
 
@@ -2341,6 +2365,7 @@ exports[`loaded state 1`] = `
         >
           <span
             class="c6 icon icon-arrowback"
+            data-testid="close-checkout"
             style="cursor: pointer;"
           >
             <svg
@@ -2821,6 +2846,13 @@ exports[`loaded state 1`] = `
                 >
                   Edit
                 </button>
+                <button
+                  class="c24"
+                  kind="border"
+                  width="50px"
+                >
+                  Clear
+                </button>
               </div>
               <button
                 class="c25"
@@ -2954,16 +2986,15 @@ exports[`loaded state 1`] = `
               >
                 <label
                   class="c36"
-                  font-size="0"
                 >
                   Start Date
                 </label>
                 <div
-                  class="c37 c22 c38"
+                  class="c37 c38 c39"
                 >
                   Immediately
                   <span
-                    class="c39 icon icon-calendar"
+                    class="c40 icon icon-calendar"
                   >
                     <svg
                       fill="currentColor"
@@ -2990,22 +3021,21 @@ exports[`loaded state 1`] = `
             <label
               class="c36"
               color="text.slightlyMuted"
-              font-size="0"
             >
               <div
                 class="c1 c5"
               >
                 <div
-                  class="c40"
+                  class="c41"
                 >
                   Access Duration
                 </div>
                 <span
-                  class="c41"
+                  class="c42"
                   role="icon"
                 >
                   <span
-                    class="c18 c42"
+                    class="c18 c43"
                   >
                     <svg
                       fill="currentColor"
@@ -3029,7 +3059,7 @@ exports[`loaded state 1`] = `
                 </span>
               </div>
               <div
-                class="c43"
+                class="c44"
               >
                 <div
                   class="react-select-container css-2b097c-container"
@@ -3101,11 +3131,10 @@ exports[`loaded state 1`] = `
           </div>
           <label
             class="c36"
-            font-size="0"
           >
             Request Reason
             <textarea
-              class="c44 c45"
+              class="c45 c46"
               color="text.main"
               height="80px"
               placeholder="Describe your request..."
@@ -3113,11 +3142,11 @@ exports[`loaded state 1`] = `
             />
           </label>
           <div
-            class="c46 c14 c47"
+            class="c47 c14 c48"
             height="34px"
           >
             <div
-              class="c23"
+              class="c49"
               font-size="1"
             >
               Additional Options
@@ -3145,17 +3174,17 @@ exports[`loaded state 1`] = `
             </button>
           </div>
           <div
-            class="c48 c49 c50"
+            class="c50 c51 c52"
           >
             <button
-              class="c51"
+              class="c53"
               kind="primary"
               width="100%"
             >
               Submit Request
             </button>
             <button
-              class="c52"
+              class="c54"
               kind="secondary"
               width="100%"
             >

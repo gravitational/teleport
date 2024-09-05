@@ -295,15 +295,13 @@ func (d *DatabaseV3) GetAdminUser() (ret DatabaseAdminUser) {
 		ret = *d.Spec.AdminUser
 	}
 
-	// If it's not in the spec, check labels (for auto-discovered databases).
+	// If it's not in the spec, check labels.
 	// TODO Azure will require different labels.
-	if d.Origin() == OriginCloud {
-		if ret.Name == "" {
-			ret.Name = d.Metadata.Labels[DatabaseAdminLabel]
-		}
-		if ret.DefaultDatabase == "" {
-			ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
-		}
+	if ret.Name == "" {
+		ret.Name = d.Metadata.Labels[DatabaseAdminLabel]
+	}
+	if ret.DefaultDatabase == "" {
+		ret.DefaultDatabase = d.Metadata.Labels[DatabaseAdminDefaultDatabaseLabel]
 	}
 	return
 }
@@ -832,7 +830,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		d.Spec.AWS.DocumentDB.EndpointType = endpointInfo.EndpointType
 
 	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
-		// For Azure MySQL and PostgresSQL.
+		// For Azure MySQL and PostgreSQL.
 		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)

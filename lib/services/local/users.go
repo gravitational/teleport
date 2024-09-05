@@ -151,7 +151,7 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 // the next user in the list while still allowing listing to operate
 // without missing any users.
 func nextUserToken(user types.User) string {
-	return string(backend.RangeEnd(backend.ExactKey(user.GetName())))[utf8.RuneLen(backend.Separator):]
+	return backend.RangeEnd(backend.ExactKey(user.GetName())).String()[utf8.RuneLen(backend.Separator):]
 }
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
@@ -165,7 +165,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 	var current collector
 
 	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
-		name, suffix, err := splitUsernameAndSuffix(string(item.Key))
+		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
 			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
 			return collector{}, false
@@ -221,9 +221,9 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backen
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
 func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
-	suffix := []byte(paramsPrefix)
+	suffix := backend.Key(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
-		if !bytes.HasSuffix(item.Key, suffix) {
+		if !item.Key.HasSuffix(suffix) {
 			return nil, false
 		}
 
@@ -251,7 +251,7 @@ func (s *IdentityService) GetUsers(ctx context.Context, withSecrets bool) ([]typ
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -584,8 +584,8 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 	var items userItems
 	for _, item := range result.Items {
-		suffix := bytes.TrimPrefix(item.Key, startKey)
-		items.Set(string(suffix), item) // Result of Set i
+		suffix := item.Key.TrimPrefix(startKey)
+		items.Set(suffix.String(), item) // Result of Set i
 	}
 
 	u, err := userFromUserItems(user, items)
@@ -965,11 +965,11 @@ type webauthnUser struct {
 	TeleportUser string `json:"teleport_user"`
 }
 
-func webauthnLocalAuthKey(user string) []byte {
+func webauthnLocalAuthKey(user string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
 }
 
-func webauthnUserKey(id []byte) []byte {
+func webauthnUserKey(id []byte) backend.Key {
 	key := base64.RawURLEncoding.EncodeToString(id)
 	return backend.NewKey(webauthnPrefix, usersPrefix, key)
 }
@@ -1023,7 +1023,7 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
 }
 
-func sessionDataKey(user, sessionID string) []byte {
+func sessionDataKey(user, sessionID string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
@@ -1134,7 +1134,7 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func globalSessionDataKey(scope, id string) []byte {
+func globalSessionDataKey(scope, id string) backend.Key {
 	return backend.NewKey(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 

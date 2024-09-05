@@ -51,9 +51,7 @@ export function SlideTabs({
               disabled={disabled}
             >
               <Box>
-                {selected && isProcessing && (
-                  <Spinner delay="none" size="25px" />
-                )}
+                {selected && isProcessing && <Spinner delay="none" size={25} />}
                 <Text ml={2}>{tabName}</Text>
               </Box>
               <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
@@ -120,7 +118,11 @@ const Wrapper = styled.div`
   position: relative;
 `;
 
-const TabLabel = styled.label`
+const TabLabel = styled.label<{
+  itemCount: number;
+  processing?: boolean;
+  disabled?: boolean;
+}>`
   cursor: pointer;
   display: flex;
   justify-content: center;
@@ -135,7 +137,15 @@ const TabInput = styled.input`
   display: none;
 `;
 
-const TabSlider = styled.div`
+type Appearance = 'square' | 'round';
+type Size = 'xlarge' | 'medium';
+
+const TabSlider = styled.div<{
+  appearance: Appearance;
+  itemCount: number;
+  size: Size;
+  activeIndex: number;
+}>`
   background-color: ${({ theme }) => theme.colors.brand};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
@@ -149,7 +159,7 @@ const TabSlider = styled.div`
   width: calc(${props => 100 / props.itemCount}% - 16px);
 `;
 
-const TabNav = styled.nav`
+const TabNav = styled.nav<{ appearance: Appearance; size: Size }>`
   align-items: center;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};

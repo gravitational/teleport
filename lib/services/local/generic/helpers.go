@@ -58,7 +58,7 @@ type MarshalableResource interface {
 // signature used elsewhere and therefore may not be the best choice for all use cases, but it
 // has the benefit of being simpler to use and not requiring the caller to undergo the revision/expiry
 // ceremony at each call site.
-func FastMarshal[T MarshalableResource](key []byte, r T) (backend.Item, error) {
+func FastMarshal[T MarshalableResource](key backend.Key, r T) (backend.Item, error) {
 	value, err := utils.FastMarshal(r)
 	if err != nil {
 		return backend.Item{}, err

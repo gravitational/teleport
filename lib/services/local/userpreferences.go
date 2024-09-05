@@ -117,7 +117,7 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
-func backendKey(username string) []byte {
+func backendKey(username string) backend.Key {
 	return backend.NewKey(userPreferencesPrefix, username)
 }
 

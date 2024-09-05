@@ -178,7 +178,7 @@ const ActionButton = styled.button`
   }
 `;
 
-const StyledProgessBar = styled.div`
+const StyledProgessBar = styled.div<{ disabled?: boolean }>`
   background: ${props => props.theme.colors.levels.surface};
   display: flex;
   color: ${props => props.theme.colors.text.main};

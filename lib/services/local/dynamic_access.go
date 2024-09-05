@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"slices"
 	"time"
@@ -261,7 +260,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 	}
 	var requests []types.AccessRequest
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -341,7 +340,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -485,11 +484,11 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*ty
 	return req, nil
 }
 
-func accessRequestKey(name string) []byte {
+func accessRequestKey(name string) backend.Key {
 	return backend.NewKey(accessRequestsPrefix, name, paramsPrefix)
 }
 
-func AccessRequestAllowedPromotionKey(name string) []byte {
+func AccessRequestAllowedPromotionKey(name string) backend.Key {
 	return backend.NewKey(accessRequestPromotionPrefix, name, paramsPrefix)
 }
 
