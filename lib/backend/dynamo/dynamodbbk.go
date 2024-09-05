@@ -17,7 +17,6 @@ limitations under the License.
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"net/http"
 	"sort"
@@ -517,7 +516,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	r := record{

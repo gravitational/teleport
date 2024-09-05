@@ -99,7 +99,7 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -375,8 +375,8 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 	var items userItems
 	for _, item := range result.Items {
-		suffix := bytes.TrimPrefix(item.Key, startKey)
-		items.Set(string(suffix), item) // Result of Set i
+		suffix := item.Key.TrimPrefix(startKey)
+		items.Set(suffix.String(), item) // Result of Set i
 	}
 
 	u, err := userFromUserItems(user, items)

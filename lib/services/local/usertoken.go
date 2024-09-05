@@ -17,7 +17,6 @@ limitations under the License.
 package local
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/gravitational/trace"
@@ -37,7 +36,7 @@ func (s *IdentityService) GetUserTokens(ctx context.Context) ([]types.UserToken,
 
 	var tokens []types.UserToken
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 
