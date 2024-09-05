@@ -257,6 +257,9 @@ type CommandLineFlags struct {
 
 	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
+
+	// DisableDebugService disables the debug service.
+	DisableDebugService bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -453,8 +456,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
-	if fc.Debug.Enabled() {
-		cfg.DebugService.Enabled = true
+	if fc.Debug.Disabled() {
+		cfg.DebugService.Enabled = false
 	}
 
 	if fc.AccessGraph.Enabled {
@@ -2653,6 +2656,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err != nil {
 			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
 		}
+	}
+
+	if clf.DisableDebugService {
+		cfg.DebugService.Enabled = false
 	}
 
 	return nil
