@@ -74,6 +74,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 			// Set it to empty as default.
 			// Must provide as options to set it with the provided value.
 			IneligibleStatus: "",
+			MembershipKind:   owner.MembershipKind.String(),
 		}
 	}
 

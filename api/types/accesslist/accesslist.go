@@ -84,10 +84,10 @@ var (
 	MembershipKindUnspecified = accesslistv1.MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED.String()
 
 	// MembershipKindUser is the user membership kind.
-	MembershipKindUser        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
+	MembershipKindUser = accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String()
 
 	// MembershipKindList is the list membership kind.
-	MembershipKindList        = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+	MembershipKindList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
 )
 
 // ReviewDayOfMonth is the day of month the review should be repeated on.
