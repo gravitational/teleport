@@ -69,7 +69,7 @@ jobs:
           SIGNING_KEY_ARN: "${{ vars.OCI_PENDING_SIGNING_KEY_ARN }}"
           SRC_IMAGE_TAG: "${{ env.SRC_REPO }}:${{ inputs.pending-tag }}"
         run: |
-          cosign verify --key awskms:///"${SIGNING_KEY_ARN} ${SRC_IMAGE_TAG}" > validated-image.json
+          cosign verify --key "awskms:///${SIGNING_KEY_ARN}" "${SRC_IMAGE_TAG}" > validated-image.json
           # TODO(reed): Re-enable OIDC identity verification when signature is attached
           # cosign verify ${SRC_IMAGE_TAG} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
           TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
@@ -97,10 +97,12 @@ jobs:
           AWS_REGION: us-east-1
 
       - name: Copy multiarch image to production repository
+        env:
+          PRODUCTION_TAGS: ${{ inputs.production-tags }}
         run: |
           SRC_IMAGE_HASH="${SRC_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
-          # shellcheck disable=SC2043
-          for DST_TAG in ${{ inputs.production-tags }}; do
+          read -ra DST_TAGS <<<"${PRODUCTION_TAGS}"
+          for DST_TAG in "${DST_TAGS[@]}"; do
             docker buildx imagetools create --tag "$DST_REPO:$DST_TAG" "$SRC_IMAGE_HASH"
           done
 
@@ -109,5 +111,5 @@ jobs:
           SIGNING_KEY_ARN: ${{ vars.OCI_PUBLIC_SIGNING_KEY_ARN }}
         run: |
           DST_IMAGE_HASH="${DST_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
-          cosign sign --yes --key awskms:///"${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE_HASH}"
+          cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE_HASH}"
           cosign sign --yes --upload=false --recursive "${DST_IMAGE_HASH}"
