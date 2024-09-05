@@ -1,5 +1,15 @@
 # Changelog
 
+## 14.3.31 (09/05/24)
+
+* Updated Go to 1.22.7. [#46298](https://api.github.com/repos/gravitational/teleport/issues/46298)
+* Fixed an issue that could result in duplicate session recordings being created. [#46263](https://api.github.com/repos/gravitational/teleport/issues/46263)
+* Updated OpenSSL to 3.0.15. [#46185](https://api.github.com/repos/gravitational/teleport/issues/46185)
+* Fixed an issue that would cause reissue of certificates to fail in some scenarios where a local auth service was present. [#46182](https://api.github.com/repos/gravitational/teleport/issues/46182)
+* Extend Teleport ability to use non-default cluster domains in Kubernetes, avoiding the assumption of `cluster.local`. [#46152](https://api.github.com/repos/gravitational/teleport/issues/46152)
+* Prevented Teleport Kubernetes access from resending resize events to the party that triggered the terminal resize, avoiding potential resize loops. [#46068](https://api.github.com/repos/gravitational/teleport/issues/46068)
+* Fixed an issue where attempts to play/export certain session recordings would fail with `gzip: invalid header`. [#46033](https://api.github.com/repos/gravitational/teleport/issues/46033)
+
 ## 14.3.30 (08/28/24)
 
 ### Security fix
