@@ -58,7 +58,9 @@ interface NotificationProps extends BoxProps {
 
   /**
    * If defined, determines whether the notification is auto-dismissed after 5
-   * seconds. If undefined, the decision is based on the notification severity.
+   * seconds. If undefined, the decision is based on the notification severity:
+   * only 'success', 'info', and 'neutral' notifications are removable by
+   * default.
    */
   isAutoRemovable?: boolean;
 }
@@ -66,7 +68,12 @@ interface NotificationProps extends BoxProps {
 const autoRemoveDurationMs = 5_000; // 5s
 
 export function Notification(props: NotificationProps) {
-  const { item, onRemove, ...styleProps } = props;
+  const {
+    item,
+    onRemove,
+    isAutoRemovable: isAutoRemovableProp,
+    ...styleProps
+  } = props;
   const content = toObjectContent(item.content);
   const [isHovered, setIsHovered] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -74,7 +81,7 @@ export function Notification(props: NotificationProps) {
   const theme = useTheme();
 
   const isAutoRemovable =
-    props.isAutoRemovable ??
+    isAutoRemovableProp ??
     ['success', 'info', 'neutral'].includes(item.severity);
   useEffect(() => {
     if (!isHovered && isAutoRemovable) {
@@ -100,6 +107,8 @@ export function Notification(props: NotificationProps) {
   return (
     <Container
       py={3}
+      // We use a custom value to offset the default padding by the width of the
+      // left border.
       pl="12px"
       pr={3}
       borderColor={borderColor}
@@ -182,7 +191,7 @@ const NotificationIcon = ({
 const toObjectContent = (
   content: NotificationItemContent
 ): NotificationItemObjectContent =>
-  typeof content === 'string' ? { description: content } : content;
+  typeof content === 'string' ? { title: content } : content;
 
 const notificationColors = (theme: Theme, severity: NotificationSeverity) => {
   switch (severity) {
@@ -232,13 +241,18 @@ const NotificationBody = ({
   isExpanded: boolean;
 }) => {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
+  const hasListOrDescription = !!content.list || !!content.description;
 
   return (
     <>
-      <Text typography="body2" color="text.slightlyMuted" css={longerTextCss}>
-        {content.list && <List items={content.list} />}
-        {content.description}
-      </Text>
+      {/* Note: an empty <Text/> element would still generate a flex gap, so we
+          only render it if necessary. */}
+      {hasListOrDescription && (
+        <Text typography="body2" color="text.slightlyMuted" css={longerTextCss}>
+          {content.list && <List items={content.list} />}
+          {content.description}
+        </Text>
+      )}
       {content.action && (
         <Box alignSelf="flex-start">
           <ActionButton intent="neutral" action={content.action} />
@@ -281,11 +295,9 @@ const shortTextCss = `
   -webkit-line-clamp: 3;
 `;
 
-const Container = styled(Flex)`
+const Container = styled(Box)`
   /* Positioning anchor for the close button. */
   position: relative;
-  flex-direction: row;
-  justify-content: space-between;
   background: ${props => props.theme.colors.levels.elevated};
   border-left: ${props => props.theme.borders[3]};
   min-height: 40px;
