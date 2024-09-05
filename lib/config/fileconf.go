@@ -2010,6 +2010,8 @@ type App struct {
 	CORS *CORS `yaml:"cors,omitempty"`
 }
 
+// CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
+// settings that control how the app responds to requests from different origins.
 type CORS struct {
 	// AllowedOrigins specifies the list of origins that are allowed to access the app.
 	// Example: "https://client.teleport.example.com:3080"

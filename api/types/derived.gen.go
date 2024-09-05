@@ -175,7 +175,8 @@ func deriveTeleportEqual(this, that *AppSpecV3) bool {
 			this.Cloud == that.Cloud &&
 			deriveTeleportEqual_20(this.UserGroups, that.UserGroups) &&
 			this.Integration == that.Integration &&
-			deriveTeleportEqual_20(this.RequiredAppNames, that.RequiredAppNames)
+			deriveTeleportEqual_20(this.RequiredAppNames, that.RequiredAppNames) &&
+			deriveTeleportEqual_21(this.CORS, that.CORS)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.
@@ -413,7 +414,7 @@ func deriveTeleportEqual_20(this, that []string) bool {
 }
 
 // deriveTeleportEqual_21 returns whether this and that are equal.
-func deriveTeleportEqual_21(this, that *CORSSpec) bool {
+func deriveTeleportEqual_21(this, that *CORSPolicy) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			deriveTeleportEqual_20(this.AllowedOrigins, that.AllowedOrigins) &&

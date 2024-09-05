@@ -6719,12 +6719,12 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 }
 
 // makeApplicationCORS converts a servicecfg.CORS to a types.CORS.
-func makeApplicationCORS(c *servicecfg.CORS) *types.CORSSpec {
+func makeApplicationCORS(c *servicecfg.CORS) *types.CORSPolicy {
 	if c == nil {
 		return nil
 	}
 
-	return &types.CORSSpec{
+	return &types.CORSPolicy{
 		AllowedOrigins:   c.AllowedOrigins,
 		AllowedMethods:   c.AllowedMethods,
 		AllowedHeaders:   c.AllowedHeaders,

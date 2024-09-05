@@ -391,12 +391,12 @@ func TestNewAppV3(t *testing.T) {
 		{
 			name: "app with required apps list",
 			meta: Metadata{Name: "clientapp"},
-			spec: AppSpecV3{RequiredApps: []string{"api22"}, URI: "example.com"},
+			spec: AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
 			want: &AppV3{
 				Kind:     "app",
 				Version:  "v3",
 				Metadata: Metadata{Name: "clientapp", Namespace: "default"},
-				Spec:     AppSpecV3{RequiredApps: []string{"api22"}, URI: "example.com"},
+				Spec:     AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
 			},
 			wantErr: require.NoError,
 		},
@@ -405,7 +405,7 @@ func TestNewAppV3(t *testing.T) {
 			meta: Metadata{Name: "api22"},
 			spec: AppSpecV3{
 				URI: "example.com",
-				CORS: &CORSSpec{
+				CORS: &CORSPolicy{
 					AllowedOrigins:   []string{"https://client.example.com"},
 					AllowedMethods:   []string{"GET", "POST"},
 					AllowedHeaders:   []string{"Content-Type", "Authorization"},
@@ -422,7 +422,7 @@ func TestNewAppV3(t *testing.T) {
 				},
 				Spec: AppSpecV3{
 					URI: "example.com",
-					CORS: &CORSSpec{
+					CORS: &CORSPolicy{
 						AllowedOrigins:   []string{"https://client.example.com"},
 						AllowedMethods:   []string{"GET", "POST"},
 						AllowedHeaders:   []string{"Content-Type", "Authorization"},

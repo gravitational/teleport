@@ -869,7 +869,7 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 					}),
-					Description: "CORSSpec defines the Cross-Origin Resource Sharing settings for the app.",
+					Description: "CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.",
 					Optional:    true,
 				},
 				"dynamic_labels": {
@@ -10003,7 +10003,7 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 								obj.CORS = nil
 								if !v.Null && !v.Unknown {
 									tf := v
-									obj.CORS = &github_com_gravitational_teleport_api_types.CORSSpec{}
+									obj.CORS = &github_com_gravitational_teleport_api_types.CORSPolicy{}
 									obj := obj.CORS
 									{
 										a, ok := tf.Attrs["allowed_origins"]

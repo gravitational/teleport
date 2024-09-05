@@ -945,8 +945,8 @@ message AppV3 {
   ];
 }
 
-// CORSSpec defines the CORS policy for AppSpecV3
-message CORSSpec {
+// CORSPolicy defines the CORS policy for AppSpecV3
+message CORSPolicy {
   // allowed_origins specifies which origins are allowed to access the app.
   repeated string allowed_origins = 1 [(gogoproto.jsontag) = "allowed_origins,omitempty"];
   // allowed_methods specifies which methods are allowed when accessing the app.
@@ -989,8 +989,8 @@ message AppSpecV3 {
   // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
   // be part of the authentication redirect flow and authenticate along side this app.
   repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
-  // CORSSpec defines the Cross-Origin Resource Sharing settings for the app.
-  CORSSpec CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
+  // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
+  CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).

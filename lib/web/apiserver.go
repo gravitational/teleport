@@ -350,12 +350,12 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 
 	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
 	if err != nil {
-		h.handler.log.Error("failed to match application with public addr %s", publicAddr)
+		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
 		return
 	}
 
 	if len(servers) == 0 {
-		h.handler.log.Error("failed to match application with public addr %s", publicAddr)
+		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
 		return
 	}
 
