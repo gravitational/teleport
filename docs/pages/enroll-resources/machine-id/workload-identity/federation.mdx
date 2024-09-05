@@ -60,8 +60,8 @@ Teleport Workload Identity only supports federating with trust domains that
 offer a SPIFFE Bundle Endpoint that abides by the "https_web" profile as defined
 by the SPIFFE Federation specification.
 
-To configure Teleport Workload Identity to trust another trust domain, the
-`spiffe_federation` resource is used.
+The `spiffe_federation` resource configures a trust relationship between the
+Teleport Workload Identity trust domain and a remote trust domain.
 
 For example, to federate with a trust domain named `example.com` that has a
 SPIFFE Bundle Endpoint at `https://example.com/spiffe/bundle.json`, you would
