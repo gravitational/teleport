@@ -682,8 +682,8 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginDatadogSettings) CheckAndSetDefaults() error {
-	if c.ApiEndpoint == "" {
-		return trace.BadParameter("api_endpoint must be set")
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
 	}
 
 	return nil

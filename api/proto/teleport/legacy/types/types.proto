@@ -6301,8 +6301,8 @@ message PluginSCIMSettings {
 message PluginDatadogSettings {
   option (gogoproto.equal) = true;
 
-  // APIEndpoint is the address of Datadog API.
-  string api_endpoint = 1;
+  // FallbackRecipient specifies the default recipient
+  string fallback_recipient = 1;
 }
 
 message PluginBootstrapCredentialsV1 {

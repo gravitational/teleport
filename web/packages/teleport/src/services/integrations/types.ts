@@ -123,7 +123,8 @@ export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
   | PluginMattermostSpec
-  | PluginOpsgenieSpec;
+  | PluginOpsgenieSpec
+  | PluginDatadogSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -183,6 +184,10 @@ export type PluginMattermostSpec = {
 export type PluginOpsgenieSpec = {
   defaultSchedules: string[];
 };
+
+export type PluginDatadogSpec = {
+    fallbackRecipient: string;
+}
 
 export type IntegrationCreateRequest = {
   name: string;
