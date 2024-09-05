@@ -28,9 +28,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -72,6 +77,10 @@ func TestEditResources(t *testing.T) {
 		{
 			kind: types.KindSessionRecordingConfig,
 			edit: testEditSessionRecordingConfig,
+		},
+		{
+			kind: types.KindStaticHostUser,
+			edit: testEditStaticHostUser,
 		},
 	}
 
@@ -484,4 +493,51 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", "connector/saml"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected := userprovisioning.NewStaticHostUser("alice", &userprovisioningpb.StaticHostUserSpec{
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
+				},
+				Groups: []string{"foo", "bar"},
+			},
+		},
+	})
+	created, err := clt.StaticHostUserClient().CreateStaticHostUser(ctx, expected)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.GetMetadata().Revision = created.GetMetadata().Revision
+		expected.Spec.Matchers[0].Groups = []string{"baz", "quux"}
+
+		collection := &staticHostUserCollection{items: []*userprovisioningpb.StaticHostUser{expected}}
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.StaticHostUserClient().GetStaticHostUser(ctx, expected.GetMetadata().Name)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "unexpected error: %v", err)
 }
