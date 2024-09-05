@@ -118,7 +118,11 @@ const Wrapper = styled.div`
   position: relative;
 `;
 
-const TabLabel = styled.label<{ itemCount: number; processing?: boolean }>`
+const TabLabel = styled.label<{
+  itemCount: number;
+  processing?: boolean;
+  disabled?: boolean;
+}>`
   cursor: pointer;
   display: flex;
   justify-content: center;

@@ -100,7 +100,9 @@ const WrapperBackground = styled.div<{ bigSize: boolean }>`
     props.bigSize ? props.theme.space[7] : props.theme.space[6]}px;
 `;
 
-interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {}
+interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {
+  bigInputSize: boolean;
+}
 
 const StyledInput = styled.input<StyledInputProps>`
   border: none;
