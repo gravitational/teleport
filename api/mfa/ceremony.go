@@ -68,10 +68,6 @@ func PerformMFACeremony(ctx context.Context, chalClient MFACeremonyChallengeClie
 		return nil, &ErrMFANotRequired
 	}
 
-	if challengeRequest.SSOClientRedirectURL != "" && chal.SSOChallenge != nil {
-		promptOpts = append(promptOpts, WithSSOClientRedirectURL(challengeRequest.SSOClientRedirectURL))
-	}
-
 	return promptClient.PromptMFA(ctx, chal, promptOpts...)
 }
 

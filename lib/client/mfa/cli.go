@@ -112,8 +112,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			go func() {
 				defer wg.Done()
 
-				// resp, err := c.cfg.SSOLoginFunc(ctx, chal.SSOChallenge.GetID(), chal.SSOChallenge.GetType())
-				// respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
+				resp, err := c.cfg.SSOMFACeremony(ctx, chal.SSOChallenge.RequestId, chal.SSOChallenge.RedirectUrl)
+				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
 			}()
 		}
 	}

@@ -21,14 +21,10 @@ package sso
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,9 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 
-	"github.com/gravitational/teleport"
-
-	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -116,13 +110,15 @@ type Redirector struct {
 
 	server *httptest.Server
 	mux    *http.ServeMux
-	// clientCallbackURL is set once the redirector's local http server
+
+	// ClientCallbackURL is set once the redirector's local http server
 	// is running.
-	clientCallbackURL string
-	// redirectURL will be set based on the response from the Teleport
+	ClientCallbackURL string
+	// RedirectURL will be set based on the response from the Teleport
 	// proxy server, will contain target redirect URL
 	// to launch SSO workflow
-	redirectURL utils.SyncString
+	RedirectURL utils.SyncString
+
 	// key is a secret key used to encode/decode
 	// the data with the server, it is used so that other
 	// programs running on the same computer can't easilly sniff
@@ -199,7 +195,7 @@ func NewRedirector(ctx context.Context, config RedirectorConfig) (*Redirector, e
 	// short path is a link-shortener style URL
 	// that will redirect to the Teleport-Proxy supplied address
 	rd.mux.HandleFunc(rd.shortPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, rd.redirectURL.Value(), http.StatusFound)
+		http.Redirect(w, r, rd.RedirectURL.Value(), http.StatusFound)
 	})
 
 	if err := rd.startServer(); err != nil {
@@ -238,7 +234,7 @@ func (rd *Redirector) startServer() error {
 		return trace.Wrap(err)
 	}
 	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
-	rd.clientCallbackURL = u.String()
+	rd.ClientCallbackURL = u.String()
 
 	return nil
 }
@@ -249,22 +245,33 @@ func (rd *Redirector) SSOLoginCeremony(ctx context.Context) (*authclient.SSHLogi
 	}
 	defer rd.Close()
 
-	clickableURL := rd.ClickableURL()
+	rd.PromptLogin()
 
-	// If a command was found to launch the browser, create and start it.
-	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
+	return rd.WaitForResponse(ctx)
+}
+
+// TODO: add prompt opts to determine whether browser is opened automatically.
+func (rd *Redirector) SSOMFACeremony(ctx context.Context, requestID string, redirectURL string) (*proto.MFAAuthenticateResponse, error) {
+	rd.RedirectURL.Set(redirectURL)
+
+	rd.PromptMFA()
+
+	resp, err := rd.WaitForResponse(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Print the URL to the screen, in case the command that launches the browser did not run.
-	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if rd.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
-	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
-	}
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: requestID,
+				Token:     resp.Token,
+			},
+		},
+	}, nil
+}
 
+func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLoginResponse, error) {
 	logrus.Infof("Waiting for response at: %v.", rd.server.URL)
 	select {
 	case err := <-rd.ErrorC():
@@ -282,44 +289,10 @@ func (rd *Redirector) SSOLoginCeremony(ctx context.Context) (*authclient.SSHLogi
 	}
 }
 
-// OpenURLInBrowser opens a URL in a web browser.
-func OpenURLInBrowser(browser string, URL string) error {
-	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // initiate launches local http server on the machine,
 // initiates SSO login request sequence with the Teleport Proxy
 func (rd *Redirector) initiate() error {
-	redirectURL, err := rd.InitiateSSOLoginFn(rd.clientCallbackURL)
+	redirectURL, err := rd.InitiateSSOLoginFn(rd.ClientCallbackURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,7 +301,7 @@ func (rd *Redirector) initiate() error {
 	// in the callback handler, but is known only after the request
 	// is sent to the Teleport Proxy, that's why
 	// redirectURL is a SyncString
-	rd.redirectURL.Set(redirectURL)
+	rd.RedirectURL.Set(redirectURL)
 	return nil
 }
 

@@ -35,6 +35,18 @@ import (
 // and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 // an MFA challenge response for the user.
 func (tc *TeleportClient) PerformMFACeremony(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	rdConfig, err := tc.SSORedirectorConfig(ctx, "", "", "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	redirector, err := sso.NewRedirector(ctx, rdConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeRequest.SSOClientRedirectURL = redirector.ClientCallbackURL
+
 	return mfa.PerformMFACeremony(ctx, tc, tc, challengeRequest, promptOpts...)
 }
 
@@ -82,16 +94,6 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
-	}
-
-	cfg.RedirectorFunc = func(ctx context.Context) (r *sso.Redirector, err error) {
-		rdConfig, err := tc.SSORedirectorConfig(ctx, "", "", "")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		redirector, err := sso.NewRedirector(ctx, rdConfig)
-		return redirector, trace.Wrap(err)
 	}
 
 	return cfg
