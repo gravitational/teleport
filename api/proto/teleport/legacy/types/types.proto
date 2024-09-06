@@ -3117,7 +3117,7 @@ message RoleConditions {
     (gogoproto.customtype) = "Labels"
   ];
 
-  // KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
+  // KubernetesLabels is a map of Kubernetes cluster labels used for RBAC.
   wrappers.LabelValues KubernetesLabels = 10 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_labels,omitempty",
@@ -4517,7 +4517,7 @@ message OIDCConnectorSpecV3 {
   // to redirect the client back to the Teleport Proxy to complete authentication.
   // This list should match the URLs on the provider's side. The URL used for a
   // given auth request will be chosen to match the requesting Proxy's public
-  // address. If there is no match, the first url in the list will be used.
+  // address. If there is no match, the first URL in the list will be used.
   wrappers.StringValues RedirectURLs = 14 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redirect_url",

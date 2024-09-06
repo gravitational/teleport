@@ -57,7 +57,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`impersonate`|[object](#specallowimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |`join_sessions`|[][object](#specallowjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |`kubernetes_groups`|[]string|KubeGroups is a list of Kubernetes groups|
-|`kubernetes_labels`|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|`kubernetes_labels`|object|KubernetesLabels is a map of Kubernetes cluster labels used for RBAC.|
 |`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.|
 |`kubernetes_resources`|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |`kubernetes_users`|[]string|KubeUsers indicates optional Kubernetes users to impersonate|
@@ -207,7 +207,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`impersonate`|[object](#specdenyimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |`join_sessions`|[][object](#specdenyjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
 |`kubernetes_groups`|[]string|KubeGroups is a list of Kubernetes groups|
-|`kubernetes_labels`|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
+|`kubernetes_labels`|object|KubernetesLabels is a map of Kubernetes cluster labels used for RBAC.|
 |`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.|
 |`kubernetes_resources`|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |`kubernetes_users`|[]string|KubeUsers indicates optional Kubernetes users to impersonate|

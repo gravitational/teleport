@@ -90,7 +90,7 @@ message AccessListAudit {
   reserved 1;
   reserved "frequency";
 
-  // next_audit_date is when the next audit date should be done by.
+  // when the next audit date should be done by.
   google.protobuf.Timestamp next_audit_date = 2;
 
   // recurrence is the recurrence definition
