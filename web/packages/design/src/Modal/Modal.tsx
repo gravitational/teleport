@@ -81,14 +81,14 @@ type Props = {
    * The `reason` parameter can optionally be used to control the response to `onClose`.
    */
   onClose?: (
-    event: React.UIEvent,
+    event: KeyboardEvent | React.MouseEvent,
     reason: 'escapeKeyDown' | 'backdropClick'
   ) => void;
   /**
    * Callback fired when the escape key is pressed,
    * `disableEscapeKeyDown` is false and the modal is in focus.
    */
-  onEscapeKeyDown?: (event: React.KeyboardEvent) => void;
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
 };
 
 export default class Modal extends React.Component<Props> {
@@ -156,7 +156,7 @@ export default class Modal extends React.Component<Props> {
     this.restoreLastFocus();
   };
 
-  handleBackdropClick = event => {
+  handleBackdropClick = (event: React.MouseEvent) => {
     if (event.target !== event.currentTarget) {
       return;
     }
@@ -170,7 +170,7 @@ export default class Modal extends React.Component<Props> {
     }
   };
 
-  handleDocumentKeyDown = event => {
+  handleDocumentKeyDown = (event: KeyboardEvent) => {
     const ESC = 'Escape';
 
     // Ignore events that have been `event.preventDefault()` marked.
