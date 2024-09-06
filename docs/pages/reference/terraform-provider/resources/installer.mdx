@@ -24,8 +24,7 @@ resource "teleport_installer" "example" {
   }
 
   spec = {
-    # This is the default installer script. For more details about the installer script
-    # see https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+    # This is the default installer script. 
     script = <<EOF
 #!/usr/bin/env sh
 set -eu
