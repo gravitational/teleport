@@ -28,20 +28,20 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |`allow`|[][object](#specallow-items)|Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.|
 |`aws_iid_ttl`|string|AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.|
-|`azure`|[object](#specazure)|Azure allows the configuration of options specific to the "azure" join method.|
+|`azure`|[object](#specazure)|Azure allows the configuration of options specific to the `azure` join method.|
 |`bot_name`|string|BotName is the name of the bot this token grants access to, if any|
-|`circleci`|[object](#speccircleci)|CircleCI allows the configuration of options specific to the "circleci" join method.|
-|`gcp`|[object](#specgcp)|GCP allows the configuration of options specific to the "gcp" join method.|
-|`github`|[object](#specgithub)|GitHub allows the configuration of options specific to the "github" join method.|
-|`gitlab`|[object](#specgitlab)|GitLab allows the configuration of options specific to the "gitlab" join method.|
-|`join_method`|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm|
-|`kubernetes`|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the "kubernetes" join method.|
+|`circleci`|[object](#speccircleci)|CircleCI allows the configuration of options specific to the `circleci` join method.|
+|`gcp`|[object](#specgcp)|GCP allows the configuration of options specific to the `gcp` join method.|
+|`github`|[object](#specgithub)|GitHub allows the configuration of options specific to the `github` join method.|
+|`gitlab`|[object](#specgitlab)|GitLab allows the configuration of options specific to the `gitlab` join method.|
+|`join_method`|string|JoinMethod is the joining method required in order to use this token. Supported joining methods include: `azure`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`|
+|`kubernetes`|[object](#speckubernetes)|Kubernetes allows the configuration of options specific to the `kubernetes` join method.|
 |`roles`|[]string|Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token|
-|`spacelift`|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
+|`spacelift`|[object](#specspacelift)|Spacelift allows the configuration of options specific to the `spacelift` join method.|
 |`suggested_agent_matcher_labels`|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
 |`suggested_labels`|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
-|`terraform_cloud`|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.|
-|`tpm`|[object](#spectpm)|TPM allows the configuration of options specific to the "tpm" join method.|
+|`terraform_cloud`|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the `terraform_cloud` join method.|
+|`tpm`|[object](#spectpm)|TPM allows the configuration of options specific to the `tpm` join method.|
 
 ### `spec.allow items`
 

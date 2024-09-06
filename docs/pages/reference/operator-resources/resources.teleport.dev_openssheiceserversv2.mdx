@@ -63,8 +63,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`mode`|string|Mode sets manual or automatic rotation mode.|
 |`phase`|string|Phase is the current rotation phase.|
 |`schedule`|[object](#specrotationschedule)|Schedule is a rotation schedule - used in automatic mode to switch between phases.|
-|`started`|string|Started is set to the time when rotation has been started in case if the state of the rotation is "in_progress".|
-|`state`|string|State could be one of "init" or "in_progress".|
+|`started`|string|Started is set to the time when rotation has been started in case if the state of the rotation is `in_progress`.|
+|`state`|string|State could be one of `init` or `in_progress`.|
 
 ### `spec.rotation.schedule`
 

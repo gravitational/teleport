@@ -33,12 +33,12 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`client_redirect_settings`|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
 |`client_secret`|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |`display`|string|Display is the friendly name for this provider.|
-|`google_admin_email`|string|GoogleAdminEmail is the email of a google admin to impersonate.|
-|`google_service_account`|string|GoogleServiceAccount is a string containing google service account credentials.|
-|`google_service_account_uri`|string|GoogleServiceAccountURI is a path to a google service account uri.|
+|`google_admin_email`|string|GoogleAdminEmail is the email of a Google admin to impersonate.|
+|`google_service_account`|string|GoogleServiceAccount is a string containing Google service account credentials.|
+|`google_service_account_uri`|string|GoogleServiceAccountURI is a path to a Google service account URI.|
 |`issuer_url`|string|IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.|
 |`max_age`|string|MaxAge is the amount of time that user logins are valid for. If a user logs in, but then does not login again within this time period, they will be forced to re-authenticate.|
-|`prompt`|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.|
+|`prompt`|string|Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to `select_account` for backwards compatibility.|
 |`provider`|string|Provider is the external identity provider.|
 |`redirect_url`|[]string|RedirectURLs is a list of callback URLs which the identity provider can use to redirect the client back to the Teleport Proxy to complete authentication. This list should match the URLs on the provider's side. The URL used for a given auth request will be chosen to match the requesting Proxy's public address. If there is no match, the first url in the list will be used.|
 |`scope`|[]string|Scope specifies additional scopes set by provider.|
@@ -56,6 +56,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|`allowed_https_hostnames`|[]string|a list of hostnames allowed for https client redirect URLs|
+|`allowed_https_hostnames`|[]string|a list of hostnames allowed for HTTPS client redirect URLs|
 |`insecure_allowed_cidr_ranges`|[]string|a list of CIDRs allowed for HTTP or HTTPS client redirect URLs|
 

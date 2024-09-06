@@ -56,11 +56,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`host_sudoers`|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |`impersonate`|[object](#specallowimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |`join_sessions`|[][object](#specallowjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
-|`kubernetes_groups`|[]string|KubeGroups is a list of kubernetes groups|
+|`kubernetes_groups`|[]string|KubeGroups is a list of Kubernetes groups|
 |`kubernetes_labels`|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
-|`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
+|`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.|
 |`kubernetes_resources`|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
-|`kubernetes_users`|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|`kubernetes_users`|[]string|KubeUsers indicates optional Kubernetes users to impersonate|
 |`logins`|[]string|Logins is a list of *nix system logins.|
 |`node_labels`|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |`node_labels_expression`|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
@@ -206,11 +206,11 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`host_sudoers`|[]string|HostSudoers is a list of entries to include in a users sudoer file|
 |`impersonate`|[object](#specdenyimpersonate)|Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.|
 |`join_sessions`|[][object](#specdenyjoin_sessions-items)|JoinSessions specifies policies to allow users to join other sessions.|
-|`kubernetes_groups`|[]string|KubeGroups is a list of kubernetes groups|
+|`kubernetes_groups`|[]string|KubeGroups is a list of Kubernetes groups|
 |`kubernetes_labels`|object|KubernetesLabels is a map of kubernetes cluster labels used for RBAC.|
-|`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
+|`kubernetes_labels_expression`|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.|
 |`kubernetes_resources`|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
-|`kubernetes_users`|[]string|KubeUsers is an optional kubernetes users to impersonate|
+|`kubernetes_users`|[]string|KubeUsers indicates optional Kubernetes users to impersonate|
 |`logins`|[]string|Logins is a list of *nix system logins.|
 |`node_labels`|object|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
 |`node_labels_expression`|string|NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.|
@@ -338,7 +338,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`cert_format`|string|CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|
 |`client_idle_timeout`|string|ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|
 |`create_db_user`|Boolean|CreateDatabaseUser enabled automatic database user creation.|
-|`create_db_user_mode`|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
+|`create_db_user_mode`|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`. Can be either the string or the integer representation of each option.|
 |`create_desktop_user`|Boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
 |`create_host_user`|Boolean|CreateHostUser allows users to be automatically created on a host|
 |`create_host_user_default_shell`|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
@@ -350,7 +350,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`enhanced_recording`|[]string|BPF defines what events to record for the BPF-based session recorder.|
 |`forward_agent`|Boolean|ForwardAgent is SSH agent forwarding.|
 |`idp`|[object](#specoptionsidp)|IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|
-|`lock`|string|Lock specifies the locking mode (strict|best_effort) to be applied with the role.|
+|`lock`|string|Lock specifies the locking mode (`strict` or `best_effort`) to be applied with the role.|
 |`max_connections`|integer|MaxConnections defines the maximum number of concurrent connections a user may hold.|
 |`max_kubernetes_connections`|integer|MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.|
 |`max_session_ttl`|string|MaxSessionTTL defines how long a SSH session can last for.|
