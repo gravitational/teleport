@@ -950,6 +950,10 @@ const (
 	// AlertLink is an internal label that indicates that an alert is a link.
 	AlertLink = TeleportInternalLabelPrefix + "link"
 
+	// AlertLinkText is a text that will be rendered by Web UI on the action
+	// button accompanying the alert.
+	AlertLinkText = TeleportInternalLabelPrefix + "link-text"
+
 	// AlertVerbPermit is an internal label that permits a user to view the alert if they
 	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
 	// a coarser control than it might initially appear and has the potential for accidental
