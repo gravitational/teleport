@@ -724,7 +724,7 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 							Type:        UseRFC3339Time(),
 						},
 						"state": {
-							Description: "State could be one of \"init\" or \"in_progress\".",
+							Description: "State could be one of `init` or `in_progress`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
