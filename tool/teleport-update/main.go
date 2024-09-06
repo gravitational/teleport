@@ -414,6 +414,8 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 
 	resp.AgentVersion = "16.2.0" // FIXME: for testing
 	if cfg.Spec.ActiveVersion != resp.AgentVersion {
+		time.Sleep(time.Duration(resp.AgentUpdateJitterSeconds) * time.Second)
+
 		client, err := newClient(&downloadConfig{
 			Pool: certPool,
 		})
