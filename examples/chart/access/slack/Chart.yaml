@@ -6,3 +6,9 @@ description: A Helm chart for the Teleport Slack Plugin
 type: application
 version: *version
 appVersion: *version
+
+dependencies:
+  - name: tbot
+    version: *version
+    repository: "file:///Users/shaka/go/src/github.com/gravitational/teleport-backport/examples/chart/tbot"
+    condition: tbot.enabled
