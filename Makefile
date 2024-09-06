@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.2.0
+VERSION=16.2.1
 
 DOCKER_IMAGE ?= teleport
 
@@ -763,8 +763,9 @@ $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 # PHONY is set so that we rely on Go's mod cache and not Make's cache.
 #
 CHANGELOG := $(TOOLINGDIR)/bin/changelog
+.PHONY: $(CHANGELOG)
 $(CHANGELOG):
-	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
+	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.1
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1102,11 +1103,10 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
 
 #
-# Lints everything but Go sources.
-# Similar to lint.
+# Runs linters without dedicated GitHub Actions.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license
+lint-no-actions: lint-sh lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -1538,6 +1538,12 @@ crds-up-to-date: must-start-clean/host
 		echo 'Please run make -C integrations/operator manifests.'; \
 		exit 1; \
 	fi
+	$(MAKE) -C integrations/operator crd-docs
+	@if ! git diff --quiet; then \
+		echo 'Please run make -C integrations/operator crd-docs.'; \
+		git diff; \
+		exit 1; \
+	fi
 
 # tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
 .PHONY: terraform-resources-up-to-date
@@ -1726,7 +1732,7 @@ rustup-install-target-toolchain: rustup-set-version
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
 .PHONY: changelog
 changelog: $(CHANGELOG)
-	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+	@$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
@@ -1741,8 +1747,9 @@ changelog: $(CHANGELOG)
 # For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
 .PHONY: create-github-release
 create-github-release: LATEST = false
+create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release: $(RELEASE_NOTES_GEN)
-	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \
