@@ -59,15 +59,26 @@ The Teleport Updater supports upgrade schedules and automated rollbacks.
 Find out more at https://goteleport.com/docs/updater`
 
 const (
-	templateEnvVar    = "TELEPORT_URL_TEMPLATE"
+	// templateEnvVar allows the template for the Teleport tgz to be specified via env var.
+	templateEnvVar = "TELEPORT_URL_TEMPLATE"
+	// proxyServerEnvVar allows the proxy server address to be specified via env var.
 	proxyServerEnvVar = "TELEPORT_PROXY"
+	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
+)
 
+const (
+	// cdnURITemplate is the default template for the Teleport tgz download.
 	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
+)
 
+const (
+	// versionsDirName specifies the name of the subdirectory inside of the Teleport data dir for storing Teleport versions.
 	versionsDirName = "versions"
+	// updatesFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
 	updatesFileName = "updates.yaml"
-	lockFileName    = ".lock"
+	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
+	lockFileName = ".lock"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -79,12 +90,17 @@ func main() {
 }
 
 type cliConfig struct {
-	Debug   bool
+	// Debug logs enabled
+	Debug bool
+	// DataDir for Teleport (usually /var/lib/teleport)
 	DataDir string
 
+	// ProxyServer address, scheme and port optional
 	ProxyServer string
-	Group       string
-	Template    string
+	// Group identifier for updates (e.g., staging)
+	Group string
+	// Template for the Teleport tgz download URL
+	Template string
 
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
@@ -134,11 +150,11 @@ func Run(args []string) error {
 
 	switch command {
 	case enableCmd.FullCommand():
-		err = doEnable(ctx, &ccfg)
+		err = cmdEnable(ctx, &ccfg)
 	case disableCmd.FullCommand():
-		err = doDisable(ctx, &ccfg)
+		err = cmdDisable(ctx, &ccfg)
 	case updateCmd.FullCommand():
-		err = doUpdate(ctx, &ccfg)
+		err = cmdUpdate(ctx, &ccfg)
 	case versionCmd.FullCommand():
 		modules.GetModules().PrintVersion()
 	default:
@@ -168,23 +184,34 @@ func setupLogger(debug bool, format string) error {
 
 const (
 	updatesVersion = "v1"
-	updatesKind    = "agent_versions"
+	updatesKind    = "updates"
 )
 
+// UpdatesConfig describes the updates.yaml file schema.
 type UpdatesConfig struct {
-	Version string      `yaml:"version"`
-	Kind    string      `yaml:"kind"`
-	Spec    UpdatesSpec `yaml:"spec"`
+	// Version of the configuration file
+	Version string `yaml:"version"`
+	// Kind of configuration file (always "updates")
+	Kind string `yaml:"kind"`
+	// Spec contains configuration.
+	Spec UpdatesSpec `yaml:"spec"`
 }
 
+// UpdatesSpec describes the spec field in updates.yaml.
 type UpdatesSpec struct {
-	Proxy         string `yaml:"proxy"`
-	Group         string `yaml:"group"`
-	URITemplate   string `yaml:"uri_template"`
-	Enabled       bool   `yaml:"enabled"`
+	// Proxy address
+	Proxy string `yaml:"proxy"`
+	// Group update identifier
+	Group string `yaml:"group"`
+	// URLTemplate for the Teleport tgz download URL.
+	URLTemplate string `yaml:"url_template"`
+	// Enabled controls whether auto-updates are enabled.
+	Enabled bool `yaml:"enabled"`
+	// ActiveVersion is the currently active Teleport version.
 	ActiveVersion string `yaml:"active_version"`
 }
 
+// readUpdatesConfig reads updates.yaml
 func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -210,6 +237,7 @@ func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 	return &cfg, nil
 }
 
+// writeUpdatesConfig writes updates.yaml atomically, ensuring the file cannot be corrupted.
 func writeUpdatesConfig(filename string, cfg *UpdatesConfig) error {
 	opts := append([]renameio.Option{
 		renameio.WithPermissions(0755),
@@ -227,7 +255,8 @@ func writeUpdatesConfig(filename string, cfg *UpdatesConfig) error {
 	return trace.Wrap(t.CloseAtomicallyReplace())
 }
 
-func doDisable(ctx context.Context, ccfg *cliConfig) error {
+// cmdDisable disables updates.
+func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	var (
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
 		updatesYAML = filepath.Join(versionsDir, updatesFileName)
@@ -251,17 +280,21 @@ func doDisable(ctx context.Context, ccfg *cliConfig) error {
 	return nil
 }
 
-func doEnable(ctx context.Context, ccfg *cliConfig) error {
+// cmdEnable enables updates and triggers an initial update.
+func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	var (
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
 		updatesYAML = filepath.Join(versionsDir, updatesFileName)
 	)
+
+	// Ensure enable can't run concurrently.
 	unlock, err := lock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer unlock()
 
+	// Read configuration from updates.yaml and override any new values passed as flags.
 	cfg, err := readUpdatesConfig(updatesYAML)
 	if err != nil {
 		return trace.Wrap(err)
@@ -273,12 +306,14 @@ func doEnable(ctx context.Context, ccfg *cliConfig) error {
 		cfg.Spec.Group = ccfg.Group
 	}
 	if ccfg.Template != "" {
-		cfg.Spec.URITemplate = ccfg.Template
+		cfg.Spec.URLTemplate = ccfg.Template
 	}
 	cfg.Spec.Enabled = true
 	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Lookup target version from the proxy.
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return trace.Wrap(err)
@@ -297,7 +332,9 @@ func doEnable(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Errorf("failed to request version from proxy: %w", err)
 	}
-	resp.AgentVersion = "16.1.0"
+	resp.AgentVersion = "16.2.0" // FIXME: for testing
+
+	// If the active version and target don't match, kick off upgrade.
 	if cfg.Spec.ActiveVersion != resp.AgentVersion {
 		client, err := newClient(&downloadConfig{
 			Pool: certPool,
@@ -310,41 +347,52 @@ func doEnable(ctx context.Context, ccfg *cliConfig) error {
 			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
 			DownloadClient: client,
 		}
-		template := cfg.Spec.URITemplate
+		template := cfg.Spec.URLTemplate
 		if template == "" {
 			template = cdnURITemplate
 		}
+		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
 		err = tv.Create(ctx, template, resp.AgentVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Spec.ActiveVersion = resp.AgentVersion
 	}
+
+	// Always write the configuration file if enable succeeds.
 	if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func doUpdate(ctx context.Context, ccfg *cliConfig) error {
+// cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
+func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	var (
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
 		updatesYAML = filepath.Join(versionsDir, updatesFileName)
 	)
+
+	// Ensure updates can't run concurrently on the same system.
 	unlock, err := lock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer unlock()
 
+	// Read and validate configuration from updates.yaml
 	cfg, err := readUpdatesConfig(updatesYAML)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
 		return trace.Wrap(err)
 	}
 	if !cfg.Spec.Enabled {
 		return trace.Errorf("updates disabled")
 	}
 
+	// Lookup target Teleport version from cluster
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,7 +412,7 @@ func doUpdate(ctx context.Context, ccfg *cliConfig) error {
 		return trace.Errorf("failed to request version from proxy: %w", err)
 	}
 
-	resp.AgentVersion = "16.1.0"
+	resp.AgentVersion = "16.2.0" // FIXME: for testing
 	if cfg.Spec.ActiveVersion != resp.AgentVersion {
 		client, err := newClient(&downloadConfig{
 			Pool: certPool,
@@ -374,18 +422,21 @@ func doUpdate(ctx context.Context, ccfg *cliConfig) error {
 		}
 		defer client.CloseIdleConnections()
 		tv := TeleportVersion{
-			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
+			VersionsDir:    versionsDir,
 			DownloadClient: client,
 		}
-		template := cfg.Spec.URITemplate
+		template := cfg.Spec.URLTemplate
 		if template == "" {
 			template = cdnURITemplate
 		}
+		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
 		err = tv.Create(ctx, template, resp.AgentVersion)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Spec.ActiveVersion = resp.AgentVersion
+
+		// Only write updates.yaml if the version has changed.
 		if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
 			return trace.Wrap(err)
 		}
