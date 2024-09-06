@@ -1,11 +1,13 @@
 AADUSER
 ABCDEFGHIJKL
+ACLs
 ADFS
 AICPA
 AICPA’s
 AKIA
 ALPN
 AMAZ
+AMIs
 ANPAW
 APIs
 APPDATA
@@ -19,6 +21,7 @@ Aarch
 Activ
 Addrs
 Afax
+Ansible
 Aqxs
 Authy
 BDRVJUSUZ
@@ -33,7 +36,9 @@ CHANGEID
 CHANGEME
 CIDRs
 CLOUDSDK
+CRDs
 CREATEDB
+CRs
 CTAP
 CXXXXXXXXX
 Callouts
@@ -45,12 +50,14 @@ DNSSANs
 DQMB
 DSID
 DWORD
+Datadog
 Decisiv
 Deeplink
 Dfnnpu
 Dfumu
 Distroless
 Divio's
+Docker's
 EBSCSI
 ECCP
 ECMWF
@@ -109,6 +116,7 @@ JWTs
 JYAUAA
 Jamf
 Jetstack
+Jira
 Jlbm
 Jlbn
 Jpji
@@ -117,6 +125,7 @@ Kanban
 Kerberos
 Keycloak
 Keyspaces
+Kibana
 Kubelet
 Kubernetes
 Kubes
@@ -124,6 +133,7 @@ LDAPS
 LOCALAPPDATA
 Linkerd
 LnaRP0xKWRI
+Logstash
 MAINPID
 MDAs
 MGET
@@ -135,6 +145,7 @@ MYPROJ
 MYTOKEN
 MYZONE
 Mailgun
+Mattermost
 Minidriver
 Moba
 Mqgcq
@@ -146,6 +157,7 @@ NOKEY
 NOPASSWD
 NVGJ
 Näme
+OAuth
 ODBC
 OIDC
 OTLP
@@ -173,12 +185,14 @@ Passcode
 Passwordless
 Pbbd
 Pluggable
+Postgres
 Println
 Quickstart
 Quicktime's
 REDISCLI
 REPLCONF
 REPLICAOF
+RPCs
 RPID
 RSQL
 Rdik
@@ -186,6 +200,7 @@ Relogging
 Relogin
 SAMLIDP
 SCIM
+SDKs
 SECURITYADMIN
 SIEM
 SIGINT
@@ -210,6 +225,7 @@ Sllavd
 Smartcard
 Spacelift
 Spacelift's
+Splunk
 Sprintf
 Stackdriver
 Svhk
@@ -230,12 +246,14 @@ Templating
 Tmkx
 Toboth
 Traefik
+URIs
 Upgrader
 Upgraders
 Upsert
 Upserted
 Upserts
 Uwhp
+VMs
 VPCID
 VSVZY
 Vhka
@@ -279,6 +297,7 @@ allkeys
 allowdeny
 allowedlogins
 anonymization
+anonymized
 anotheruser
 apikey
 apimachinery
@@ -308,6 +327,7 @@ automaticupgrades
 automations
 automount
 autoscale
+autoscaling
 awly
 awsapp
 awsathena
@@ -333,6 +353,7 @@ bjoerger
 bluemix
 boltdb
 boringcrypto
+bot's
 boto
 buildbox
 cacerts
@@ -384,6 +405,7 @@ compat
 compinit
 compu
 cond
+config
 configmap
 connectionupgrade
 connectorname
@@ -417,6 +439,7 @@ deletecollection
 demodb
 deregister
 deregisters
+dev
 devel
 develnode
 devicetrust
@@ -459,6 +482,7 @@ entityandreplyurl
 envfile
 enzos
 errcode
+etcd
 etcdctl
 exadata
 exadatadomain
@@ -479,6 +503,7 @@ federationmedata
 fedmeatadataxml
 fedramp
 fedrampfips
+filepath
 fips
 firstname
 fklvk
@@ -500,6 +525,7 @@ glmhf
 gncm
 googleoidc
 googleusercontent
+goroutine
 goroutines
 goteleport
 gotemplate
@@ -605,6 +631,8 @@ loginuid
 loginwithmsft
 logrus
 longterm
+lookups
+loopback
 lptne
 lsnrctl
 lucidchart
@@ -717,6 +745,7 @@ oidcauthentication
 oids
 oktapreview
 oldssh
+onboarding
 onelogin
 oneshot
 onmicrosoft
@@ -736,6 +765,7 @@ pagerdutyapikey
 pagerdutyapikeyfromsecret
 paramiko
 parquetlog
+passwordless
 pastable
 pasteable
 persistentvolume
@@ -800,6 +830,7 @@ removelock
 replaceall
 replicaset
 replicationgroup
+repo
 requestable
 requestsclaims
 requirepass
@@ -811,6 +842,7 @@ rolearn
 rolebinding
 rolebindings
 rolesanywhere
+rollout
 rollouts
 rootca
 rootcluster
@@ -941,6 +973,8 @@ sslmode
 sslrootcert
 starttls
 statefulset
+stderr
+stdout
 storageclasses
 storageenabled
 strslice
@@ -950,11 +984,13 @@ subgroups
 subkind
 subnet
 subnets
+sudo
 sudoer
 supervillain
 svid
 syscalls
 sysdba
+systemd
 sysvinit
 tadmin
 tbot
@@ -1012,11 +1048,13 @@ turnoffuserassign
 ubunutu
 udev
 unconfigured
+unencrypted
 uninstallation
 uniqueid
 unmarshal
 unprefixed
 unregistering
+untrusted
 updaterow
 updaterreleasechannel
 updaterversionserver
