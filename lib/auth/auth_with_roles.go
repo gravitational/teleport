@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -3273,34 +3272,19 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	var sshPublicKey, tlsPublicKey []byte
-	var sshPublicKeyAttestationStatement, tlsPublicKeyAttestationStatement *keys.AttestationStatement
-	sharedPublicKey := req.PublicKey //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
-	if sharedPublicKey != nil {
-		if req.SSHPublicKey != nil || req.TLSPublicKey != nil {
-			return nil, trace.BadParameter("illegal to set SSHPublicKey or TLSPublicKey in addition to PublicKey (this is a bug)")
-		}
-		if req.SSHPublicKeyAttestationStatement != nil || req.TLSPublicKeyAttestationStatement != nil {
-			return nil, trace.BadParameter("illegal to set SSHPublicKeyAttestationStatement or TLSPublicKeyAttestationStatement in addition to PublicKey (this is a bug)")
-		}
-		sshPublicKey = sharedPublicKey
-		cryptoPubKey, err := sshutils.CryptoPublicKey(sharedPublicKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsPublicKey, err = keys.MarshalPublicKey(cryptoPubKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sharedAttestationStatement := req.AttestationStatement //nolint:staticcheck // SA1019: still need to handle the deprecated field to support older clients.
-		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
-		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(sharedAttestationStatement)
-	} else {
-		sshPublicKey = req.SSHPublicKey
-		tlsPublicKey = req.TLSPublicKey
-		sshPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement)
-		tlsPublicKeyAttestationStatement = keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement)
+	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SSHPublicKey,
+		req.TLSPublicKey,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
+		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
+	)
 
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
@@ -3311,8 +3295,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		compatibility:                    req.Format,
 		sshPublicKey:                     sshPublicKey,
 		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+		sshPublicKeyAttestationStatement: sshAttestationStatement,
+		tlsPublicKeyAttestationStatement: tlsAttestationStatement,
 		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,

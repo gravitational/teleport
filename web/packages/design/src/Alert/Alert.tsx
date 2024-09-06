@@ -211,7 +211,6 @@ export const Alert = ({
 const OuterContainer = styled.div<AlertProps>`
   box-sizing: border-box;
   margin: 0 0 24px 0;
-  min-height: 40px;
 
   border: ${p => p.theme.borders[2]};
   border-radius: ${p => p.theme.radii[3]}px;
