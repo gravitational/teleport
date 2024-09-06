@@ -8,7 +8,6 @@ Aqxs
 Authy
 Binm
 Brosnan
-CAcreateserial
 Callouts
 Cgajq
 Datadog
@@ -19,7 +18,6 @@ Dfumu
 Distroless
 Divio's
 Docker's
-EKCert
 Elastcsearch
 Elasticvue
 Entra
@@ -73,12 +71,10 @@ Multifactor
 Multihost
 Mzgz
 Näme
-OAuth
 Obxo
 Okta
 Olsi
 Olsia
-OpenAI
 Opsgenie
 Orapki
 Passcode
@@ -123,7 +119,6 @@ Vitess
 Vybm
 Wdss
 Webauth
-XshowSettings
 Ypga
 Yubico
 Yubikeys

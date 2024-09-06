@@ -12,3 +12,5 @@ ignore:
 filters:
   # Plural abbreviations and possessives
   - "[A-Z]+'?s"
+  # Camelcase words, e.g., "OIDCIdentities"
+  - "([A-Z]+([a-z]+)?){2,}"
