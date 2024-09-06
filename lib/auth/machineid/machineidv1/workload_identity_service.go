@@ -40,9 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const spiffeScheme = "spiffe"
@@ -360,10 +362,16 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	return res, nil
 }
 
+const jtiLength = 16
+
 func (wis *WorkloadIdentityService) signJWTSVID(
 	ctx context.Context,
+	authCtx *authz.Context,
+	clusterName string,
+	key *jwt.Key,
 	req *pb.JWTSVIDRequest,
-) (err error) {
+) (res *pb.JWTSVIDResponse, err error) {
+	var jti string
 	var spiffeID *url.URL
 	defer func() {
 		evt := &apievents.SPIFFESVIDIssued{
@@ -375,6 +383,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 			ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			Hint:               req.Hint,
 			SVIDType:           "jwt",
+			Audiences:          req.Audiences,
 		}
 		if err != nil {
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
@@ -382,13 +391,40 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		if spiffeID != nil {
 			evt.SPIFFEID = spiffeID.String()
 		}
+		if jti != "" {
+			evt.JTI = jti
+		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
 			wis.logger.WithError(emitErr).Warn(
 				"Failed to emit SPIFFE SVID issued event.",
 			)
 		}
 	}()
-	// TODO: JTI for audit log trail
+
+	switch {
+	case req.SpiffeIdPath == "":
+		return nil, trace.BadParameter("spiffe_id_path: must be non-empty")
+	case !strings.HasPrefix(req.SpiffeIdPath, "/"):
+		return nil, trace.BadParameter("spiffe_id_path: must start with '/'")
+	case len(req.Audiences) == 0:
+		return nil, trace.BadParameter("audiences: must be non-empty")
+	}
+
+	// TODO: Authz
+
+	// Create a JTI to uniquely identify this JWT for audit logging purposes
+	jti, err = utils.CryptoRandomHex(jtiLength)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating JTI")
+	}
+
+	spiffeID = &url.URL{
+		Scheme: spiffeScheme,
+		Host:   clusterName,
+		Path:   req.SpiffeIdPath,
+	}
+
+	return nil, trace.NotImplemented("pls returrn something")
 }
 
 // SignJWTSVIDs signs and returns the requested JWT SVIDs.
@@ -417,5 +453,26 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 		return nil, trace.Wrap(err, "getting SPIFFE CA")
 	}
 	jwtSigner, err := wis.keyStorer.GetJWTSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT signer")
+	}
+	jwtKey, err := services.GetJWTSigner(
+		jwtSigner, clusterName.GetClusterName(), wis.clock,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting JWT key")
+	}
 
+	res := &pb.SignJWTSVIDsResponse{}
+	for i, svidReq := range req.Svids {
+		svidRes, err := wis.signJWTSVID(
+			ctx, authCtx, clusterName.GetClusterName(), jwtKey, svidReq,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "signing svid %d", i)
+		}
+		res.Svids = append(res.Svids, svidRes)
+	}
+
+	return res, nil
 }

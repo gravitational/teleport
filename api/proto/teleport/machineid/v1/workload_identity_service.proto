@@ -90,7 +90,7 @@ message JWTSVIDRequest {
   string spiffe_id_path = 1;
   // The value that should be included in the JWT SVID as the `aud` claim.
   // Required.
-  string audience = 2;
+  repeated string audiences = 2;
   // The TTL to use for the x509 SVID. A maximum value is enforced on this
   // field. Callers should inspect the returned cert to determine if their
   // requested TTL has been met, and if not, adjust their behaviour. If not
@@ -106,13 +106,15 @@ message JWTSVIDRequest {
 message JWTSVIDResponse {
   // The JWT SVID.
   string jwt = 1;
+  // The JTI that was included in the JWT.
+  string jti = 2;
   // The full SPIFFE ID that was included in the x509 SVID.
-  string spiffe_id = 2;
+  string spiffe_id = 3;
   // The audience that was included in the JWT.
-  string audience = 3;
+  repeated string audience = 4;
   // The hint that was included in SVIDRequest in order to allow a workload to
   // distinguish an individual SVID.
-  string hint = 4;
+  string hint = 5;
 }
 
 // The request for SignJWTSVIDs.
