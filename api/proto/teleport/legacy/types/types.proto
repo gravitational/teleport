@@ -102,7 +102,7 @@ message Rotation {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
 
-  // State could be one of "init" or "in_progress".
+  // State could be one of `init` or `in_progress`.
   string State = 1 [(gogoproto.jsontag) = "state,omitempty"];
   // Phase is the current rotation phase.
   string Phase = 2 [(gogoproto.jsontag) = "phase,omitempty"];
@@ -112,7 +112,7 @@ message Rotation {
   // to differentiate between rotation attempts.
   string CurrentID = 4 [(gogoproto.jsontag) = "current_id"];
   // Started is set to the time when rotation has been started
-  // in case if the state of the rotation is "in_progress".
+  // in case if the state of the rotation is `in_progress`.
   google.protobuf.Timestamp Started = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.stdtime) = true,
@@ -1277,7 +1277,8 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
+  // Supported joining methods include: `azure`, `circleci`, `ec2`, `gcp`,
+  // `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
@@ -1292,9 +1293,9 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
-  // GitHub allows the configuration of options specific to the "github" join method.
+  // GitHub allows the configuration of options specific to the `github` join method.
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
-  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  // CircleCI allows the configuration of options specific to the `circleci` join method.
   ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
   // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
   // When an agent uses this token, the agent should monitor resources that match those labels.
@@ -1305,19 +1306,19 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
-  // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
+  // Kubernetes allows the configuration of options specific to the `kubernetes` join method.
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
-  // Azure allows the configuration of options specific to the "azure" join method.
+  // Azure allows the configuration of options specific to the `azure` join method.
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
-  // GitLab allows the configuration of options specific to the "gitlab" join method.
+  // GitLab allows the configuration of options specific to the `gitlab` join method.
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
-  // GCP allows the configuration of options specific to the "gcp" join method.
+  // GCP allows the configuration of options specific to the `gcp` join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
-  // Spacelift allows the configuration of options specific to the "spacelift" join method.
+  // Spacelift allows the configuration of options specific to the `spacelift` join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
-  // TPM allows the configuration of options specific to the "tpm" join method.
+  // TPM allows the configuration of options specific to the `tpm` join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
-  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  // TerraformCloud allows the configuration of options specific to the `terraform_cloud` join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
@@ -1389,10 +1390,10 @@ message ProvisionTokenSpecV2GitHub {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
-  // EnterpriseServerHost allows joining from runners associated with a
-  // GitHub Enterprise Server instance. When unconfigured, tokens will be
-  // validated against github.com, but when configured to the host of a GHES
-  // instance, then the tokens will be validated against host.
+  // EnterpriseServerHost allows joining from runners associated with a GitHub
+  // Enterprise Server instance. When unconfigured, tokens will be validated
+  // against `github.com`, but when configured to the host of a GHES instance,
+  // then the tokens will be validated against host.
   //
   // This value should be the hostname of the GHES instance, and should not
   // include the scheme or a path. The instance must be accessible over HTTPS
@@ -2990,13 +2991,13 @@ message RoleOptions {
 
   // CreateHostUserMode allows users to be automatically created on a
   // host when not set to off.
-  // 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above),
-  // 3 is "keep"; 4 is "insecure-drop".
+  // 0 is `unspecified`; 1 is `off`; 2 is `drop` (removed for v15 and above),
+  // 3 is `keep`; 4 is `insecure-drop`.
   CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 
   // CreateDatabaseUserMode allows users to be automatically created on a
   // database when not set to off.
-  // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
+  // 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`.
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 
   // MFAVerificationInterval optionally defines the maximum duration that can elapse
@@ -3093,12 +3094,12 @@ message RoleConditions {
     (gogoproto.jsontag) = "rules,omitempty"
   ];
 
-  // KubeGroups is a list of kubernetes groups
+  // KubeGroups is a list of Kubernetes groups
   repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
 
   AccessRequestConditions Request = 6 [(gogoproto.jsontag) = "request,omitempty"];
 
-  // KubeUsers is an optional kubernetes users to impersonate
+  // KubeUsers is an optional Kubernetes users to impersonate
   repeated string KubeUsers = 7 [(gogoproto.jsontag) = "kubernetes_users,omitempty"];
 
   // AppLabels is a map of labels used as part of the RBAC system.
@@ -3116,7 +3117,7 @@ message RoleConditions {
     (gogoproto.customtype) = "Labels"
   ];
 
-  // KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
+  // KubernetesLabels is a map of Kubernetes cluster labels used for RBAC.
   wrappers.LabelValues KubernetesLabels = 10 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kubernetes_labels,omitempty",
@@ -3208,7 +3209,7 @@ message RoleConditions {
   // to remote Teleport clusters.
   string ClusterLabelsExpression = 32 [(gogoproto.jsontag) = "cluster_labels_expression,omitempty"];
   // KubernetesLabelsExpression is a predicate expression used to allow/deny
-  // access to kubernetes clusters.
+  // access to Kubernetes clusters.
   string KubernetesLabelsExpression = 33 [(gogoproto.jsontag) = "kubernetes_labels_expression,omitempty"];
   // DatabaseLabelsExpression is a predicate expression used to allow/deny
   // access to Databases.
@@ -3551,7 +3552,7 @@ message UserSpecV2 {
     (gogoproto.jsontag) = "saml_identities,omitempty"
   ];
 
-  // GithubIdentities list associated Github OAuth2 identities
+  // GithubIdentities list associated GitHub OAuth2 identities
   // that let user log in using externally verified identity
   repeated ExternalIdentity GithubIdentities = 3 [
     (gogoproto.nullable) = false,
@@ -4498,15 +4499,15 @@ message OIDCConnectorSpecV3 {
   string Display = 7 [(gogoproto.jsontag) = "display,omitempty"];
   // Scope specifies additional scopes set by provider.
   repeated string Scope = 8 [(gogoproto.jsontag) = "scope,omitempty"];
-  // Prompt is an optional OIDC prompt. An empty string omits prompt.
-  // If not specified, it defaults to select_account for backwards compatibility.
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.  If not
+  // specified, it defaults to `select_account` for backwards compatibility.
   string Prompt = 9 [(gogoproto.jsontag) = "prompt,omitempty"];
   // ClaimsToRoles specifies a dynamic mapping from claims to roles.
   repeated ClaimMapping ClaimsToRoles = 10 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "claims_to_roles,omitempty"
   ];
-  // GoogleServiceAccountURI is a path to a google service account uri.
+  // GoogleServiceAccountURI is a path to a google service account URI.
   string GoogleServiceAccountURI = 11 [(gogoproto.jsontag) = "google_service_account_uri,omitempty"];
   // GoogleServiceAccount is a string containing google service account credentials.
   string GoogleServiceAccount = 12 [(gogoproto.jsontag) = "google_service_account,omitempty"];
@@ -4516,7 +4517,7 @@ message OIDCConnectorSpecV3 {
   // to redirect the client back to the Teleport Proxy to complete authentication.
   // This list should match the URLs on the provider's side. The URL used for a
   // given auth request will be chosen to match the requesting Proxy's public
-  // address. If there is no match, the first url in the list will be used.
+  // address. If there is no match, the first URL in the list will be used.
   wrappers.StringValues RedirectURLs = 14 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "redirect_url",
@@ -4550,7 +4551,7 @@ message MaxAge {
 // SSOClientRedirectSettings contains settings to define which additional client
 // redirect URLs should be allowed for non-browser SSO logins.
 message SSOClientRedirectSettings {
-  // a list of hostnames allowed for https client redirect URLs
+  // a list of hostnames allowed for HTTPS client redirect URLs
   repeated string allowed_https_hostnames = 1;
   // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
   repeated string insecure_allowed_cidr_ranges = 2;
@@ -4862,13 +4863,13 @@ message GithubConnectorV3List {
 
 // GithubConnectorSpecV3 is a Github connector specification.
 message GithubConnectorSpecV3 {
-  // ClientID is the Github OAuth app client ID.
+  // ClientID is the GitHub OAuth app client ID.
   string ClientID = 1 [(gogoproto.jsontag) = "client_id"];
-  // ClientSecret is the Github OAuth app client secret.
+  // ClientSecret is the GitHub OAuth app client secret.
   string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
   // RedirectURL is the authorization callback URL.
   string RedirectURL = 3 [(gogoproto.jsontag) = "redirect_url"];
-  // TeamsToLogins maps Github team memberships onto allowed logins/roles.
+  // TeamsToLogins maps GitHub team memberships onto allowed logins/roles.
   //
   // DELETE IN 11.0.0
   // Deprecated: use GithubTeamsToRoles instead.
@@ -4878,14 +4879,14 @@ message GithubConnectorSpecV3 {
   ];
   // Display is the connector display name.
   string Display = 5 [(gogoproto.jsontag) = "display"];
-  // TeamsToRoles maps Github team memberships onto allowed roles.
+  // TeamsToRoles maps GitHub team memberships onto allowed roles.
   repeated TeamRolesMapping TeamsToRoles = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "teams_to_roles"
   ];
   // EndpointURL is the URL of the GitHub instance this connector is for.
   string EndpointURL = 7 [(gogoproto.jsontag) = "endpoint_url"];
-  // APIEndpointURL is the URL of the API endpoint of the Github instance
+  // APIEndpointURL is the URL of the API endpoint of the GitHub instance
   // this connector is for.
   string APIEndpointURL = 8 [(gogoproto.jsontag) = "api_endpoint_url"];
   // ClientRedirectSettings defines which client redirect URLs are allowed for
@@ -5151,7 +5152,7 @@ message TeamMapping {
 
 // TeamRolesMapping represents a single team membership mapping.
 message TeamRolesMapping {
-  // Organization is a Github organization a user belongs to.
+  // Organization is a GitHub organization a user belongs to.
   string Organization = 1 [(gogoproto.jsontag) = "organization"];
   // Team is a team within the organization a user belongs to.
   string Team = 2 [(gogoproto.jsontag) = "team"];
