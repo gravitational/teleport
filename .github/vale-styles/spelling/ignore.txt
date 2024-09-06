@@ -65,6 +65,7 @@ Logstash
 Mailgun
 Mattermost
 Minidriver
+Misconfiguration
 Moba
 Mqgcq
 Multifactor
@@ -96,6 +97,7 @@ Smartcard
 Spacelift
 Spacelift's
 Splunk
+Splunk's
 Sprintf
 Stackdriver
 Svhk
@@ -194,6 +196,7 @@ backoff
 backported
 backporting
 backports
+bcrypt
 behaviour
 benarent
 bfhunter
@@ -331,6 +334,7 @@ envfile
 enzos
 errcode
 etcd
+etcd's
 etcdctl
 exadata
 exadatadomain
@@ -387,6 +391,7 @@ gserviceaccount
 gslb
 gsutil
 gworkspace
+hardcoded
 hashfile
 hashicorp
 healthcheck
@@ -429,6 +434,7 @@ jiraapitokenfromsecret
 johndoe
 joinparams
 journalctl
+jq
 jqvns
 jsmith
 jsonencode
@@ -505,6 +511,7 @@ metav
 microk
 minikube
 minikube's
+misconfigured
 mkstore
 mlock
 mlockall
@@ -664,6 +671,7 @@ rdsproxy
 readall
 readyz
 realmd
+reauthenticate
 reauthenticates
 reauthentication
 recents
@@ -838,6 +846,7 @@ supervillain
 svid
 syscalls
 sysdba
+syslog
 systemd
 sysvinit
 tadmin
