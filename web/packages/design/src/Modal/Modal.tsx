@@ -39,10 +39,8 @@ type Props = {
 
   /**
    * Properties applied to the Backdrop element.
-   *
-   * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
    */
-  BackdropProps?: object;
+  BackdropProps?: BackdropProps;
 
   /**
    * If `true`, the modal will not automatically shift focus to itself when it opens, and
@@ -273,7 +271,15 @@ export default class Modal extends React.Component<Props> {
   }
 }
 
-function Backdrop(props) {
+type BackdropProps = {
+  /**
+   * Allows backdrop to keep bg color of parent eg: popup menu
+   */
+  invisible: boolean;
+  [prop: string]: any;
+};
+
+function Backdrop(props: BackdropProps) {
   const { invisible, ...rest } = props;
   return (
     <StyledBackdrop
@@ -285,7 +291,7 @@ function Backdrop(props) {
   );
 }
 
-const StyledBackdrop = styled.div<{ invisible: boolean }>`
+const StyledBackdrop = styled.div<BackdropProps>`
   z-index: -1;
   position: fixed;
   right: 0;
