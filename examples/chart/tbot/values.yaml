@@ -44,6 +44,12 @@ teleportAuthAddress: ""
 defaultOutput:
   # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
   enabled: true
+  # defaultOutput.secretName(string) -- sets the name of the Kubernetes Secret
+  # that the default output will be written to. Defaults to a secret named
+  # `<fullname>-output`. The chart fullname is:
+  # - `<release-name>-<chart-name>` if the release name doesn't contain the chart name already
+  # - `<release-name>` if the release name contain the chart name
+  secretName: ""
 
 # persistence -- controls how the tbot agent stores its data.
 #
