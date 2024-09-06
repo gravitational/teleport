@@ -315,9 +315,12 @@ type PingResponse struct {
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
 
-	AgentAutoupdate          bool   `json:"agent_autoupdate"`
-	AgentVersion             string `json:"agent_version"`
-	AgentUpdateJitterSeconds int    `json:"agent_update_jitter_seconds"`
+	// AgentAutoupdate specifies whether an agent should update now (not implemented).
+	AgentAutoupdate bool `json:"agent_autoupdate"`
+	// AgentVersion contains the target agent version (not implemented).
+	AgentVersion string `json:"agent_version"`
+	// AgentUpdateJitterSeconds specifies the amount of jitter to wait before updating (not implemented).
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
