@@ -680,6 +680,7 @@ nameidentifier
 nameserver
 namespace
 namespaced
+namespaces
 navin
 ndots
 netcat
