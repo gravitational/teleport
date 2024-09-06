@@ -337,18 +337,18 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`cert_extensions`|[][object](#specoptionscert_extensions-items)|CertExtensions specifies the key/values|
 |`cert_format`|string|CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|
 |`client_idle_timeout`|string|ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|
-|`create_db_user`|boolean|CreateDatabaseUser enabled automatic database user creation.|
+|`create_db_user`|Boolean|CreateDatabaseUser enabled automatic database user creation.|
 |`create_db_user_mode`|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
-|`create_desktop_user`|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
-|`create_host_user`|boolean|CreateHostUser allows users to be automatically created on a host|
+|`create_desktop_user`|Boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
+|`create_host_user`|Boolean|CreateHostUser allows users to be automatically created on a host|
 |`create_host_user_default_shell`|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
 |`create_host_user_mode`|string or integer|CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". Can be either the string or the integer representation of each option.|
-|`desktop_clipboard`|boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|
-|`desktop_directory_sharing`|boolean|DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.|
+|`desktop_clipboard`|Boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|
+|`desktop_directory_sharing`|Boolean|DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.|
 |`device_trust_mode`|string|DeviceTrustMode is the device authorization mode used for the resources associated with the role. See DeviceTrust.Mode.|
-|`disconnect_expired_cert`|boolean|DisconnectExpiredCert sets disconnect clients on expired certificates.|
+|`disconnect_expired_cert`|Boolean|DisconnectExpiredCert sets disconnect clients on expired certificates.|
 |`enhanced_recording`|[]string|BPF defines what events to record for the BPF-based session recorder.|
-|`forward_agent`|boolean|ForwardAgent is SSH agent forwarding.|
+|`forward_agent`|Boolean|ForwardAgent is SSH agent forwarding.|
 |`idp`|[object](#specoptionsidp)|IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.|
 |`lock`|string|Lock specifies the locking mode (strict|best_effort) to be applied with the role.|
 |`max_connections`|integer|MaxConnections defines the maximum number of concurrent connections a user may hold.|
@@ -356,14 +356,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |`max_session_ttl`|string|MaxSessionTTL defines how long a SSH session can last for.|
 |`max_sessions`|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
 |`mfa_verification_interval`|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
-|`permit_x11_forwarding`|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
-|`pin_source_ip`|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
-|`port_forwarding`|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
+|`permit_x11_forwarding`|Boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
+|`pin_source_ip`|Boolean|PinSourceIP forces the same client IP for certificate generation and usage|
+|`port_forwarding`|Boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|
 |`record_session`|[object](#specoptionsrecord_session)|RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.|
 |`request_access`|string|RequestAccess defines the request strategy (optional|note|always) where optional is the default.|
 |`request_prompt`|string|RequestPrompt is an optional message which tells users what they aught to request.|
 |`require_session_mfa`|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
-|`ssh_file_copy`|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
+|`ssh_file_copy`|Boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
 
 ### `spec.options.cert_extensions items`
 
@@ -384,13 +384,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|`enabled`|boolean|Enabled is set to true if this option allows access to the Teleport SAML IdP.|
+|`enabled`|Boolean|Enabled is set to true if this option allows access to the Teleport SAML IdP.|
 
 ### `spec.options.record_session`
 
 |Field|Type|Description|
 |---|---|---|
 |`default`|string|Default indicates the default value for the services.|
-|`desktop`|boolean|Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|
+|`desktop`|Boolean|Desktop indicates whether desktop sessions should be recorded. It defaults to true unless explicitly set to false.|
 |`ssh`|string|SSH indicates the session mode used on SSH sessions.|
 

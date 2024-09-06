@@ -213,6 +213,13 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 			fieldDesc = v.Description
 		}
 
+		// Fix the spelling of "boolean". This is the only type
+		// name that requires processing prior to adding to the
+		// table.
+		if fieldType == "boolean" {
+			fieldType = "Boolean"
+		}
+
 		fields = append(fields, PropertyTableField{
 			Name:        k,
 			Type:        fieldType,

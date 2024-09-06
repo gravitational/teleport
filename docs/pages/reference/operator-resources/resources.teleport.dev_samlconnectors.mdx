@@ -27,7 +27,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |`acs`|string|AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).|
-|`allow_idp_initiated`|boolean|AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.|
+|`allow_idp_initiated`|Boolean|AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.|
 |`assertion_key_pair`|[object](#specassertion_key_pair)|EncryptionKeyPair is a key pair used for decrypting SAML assertions.|
 |`attributes_to_roles`|[][object](#specattributes_to_roles-items)|AttributesToRoles is a list of mappings of attribute statements to roles.|
 |`audience`|string|Audience uniquely identifies our service provider.|
