@@ -1381,7 +1381,7 @@ const (
 
 	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
 	// to indiciate credential type.
-	DatadogCredential = "datadog/credential"
+	DatadogCredentialLabel = "datadog/credential"
 
 	// DatadogCredentialAPIKey indicates that the credential is used as a
 	// Datadog API key.

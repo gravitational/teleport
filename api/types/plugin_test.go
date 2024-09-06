@@ -936,7 +936,7 @@ func TestPluginDatadogValidation(t *testing.T) {
 			},
 		},
 		{
-			name: "no api endpoint",
+			name: "no fallback recipient",
 			settings: &PluginSpecV1_Datadog{
 				Datadog: &PluginDatadogAccessSettings{},
 			},
