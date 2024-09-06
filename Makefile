@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=15.4.17
+VERSION=15.4.18
 
 DOCKER_IMAGE ?= teleport
 
@@ -1040,11 +1040,10 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
 
 #
-# Lints everything but Go sources.
-# Similar to lint.
+# Runs linters without dedicated GitHub Actions.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license lint-rust
+lint-no-actions: lint-sh lint-license lint-rust
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport

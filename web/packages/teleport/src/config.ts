@@ -85,6 +85,10 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // enterprise non-exact routes will be merged into this
+  // see `getNonExactRoutes` for details about non-exact routes
+  nonExactRoutes: [],
+
   // featureLimits define limits for features.
   // Typically used with feature teasers if feature is not enabled for the
   // product type eg: Team product contains teasers to upgrade to Enterprise.
@@ -371,6 +375,19 @@ const cfg = {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
     },
+  },
+
+  getNonExactRoutes() {
+    // These routes will not be exact matched when deciding if it is a valid route
+    // to redirect to when a user is unauthenticated.
+    // This is useful for routes that can be infinitely nested, e.g. `
+    // /web/accessgraph` and `/web/accessgraph/integrations/new`
+    // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
+
+    return [
+      // at the moment, only `e` has an exempt route, which is merged in on `cfg.init()`
+      ...this.nonExactRoutes,
+    ];
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
