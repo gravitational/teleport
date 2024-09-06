@@ -68,6 +68,9 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// Group is an optional agent group identifier that modulates
+	// the returned desired agent version update information.
+	Group string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -170,6 +173,10 @@ func Find(cfg *Config) (*PingResponse, error) {
 	defer span.End()
 
 	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+
+	if cfg.Group != "" {
+		endpoint = fmt.Sprintf("%s?group=%s", endpoint, cfg.Group)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {

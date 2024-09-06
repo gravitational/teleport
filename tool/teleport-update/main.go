@@ -82,7 +82,8 @@ func main() {
 }
 
 type cliConfig struct {
-	Debug bool
+	Debug   bool
+	DataDir string
 
 	ProxyServer string
 	Group       string
@@ -94,19 +95,23 @@ type cliConfig struct {
 }
 
 func Run(args []string) error {
-	var cf cliConfig
+	var ccfg cliConfig
 	ctx := context.Background()
 
 	app := libutils.InitCLIParser("teleport-updater", appHelp).Interspersed(false)
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&ccfg.Debug)
+	app.Flag("data-dir", "Directory to store teleport versions. Access to this directory should be limited.").StringVar(&ccfg.DataDir)
+	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").Default(libutils.LogFormatText).
+		EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
+
 	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", "Print the version of your teleport-updater binary.")
 
 	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
-	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
-	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').Envar(updateGroupEnvVar).StringVar(&cf.Group)
-	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").Short('t').Envar(templateEnvVar).StringVar(&cf.Template)
+	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.ProxyServer)
+	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").Short('t').Envar(templateEnvVar).StringVar(&ccfg.Template)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
@@ -120,18 +125,18 @@ func Run(args []string) error {
 	}
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
-	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
+	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
 		return trace.Errorf("setting up logger")
 	}
 
-	err = validate(&cf)
+	err = validate(&ccfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch command {
 	case enableCmd.FullCommand():
-		err = doEnable(ctx, &cf)
+		err = doEnable(ctx, &ccfg)
 	case disableCmd.FullCommand():
 		err = doDisable()
 	case updateCmd.FullCommand():
@@ -243,7 +248,7 @@ func doDisable() error {
 	return nil
 }
 
-func doEnable(ctx context.Context, cf *cliConfig) error {
+func doEnable(ctx context.Context, ccfg *cliConfig) error {
 	unlock, err := lock()
 	if err != nil {
 		return trace.Wrap(err)
@@ -254,14 +259,14 @@ func doEnable(ctx context.Context, cf *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if cf.ProxyServer != "" {
-		cfg.Spec.Proxy = cf.ProxyServer
+	if ccfg.ProxyServer != "" {
+		cfg.Spec.Proxy = ccfg.ProxyServer
 	}
-	if cf.Group != "" {
-		cfg.Spec.Group = cf.Group
+	if ccfg.Group != "" {
+		cfg.Spec.Group = ccfg.Group
 	}
-	if cf.Template != "" {
-		cfg.Spec.URITemplate = cf.Template
+	if ccfg.Template != "" {
+		cfg.Spec.URITemplate = ccfg.Template
 	}
 	cfg.Spec.Enabled = true
 
@@ -273,6 +278,7 @@ func doEnable(ctx context.Context, cf *cliConfig) error {
 		Context:   ctx,
 		ProxyAddr: addr.Addr,
 		Timeout:   30 * time.Second,
+		Group:     cfg.Spec.Group,
 	})
 	if err != nil {
 		return trace.Errorf("failed to request version from proxy: %w", err)
@@ -313,6 +319,7 @@ func doUpdate(ctx context.Context) error {
 		Context:   ctx,
 		ProxyAddr: addr.Addr,
 		Timeout:   30 * time.Second,
+		Group:     cfg.Spec.Group,
 	})
 	if err != nil {
 		return trace.Errorf("failed to request version from proxy: %w", err)
@@ -400,13 +407,13 @@ func (r rmCloser) Close() error {
 }
 
 func getChecksum(ctx context.Context, url string) ([]byte, error) {
-	client, err := newClient(&downloadConfig{
-		Timeout: 30 * time.Second,
-	})
+	client, err := newClient(&downloadConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer client.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -443,6 +450,11 @@ func removeVersion(version string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type TeleportVersion struct {
+	VersionsDir    string
+	DownloadClient *http.Client
 }
 
 func createVersion(ctx context.Context, uriTmpl, version string) error {
@@ -623,6 +635,9 @@ func uncompressedSize(f io.Reader) (int64, error) {
 func validate(cf *cliConfig) error {
 	if cf.Template == "" {
 		cf.Template = cdnURITemplate
+	}
+	if cf.DataDir == "" {
+		cf.DataDir = libdefaults.DataDir
 	}
 	return nil
 }
