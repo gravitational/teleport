@@ -5220,15 +5220,24 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 func TestBenchmarkPostgres(t *testing.T) {
 	t.Parallel()
 
+	// Canceling the context right after the test ensures the local proxy
+	// started by the benchmark command is closed and the remaining connections
+	// (if any) are dropped.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	alice.SetDatabaseUsers([]string{"*"})
 	alice.SetDatabaseNames([]string{"*"})
 	alice.SetRoles([]string{"access"})
 
-	suite := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
@@ -5245,8 +5254,19 @@ func TestBenchmarkPostgres(t *testing.T) {
 			}
 		}),
 	)
-	suite.user = alice
-	tmpHomePath, _ := mustLogin(t, suite)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
 	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+) +user=(.+) database=(.+)`: (.+)$")
 	args := []string{
 		"bench", "postgres", "--insecure",
@@ -5286,8 +5306,8 @@ func TestBenchmarkPostgres(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			commandOutput := new(bytes.Buffer)
-			err = Run(
-				context.Background(),
+			err := Run(
+				ctx,
 				append(args, append(tc.additionalFlags, tc.database)...),
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
 			)
@@ -5322,15 +5342,24 @@ func TestBenchmarkPostgres(t *testing.T) {
 func TestBenchmarkMySQL(t *testing.T) {
 	t.Parallel()
 
+	// Canceling the context right after the test ensures the local proxy
+	// started by the benchmark command is closed and the remaining connections
+	// (if any) are dropped.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
 	alice.SetDatabaseUsers([]string{"*"})
 	alice.SetDatabaseNames([]string{"*"})
 	alice.SetRoles([]string{"access"})
 
-	suite := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithBootstrap(connector, alice),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
@@ -5347,8 +5376,19 @@ func TestBenchmarkMySQL(t *testing.T) {
 			}
 		}),
 	)
-	suite.user = alice
-	tmpHomePath, _ := mustLogin(t, suite)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
 	args := []string{
 		"bench", "mysql", "--insecure",
 		// Benchmark options to limit benchmark to a single execution.
@@ -5378,8 +5418,8 @@ func TestBenchmarkMySQL(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			commandOutput := new(bytes.Buffer)
-			err = Run(
-				context.Background(),
+			err := Run(
+				ctx,
 				append(args, append(tc.additionalFlags, tc.database)...),
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
 			)
