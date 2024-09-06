@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -37,10 +38,13 @@ import (
 func (a *awsFetcher) pollAWSRoles(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
-
+		existing := a.lastResult
 		result.Roles, err = a.fetchRoles(ctx)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch roles"))
+			result.Roles = existing.Roles
+			result.GroupAttachedPolicies = existing.GroupAttachedPolicies
+			result.GroupInlinePolicies = existing.GroupInlinePolicies
 			return nil
 		}
 
@@ -152,8 +156,9 @@ func (a *awsFetcher) fetchRoleInlinePolicies(ctx context.Context, role *accessgr
 // fetchRoleAttachedPolicies fetches attached policies for an AWS role.
 func (a *awsFetcher) fetchRoleAttachedPolicies(ctx context.Context, role *accessgraphv1alpha.AWSRoleV1) (*accessgraphv1alpha.AWSRoleAttachedPolicies, error) {
 	rsp := &accessgraphv1alpha.AWSRoleAttachedPolicies{
-		AwsRole:   role,
-		AccountId: a.AccountID,
+		AwsRole:      role,
+		AccountId:    a.AccountID,
+		LastSyncTime: timestamppb.Now(),
 	}
 
 	iamClient, err := a.CloudClients.GetAWSIAMClient(
@@ -228,6 +233,7 @@ func awsRoleToProtoRole(role *iam.Role, accountID string) *accessgraphv1alpha.AW
 		RoleLastUsed:             lastTimeUsed,
 		Tags:                     tags,
 		PermissionsBoundary:      permissionsBoundary,
+		LastSyncTime:             timestamppb.Now(),
 	}
 }
 
@@ -237,5 +243,6 @@ func awsRolePolicyToProtoUserPolicy(policy *iam.GetRolePolicyOutput, role *acces
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		AwsRole:        role,
 		AccountId:      accountID,
+		LastSyncTime:   timestamppb.Now(),
 	}
 }
