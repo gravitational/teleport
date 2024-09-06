@@ -454,20 +454,20 @@ See RFD 155 for details.
 ```go
 // SSOMFASessionData SSO MFA Session data.
 type SSOMFASessionData struct {
-	// RequestID is the ID of the corresponding SSO Auth request, which is used to
-	// identity this session.
-	RequestID string `json:"request_id,omitempty"`
-	// Username is the Teleport username.
-	Username string `json:"username,omitempty"`
-	// MFAToken is a secret token set when the SSO flow is completed and returned to
+  // RequestID is the ID of the corresponding SSO Auth request, which is used to
+  // identity this session.
+  RequestID string `json:"request_id,omitempty"`
+  // Username is the Teleport username.
+  Username string `json:"username,omitempty"`
+  // MFAToken is a secret token set when the SSO flow is completed and returned to
   // the user. The user can then use this token to prove they own the MFA session.
-	MFAToken string `json:"token,omitempty"`
-	// ConnectorID is id of the corresponding Auth connector.
-	ConnectorID string `json:"connector_id,omitempty"`
-	// ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
-	ConnectorType string `json:"connector_type,omitempty"`
-	// ChallengeExtensions are challenge extensions that apply to this SSO MFA session.
-	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+  MFAToken string `json:"token,omitempty"`
+  // ConnectorID is id of the corresponding Auth connector.
+  ConnectorID string `json:"connector_id,omitempty"`
+  // ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
+  ConnectorType string `json:"connector_type,omitempty"`
+  // ChallengeExtensions are challenge extensions that apply to this SSO MFA session.
+  ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
 }
 ```
 
@@ -535,8 +535,8 @@ message MFAAuthenticateResponse {
 message SSOResponse {
   // RequestId is the ID of an SSO auth request.
   string request_id = 1;
-  // Token is a secret token used to verify the user's SSO MFA session.
-  string token = 2;
+  // MFAToken is a secret token used to verify the user's SSO MFA session.
+  string mfa_token = 2;
 }
 ```
 
@@ -595,9 +595,9 @@ enum AuthConnectorMFAMode {
 ```proto
 message SAMLConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
-  bool Enabled = 1;
+  bool enabled = 1;
   // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode MFAMode = 2;
+  AuthConnectorMFAMode mfa_mode = 2;
   // EntityDescriptor is XML with descriptor. It can be used to supply configuration
   // parameters in one XML file rather than supplying them in the individual elements.
   // If unset, the parent SAML connector's EntityDescriptor will be used.
@@ -639,26 +639,26 @@ message SAMLConnectorSpecV2 {
 ```proto
 message OIDCConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
-  bool Enabled = 1;
+  bool enabled = 1;
   // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode MFAMode = 2;
+  AuthConnectorMFAMode mfa_mode = 2;
   // ClientID is the id of the authentication client (Teleport Auth server). If unset, 
   // the parent OIDC connector's ClientID will be used.
-  string client_id = 2;
+  string client_id = 3;
   // ClientSecret is used to authenticate the client. If unset, the parent OIDC connector's
   // ClientSecret will be used.
-  string client_secret = 3;
+  string client_secret = 4;
   // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
   // value is context-specific and varies for identity providers. Some identity providers
   // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
-  string acr_values = 4;
+  string acr_values = 5;
   // Prompt is an optional OIDC prompt. An empty string omits prompt.
   // If not specified, it defaults to select_account for backwards compatibility.
-  string prompt = 5;
+  string prompt = 6;
   // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
   // force re-authentication for MFA checks. This should only be set to a non-zero value if
   // the IdP is setup to perform MFA checks on top of active user sessions.
-  google.protobuf.Duration max_age = 6;
+  google.protobuf.Duration max_age = 67;
 }
 ```
 
@@ -675,19 +675,19 @@ message OIDCConnectorSpecV3 {
 ```proto
 message GithubConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
-  bool Enabled = 1;
+  bool enabled = 1;
   // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode MFAMode = 2;
+  AuthConnectorMFAMode mfa_mode = 2;
   // ClientID is the id of the authentication client (Teleport Auth server). If unset, the parent 
   // Github connector's ClientID will be used.
-  string client_id = 2;
+  string client_id = 3;
   // ClientSecret is used to authenticate the client. If unset, the parent Github connector's
   // ClientSecret will be used.
-  string client_secret = 3;
+  string client_secret = 4;
   // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
   // force re-authentication for MFA checks. This should only be set to a non-zero value if
   // the IdP is setup to perform MFA checks on top of active user sessions.
-  google.protobuf.Duration max_age = 4;
+  google.protobuf.Duration max_age = 5;
 }
 ```
 
