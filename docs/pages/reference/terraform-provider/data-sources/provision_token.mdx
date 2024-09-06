@@ -33,19 +33,19 @@ Optional:
 
 - `allow` (Attributes List) Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. (see [below for nested schema](#nested-schema-for-specallow))
 - `aws_iid_ttl` (String) AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.
-- `azure` (Attributes) Azure allows the configuration of options specific to the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
+- `azure` (Attributes) Azure allows the configuration of options specific to the `azure` join method. (see [below for nested schema](#nested-schema-for-specazure))
 - `bot_name` (String) BotName is the name of the bot this token grants access to, if any
-- `circleci` (Attributes) CircleCI allows the configuration of options specific to the "circleci" join method. (see [below for nested schema](#nested-schema-for-speccircleci))
-- `gcp` (Attributes) GCP allows the configuration of options specific to the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
-- `github` (Attributes) GitHub allows the configuration of options specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
-- `gitlab` (Attributes) GitLab allows the configuration of options specific to the "gitlab" join method. (see [below for nested schema](#nested-schema-for-specgitlab))
-- `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
-- `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
-- `spacelift` (Attributes) Spacelift allows the configuration of options specific to the "spacelift" join method. (see [below for nested schema](#nested-schema-for-specspacelift))
+- `circleci` (Attributes) CircleCI allows the configuration of options specific to the `circleci` join method. (see [below for nested schema](#nested-schema-for-speccircleci))
+- `gcp` (Attributes) GCP allows the configuration of options specific to the `gcp` join method. (see [below for nested schema](#nested-schema-for-specgcp))
+- `github` (Attributes) GitHub allows the configuration of options specific to the `github` join method. (see [below for nested schema](#nested-schema-for-specgithub))
+- `gitlab` (Attributes) GitLab allows the configuration of options specific to the `gitlab` join method. (see [below for nested schema](#nested-schema-for-specgitlab))
+- `join_method` (String) JoinMethod is the joining method required in order to use this token. Supported joining methods include: `azure`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`
+- `kubernetes` (Attributes) Kubernetes allows the configuration of options specific to the `kubernetes` join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
+- `spacelift` (Attributes) Spacelift allows the configuration of options specific to the `spacelift` join method. (see [below for nested schema](#nested-schema-for-specspacelift))
 - `suggested_agent_matcher_labels` (Map of List of String)
 - `suggested_labels` (Map of List of String)
-- `terraform_cloud` (Attributes) TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method. (see [below for nested schema](#nested-schema-for-specterraform_cloud))
-- `tpm` (Attributes) TPM allows the configuration of options specific to the "tpm" join method. (see [below for nested schema](#nested-schema-for-spectpm))
+- `terraform_cloud` (Attributes) TerraformCloud allows the configuration of options specific to the `terraform_cloud` join method. (see [below for nested schema](#nested-schema-for-specterraform_cloud))
+- `tpm` (Attributes) TPM allows the configuration of options specific to the `tpm` join method. (see [below for nested schema](#nested-schema-for-spectpm))
 
 ### Nested Schema for `spec.allow`
 
@@ -122,7 +122,7 @@ Optional:
 - `ref_type` (String) The type of ref, for example: "branch".
 - `repository` (String) The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`
 - `repository_owner` (String) The name of the organization in which the repository is stored.
-- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.
+- `sub` (String) Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of GitHub Actions run.
 - `workflow` (String) The name of the workflow.
 
 
@@ -139,7 +139,7 @@ Optional:
 Optional:
 
 - `ci_config_ref_uri` (String) CIConfigRefURI is the ref path to the top-level pipeline definition, for example, gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
-- `ci_config_sha` (String) CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+- `ci_config_sha` (String) CIConfigSHA is the git commit SHA for the `ci_config_ref_uri`.
 - `deployment_tier` (String) DeploymentTier is the deployment tier of the environment the job specifies
 - `environment` (String) Environment limits access by the environment the job deploys to (if one is associated)
 - `environment_protected` (Boolean)
@@ -147,7 +147,7 @@ Optional:
 - `pipeline_source` (String) PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`
 - `project_path` (String) ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `project_visibility` (String) ProjectVisibility is the visibility of the project where the pipeline is running. Can be internal, private, or public.
-- `ref` (String) Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref` (String) Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with `ref_type`.  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 - `ref_protected` (Boolean)
 - `ref_type` (String) RefType allows access to be limited to jobs triggered by a specific git ref type. Example: `branch` or `tag`
 - `sub` (String) Sub roughly uniquely identifies the workload. Example: `project_path:mygroup/my-project:ref_type:branch:ref:main` project_path:GROUP/PROJECT:ref_type:TYPE:ref:BRANCH_NAME  This field supports simple "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
@@ -191,8 +191,8 @@ Optional:
 
 Optional:
 
-- `caller_id` (String) CallerID is the ID of the caller, ie. the stack or module that generated the run.
-- `caller_type` (String) CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.
+- `caller_id` (String) CallerID is the ID of the caller, i.e., the stack or module that generated the run.
+- `caller_type` (String) CallerType is the type of the caller, i.e., the entity that owns the run - either `stack` or `module`.
 - `scope` (String) Scope is the scope of the token - either `read` or `write`. See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
 - `space_id` (String) SpaceID is the ID of the space in which the run that owns the token was executed.
 

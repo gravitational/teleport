@@ -274,7 +274,7 @@ message DatabaseV3 {
 
 // DatabaseSpecV3 is the database spec.
 message DatabaseSpecV3 {
-  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
+  // Protocol is the database protocol: `postgres`, `mysql`, `mongodb`, etc.
   string Protocol = 1 [(gogoproto.jsontag) = "protocol"];
   // URI is the database connection endpoint.
   string URI = 2 [(gogoproto.jsontag) = "uri"];
@@ -1277,7 +1277,8 @@ message ProvisionTokenSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
   // JoinMethod is the joining method required in order to use this token.
-  // Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm
+  // Supported joining methods include: `azure`, `circleci`, `ec2`, `gcp`,
+  // `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`
   string JoinMethod = 4 [
     (gogoproto.jsontag) = "join_method",
     (gogoproto.casttype) = "JoinMethod"
@@ -1292,9 +1293,9 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
-  // GitHub allows the configuration of options specific to the "github" join method.
+  // GitHub allows the configuration of options specific to the `github` join method.
   ProvisionTokenSpecV2GitHub GitHub = 7 [(gogoproto.jsontag) = "github,omitempty"];
-  // CircleCI allows the configuration of options specific to the "circleci" join method.
+  // CircleCI allows the configuration of options specific to the `circleci` join method.
   ProvisionTokenSpecV2CircleCI CircleCI = 8 [(gogoproto.jsontag) = "circleci,omitempty"];
   // SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources.
   // When an agent uses this token, the agent should monitor resources that match those labels.
@@ -1305,19 +1306,19 @@ message ProvisionTokenSpecV2 {
     (gogoproto.jsontag) = "suggested_agent_matcher_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
-  // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
+  // Kubernetes allows the configuration of options specific to the `kubernetes` join method.
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
-  // Azure allows the configuration of options specific to the "azure" join method.
+  // Azure allows the configuration of options specific to the `azure` join method.
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
-  // GitLab allows the configuration of options specific to the "gitlab" join method.
+  // GitLab allows the configuration of options specific to the `gitlab` join method.
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
-  // GCP allows the configuration of options specific to the "gcp" join method.
+  // GCP allows the configuration of options specific to the `gcp` join method.
   ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
-  // Spacelift allows the configuration of options specific to the "spacelift" join method.
+  // Spacelift allows the configuration of options specific to the `spacelift` join method.
   ProvisionTokenSpecV2Spacelift Spacelift = 14 [(gogoproto.jsontag) = "spacelift,omitempty"];
-  // TPM allows the configuration of options specific to the "tpm" join method.
+  // TPM allows the configuration of options specific to the `tpm` join method.
   ProvisionTokenSpecV2TPM TPM = 15 [(gogoproto.jsontag) = "tpm,omitempty"];
-  // TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.
+  // TerraformCloud allows the configuration of options specific to the `terraform_cloud` join method.
   ProvisionTokenSpecV2TerraformCloud TerraformCloud = 16 [(gogoproto.jsontag) = "terraform_cloud,omitempty"];
 }
 
@@ -1368,7 +1369,7 @@ message ProvisionTokenSpecV2GitHub {
   message Rule {
     // Sub also known as Subject is a string that roughly uniquely identifies
     // the workload. The format of this varies depending on the type of
-    // github action run.
+    // GitHub Actions run.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // The repository from where the workflow is running.
     // This includes the name of the owner e.g `gravitational/teleport`
@@ -1424,7 +1425,7 @@ message ProvisionTokenSpecV2GitLab {
     // - Use '?' to match any single character.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
     // Ref allows access to be limited to jobs triggered by a specific git ref.
-    // Ensure this is used in combination with ref_type.
+    // Ensure this is used in combination with `ref_type`.
     //
     // This field supports simple "glob-style" matching:
     // - Use '*' to match zero or more characters.
@@ -1476,7 +1477,7 @@ message ProvisionTokenSpecV2GitLab {
       (gogoproto.jsontag) = "environment_protected,omitempty",
       (gogoproto.customtype) = "BoolOption"
     ];
-    // CIConfigSHA is the git commit SHA for the ci_config_ref_uri.
+    // CIConfigSHA is the git commit SHA for the `ci_config_ref_uri`.
     string CIConfigSHA = 13 [(gogoproto.jsontag) = "ci_config_sha,omitempty"];
     // CIConfigRefURI is the ref path to the top-level pipeline definition, for example,
     // gitlab.example.com/my-group/my-project//.gitlab-ci.yml@refs/heads/main.
@@ -1516,11 +1517,11 @@ message ProvisionTokenSpecV2Spacelift {
     // SpaceID is the ID of the space in which the run that owns the token was
     // executed.
     string SpaceID = 1 [(gogoproto.jsontag) = "space_id,omitempty"];
-    // CallerID is the ID of the caller, ie. the stack or module that generated
+    // CallerID is the ID of the caller, i.e., the stack or module that generated
     // the run.
     string CallerID = 2 [(gogoproto.jsontag) = "caller_id,omitempty"];
-    // CallerType is the type of the caller, ie. the entity that owns the run -
-    // either `stack` or `module`.
+    // CallerType is the type of the caller, i.e., the entity that owns the run
+    // - either `stack` or `module`.
     string CallerType = 3 [(gogoproto.jsontag) = "caller_type,omitempty"];
     // Scope is the scope of the token - either `read` or `write`.
     // See https://docs.spacelift.io/integrations/cloud-providers/oidc/#about-scopes
@@ -1868,7 +1869,7 @@ message ClusterNetworkingConfigSpecV2 {
   ProxyListenerMode ProxyListenerMode = 7 [(gogoproto.jsontag) = "proxy_listener_mode,omitempty"];
 
   // RoutingStrategy determines the strategy used to route to nodes.
-  // 0 is "unambiguous_match"; 1 is "most_recent".
+  // 0 is `unambiguous_match`; 1 is `most_recent`.
   RoutingStrategy RoutingStrategy = 8 [(gogoproto.jsontag) = "routing_strategy,omitempty"];
 
   // TunnelStrategyV1 determines the tunnel strategy used in the cluster.
@@ -2903,8 +2904,8 @@ message RoleOptions {
   reserved 13; // RequireSessionMFA replaced by RequireMFAType
   reserved "RequireSessionMFA";
 
-  // Lock specifies the locking mode (strict|best_effort) to be applied with
-  // the role.
+  // Lock specifies the locking mode (`strict` or `best_effort`) to be applied
+  // with the role.
   string Lock = 14 [
     (gogoproto.jsontag) = "lock,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.LockingMode"
@@ -2996,7 +2997,7 @@ message RoleOptions {
 
   // CreateDatabaseUserMode allows users to be automatically created on a
   // database when not set to off.
-  // 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
+  // 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`.
   CreateDatabaseUserMode CreateDatabaseUserMode = 29 [(gogoproto.jsontag) = "create_db_user_mode,omitempty"];
 
   // MFAVerificationInterval optionally defines the maximum duration that can elapse
@@ -3093,12 +3094,12 @@ message RoleConditions {
     (gogoproto.jsontag) = "rules,omitempty"
   ];
 
-  // KubeGroups is a list of kubernetes groups
+  // KubeGroups is a list of Kubernetes groups
   repeated string KubeGroups = 5 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
 
   AccessRequestConditions Request = 6 [(gogoproto.jsontag) = "request,omitempty"];
 
-  // KubeUsers is an optional kubernetes users to impersonate
+  // KubeUsers indicates optional Kubernetes users to impersonate
   repeated string KubeUsers = 7 [(gogoproto.jsontag) = "kubernetes_users,omitempty"];
 
   // AppLabels is a map of labels used as part of the RBAC system.
@@ -3208,7 +3209,7 @@ message RoleConditions {
   // to remote Teleport clusters.
   string ClusterLabelsExpression = 32 [(gogoproto.jsontag) = "cluster_labels_expression,omitempty"];
   // KubernetesLabelsExpression is a predicate expression used to allow/deny
-  // access to kubernetes clusters.
+  // access to Kubernetes clusters.
   string KubernetesLabelsExpression = 33 [(gogoproto.jsontag) = "kubernetes_labels_expression,omitempty"];
   // DatabaseLabelsExpression is a predicate expression used to allow/deny
   // access to Databases.
@@ -3475,8 +3476,8 @@ message ImpersonateConditions {
   string Where = 3 [(gogoproto.jsontag) = "where,omitempty"];
 }
 
-// BoolValue is a wrapper around bool, used in cases
-// whenever bool value can have different default value when missing
+// BoolValue is a wrapper around `bool`, used in cases whenever a `bool` value
+// can have different default value when missing
 message BoolValue {
   bool Value = 1;
 }
@@ -4202,7 +4203,7 @@ message RemoteClusterStatusV3 {
   ];
 }
 
-// KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+// KubernetesCluster is a named Kubernetes API endpoint handled by a Server.
 //
 // TODO: deprecate and convert all usage to KubernetesClusterV3
 message KubernetesCluster {
@@ -4220,7 +4221,7 @@ message KubernetesCluster {
   ];
 }
 
-// KubernetesClusterV3 represents a named kubernetes API endpoint.
+// KubernetesClusterV3 represents a named Kubernetes API endpoint.
 message KubernetesClusterV3 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
@@ -4302,7 +4303,7 @@ message KubeGCP {
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
-// KubernetesClusterV3List represents a list of kubernetes clusters.
+// KubernetesClusterV3List represents a list of Kubernetes clusters.
 message KubernetesClusterV3List {
   // KubernetesClusters is a list of kubernetes clusters resources.
   repeated KubernetesClusterV3 KubernetesClusters = 1;
@@ -4550,7 +4551,7 @@ message MaxAge {
 // SSOClientRedirectSettings contains settings to define which additional client
 // redirect URLs should be allowed for non-browser SSO logins.
 message SSOClientRedirectSettings {
-  // a list of hostnames allowed for https client redirect URLs
+  // a list of hostnames allowed for HTTPS client redirect URLs
   repeated string allowed_https_hostnames = 1;
   // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
   repeated string insecure_allowed_cidr_ranges = 2;
@@ -5145,7 +5146,7 @@ message TeamMapping {
   repeated string Logins = 3 [(gogoproto.jsontag) = "logins,omitempty"];
   // KubeGroups is a list of allowed kubernetes groups for this org/team.
   repeated string KubeGroups = 4 [(gogoproto.jsontag) = "kubernetes_groups,omitempty"];
-  // KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.
+  // KubeUsers is a list of allowed Kubernetes users to impersonate for this org/team.
   repeated string KubeUsers = 5 [(gogoproto.jsontag) = "kubernetes_users,omitempty"];
 }
 
@@ -5189,9 +5190,9 @@ message TrustedClusterV2List {
 
 // TrustedClusterSpecV2 is a Trusted Cluster specification.
 message TrustedClusterSpecV2 {
-  // Enabled is a bool that indicates if the TrustedCluster is enabled or disabled.
-  // Setting Enabled to false has a side effect of deleting the user and host certificate
-  // authority (CA).
+  // Enabled indicates if the TrustedCluster is enabled or disabled.  Setting
+  // Enabled to false has a side effect of deleting the user and host
+  // certificate authority (CA).
   bool Enabled = 1 [(gogoproto.jsontag) = "enabled"];
   // Roles is a list of roles that users will be assuming when connecting to this cluster.
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];

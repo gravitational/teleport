@@ -490,7 +490,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"protocol": {
-					Description: "Protocol is the database protocol: postgres, mysql, mongodb, etc.",
+					Description: "Protocol is the database protocol: `postgres`, `mysql`, `mongodb`, etc.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -1072,7 +1072,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					Type:        DurationType{},
 				},
 				"routing_strategy": {
-					Description: "RoutingStrategy determines the strategy used to route to nodes. 0 is \"unambiguous_match\"; 1 is \"most_recent\".",
+					Description: "RoutingStrategy determines the strategy used to route to nodes. 0 is `unambiguous_match`; 1 is `most_recent`.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
@@ -1649,13 +1649,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_groups": {
-							Description: "KubeGroups is a list of kubernetes groups",
+							Description: "KubeGroups is a list of Kubernetes groups",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_labels": GenSchemaLabels(ctx),
 						"kubernetes_labels_expression": {
-							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -1690,7 +1690,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Description: "KubeUsers indicates optional Kubernetes users to impersonate",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2056,13 +2056,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_groups": {
-							Description: "KubeGroups is a list of kubernetes groups",
+							Description: "KubeGroups is a list of Kubernetes groups",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_labels": GenSchemaLabels(ctx),
 						"kubernetes_labels_expression": {
-							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2093,7 +2093,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Description: "KubeUsers indicates optional Kubernetes users to impersonate",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2364,7 +2364,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"create_db_user": GenSchemaBoolOption(ctx),
 						"create_db_user_mode": {
-							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\".",
+							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
@@ -2414,7 +2414,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"lock": {
-							Description: "Lock specifies the locking mode (strict|best_effort) to be applied with the role.",
+							Description: "Lock specifies the locking mode (`strict` or `best_effort`) to be applied with the role.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2769,7 +2769,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2985,7 +2985,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3159,7 +3159,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3201,7 +3201,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.",
+							Description: "KubeUsers is a list of allowed Kubernetes users to impersonate for this org/team.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3323,7 +3323,7 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"enabled": {
-					Description: "Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
+					Description: "Enabled indicates if the TrustedCluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},
