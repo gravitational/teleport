@@ -67,7 +67,7 @@ test('lock search', async () => {
   // Test searching.
   const search = screen.getByPlaceholderText(/search/i);
   fireEvent.change(search, {
-    target: { searchValue: { value: 'lock-role' } },
+    target: { value: 'lock-role' },
   });
   fireEvent.submit(search);
 
