@@ -15,7 +15,7 @@ resource "aws_autoscaling_group" "proxy" {
 
   launch_template {
     name    = aws_launch_template.proxy.name
-    version = "$Latest"
+    version = aws_launch_template.proxy.latest_version
   }
 
   // Auto scaling group is associated with load balancer
@@ -68,7 +68,7 @@ resource "aws_autoscaling_group" "proxy_acm" {
 
   launch_template {
     name    = aws_launch_template.proxy.name
-    version = "$Latest"
+    version = aws_launch_template.proxy.latest_version
   }
 
   // Auto scaling group is associated with load balancer

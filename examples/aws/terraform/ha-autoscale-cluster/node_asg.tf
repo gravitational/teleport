@@ -13,7 +13,7 @@ resource "aws_autoscaling_group" "node" {
 
   launch_template {
     id      = aws_launch_template.node.id
-    version = "$Latest"
+    version = aws_launch_template.node.latest_version
   }
 
   tag {
