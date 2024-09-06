@@ -8,3 +8,7 @@ scope:
   - paragraph
 ignore:
    - "spelling/ignore.txt"
+# Patterns to ignore
+filters:
+  # Plural abbreviations and possessives
+  - "[A-Z]+'?s"
