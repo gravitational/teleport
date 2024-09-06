@@ -55,6 +55,7 @@ ERRO
 Elastcsearch
 Elasticvue
 Entra
+Exadata
 Exfiltrate
 Exrch
 FGHIJ
@@ -149,19 +150,6 @@ Olsia
 OpenAI
 Opsgenie
 Orapki
-Exadata
-exadata
-demodb
-exadatadomain
-oraclevcn
-cprops
-mkstore
-dbaas
-acfs
-sqlplus
-sysdba
-paas
-nologo
 PFDEBUG
 PFSELFTEST
 PGCLIENTENCODING
@@ -264,6 +252,7 @@ Zqar
 Zrpsaln
 abcdefghijklm
 accesslist
+acfs
 aclfile
 acmecorp
 acpi
@@ -390,6 +379,7 @@ cond
 configmap
 connectionupgrade
 connectorname
+cprops
 cqlsh
 createkey
 createnongalleryapp
@@ -405,6 +395,7 @@ datacenter
 datadoghq
 datagrip
 datareader
+dbaas
 dbaccessdemo
 dbadir
 dbadmin
@@ -415,6 +406,7 @@ dbreviewer
 dbuser
 deanonymize
 deletecollection
+demodb
 deregisters
 devel
 develnode
@@ -459,6 +451,8 @@ envfile
 enzos
 errcode
 etcdctl
+exadata
+exadatadomain
 exampledb
 exampletoken
 exampleuser
@@ -623,6 +617,7 @@ metav
 microk
 minikube
 minikube's
+mkstore
 mlock
 mlockall
 mongodbatlas
@@ -689,6 +684,7 @@ nodegroups
 nodename
 nohup
 nologin
+nologo
 nonprod
 noout
 noprompt
@@ -712,10 +708,12 @@ opensearch
 opensearchsql
 operatorenabled
 opsexample
+oraclevcn
 organisation
 osconfig
 oustanding
 oxrq
+paas
 packagekit
 pagerduty
 pagerdutyapikey
@@ -903,8 +901,8 @@ specsaml
 specsigning
 specspacelift
 specspaceliftallow
-specterraform
 specteams
+specterraform
 spectpm
 spectpmallow
 spfile
@@ -915,6 +913,7 @@ sqlascii
 sqlcl
 sqlcmd
 sqlnet
+sqlplus
 sqlserver
 sshcacerts
 sshcert
@@ -935,6 +934,7 @@ sudoer
 supervillain
 svid
 syscalls
+sysdba
 sysvinit
 tadmin
 tbot
@@ -986,6 +986,7 @@ tpmrm
 trustedclusters
 trustpolicy
 truststore
+tsh
 tshd
 turnoffuserassign
 ubunutu
@@ -1058,4 +1059,3 @@ yubishm
 znmqk
 zxvf
 zztop
-
