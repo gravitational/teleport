@@ -948,7 +948,8 @@ func (s *sessionCache) AuthenticateSSHUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
-		PublicKey:      c.PubKey,
+		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
+		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
@@ -968,7 +969,8 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		AttestationStatement:    c.AttestationStatement,
+		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
+		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
 	})
 }
 

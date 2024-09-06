@@ -32,15 +32,21 @@ parking_lot = "0.12.3"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
 rsa = "0.9.6"
-sspi = { git = "https://github.com/Devolutions/sspi-rs", rev="d54bdfcafa0e10d9d78224ebacc4f2a0992a6b79", features = ["network_client"] }
+sspi = { version = "0.13.0", features = ["network_client"] }
 static_init = "1.0.3"
-tokio = { version = "1.39", features = ["full"] }
+tokio = { version = "1.40", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev="99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
 uuid = { version = "1.10.0", features = ["v4"] }
+url = "2.5.0"
+picky = { version = "7.0.0-rc.9", default-features = false }
+picky-asn1-der = "0.5.0"
+picky-asn1-x509 = "0.13.0"
+reqwest = { version = "0.12", default-features = false }
+rustls = { version = "0.23.11", default-features = false, features = ["ring"] }
 
 [build-dependencies]
-cbindgen = "0.26.0"
+cbindgen = "0.27.0"
 tempfile = "3.12.0"
 
 [features]

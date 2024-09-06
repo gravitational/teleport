@@ -116,6 +116,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -147,15 +148,16 @@ const (
 	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
 		"Reach out for unlimited desktops with Teleport Enterprise."
 
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
+	OSSDesktopsAlertLink     = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsAlertLinkText = "Contact Sales"
+	OSSDesktopsLimit         = 5
 )
 
 const (
 	dynamicLabelCheckPeriod  = time.Hour
 	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
 	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
-		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"This is not recommended due to the volatility of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
@@ -571,6 +573,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		)
 	}
 
+	if as.terraformIDTokenValidator == nil {
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
+			Clock: as.clock,
+		})
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -955,6 +963,11 @@ type Server struct {
 	// server. It can be overridden for the purpose of tests.
 	gcpIDTokenValidator gcpIDTokenValidator
 
+	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	terraformIDTokenValidator terraformCloudIDTokenValidator
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -996,6 +1009,10 @@ type Server struct {
 	// directly by [Server].
 	// Used for testing.
 	bcryptCostOverride *int
+
+	// GithubUserAndTeamsOverride overrides the user and teams that would
+	// normally be fetched from the GitHub API. Used for testing.
+	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -5675,7 +5692,8 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopsAlertLink),
+		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
 		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)

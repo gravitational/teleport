@@ -20,10 +20,12 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -577,6 +579,147 @@ func TestGithubAuthRequest(t *testing.T) {
 			requestCopy, err := clientReader.GetGithubAuthRequest(ctx, request.StateToken)
 			require.NoError(t, err)
 			require.Equal(t, request, requestCopy)
+		})
+	}
+}
+
+// TestGithubAuthCompat attempts to test github SSO authentication from the
+// perspective of an Auth service receiving requests from a Proxy service. The
+// Auth service on major version N should support proxies on version N and N-1,
+// which may send a single user public key or split SSH and TLS public keys.
+//
+// The proxy originally sends the user public keys via gPRC
+// CreateGithubAuthRequest, and later retrieves the request via HTTP
+// github/requests/validate which must have the same format as the requested
+// keys to support both old and new proxies.
+func TestGithubAuthCompat(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	connector, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		Display:      "sign in with github",
+		TeamsToRoles: []types.TeamRolesMapping{{
+			Organization: "octocats",
+			Team:         "devs",
+			Roles:        []string{"access"},
+		}},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertGithubConnector(context.Background(), connector)
+	require.NoError(t, err)
+
+	srv.Auth().GithubUserAndTeamsOverride = func() (*GithubUserResponse, []GithubTeamResponse, error) {
+		return &GithubUserResponse{
+				Login: "alice",
+			}, []GithubTeamResponse{{
+				Name: "devs",
+				Slug: "devs",
+				Org:  GithubOrgResponse{Login: "octocats"},
+			}}, nil
+	}
+
+	_, err = CreateRole(ctx, srv.Auth(), "access", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc: "no keys",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Create the request over gRPC, this simulates to proxy creating the
+			// initial request.
+			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
+				ConnectorID:  connector.GetName(),
+				Type:         constants.Github,
+				PublicKey:    tc.pubKey,
+				SshPublicKey: tc.sshPubKey,
+				TlsPublicKey: tc.tlsPubKey,
+				CertTTL:      apidefaults.MinCertDuration,
+			})
+			require.NoError(t, err)
+
+			// Simulate the proxy redirecting the user to github, getting a
+			// response, and calling back to auth for validation.
+			resp, err := proxyClient.ValidateGithubAuthCallback(ctx, url.Values{
+				"code":  []string{"success"},
+				"state": []string{req.StateToken},
+			})
+			require.NoError(t, err)
+
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking that deprecated field is set.
+			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
+			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, resp.TLSCert)
+			}
 		})
 	}
 }
@@ -2747,7 +2890,7 @@ func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
 				Name:      name,
 				Namespace: apidefaults.Namespace,
 			}, types.SAMLIdPServiceProviderSpecV1{
-				ACSURL:   fmt.Sprintf("entity-id-%v", i),
+				ACSURL:   fmt.Sprintf("https://entity-id-%v", i),
 				EntityID: fmt.Sprintf("entity-id-%v", i),
 			})
 			require.NoError(t, err)
@@ -2900,7 +3043,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 			Name:   name,
 			Labels: map[string]string{"name": name},
 		}, types.SAMLIdPServiceProviderSpecV1{
-			ACSURL:   fmt.Sprintf("acs-url-%v", i),
+			ACSURL:   fmt.Sprintf("https://entity-id-%v", i),
 			EntityID: fmt.Sprintf("entity-id-%v", i),
 		})
 		require.NoError(t, err)
@@ -5299,12 +5442,12 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
-				Name: "tifaSAML",
+				Name: "example",
 			},
 		},
 		Spec: types.SAMLIdPServiceProviderSpecV1{
-			ACSURL:   "tifaSAML",
-			EntityID: "tifaSAML",
+			ACSURL:   "https://example.com/acs",
+			EntityID: "https://example.com",
 		},
 	}
 	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
@@ -5319,7 +5462,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	inlineEventually(t, func() bool {
 		var err error
 		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			SearchKeywords: []string{"tifa"},
+			SearchKeywords: []string{"example"},
 			Limit:          10,
 			SortBy:         types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
@@ -5332,7 +5475,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	// Check that our returned resource has the correct name
 	for _, resource := range resp.Resources {
 		r := resource.GetSAMLIdPServiceProvider()
-		require.True(t, strings.Contains(r.GetName(), "tifa"))
+		require.True(t, strings.Contains(r.GetName(), "example"))
 	}
 }
 

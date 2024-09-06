@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -113,7 +112,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -246,6 +245,7 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
+			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
 			return nil, trace.NotFound("role %v is not found", name)
 		}
 		return nil, trace.Wrap(err)
@@ -387,13 +387,13 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				Expires:  lock.Expiry(),
 				Revision: rev,
 			}
-			newRemoteLocksToStore[string(item.Key)] = item
+			newRemoteLocksToStore[item.Key.String()] = item
 		}
 
 		for _, origLockItem := range origRemoteLocks.Items {
 			// If one of the new remote locks to store is already known,
 			// perform a CompareAndSwap.
-			key := string(origLockItem.Key)
+			key := origLockItem.Key.String()
 			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
 				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
 					return trace.Wrap(err)

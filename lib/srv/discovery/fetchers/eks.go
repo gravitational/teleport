@@ -390,6 +390,19 @@ const (
 	teleportKubernetesGroup = "teleport:kube-service:eks"
 )
 
+// eksDiscoveryPermissions is used for logging to list all the permissions that
+// the discovery service may need to discover EKS clusters and configure access.
+var eksDiscoveryPermissions = []string{
+	"eks:AssociateAccessPolicy",
+	"eks:CreateAccessEntry",
+	"eks:DeleteAccessEntry",
+	"eks:DescribeAccessEntry",
+	"eks:DescribeCluster",
+	"eks:ListClusters",
+	"eks:TagResource",
+	"eks:UpdateAccessEntry",
+}
+
 // checkOrSetupAccessForARN checks if the ARN has access to the cluster and sets up the access if needed.
 // The check involves checking if the access entry exists and if the "teleport:kube-agent:eks" is part of the Kubernetes group.
 // If the access entry doesn't exist or is misconfigured, the fetcher will temporarily gain admin access and create the role and binding.
@@ -409,14 +422,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 		// Access denied means that the principal does not have access to setup access entries for the cluster.
 		a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
 			aws.StringValue(cluster.Name),
-			[]string{
-				"eks:ListClusters",
-				"eks:DescribeCluster",
-				"eks:DescribeAccessEntry",
-				"eks:CreateAccessEntry",
-				"eks:DeleteAccessEntry",
-				"eks:AssociateAccessPolicy",
-			})
+			eksDiscoveryPermissions)
 		return nil
 	case err == nil:
 		// If the access entry exists and the principal has access to the cluster, check if the teleportKubernetesGroup is part of the Kubernetes group.
@@ -431,14 +437,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
 			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
 				aws.StringValue(cluster.Name),
-				[]string{
-					"eks:ListClusters",
-					"eks:DescribeCluster",
-					"eks:DescribeAccessEntry",
-					"eks:CreateAccessEntry",
-					"eks:DeleteAccessEntry",
-					"eks:AssociateAccessPolicy",
-				})
+				eksDiscoveryPermissions)
 			return nil
 		} else if err != nil {
 			return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))
@@ -450,14 +449,7 @@ func (a *eksFetcher) checkOrSetupAccessForARN(ctx context.Context, client eksifa
 			// Access denied means that the principal does not have access to setup access entries for the cluster.
 			a.Log.WithError(err).Warnf("Access denied to setup access for EKS cluster %q. Please ensure you correctly configured the following permissions: %v",
 				aws.StringValue(cluster.Name),
-				[]string{
-					"eks:ListClusters",
-					"eks:DescribeCluster",
-					"eks:DescribeAccessEntry",
-					"eks:CreateAccessEntry",
-					"eks:DeleteAccessEntry",
-					"eks:AssociateAccessPolicy",
-				})
+				eksDiscoveryPermissions)
 			return nil
 		}
 		return trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.StringValue(cluster.Name))

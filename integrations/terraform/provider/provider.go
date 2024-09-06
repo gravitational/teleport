@@ -86,6 +86,9 @@ const (
 	attributeTerraformJoinMethod = "join_method"
 	// attributeTerraformJoinToken is the attribute configuring the Terraform provider native MachineID join token.
 	attributeTerraformJoinToken = "join_token"
+	// attributeTerraformJoinAudienceTag is the attribute configuring the audience tag when using the `terraform` join
+	// method.
+	attributeTerraformJoinAudienceTag = "audience_tag"
 )
 
 type RetryConfig struct {
@@ -140,6 +143,8 @@ type providerData struct {
 	JoinMethod types.String `tfsdk:"join_method"`
 	// JoinMethod is the MachineID join token.
 	JoinToken types.String `tfsdk:"join_token"`
+	// AudienceTag is the audience  tag for the `terraform` join method
+	AudienceTag types.String `tfsdk:"audience_tag"`
 }
 
 // New returns an empty provider struct
@@ -249,6 +254,12 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](./join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+			},
+			attributeTerraformJoinAudienceTag: {
+				Type:        types.StringType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Name of the optional audience tag used for native Machine ID joining with the `terraform` method. This can also be set with the environment variable `%s`.", constants.EnvVarTerraformCloudJoinAudienceTag),
 			},
 		},
 	}, nil
@@ -489,6 +500,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                resourceTeleportAccessListType{},
 		"teleport_server":                     resourceTeleportServerType{},
+		"teleport_installer":                  resourceTeleportInstallerType{},
 	}, nil
 }
 
@@ -512,6 +524,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
+		"teleport_installer":                  dataSourceTeleportInstallerType{},
 	}, nil
 }
 

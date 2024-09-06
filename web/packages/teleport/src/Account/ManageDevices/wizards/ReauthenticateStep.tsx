@@ -100,7 +100,7 @@ export function ReauthenticateStep({
         />
       </Box>
       {errorMessage && <OutlineDanger>{errorMessage}</OutlineDanger>}
-      {mfaOption && 'Multi-factor type'}
+      {mfaOption && <Box mb={2}>Multi-factor type</Box>}
       <Validation>
         {({ validator }) => (
           <form onSubmit={e => onReauthenticate(e, validator)}>

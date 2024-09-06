@@ -890,6 +890,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ping", h.WithClusterAuth(h.awsOIDCPing))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
@@ -1890,15 +1891,17 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		ClientRedirectURL:    req.RedirectURL,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-		ClientLoginIP:        remoteAddr,
+		ConnectorID:             req.ConnectorID,
+		SshPublicKey:            req.SSHPubKey,
+		TlsPublicKey:            req.TLSPubKey,
+		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
+		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
+		CertTTL:                 req.CertTTL,
+		ClientRedirectURL:       req.RedirectURL,
+		Compatibility:           req.Compatibility,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		ClientLoginIP:           remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
@@ -1967,7 +1970,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
+	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
 		logger.Error("Not a web or console login request.")
 		return client.LoginFailedRedirectURL
 	}
@@ -2593,6 +2596,9 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *client.AuthenticateSSHUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4126,6 +4132,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authClient := h.cfg.ProxyClient
 
@@ -4137,14 +4146,16 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
-			PublicKey:      req.PubKey,
+			SSHPublicKey:   req.SSHPubKey,
+			TLSPublicKey:   req.TLSPubKey,
 			ClientMetadata: clientMetaFromReq(r),
 		},
-		CompatibilityMode:    req.Compatibility,
-		TTL:                  req.TTL,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement,
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SSHAttestationStatement: req.SSHAttestationStatement,
+		TLSAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	if req.HeadlessAuthenticationID != "" {

@@ -266,6 +266,9 @@ type CommandLineFlags struct {
 
 	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
+
+	// DisableDebugService disables the debug service.
+	DisableDebugService bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -462,8 +465,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
-	if fc.Debug.Enabled() {
-		cfg.DebugService.Enabled = true
+	if fc.Debug.Disabled() {
+		cfg.DebugService.Enabled = false
 	}
 
 	if fc.AccessGraph.Enabled {
@@ -2169,6 +2172,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
 
+	cfg.WindowsDesktop.KDCAddr = fc.WindowsDesktop.KDCAddress
+
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
@@ -2645,6 +2650,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
+	if clf.DisableDebugService {
+		cfg.DebugService.Enabled = false
+	}
+
 	return nil
 }
 
@@ -2923,14 +2932,20 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
+	creds, err := fc.Jamf.readJamfCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	jamfSpec, err := fc.Jamf.toJamfSpecV1()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
+		Spec:        jamfSpec,
+		ExitOnSync:  fc.Jamf.ExitOnSync,
+		Credentials: creds,
 	}
 	return nil
 }

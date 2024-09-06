@@ -3425,8 +3425,10 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 			},
 		},
@@ -3439,9 +3441,11 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3464,8 +3468,6 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3476,6 +3478,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -4996,4 +5002,48 @@ func TestProxyUntrustedCert(t *testing.T) {
 	// would fix this error, because:
 	// - the system root certs are loaded exactly once and cached
 	// - it only works on linux
+}
+
+func TestDebugServiceConfig(t *testing.T) {
+	for name, tc := range map[string]struct {
+		configFile                string
+		commandLineFlags          *CommandLineFlags
+		expectDebugServiceEnabled bool
+	}{
+		"enabled by default": {configFile: "", expectDebugServiceEnabled: true},
+		"disabled by commandline": {
+			configFile:                "",
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
+		"disabled by configuration": {
+			configFile: `
+debug_service:
+  enabled: "no"
+`,
+			expectDebugServiceEnabled: false,
+		},
+		"commandline flag has priority over config file": {
+			configFile: `
+debug_service:
+  enabled: "yes"
+`,
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			filePath := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(filePath, []byte(tc.configFile), 0o777))
+
+			if tc.commandLineFlags == nil {
+				tc.commandLineFlags = &CommandLineFlags{}
+			}
+			tc.commandLineFlags.ConfigFile = filePath
+
+			conf := servicecfg.MakeDefaultConfig()
+			require.NoError(t, Configure(tc.commandLineFlags, conf, false))
+			require.Equal(t, tc.expectDebugServiceEnabled, conf.DebugService.Enabled)
+		})
+	}
 }

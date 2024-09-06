@@ -239,7 +239,12 @@ func (sc *sudoersCloser) Close() error {
 // file, if any. If the returned closer is not nil, it must be called at the
 // end of the session to cleanup the sudoers file.
 func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
-	if s.sudoers == nil {
+	// Pulling sudoers directly from the Srv so TryWriteSudoersFile always
+	// respects the invariant that we shouldn't write sudoers on proxy servers.
+	// This might invalidate the cached sudoers field on SessionRegistry, so
+	// we may be able to remove that in a future PR
+	sudoWriter := s.Srv.GetHostSudoers()
+	if sudoWriter == nil {
 		return nil, nil
 	}
 
@@ -251,7 +256,7 @@ func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (
 		// not an error, sudoers may not be configured.
 		return nil, nil
 	}
-	if err := s.sudoers.WriteSudoers(identityContext.Login, sudoers); err != nil {
+	if err := sudoWriter.WriteSudoers(identityContext.Login, sudoers); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -287,10 +292,15 @@ func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (cr
 	if trace.IsAccessDenied(err) && existsErr != nil {
 		return false, nil, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
+
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
-	if err != nil && !trace.IsAlreadyExists(err) {
+	if err != nil && !trace.IsAlreadyExists(err) && !errors.Is(err, unmanagedUserErr) {
 		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
 		return false, nil, trace.Wrap(err)
+	}
+
+	if errors.Is(err, unmanagedUserErr) {
+		log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
 	}
 
 	return true, userCloser, nil

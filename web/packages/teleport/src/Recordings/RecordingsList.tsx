@@ -111,8 +111,6 @@ const renderIconCell = (type: RecordingType) => {
     Icon = Icons.Kubernetes;
   } else if (type === 'database') {
     Icon = Icons.Database;
-  } else if (type === 'app') {
-    Icon = Icons.Application;
   }
 
   return (

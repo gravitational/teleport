@@ -49,6 +49,12 @@ measurement.
 The code that aggregates and anonymizes this data can be found in our [GitHub
 repository](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
+For a restricted network environment you can configure Teleport Auth Service instances
+to send usage data through a proxy for version 16.0.4/15.4.7/14.3.21 or later.
+Set the `TELEPORT_REPORTING_HTTPS_PROXY` and `TELEPORT_REPORTING_HTTP_PROXY`
+environment variables to your proxy address. That will apply as the HTTP connect
+proxy setting overriding `HTTPS_PROXY` and `HTTP_PROXY` just for outbound usage reporting.
+
 ## Billing metrics
 
 Teleport uses the anonymized usage data described in the previous section to
@@ -56,6 +62,22 @@ calculate two types of billing metrics:
 
 - Monthly Active Users
 - Teleport Protected Resources
+
+### Usage metrics in the Web UI
+
+<Admonition type="note">
+
+This will be displayed only for those on usage-based plans. Users will need permission to read the billing resource.
+</Admonition>
+
+
+  1. Go to https://teleport.sh/ and enter your tenant name.
+  1. Sign in using your administrator credentials.
+  1. Click on "Access Management" at the top.
+  1. Click on "Summary" under "Usage and Billing" at the left-hand side.
+  1. Usage data for the current billing cycle will be displayed. Example:
+  
+  ![Billing Cycle](../img/webui_billing_cycle.png)
 
 ### Monthly Active Users
 
