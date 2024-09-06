@@ -25,20 +25,25 @@ type Props = {
    * If `true`, the modal is open.
    */
   open: boolean;
+
   className?: string;
+
   /**
    * Styles passed to the modal, the parent of the children.
    */
   // TODO(ravicious): The type for modalCss might need some work after we migrate the components
   // that use <Modal> to TypeScript.
   modalCss?: StyleFunction<any>;
+
   children?: React.ReactElement;
+
   /**
    * Properties applied to the [`Backdrop`](/api/backdrop/) element.
    *
    * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
    */
   BackdropProps?: object;
+
   /**
    * If `true`, the modal will not automatically shift focus to itself when it opens, and
    * replace it to the last focused element when it closes.
@@ -48,10 +53,12 @@ type Props = {
    * accessible to assistive technologies, like screen readers.
    */
   disableAutoFocus?: boolean;
+
   /**
    * If `true`, clicking the backdrop will not fire any callback.
    */
   disableBackdropClick?: boolean;
+
   /**
    * If `true`, the modal will not prevent focus from leaving the modal while open.
    *
@@ -59,23 +66,28 @@ type Props = {
    * accessible to assistive technologies, like screen readers.
    */
   disableEnforceFocus?: boolean;
+
   /**
    * If `true`, hitting escape will not fire any callback.
    */
   disableEscapeKeyDown?: boolean;
+
   /**
    * If `true`, the modal will not restore focus to previously focused element once
    * modal is hidden.
    */
   disableRestoreFocus?: boolean;
+
   /**
    * If `true`, the backdrop is not rendered.
    */
   hideBackdrop?: boolean;
+
   /**
    * Callback fired when the backdrop is clicked.
    */
   onBackdropClick?: (event: React.MouseEvent) => void;
+
   /**
    * Callback fired when the component requests to be closed.
    * The `reason` parameter can optionally be used to control the response to `onClose`.
@@ -84,6 +96,7 @@ type Props = {
     event: KeyboardEvent | React.MouseEvent,
     reason: 'escapeKeyDown' | 'backdropClick'
   ) => void;
+
   /**
    * Callback fired when the escape key is pressed,
    * `disableEscapeKeyDown` is false and the modal is in focus.
