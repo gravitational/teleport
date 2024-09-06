@@ -21,23 +21,17 @@ import * as Features from 'teleport/features';
 import type { TeleportFeature } from 'teleport/types';
 
 export function buildACL(features: TeleportFeature[]) {
-  const apps = features.some(f => f instanceof Features.FeatureApps);
-  const nodes = features.some(f => f instanceof Features.FeatureNodes);
+  const resources = features.some(
+    f => f instanceof Features.FeatureUnifiedResources
+  );
   const audit = features.some(f => f instanceof Features.FeatureAudit);
-  const kubes = features.some(f => f instanceof Features.FeatureKubes);
-  const databases = features.some(f => f instanceof Features.FeatureDatabases);
   const recordings = features.some(
     f => f instanceof Features.FeatureRecordings
   );
-  const desktops = features.some(f => f instanceof Features.FeatureDesktops);
 
   return {
-    nodes,
+    resources,
     audit,
     recordings,
-    apps,
-    kubes,
-    databases,
-    desktops,
   };
 }

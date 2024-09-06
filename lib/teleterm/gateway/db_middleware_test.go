@@ -24,11 +24,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -108,11 +108,11 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 			hasCalledOnExpiredCert := false
 
 			middleware := &dbMiddleware{
-				onExpiredCert: func(context.Context) error {
+				onExpiredCert: func(context.Context) (tls.Certificate, error) {
 					hasCalledOnExpiredCert = true
-					return nil
+					return tls.Certificate{}, nil
 				},
-				log:     logrus.WithField(trace.Component, "middleware"),
+				log:     logrus.WithField(teleport.ComponentKey, "middleware"),
 				dbRoute: tt.dbRoute,
 			}
 
@@ -124,9 +124,9 @@ func TestDBMiddleware_OnNewConnection(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			localProxy.SetCerts([]tls.Certificate{tlsCert})
+			localProxy.SetCert(tlsCert)
 
-			err = middleware.OnNewConnection(ctx, localProxy, nil /* net.Conn, not used by middleware */)
+			err = middleware.OnNewConnection(ctx, localProxy)
 			tt.expectation(t, err, hasCalledOnExpiredCert)
 		})
 	}

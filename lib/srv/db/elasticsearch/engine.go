@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
@@ -83,7 +84,7 @@ func (e *Engine) SendError(err error) {
 
 	jsonBody, err := json.Marshal(cause)
 	if err != nil {
-		e.Log.WithError(err).Error("failed to marshal error response")
+		e.Log.ErrorContext(e.Context, "failed to marshal error response", "error", err)
 		return
 	}
 
@@ -99,7 +100,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.Errorf("elasticsearch error: %+v", trace.Unwrap(err))
+		e.Log.ErrorContext(e.Context, "elasticsearch error", "error", err)
 		return
 	}
 }
@@ -119,7 +120,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.BadParameter("database username required for Elasticsearch")
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -156,6 +157,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
 	msgFromClient.Inc()
 
+	if req.Body != nil {
+		// make sure we close the incoming request's body. ignore any close error.
+		defer req.Body.Close()
+		req.Body = io.NopCloser(utils.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	}
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -204,7 +210,7 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint3
 
 	source := req.URL.Query().Get("source")
 	if len(source) > 0 {
-		e.Log.Infof("'source' parameter found, overriding request body.")
+		e.Log.InfoContext(e.Context, "'source' parameter found, overriding request body.")
 		body = []byte(source)
 		contentType = req.URL.Query().Get("source_content_type")
 	}

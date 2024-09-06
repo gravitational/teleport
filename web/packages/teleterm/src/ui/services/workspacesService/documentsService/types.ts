@@ -24,6 +24,9 @@ import type * as tsh from 'teleterm/services/tshd/types';
 
 export type Kind = Document['kind'];
 
+/**
+ * DocumentOrigin denotes which part of Connect UI was used to create a document for the resource.
+ */
 export type DocumentOrigin =
   | 'resource_table'
   | 'search_bar'
@@ -101,8 +104,10 @@ export interface DocumentTshKube extends DocumentBase {
 
 export interface DocumentGateway extends DocumentBase {
   kind: 'doc.gateway';
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetUser: string;
   targetName: string;
   targetSubresourceName?: string;
@@ -149,6 +154,10 @@ export interface DocumentGatewayKube extends DocumentBase {
   leafClusterId: string | undefined;
   targetUri: uri.KubeUri;
   origin: DocumentOrigin;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
+  // status is used merely to show a progress bar when the gateway is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -180,7 +189,7 @@ export interface DocumentClusterQueryParams {
 // `DocumentClusterQueryParams` uses values of this type and documents are stored to disk.
 export type DocumentClusterResourceKind = Extract<
   SharedUnifiedResource['resource']['kind'],
-  'node' | 'kube_cluster' | 'db'
+  'node' | 'app' | 'kube_cluster' | 'db'
 >;
 
 export interface DocumentAccessRequests extends DocumentBase {
@@ -193,6 +202,8 @@ export interface DocumentAccessRequests extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
+  /** Identifier of the shell to be opened. */
+  shellId?: string;
   rootClusterId?: string;
   leafClusterId?: string;
 }
@@ -241,9 +252,19 @@ export function isDocumentTshNodeWithServerId(
   return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
 }
 
+/**
+ * `DocumentPtySession` and `DocumentGatewayKube` spawn a shell.
+ * The shell is taken from the `doc.shellId` property.
+ */
+export function canDocChangeShell(
+  doc: Document
+): doc is DocumentPtySession | DocumentGatewayKube {
+  return doc.kind === 'doc.terminal_shell' || doc.kind === 'doc.gateway_kube';
+}
+
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
+  targetUri: uri.DatabaseUri | uri.AppUri;
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;

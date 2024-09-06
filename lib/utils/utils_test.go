@@ -21,7 +21,6 @@ package utils
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,8 +133,8 @@ func TestRemoveFromSlice(t *testing.T) {
 	}
 }
 
-// TestVersions tests versions compatibility checking
-func TestVersions(t *testing.T) {
+// TestMinVersions tests versions compatibility checking
+func TestMinVersions(t *testing.T) {
 	t.Parallel()
 
 	type tc struct {
@@ -150,8 +149,8 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.True(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to succeed")
+			require.NoError(t, CheckMinVersion(testCase.client, testCase.minClient))
+			assert.True(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to succeed")
 		})
 	}
 
@@ -161,8 +160,41 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.False(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to fail")
+			fixtures.AssertBadParameter(t, CheckMinVersion(testCase.client, testCase.minClient))
+			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
+		})
+	}
+}
+
+// TestMaxVersions tests versions compatibility checking
+func TestMaxVersions(t *testing.T) {
+	t.Parallel()
+
+	type tc struct {
+		info      string
+		client    string
+		maxClient string
+	}
+	successTestCases := []tc{
+		{info: "client same as max version", client: "1.0.0", maxClient: "1.0.0"},
+		{info: "client older than max version", client: "1.1.0", maxClient: "1.2.0"},
+		{info: "pre-releases clients are ok", client: "1.0.0-alpha.1", maxClient: "1.0.0"},
+	}
+	for _, testCase := range successTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			require.NoError(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			assert.True(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to succeed")
+		})
+	}
+
+	failTestCases := []tc{
+		{info: "client newer than max version", client: "1.3.0", maxClient: "1.1.0"},
+		{info: "newer pre-releases are no ok", client: "1.1.0", maxClient: "1.1.0-alpha.1"},
+	}
+	for _, testCase := range failTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			fixtures.AssertBadParameter(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
 		})
 	}
 }
@@ -181,6 +213,7 @@ func TestClickableURL(t *testing.T) {
 		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
 		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
 		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
+		{info: "hostname", in: "http://example.com:3000/howdy", out: "http://example.com:3000/howdy"},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.info, func(t *testing.T) {
@@ -559,45 +592,6 @@ func TestStringsSet(t *testing.T) {
 	out := StringsSet(nil)
 	require.Empty(t, out)
 	require.NotNil(t, out)
-}
-
-// TestRepeatReader tests repeat reader
-func TestRepeatReader(t *testing.T) {
-	t.Parallel()
-
-	type tc struct {
-		name     string
-		repeat   byte
-		count    int
-		expected string
-	}
-	tcs := []tc{
-		{
-			name:     "repeat once",
-			repeat:   byte('a'),
-			count:    1,
-			expected: "a",
-		},
-		{
-			name:     "repeat zero times",
-			repeat:   byte('a'),
-			count:    0,
-			expected: "",
-		},
-		{
-			name:     "repeat multiple times",
-			repeat:   byte('a'),
-			count:    3,
-			expected: "aaa",
-		},
-	}
-	for _, tc := range tcs {
-		t.Run(tc.name, func(t *testing.T) {
-			data, err := io.ReadAll(NewRepeatReader(tc.repeat, tc.count))
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, string(data))
-		})
-	}
 }
 
 func TestReadAtMost(t *testing.T) {

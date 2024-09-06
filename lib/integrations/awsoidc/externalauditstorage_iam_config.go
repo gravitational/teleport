@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 )
 
 // ConfigureExternalAuditStorageClient is an interface for the AWS client methods
@@ -67,7 +67,7 @@ func (d *DefaultConfigureExternalAuditStorageClient) GetCallerIdentity(ctx conte
 func ConfigureExternalAuditStorage(
 	ctx context.Context,
 	clt ConfigureExternalAuditStorageClient,
-	params *config.IntegrationConfExternalAuditStorage,
+	params easconfig.ExternalAuditStorageConfiguration,
 ) error {
 	fmt.Println("\nConfiguring necessary IAM permissions for External Audit Storage")
 

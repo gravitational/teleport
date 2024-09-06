@@ -17,8 +17,5 @@
  */
 
 import ProgressBar from './ProgressBar';
-import ProgressBarTty from './ProgressBarTty';
-import { ProgressBarDesktop } from './ProgressBarDesktop';
 
 export default ProgressBar;
-export { ProgressBarTty, ProgressBarDesktop };

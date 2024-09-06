@@ -25,8 +25,10 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
+import { Gateway } from 'teleterm/services/tshd/types';
+import { isDatabaseUri, isAppUri } from 'teleterm/ui/uri';
 
-export function useDocumentGateway(doc: types.DocumentGateway) {
+export function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
   const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
@@ -41,15 +43,22 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
   const connected = !!gateway;
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
-    const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
-      ctx.clustersService.createGateway({
-        targetUri: doc.targetUri,
-        port: port,
-        user: doc.targetUser,
-        subresource_name: doc.targetSubresourceName,
-      })
-    );
+    workspaceDocumentsService.update(doc.uri, { status: 'connecting' });
+    let gw: Gateway;
 
+    try {
+      gw = await retryWithRelogin(ctx, doc.targetUri, () =>
+        ctx.clustersService.createGateway({
+          targetUri: doc.targetUri,
+          localPort: port,
+          targetUser: doc.targetUser,
+          targetSubresourceName: doc.targetSubresourceName,
+        })
+      );
+    } catch (error) {
+      workspaceDocumentsService.update(doc.uri, { status: 'error' });
+      throw error;
+    }
     workspaceDocumentsService.update(doc.uri, {
       gatewayUri: gw.uri,
       // Set the port on doc to match the one returned from the daemon. Teleterm doesn't let the
@@ -59,8 +68,24 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
       // Setting it here makes it so that on app restart, Teleterm will restart the proxy with the
       // same port number.
       port: gw.localPort,
+      status: 'connected',
     });
-    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
+    if (isDatabaseUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse({
+        uri: doc.targetUri,
+        protocol: 'db',
+        origin: doc.origin,
+        accessThrough: 'local_proxy',
+      });
+    }
+    if (isAppUri(doc.targetUri)) {
+      ctx.usageService.captureProtocolUse({
+        uri: doc.targetUri,
+        protocol: 'app',
+        origin: doc.origin,
+        accessThrough: 'local_proxy',
+      });
+    }
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
@@ -68,17 +93,18 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
     workspaceDocumentsService.close(doc.uri);
   });
 
-  const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
-    const updatedGateway =
-      await ctx.clustersService.setGatewayTargetSubresourceName(
-        doc.gatewayUri,
-        name
-      );
+  const [changeTargetSubresourceNameAttempt, changeTargetSubresourceName] =
+    useAsync(async (name: string) => {
+      const updatedGateway =
+        await ctx.clustersService.setGatewayTargetSubresourceName(
+          doc.gatewayUri,
+          name
+        );
 
-    workspaceDocumentsService.update(doc.uri, {
-      targetSubresourceName: updatedGateway.targetSubresourceName,
+      workspaceDocumentsService.update(doc.uri, {
+        targetSubresourceName: updatedGateway.targetSubresourceName,
+      });
     });
-  });
 
   const [changePortAttempt, changePort] = useAsync(async (port: string) => {
     const updatedGateway = await ctx.clustersService.setGatewayLocalPort(
@@ -91,21 +117,6 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
       port: updatedGateway.localPort,
     });
   });
-
-  const runCliCommand = () => {
-    const command = tshdGateway.getCliCommandArgv0(gateway.gatewayCliCommand);
-    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
-
-    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
-      title,
-      targetUri: doc.targetUri,
-      targetUser: doc.targetUser,
-      targetName: doc.targetName,
-      targetProtocol: gateway.protocol,
-    });
-    workspaceDocumentsService.add(cliDoc);
-    workspaceDocumentsService.setLocation(cliDoc.uri);
-  };
 
   useEffect(
     function createGatewayOnMount() {
@@ -127,12 +138,64 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
     connected,
     reconnect: createGateway,
     connectAttempt,
-    // TODO(ravicious): Show disconnectAttempt errors in UI.
     disconnectAttempt,
-    runCliCommand,
-    changeDbName,
-    changeDbNameAttempt,
+    changeTargetSubresourceName,
+    changeTargetSubresourceNameAttempt,
     changePort,
     changePortAttempt,
+  };
+}
+
+//TODO(gzdunek): Refactor DocumentGateway so the hook below is no longer needed.
+// We should move away from using one big hook per component.
+export function useDocumentGateway(doc: types.DocumentGateway) {
+  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
+
+  const {
+    gateway,
+    reconnect,
+    connectAttempt,
+    disconnectAttempt,
+    disconnect,
+    connected,
+    changePort,
+    changePortAttempt,
+    changeTargetSubresourceNameAttempt,
+    changeTargetSubresourceName,
+    defaultPort,
+  } = useGateway(doc);
+
+  const runCliCommand = () => {
+    if (!isDatabaseUri(doc.targetUri)) {
+      return;
+    }
+    const command = tshdGateway.getCliCommandArgv0(gateway.gatewayCliCommand);
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
+    });
+    workspaceDocumentsService.add(cliDoc);
+    workspaceDocumentsService.setLocation(cliDoc.uri);
+  };
+
+  return {
+    reconnect,
+    connectAttempt,
+    // TODO(ravicious): Show disconnectAttempt errors in UI.
+    disconnectAttempt,
+    disconnect,
+    connected,
+    gateway,
+    changeDbNameAttempt: changeTargetSubresourceNameAttempt,
+    changePort,
+    changePortAttempt,
+    changeDbName: changeTargetSubresourceName,
+    defaultPort,
+    runCliCommand,
   };
 }

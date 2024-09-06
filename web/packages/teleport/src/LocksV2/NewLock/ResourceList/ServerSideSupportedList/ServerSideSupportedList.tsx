@@ -30,16 +30,23 @@ import { Desktop } from 'teleport/services/desktops';
 import { Node } from 'teleport/services/nodes';
 import { useServerSidePagination } from 'teleport/components/hooks';
 import useTeleport from 'teleport/useTeleport';
-import cfg from 'teleport/config';
+import cfg, { UrlResourcesParams } from 'teleport/config';
 import Ctx from 'teleport/teleportContext';
+
+import { RoleResource } from 'teleport/services/resources';
 
 import { TableWrapper, ServerSideListProps } from '../common';
 import { CommonListProps, LockResourceKind } from '../../common';
 
 import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
+import { Roles } from './Roles';
 
-import type { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
+import type {
+  ResourceLabel,
+  ResourceFilter,
+  ResourcesResponse,
+} from 'teleport/services/agents';
 
 export function ServerSideSupportedList(props: CommonListProps) {
   const ctx = useTeleport();
@@ -58,7 +65,7 @@ export function ServerSideSupportedList(props: CommonListProps) {
     fetchFunc: getFetchFuncForServerSidePaginating(
       ctx,
       props.selectedResourceKind
-    ) as any,
+    ),
     clusterId: cfg.proxyCluster, // Locking only supported with root cluster
     params: resourceFilter,
     pageSize: props.pageSize,
@@ -99,6 +106,9 @@ export function ServerSideSupportedList(props: CommonListProps) {
   }
 
   const table = useMemo(() => {
+    // If there is a fetchStatus, a fetching is going on.
+    // Show the loading indicator instead of trying to process previous data.
+    const resources = fetchStatus === 'loading' ? [] : fetchedData.agents;
     const listProps: ServerSideListProps = {
       fetchStatus,
       customSort: {
@@ -112,18 +122,18 @@ export function ServerSideSupportedList(props: CommonListProps) {
     };
 
     switch (props.selectedResourceKind) {
+      case 'role':
+        return <Roles roles={resources as RoleResource[]} {...listProps} />;
       case 'node':
-        return <Nodes nodes={fetchedData.agents as Node[]} {...listProps} />;
+        return <Nodes nodes={resources as Node[]} {...listProps} />;
       case 'windows_desktop':
-        return (
-          <Desktops desktops={fetchedData.agents as Desktop[]} {...listProps} />
-        );
+        return <Desktops desktops={resources as Desktop[]} {...listProps} />;
       default:
         console.error(
           `[ServerSideSupportedList.tsx] table not defined for resource kind ${props.selectedResourceKind}`
         );
     }
-  }, [props.attempt, fetchedData, fetchStatus, props.selectedResources]);
+  }, [fetchedData, fetchStatus, props.selectedResources]);
 
   return (
     <TableWrapper
@@ -131,7 +141,6 @@ export function ServerSideSupportedList(props: CommonListProps) {
       css={`
         border-radius: 8px;
         overflow: hidden;
-        box-shadow: ${props => props.theme.boxShadow[0]};
       `}
     >
       <SearchPanel
@@ -142,12 +151,13 @@ export function ServerSideSupportedList(props: CommonListProps) {
           to: pageIndicators.to,
           total: pageIndicators.totalCount,
         }}
+        hideAdvancedSearch={props.selectedResourceKind === 'role'} // Roles don't support advanced search.
         filter={resourceFilter}
         showSearchBar={true}
         disableSearch={fetchStatus === 'loading'}
       />
       {table}
-      <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+      <StyledPanel>
         <Flex justifyContent="flex-end" width="100%">
           <Flex alignItems="center" mr={2}></Flex>
           <Flex>
@@ -184,7 +194,16 @@ function getDefaultSort(kind: LockResourceKind): SortType {
 function getFetchFuncForServerSidePaginating(
   ctx: Ctx,
   resourceKind: LockResourceKind
-) {
+): (
+  clusterId: string,
+  params: UrlResourcesParams
+) => Promise<ResourcesResponse<unknown>> {
+  if (resourceKind === 'role') {
+    return async (clusterId, params) => {
+      const { items, startKey } = await ctx.resourceService.fetchRoles(params);
+      return { agents: items, startKey };
+    };
+  }
   if (resourceKind === 'node') {
     return ctx.nodeService.fetchNodes;
   }

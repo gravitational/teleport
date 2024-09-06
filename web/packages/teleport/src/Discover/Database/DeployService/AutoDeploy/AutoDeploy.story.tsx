@@ -17,60 +17,100 @@
  */
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
-import { initialize, mswLoader } from 'msw-storybook-addon';
-import { rest } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+
 import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { getUserContext } from 'teleport/mocks/contexts';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+
+import {
+  ComponentWrapper,
+  getDbMeta,
+  getDbResourceSpec,
+} from 'teleport/Discover/Fixtures/databases';
+
+import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
   DatabaseEngine,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-  DbMeta,
-} from 'teleport/Discover/useDiscover';
-import { IntegrationStatusCode } from 'teleport/services/integrations';
 
 import { AutoDeploy } from './AutoDeploy';
 
 export default {
   title: 'Teleport/Discover/Database/Deploy/Auto',
-  loaders: [mswLoader],
 };
-
-initialize();
 
 export const Init = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
-
 Init.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      ),
+      http.post(cfg.api.awsDeployTeleportServicePath, () =>
+        HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
+      ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
       ),
     ],
   },
 };
 
-export const InitWithLabels = () => {
+export const InitWithAutoDiscover = () => {
   return (
-    <Provider
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
       agentMeta={{
+        ...getDbMeta(),
+        autoDiscovery: {
+          config: { name: '', discoveryGroup: '', aws: [] },
+        },
+      }}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+    >
+      <AutoDeploy />
+    </TeleportProvider>
+  );
+};
+InitWithAutoDiscover.parameters = {
+  msw: {
+    handlers: [
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      ),
+      http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
+        HttpResponse.json({
+          clusterDashboardUrl: 'some-cluster-dashboard-url',
+        })
+      ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
+      ),
+    ],
+  },
+};
+
+export const InitWithLabelsWithDeployFailure = () => {
+  return (
+    <TeleportProvider
+      resourceKind={ResourceKind.Database}
+      resourceSpec={getDbResourceSpec(
+        DatabaseEngine.Postgres,
+        DatabaseLocation.Aws
+      )}
+      agentMeta={{
+        ...getDbMeta(),
         agentMatcherLabels: [
           { name: 'env', value: 'staging' },
           { name: 'os', value: 'windows' },
@@ -78,17 +118,25 @@ export const InitWithLabels = () => {
       }}
     >
       <AutoDeploy />
-    </Provider>
+    </TeleportProvider>
   );
 };
-
-InitWithLabels.parameters = {
+InitWithLabelsWithDeployFailure.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(ctx.json({ securityGroups: securityGroupsResponse }))
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
+        HttpResponse.json({ securityGroups: securityGroupsResponse })
+      ),
+      http.post(cfg.api.awsDeployTeleportServicePath, () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, something went wrong.' },
+          },
+          { status: 500 }
+        )
+      ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
       ),
     ],
   },
@@ -96,24 +144,30 @@ InitWithLabels.parameters = {
 
 export const InitSecurityGroupsLoadingFailed = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
 
 InitSecurityGroupsLoadingFailed.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) =>
-          res(
-            ctx.status(403),
-            ctx.json({
-              message: 'some error when trying to list security groups',
-            })
-          )
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
+        HttpResponse.json(
+          {
+            message: 'some error when trying to list security groups',
+          },
+          { status: 403 }
+        )
+      ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, error getting subnets' },
+          },
+          { status: 403 }
+        )
       ),
     ],
   },
@@ -121,99 +175,53 @@ InitSecurityGroupsLoadingFailed.parameters = {
 
 export const InitSecurityGroupsLoading = () => {
   return (
-    <Provider>
+    <ComponentWrapper>
       <AutoDeploy />
-    </Provider>
+    </ComponentWrapper>
   );
 };
 
 InitSecurityGroupsLoading.parameters = {
   msw: {
     handlers: [
-      rest.post(
-        cfg.getListSecurityGroupsUrl('test-integration'),
-        (req, res, ctx) => res(ctx.delay('infinite'))
-      ),
+      http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
+      http.post(cfg.api.awsSubnetListPath, () => delay('infinite')),
     ],
   },
 };
 
-const Provider = props => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      agentMatcherLabels: [],
-      db: {
-        aws: {
-          rds: {
-            region: 'us-east-1',
-            vpcId: 'test-vpc',
-          },
-        },
-      },
-      selectedAwsRdsDb: { region: 'us-east-1' } as any,
-      integration: {
-        kind: 'aws-oidc',
-        name: 'test-integration',
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn-123',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
-      ...props.agentMeta,
-    } as DbMeta,
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
-  return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
-    >
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <PingTeleportProvider
-              interval={props.interval || 100000}
-              resourceKind={ResourceKind.Database}
-            >
-              {props.children}
-            </PingTeleportProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
-  );
-};
-
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-
-  ctx.isEnterprise = false;
-  ctx.storeUser.setState(getUserContext());
-
-  return ctx;
-}
+const subnetsResponse = [
+  {
+    name: 'aws-something-PrivateSubnet1A',
+    id: 'subnet-e40cd872-74de-54e3-a081',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'aws-something-PrivateSubnet2A',
+    id: 'subnet-e6f9e40e-a7c7-52ab-b8e8',
+    availability_zone: 'us-east-1a',
+  },
+  {
+    name: '',
+    id: 'subnet-9106bc09-ea32-5216-ae3b',
+    availability_zone: 'us-east-1b',
+  },
+  {
+    name: '',
+    id: 'subnet-0ee385cf-b090-5cf7-b692',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'something-long-test-1-cluster/SubnetPublicU',
+    id: 'subnet-0f0b563e-629f-5921-841d',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'something-long-test-1-cluster/SubnetPrivateUS',
+    id: 'subnet-30c9e2f6-65ce-5422-bbc0',
+    availability_zone: 'us-east-1c',
+  },
+];
 
 const securityGroupsResponse = [
   {

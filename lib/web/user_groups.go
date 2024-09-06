@@ -62,7 +62,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 
 	appServerLookup := make(map[string]types.AppServer, len(appServers))
 	for _, appServer := range appServers {
-		appServerLookup[appServer.GetName()] = appServer
+		appServerLookup[appServer.GetApp().GetName()] = appServer
 	}
 
 	userGroupsToApps := map[string]types.Apps{}

@@ -41,6 +41,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type SAMLConnectorGetter interface {
+	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+}
+
+const ErrMsgHowToFixMissingPrivateKey = "You must either specify the signing key pair (obtain the existing one with `tctl get saml --with-secrets`) or let Teleport generate a new one (remove signing_key_pair in the resource you're trying to create)."
+
 // ValidateSAMLConnector validates the SAMLConnector and sets default values.
 // If a remote to fetch roles is specified, roles will be validated to exist.
 func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
@@ -53,10 +59,11 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter) error {
 		if err != nil {
 			return trace.WrapWithMessage(err, "unable to fetch entity descriptor from %v for SAML connector %v", sc.GetEntityDescriptorURL(), sc.GetName())
 		}
+		defer resp.Body.Close()
+
 		if resp.StatusCode != http.StatusOK {
 			return trace.BadParameter("status code %v when fetching from %v for SAML connector %v", resp.StatusCode, sc.GetEntityDescriptorURL(), sc.GetName())
 		}
-		defer resp.Body.Close()
 		body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
 		if err != nil {
 			return trace.Wrap(err)
@@ -260,7 +267,7 @@ func GetSAMLServiceProvider(sc types.SAMLConnector, clock clockwork.Clock) (*sam
 	switch sc.GetProvider() {
 	case teleport.ADFS, teleport.JumpCloud:
 		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentSAML,
+			teleport.ComponentKey: teleport.ComponentSAML,
 		}).Debug("Setting ADFS/JumpCloud values.")
 		if sp.SignAuthnRequests {
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
@@ -298,9 +305,6 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (types.SAMLConn
 			return nil, trace.Wrap(err)
 		}
 
-		if cfg.ID != 0 {
-			c.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			c.SetRevision(cfg.Revision)
 		}
@@ -327,8 +331,28 @@ func MarshalSAMLConnector(samlConnector types.SAMLConnector, opts ...MarshalOpti
 
 	switch samlConnector := samlConnector.(type) {
 	case *types.SAMLConnectorV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, samlConnector))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, samlConnector))
 	default:
 		return nil, trace.BadParameter("unrecognized SAML connector version %T", samlConnector)
 	}
+}
+
+// FillSAMLSigningKeyFromExisting looks up the existing SAML connector and populates the signing key if it's missing.
+// This must be called only if the SAML Connector signing key pair has been initialized (ValidateSAMLConnector) and
+// the private key is still empty.
+func FillSAMLSigningKeyFromExisting(ctx context.Context, connector types.SAMLConnector, sg SAMLConnectorGetter) error {
+	existing, err := sg.GetSAMLConnector(ctx, connector.GetName(), true /* with secrets */)
+	switch {
+	case trace.IsNotFound(err):
+		return trace.BadParameter("failed to create SAML connector, the SAML connector has no signing key set. " + ErrMsgHowToFixMissingPrivateKey)
+	case err != nil:
+		return trace.BadParameter("failed to update SAML connector, the SAML connector has no signing key set and looking up the existing connector failed with the error: %s. %s", err.Error(), ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	existingSkp := existing.GetSigningKeyPair()
+	if existingSkp == nil || existingSkp.Cert != connector.GetSigningKeyPair().Cert {
+		return trace.BadParameter("failed to update the SAML connector, the SAML connector has no signing key and its signing certificate does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+	connector.SetSigningKeyPair(existingSkp)
+	return nil
 }

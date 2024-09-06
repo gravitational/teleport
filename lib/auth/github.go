@@ -24,8 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -39,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -51,13 +55,19 @@ import (
 // ErrGithubNoTeams results from a github user not belonging to any teams.
 var ErrGithubNoTeams = trace.BadParameter("user does not belong to any teams configured in connector; the configuration may have typos.")
 
-// GithubConverter is a thin wrapper around the ClientI interface that
+// InvalidClientRedirectErrorMessage is a string added to SSO login errors
+// caused by an invalid client redirect URL; the presence of this string is
+// checked by the proxy to provide a more useful error message to the user when
+// logging in.
+const InvalidClientRedirectErrorMessage = "invalid or disallowed client redirect URL"
+
+// GithubConverter is a thin wrapper around the [authclient.ClientI] interface that
 // ensures GitHub auth connectors use the registered implementation.
 type GithubConverter struct {
-	ClientI
+	authclient.ClientI
 }
 
-// WithGithubConnectorConversions takes a ClientI and returns one that
+// WithGithubConnectorConversions takes a [authclient.ClientI]  and returns one that
 // ensures returned or passed [types.GithubConnector] interfaces
 // use the registered implementation for the following methods:
 //
@@ -68,7 +78,7 @@ type GithubConverter struct {
 // This is function is necessary so that the
 // [github.com/gravitational/teleport/api] module does not import
 // [github.com/gravitational/teleport/lib/services].
-func WithGithubConnectorConversions(c ClientI) ClientI {
+func WithGithubConnectorConversions(c authclient.ClientI) authclient.ClientI {
 	return &GithubConverter{
 		ClientI: c,
 	}
@@ -132,16 +142,28 @@ func (g *GithubConverter) UpdateGithubConnector(ctx context.Context, connector t
 
 // CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
-	_, client, err := a.getGithubConnectorAndClient(ctx, req)
+	connector, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.StateToken, err = utils.CryptoRandomHex(TokenLenBytes)
+
+	// requests for a web session originate from the proxy, so they are trusted
+	// and they're handled in such a way that minimizes misuse in the callback
+	// endpoint; requests for a client session (as used by tsh login) need to be
+	// checked, as they will point the browser away from the IdP or the web UI
+	// after the authentication is done
+	if !req.CreateWebSession {
+		if err := ValidateClientRedirect(req.ClientRedirectURL, req.SSOTestFlow, connector.GetClientRedirectSettings()); err != nil {
+			return nil, trace.Wrap(err, InvalidClientRedirectErrorMessage)
+		}
+	}
+
+	req.StateToken, err = utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.RedirectURL = client.AuthCodeURL(req.StateToken, "", "")
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Redirect URL: %v.", req.RedirectURL)
 	req.SetExpiry(a.GetClock().Now().UTC().Add(defaults.GithubAuthRequestTTL))
 	err = a.Services.CreateGithubAuthRequest(ctx, req)
@@ -169,6 +191,7 @@ func (a *Server) upsertGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
@@ -195,6 +218,7 @@ func (a *Server) createGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
 	}
@@ -221,8 +245,9 @@ func (a *Server) updateGithubConnector(ctx context.Context, connector types.Gith
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit GitHub connector create event.")
+		log.WithError(err).Warn("Failed to emit GitHub connector update event.")
 	}
 
 	return updated, nil
@@ -239,7 +264,7 @@ type httpRequester interface {
 // If userTeams is not nil, only organizations that are both specified
 // in conn and in userTeams will be checked. If client is nil a
 // net/http.Client will be used.
-func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []teamResponse, orgCache *utils.FnCache, client httpRequester) error {
+func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
 	version := modules.GetModules().BuildType()
 	if version == modules.BuildEnterprise {
 		return nil
@@ -261,7 +286,8 @@ func checkGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 	}
 
 	// Check each organization only once
-	// DELETE IN 12 (zmb3)
+	// TODO: this can be removed as of Teleport 12, but we should create cluster
+	// alerts for anyone using the old teams_to_logins field to avoid breaking anyone
 	for _, mapping := range conn.GetTeamsToLogins() {
 		addOrg(mapping.Organization)
 	}
@@ -375,6 +401,7 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit GitHub connector delete event.")
 	}
@@ -382,46 +409,13 @@ func (a *Server) deleteGithubConnector(ctx context.Context, connectorName string
 	return nil
 }
 
-// GithubAuthResponse represents Github auth callback validation response
-type GithubAuthResponse struct {
-	// Username is the name of authenticated user
-	Username string `json:"username"`
-	// Identity is the external identity
-	Identity types.ExternalIdentity `json:"identity"`
-	// Session is the created web session
-	Session types.WebSession `json:"session,omitempty"`
-	// Cert is the generated SSH client certificate
-	Cert []byte `json:"cert,omitempty"`
-	// TLSCert is PEM encoded TLS client certificate
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// Req is the original auth request
-	Req GithubAuthRequest `json:"req"`
-	// HostSigners is a list of signing host public keys
-	// trusted by proxy, used in console login
-	HostSigners []types.CertAuthority `json:"host_signers"`
-}
-
-// GithubAuthRequest is an Github auth request that supports standard json marshaling
-type GithubAuthRequest struct {
-	// ConnectorID is the name of the connector to use.
-	ConnectorID string `json:"connector_id"`
-	// CSRFToken is used to protect against CSRF attacks.
-	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
-	// CreateWebSession indicates that a user wants to generate a web session
-	// after successful authentication.
-	CreateWebSession bool `json:"create_web_session"`
-	// ClientRedirectURL is the URL where client will be redirected after
-	// successful auth.
-	ClientRedirectURL string `json:"client_redirect_url"`
-}
-
 // GithubAuthRequestFromProto converts the types.GithubAuthRequest to GithubAuthRequest.
-func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
-	return GithubAuthRequest{
+func GithubAuthRequestFromProto(req *types.GithubAuthRequest) authclient.GithubAuthRequest {
+	return authclient.GithubAuthRequest{
 		ConnectorID:       req.ConnectorID,
-		PublicKey:         req.PublicKey,
+		PublicKey:         req.PublicKey, //nolint:staticcheck // SA1019. Setting deprecated field for older proxy clients.
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  req.CreateWebSession,
 		ClientRedirectURL: req.ClientRedirectURL,
@@ -429,21 +423,22 @@ func GithubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest 
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error)
+	validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+func (a *Server) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*authclient.GithubAuthResponse, error) {
 	diagCtx := NewSSODiagContext(types.KindGithub, a)
 	return validateGithubAuthCallbackHelper(ctx, a, diagCtx, q, a.emitter)
 }
 
-func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*GithubAuthResponse, error) {
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
 	event := &apievents.UserLogin{
 		Metadata: apievents.Metadata{
 			Type: events.UserLoginEvent,
 		},
-		Method: events.LoginMethodGithub,
+		Method:             events.LoginMethodGithub,
+		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}
 
 	auth, err := m.validateGithubAuthCallback(ctx, diagCtx, q)
@@ -572,8 +567,8 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
-	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
+func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
+	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
 
 	if errParam := q.Get("error"); errParam != "" {
 		// try to find request so the error gets logged against it.
@@ -619,49 +614,8 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
 
-	// exchange the authorization code received by the callback for an access token
-	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	userResp, teamsResp, err := a.getGithubUserAndTeams(ctx, connector, code, client, diagCtx, logger)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
-	}
-
-	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
-		TokenType: token.TokenType,
-		Expires:   int64(token.Expires),
-		Scope:     token.Scope,
-	}
-
-	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
-		token.TokenType, token.Expires, token.Scope)
-
-	// Get the Github organizations the user is a member of so we don't
-	// make unnecessary API requests
-	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ghClient := &githubAPIClient{
-		token:       token.AccessToken,
-		authServer:  a,
-		apiEndpoint: apiEndpoint,
-	}
-	userResp, err := ghClient.getUser()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user info")
-	}
-	teamsResp, err := ghClient.getTeams()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to query GitHub user teams")
-	}
-	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
-
-	// If we are running Teleport OSS, ensure that the Github organization
-	// the user is trying to authenticate with is not using external SSO.
-	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
-	// This is checked when Github auth connectors get created or updated, but
-	// check again here in case the organization enabled external SSO after
-	// the auth connector was created.
-	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -705,7 +659,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// Auth was successful, return session, certificate, etc. to caller.
-	auth := GithubAuthResponse{
+	auth := authclient.GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
 		Identity: types.ExternalIdentity{
 			ConnectorID: params.ConnectorName,
@@ -722,14 +676,16 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
-			User:             userState.GetName(),
-			Roles:            userState.GetRoles(),
-			Traits:           userState.GetTraits(),
-			SessionTTL:       params.SessionTTL,
-			LoginTime:        a.clock.Now().UTC(),
-			LoginIP:          req.ClientLoginIP,
-			AttestWebSession: true,
+		session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
+			User:                 userState.GetName(),
+			Roles:                userState.GetRoles(),
+			Traits:               userState.GetTraits(),
+			SessionTTL:           params.SessionTTL,
+			LoginTime:            a.clock.Now().UTC(),
+			LoginIP:              req.ClientLoginIP,
+			LoginUserAgent:       req.ClientUserAgent,
+			AttestWebSession:     true,
+			CreateDeviceWebToken: true,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -739,9 +695,32 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	// If a public key was provided, sign it and return a certificate.
-	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.CreateSessionCert(userState, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
+	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
+		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		req.SshPublicKey,
+		req.TlsPublicKey,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
+		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
+		keys.AttestationStatementFromProto(req.SshAttestationStatement),
+		keys.AttestationStatementFromProto(req.TlsAttestationStatement),
+	)
+	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
+		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
+			UserState:               userState,
+			SessionTTL:              params.SessionTTL,
+			SSHPubKey:               sshPublicKey,
+			TLSPubKey:               tlsPublicKey,
+			SSHAttestationStatement: sshAttestationStatement,
+			TLSAttestationStatement: tlsAttestationStatement,
+			Compatibility:           req.Compatibility,
+			RouteToCluster:          req.RouteToCluster,
+			KubernetesCluster:       req.KubernetesCluster,
+			LoginIP:                 req.ClientLoginIP,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
@@ -766,6 +745,69 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	return &auth, nil
+}
+
+func (a *Server) getGithubUserAndTeams(
+	ctx context.Context,
+	connector types.GithubConnector,
+	code string,
+	client *oauth2.Client,
+	diagCtx *SSODiagContext,
+	logger *logrus.Entry,
+) (*GithubUserResponse, []GithubTeamResponse, error) {
+	if a.GithubUserAndTeamsOverride != nil {
+		// Allow tests to override the user and teams response instead of
+		// calling out to GitHub.
+		return a.GithubUserAndTeamsOverride()
+	}
+
+	// exchange the authorization code received by the callback for an access token
+	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
+	}
+
+	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
+		TokenType: token.TokenType,
+		Expires:   int64(token.Expires),
+		Scope:     token.Scope,
+	}
+
+	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
+		token.TokenType, token.Expires, token.Scope)
+
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	ghClient := &githubAPIClient{
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
+	}
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user info")
+	}
+	teamsResp, err := ghClient.getTeams(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "failed to query GitHub user teams")
+	}
+	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
+
+	// If we are running Teleport OSS, ensure that the Github organization
+	// the user is trying to authenticate with is not using external SSO.
+	// SSO is a Teleport Enterprise feature and shouldn't be allowed in OSS.
+	// This is checked when Github auth connectors get created or updated, but
+	// check again here in case the organization enabled external SSO after
+	// the auth connector was created.
+	if err := checkGithubOrgSSOSupport(ctx, connector, teamsResp, a.githubOrgSSOCache, nil); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return userResp, teamsResp, nil
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only
@@ -855,7 +897,7 @@ func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContex
 }
 
 func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryRun bool) (types.User, error) {
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Generating dynamic GitHub identity %v/%v with roles: %v. Dry run: %v.",
 		p.ConnectorName, p.Username, p.Roles, dryRun)
 
@@ -917,9 +959,108 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return user, nil
 }
 
+const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostname"
+
+// ValidateClientRedirect checks a desktop client redirect URL for SSO logins
+// against some (potentially nil) settings from an auth connector; in the
+// current implementation, that means either "http" schema with a hostname of
+// "localhost", "127.0.0.1", or "::1" and a path of "/callback" (with any port),
+// or "https" schema with a hostname that matches one in the https_hostname
+// list, a path of "/callback" and either an empty port or explicitly 443. The
+// settings are ignored and only localhost URLs are allowed if we're using an
+// ephemeral connector (in the SSO testing flow). If the insecure_allowed_cidr_ranges
+// list is non-empty URLs in both the "http" and "https" schema are allowed
+// if the hostname is an IP address that is contained in a specified CIDR
+// range on any port.
+func ValidateClientRedirect(clientRedirect string, ssoTestFlow bool, settings *types.SSOClientRedirectSettings) error {
+	if clientRedirect == "" {
+		// empty redirects are non-functional and harmless, so we allow them as
+		// they're used a lot in test code
+		return nil
+	}
+	u, err := url.Parse(clientRedirect)
+	if err != nil {
+		return trace.Wrap(err, "parsing client redirect URL")
+	}
+	if u.Opaque != "" {
+		return trace.BadParameter("unexpected opaque client redirect URL")
+	}
+	if u.User != nil {
+		return trace.BadParameter("unexpected userinfo in client redirect URL")
+	}
+	if u.EscapedPath() != "/callback" {
+		return trace.BadParameter("invalid path in client redirect URL")
+	}
+	if q, err := url.ParseQuery(u.RawQuery); err != nil {
+		return trace.Wrap(err, "parsing query in client redirect URL")
+	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
+		return trace.BadParameter("malformed query parameters in client redirect URL")
+	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// we checked everything but u.Scheme and u.Host now
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return trace.BadParameter("invalid scheme in client redirect URL")
+	}
+
+	// allow HTTP redirects to local addresses
+	allowedHTTPLocalAddrs := []string{"localhost", "127.0.0.1", "::1"}
+	if u.Scheme == "http" && slices.Contains(allowedHTTPLocalAddrs, u.Hostname()) {
+		return nil
+	}
+
+	if ssoTestFlow {
+		return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+	}
+
+	if settings == nil {
+		return trace.AccessDenied(unknownRedirectHostnameErrMsg)
+	}
+
+	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
+	hostIP, err := netip.ParseAddr(u.Hostname())
+	if err == nil {
+		hostIP = hostIP.Unmap()
+
+		for _, cidrStr := range settings.InsecureAllowedCidrRanges {
+			cidr, err := netip.ParsePrefix(cidrStr)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error parsing OIDC connector CIDR prefix", "cidr", cidrStr, "err", err)
+				continue
+			}
+			if cidr.Contains(hostIP) {
+				return nil
+			}
+		}
+	}
+
+	if u.Scheme == "https" {
+		switch u.Port() {
+		default:
+			return trace.BadParameter("invalid port in client redirect URL")
+		case "", "443":
+		}
+
+		for _, expression := range settings.AllowedHttpsHostnames {
+			ok, err := utils.MatchString(u.Hostname(), expression)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error compiling OIDC connector allowed HTTPS hostname regex", "regex", expression, "err", err)
+				continue
+			}
+			if ok {
+				return nil
+			}
+		}
+	}
+
+	return trace.AccessDenied(unknownRedirectHostnameErrMsg)
+}
+
 // populateGithubClaims builds a GithubClaims using queried
 // user, organization and teams information.
-func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.GithubClaims, error) {
+func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) (*types.GithubClaims, error) {
 	orgToTeams := make(map[string][]string)
 	teamList := make([]string, 0, len(teams))
 	for _, team := range teams {
@@ -936,7 +1077,7 @@ func populateGithubClaims(user *userResponse, teams []teamResponse) (*types.Gith
 		OrganizationToTeams: orgToTeams,
 		Teams:               teamList,
 	}
-	log.WithFields(logrus.Fields{trace.Component: "github"}).Debugf(
+	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Claims: %#v.", claims)
 	return claims, nil
 }
@@ -952,20 +1093,20 @@ type githubAPIClient struct {
 	apiEndpoint string
 }
 
-// userResponse represents response from "user" API call
-type userResponse struct {
+// GithubUserResponse represents response from "user" API call
+type GithubUserResponse struct {
 	// Login is the username
 	Login string `json:"login"`
 }
 
 // getEmails retrieves a list of emails for authenticated user
-func (c *githubAPIClient) getUser() (*userResponse, error) {
+func (c *githubAPIClient) getUser() (*GithubUserResponse, error) {
 	// Ignore pagination links, we should never get more than a single user here.
 	bytes, _, err := c.get("user")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var user userResponse
+	var user GithubUserResponse
 	err = json.Unmarshal(bytes, &user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -973,25 +1114,25 @@ func (c *githubAPIClient) getUser() (*userResponse, error) {
 	return &user, nil
 }
 
-// teamResponse represents a single team entry in the "teams" API response
-type teamResponse struct {
+// GithubTeamResponse represents a single team entry in the "teams" API response
+type GithubTeamResponse struct {
 	// Name is the team name
 	Name string `json:"name"`
 	// Slug is the team ID
 	Slug string `json:"slug"`
 	// Org describes the organization this team is a part of
-	Org orgResponse `json:"organization"`
+	Org GithubOrgResponse `json:"organization"`
 }
 
-// orgResponse represents a Github organization
-type orgResponse struct {
+// GithubOrgResponse represents a Github organization
+type GithubOrgResponse struct {
 	// Login is the organization ID
 	Login string `json:"login"`
 }
 
 // getTeams retrieves a list of teams authenticated user belongs to.
-func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
-	var result []teamResponse
+func (c *githubAPIClient) getTeams(ctx context.Context) ([]GithubTeamResponse, error) {
+	var result []GithubTeamResponse
 
 	bytes, nextPage, err := c.get("user/teams")
 	if err != nil {
@@ -999,7 +1140,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 	}
 
 	// Extract the first page of results and append them to the full result set.
-	var teams []teamResponse
+	var teams []GithubTeamResponse
 	err = json.Unmarshal(bytes, &teams)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1018,7 +1159,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 				"hit maximum number pages that can be fetched from GitHub."
 
 			// Print warning to Teleport logs as well as the Audit Log.
-			log.Warnf(warningMessage)
+			log.Warn(warningMessage)
 			if err := c.authServer.emitter.EmitAuditEvent(c.authServer.closeCtx, &apievents.UserLogin{
 				Metadata: apievents.Metadata{
 					Type: events.UserLoginEvent,
@@ -1029,6 +1170,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 					Success: false,
 					Error:   warningMessage,
 				},
+				ConnectionMetadata: authz.ConnectionMetadata(ctx),
 			}); err != nil {
 				log.WithError(err).Warn("Failed to emit GitHub login failure event.")
 			}

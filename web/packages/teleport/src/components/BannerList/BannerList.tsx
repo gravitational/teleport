@@ -17,28 +17,20 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 import { Box } from 'design';
 
-import { MainContainer } from 'teleport/Main/MainContainer';
+import { StandardBanner } from './StandardBanner';
 
-import { useLayout } from 'teleport/Main/LayoutContext';
-
-import { Banner } from './Banner';
-
-import type { Severity } from './Banner';
+import type { Severity } from './StandardBanner';
 import type { ReactNode } from 'react';
 
 export const BannerList = ({
   banners = [],
-  children,
   customBanners = [],
   billingBanners = [],
   onBannerDismiss = () => {},
 }: Props) => {
-  const { hasDockedElement } = useLayout();
-
   const [bannerData, setBannerData] = useState<{ [id: string]: BannerType }>(
     {}
   );
@@ -63,44 +55,26 @@ export const BannerList = ({
   );
 
   return (
-    <Wrapper
-      hasDockedElement={hasDockedElement}
-      bannerCount={
-        shownBanners.length + customBanners.length + billingBanners.length
-      }
-    >
+    <Box>
       {shownBanners.map(banner => (
-        <Banner
+        <StandardBanner
           message={banner.message}
           severity={banner.severity}
           id={banner.id}
-          link={banner.link}
-          onClose={removeBanner}
+          link={banner.linkDestination}
+          linkText={banner.linkText}
+          onDismiss={() => removeBanner(banner.id)}
           key={banner.id}
         />
       ))}
       {customBanners}
       {billingBanners}
-      {children}
-    </Wrapper>
+    </Box>
   );
 };
 
-const Wrapper = styled(Box)<{ bannerCount: number; hasDockedElement: boolean }>`
-  display: flex;
-  height: 100vh;
-  flex-direction: column;
-  width: ${p => (p.hasDockedElement ? 'calc(100vw - 520px)' : '100vw')};
-
-  ${MainContainer} {
-    flex: 1;
-    height: calc(100% - ${props => props.bannerCount * 38}px);
-  }
-`;
-
 type Props = {
   banners: BannerType[];
-  children?: ReactNode;
   customBanners?: ReactNode[];
   onBannerDismiss?: (string) => void;
   billingBanners?: ReactNode[];
@@ -110,6 +84,7 @@ export type BannerType = {
   message: string;
   severity: Severity;
   id: string;
-  link?: string;
+  linkDestination?: string;
+  linkText?: string;
   hidden?: boolean;
 };

@@ -17,7 +17,7 @@
  */
 
 import React, { Suspense, useState, useEffect } from 'react';
-import { Box, ButtonSecondary, Text } from 'design';
+import { Box, ButtonSecondary, Text, Mark, H3 } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 
@@ -40,7 +40,7 @@ import {
 } from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import {
   DiscoverEventStatus,
@@ -54,7 +54,6 @@ import {
   DiscoverLabel,
   Header,
   HeaderSubtitle,
-  Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
@@ -88,6 +87,7 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
           fallbackFn={fbProps => (
             <Box>
               {heading}
+              <H3>Define Matcher Labels</H3>
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
@@ -108,6 +108,7 @@ export default function Container({ toggleDeployMethod }: DeployServiceProp) {
             fallback={
               <Box>
                 {heading}
+                <H3>Define Matcher Labels</H3>
                 <Labels {...labelProps} disableBtns={true} />
                 <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
@@ -224,12 +225,13 @@ export function ManualDeploy(props: {
   return (
     <Box>
       <Heading toggleDeployMethod={props.toggleDeployMethod} />
+      <H3>Define Matcher Labels</H3>
       <Labels
         labels={props.labels}
         setLabels={props.setLabels}
         disableBtns={true}
         dbLabels={props.dbLabels}
-        region={(agentMeta as DbMeta).selectedAwsRdsDb?.region}
+        region={agentMeta.awsRegion}
       />
       <Box mt={6}>
         <CommandBox>
@@ -303,6 +305,7 @@ function LoadedView({
   return (
     <Box>
       <Heading toggleDeployMethod={toggleDeployMethod} />
+      <H3>Define Matcher Labels</H3>
       <Labels
         labels={labels}
         setLabels={setLabels}

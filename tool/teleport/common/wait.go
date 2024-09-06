@@ -138,8 +138,8 @@ func waitNoResolve(ctx context.Context, domain string, period, timeout time.Dura
 func checkDomainNoResolve(domainName string) (exit bool, err error) {
 	endpoints, err := countEndpoints(domainName)
 	if err != nil {
-		dnsErr, ok := trace.Unwrap(err).(*net.DNSError)
-		if !ok {
+		var dnsErr *net.DNSError
+		if !errors.As(trace.Unwrap(err), &dnsErr) {
 			log.Errorf("unexpected error when resolving domain %s : %s", domainName, err)
 			return false, trace.Wrap(err)
 		}

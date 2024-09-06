@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Indicator, Box, ButtonPrimary, Alert } from 'design';
+import { Indicator, Box, Alert, Button } from 'design';
 
 import {
   FeatureBox,
@@ -31,7 +31,7 @@ import UserDelete from './UserDelete';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
 
-export default function Container(props: UsersContainerProps) {
+export function UsersContainer(props: UsersContainerProps) {
   const state = useUsers(props);
   return <Users {...state} />;
 }
@@ -40,7 +40,7 @@ export function Users(props: State) {
   const {
     attempt,
     users,
-    roles,
+    fetchRoles,
     operation,
     onStartCreate,
     onStartDelete,
@@ -65,18 +65,30 @@ export function Users(props: State) {
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
-                Create New User
-              </ButtonPrimary>
-            )}
-            {InviteCollaborators && (
-              <ButtonPrimary
+              <Button
+                intent="primary"
+                fill="border"
                 ml="auto"
                 width="240px"
-                onClick={onStartInviteCollaborators}
+                onClick={onStartCreate}
+              >
+                Create New User
+              </Button>
+            )}
+            {InviteCollaborators && (
+              <Button
+                intent="primary"
+                fill="border"
+                ml="auto"
+                width="240px"
+                // TODO(bl-nero): There may be a bug here that used to be hidden
+                // by inadequate type checking; investigate and fix.
+                onClick={
+                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
+                }
               >
                 Enroll Users
-              </ButtonPrimary>
+              </Button>
             )}
           </>
         )}
@@ -98,7 +110,7 @@ export function Users(props: State) {
       {(operation.type === 'create' || operation.type === 'edit') && (
         <UserAddEdit
           isNew={operation.type === 'create'}
-          roles={roles}
+          fetchRoles={fetchRoles}
           onClose={onClose}
           onCreate={onCreate}
           onUpdate={onUpdate}

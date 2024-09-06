@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -49,7 +48,7 @@ import (
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
 	return cmp.Equal(lhs, rhs,
 		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		// Optimize types.CAKeySet comparison.
 		cmp.Comparer(func(a, b types.CAKeySet) bool {
 			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
@@ -70,7 +69,7 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 	switch ca.GetType() {
 	case types.UserCA, types.HostCA:
 		err = checkUserOrHostCA(ca)
-	case types.DatabaseCA:
+	case types.DatabaseCA, types.DatabaseClientCA:
 		err = checkDatabaseCA(ca)
 	case types.OpenSSHCA:
 		err = checkOpenSSHCA(ca)
@@ -78,10 +77,26 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkJWTKeys(ca)
 	case types.SAMLIDPCA:
 		err = checkSAMLIDPCA(ca)
+	case types.SPIFFECA:
+		err = checkSPIFFECA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
 	return trace.Wrap(err)
+}
+
+func checkSPIFFECA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
+	}
+	if len(ca.Spec.ActiveKeys.JWT) == 0 {
+		return trace.BadParameter("certificate authority missing JWT key pairs")
+	}
+	return nil
 }
 
 func checkUserOrHostCA(cai types.CertAuthority) error {
@@ -118,7 +133,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
-		return trace.BadParameter("DB certificate authority missing TLS key pairs")
+		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
 	}
 
 	for _, pair := range ca.GetTrustedTLSKeyPairs() {
@@ -127,7 +142,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -183,17 +198,16 @@ func checkJWTKeys(cai types.CertAuthority) error {
 	for _, pair := range ca.GetTrustedJWTKeyPairs() {
 		// TODO(nic): validate PKCS11 private keys
 		if len(pair.PrivateKey) > 0 && pair.PrivateKeyType == types.PrivateKeyType_RAW {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = keys.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := keys.ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -224,7 +238,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 			if len(pair.Cert) > 0 {
 				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
 			} else {
-				_, err = utils.ParsePrivateKey(pair.Key)
+				_, err = keys.ParsePrivateKey(pair.Key)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -241,7 +255,6 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})
@@ -360,10 +373,16 @@ type UserCertParams struct {
 	DisallowReissue bool
 	// CertificateExtensions are user configured ssh key extensions
 	CertificateExtensions []*types.CertExtension
-	// Renewable indicates this certificate is renewable
+	// Renewable indicates this certificate is renewable.
 	Renewable bool
 	// Generation counts the number of times a certificate has been renewed.
 	Generation uint64
+	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
+	// Empty for human users.
+	BotName string
+	// BotInstanceID is the unique identifier for the bot instance, if this is a
+	// Machine ID bot. It is empty for human users.
+	BotInstanceID string
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
 	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
@@ -473,9 +492,6 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (types.CertAuth
 		if err := ValidateCertAuthority(&ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if cfg.ID != 0 {
-			ca.SetResourceID(cfg.ID)
-		}
 		if cfg.Revision != "" {
 			ca.SetRevision(cfg.Revision)
 		}
@@ -510,7 +526,7 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 
 	switch certAuthority := certAuthority.(type) {
 	case *types.CertAuthorityV2:
-		return utils.FastMarshal(maybeResetProtoResourceID(cfg.PreserveResourceID, certAuthority))
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, certAuthority))
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}

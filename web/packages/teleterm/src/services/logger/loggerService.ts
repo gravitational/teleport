@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import stream from 'node:stream';
+
 import winston, {
   createLogger as createWinston,
   format,
@@ -26,6 +28,9 @@ import { isObject } from 'shared/utils/highbar';
 import split2 from 'split2';
 
 import { Logger, LoggerService, NodeLoggerService } from './types';
+import { KeepLastChunks } from './keepLastChunks';
+
+import type { Logform } from 'winston';
 
 import type { ChildProcess } from 'node:child_process';
 
@@ -84,40 +89,52 @@ export function createFileLoggerService(
     transports: [
       new transports.File({
         maxsize: 4194304, // 4 MB - max size of a single file
-        maxFiles: 5,
+        maxFiles: opts.dev ? 5 : 3,
         dirname: opts.dir,
         filename: `${opts.name}.log`,
+        tailable: true,
       }),
     ],
   });
 
   if (opts.dev) {
-    instance.add(
-      new transports.Console({
-        format: format.printf(({ level, message, context }) => {
-          const loggerName =
-            opts.loggerNameColor &&
-            `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`;
-
-          const text = stringifier(message as unknown as unknown[]);
-          const logMessage = opts.passThroughMode
-            ? text
-            : `[${context}] ${level}: ${text}`;
-
-          return [loggerName, logMessage].filter(Boolean).join(' ');
-        }),
-      })
-    );
+    // Browser environment.
+    if (typeof window !== 'undefined') {
+      instance.add(getBrowserConsoleTransport(opts));
+    } else {
+      instance.add(getRegularConsoleTransport(opts));
+    }
   }
 
   return {
-    pipeProcessOutputIntoLogger(childProcess: ChildProcess): void {
-      const splitStream = split2(line => ({ level: 'info', message: [line] }));
+    pipeProcessOutputIntoLogger(
+      childProcess: ChildProcess,
+      lastLogs?: KeepLastChunks<string>
+    ): void {
+      const splitStream = split2();
+      const lineToWinstonFormat = new stream.Transform({
+        // Must be enabled in order for this stream to return anything else than a string or a
+        // buffer from the transform function.
+        objectMode: true,
+        transform: (line: string, encoding, callback) => {
+          callback(null, { level: 'info', message: [line] });
+        },
+      });
 
+      // splitStream receives raw output from the child process and outputs lines as chunks.
       childProcess.stdout.pipe(splitStream, { end: false });
       childProcess.stderr.pipe(splitStream, { end: false });
 
-      splitStream.pipe(instance);
+      // lineToWinstonFormat takes each line and converts it to Winston format.
+      splitStream.pipe(lineToWinstonFormat);
+
+      // Finally, we pipe the converted lines to a Winston instance.
+      lineToWinstonFormat.pipe(instance);
+
+      // Optionally, we pipe each line to lastLogs.
+      if (lastLogs) {
+        splitStream.pipe(lastLogs);
+      }
 
       // Because the .pipe calls above use { end: false }, the split stream won't end when the
       // source streams end. This gives us a chance to wait for both stdout and stderr to get closed
@@ -166,7 +183,12 @@ function stringifier(message: unknown[]): string {
         return singleMessage.stack;
       }
       if (isObject(singleMessage)) {
-        return JSON.stringify(singleMessage);
+        return JSON.stringify(
+          singleMessage,
+          // BigInt is not serializable with JSON.stringify
+          // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/BigInt#use_within_json
+          (_, value) => (typeof value === 'bigint' ? `${value}n` : value)
+        );
       }
       return singleMessage;
     })
@@ -193,3 +215,46 @@ type FileLoggerOptions = {
    * */
   omitTimestamp?: boolean;
 };
+
+/** Does not stringify messages and logs directly using `console.*` functions. */
+function getBrowserConsoleTransport(opts: FileLoggerOptions) {
+  return new transports.Console({
+    log({ level, message, context }: Logform.TransformableInfo, next) {
+      const loggerName = getLoggerName(opts);
+
+      const logMessage = opts.passThroughMode
+        ? message
+        : [`[${context}] ${level}:`, ...message];
+
+      const toLog = [loggerName, logMessage].filter(Boolean).flat();
+      // We allow level to be only info, warn and error (createLoggerFromWinston).
+      console[level](...toLog);
+      next();
+    },
+  });
+}
+
+/** Stringifies log messages and logs with winston's console transport. */
+function getRegularConsoleTransport(opts: FileLoggerOptions) {
+  return new transports.Console({
+    format: format.printf(({ level, message, context }) => {
+      const loggerName = getLoggerName(opts);
+
+      const text = stringifier(message as unknown as unknown[]);
+      const logMessage = opts.passThroughMode
+        ? text
+        : `[${context}] ${level}: ${text}`;
+
+      return [loggerName, logMessage].filter(Boolean).join(' ');
+    }),
+  });
+}
+
+function getLoggerName(
+  opts: Pick<FileLoggerOptions, 'loggerNameColor' | 'name'>
+) {
+  return (
+    opts.loggerNameColor &&
+    `\x1b[${opts.loggerNameColor}m${opts.name.toUpperCase()}\x1b[0m`
+  );
+}

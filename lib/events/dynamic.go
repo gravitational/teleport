@@ -131,7 +131,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.TrustedClusterDelete{}
 	case TrustedClusterTokenCreateEvent:
 		//nolint:staticcheck // We still need to support viewing the deprecated event
-		//type for backwards compatibility.
+		// type for backwards compatibility.
 		e = &events.TrustedClusterTokenCreate{}
 	case ProvisionTokenCreateEvent:
 		e = &events.ProvisionTokenCreate{}
@@ -185,6 +185,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionQuery{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
+	case DatabaseSessionPermissionsUpdateEvent:
+		e = &events.DatabasePermissionUpdate{}
+	case DatabaseSessionUserCreateEvent:
+		e = &events.DatabaseUserCreate{}
+	case DatabaseSessionUserDeactivateEvent:
+		e = &events.DatabaseUserDeactivate{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -239,9 +245,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceDelete{}
 	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
-	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
-		DeviceEnrollEvent, DeviceAuthenticateEvent,
-		DeviceEnrollTokenCreateEvent:
+	case DeviceCreateEvent,
+		DeviceDeleteEvent,
+		DeviceUpdateEvent,
+		DeviceEnrollEvent,
+		DeviceAuthenticateEvent,
+		DeviceEnrollTokenCreateEvent,
+		DeviceWebTokenCreateEvent,
+		DeviceAuthenticateConfirmEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
@@ -325,6 +336,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaAssignmentResult{}
 	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
+	case OktaUserSyncEvent:
+		e = &events.OktaUserSync{}
+	case OktaAccessListSyncEvent:
+		e = &events.OktaAccessListSync{}
+	case AccessGraphAccessPathChangedEvent:
+		e = &events.AccessPathChanged{}
 	case AccessListCreateEvent:
 		e = &events.AccessListCreate{}
 	case AccessListUpdateEvent:
@@ -349,19 +366,60 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ExternalAuditStorageEnable{}
 	case ExternalAuditStorageDisableEvent:
 		e = &events.ExternalAuditStorageDisable{}
-
+	case CreateMFAAuthChallengeEvent:
+		e = &events.CreateMFAAuthChallenge{}
+	case ValidateMFAAuthResponseEvent:
+		e = &events.ValidateMFAAuthResponse{}
+	case SPIFFESVIDIssuedEvent:
+		e = &events.SPIFFESVIDIssued{}
+	case AuthPreferenceUpdateEvent:
+		e = &events.AuthPreferenceUpdate{}
+	case ClusterNetworkingConfigUpdateEvent:
+		e = &events.ClusterNetworkingConfigUpdate{}
+	case SessionRecordingConfigUpdateEvent:
+		e = &events.SessionRecordingConfigUpdate{}
+	case AccessGraphSettingsUpdateEvent:
+		e = &events.AccessGraphSettingsUpdate{}
+	case DatabaseSessionSpannerRPCEvent:
+		e = &events.SpannerRPC{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
-	case CassandraBatchEventCode:
+	case DatabaseSessionCassandraBatchEvent:
 		e = &events.CassandraBatch{}
-	case CassandraRegisterEventCode:
+	case DatabaseSessionCassandraRegisterEvent:
 		e = &events.CassandraRegister{}
-	case CassandraPrepareEventCode:
+	case DatabaseSessionCassandraPrepareEvent:
 		e = &events.CassandraPrepare{}
-	case CassandraExecuteEventCode:
+	case DatabaseSessionCassandraExecuteEvent:
 		e = &events.CassandraExecute{}
 
+	case DiscoveryConfigCreateEvent:
+		e = &events.DiscoveryConfigCreate{}
+	case DiscoveryConfigUpdateEvent:
+		e = &events.DiscoveryConfigUpdate{}
+	case DiscoveryConfigDeleteEvent:
+		e = &events.DiscoveryConfigDelete{}
+	case DiscoveryConfigDeleteAllEvent:
+		e = &events.DiscoveryConfigDeleteAll{}
+
+	case SPIFFEFederationCreateEvent:
+		e = &events.SPIFFEFederationCreate{}
+	case SPIFFEFederationDeleteEvent:
+		e = &events.SPIFFEFederationDelete{}
+	case IntegrationCreateEvent:
+		e = &events.IntegrationCreate{}
+	case IntegrationUpdateEvent:
+		e = &events.IntegrationUpdate{}
+	case IntegrationDeleteEvent:
+		e = &events.IntegrationDelete{}
+
+	case PluginCreateEvent:
+		e = &events.PluginCreate{}
+	case PluginUpdateEvent:
+		e = &events.PluginUpdate{}
+	case PluginDeleteEvent:
+		e = &events.PluginDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

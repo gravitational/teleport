@@ -23,7 +23,7 @@ const GlobalStyle = createGlobalStyle`
 
   html {
     font-family: ${props => props.theme.font};
-    ${props => props.theme.typography.body1};
+    ${props => props.theme.typography.body2};
   }
 
   body {
@@ -35,6 +35,10 @@ const GlobalStyle = createGlobalStyle`
 
   input, textarea {
     font-family: ${props => props.theme.font};
+  }
+
+  input {
+    accent-color: ${props => props.theme.colors.brand};
   }
 
   // remove dotted Firefox outline

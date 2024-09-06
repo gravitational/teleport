@@ -36,6 +36,10 @@ import (
 // instances.
 const minBatchSize = 5
 
+// serverExpirationDuration is the amount of time a Server should stay alive after being discovered.
+// To be used with a jitter when creating the non-Teleport Server's Expiration.
+const serverExpirationDuration = 90 * time.Minute
+
 type serverInfoUpserter interface {
 	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
 }
@@ -148,7 +152,7 @@ func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
 			!utils.StringMapsEqual(si.GetNewLabels(), existingInfo.GetNewLabels()) ||
 			existingInfo.Expiry().Before(now.Add(30*time.Minute)) {
 
-			si.SetExpiry(now.Add(r.jitter(90 * time.Minute)))
+			si.SetExpiry(now.Add(r.jitter(serverExpirationDuration)))
 			r.discoveredServers[si.GetName()] = si
 			r.serverInfoQueue = append(r.serverInfoQueue, si)
 		}

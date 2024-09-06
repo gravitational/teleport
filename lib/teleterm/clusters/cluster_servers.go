@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
@@ -42,12 +42,10 @@ type Server struct {
 }
 
 // GetServers returns a paginated list of servers.
-func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
+func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest, authClient authclient.ClientI) (*GetServersResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.Server]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
+		page apiclient.ResourcePage[types.Server]
+		err  error
 	)
 
 	req := &proto.ListResourcesRequest{
@@ -62,18 +60,6 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
 		page, err = apiclient.GetResourcePage[types.Server](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)

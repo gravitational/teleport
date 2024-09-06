@@ -23,12 +23,13 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"log/slog"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	mssql "github.com/microsoft/go-mssqldb"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -37,6 +38,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
@@ -91,6 +93,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Procname: "foo3",
 				}),
 			},
@@ -113,6 +118,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
@@ -137,6 +145,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionQueryEvent,
 						Code: libevents.DatabaseSessionQueryCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					DatabaseQuery: "\nselect 'foo' as 'bar'\n        ",
 					Status: events.Status{
@@ -174,6 +185,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionQueryEvent,
 						Code: libevents.DatabaseSessionQueryCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					DatabaseQuery: "select 'foo' as 'bar'",
 					Status: events.Status{
 						Success: true,
@@ -199,6 +213,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
@@ -228,6 +245,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
 				}),
@@ -242,6 +262,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select 1"},
 					Procname:   "Sp_ExecuteSql",
@@ -258,6 +281,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
 					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
+					},
 					Parameters: []string{"select @@version"},
 					Procname:   "Sp_ExecuteSql",
 				}),
@@ -272,6 +298,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 					Metadata: events.Metadata{
 						Type: libevents.DatabaseSessionSQLServerRPCRequestEvent,
 						Code: libevents.SQLServerRPCRequestCode,
+					},
+					UserMetadata: events.UserMetadata{
+						UserKind: events.UserKind_USER_KIND_HUMAN,
 					},
 					Parameters: []string{"select 1"},
 					Procname:   "Sp_ExecuteSql",
@@ -311,7 +340,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			e := Engine{
 				EngineConfig: common.EngineConfig{
 					Audit:   audit,
-					Log:     logrus.New(),
+					Log:     slog.Default(),
 					Auth:    &mockDBAuth{},
 					Context: context.Background(),
 				},
@@ -382,7 +411,7 @@ func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreferenc
 	})
 }
 
-func (m *mockDBAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+func (m *mockDBAuth) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
 	return &tls.Config{}, nil
 }
 
@@ -398,7 +427,7 @@ func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.Acc
 	return nil
 }
 
-func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+func (m *mockChecker) GetAccessState(authPref readonly.AuthPreference) services.AccessState {
 	if authPref.GetRequireMFAType().IsSessionMFARequired() {
 		return services.AccessState{
 			MFARequired: services.MFARequiredAlways,

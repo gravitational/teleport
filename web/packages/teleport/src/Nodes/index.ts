@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Nodes from './Nodes';
-export default Nodes;
+export { Nodes } from './Nodes';

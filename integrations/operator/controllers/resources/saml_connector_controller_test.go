@@ -23,12 +23,14 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -47,6 +49,7 @@ var samlSpec = &types.SAMLConnectorSpecV2{
 
 type samlTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.SAMLConnector]
 }
 
 func (g *samlTestingPrimitives) Init(setup *testSetup) {
@@ -120,18 +123,12 @@ func (g *samlTestingPrimitives) ModifyKubernetesResource(ctx context.Context, na
 }
 
 func (g *samlTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.SAMLConnector, kubeResource *resourcesv2.TeleportSAMLConnector) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	// Signing key pair is populated server-side here
-	delete(teleportMap["spec"].(map[string]interface{}), "signing_key_pair")
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	opts := testlib.CompareOptions(
+		// SigningKeyPair is added server-side, it's expected
+		cmpopts.IgnoreFields(types.SAMLConnectorSpecV2{}, "SigningKeyPair"),
+	)
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), opts...)
+	return diff == "", diff
 }
 
 func TestSAMLConnectorCreation(t *testing.T) {

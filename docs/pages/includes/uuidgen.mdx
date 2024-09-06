@@ -1,0 +1,34 @@
+To generate a new UUID:
+
+<Tabs>
+<TabItem label="Linux">
+  Use `uuidgen`. This executable is installed by default on most machines.
+  If it's not installed, it is available via the `uuid-runtime` package for
+  DEB-based distros, and `util-linux` for RPM-based distros.
+
+  ```code
+  $ uuidgen
+  
+  a100fdd0-52db-4eca-a7ab-c3afa7a1564a
+  ```
+</TabItem>
+<TabItem label="macOS">
+  Use `uuidgen` and `tr` packages that are installed by default:
+
+  ```code
+  $ uuidgen | tr '[:upper:]' '[:lower:]'
+  
+  a100fdd0-52db-4eca-a7ab-c3afa7a1564a
+  ```
+</TabItem>
+<TabItem label="Windows">
+  Use the `NewGuid` powershell cmdlet:
+
+  ```code
+  $ New-guid
+  Guid
+  ----
+  a100fdd0-52db-4eca-a7ab-c3afa7a1564a
+  ```
+</TabItem>
+</Tabs>

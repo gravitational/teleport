@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,6 +62,7 @@ var oktaImportRuleSpec = types.OktaImportRuleSpecV1{
 
 type oktaImportRuleTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithLabelsAdapter[types.OktaImportRule]
 }
 
 func (g *oktaImportRuleTestingPrimitives) Init(setup *testSetup) {
@@ -153,15 +155,8 @@ func (g *oktaImportRuleTestingPrimitives) ModifyKubernetesResource(ctx context.C
 }
 
 func (g *oktaImportRuleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.OktaImportRule, kubeResource *resourcesv1.TeleportOktaImportRule) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return equal, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-
-	return equal, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestOktaImportRuleCreation(t *testing.T) {

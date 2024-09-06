@@ -20,15 +20,15 @@ package common
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
@@ -102,7 +102,7 @@ type EngineConfig struct {
 	// Audit emits database access audit events.
 	Audit Audit
 	// AuthClient is the cluster auth server client.
-	AuthClient *auth.Client
+	AuthClient *authclient.Client
 	// CloudClients provides access to cloud API clients.
 	CloudClients cloud.Clients
 	// Context is the database server close context.
@@ -110,13 +110,18 @@ type EngineConfig struct {
 	// Clock is the clock interface.
 	Clock clockwork.Clock
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Users handles database users.
 	Users Users
 	// DataDir is the Teleport data directory
 	DataDir string
 	// GetUserProvisioner is automatic database users creation handler.
 	GetUserProvisioner func(AutoUsers) *UserProvisioner
+	// UpdateProxiedDatabase finds the proxied database by name and uses the
+	// provided function to update the database's status. Returns
+	// trace.NotFound if the name is not found otherwise forwards the error
+	// from the provided callback function.
+	UpdateProxiedDatabase func(string, func(types.Database) error) error
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -140,7 +145,7 @@ func (c *EngineConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 	if c.Log == nil {
-		c.Log = logrus.StandardLogger()
+		c.Log = slog.Default()
 	}
 	return nil
 }

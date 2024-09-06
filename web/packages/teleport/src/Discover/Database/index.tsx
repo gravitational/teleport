@@ -25,6 +25,7 @@ import {
   ResourceSpec,
   DatabaseLocation,
 } from 'teleport/Discover/SelectResource';
+import cfg from 'teleport/config';
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
@@ -36,12 +37,14 @@ import { DiscoverEvent } from 'teleport/services/userEvent';
 import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 
+import { ConfigureDiscoveryService } from '../Shared/ConfigureDiscoveryService';
+
 export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
   wrapper(component: React.ReactNode) {
     return <DatabaseWrapper>{component}</DatabaseWrapper>;
   },
-  shouldPrompt(currentStep, resourceSpec) {
+  shouldPrompt(currentStep, currentView, resourceSpec) {
     if (resourceSpec.dbMeta?.location === DatabaseLocation.Aws) {
       // Allow user to bypass prompting on this step (Connect AWS Connect)
       // on exit because users might need to change route to setup an
@@ -50,7 +53,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
         return false;
       }
     }
-    return true;
+    return currentView?.eventName !== DiscoverEvent.Completed;
   },
   views(resource) {
     let configureResourceViews;
@@ -68,12 +71,37 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
               component: EnrollRdsDatabase,
               eventName: DiscoverEvent.DatabaseRDSEnrollEvent,
             },
+            // Self hosted requires user to manually install a discovery service
+            // for auto discovery.
+            // Cloud already has a discovery service running, so this step is not required.
+            ...(!cfg.isCloud
+              ? [
+                  {
+                    title: 'Configure Discovery Service',
+                    component: () => (
+                      <ConfigureDiscoveryService withCreateConfig={true} />
+                    ),
+                    eventName: DiscoverEvent.CreateDiscoveryConfig,
+                  },
+                ]
+              : []),
+            // There are two types of deploy service methods:
+            //  - manual: user deploys it whereever they want OR
+            //  - auto (default): we deploy for them using aws
+            //    fargate container
             {
               title: 'Deploy Database Service',
               component: DeployService,
               eventName: DiscoverEvent.DeployService,
               manuallyEmitSuccessEvent: true,
             },
+            // This step can be skipped for the following.
+            // In the enroll RDS step:
+            //  - if user opted to auto-enroll all databases
+            //  - or if a db service was already found and in the db server
+            //    polling result there is a iamPolicyStatus === Success
+            // Or if user auto deployed a database service (the first step
+            // requires them to configure IAM policy)
             {
               title: 'Configure IAM Policy',
               component: IamPolicy,

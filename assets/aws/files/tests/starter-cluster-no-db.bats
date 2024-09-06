@@ -178,3 +178,10 @@ load fixtures/common
     echo "${NODE_BLOCK?}"
     echo "${NODE_BLOCK?}" | grep -E "^  listen_addr: 0.0.0.0:3022"
 }
+
+@test "[${TEST_SUITE?}] proxy_service.proxy_protocol is not set to on" {
+    load ${TELEPORT_CONFD_DIR?}/conf
+    echo "${PROXY_BLOCK?}"
+    # this test inverts the regular behaviour of grep -q, so only succeeds if the line _isn't_ present
+    echo "${PROXY_BLOCK?}" | { ! grep -qE "^  proxy_protocol: on"; }
+}

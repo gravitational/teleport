@@ -103,7 +103,6 @@ func (r *legacyToResource153Adapter) GetMetadata() *headerv1.Metadata {
 		Description: md.Description,
 		Labels:      md.Labels,
 		Expires:     expires,
-		Id:          md.ID,
 		Revision:    md.Revision,
 	}
 }
@@ -125,6 +124,12 @@ func Resource153ToLegacy(r Resource153) Resource {
 	return &resource153ToLegacyAdapter{inner: r}
 }
 
+// Resource153Unwrapper returns a legacy [Resource] type from a wrapped RFD
+// 153 style resource
+type Resource153Unwrapper interface {
+	Unwrap() Resource153
+}
+
 type resource153ToLegacyAdapter struct {
 	inner Resource153
 }
@@ -144,7 +149,13 @@ func (r *resource153ToLegacyAdapter) MarshalJSON() ([]byte, error) {
 }
 
 func (r *resource153ToLegacyAdapter) Expiry() time.Time {
-	return r.inner.GetMetadata().Expires.AsTime()
+	expires := r.inner.GetMetadata().Expires
+	// return zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
+	if expires == nil {
+		return time.Time{}
+	}
+
+	return expires.AsTime()
 }
 
 func (r *resource153ToLegacyAdapter) GetKind() string {
@@ -153,26 +164,25 @@ func (r *resource153ToLegacyAdapter) GetKind() string {
 
 func (r *resource153ToLegacyAdapter) GetMetadata() Metadata {
 	md := r.inner.GetMetadata()
+
+	// use zero time.time{} for zero *timestamppb.Timestamp, instead of 01/01/1970.
 	expires := md.Expires.AsTime()
+	if md.Expires == nil {
+		expires = time.Time{}
+	}
+
 	return Metadata{
 		Name:        md.Name,
 		Namespace:   md.Namespace,
 		Description: md.Description,
 		Labels:      md.Labels,
 		Expires:     &expires,
-		//nolint:staticcheck // SA1019. We need to refer to Id to create the Metadata.
-		ID:       md.Id,
-		Revision: md.Revision,
+		Revision:    md.Revision,
 	}
 }
 
 func (r *resource153ToLegacyAdapter) GetName() string {
 	return r.inner.GetMetadata().Name
-}
-
-func (r *resource153ToLegacyAdapter) GetResourceID() int64 {
-	//nolint:staticcheck // SA1019. We need to refer to Id to provide GetResourceID.
-	return r.inner.GetMetadata().Id
 }
 
 func (r *resource153ToLegacyAdapter) GetRevision() string {
@@ -193,11 +203,6 @@ func (r *resource153ToLegacyAdapter) SetExpiry(t time.Time) {
 
 func (r *resource153ToLegacyAdapter) SetName(name string) {
 	r.inner.GetMetadata().Name = name
-}
-
-func (r *resource153ToLegacyAdapter) SetResourceID(id int64) {
-	//nolint:staticcheck // SA1019. We need to refer to Id to provide SetResourceID.
-	r.inner.GetMetadata().Id = id
 }
 
 func (r *resource153ToLegacyAdapter) SetRevision(rev string) {

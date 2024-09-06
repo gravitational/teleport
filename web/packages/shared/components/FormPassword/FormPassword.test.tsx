@@ -21,7 +21,6 @@ import React from 'react';
 import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 import FormPassword from './FormPassword';
-import { On, Optional } from './FormPassword.story';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {
@@ -39,7 +38,7 @@ const placeholdConfirm = /confirm password/i;
 
 const btnSubmitText = /update password/i;
 
-const inputValText = 'aaaaaa';
+const inputValText = 'aaaaaaaaaaaa';
 const inputVal = { target: { value: inputValText } };
 
 test('input validation error states', async () => {
@@ -60,7 +59,7 @@ test('input validation error states', async () => {
   expect(onChangePassWithWebauthn).not.toHaveBeenCalled();
 
   expect(screen.getByText(/current password is required/i)).toBeInTheDocument();
-  expect(screen.getByText(/enter at least 6 characters/i)).toBeInTheDocument();
+  expect(screen.getByText(/enter at least 12 characters/i)).toBeInTheDocument();
   expect(screen.getByText(/please confirm your password/i)).toBeInTheDocument();
   expect(screen.getByText(/token is required/i)).toBeInTheDocument();
 });
@@ -171,14 +170,4 @@ test('prop auth2faType: OTP form', async () => {
   expect(screen.getByPlaceholderText(placeholdNewPass)).toHaveValue('');
   expect(screen.getByPlaceholderText(placeholdConfirm)).toHaveValue('');
   expect(screen.getByPlaceholderText(/123 456/i)).toHaveValue('');
-});
-
-test('auth2faType "optional" should render form with hardware key as first option in dropdown', async () => {
-  const { container } = render(<Optional />);
-  expect(container).toMatchSnapshot();
-});
-
-test('auth2faType "on" should render form with hardware key as first option in dropdown', async () => {
-  const { container } = render(<On />);
-  expect(container).toMatchSnapshot();
 });

@@ -78,16 +78,6 @@ func (r *ReverseTunnelV2) SetSubKind(s string) {
 	r.SubKind = s
 }
 
-// GetResourceID returns resource ID
-func (r *ReverseTunnelV2) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *ReverseTunnelV2) SetResourceID(id int64) {
-	r.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (r *ReverseTunnelV2) GetRevision() string {
 	return r.Metadata.GetRevision()

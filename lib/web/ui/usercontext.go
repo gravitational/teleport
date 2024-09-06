@@ -67,6 +67,8 @@ type UserContext struct {
 	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 	// AllowedSearchAsRoles is the SearchAsRoles the user has access to for creating access requests.
 	AllowedSearchAsRoles []string `json:"allowedSearchAsRoles"`
+	// PasswordState specifies whether the user has a password set or not.
+	PasswordSate types.PasswordState `json:"passwordState"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
@@ -116,5 +118,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ACL:            acl,
 		AuthType:       authType,
 		AccessStrategy: accessStrategy,
+		PasswordSate:   user.GetPasswordState(),
 	}, nil
 }

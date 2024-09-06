@@ -18,12 +18,13 @@
 
 import React, { useMemo, useRef } from 'react';
 import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
+import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
+
 import { CliCommand } from './CliCommand';
-import { ConfigFieldInput, PortFieldInput } from './common';
 import { DocumentGatewayProps } from './DocumentGateway';
 
 type OnlineDocumentGatewayProps = Pick<
@@ -80,14 +81,12 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <Text typography="h3">Database Connection</Text>
+        <H1>Database Connection</H1>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <Text typography="h4" mb={1}>
-        Connect with CLI
-      </Text>
+      <H2 mb={2}>Connect with CLI</H2>
       <Flex as="form" ref={formRef}>
         <Validation>
           <PortFieldInput
@@ -109,12 +108,12 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
       <CliCommand
         cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
-        onRun={props.runCliCommand}
+        onButtonClick={props.runCliCommand}
       />
       {$errors}
-      <Text typography="h4" mt={3} mb={1}>
+      <H2 mt={3} mb={2}>
         Connect with GUI
-      </Text>
+      </H2>
       <Text
         // Break long usernames rather than putting an ellipsis.
         css={`

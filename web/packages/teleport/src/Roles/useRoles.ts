@@ -16,49 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState } from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
-
 import TeleportContext from 'teleport/teleportContext';
-import { Resource, KindRole } from 'teleport/services/resources';
 
-export default function useRoles(ctx: TeleportContext) {
-  const [items, setItems] = useState<Resource<KindRole>[]>([]);
-  const { attempt, run } = useAttempt('processing');
+import type { UrlListRolesParams } from 'teleport/config';
 
-  function fetchData() {
-    return ctx.resourceService.fetchRoles().then(received => {
-      setItems(received);
-    });
-  }
-
-  // TODO: we cannot refetch the data right after saving because this backend
-  // operation is not atomic.
+export function useRoles(ctx: TeleportContext) {
   function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
-      return ctx.resourceService.createRole(yaml).then(result => {
-        setItems([result, ...items]);
-      });
+      return ctx.resourceService.createRole(yaml);
     }
 
-    return ctx.resourceService.updateRole(name, yaml).then(result => {
-      setItems([result, ...items.filter(r => r.name !== result.name)]);
-    });
+    return ctx.resourceService.updateRole(name, yaml);
   }
 
   function remove(name: string) {
-    return ctx.resourceService.deleteRole(name).then(() => {
-      setItems(items.filter(r => r.name !== name));
-    });
+    return ctx.resourceService.deleteRole(name);
   }
 
-  useEffect(() => {
-    run(() => fetchData());
-  }, []);
+  function fetch(params?: UrlListRolesParams) {
+    return ctx.resourceService.fetchRoles(params);
+  }
 
   return {
-    items,
-    attempt,
+    fetch,
     save,
     remove,
   };

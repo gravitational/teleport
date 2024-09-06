@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Player from './Player';
-export default Player;
+export { Player } from './Player';

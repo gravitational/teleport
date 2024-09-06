@@ -65,13 +65,14 @@ export const allAccessAcl: Acl = {
   integrations: { ...fullAccess, use: true },
   deviceTrust: fullAccess,
   lock: fullAccess,
-  assist: fullAccess,
   samlIdpServiceProvider: fullAccess,
   accessList: fullAccess,
   auditQuery: fullAccess,
   securityReport: fullAccess,
   externalAuditStorage: fullAccess,
   accessGraph: fullAccess,
+  bots: fullAccess,
+  accessMonitoringRule: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {

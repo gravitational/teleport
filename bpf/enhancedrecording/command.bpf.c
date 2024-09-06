@@ -6,7 +6,9 @@
 #include "./common.h"
 #include "../helpers.h"
 
-#define ARGSIZE  128
+// ARGSIZE specifies the max argument size read. This value must match the
+// `ArgvMax` Golang constant.
+#define ARGSIZE 1024
 #define MAXARGS 20
 
 // Size, in bytes, of the ring buffer used to report
@@ -22,6 +24,15 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 enum event_type {
     EVENT_ARG,
     EVENT_RET,
+};
+
+// common_data_t is a struct used to store fields that are common across
+// multiple events. Those fields are the same as `data_t`.
+struct common_data_t {
+    u64 pid;
+    u64 ppid;
+    char comm[TASK_COMM_LEN];
+    u64 cgroup;
 };
 
 struct data_t {
@@ -40,20 +51,34 @@ BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
 
-static int __submit_arg(void *ptr, struct data_t *data)
+static int __submit_arg(void *ptr, struct common_data_t *common)
 {
-    bpf_probe_read_user(data->argv, sizeof(data->argv), ptr);
-    if (bpf_ringbuf_output(&execve_events, data, sizeof(struct data_t), 0) != 0)
-        INCR_COUNTER(lost);
+    struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
+    if (!data) {
+        return -1;
+    }
+
+    if (bpf_probe_read_user(data->argv, sizeof(data->argv), ptr) < 0) {
+        bpf_ringbuf_discard(data, 0);
+        return -1;
+    }
+
+    data->type = EVENT_ARG;
+    data->pid = common->pid;
+    data->cgroup = common->cgroup;
+    for (int i = 0; i < TASK_COMM_LEN; i++)
+        data->comm[i] = common->comm[i];
+
+    bpf_ringbuf_submit(data, 0);
     return 1;
 }
 
-static int submit_arg(void *ptr, struct data_t *data)
+static int submit_arg(void *ptr, struct common_data_t *common)
 {
     const char *argp = 0;
     bpf_probe_read_user(&argp, sizeof(argp), ptr);
     if (argp) {
-        return __submit_arg((void *)(argp), data);
+        return __submit_arg((void *)(argp), common);
     }
     return 0;
 }
@@ -62,8 +87,7 @@ static int enter_execve(const char *filename,
                 const char *const *argv,
                 const char *const *envp)
 {
-    // create data here and pass to submit_arg to save stack space (#555)
-    struct data_t data = {};
+    struct common_data_t common = {};
     struct task_struct *task;
     u64 cgroup = bpf_get_current_cgroup_id();
     u64 *is_monitored;
@@ -75,33 +99,40 @@ static int enter_execve(const char *filename,
         return 0;
     }
 
-    data.pid = bpf_get_current_pid_tgid() >> 32;
-    data.cgroup = cgroup;
+    common.pid = bpf_get_current_pid_tgid() >> 32;
+    common.cgroup = cgroup;
 
     task = (struct task_struct *)bpf_get_current_task();
-    data.ppid = BPF_CORE_READ(task, real_parent, tgid);
+    common.ppid = BPF_CORE_READ(task, real_parent, tgid);
+    bpf_get_current_comm(&common.comm, sizeof(common.comm));
 
-    bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    data.type = EVENT_ARG;
+    if(__submit_arg((void *)filename, &common) < 0) {
+        INCR_COUNTER(lost);
+        goto out;
+    }
 
-    __submit_arg((void *)filename, &data);
-
-    // skip first arg, as we submitted filename
     for (int i = 1; i < MAXARGS; i++) {
-        if (submit_arg((void *)&argv[i], &data) == 0)
+        int res = submit_arg((void *)&argv[i], &common);
+        if (res < 0) {
+            INCR_COUNTER(lost);
+            goto out;
+        }
+
+        // If no arguments were sent, we reached the end of the arguments list.
+        if (res == 0)
              goto out;
     }
 
     // handle truncated argument list
     char ellipsis[] = "...";
-    __submit_arg((void *)ellipsis, &data);
+    if (__submit_arg((void *)ellipsis, &common) < 0)
+        INCR_COUNTER(lost);
 out:
     return 0;
 }
 
 static int exit_execve(int ret)
 {
-    struct data_t data = {};
     struct task_struct *task;
     u64 cgroup = bpf_get_current_cgroup_id();
     u64 *is_monitored;
@@ -113,24 +144,28 @@ static int exit_execve(int ret)
         return 0;
     }
 
-    data.pid = bpf_get_current_pid_tgid() >> 32;
-    data.cgroup = cgroup;
+    struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
+    if (!data) {
+        INCR_COUNTER(lost);
+        return 0;
+    }
+
+    data->pid = bpf_get_current_pid_tgid() >> 32;
+    data->cgroup = cgroup;
 
     task = (struct task_struct *)bpf_get_current_task();
-    data.ppid = BPF_CORE_READ(task, real_parent, tgid);
+    data->ppid = BPF_CORE_READ(task, real_parent, tgid);
 
-    bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    data.type = EVENT_RET;
-    data.retval = ret;
+    bpf_get_current_comm(&data->comm, sizeof(data->comm));
+    data->type = EVENT_RET;
+    data->retval = ret;
 
-    if (bpf_ringbuf_output(&execve_events, &data, sizeof(data), 0) != 0)
-        INCR_COUNTER(lost);
-
+    bpf_ringbuf_submit(data, 0);
     return 0;
 }
 
 SEC("tp/syscalls/sys_execve")
-int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_execve(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char *)tp->args[0];
     const char *const *argv = (const char *const *)tp->args[1];
@@ -140,13 +175,13 @@ int tracepoint__syscalls__sys_enter_execve(struct trace_event_raw_sys_enter *tp)
 }
 
 SEC("tp/syscalls/sys_exit_execve")
-int tracepoint__syscalls__sys_exit_execve(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_execve(struct syscall_trace_exit *tp)
 {
     return exit_execve(tp->ret);
 }
 
 SEC("tp/syscalls/sys_execveat")
-int tracepoint__syscalls__sys_enter_execveat(struct trace_event_raw_sys_enter *tp)
+int tracepoint__syscalls__sys_enter_execveat(struct syscall_trace_enter *tp)
 {
     const char *filename = (const char *)tp->args[1];
     const char *const *argv = (const char *const *)tp->args[2];
@@ -156,7 +191,7 @@ int tracepoint__syscalls__sys_enter_execveat(struct trace_event_raw_sys_enter *t
 }
 
 SEC("tp/syscalls/sys_exit_execveat")
-int tracepoint__syscalls__sys_exit_execveat(struct trace_event_raw_sys_exit *tp)
+int tracepoint__syscalls__sys_exit_execveat(struct syscall_trace_exit *tp)
 {
     return exit_execve(tp->ret);
 }

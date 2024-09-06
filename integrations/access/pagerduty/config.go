@@ -19,7 +19,10 @@
 package pagerduty
 
 import (
+	"strings"
+
 	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
@@ -88,4 +91,25 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log.Severity = "info"
 	}
 	return nil
+}
+
+func LoadConfig(filepath string) (*Config, error) {
+	t, err := toml.LoadFile(filepath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conf := &Config{}
+	if err := t.Unmarshal(conf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if strings.HasPrefix(conf.Pagerduty.APIKey, "/") {
+		conf.Pagerduty.APIKey, err = lib.ReadPassword(conf.Pagerduty.APIKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := conf.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conf, nil
 }

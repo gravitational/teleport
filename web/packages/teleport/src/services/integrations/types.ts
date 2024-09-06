@@ -37,11 +37,11 @@ import { Node } from '../nodes';
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc
+  S extends Record<string, any> = IntegrationSpecAwsOidc,
 > = {
   resourceType: T;
   kind: K;
-  spec: S;
+  spec?: S;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
@@ -51,10 +51,13 @@ export type Integration<
 // resource's subKind field.
 export enum IntegrationKind {
   AwsOidc = 'aws-oidc',
+  AzureOidc = 'azure-oidc',
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
+  issuerS3Prefix?: string;
+  issuerS3Bucket?: string;
 };
 
 export enum IntegrationStatusCode {
@@ -115,8 +118,13 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
-export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
+export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type PluginSpec =
+  | PluginOktaSpec
+  | PluginSlackSpec
+  | PluginMattermostSpec
+  | PluginOpsgenieSpec;
+
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
 // https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
@@ -132,7 +140,48 @@ export type PluginKind =
   | 'opsgenie'
   | 'okta'
   | 'servicenow'
-  | 'jamf';
+  | 'jamf'
+  | 'entra-id';
+
+export type PluginStatus<S = any> = {
+  name: string;
+  type: PluginKind;
+  statusCode: IntegrationStatusCode;
+  stats?: S;
+};
+
+export type PluginOktaSpec = {
+  // scimBearerToken is the plain text of the bearer token that Okta will use
+  // to authenticate SCIM requests
+  scimBearerToken: string;
+  // oktaAppID is the Okta ID of the SAML App created during the Okta plugin
+  // installation
+  oktaAppId: string;
+  // oktaAppName is the human readable name of the Okta SAML app created
+  // during the Okta plugin installation
+  oktaAppName: string;
+  // teleportSSOConnector is the name of the Teleport SAML SSO connector
+  // created by the plugin during installation
+  teleportSsoConnector: string;
+  // error contains a description of any failures during plugin installation
+  // that were deemed not serious enough to fail the plugin installation, but
+  // may effect the operation of advanced features like User Sync or SCIM.
+  error: string;
+};
+
+export type PluginSlackSpec = {
+  fallbackChannel: string;
+};
+
+export type PluginMattermostSpec = {
+  channel: string;
+  team: string;
+  reportToEmail: string;
+};
+
+export type PluginOpsgenieSpec = {
+  defaultSchedules: string[];
+};
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -218,7 +267,7 @@ export type AwsOidcListDatabasesRequest = {
 export type AwsRdsDatabase = {
   // engine of the database. eg. aurora-mysql
   engine: RdsEngine;
-  // name is the the Database's name.
+  // name is the Database's name.
   name: string;
   // uri contains the endpoint with port for connecting to this Database.
   uri: string;
@@ -248,6 +297,23 @@ export type ListAwsRdsDatabaseResponse = {
   nextToken?: string;
 };
 
+export type ListAwsRdsFromAllEnginesResponse = {
+  databases: AwsRdsDatabase[];
+  /**
+   * next page for rds instances.
+   */
+  instancesNextToken?: string;
+  /**
+   * next page for rds clusters.
+   */
+  clustersNextToken?: string;
+  /**
+   * set if fetching rds instances OR rds clusters
+   * returned an error
+   */
+  oneOfError?: string;
+};
+
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
@@ -259,23 +325,89 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
+  securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
+};
+
+// DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
+type DeployDatabaseServiceDeployment = {
+  // VPCID is the VPCID where the service is going to be deployed.
+  vpcId: string;
+  // SubnetIDs are the subnets for the network configuration.
+  // They must belong to the VPCID above.
+  subnetIds: string[];
+  // SecurityGroups are the SecurityGroup IDs to associate with this particular deployment.
+  // If empty, the default security group for the VPC is going to be used.
+  // TODO(lisa): out of scope.
   securityGroups?: string[];
 };
 
-export type AwsOidcDeployServiceResponse = {
-  // clusterArn is the Amazon ECS Cluster ARN
-  // where the task was started.
-  clusterArn: string;
-  // serviceArn is the Amazon ECS Cluster Service
-  // ARN created to run the task.
-  serviceArn: string;
-  // taskDefinitionArn is the Amazon ECS Task Definition
-  // ARN created to run the Service.
-  taskDefinitionArn: string;
-  // serviceDashboardUrl is a link to the service's Dashboard
-  // URL in Amazon Console.
-  serviceDashboardUrl: string;
+// AwsOidcDeployDatabaseServicesRequest contains the required fields to perform a DeployService request.
+// Each deployed DatabaseService will be proxying the resources that match the following labels:
+// -region: <Region>
+// -account-id: <AccountID>s
+// -vpc-id: <Deployments[].VPCID>
+export type AwsOidcDeployDatabaseServicesRequest = {
+  // The AWS account to deploy the db service to.
+  accountId: string;
+  // Region is the AWS Region for the Service.
+  region: string;
+  // TaskRoleARN is the AWS Role's ARN used within the Task execution.
+  // Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
+  // This can be either the ARN or the short name of the AWS Role.
+  taskRoleArn: string;
+  // Deployments is a list of Services to be deployed.
+  // If the target deployment already exists, the deployment is skipped.
+  deployments: DeployDatabaseServiceDeployment[];
+};
+
+export type AwsEksCluster = {
+  name: string;
+  region: Regions;
+  accountId: string;
+  status:
+    | 'active'
+    | 'pending'
+    | 'creating'
+    | 'failed'
+    | 'updating'
+    | 'deleting';
+  /**
+   * labels contains this cluster's tags.
+   */
+  labels: Label[];
+  /**
+   * joinLabels contains labels that should be injected into teleport kube agent, if EKS cluster is being enrolled.
+   */
+  joinLabels: Label[];
+};
+
+export type EnrollEksClustersRequest = {
+  region: string;
+  enableAppDiscovery: boolean;
+  clusterNames: string[];
+};
+
+export type EnrollEksClustersResponse = {
+  results: {
+    clusterName: string;
+    resourceId: string;
+    error: string;
+  }[];
+};
+
+export type ListEksClustersRequest = {
+  region: Regions;
+  nextToken?: string;
+};
+
+export type ListEksClustersResponse = {
+  /**
+   * clusters is the list of EKS clusters.
+   */
+  clusters: AwsEksCluster[];
+  nextToken?: string;
 };
 
 export type ListEc2InstancesRequest = {
@@ -291,8 +423,8 @@ export type ListEc2InstancesResponse = {
 
 export type ListEc2InstanceConnectEndpointsRequest = {
   region: Regions;
-  // vpcId is the VPC to filter EC2 Instance Connect Endpoints.
-  vpcId: string;
+  // VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+  vpcIds: string[];
   nextToken?: string;
 };
 
@@ -300,6 +432,9 @@ export type ListEc2InstanceConnectEndpointsResponse = {
   // endpoints is the list of EC2 Instance Connect Endpoints.
   endpoints: Ec2InstanceConnectEndpoint[];
   nextToken?: string;
+  // DashboardLink is the URL for AWS Web Console that
+  // lists all the Endpoints for the queries VPCs.
+  dashboardLink: string;
 };
 
 export type Ec2InstanceConnectEndpoint = {
@@ -312,6 +447,8 @@ export type Ec2InstanceConnectEndpoint = {
   dashboardLink: string;
   // subnetID is the subnet used by the Endpoint. Please note that the Endpoint should be able to reach any subnet within the VPC.
   subnetId: string;
+  // VPCID is the VPC ID where the Endpoint is created.
+  vpcId: string;
 };
 
 export type Ec2InstanceConnectEndpointState =
@@ -322,17 +459,60 @@ export type Ec2InstanceConnectEndpointState =
   | 'delete-complete'
   | 'delete-failed';
 
-export type DeployEc2InstanceConnectEndpointRequest = {
-  region: Regions;
-  // subnetID is the subnet id for the EC2 Instance Connect Endpoint.
+export type AwsOidcDeployEc2InstanceConnectEndpointRequest = {
+  // SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
   subnetId: string;
-  // securityGroupIDs is the list of SecurityGroups to apply to the Endpoint. If not specified, the Endpoint will receive the default SG for the subnet's VPC.
+  // SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+  // If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
   securityGroupIds?: string[];
 };
 
-export type DeployEc2InstanceConnectEndpointResponse = {
-  // name is the name of the EC2 Instance Connect Endpoint that was created.
+export type DeployEc2InstanceConnectEndpointRequest = {
+  region: Regions;
+  // Endpoints is a list of endpoinst to create.
+  endpoints: AwsOidcDeployEc2InstanceConnectEndpointRequest[];
+};
+
+export type AwsEc2InstanceConnectEndpoint = {
+  // Name is the EC2 Instance Connect Endpoint name.
   name: string;
+  // SubnetID is the subnet where this endpoint was created.
+  subnetId: string;
+};
+
+export type DeployEc2InstanceConnectEndpointResponse = {
+  // Endpoints is a list of created endpoints
+  endpoints: AwsEc2InstanceConnectEndpoint[];
+};
+
+export type Subnet = {
+  /**
+   * Subnet name.
+   * This is just a friendly name and should not be used for further API calls.
+   * It can be empty if the subnet was not given a "Name" tag.
+   */
+  name?: string;
+  /**
+   * Subnet ID, for example "subnet-0b3ca383195ad2cc7".
+   * This is the value that should be used when doing further API calls.
+   */
+  id: string;
+  /**
+   *  AWS availability zone of the subnet, for example
+   * "us-west-1a".
+   */
+  availabilityZone: string;
+};
+
+export type ListAwsSubnetsRequest = {
+  vpcId: string;
+  region: Regions;
+  nextToken?: string;
+};
+
+export type ListAwsSubnetsResponse = {
+  subnets: Subnet[];
+  nextToken?: string;
 };
 
 export type ListAwsSecurityGroupsRequest = {
@@ -388,4 +568,18 @@ export type Cidr = {
 export type IntegrationUrlLocationState = {
   kind: IntegrationKind;
   redirectText: string;
+};
+
+export type Vpc = {
+  id: string;
+  name?: string;
+  /**
+   * if defined, a database service is already deployed for this vpc.
+   */
+  ecsServiceDashboardURL?: string;
+};
+
+export type AwsDatabaseVpcsResponse = {
+  vpcs: Vpc[];
+  nextToken: string;
 };

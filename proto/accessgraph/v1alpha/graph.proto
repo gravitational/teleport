@@ -48,4 +48,6 @@ message Edge {
   string to = 2;
   // edge_type is the type of the edge, e.g. "member_of", "belongs_to", etc.
   string edge_type = 3;
+  // Properties is a set of properties for the edges.
+  map<string, string> properties = 4;
 }

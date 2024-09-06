@@ -94,7 +94,7 @@ export function ReAuthenticate({
             <DialogContent>
               <Flex mt={2} alignItems="flex-end">
                 <FieldSelect
-                  width="50%"
+                  width="60%"
                   label="Two-factor Type"
                   value={mfaOption}
                   options={mfaOptions}
@@ -108,7 +108,7 @@ export function ReAuthenticate({
                   isDisabled={attempt.status === 'processing'}
                   elevated={true}
                 />
-                <Box width="50%">
+                <Box width="40%">
                   {mfaOption.value === 'otp' && (
                     <FieldInput
                       label="Authenticator Code"

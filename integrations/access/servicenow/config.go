@@ -19,6 +19,7 @@
 package servicenow
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -67,6 +68,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	c.PluginType = types.PluginTypeServiceNow
 	return nil
+}
+
+func (c *Config) GetTeleportClient(ctx context.Context) (teleport.Client, error) {
+	if c.Client != nil {
+		return c.Client, nil
+	}
+	return c.BaseConfig.GetTeleportClient(ctx)
 }
 
 // NewBot initializes the new Servicenow message generator (ServicenowBot)

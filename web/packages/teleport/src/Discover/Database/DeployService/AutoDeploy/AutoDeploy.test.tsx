@@ -75,6 +75,8 @@ const mocKIntegration: Integration = {
   resourceType: 'integration',
   spec: {
     roleArn: `doncare/${awsoidcRoleArn}`,
+    issuerS3Bucket: '',
+    issuerS3Prefix: '',
   },
   statusCode: IntegrationStatusCode.Running,
 };
@@ -83,23 +85,44 @@ describe('test AutoDeploy.tsx', () => {
   jest.useFakeTimers();
 
   beforeEach(() => {
+    jest.spyOn(integrationService, 'fetchAwsSubnets').mockResolvedValue({
+      nextToken: '',
+      subnets: [
+        {
+          name: 'subnet-name',
+          id: 'subnet-id',
+          availabilityZone: 'subnet-az',
+        },
+      ],
+    });
+    jest.spyOn(integrationService, 'fetchSecurityGroups').mockResolvedValue({
+      nextToken: '',
+      securityGroups: [
+        {
+          name: 'sg-name',
+          id: 'sg-id',
+          description: 'sg-desc',
+          inboundRules: [],
+          outboundRules: [],
+        },
+      ],
+    });
+  });
+
+  afterEach(() => {
     jest.restoreAllMocks();
   });
 
-  test('init: labels are rendered, command is not rendered yet', () => {
+  async function waitForSubnetsAndSecurityGroups() {
+    await screen.findByText('sg-id');
+    await screen.findByText('subnet-id');
+  }
+
+  test('clicking button renders command', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
-
-    expect(screen.getByText(/env: prod/i)).toBeInTheDocument();
-    expect(screen.queryByText(/copy\/paste/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/curl/i)).not.toBeInTheDocument();
-  });
-
-  test('clicking button renders command', () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
-
-    renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
 
     fireEvent.click(screen.getByText(/generate command/i));
 
@@ -111,10 +134,11 @@ describe('test AutoDeploy.tsx', () => {
     ).toBeInTheDocument();
   });
 
-  test('invalid role name', () => {
+  test('invalid role name', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
 
     expect(
       screen.queryByText(/name can only contain/i)
@@ -138,6 +162,23 @@ describe('test AutoDeploy.tsx', () => {
     const { teleCtx, discoverCtx } = getMockedContexts();
 
     renderAutoDeploy(teleCtx, discoverCtx);
+    await waitForSubnetsAndSecurityGroups();
+
+    fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
+
+    // select required subnet
+    expect(
+      screen.getByText(/one subnet selection is required/i)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(/subnet-id/i));
+
+    fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
+
+    // select required sg
+    expect(
+      screen.getByText(/one security group selection is required/i)
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(/sg-id/i));
 
     fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
 
@@ -172,7 +213,8 @@ function getMockedContexts() {
   const discoverCtx: DiscoverContextState = {
     agentMeta: {
       resourceName: 'db1',
-      integration: mocKIntegration,
+      awsRegion: region,
+      awsIntegration: mocKIntegration,
       selectedAwsRdsDb: mockAwsRdsDb,
       agentMatcherLabels: mockDbLabels,
     } as DbMeta,
@@ -196,12 +238,9 @@ function getMockedContexts() {
     eventState: null,
   };
 
-  jest.spyOn(integrationService, 'deployAwsOidcService').mockResolvedValue({
-    clusterArn: 'cluster-arn',
-    serviceArn: 'service-arn',
-    taskDefinitionArn: 'task-definition',
-    serviceDashboardUrl: 'dashboard-url',
-  });
+  jest
+    .spyOn(integrationService, 'deployAwsOidcService')
+    .mockResolvedValue('dashboard-url');
 
   jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
     agents: [],

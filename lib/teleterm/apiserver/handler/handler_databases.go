@@ -28,14 +28,19 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// GetDatabases gets databses with filters and returns paginated results
+// GetDatabases gets databases with filters and returns paginated results
 func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
 	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetDatabases(ctx, req)
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := cluster.GetDatabases(ctx, proxyClient.CurrentCluster(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,7 +68,12 @@ func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUs
 		return nil, trace.Wrap(err)
 	}
 
-	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, req.DbUri)
+	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, proxyClient.CurrentCluster(), req.DbUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { render, waitFor } from 'design/utils/testing';
+import { render, waitFor, screen } from 'design/utils/testing';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
@@ -28,54 +28,231 @@ import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
 
-const testCases: { name: string; query: string; expectedPath: string }[] = [
+const launcherPathTestCases: {
+  name: string;
+  path: string;
+  expectedPath: string;
+}[] = [
   {
-    name: 'no path or query',
-    query: '?path=',
-    expectedPath: '',
+    name: 'no state and no path',
+    path: '?path=',
+    expectedPath: 'x-teleport-auth',
   },
   {
-    name: 'root path',
-    query: '?path=%2F',
-    expectedPath: '/',
+    name: 'no state with path',
+    path: '?path=%2Ffoo%2Fbar',
+    expectedPath: 'x-teleport-auth?path=%2Ffoo%2Fbar',
   },
   {
-    name: 'with multi path',
-    query: '?path=%2Ffoo%2Fbar',
-    expectedPath: '/foo/bar',
-  },
-  {
-    name: 'with only query',
-    query: '?path=&query=foo%3Dbar',
-    expectedPath: '?foo=bar',
-  },
-  {
-    name: 'with query with same keys used to store the original path and query',
-    query: '?path=foo&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest',
-    expectedPath: '/foo?foo=bar&query=test1&path=test',
-  },
-  {
-    name: 'with query and root path',
-    query: '?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple',
-    expectedPath: '/?foo=bar&baz=qux&fruit=apple',
-  },
-  {
-    name: 'queries with encoded spaces',
-    query:
-      '?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata',
+    name: 'no state with other path params (clusterId, publicAddr, publicArn',
+    path: '/some-cluster-id/some-public-addr/arn::123/name',
     expectedPath:
-      '/alerting/list?search=state:inactive%20type:alerting%20health:nodata',
+      'x-teleport-auth?cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
   },
   {
-    name: 'queries with non-encoded spaces',
-    query:
-      '?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata',
+    name: 'no state with path and with other path params',
+    path: '/some-cluster-id/some-public-addr/arn::123/name?path=%2Ffoo%2Fbar',
     expectedPath:
-      '/alerting /list?search=state:inactive type:alerting health:nodata',
+      'x-teleport-auth?path=%2Ffoo%2Fbar&cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123',
+  },
+  {
+    name: 'with state',
+    path: '?state=ABC',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value#value=cookie-value',
+  },
+  {
+    name: 'with state and path',
+    path: '?state=ABC&path=%2Ffoo%2Fbar',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value',
+  },
+  {
+    name: 'with state, path, and params',
+    path: '?state=ABC&path=%2Ffoo%2Fbar',
+    expectedPath:
+      'x-teleport-auth?state=ABC&subject=subject-cookie-value&path=%2Ffoo%2Fbar#value=cookie-value',
   },
 ];
 
 describe('app launcher path is properly formed', () => {
+  const realLocation = window.location;
+  const assignMock = jest.fn();
+
+  beforeEach(() => {
+    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
+    jest.spyOn(api, 'get').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'grafana.localhost',
+    });
+    jest.spyOn(service, 'createAppSession').mockResolvedValue({
+      cookieValue: 'cookie-value',
+      subjectCookieValue: 'subject-cookie-value',
+      fqdn: '',
+    });
+
+    delete window.location;
+    window.location = { ...realLocation, replace: assignMock };
+  });
+
+  afterEach(() => {
+    window.location = realLocation;
+    assignMock.mockClear();
+  });
+
+  test.each(launcherPathTestCases)(
+    '$name',
+    async ({ path: query, expectedPath }) => {
+      render(
+        <Router history={createMockHistory(`grafana.localhost${query}`)}>
+          <Route path={cfg.routes.appLauncher}>
+            <AppLauncher />
+          </Route>
+        </Router>
+      );
+
+      await waitFor(() =>
+        expect(window.location.replace).toHaveBeenCalledWith(
+          `https://grafana.localhost/${expectedPath}`
+        )
+      );
+      expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
+    }
+  );
+});
+
+const appSessionTestCases: {
+  name: string;
+  path: string;
+  returnedFqdn: string;
+  expectedFqdn: string;
+  expectedPublicAddr: string;
+  expectedArn: string;
+}[] = [
+  {
+    name: 'ARN URL',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+  },
+  {
+    name: 'uppercase resolved FQDN',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase public addr',
+    path: 'test-app.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase resolved FQDN, public addr',
+    path: 'test-app.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase resolved FQDN,FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase public addr, FQDN',
+    path: 'TEST-APP.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'uppercase FQDN, resolved FQDN, public addr',
+    path: 'TEST-APP.test.teleport/test.teleport/TEST-APP.test.teleport?state=ABC',
+    returnedFqdn: 'TEST-APP.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'TEST-APP.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'public addr with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'resolved FQDN with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, public addr with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, resolved FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'public addr, resolved FQDN with port',
+    path: 'test-app.test.teleport/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+  {
+    name: 'FQDN, public addr, resolved FQDN with port',
+    path: 'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC',
+    returnedFqdn: 'test-app.test.teleport:443',
+    expectedFqdn: 'test-app.test.teleport:443',
+    expectedPublicAddr: 'test-app.test.teleport',
+    expectedArn: undefined,
+  },
+];
+
+describe('fqdn is matched', () => {
   const realLocation = window.location;
   const assignMock = jest.fn();
 
@@ -93,49 +270,94 @@ describe('app launcher path is properly formed', () => {
     assignMock.mockClear();
   });
 
-  test.each(testCases)('$name', async ({ query, expectedPath }) => {
-    const launcherPath = `/web/launch/grafana.localhost${query}`;
-    const mockHistory = createMemoryHistory({
-      initialEntries: [launcherPath],
+  test.each(appSessionTestCases)(
+    '$name',
+    async ({
+      path,
+      returnedFqdn,
+      expectedFqdn,
+      expectedPublicAddr,
+      expectedArn,
+    }) => {
+      jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+        fqdn: returnedFqdn,
+      });
+      jest.spyOn(service, 'createAppSession');
+
+      render(
+        <Router history={createMockHistory(path)}>
+          <Route path={cfg.routes.appLauncher}>
+            <AppLauncher />
+          </Route>
+        </Router>
+      );
+
+      await waitFor(() => {
+        expect(service.createAppSession).toHaveBeenCalledWith({
+          fqdn: expectedFqdn,
+          clusterId: 'test.teleport',
+          publicAddr: expectedPublicAddr,
+          arn: expectedArn,
+        });
+      });
+
+      await waitFor(() => expect(window.location.replace).toHaveBeenCalled());
+      expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
+    }
+  );
+
+  test('not matching FQDN throws error', async () => {
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'different.fqdn',
     });
 
     render(
-      <Router history={mockHistory}>
+      <Router
+        history={createMockHistory(
+          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+        )}
+      >
         <Route path={cfg.routes.appLauncher}>
           <AppLauncher />
         </Route>
       </Router>
     );
 
-    await waitFor(() =>
-      expect(window.location.replace).toHaveBeenCalledWith(
-        `https://grafana.localhost${expectedPath}`
+    await screen.findByText(/access denied/i);
+    expect(
+      screen.getByText(
+        /failed to match applications with FQDN "test-app.test.teleport:443"/i
       )
-    );
+    ).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
   });
 
-  test('arn is url decoded', () => {
-    jest.spyOn(service, 'createAppSession');
-
-    const launcherPath =
-      '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
-    const mockHistory = createMemoryHistory({
-      initialEntries: [launcherPath],
+  test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
+    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      fqdn: 'invalid.fqdn:3080:3090',
     });
 
     render(
-      <Router history={mockHistory}>
+      <Router
+        history={createMockHistory(
+          'test-app.test.teleport:443/test.teleport/test-app.test.teleport:443?state=ABC'
+        )}
+      >
         <Route path={cfg.routes.appLauncher}>
           <AppLauncher />
         </Route>
       </Router>
     );
 
-    expect(service.createAppSession).toHaveBeenCalledWith({
-      fqdn: 'test-app.test.teleport',
-      clusterId: 'test.teleport',
-      publicAddr: 'test-app.test.teleport',
-      arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
-    });
+    await screen.findByText(/access denied/i);
+    expect(screen.getByText(/Failed to parse URL:/i)).toBeInTheDocument();
+    expect(window.location.replace).not.toHaveBeenCalled();
   });
 });
+
+function createMockHistory(path: string) {
+  const launcherPath = `/web/launch/${path}`;
+  return createMemoryHistory({
+    initialEntries: [launcherPath],
+  });
+}

@@ -27,11 +27,13 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
+	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
@@ -47,13 +49,18 @@ func Serve(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
+	clock := clockwork.NewRealClock()
+
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                cfg.HomeDir,
 		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Clock:              clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
 		Storage:                         storage,
@@ -61,16 +68,21 @@ func Serve(ctx context.Context, cfg Config) error {
 		PrehogAddr:                      cfg.PrehogAddr,
 		KubeconfigsDir:                  cfg.KubeconfigsDir,
 		AgentsDir:                       cfg.AgentsDir,
+		ClusterIDCache:                  clusterIDCache,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	apiServer, err := apiserver.New(apiserver.Config{
-		HostAddr:        cfg.Addr,
-		Daemon:          daemonService,
-		TshdServerCreds: grpcCredentials.tshd,
-		ListeningC:      cfg.ListeningC,
+		HostAddr:           cfg.Addr,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		Daemon:             daemonService,
+		TshdServerCreds:    grpcCredentials.tshd,
+		ListeningC:         cfg.ListeningC,
+		ClusterIDCache:     clusterIDCache,
+		InstallationID:     cfg.InstallationID,
+		Clock:              clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -126,21 +138,25 @@ func createGRPCCredentials(tshdServerAddress string, certsDir string) (*grpcCred
 	}
 
 	rendererCertPath := filepath.Join(certsDir, rendererCertFileName)
+	mainProcessCertPath := filepath.Join(certsDir, mainProcessCertFileName)
 	tshdCertPath := filepath.Join(certsDir, tshdCertFileName)
 	tshdKeyPair, err := generateAndSaveCert(tshdCertPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// rendererCertPath will be read on an incoming client connection so we can assume that at this
-	// point the renderer process has saved its public key under that path.
-	tshdCreds, err := createServerCredentials(tshdKeyPair, rendererCertPath)
+	tshdCreds, err := createServerCredentials(
+		tshdKeyPair,
+		// Client certs will be read on an incoming connection.  The client setup in the Electron app is
+		// orchestrated in a way where the client saves its cert to disk before initiating a connection.
+		[]string{rendererCertPath, mainProcessCertPath},
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// To create client creds, we need to read the server cert. However, at this point we'd need to
-	// wait for the Electron app to save the cert under rendererCertPath.
+	// To create client creds for tshd events service, we need to read the server cert. However, at
+	// this point we'd need to wait for the Electron app to save the cert under rendererCertPath.
 	//
 	// Instead of waiting for it, we're going to capture the logic in a function that's going to be
 	// called after the Electron app calls UpdateTshdEventsServerAddress of the Terminal service.

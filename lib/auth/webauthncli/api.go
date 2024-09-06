@@ -110,7 +110,7 @@ type LoginOpts struct {
 	AuthenticatorAttachment AuthenticatorAttachment
 }
 
-// Login performs client-side, U2F-compatible, Webauthn login.
+// Login performs client-side, Webauthn login.
 // This method blocks until either device authentication is successful or the
 // context is canceled. Calling Login without a deadline or cancel condition
 // may cause it to block forever.
@@ -180,26 +180,9 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if isLibfido2Enabled() {
-		log.Debug("FIDO2: Using libfido2 for assertion")
-		return FIDO2Login(ctx, origin, assertion, prompt, opts)
-	}
-
-	ackTouch, err := prompt.PromptTouch()
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	resp, err := U2FLogin(ctx, origin, assertion)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	if err := ackTouch(); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return resp, "" /* credentialUser */, err
+	log.Debug("FIDO2: Using libfido2 for assertion")
+	resp, user, err := FIDO2Login(ctx, origin, assertion, prompt, opts)
+	return resp, user, trace.Wrap(err)
 }
 
 func platformLogin(origin, user string, assertion *wantypes.CredentialAssertion, prompt LoginPrompt) (*proto.MFAAuthenticateResponse, string, error) {
@@ -229,7 +212,7 @@ type RegisterPrompt interface {
 	PromptTouch() (TouchAcknowledger, error)
 }
 
-// Register performs client-side, U2F-compatible, Webauthn registration.
+// Register performs client-side, Webauthn registration.
 // This method blocks until either device authentication is successful or the
 // context is canceled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
@@ -244,28 +227,15 @@ func Register(
 		return wanwin.Register(ctx, origin, cc)
 	}
 
-	if isLibfido2Enabled() {
-		log.Debug("FIDO2: Using libfido2 for credential creation")
-		return FIDO2Register(ctx, origin, cc, prompt)
-	}
-
-	ackTouch, err := prompt.PromptTouch()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := U2FRegister(ctx, origin, cc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, trace.Wrap(ackTouch())
+	log.Debug("FIDO2: Using libfido2 for credential creation")
+	resp, err := FIDO2Register(ctx, origin, cc, prompt)
+	return resp, trace.Wrap(err)
 }
 
 // HasPlatformSupport returns true if the platform supports client-side
 // WebAuthn-compatible logins.
 func HasPlatformSupport() bool {
-	return IsFIDO2Available() || touchid.IsAvailable() || isU2FAvailable()
+	return IsFIDO2Available() || touchid.IsAvailable()
 }
 
 // IsFIDO2Available returns true if FIDO2 is implemented either via native

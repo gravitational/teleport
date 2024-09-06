@@ -120,14 +120,18 @@ func awsEKSDiscoveryMatchedCluster(t *testing.T) {
 		return err == nil && len(kubeServers) == 1
 	}, 2*time.Minute, time.Second, "wait for the kubernetes service to create a KubernetesServer")
 
+	clusters, err := authC.GetKubernetesClusters(context.Background())
+	require.NoError(t, err)
+
 	// kubeClient is a Kubernetes client for the user created above
 	// that will be used to verify that the user can access the cluster and
 	// the permissions are correct.
 	kubeClient, _, err := kube.ProxyClient(kube.ProxyConfig{
-		T:          teleport,
-		Username:   username,
-		KubeUsers:  kubeUsers,
-		KubeGroups: kubeGroups,
+		T:           teleport,
+		Username:    hostUser,
+		KubeUsers:   kubeUsers,
+		KubeGroups:  kubeGroups,
+		KubeCluster: clusters[0].GetName(),
 	})
 	require.NoError(t, err)
 
@@ -178,7 +182,7 @@ func awsEKSDiscoveryUnmatchedCluster(t *testing.T) {
 // clusters.
 func withFullKubeAccessUserRole(t *testing.T) testOptionsFunc {
 	// Create a new role with full access to all kube clusters.
-	return withUserRole(t, "kubemaster", types.RoleSpecV6{
+	return withUserRole(t, hostUser, "kubemaster", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			KubeGroups: kubeGroups,
 			KubeUsers:  kubeUsers,

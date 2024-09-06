@@ -17,259 +17,189 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Text } from 'design';
-import { FetchStatus } from 'design/DataTable/types';
+import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
+import { P } from 'design/Text/Text';
 
-import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  AwsRdsDatabase,
-  RdsEngineIdentifier,
   Regions,
+  Vpc,
   integrationService,
 } from 'teleport/services/integrations';
-import { DatabaseEngine } from 'teleport/Discover/SelectResource';
 import { AwsRegionSelector } from 'teleport/Discover/Shared/AwsRegionSelector';
-import { Database } from 'teleport/services/databases';
 import { ConfigureIamPerms } from 'teleport/Discover/Shared/Aws/ConfigureIamPerms';
 import { isIamPermError } from 'teleport/Discover/Shared/Aws/error';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, Header } from '../../Shared';
+import { Header } from '../../Shared';
 
-import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
-import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
-
-import { DatabaseList } from './RdsDatabaseList';
-
-type TableData = {
-  items: CheckedAwsRdsDatabase[];
-  fetchStatus: FetchStatus;
-  startKey?: string;
-  currRegion?: Regions;
-};
-
-const emptyTableData: TableData = {
-  items: [],
-  fetchStatus: 'disabled',
-  startKey: '',
-};
-
-// CheckedAwsRdsDatabase is a type to describe that a
-// AwsRdsDatabase has been checked (by its resource id)
-// with the backend whether or not a database server already
-// exists for it.
-export type CheckedAwsRdsDatabase = AwsRdsDatabase & {
-  dbServerExists?: boolean;
-};
+import { VpcOption, VpcSelector } from './VpcSelector';
+import { AutoDiscoverToggle } from './AutoDiscoverToggle';
+import { AutoEnrollment } from './AutoEnrollment';
+import { SingleEnrollment } from './SingleEnrollment';
 
 export function EnrollRdsDatabase() {
-  const {
-    createdDb,
-    pollTimeout,
-    registerDatabase,
-    attempt: registerAttempt,
-    clearAttempt: clearRegisterAttempt,
-    nextStep,
-    fetchDatabaseServers,
-  } = useCreateDatabase();
+  const ctx = useTeleport();
+  const clusterId = ctx.storeUser.getClusterId();
 
-  const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
-  const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
-    useAttempt('');
+  const { agentMeta, emitErrorEvent } = useDiscover();
 
-  const [tableData, setTableData] = useState<TableData>({
-    items: [],
-    startKey: '',
-    fetchStatus: 'disabled',
-  });
-  const [selectedDb, setSelectedDb] = useState<CheckedAwsRdsDatabase>();
+  // This attempt is used for both fetching vpc's and for
+  // fetching databases since each fetching is done at separate
+  // times and relies on one fetch result (vpcs) to be complete
+  // before performing the next fetch (databases, but only after user
+  // has selected a vpc).
+  const { attempt: fetchAttempt, setAttempt: setFetchAttempt } = useAttempt('');
 
-  function fetchDatabasesWithNewRegion(region: Regions) {
-    // Clear table when fetching with new region.
-    fetchDatabases({ ...emptyTableData, currRegion: region });
+  const [vpcs, setVpcs] = useState<Vpc[] | undefined>();
+  const [selectedVpc, setSelectedVpc] = useState<VpcOption>();
+  const [wantAutoDiscover, setWantAutoDiscover] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<Regions>();
+
+  function onNewVpc(selectedVpc: VpcOption) {
+    setSelectedVpc(selectedVpc);
   }
 
-  function fetchNextPage() {
-    fetchDatabases({ ...tableData });
+  function onNewRegion(region: Regions) {
+    setSelectedVpc(null);
+    setSelectedRegion(region);
+    fetchVpcs(region);
   }
 
-  function refreshDatabaseList() {
-    setSelectedDb(null);
-    // When refreshing, start the table back at page 1.
-    fetchDatabases({ ...tableData, startKey: '', items: [] });
-  }
-
-  async function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).integration.name;
-
-    setTableData({ ...data, fetchStatus: 'loading' });
-    setFetchDbAttempt({ status: 'processing' });
-
+  async function fetchVpcs(region: Regions) {
+    setFetchAttempt({ status: 'processing' });
     try {
-      const { databases: fetchedRdsDbs, nextToken } =
-        await integrationService.fetchAwsRdsDatabases(
-          integrationName,
-          getRdsEngineIdentifier(resourceSpec.dbMeta?.engine),
-          {
-            region: data.currRegion,
-            nextToken: data.startKey,
-          }
-        );
+      const { spec, name: integrationName } = agentMeta.awsIntegration;
+      const { awsAccountId } = splitAwsIamArn(spec.roleArn);
 
-      // Abort if there were no rds dbs for the selected region.
-      if (fetchedRdsDbs.length <= 0) {
-        setFetchDbAttempt({ status: 'success' });
-        setTableData({ ...data, fetchStatus: 'disabled' });
-        return;
-      }
+      // Get a list of every vpcs.
+      let fetchedVpcs: Vpc[] = [];
+      let nextPage = '';
+      do {
+        const { vpcs, nextToken } =
+          await integrationService.fetchAwsDatabasesVpcs(
+            integrationName,
+            clusterId,
+            {
+              region: region,
+              accountId: awsAccountId,
+              nextToken: nextPage,
+            }
+          );
 
-      // Check if fetched rds databases have a database
-      // server for it, to prevent user from enrolling
-      // the same db and getting an error from it.
+        fetchedVpcs = [...fetchedVpcs, ...vpcs];
+        nextPage = nextToken;
+      } while (nextPage);
 
-      // Build the predicate string that will query for
-      // all the fetched rds dbs by its resource ids.
-      const resourceIds: string[] = fetchedRdsDbs.map(
-        d => `resource.spec.aws.rds.resource_id == "${d.resourceId}"`
-      );
-      const query = resourceIds.join(' || ');
-      const { agents: fetchedDbServers } = await fetchDatabaseServers(
-        query,
-        fetchedRdsDbs.length // limit
-      );
-
-      const dbServerLookupByResourceId: Record<string, Database> = {};
-      fetchedDbServers.forEach(
-        d => (dbServerLookupByResourceId[d.aws.rds.resourceId] = d)
-      );
-
-      // Check for db server matches.
-      const checkedRdsDbs: CheckedAwsRdsDatabase[] = fetchedRdsDbs.map(rds => {
-        const dbServer = dbServerLookupByResourceId[rds.resourceId];
-        if (dbServer) {
-          return {
-            ...rds,
-            dbServerExists: true,
-          };
-        }
-        return rds;
-      });
-
-      setFetchDbAttempt({ status: 'success' });
-      setTableData({
-        currRegion: data.currRegion,
-        startKey: nextToken,
-        fetchStatus: nextToken ? '' : 'disabled',
-        // concat each page fetch.
-        items: [...data.items, ...checkedRdsDbs],
-      });
+      setVpcs(fetchedVpcs);
+      setFetchAttempt({ status: '' });
     } catch (err) {
-      const errMsg = getErrMessage(err);
-      setFetchDbAttempt({ status: 'failed', statusText: errMsg });
-      setTableData(data); // fallback to previous data
-      emitErrorEvent(`database fetch error: ${errMsg}`);
+      const message = getErrMessage(err);
+      setFetchAttempt({
+        status: 'failed',
+        statusText: message,
+      });
+      emitErrorEvent(`failed to fetch vpcs: ${message}`);
     }
   }
 
+  function refreshVpcsAndDatabases() {
+    clear();
+    fetchVpcs(selectedRegion);
+  }
+
+  /**
+   * Used when user changes a region.
+   */
   function clear() {
-    clearRegisterAttempt();
-
-    if (fetchDbAttempt.status === 'failed') {
-      setFetchDbAttempt({ status: '' });
-    }
-    if (tableData.items.length > 0) {
-      setTableData(emptyTableData);
-    }
-    if (selectedDb) {
-      setSelectedDb(null);
+    setFetchAttempt({ status: '' });
+    if (selectedVpc) {
+      setSelectedVpc(null);
     }
   }
 
-  function handleOnProceed() {
-    registerDatabase(
-      {
-        name: selectedDb.name,
-        protocol: selectedDb.engine,
-        uri: selectedDb.uri,
-        labels: selectedDb.labels,
-        awsRds: selectedDb,
-      },
-      // Corner case where if registering db fails a user can:
-      //   1) change region, which will list new databases or
-      //   2) select a different database before re-trying.
-      selectedDb.name !== createdDb?.name
-    );
-  }
+  const hasIamPermError = isIamPermError(fetchAttempt);
+  const showVpcSelector = !hasIamPermError && !!vpcs;
+  const showAutoEnrollToggle =
+    fetchAttempt.status !== 'failed' && !!selectedVpc;
+  const hasVpcs = vpcs?.length > 0;
 
-  const hasIamPermError = isIamPermError(fetchDbAttempt);
+  const mainContentProps = {
+    vpc: selectedVpc?.value,
+    region: selectedRegion,
+    fetchAttempt,
+    onFetchAttempt: setFetchAttempt,
+    disableBtns:
+      fetchAttempt.status === 'processing' ||
+      hasIamPermError ||
+      fetchAttempt.status === 'failed',
+  };
 
   return (
     <Box maxWidth="800px">
-      <Header>Enroll a RDS Database</Header>
-      {fetchDbAttempt.status === 'failed' && !hasIamPermError && (
-        <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
+      <Header>Enroll RDS Database</Header>
+      {fetchAttempt.status === 'failed' && !hasIamPermError && (
+        <Danger mt={3}>{fetchAttempt.statusText}</Danger>
       )}
-      <Text mt={4}>
-        Select the AWS Region you would like to see databases for:
-      </Text>
+      <P mt={4}>
+        Select a AWS Region and a VPC ID you would like to see databases for:
+      </P>
       <AwsRegionSelector
-        onFetch={fetchDatabasesWithNewRegion}
-        onRefresh={refreshDatabaseList}
+        onFetch={onNewRegion}
+        onRefresh={refreshVpcsAndDatabases}
         clear={clear}
-        disableSelector={fetchDbAttempt.status === 'processing'}
+        disableSelector={fetchAttempt.status === 'processing'}
       />
-      {!hasIamPermError && tableData.currRegion && (
-        <DatabaseList
-          items={tableData.items}
-          fetchStatus={tableData.fetchStatus}
-          selectedDatabase={selectedDb}
-          onSelectDatabase={setSelectedDb}
-          fetchNextPage={fetchNextPage}
+      {!vpcs && fetchAttempt.status === 'processing' && (
+        <Box width="320px" textAlign="center">
+          <Indicator delay="none" />
+        </Box>
+      )}
+      {showVpcSelector && hasVpcs && (
+        <VpcSelector
+          vpcs={vpcs}
+          selectedVpc={selectedVpc}
+          onSelectedVpc={onNewVpc}
+          selectedRegion={selectedRegion}
         />
+      )}
+      {showVpcSelector && !hasVpcs && (
+        // TODO(lisa): negative margin was required since the
+        // AwsRegionSelector added too much bottom margin.
+        // Refactor AwsRegionSelector so margins can be controlled
+        // outside of the component (or use flex columns with gap prop)
+        <P mt={-3}>
+          There are no VPCs defined in the selected region. Try another region.
+        </P>
       )}
       {hasIamPermError && (
         <Box mb={5}>
           <ConfigureIamPerms
             kind="rds"
-            region={tableData.currRegion}
-            integrationRoleArn={(agentMeta as DbMeta).integration.spec.roleArn}
+            region={selectedRegion}
+            integrationRoleArn={agentMeta.awsIntegration.spec.roleArn}
           />
         </Box>
       )}
-      <ActionButtons
-        onProceed={handleOnProceed}
-        disableProceed={
-          fetchDbAttempt.status === 'processing' ||
-          !selectedDb ||
-          hasIamPermError
-        }
-      />
-      {registerAttempt.status !== '' && (
-        <CreateDatabaseDialog
-          pollTimeout={pollTimeout}
-          attempt={registerAttempt}
-          next={nextStep}
-          close={clearRegisterAttempt}
-          retry={handleOnProceed}
-          dbName={selectedDb.name}
+      {showAutoEnrollToggle && (
+        <AutoDiscoverToggle
+          wantAutoDiscover={wantAutoDiscover}
+          toggleWantAutoDiscover={() => setWantAutoDiscover(b => !b)}
+          disabled={fetchAttempt.status === 'processing'}
+        />
+      )}
+      {wantAutoDiscover ? (
+        <AutoEnrollment {...mainContentProps} key={mainContentProps.vpc?.id} />
+      ) : (
+        <SingleEnrollment
+          {...mainContentProps}
+          key={mainContentProps.vpc?.id}
         />
       )}
     </Box>
   );
-}
-
-function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
-  switch (engine) {
-    case DatabaseEngine.MySql:
-      return 'mysql';
-    case DatabaseEngine.Postgres:
-      return 'postgres';
-    case DatabaseEngine.AuroraMysql:
-      return 'aurora-mysql';
-    case DatabaseEngine.AuroraPostgres:
-      return 'aurora-postgres';
-  }
 }

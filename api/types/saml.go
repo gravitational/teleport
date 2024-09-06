@@ -34,6 +34,9 @@ type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
 	ResourceWithOrigin
+
+	// SetMetadata sets the connector metadata
+	SetMetadata(Metadata)
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -95,6 +98,12 @@ type SAMLConnector interface {
 	GetAllowIDPInitiated() bool
 	// SetAllowIDPInitiated sets whether the identity provider can initiate a login or not.
 	SetAllowIDPInitiated(bool)
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+	GetSingleLogoutURL() string
+	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+	SetSingleLogoutURL(string)
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -129,16 +138,6 @@ func (o *SAMLConnectorV2) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (o *SAMLConnectorV2) SetSubKind(sk string) {
 	o.SubKind = sk
-}
-
-// GetResourceID returns resource ID
-func (o *SAMLConnectorV2) GetResourceID() int64 {
-	return o.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (o *SAMLConnectorV2) SetResourceID(id int64) {
-	o.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -247,6 +246,11 @@ func (o *SAMLConnectorV2) SetDisplay(display string) {
 // GetMetadata returns object metadata
 func (o *SAMLConnectorV2) GetMetadata() Metadata {
 	return o.Metadata
+}
+
+// SetMetadata sets object metadata
+func (o *SAMLConnectorV2) SetMetadata(m Metadata) {
+	o.Metadata = m
 }
 
 // Origin returns the origin value of the resource.
@@ -369,6 +373,24 @@ func (o *SAMLConnectorV2) SetAllowIDPInitiated(allow bool) {
 	o.Spec.AllowIDPInitiated = allow
 }
 
+// GetClientRedirectSettings returns the client redirect settings.
+func (o *SAMLConnectorV2) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if o == nil {
+		return nil
+	}
+	return o.Spec.ClientRedirectSettings
+}
+
+// GetSingleLogoutURL returns the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) GetSingleLogoutURL() string {
+	return o.Spec.SingleLogoutURL
+}
+
+// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
+func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
+	o.Spec.SingleLogoutURL = url
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -411,28 +433,37 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *SAMLAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
-
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
 }

@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -38,7 +40,9 @@ import (
 func TestProcessKubeCSR(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Kubernetes: true, // test requires kube feature is enabled
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true}, // test requires kube feature is enabled
+			},
 		},
 	})
 
@@ -64,7 +68,7 @@ func TestProcessKubeCSR(t *testing.T) {
 
 	pemCSR, err := newTestCSR(subj)
 	require.NoError(t, err)
-	csr := KubeCSR{
+	csr := authclient.KubeCSR{
 		Username:    username,
 		ClusterName: s.clusterName.GetClusterName(),
 		CSR:         pemCSR,

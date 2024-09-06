@@ -20,7 +20,8 @@ package awsoidc
 
 import (
 	"context"
-	"log"
+	"log/slog"
+	"net/http"
 	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -31,6 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
 )
 
 const (
@@ -57,11 +60,16 @@ type IdPIAMConfigureRequest struct {
 	ProxyPublicAddress string
 
 	// issuer is the above value but only contains the host.
-	// Eg, <tenant>.teleport.sh, proxy.example.org, teleport.ec2.aws:3080
+	// Eg, <tenant>.teleport.sh, proxy.example.org
 	issuer string
+	// issuerURL is the full url for the issuer
+	// Eg, https://<tenant>.teleport.sh, https://proxy.example.org
+	issuerURL string
 
 	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
 	IntegrationRole string
+
+	ownershipTags tags.AWSTags
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -79,22 +87,26 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ProxyPublicAddress == "" {
-		return trace.BadParameter("proxy public address is required")
+		return trace.BadParameter("argument --proxy-public-url is required")
 	}
 
 	issuerURL, err := url.Parse(r.ProxyPublicAddress)
 	if err != nil {
-		return trace.BadParameter("proxy public address is not a valid url: %v", err)
+		return trace.BadParameter("--proxy-public-url is not a valid url: %v", err)
 	}
 	r.issuer = issuerURL.Host
 	if issuerURL.Port() == "443" {
 		r.issuer = issuerURL.Hostname()
 	}
+	r.issuerURL = issuerURL.String()
+
+	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
 
 	return nil
 }
 
 // IdPIAMConfigureClient describes the required methods to create the AWS OIDC IdP and a Role that trusts that identity provider.
+// There is no guarantee that the client is thread safe.
 type IdPIAMConfigureClient interface {
 	// GetCallerIdentity returns information about the caller identity.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
@@ -104,19 +116,32 @@ type IdPIAMConfigureClient interface {
 
 	// CreateRole creates a new IAM Role.
 	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error)
+
+	// GetRole retrieves information about the specified role, including the role's path,
+	// GUID, ARN, and the role's trust policy that grants permission to assume the
+	// role.
+	GetRole(ctx context.Context, params *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error)
+
+	// UpdateAssumeRolePolicy updates the policy that grants an IAM entity permission to assume a role.
+	// This is typically referred to as the "role trust policy".
+	UpdateAssumeRolePolicy(ctx context.Context, params *iam.UpdateAssumeRolePolicyInput, optFns ...func(*iam.Options)) (*iam.UpdateAssumeRolePolicyOutput, error)
 }
 
 type defaultIdPIAMConfigureClient struct {
+	httpClient *http.Client
+
 	*iam.Client
+	awsConfig aws.Config
 	stsClient *sts.Client
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-func (d defaultIdPIAMConfigureClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+func (d *defaultIdPIAMConfigureClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewIdPIAMConfigureClient creates a new IdPIAMConfigureClient.
+// The client is not thread safe.
 func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -127,20 +152,30 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 		return nil, trace.BadParameter("failed to resolve local AWS region from environment, please set the AWS_REGION environment variable")
 	}
 
+	httpClient, err := defaults.HTTPClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &defaultIdPIAMConfigureClient{
-		Client:    iam.NewFromConfig(cfg),
-		stsClient: sts.NewFromConfig(cfg),
+		httpClient: httpClient,
+		awsConfig:  cfg,
+		Client:     iam.NewFromConfig(cfg),
+		stsClient:  sts.NewFromConfig(cfg),
 	}, nil
 }
 
 // ConfigureIdPIAM creates a new IAM OIDC IdP in AWS.
 //
-// The Provider URL is Teleport's Public Address.
+// The provider URL is Teleport's public address.
 // It also creates a new Role configured to trust the recently created IdP.
+// If the role already exists, it will create another trust relationship for the IdP (if it doesn't exist).
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
 //   - iam:CreateOpenIDConnectProvider
 //   - iam:CreateRole
+//   - iam:GetRole
+//   - iam:UpdateAssumeRolePolicy
 func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -154,56 +189,99 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		req.AccountID = aws.ToString(callerIdentity.Account)
 	}
 
-	thumbprint, err := ThumbprintIdP(ctx, req.ProxyPublicAddress)
-	if err != nil {
+	slog.InfoContext(ctx, "Creating IAM OpenID Connect Provider", "url", req.issuerURL)
+	if err := ensureOIDCIdPIAM(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Printf("Using the following thumbprint: %s", thumbprint)
 
-	createOIDCResp, err := clt.CreateOpenIDConnectProvider(ctx, &iam.CreateOpenIDConnectProviderInput{
-		ThumbprintList: []string{thumbprint},
-		Url:            &req.ProxyPublicAddress,
-		ClientIDList:   []string{types.IntegrationAWSOIDCAudience},
-		Tags:           defaultResourceCreationTags(req.Cluster, req.IntegrationName).ToIAMTags(),
-	})
-	if err != nil {
-		if trace.IsAlreadyExists(awslib.ConvertIAMv2Error(err)) {
-			return trace.AlreadyExists("identity provider for the same URL (%s) already exists, please remove it and try again", req.ProxyPublicAddress)
-		}
+	slog.InfoContext(ctx, "Creating IAM Role", "role", req.IntegrationRole)
+	if err := upsertIdPIAMRole(ctx, clt, req); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Printf("IAM OpenID Connect Provider created: url=%q arn=%q.", req.ProxyPublicAddress, aws.ToString(createOIDCResp.OpenIDConnectProviderArn))
-
-	createdIdpIAMRoleArn, err := createIdPIAMRole(ctx, clt, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	log.Printf("IAM Role created: name=%q arn=%q", req.IntegrationRole, aws.ToString(createdIdpIAMRoleArn))
 
 	return nil
 }
 
-func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) (*string, error) {
+func ensureOIDCIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+	thumbprint, err := ThumbprintIdP(ctx, req.ProxyPublicAddress)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.CreateOpenIDConnectProvider(ctx, &iam.CreateOpenIDConnectProviderInput{
+		ThumbprintList: []string{thumbprint},
+		Url:            &req.issuerURL,
+		ClientIDList:   []string{types.IntegrationAWSOIDCAudience},
+		Tags:           req.ownershipTags.ToIAMTags(),
+	})
+	if err != nil {
+		awsErr := awslib.ConvertIAMv2Error(err)
+		if trace.IsAlreadyExists(awsErr) {
+			return nil
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func createIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
 	integrationRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForAWSOIDCRoleTrustRelationship(req.AccountID, req.issuer, []string{types.IntegrationAWSOIDCAudience}),
 	).Marshal()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	createRoleOutput, err := clt.CreateRole(ctx, &iam.CreateRoleInput{
+	_, err = clt.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 &req.IntegrationRole,
 		Description:              aws.String(descriptionOIDCIdPRole),
 		AssumeRolePolicyDocument: &integrationRoleAssumeRoleDocument,
-		Tags:                     defaultResourceCreationTags(req.Cluster, req.IntegrationName).ToIAMTags(),
+		Tags:                     req.ownershipTags.ToIAMTags(),
+	})
+	return trace.Wrap(err)
+}
+
+func upsertIdPIAMRole(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) error {
+	getRoleOut, err := clt.GetRole(ctx, &iam.GetRoleInput{
+		RoleName: &req.IntegrationRole,
 	})
 	if err != nil {
 		convertedErr := awslib.ConvertIAMv2Error(err)
-		if trace.IsAlreadyExists(convertedErr) {
-			return nil, trace.AlreadyExists("Role %q already exists, please remove it and try again.", req.IntegrationRole)
+		if !trace.IsNotFound(convertedErr) {
+			return trace.Wrap(convertedErr)
 		}
-		return nil, trace.Wrap(convertedErr)
+
+		return trace.Wrap(createIdPIAMRole(ctx, clt, req))
 	}
 
-	return createRoleOutput.Role.Arn, nil
+	if !req.ownershipTags.MatchesIAMTags(getRoleOut.Role.Tags) {
+		return trace.BadParameter("IAM Role %q already exists but is not managed by Teleport. "+
+			"Add the following tags to allow Teleport to manage this Role: %s", req.IntegrationRole, req.ownershipTags)
+	}
+
+	trustRelationshipDoc, err := awslib.ParsePolicyDocument(aws.ToString(getRoleOut.Role.AssumeRolePolicyDocument))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	trustRelationshipForIdP := awslib.StatementForAWSOIDCRoleTrustRelationship(req.AccountID, req.issuer, []string{types.IntegrationAWSOIDCAudience})
+	for _, existingStatement := range trustRelationshipDoc.Statements {
+		if existingStatement.EqualStatement(trustRelationshipForIdP) {
+			return nil
+		}
+	}
+
+	trustRelationshipDoc.Statements = append(trustRelationshipDoc.Statements, trustRelationshipForIdP)
+	trustRelationshipDocString, err := trustRelationshipDoc.Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.UpdateAssumeRolePolicy(ctx, &iam.UpdateAssumeRolePolicyInput{
+		RoleName:       &req.IntegrationRole,
+		PolicyDocument: &trustRelationshipDocString,
+	})
+	return trace.Wrap(err)
 }

@@ -328,7 +328,10 @@ func TestOktaCRUD(t *testing.T) {
 
 			// When I modify the local copy of the user record and try - as a
 			// non-okta service - to update the backend record...
-			user.AddRole(teleport.PresetAccessRoleName)
+			traits := map[string][]string{
+				"foo": {"bar"},
+			}
+			user.SetTraits(traits)
 			_, err = env.UpsertUser(adminCtx,
 				&userspb.UpsertUserRequest{User: user.(*types.UserV2)})
 

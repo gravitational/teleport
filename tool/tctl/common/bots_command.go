@@ -21,7 +21,9 @@ package common
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"text/template"
@@ -31,15 +33,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -56,13 +59,17 @@ type BotsCommand struct {
 	botRoles string
 	tokenID  string
 	tokenTTL time.Duration
+	addRoles string
 
 	allowedLogins []string
+	addLogins     string
+	setLogins     string
 
 	botsList   *kingpin.CmdClause
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
 	botsLock   *kingpin.CmdClause
+	botsUpdate *kingpin.CmdClause
 }
 
 // Initialize sets up the "tctl bots" command.
@@ -88,10 +95,17 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.botsLock.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.lockExpires)
 	c.botsLock.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.lockTTL)
 	c.botsLock.Hidden()
+
+	c.botsUpdate = bots.Command("update", "Update an existing bot.")
+	c.botsUpdate.Arg("name", "Name of an existing bot to update.").Required().StringVar(&c.botName)
+	c.botsUpdate.Flag("set-roles", "Sets the bot's roles to the given comma-separated list, replacing any existing roles.").StringVar(&c.botRoles)
+	c.botsUpdate.Flag("add-roles", "Adds a comma-separated list of roles to an existing bot.").StringVar(&c.addRoles)
+	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
+	c.botsUpdate.Flag("add-logins", "Adds a comma-separated list of logins to an existing bot.").StringVar(&c.addLogins)
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
 		err = c.ListBots(ctx, client)
@@ -101,6 +115,8 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		err = c.RemoveBot(ctx, client)
 	case c.botsLock.FullCommand():
 		err = c.LockBot(ctx, client)
+	case c.botsUpdate.FullCommand():
+		err = c.UpdateBot(ctx, client)
 	default:
 		return false, nil
 	}
@@ -108,54 +124,14 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	return true, trace.Wrap(err)
 }
 
-// TODO(noah): DELETE IN 16.0.0
-func (c *BotsCommand) listBotsLegacy(ctx context.Context, client auth.ClientI) error {
-	users, err := client.GetBotUsers(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if c.format == teleport.Text {
-		if len(users) == 0 {
-			fmt.Println("No users found")
-			return nil
-		}
-		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
-		for _, u := range users {
-			var botName string
-			meta := u.GetMetadata()
-			if val, ok := meta.Labels[types.BotLabel]; ok {
-				botName = val
-			} else {
-				// Should not be possible, but not worth failing over.
-				botName = "-"
-			}
-
-			t.AddRow([]string{
-				botName, u.GetName(), strings.Join(u.GetRoles(), ","),
-			})
-		}
-		fmt.Println(t.AsBuffer().String())
-	} else {
-		err := utils.WriteJSONArray(os.Stdout, users)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal users")
-		}
-	}
-	return nil
-}
-
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client *authclient.Client) error {
 	var bots []*machineidv1pb.Bot
 	req := &machineidv1pb.ListBotsRequest{}
 	for {
 		resp, err := client.BotServiceClient().ListBots(ctx, req)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				return trace.Wrap(c.listBotsLegacy(ctx, client))
-			}
 			return trace.Wrap(err)
 		}
 
@@ -214,7 +190,7 @@ certificates:
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \
-   --auth-server={{.addr}}{{if .join_method}} \
+   --proxy-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -226,87 +202,24 @@ Please note:
   - {{.addr}} must be reachable from the new node
 `))
 
-// TODO(noah): DELETE IN 16.0.0
-func (c *BotsCommand) addBotLegacy(ctx context.Context, client auth.ClientI) error {
-	roles := splitRoles(c.botRoles)
-	if len(roles) == 0 {
-		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
-	}
-
-	traits := map[string][]string{
-		constants.TraitLogins: flattenSlice(c.allowedLogins),
-	}
-
-	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
-		Name:    c.botName,
-		TTL:     proto.Duration(c.tokenTTL),
-		Roles:   roles,
-		TokenID: c.tokenID,
-		Traits:  traits,
-	})
-	if err != nil {
-		return trace.Wrap(err, "creating bot")
-	}
-
-	if c.format == teleport.JSON {
-		out, err := json.MarshalIndent(response, "", "  ")
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal CreateBot response")
-		}
-
-		fmt.Println(string(out))
-		return nil
-	}
-
-	proxies, err := client.GetProxies()
-	if err != nil {
+// AddBot adds a new certificate renewal bot to the cluster.
+func (c *BotsCommand) AddBot(ctx context.Context, client *authclient.Client) error {
+	// Prompt for admin action MFA if required, allowing reuse for UpsertToken and CreateBot.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
 		return trace.Wrap(err)
 	}
-	if len(proxies) == 0 {
-		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
-	}
-	addr := proxies[0].GetPublicAddr()
-	if addr == "" {
-		addr = proxies[0].GetAddr()
-	}
 
-	joinMethod := response.JoinMethod
-	if joinMethod == types.JoinMethodUnspecified {
-		joinMethod = types.JoinMethodToken
-	}
-
-	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
-		"token":       response.TokenID,
-		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
-		"addr":        addr,
-		"join_method": joinMethod,
-	})
-}
-
-// AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
-	// Jankily call the endpoint invalidly. This lets us version check and use
-	// the legacy version of this CLI tool if we are talking to an older
-	// server.
-	// DELETE IN 16.0
-	{
-		_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-			Bot: nil,
-		})
-		if trace.IsNotImplemented(err) {
-			return trace.Wrap(c.addBotLegacy(ctx, client))
-		}
-	}
-
-	roles := splitRoles(c.botRoles)
+	roles := splitEntries(c.botRoles)
 	if len(roles) == 0 {
 		log.Warning("No roles specified. The bot will not be able to produce outputs until a role is added to the bot.")
 	}
 	var token types.ProvisionToken
-	var err error
 	if c.tokenID == "" {
 		// If there's no token specified, generate one
-		tokenName, err := utils.CryptoRandomHex(16)
+		tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -413,28 +326,23 @@ func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
 		joinMethod = types.JoinMethodToken
 	}
 
-	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+	templateData := map[string]interface{}{
 		"token":       token.GetName(),
-		"minutes":     int(time.Until(token.Expiry()).Minutes()),
 		"addr":        addr,
 		"join_method": joinMethod,
-	})
+	}
+	if !token.Expiry().IsZero() {
+		templateData["minutes"] = int(time.Until(token.Expiry()).Minutes())
+	}
+	return startMessageTemplate.Execute(os.Stdout, templateData)
 }
 
-func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client *authclient.Client) error {
 	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
 		BotName: c.botName,
 	})
 	if err != nil {
-		if trace.IsNotImplemented(err) {
-			// This falls back to the deprecated RPC.
-			// TODO(noah): DELETE IN 16.0.0
-			if err := client.DeleteBot(ctx, c.botName); err != nil {
-				return trace.Wrap(err, "error deleting bot")
-			}
-		} else {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 
 	fmt.Printf("Bot %q deleted successfully.\n", c.botName)
@@ -442,7 +350,7 @@ func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error 
 	return nil
 }
 
-func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client *authclient.Client) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -483,7 +391,164 @@ func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 	return nil
 }
 
-func splitRoles(flag string) []string {
+// updateBotLogins applies updates from CLI arguments to a bot's logins trait,
+// updating the field mask if any updates were made.
+func (c *BotsCommand) updateBotLogins(bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+	traits := map[string][]string{}
+	for _, t := range bot.Spec.GetTraits() {
+		traits[t.Name] = t.Values
+	}
+
+	currentLogins := make(map[string]struct{})
+	if logins, exists := traits[constants.TraitLogins]; exists {
+		for _, login := range logins {
+			currentLogins[login] = struct{}{}
+		}
+	}
+
+	var desiredLogins map[string]struct{}
+	if c.setLogins != "" {
+		desiredLogins = make(map[string]struct{})
+		for _, login := range splitEntries(c.setLogins) {
+			desiredLogins[login] = struct{}{}
+		}
+	} else {
+		desiredLogins = maps.Clone(currentLogins)
+	}
+
+	addLogins := splitEntries(c.addLogins)
+	if len(addLogins) > 0 {
+		for _, login := range addLogins {
+			desiredLogins[login] = struct{}{}
+		}
+	}
+
+	desiredLoginsArray := utils.StringsSliceFromSet(desiredLogins)
+
+	if maps.Equal(currentLogins, desiredLogins) {
+		log.Infof("Logins will be left unchanged: %+v", desiredLoginsArray)
+		return nil
+	}
+
+	log.Infof("Desired logins for bot %q: %+v", c.botName, desiredLoginsArray)
+
+	if len(desiredLogins) == 0 {
+		delete(traits, constants.TraitLogins)
+		log.Infof("Removing logins trait from bot user")
+	} else {
+		traits[constants.TraitLogins] = desiredLoginsArray
+	}
+
+	traitsArray := []*machineidv1pb.Trait{}
+	for k, v := range traits {
+		traitsArray = append(traitsArray, &machineidv1pb.Trait{
+			Name:   k,
+			Values: v,
+		})
+	}
+
+	bot.Spec.Traits = traitsArray
+
+	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
+}
+
+// clientRoleGetter is a minimal mockable interface for the client API
+type clientRoleGetter interface {
+	GetRole(context.Context, string) (types.Role, error)
+}
+
+// updateBotRoles applies updates from CLI arguments to a bot's roles, updating
+// the field mask as necessary if any updates were made.
+func (c *BotsCommand) updateBotRoles(ctx context.Context, client clientRoleGetter, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
+	currentRoles := make(map[string]struct{})
+	for _, role := range bot.Spec.Roles {
+		currentRoles[role] = struct{}{}
+	}
+
+	var desiredRoles map[string]struct{}
+	if c.botRoles != "" {
+		desiredRoles = make(map[string]struct{})
+		for _, role := range splitEntries(c.botRoles) {
+			desiredRoles[role] = struct{}{}
+		}
+	} else {
+		desiredRoles = maps.Clone(currentRoles)
+	}
+
+	if c.addRoles != "" {
+		for _, role := range splitEntries(c.addRoles) {
+			desiredRoles[role] = struct{}{}
+		}
+	}
+
+	desiredRolesArray := utils.StringsSliceFromSet(desiredRoles)
+
+	if maps.Equal(currentRoles, desiredRoles) {
+		log.Infof("Roles will be left unchanged: %+v", desiredRolesArray)
+		return nil
+	}
+
+	log.Infof("Desired roles for bot %q:  %+v", c.botName, desiredRolesArray)
+
+	// Validate roles (server does not do this yet).
+	for roleName := range desiredRoles {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	bot.Spec.Roles = desiredRolesArray
+
+	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
+}
+
+// UpdateBot performs various updates to existing bot users and roles.
+func (c *BotsCommand) UpdateBot(ctx context.Context, client *authclient.Client) error {
+	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+		BotName: c.botName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if c.setLogins != "" || c.addLogins != "" {
+		if err := c.updateBotLogins(bot, fieldMask); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if c.botRoles != "" || c.addRoles != "" {
+		if err := c.updateBotRoles(ctx, client, bot, fieldMask); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if len(fieldMask.Paths) == 0 {
+		log.Infof("No changes requested, nothing to do.")
+		return nil
+	}
+
+	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
+		Bot:        bot,
+		UpdateMask: fieldMask,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.Infof("Bot %q has been updated. Roles will take effect on its next renewal.", c.botName)
+
+	return nil
+}
+
+// splitEntries splits a comma separated string into an array of entries,
+// ignoring empty or whitespace-only elements.
+func splitEntries(flag string) []string {
 	var roles []string
 	for _, s := range strings.Split(flag, ",") {
 		s = strings.TrimSpace(s)

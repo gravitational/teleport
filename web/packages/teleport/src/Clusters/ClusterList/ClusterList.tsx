@@ -22,7 +22,7 @@ import styled from 'styled-components';
 
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import Table, { Cell } from 'design/DataTable';
-import { Primary } from 'design/Label';
+import { Primary, Secondary } from 'design/Label';
 
 import { Cluster } from 'teleport/services/clusters';
 import cfg from 'teleport/config';
@@ -61,21 +61,16 @@ export default function ClustersList(props: Props) {
 function renderRootLabelCell({ clusterId }: Cluster) {
   const isRoot = cfg.proxyCluster === clusterId;
   return (
-    <Cell style={{ width: '40px' }}>{isRoot && <Primary>ROOT</Primary>}</Cell>
+    <Cell style={{ width: '40px' }}>
+      {isRoot ? <Primary>ROOT</Primary> : <Secondary>LEAF</Secondary>}
+    </Cell>
   );
 }
 
 function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   const $items = [] as React.ReactNode[];
 
-  const showResourcesLink =
-    flags.showNodes ||
-    flags.showApps ||
-    flags.showKubes ||
-    flags.showDatabases ||
-    flags.showDesktops;
-
-  if (showResourcesLink) {
+  if (flags.showResources) {
     $items.push(
       renderMenuItem('Resources', cfg.getUnifiedResourcesRoute(clusterId))
     );
@@ -109,13 +104,9 @@ type Props = {
 };
 
 type MenuFlags = {
-  showNodes: boolean;
+  showResources: boolean;
   showAudit: boolean;
   showRecordings: boolean;
-  showApps: boolean;
-  showDatabases: boolean;
-  showKubes: boolean;
-  showDesktops: boolean;
 };
 
 const StyledTable = styled(Table)`

@@ -34,7 +34,7 @@ export function ErrorDialog({ errMsg }: { errMsg: string }) {
       open={true}
     >
       <DialogHeader>
-        <DialogTitle>An error has occured</DialogTitle>
+        <DialogTitle>An error has occurred</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <Alert kind="danger" children={errMsg} />
@@ -42,7 +42,11 @@ export function ErrorDialog({ errMsg }: { errMsg: string }) {
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary
-          onClick={() => history.goToLogin(true /* rememberLocation */)}
+          onClick={() =>
+            history.goToLogin({
+              rememberLocation: true,
+            })
+          }
         >
           Go to Login
         </ButtonSecondary>

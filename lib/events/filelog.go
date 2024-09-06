@@ -102,7 +102,7 @@ func NewFileLog(cfg FileLogConfig) (*FileLog, error) {
 	f := &FileLog{
 		FileLogConfig: cfg,
 		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAuditLog,
+			teleport.ComponentKey: teleport.ComponentAuditLog,
 		}),
 	}
 	return f, nil
@@ -365,7 +365,7 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
-	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {

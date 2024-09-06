@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -39,8 +40,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
@@ -70,22 +73,22 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
+	servers, err := apiclient.GetAllResources[types.DatabaseServer](cf.Context, clusterClient.AuthClient, tc.ResourceFilter(types.KindDatabaseServer))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	accessChecker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -95,19 +98,9 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	databases := types.DatabaseServers(servers).ToDatabases()
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
-}
-
-func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
-	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer cluster.Close()
-
-	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), clusterName, cluster)
-	return accessChecker, trace.Wrap(err)
+	return trace.Wrap(showDatabases(cf, databases, activeDatabases, accessChecker))
 }
 
 type databaseListing struct {
@@ -178,7 +171,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, cluster.auth, &cluster.req)
 			if err != nil {
 				logger.Errorf("Failed to get databases: %v.", err)
 
@@ -188,13 +181,13 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return nil
 			}
 
-			accessChecker, err := accessCheckerForRemoteCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, cluster.profile.AccessInfo(), cluster.name, cluster.auth)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
 
 			localDBListings := make(databaseListings, 0, len(databases))
-			for _, database := range databases {
+			for _, database := range types.DatabaseServers(databases).ToDatabases() {
 				localDBListings = append(localDBListings, databaseListing{
 					Proxy:         cluster.profile.ProxyURL.Host,
 					Cluster:       cluster.name,
@@ -232,13 +225,13 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printDatabasesWithClusters(cf.SiteName, dbListings, active, cf.Verbose)
+		printDatabasesWithClusters(cf, dbListings, active)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeDatabasesAllClusters(dbListings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
@@ -310,20 +303,21 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		return trace.Wrap(err)
 	}
 
-	var key *client.Key
+	var keyRing *client.KeyRing
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {
 		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
 					ServiceName: dbInfo.ServiceName,
 					Protocol:    dbInfo.Protocol,
 					Username:    dbInfo.Username,
 					Database:    dbInfo.Database,
+					Roles:       dbInfo.Roles,
 				},
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 			})
@@ -331,16 +325,17 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		}); err != nil {
 			return trace.Wrap(err)
 		}
-		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
+
+		if err = tc.LocalAgent().AddDatabaseKeyRing(keyRing); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	if dbInfo.Protocol == defaults.ProtocolOracle {
-		if err := generateDBLocalProxyCert(key, profile); err != nil {
+		if err := generateDBLocalProxyCert(keyRing, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(key, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(keyRing, dbInfo.RouteToDatabase, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -351,6 +346,13 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if len(dbInfo.Roles) > 0 {
+		if route, ok := findActiveDatabase(dbInfo.ServiceName, profile.Databases); ok && len(route.Roles) == 0 {
+			fmt.Fprintf(cf.Stdout(), "Warning. Selected db roles %v are not issued by the Teleport Cluster and all assigned database roles will be used instead. This is likely due to your Teleport Cluster running an older version that doesn't support this feature.\n\n", dbInfo.Roles)
+		}
+	}
+
 	// Update the database-specific connection profile file.
 	err = dbprofile.Add(cf.Context, tc, dbInfo.RouteToDatabase, *profile)
 	return trace.Wrap(err)
@@ -538,7 +540,8 @@ func onDatabaseConfig(cf *CLIConf) error {
 		cmd, err := dbcmd.NewCmdBuilder(tc, profile, *database, rootCluster,
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithLogger(log),
-		).GetConnectCommand()
+			dbcmd.WithGetDatabaseFunc(getDatabase),
+		).GetConnectCommand(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -548,7 +551,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
-			profile.KeyPath(),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
 		}
 		out, err := serializeDatabaseConfig(configInfo, format)
 		if err != nil {
@@ -567,7 +570,9 @@ Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
-			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
+			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
+		)
 	}
 	return nil
 }
@@ -627,7 +632,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf.Context, tc, listener, cf.InsecureSkipVerify), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -650,6 +655,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	host := "localhost"
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
+		dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
 	}
 	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
@@ -698,28 +704,28 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 	}
 
 	if arg.tunnel {
-		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)
+		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil, client.WithTTL(time.Duration(arg.cf.MinsToLive)*time.Minute))
 		opts = append(opts, alpnproxy.WithMiddleware(cc))
 		// When using a tunnel, try to load certs, but if that fails
 		// just skip them and let the reissuer fetch new certs when the local
 		// proxy starts instead.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err == nil {
-			opts = append(opts, alpnproxy.WithClientCerts(cert))
+			cc.SetCert(cert)
 		}
 		return opts, nil
 	}
 
 	// no tunnel, check for protocol-specific cases
 	switch arg.dbInfo.Protocol {
-	case defaults.ProtocolPostgres:
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		// certs are needed for non-tunnel postgres cancel requests.
 		cert, err := loadDBCertificate(arg.tc, arg.dbInfo.ServiceName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts = append(opts, alpnproxy.WithClientCerts(cert))
-		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+		opts = append(opts, alpnproxy.WithClientCert(cert))
+		opts = append(opts, alpnproxy.WithCheckCertNeeded())
 	case defaults.ProtocolMySQL:
 		// To set correct MySQL server version DB proxy needs additional protocol.
 		db, err := arg.dbInfo.GetDatabase(arg.cf.Context, arg.tc)
@@ -778,9 +784,12 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 		return trace.Wrap(err)
 	}
+	if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
+		return trace.Wrap(err)
+	}
 
 	bb := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootClusterName, opts...)
-	cmd, err := bb.GetConnectCommand()
+	cmd, err := bb.GetConnectCommand(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -817,7 +826,38 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	}
 
 	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, routes)
-	if err != nil {
+	switch {
+	// If the database cannot be found, try again with UseSearchAsRoles. If
+	// the database is then found with UseSearchAsRoles, make an access request
+	// for it and elevate the user with the request ID upon approval.
+	//
+	// Note that the access request must be made before the database connection
+	// is made to avoid mangling the request with the database client tools.
+	// Thus the flow for auto database access request is different from SSH.
+	//
+	// Performance considerations:
+	// - For common scenarios where UseSearchAsRoles is not desired, it would
+	//   be rare that cf.DatabaseName would be not found in the first API call
+	//   so there won't be a second call usually.
+	// - accessChecker.GetAllowedSearchAsRoles can be checked to avoid the
+	//   second API call but creating the access checker requires more calls.
+	// - The db commands do provide "--disable-access-request" to bypass the
+	//   second call. If needed, we can add it to `tsh login` and profile yaml
+	//   in the future.
+	case shouldRetryGetDatabaseUsingSearchAsRoles(cf, tc, err):
+		orgErr := err
+		if db, err = getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf, tc); err != nil {
+			return nil, trace.Wrap(orgErr) // Returns the original not found error.
+		}
+		if err := makeDatabaseAccessRequestAndWaitForApproval(cf, tc, db); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Reset routes. Once access requeset is approved, user certs are
+		// reissued with client.CertCacheDrop.
+		routes = nil
+
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
@@ -839,6 +879,63 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, routes []tlsca.Rout
 	return info, nil
 }
 
+var dbCommandsWithAccessRequestSupport = []string{
+	"db login",
+	"proxy db",
+	"db connect",
+}
+
+func shouldRetryGetDatabaseUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient, getDatabaseError error) bool {
+	// If already using SearchAsRoles, nothing to retry.
+	if tc.UseSearchAsRoles {
+		return false
+	}
+	// Only retry when the database cannot be found.
+	if !trace.IsNotFound(getDatabaseError) {
+		return false
+	}
+	// Check if auto access request is disabled.
+	if cf.disableAccessRequest {
+		return false
+	}
+	// Check if the `tsh` command supports auto access request.
+	return slices.Contains(dbCommandsWithAccessRequestSupport, cf.command)
+}
+
+func makeAccessRequestForDatabase(tc *client.TeleportClient, db types.Database) (types.AccessRequest, error) {
+	requestResourceIDs := []types.ResourceID{{
+		ClusterName: tc.SiteName,
+		Kind:        types.KindDatabase,
+		Name:        db.GetName(),
+	}}
+
+	req, err := services.NewAccessRequestWithResources(tc.Username, nil /* roles */, requestResourceIDs)
+	return req, trace.Wrap(err)
+}
+
+func makeDatabaseAccessRequestAndWaitForApproval(cf *CLIConf, tc *client.TeleportClient, db types.Database) error {
+	req, err := makeAccessRequestForDatabase(tc, db)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "You do not currently have access to %q, attempting to request access.\n\n", db.GetName())
+	if err := setAccessRequestReason(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sendAccessRequestAndWaitForApproval(cf, tc, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func requestedDatabaseRoles(cf *CLIConf) []string {
+	if cf.DatabaseRoles == "" {
+		return nil
+	}
+	return strings.Split(cf.DatabaseRoles, ",")
+}
+
 // checkAndSetDefaults checks the db route, applies cli flags, and sets defaults.
 func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClient) error {
 	if d.ServiceName == "" {
@@ -849,6 +946,9 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 	}
 	if cf.DatabaseName != "" {
 		d.Database = cf.DatabaseName
+	}
+	if dbRoles := requestedDatabaseRoles(cf); len(dbRoles) > 0 {
+		d.Roles = dbRoles
 	}
 	db, err := d.GetDatabase(cf.Context, tc)
 	if err != nil {
@@ -867,33 +967,22 @@ func (d *databaseInfo) checkAndSetDefaults(cf *CLIConf, tc *client.TeleportClien
 		return nil
 	}
 
-	// If database has admin user defined, we're most likely using automatic
-	// user provisioning so default to Teleport username unless database
-	// username was provided explicitly.
-	if needDBUser && db.GetAdminUser().Name != "" {
-		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
-		d.Username = tc.Username
-		needDBUser = false
-	}
-	if !needDBUser && !needDBName {
-		return nil
-	}
-
-	var proxy *client.ProxyClient
+	var clusterClient *client.ClusterClient
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		proxy, err = tc.ConnectToProxy(cf.Context)
+		clusterClient, err = tc.ConnectToCluster(cf.Context)
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer proxy.Close()
+	defer clusterClient.Close()
 
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
+
+	checker, err := services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -936,7 +1025,7 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.database != nil {
-		return d.database, nil
+		return d.database.Copy(), nil
 	}
 	// holding mutex across the api call to avoid multiple redundant api calls.
 	database, err := getDatabase(ctx, tc, d.ServiceName)
@@ -944,7 +1033,15 @@ func (d *databaseInfo) GetDatabase(ctx context.Context, tc *client.TeleportClien
 		return nil, trace.Wrap(err)
 	}
 	d.database = database
-	return d.database, nil
+	return d.database.Copy(), nil
+}
+
+// getDatabaseForDBCmd is a callback for dbcmd connect option.
+func (d *databaseInfo) getDatabaseForDBCmd(ctx context.Context, tc *client.TeleportClient, serviceName string) (types.Database, error) {
+	if serviceName != d.ServiceName {
+		return nil, trace.BadParameter("expect database service %s but got %s", d.ServiceName, serviceName)
+	}
+	return d.GetDatabase(ctx, tc)
 }
 
 // chooseOneDatabase is a helper func that returns either the only database in a
@@ -1030,6 +1127,15 @@ func getDatabaseByNameOrDiscoveredName(cf *CLIConf, tc *client.TeleportClient, a
 	return chooseOneDatabase(cf, databases)
 }
 
+func getDatabaseByNameOrDiscoveredNameUsingSearchAsRoles(cf *CLIConf, tc *client.TeleportClient) (types.Database, error) {
+	tc.UseSearchAsRoles = true
+	defer func() {
+		tc.UseSearchAsRoles = false
+	}()
+	db, err := getDatabaseByNameOrDiscoveredName(cf, tc, nil)
+	return db, trace.Wrap(err)
+}
+
 func filterActiveDatabases(routes []tlsca.RouteToDatabase, databases types.Databases) types.Databases {
 	databasesByName := databases.ToMap()
 	var out types.Databases
@@ -1055,6 +1161,7 @@ func listDatabasesWithPredicate(ctx context.Context, tc *client.TeleportClient, 
 			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: predicate,
 			Labels:              tc.Labels,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
 		})
 		return trace.Wrap(err)
 	})
@@ -1124,6 +1231,8 @@ func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
+	// Note that EnumerateDatabaseUsers also calculates the username when
+	// auto-user provisioning is enabled for this database.
 	dbUsers, err := checker.EnumerateDatabaseUsers(db, extraUsers...)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -1261,7 +1370,8 @@ func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.
 
 // dbInfoHasChanged checks if cliConf.DatabaseUser or cliConf.DatabaseName info has changed in the user database certificate.
 func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
-	if cf.DatabaseUser == "" && cf.DatabaseName == "" {
+	dbRoles := requestedDatabaseRoles(cf)
+	if cf.DatabaseUser == "" && cf.DatabaseName == "" && len(dbRoles) == 0 {
 		return false, nil
 	}
 
@@ -1286,21 +1396,22 @@ func dbInfoHasChanged(cf *CLIConf, certPath string) (bool, error) {
 		log.Debugf("Will reissue database certificate for database name %s (was %s)", cf.DatabaseName, identity.RouteToDatabase.Database)
 		return true, nil
 	}
+
+	if !apiutils.ContainSameUniqueElements(dbRoles, identity.RouteToDatabase.Roles) {
+		log.Debugf("Will reissue database certificate for database roles %v (was %v)", dbRoles, identity.RouteToDatabase.Roles)
+		return true, nil
+	}
 	return false, nil
 }
 
 // isMFADatabaseAccessRequired calls the IsMFARequired endpoint in order to get from user roles if access to the database
 // requires MFA.
 func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient, database tlsca.RouteToDatabase) (bool, error) {
-	proxy, err := tc.ConnectToProxy(ctx)
+	clusterClient, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	cluster, err := proxy.ConnectToCluster(ctx, tc.SiteName)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	defer cluster.Close()
+	defer clusterClient.Close()
 
 	dbParam := proto.RouteToDatabase{
 		ServiceName: database.ServiceName,
@@ -1308,7 +1419,7 @@ func isMFADatabaseAccessRequired(ctx context.Context, tc *client.TeleportClient,
 		Username:    database.Username,
 		Database:    database.Database,
 	}
-	mfaResp, err := cluster.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+	mfaResp, err := clusterClient.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Database{
 			Database: &dbParam,
 		},
@@ -1547,7 +1658,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
 		defaults.ProtocolOracle,
-		defaults.ProtocolClickHouse:
+		defaults.ProtocolClickHouse,
+		defaults.ProtocolSpanner:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
@@ -1641,12 +1753,7 @@ func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, route tlsca.RouteToDatabase) 
 // getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
 func getDbCmdAlternatives(clusterFlag string, route tlsca.RouteToDatabase) []string {
 	var alts []string
-	switch route.Protocol {
-	case defaults.ProtocolDynamoDB:
-	// DynamoDB only works with a local proxy tunnel and there is no "shell-like" cli, so `tsh db connect` doesn't make sense.
-	case defaults.ProtocolClickHouseHTTP:
-	// ClickHouse HTTP protocol don't support interactive mode
-	default:
+	if protocolSupportsInteractiveMode(route.Protocol) {
 		// prefer displaying the connect command as the first suggested command alternative.
 		alts = append(alts, formatDatabaseConnectCommand(clusterFlag, route))
 	}
@@ -1669,7 +1776,7 @@ func formatAmbiguousDB(cf *CLIConf, selectors resourceSelectors, matchedDBs type
 	var checker services.AccessChecker
 	var sb strings.Builder
 	verbose := true
-	showDatabasesAsText(&sb, cf.SiteName, matchedDBs, activeDBs, checker, verbose)
+	showDatabasesAsText(cf, &sb, matchedDBs, activeDBs, checker, verbose)
 
 	listCommand := formatDatabaseListCommand(cf.SiteName)
 	fullNameExample := matchedDBs[0].GetName()

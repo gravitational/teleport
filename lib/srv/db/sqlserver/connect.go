@@ -97,7 +97,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		return nil, nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := c.DBAuth.GetTLSConfig(ctx, sessionCtx)
+	tlsConfig, err := c.DBAuth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -190,6 +190,6 @@ func (c *connector) getAzureConnector(ctx context.Context, sessionCtx *common.Se
 // authenticate.
 func (c *connector) getAccessTokenConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
 	return mssql.NewSecurityTokenConnector(dsnConfig, func(ctx context.Context) (string, error) {
-		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx)
+		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
 	})
 }

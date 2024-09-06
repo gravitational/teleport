@@ -34,10 +34,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
 
 type loginRuleTestingPrimitives struct {
 	setup *TestSetup
+	reconcilers.ResourceWithoutLabelsAdapter[*resourcesv1.LoginRuleResource]
 }
 
 func (l *loginRuleTestingPrimitives) Init(setup *TestSetup) {
@@ -137,8 +139,7 @@ func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
 	tResource *resourcesv1.LoginRuleResource,
 	kubeResource *resourcesv1.TeleportLoginRule) (bool, string) {
 	diff := cmp.Diff(tResource, kubeResource.ToTeleport(),
-		cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
-		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Labels"),
+		CompareOptions(cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}))...,
 	)
 	return diff == "", diff
 }

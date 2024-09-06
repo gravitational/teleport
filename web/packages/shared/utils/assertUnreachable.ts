@@ -17,5 +17,11 @@
  */
 
 export function assertUnreachable(x: never): never {
-  throw new Error(`Unhandled case: ${x}`);
+  throw new UnhandledCaseError(x);
+}
+
+export class UnhandledCaseError extends Error {
+  constructor(public unhandledCase: unknown) {
+    super(`Unhandled case: ${unhandledCase}`);
+  }
 }

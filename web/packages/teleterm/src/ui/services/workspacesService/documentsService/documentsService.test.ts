@@ -80,6 +80,7 @@ describe('document should be added', () => {
     targetName: 'quux',
     targetUser: 'foo',
     origin: 'resource_table',
+    status: '',
   };
 
   test('at the specific position', () => {
@@ -155,6 +156,7 @@ test('only gateway documents should be returned', () => {
     targetName: 'quux',
     targetUser: 'foo',
     origin: 'resource_table',
+    status: '',
   };
 
   service.add(gatewayDocument);

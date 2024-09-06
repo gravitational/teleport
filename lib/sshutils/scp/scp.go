@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -176,8 +177,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		logger = log.StandardLogger()
 	}
 	c.Log = logger.WithFields(log.Fields{
-		trace.Component: "SCP",
-		trace.ComponentFields: log.Fields{
+		teleport.ComponentKey: "SCP",
+		teleport.ComponentFields: log.Fields{
 			"LocalAddr":      c.Flags.LocalAddr,
 			"RemoteAddr":     c.Flags.RemoteAddr,
 			"Target":         c.Flags.Target,
@@ -369,7 +370,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -503,7 +504,7 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+		defer fmt.Fprint(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 
 	if err = sendOK(ch); err != nil {

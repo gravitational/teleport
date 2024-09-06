@@ -314,7 +314,7 @@ func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) str
 // Note: UserCA must use "Teleport" to keep backwards compatibility.
 func crlKeyName(caType types.CertAuthType) string {
 	switch caType {
-	case types.DatabaseCA:
+	case types.DatabaseClientCA, types.DatabaseCA:
 		return "TeleportDB"
 	default:
 		return "Teleport"

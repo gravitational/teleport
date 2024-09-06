@@ -19,23 +19,18 @@
 package botfs
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/user"
-	"runtime"
-	"strconv"
-	"syscall"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentTBot,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
 // SymlinksMode is an enum type listing various symlink behavior modes.
 type SymlinksMode string
@@ -130,42 +125,13 @@ func createStandard(path string, isDir bool) error {
 	}
 
 	if err := f.Close(); err != nil {
-		log.Warnf("Failed to close file at %q: %+v", path, err)
+		log.WarnContext(
+			context.TODO(),
+			"Failed to close file",
+			"path", path,
+			"error", err,
+		)
 	}
 
 	return nil
-}
-
-// GetOwner attempts to retrieve the owner of the given file. This is not
-// supported on all platforms and will return a trace.NotImplemented in that
-// case.
-func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
-	info, ok := fileInfo.Sys().(*syscall.Stat_t)
-	if !ok {
-		return nil, trace.NotImplemented("Cannot verify file ownership on this platform.")
-	}
-
-	user, err := user.LookupId(strconv.Itoa(int(info.Uid)))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return user, nil
-}
-
-// IsOwnedBy checks that the file at the given path is owned by the given user.
-// Returns a trace.NotImplemented() on unsupported platforms.
-func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
-	if runtime.GOOS == constants.WindowsOS {
-		// no-op on windows
-		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
-	}
-
-	info, ok := fileInfo.Sys().(*syscall.Stat_t)
-	if !ok {
-		return false, trace.NotImplemented("Cannot verify file ownership on this platform.")
-	}
-
-	// Our files are 0600, so don't bother checking gid.
-	return strconv.Itoa(int(info.Uid)) == user.Uid, nil
 }

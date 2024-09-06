@@ -16,101 +16,57 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Box } from 'design';
+import { useState } from 'react';
+import { Flex } from 'design';
 
-import Select, { DarkStyledSelect } from '../Select';
+import Select, { Option } from '../Select';
 
 export default {
   title: 'Shared/Select',
 };
 
-export const Selects = () => {
-  return (
-    <Flex>
-      <SelectDefault {...props} />
-      <SelectDark {...props} />
-    </Flex>
+const options: Option[] = [
+  { value: 'access-role', label: 'access' },
+  { value: 'editor-role', label: 'editor' },
+  { value: 'auditor-role', label: 'auditor' },
+];
+
+export function Selects() {
+  const [selectedMulti, setSelectedMulti] = useState<readonly Option[]>(
+    options.slice(0, 2)
   );
-};
-
-const props = {
-  value: [
-    { value: 'admin', label: 'admin' },
-    { value: 'testrole', label: 'testrole' },
-  ],
-  onChange: () => null,
-  options: [
-    { value: 'Relupba', label: 'Relupba' },
-    { value: 'B', label: 'B' },
-    { value: 'Pilhibo', label: 'Pilhibo' },
-  ],
-};
-
-function SelectDefault({ value, onChange, options }) {
-  const [selected, setSelected] = React.useState([]);
+  const [selectedSingle, setSelectedSingle] = useState(options[0]);
 
   return (
-    <Flex flexDirection="column" width="330px" mr={5}>
-      <Box mb="200px">
-        <Select
-          value={value}
-          onChange={onChange}
-          options={options}
-          isMulti={true}
-        />
-      </Box>
-      <Box mb="200px">
-        <Select
-          value={selected}
-          onChange={(opt: any) => setSelected(opt)}
-          options={options}
-          placeholder="Click to select a role"
-        />
-      </Box>
-      <Box>
-        <Select
-          isDisabled={true}
-          value={selected}
-          onChange={(opt: any) => setSelected(opt)}
-          options={options}
-          placeholder="Click to select a role"
-        />
-      </Box>
-    </Flex>
-  );
-}
-
-function SelectDark({ value, onChange, options }) {
-  const [selected, setSelected] = React.useState([]);
-
-  return (
-    <Flex flexDirection="column" width="330px" mr={5}>
-      <DarkStyledSelect mb="206px">
-        <Select
-          value={value}
-          onChange={onChange}
-          options={options}
-          isMulti={true}
-        />
-      </DarkStyledSelect>
-      <DarkStyledSelect mb="206px">
-        <Select
-          value={selected}
-          onChange={(opt: any) => setSelected(opt)}
-          options={options}
-          placeholder="Click to select a role"
-        />
-      </DarkStyledSelect>
-      <DarkStyledSelect>
-        <Select
-          isDisabled={true}
-          value={selected}
-          onChange={(opt: any) => setSelected(opt)}
-          options={options}
-          placeholder="Click to select a role"
-        />
-      </DarkStyledSelect>
+    <Flex flexDirection="column" width="330px" gap={10}>
+      <Select
+        value={selectedMulti}
+        onChange={options => setSelectedMulti(options)}
+        options={options}
+        placeholder="Click to select a role"
+        isMulti={true}
+      />
+      <Select
+        value={selectedMulti}
+        onChange={options => setSelectedMulti(options)}
+        options={options}
+        placeholder="Click to select a role"
+        isMulti={true}
+        isDisabled={true}
+      />
+      <Select
+        value={selectedSingle}
+        onChange={option => setSelectedSingle(option)}
+        options={options}
+        placeholder="Click to select a role"
+      />
+      <Select
+        isDisabled={true}
+        value={selectedSingle}
+        onChange={option => setSelectedSingle(option)}
+        options={options}
+        placeholder="Click to select a role"
+      />
     </Flex>
   );
 }

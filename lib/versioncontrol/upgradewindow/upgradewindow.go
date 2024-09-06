@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
+	"github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 const (
@@ -44,9 +45,6 @@ const (
 
 	// unitScheduleFile is the name of the file to which the unit schedule is exported.
 	unitScheduleFile = "schedule"
-
-	// unitConfigDir is the configuration directory of the teleport-upgrade unit.
-	unitConfigDir = "/etc/teleport-upgrade.d"
 )
 
 // ExportFunc represents the ExportUpgradeWindows rpc exposed by auth servers.
@@ -121,7 +119,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 	fastExport := os.Getenv("TELEPORT_UNSTABLE_FAST_MW_EXPORT") == "yes"
 
 	if c.UnhealthyThreshold == 0 {
-		// 9m is fairly arbitrary, but was picked based on the the idea that a good unhealthy threshold aught to be
+		// 9m is fairly arbitrary, but was picked based on the idea that a good unhealthy threshold aught to be
 		// long enough to minimize sensitivity to control plane restarts, but short enough that by the time an instance
 		// appears offline in the teleport UI, we aught to be able to assume that its unhealthy status has been propagated
 		// to its upgrader.
@@ -399,7 +397,7 @@ type systemdDriver struct {
 
 func NewSystemdUnitDriver(cfg SystemdUnitDriverConfig) (Driver, error) {
 	if cfg.ConfigDir == "" {
-		cfg.ConfigDir = unitConfigDir
+		cfg.ConfigDir = versioncontrol.UnitConfigDir
 	}
 
 	return &systemdDriver{cfg: cfg}, nil

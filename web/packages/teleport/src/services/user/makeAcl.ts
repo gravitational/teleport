@@ -60,7 +60,6 @@ export function makeAcl(json): Acl {
   const download = json.download || defaultAccess;
 
   const deviceTrust = json.deviceTrust || defaultAccess;
-  const assist = json.assist || defaultAccess;
 
   const auditQuery = json.auditQuery || defaultAccess;
   const securityReport = json.securityReport || defaultAccess;
@@ -69,6 +68,9 @@ export function makeAcl(json): Acl {
 
   const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
   const accessGraph = json.accessGraph || defaultAccess;
+
+  const bots = json.bots || defaultAccess;
+  const accessMonitoringRule = json.accessMonitoringRule || defaultAccess;
 
   return {
     accessList,
@@ -98,12 +100,13 @@ export function makeAcl(json): Acl {
     download,
     deviceTrust,
     lock,
-    assist,
     samlIdpServiceProvider,
     auditQuery,
     securityReport,
     externalAuditStorage,
     accessGraph,
+    bots,
+    accessMonitoringRule,
   };
 }
 

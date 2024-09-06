@@ -28,8 +28,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"path"
 	"slices"
 	"testing"
 	"time"
@@ -38,7 +36,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -145,41 +142,6 @@ func (m *MockListener) Addr() net.Addr {
 
 func (m *MockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
-}
-
-type KeyPairPaths struct {
-	CertPath string
-	KeyPath  string
-}
-
-func MustGenAndSaveCert(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity) KeyPairPaths {
-	t.Helper()
-
-	dir := t.TempDir()
-	certPath := path.Join(dir, "cert.pem")
-	keyPath := path.Join(dir, "key.pem")
-
-	MustGenCertSignedWithCAAndSaveToPaths(t, ca, identity, certPath, keyPath)
-	return KeyPairPaths{
-		CertPath: certPath,
-		KeyPath:  keyPath,
-	}
-}
-
-func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity, certPath, keyPath string) {
-	t.Helper()
-
-	tlsCert := MustGenCertSignedWithCA(t, ca, identity)
-	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
-	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
-
-	// Save the cert.
-	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
-	require.NoError(t, os.WriteFile(certPath, pemCert, teleport.FileMaskOwnerOnly))
-
-	// Save the private key.
-	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
-	require.NoError(t, os.WriteFile(keyPath, pemPrivateKey, teleport.FileMaskOwnerOnly))
 }
 
 func MustGenCACert(t *testing.T) *tlsca.CertAuthority {

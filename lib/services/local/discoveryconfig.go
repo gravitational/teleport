@@ -59,7 +59,7 @@ func NewDiscoveryConfigService(backend backend.Backend) (*DiscoveryConfigService
 	}, nil
 }
 
-// ListDiscoveryConfigss returns a paginated list of DiscoveryConfig resources.
+// ListDiscoveryConfigs returns a paginated list of DiscoveryConfig resources.
 func (s *DiscoveryConfigService) ListDiscoveryConfigs(ctx context.Context, pageSize int, pageToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
 	dcs, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
@@ -79,51 +79,42 @@ func (s *DiscoveryConfigService) GetDiscoveryConfig(ctx context.Context, name st
 	return dc, nil
 }
 
-// CreateDiscoveryConfigs creates a new DiscoveryConfig resource.
+// CreateDiscoveryConfig creates a new DiscoveryConfig resource.
 func (s *DiscoveryConfigService) CreateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
 	if err := dc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.svc.CreateResource(ctx, dc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dc, nil
+	created, err := s.svc.CreateResource(ctx, dc)
+	return created, trace.Wrap(err)
 }
 
-// UpdateDiscoveryConfigs updates an existing DiscoveryConfig resource.
+// UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
 func (s *DiscoveryConfigService) UpdateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
 	if err := dc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.svc.UpdateResource(ctx, dc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dc, nil
+	updated, err := s.svc.UpdateResource(ctx, dc)
+	return updated, trace.Wrap(err)
 }
 
-// UpsertDiscoveryConfigs upserts a DiscoveryConfig resource.
+// UpsertDiscoveryConfig upserts a DiscoveryConfig resource.
 func (s *DiscoveryConfigService) UpsertDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
 	if err := dc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.svc.UpsertResource(ctx, dc); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return dc, nil
+	upserted, err := s.svc.UpsertResource(ctx, dc)
+	return upserted, trace.Wrap(err)
 }
 
-// DeleteDiscoveryConfigs removes the specified DiscoveryConfig resource.
+// DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *DiscoveryConfigService) DeleteDiscoveryConfig(ctx context.Context, name string) error {
 	return trace.Wrap(s.svc.DeleteResource(ctx, name))
 }
 
-// DeleteAllDiscoveryConfigss removes all DiscoveryConfig resources.
+// DeleteAllDiscoveryConfigs removes all DiscoveryConfig resources.
 func (s *DiscoveryConfigService) DeleteAllDiscoveryConfigs(ctx context.Context) error {
 	return trace.Wrap(s.svc.DeleteAllResources(ctx))
 }

@@ -20,7 +20,6 @@ package gateway
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"strconv"
@@ -28,11 +27,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/utils/keys"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
@@ -45,6 +41,10 @@ func New(cfg Config) (Gateway, error) {
 
 	case cfg.TargetURI.IsKube():
 		gateway, err := makeKubeGateway(cfg)
+		return gateway, trace.Wrap(err)
+
+	case cfg.TargetURI.IsApp():
+		gateway, err := makeAppGateway(cfg)
 		return gateway, trace.Wrap(err)
 
 	default:
@@ -186,57 +186,8 @@ func (b *base) LocalPortInt() int {
 	return port
 }
 
-// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
-// local proxy. This is typically done after the cert is reissued and saved to disk.
-//
-// In the future, we're probably going to make this method accept the cert as an arg rather than
-// reading from disk.
-// TODO(ravicious): Remove ReloadCert after adding MFA support to gateways.
-func (b *base) ReloadCert() error {
-	if len(b.onNewCertFuncs) == 0 {
-		return nil
-	}
-	b.cfg.Log.Debug("Reloading cert")
-
-	if b.cfg.CertPath == "" {
-		return trace.Errorf("attempted to reload cert for a gateway, but cert path is empty")
-	}
-
-	if b.cfg.KeyPath == "" {
-		return trace.Errorf("attempted to reload cert for a gateway, but key path is empty")
-	}
-
-	tlsCert, err := keys.LoadX509KeyPair(b.cfg.CertPath, b.cfg.KeyPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var errs []error
-	for _, onNewCert := range b.onNewCertFuncs {
-		errs = append(errs, onNewCert(tlsCert))
-	}
-
-	return trace.NewAggregate(errs...)
-}
-
 func (b *base) cloneConfig() Config {
 	return *b.cfg
-}
-
-// checkCertSubject checks if the cert subject matches the expected db route.
-//
-// Database certs are scoped per database server but not per database user or database name.
-// It might happen that after we save the cert but before we load it, another process obtains a
-// cert for another db user.
-//
-// Before using the cert for the proxy, we have to perform this check.
-func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) error {
-	cert, err := utils.TLSCertLeaf(tlsCert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(alpn.CheckCertSubject(cert, dbRoute))
 }
 
 // Gateway describes local proxy that creates a gateway to the remote Teleport resource.
@@ -249,10 +200,6 @@ type base struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
 	forwardProxy *alpn.ForwardProxy
-	// onNewCertFuncs contains a list of callback functions that update the local
-	// proxy when TLS certificate is reissued.
-	// TODO(ravicious): Remove this field after adding MFA support to gateways.
-	onNewCertFuncs []func(tls.Certificate) error
 	// onCloseFuncs contains a list of extra cleanup functions called during Close.
 	onCloseFuncs []func() error
 	// closeContext and closeCancel are used to signal to any waiting goroutines

@@ -5,7 +5,11 @@ kind: ConfigMap
 metadata:
   name: {{ .Release.Name }}-auth
   namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+  labels:
+    {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+    {{- if $auth.extraLabels.config }}
+    {{- toYaml $auth.extraLabels.config | nindent 4 }}
+    {{- end }}
 {{- if $auth.annotations.config }}
   annotations: {{- toYaml $auth.annotations.config | nindent 4 }}
 {{- end }}
@@ -119,6 +123,14 @@ data:
               - read
               - update
               - delete
+          - resources:
+              - node
+            verbs:
+              - list
+              - create
+              - read
+              - update
+              - delete
       deny: {}
     version: v7
     ---
@@ -132,7 +144,7 @@ data:
       bot_name: operator
       kubernetes:
         allow:
-          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.operator.serviceAccountName" . }}"
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.auth.operatorServiceAccountName" . }}"
   {{- end }}
 {{- end }}
   teleport.yaml: |2

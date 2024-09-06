@@ -17,62 +17,132 @@
  */
 
 import 'whatwg-fetch';
-import auth from 'teleport/services/auth/auth';
+import auth, { MfaChallengeScope } from 'teleport/services/auth/auth';
+import websession from 'teleport/services/websession';
 
 import { storageService } from '../storageService';
+import { WebauthnAssertionResponse } from '../auth';
 
 import parseError, { ApiError } from './parseError';
 
-const MFA_HEADER = 'Teleport-Mfa-Response';
+export const MFA_HEADER = 'Teleport-Mfa-Response';
 
 const api = {
   get(url, abortSignal?) {
-    return api.fetchJson(url, { signal: abortSignal });
+    return api.fetchJsonWithMfaAuthnRetry(url, { signal: abortSignal });
   },
 
-  post(url, data?, abortSignal?) {
-    return api.fetchJson(url, {
-      body: JSON.stringify(data),
-      method: 'POST',
-      signal: abortSignal,
-    });
-  },
-
-  postFormData(url, formData) {
-    if (formData instanceof FormData) {
-      return api.fetchJson(url, {
-        body: formData,
+  post(url, data?, abortSignal?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
         method: 'POST',
-        // Overrides the default header from `requestOptions`.
-        headers: {
-          Accept: 'application/json',
-          // Let the browser infer the content-type for FormData types
-          // to set the correct boundary:
-          // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
-          // 2) https://stackoverflow.com/a/64653976
+        signal: abortSignal,
+      },
+      webauthnResponse
+    );
+  },
+
+  postFormData(url, formData, webauthnResponse?: WebauthnAssertionResponse) {
+    if (formData instanceof FormData) {
+      return api.fetchJsonWithMfaAuthnRetry(
+        url,
+        {
+          body: formData,
+          method: 'POST',
+          // Overrides the default header from `defaultRequestOptions`.
+          headers: {
+            Accept: 'application/json',
+            // Let the browser infer the content-type for FormData types
+            // to set the correct boundary:
+            // 1) https://developer.mozilla.org/en-US/docs/Web/API/FormData/Using_FormData_Objects#sending_files_using_a_formdata_object
+            // 2) https://stackoverflow.com/a/64653976
+          },
         },
-      });
+        webauthnResponse
+      );
     }
 
     throw new Error('data for body is not a type of FormData');
   },
 
-  delete(url, data?) {
-    return api.fetchJson(url, {
-      body: JSON.stringify(data),
-      method: 'DELETE',
-    });
+  delete(url, data?, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'DELETE',
+      },
+      webauthnResponse
+    );
   },
 
-  put(url, data) {
-    return api.fetchJson(url, {
-      body: JSON.stringify(data),
-      method: 'PUT',
-    });
+  deleteWithHeaders(
+    url,
+    headers?: Record<string, string>,
+    signal?,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        method: 'DELETE',
+        headers,
+        signal,
+      },
+      webauthnResponse
+    );
   },
 
-  async fetchJson(url, params): Promise<any> {
-    const response = await api.fetch(url, params);
+  // TODO (avatus) add abort signal to this
+  put(url, data, webauthnResponse?: WebauthnAssertionResponse) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+      },
+      webauthnResponse
+    );
+  },
+
+  putWithHeaders(
+    url,
+    data,
+    headers?: Record<string, string>,
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      {
+        body: JSON.stringify(data),
+        method: 'PUT',
+        headers,
+      },
+      webauthnResponse
+    );
+  },
+
+  /**
+   * fetchJsonWithMfaAuthnRetry calls on `api.fetch` and
+   * processes the response.
+   *
+   * It returns the JSON data if it is a valid JSON and
+   * there were no response errors.
+   *
+   * If a response had an error and it contained a MFA authn
+   * required message, then a retry is attempted after a user
+   * successfully re-authenticates with an MFA device.
+   *
+   * All other errors will be thrown.
+   */
+  async fetchJsonWithMfaAuthnRetry(
+    url: string,
+    customOptions: RequestInit,
+    webauthnResponse?: WebauthnAssertionResponse
+  ): Promise<any> {
+    const response = await api.fetch(url, customOptions, webauthnResponse);
 
     let json;
     try {
@@ -88,56 +158,115 @@ const api = {
       return json;
     }
 
+    /** This error can occur in the edge case where a role in the user's certificate was deleted during their session. */
+    const isRoleNotFoundErr = isRoleNotFoundError(parseError(json));
+    if (isRoleNotFoundErr) {
+      websession.logoutWithoutSlo({
+        /* Don't remember location after login, since they may no longer have access to the page they were on. */
+        rememberLocation: false,
+        /* Show "access changed" notice on login page. */
+        withAccessChangedMessage: true,
+      });
+      return;
+    }
+
     // Retry with MFA if we get an admin action missing MFA error.
     const isAdminActionMfaError = isAdminActionRequiresMfaError(
       parseError(json)
     );
-    const isMfaHeaderPresent = params.headers?.[MFA_HEADER];
-    const shouldRetry = isAdminActionMfaError && !isMfaHeaderPresent;
+    const shouldRetry = isAdminActionMfaError && !webauthnResponse;
     if (!shouldRetry) {
-      throw new ApiError(parseError(json), response);
+      throw new ApiError(parseError(json), response, undefined, json.messages);
     }
 
-    let webauthnResponse;
+    let webauthnResponseForRetry;
     try {
-      webauthnResponse = await auth.getWebauthnResponse();
+      webauthnResponseForRetry = await auth.getWebauthnResponse(
+        MfaChallengeScope.ADMIN_ACTION
+      );
     } catch (err) {
       throw new Error(
         'Failed to fetch webauthn credentials, please connect a registered hardware key and try again. If you do not have a hardware key registered, you can add one from your account settings page.'
       );
     }
 
-    const paramsWithMfaHeader = {
-      ...params,
-      headers: {
-        ...params.headers,
-        [MFA_HEADER]: JSON.stringify({
-          webauthnAssertionResponse: webauthnResponse,
-        }),
-      },
-    };
-    return api.fetchJson(url, paramsWithMfaHeader);
+    return api.fetchJsonWithMfaAuthnRetry(
+      url,
+      customOptions,
+      webauthnResponseForRetry
+    );
   },
 
-  fetch(url, params = {}) {
+  /**
+   * fetch calls upon native fetch with options and headers set
+   * to default (or provided) values.
+   *
+   * @param customOptions is an optional RequestInit object.
+   * It can be provided to either override some fields defined in
+   * `defaultRequestOptions` or define new fields not in
+   * `defaultRequestOptions`.
+   *
+   * customOptions gets shallowly merged with `defaultRequestOptions` where
+   * inner objects do not get merged if overrided.
+   *
+   * Example with an example customOption:
+   * {
+   *  body: formData,
+   *  method: 'POST',
+   *  headers: {
+   *    Accept: 'application/json',
+   *  }
+   * }
+   *
+   * 'headers' is a field also defined in `defaultRequestOptions`, because of
+   * shallow merging, the customOption.headers will get completely overrided.
+   * After merge:
+   *
+   * {
+   *  body: formData,
+   *  method: 'POST',
+   *  headers: {
+   *    Accept: 'application/json',
+   *  },
+   *  credentials: 'same-origin',
+   *  mode: 'same-origin',
+   *  cache: 'no-store'
+   * }
+   *
+   * If customOptions field is not provided, only fields defined in
+   * `defaultRequestOptions` will be used.
+   *
+   * @param webauthnResponse if defined (eg: `fetchJsonWithMfaAuthnRetry`)
+   * will add a custom MFA header field that will hold the webauthn response.
+   */
+  fetch(
+    url: string,
+    customOptions: RequestInit = {},
+    webauthnResponse?: WebauthnAssertionResponse
+  ) {
     url = window.location.origin + url;
     const options = {
-      ...requestOptions,
-      ...params,
+      ...defaultRequestOptions,
+      ...customOptions,
     };
 
     options.headers = {
-      ...requestOptions.headers,
       ...options.headers,
       ...getAuthHeaders(),
     };
+
+    if (webauthnResponse) {
+      options.headers[MFA_HEADER] = JSON.stringify({
+        webauthnAssertionResponse: webauthnResponse,
+      });
+    }
 
     // native call
     return fetch(url, options);
   },
 };
 
-const requestOptions: RequestInit = {
+export const defaultRequestOptions: RequestInit = {
   credentials: 'same-origin',
   headers: {
     Accept: 'application/json',
@@ -183,6 +312,12 @@ function isAdminActionRequiresMfaError(errMessage) {
   return errMessage.includes(
     'admin-level API request requires MFA verification'
   );
+}
+
+/** isRoleNotFoundError returns true if the error message is due to a role not being found. */
+export function isRoleNotFoundError(errMessage: string): boolean {
+  // This error message format should be kept in sync with the NotFound error message returned in lib/services/local/access.GetRole
+  return /role \S+ is not found/.test(errMessage);
 }
 
 export default api;

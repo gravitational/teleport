@@ -20,19 +20,46 @@ import React from 'react';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { State as ResourceState } from 'teleport/components/useResources';
+import { SearchPanel } from 'shared/components/Search';
 
-import { State as RolesState } from '../useRoles';
+import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
+import { RoleResource } from 'teleport/services/resources';
 
-export default function RoleList({
-  items = [],
-  pageSize = 20,
+export function RoleList({
   onEdit,
   onDelete,
-}: Props) {
+  onSearchChange,
+  search,
+  serversidePagination,
+}: {
+  onEdit(id: string): void;
+  onDelete(id: string): void;
+  onSearchChange(search: string): void;
+  search: string;
+  serversidePagination: SeversidePagination<RoleResource>;
+}) {
   return (
     <Table
-      data={items}
+      data={serversidePagination.fetchedData.agents}
+      fetching={{
+        fetchStatus: serversidePagination.fetchStatus,
+        onFetchNext: serversidePagination.fetchNext,
+        onFetchPrev: serversidePagination.fetchPrev,
+      }}
+      serversideProps={{
+        sort: undefined,
+        setSort: () => undefined,
+        serversideSearchPanel: (
+          <SearchPanel
+            updateSearch={onSearchChange}
+            updateQuery={null}
+            hideAdvancedSearch={true}
+            showSearchBar={true}
+            filter={{ search }}
+            disableSearch={serversidePagination.attempt.status === 'processing'}
+          />
+        ),
+      }}
       columns={[
         {
           key: 'name',
@@ -40,40 +67,27 @@ export default function RoleList({
         },
         {
           altKey: 'options-btn',
-          render: ({ id }) => (
-            <ActionCell id={id} onEdit={onEdit} onDelete={onDelete} />
+          render: (role: RoleResource) => (
+            <ActionCell
+              onEdit={() => onEdit(role.id)}
+              onDelete={() => onDelete(role.id)}
+            />
           ),
         },
       ]}
       emptyText="No Roles Found"
-      pagination={{ pageSize }}
       isSearchable
     />
   );
 }
 
-const ActionCell = ({
-  id,
-  onEdit,
-  onDelete,
-}: {
-  id: string;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-}) => {
+const ActionCell = (props: { onEdit(): void; onDelete(): void }) => {
   return (
     <Cell align="right">
       <MenuButton>
-        <MenuItem onClick={() => onEdit(id)}>Edit...</MenuItem>
-        <MenuItem onClick={() => onDelete(id)}>Delete...</MenuItem>
+        <MenuItem onClick={props.onEdit}>Edit...</MenuItem>
+        <MenuItem onClick={props.onDelete}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
   );
-};
-
-type Props = {
-  items: RolesState['items'];
-  onEdit: ResourceState['edit'];
-  onDelete: ResourceState['remove'];
-  pageSize?: number;
 };

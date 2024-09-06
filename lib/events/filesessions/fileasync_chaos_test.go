@@ -112,11 +112,10 @@ func TestChaosUpload(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	scanPeriod := 3 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
-		ScanPeriod:   scanPeriod,
+		ScanPeriod:   3 * time.Second,
 		Streamer:     faultyStreamer,
 		Clock:        clockwork.NewRealClock(),
 	})

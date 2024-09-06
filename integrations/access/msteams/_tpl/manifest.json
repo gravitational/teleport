@@ -1,0 +1,45 @@
+{
+    "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.11/MicrosoftTeams.schema.json",
+    "manifestVersion": "1.11",
+    "version": "1.0.0",
+    "id": "{{ .TeamsAppID }}",
+    "packageName": "com.gravitational.telebot",
+    "developer": {
+        "name": "Gravitational",
+        "websiteUrl": "https://goteleport.com",
+        "privacyUrl": "https://goteleport.com/legal/privacy",
+        "termsOfUseUrl": "https://goteleport.com/legal/tos"
+    },
+    "icons": {
+        "color": "color.png",
+        "outline": "outline.png"
+    },
+    "name": {
+        "short": "TeleBot",
+        "full": "TeleBot"
+    },
+    "description": {
+        "short": "Teleport bot",
+        "full": "Teleport bot sends AccessRequests to team users"
+    },
+    "accentColor": "#FFFFFF",
+    "bots": [
+        {
+            "botId": "{{ .AppID }}",
+            "scopes": [
+                "team"
+            ],
+            "supportsFiles": false,
+            "isNotificationOnly": true
+        }
+    ],
+    "permissions": [
+        "identity",
+        "messageTeamMembers"
+    ],
+    "validDomains": [],
+    "webApplicationInfo": {
+        "id": "{{ .AppID }}",
+        "resource": "https://inapplicable"
+    }
+}

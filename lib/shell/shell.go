@@ -34,7 +34,7 @@ func GetLoginShell(username string) (string, error) {
 
 	shellcmd, err = getLoginShell(username)
 	if err != nil {
-		if !trace.IsNotFound(err) {
+		if trace.IsNotFound(err) {
 			logrus.Warnf("No shell specified for %v, using default %v.", username, DefaultShell)
 			return DefaultShell, nil
 		}

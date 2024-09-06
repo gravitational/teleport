@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, ButtonText, Text } from 'design';
+import { Box, ButtonPrimary, ButtonText, H2, Text } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -80,14 +80,8 @@ export function NewPassword(props: Props) {
     <Validation>
       {({ validator }) => (
         <OnboardCard ref={refCallback} data-testid="password">
-          <Text typography="h4" bold color="text.main">
-            Set A Password
-          </Text>
-          {mfaEnabled && (
-            <Text color="text.slightlyMuted" mb={3}>
-              Step 1 of 2
-            </Text>
-          )}
+          {mfaEnabled && <Text color="text.slightlyMuted">Step 1 of 2</Text>}
+          <H2 mb={3}>Set a Password</H2>
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}

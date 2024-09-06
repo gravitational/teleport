@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -90,8 +91,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolDynamoDB,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolDynamoDB,
+		"name":                config.Name,
 	})
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {

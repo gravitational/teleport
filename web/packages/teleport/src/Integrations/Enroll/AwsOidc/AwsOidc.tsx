@@ -23,10 +23,7 @@ import styled from 'styled-components';
 import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
-import {
-  requiredField,
-  requiredIamRoleName,
-} from 'shared/components/Validation/rules';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -157,28 +154,31 @@ export function AwsOidc() {
           <>
             <Container mb={5}>
               <Text bold>Step 1</Text>
-
-              <FieldInput
-                rule={requiredField('Integration name required')}
-                autoFocus={true}
-                value={integrationName}
-                label="Give this AWS integration a name"
-                placeholder="Integration Name"
-                width="430px"
-                onChange={e => setIntegrationName(e.target.value)}
-                disabled={!!scriptUrl}
-              />
-              <FieldInput
-                rule={requiredIamRoleName}
-                value={roleName}
-                placeholder="IAM Role Name"
-                label="IAM Role Name"
-                width="430px"
-                onChange={e => setRoleName(e.target.value)}
-                disabled={!!scriptUrl}
-              />
+              <Box width="600px">
+                <FieldInput
+                  autoFocus={true}
+                  value={integrationName}
+                  label="Give this AWS integration a name"
+                  placeholder="Integration Name"
+                  onChange={e => setIntegrationName(e.target.value)}
+                  disabled={!!scriptUrl}
+                />
+                <FieldInput
+                  rule={requiredIamRoleName}
+                  value={roleName}
+                  placeholder="IAM Role Name"
+                  label="IAM Role Name"
+                  onChange={e => setRoleName(e.target.value)}
+                  disabled={!!scriptUrl}
+                />
+              </Box>
               {scriptUrl ? (
-                <ButtonSecondary mb={3} onClick={() => setScriptUrl('')}>
+                <ButtonSecondary
+                  mb={3}
+                  onClick={() => {
+                    setScriptUrl('');
+                  }}
+                >
                   Edit
                 </ButtonSecondary>
               ) : (
@@ -194,7 +194,6 @@ export function AwsOidc() {
               <>
                 <Container mb={5}>
                   <Text bold>Step 2</Text>
-                  Configure the required permission in your AWS account.
                   <Text mb={2}>
                     Open{' '}
                     <Link

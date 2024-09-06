@@ -22,7 +22,8 @@ import CardError, {
   LoginFailed,
   AccessDenied,
   NotFound,
+  LogoutFailed,
 } from './CardError';
 
 export default CardError;
-export { Failed, LoginFailed, AccessDenied, NotFound, Offline };
+export { Failed, LoginFailed, AccessDenied, NotFound, Offline, LogoutFailed };

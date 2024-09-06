@@ -75,25 +75,81 @@ const levels = {
   popout: '#373737',
 };
 
+const neutralColors = [
+  'rgba(255,255,255,0.07)',
+  'rgba(255,255,255,0.13)',
+  'rgba(255,255,255,0.18)',
+];
+
 const colors: ThemeColors = {
   ...sharedColors,
 
   levels,
 
-  spotBackground: [
-    'rgba(255,255,255,0.07)',
-    'rgba(255,255,255,0.13)',
-    'rgba(255,255,255,0.18)',
-  ],
+  spotBackground: neutralColors,
 
   brand: '#FFA028',
 
   interactive: {
+    solid: {
+      primary: {
+        default: { text: '#000000', background: '#FFA028' },
+        hover: { text: '#000000', background: '#FFB04C' },
+        active: { text: '#000000', background: '#DB8922' },
+      },
+      success: {
+        default: { text: '#000000', background: '#00A223' },
+        hover: { text: '#000000', background: '#35D655' },
+        active: { text: '#000000', background: '#00851C' },
+      },
+      accent: {
+        default: { text: '#000000', background: '#66ABFF' },
+        hover: { text: '#000000', background: '#99C7FF' },
+        active: { text: '#000000', background: '#2B8EFF' },
+      },
+      danger: {
+        default: { text: '#FFFFFF', background: '#E51E3C' },
+        hover: { text: '#FFFFFF', background: '#FD2D4A' },
+        active: { text: '#FFFFFF', background: '#C31834' },
+      },
+      alert: {
+        default: { text: '#000000', background: '#FA5A28' },
+        hover: { text: '#000000', background: '#FB754C' },
+        active: { text: '#000000', background: '#D64D22' },
+      },
+    },
+
     tonal: {
       primary: [
-        'rgba(255,160,40, 0.1)',
-        'rgba(255,160,40, 0.18)',
-        'rgba(255,160,40, 0.25)',
+        { text: '#FFB04C', background: 'rgba(255,160,40, 0.1)' },
+        { text: '#DB8922', background: 'rgba(255,160,40, 0.18)' },
+        { text: '#DB8922', background: 'rgba(255,160,40, 0.25)' },
+      ],
+      success: [
+        { text: '#35D655', background: 'rgba(0, 162, 35, 0.1)' },
+        { text: '#35D655', background: 'rgba(0, 162, 35, 0.18)' },
+        { text: '#00851C', background: 'rgba(0, 162, 35, 0.25)' },
+      ],
+      // TODO rudream: update bblp interactive tonal colors.
+      danger: [
+        { text: '#FD2D4A', background: 'rgba(255, 98, 87, 0.1)' },
+        { text: '#FD2D4A', background: 'rgba(255, 98, 87, 0.18)' },
+        { text: '#C31834', background: 'rgba(255, 98, 87, 0.25)' },
+      ],
+      alert: [
+        { text: '#D64D22', background: 'rgba(255, 171, 0, 0.1)' },
+        { text: '#D64D22', background: 'rgba(255, 171, 0, 0.18)' },
+        { text: '#D64D22', background: 'rgba(255, 171, 0, 0.25)' },
+      ],
+      informational: [
+        { text: '#2B8EFF', background: 'rgba(0, 158, 255, 0.1)' },
+        { text: '#2B8EFF', background: 'rgba(0, 158, 255, 0.18)' },
+        { text: '#2B8EFF', background: 'rgba(0, 158, 255, 0.25)' },
+      ],
+      neutral: [
+        { text: '#BEBEBE', background: neutralColors[0] },
+        { text: '#FFFFFF', background: neutralColors[1] },
+        { text: '#FFFFFF', background: neutralColors[2] },
       ],
     },
   },
@@ -166,6 +222,13 @@ const colors: ThemeColors = {
     main: '#FA5A28',
     hover: '#FB754C',
     active: '#D64D22',
+  },
+
+  // TODO rudream: update bblp accent colors.
+  accent: {
+    main: 'rgba(0, 158, 255, 1)',
+    hover: 'rgba(51, 177, 255, 1)',
+    active: 'rgba(102, 197, 255, 1)',
   },
 
   notice: {
@@ -431,7 +494,14 @@ const colors: ThemeColors = {
   },
 
   link: '#66ABFF',
-  success: '#00BFA5',
+
+  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
+
+  success: {
+    main: '#00A223',
+    hover: '#35D655',
+    active: '#00851C',
+  },
 
   dataVisualisation: dataVisualisationColors,
 };

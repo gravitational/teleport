@@ -1,0 +1,51 @@
+suite: Test deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: should match the snapshot
+    set:
+      image:
+        repository: gcr.io/overridden/repository
+        tag: v98.76.54
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should match the snapshot (mailgun on)
+    set:
+      mailgun:
+        enabled: true
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should match the snapshot (smtp on)
+    set:
+      smtp:
+        enabled: true
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should be possible to override volume name (smtp on)
+    set:
+      smtp:
+        enabled: true
+      secretVolumeName: "secret-volume"
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should mount external secret (mailgun on)
+    set:
+      mailgun:
+        enabled: true
+        privateKeyFromSecret: my-secret-name
+        privateKeySecretPath: my-path-in-secret
+    asserts:
+      - matchSnapshot: {}
+
+  - it: should mount external secret (smtp on)
+    set:
+      smtp:
+        enabled: true
+        passwordFromSecret: my-secret-name
+        passwordSecretPath: my-path-in-secret
+    asserts:
+      - matchSnapshot: {}

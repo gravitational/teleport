@@ -16,72 +16,75 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as unifiedResourcePreferences from 'shared/services/unifiedResourcePreferences';
+import {
+  DefaultTab,
+  LabelsViewMode,
+  UnifiedResourcePreferences,
+  ViewMode,
+  AvailableResourceMode,
+} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+
+import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
+
+import { ClusterUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/cluster_preferences_pb';
+
+import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
+
+import { OnboardUserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/onboard_pb';
+
+import { getPrefersDark } from 'design/ThemeProvider';
 
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
-import { ViewMode } from 'teleport/Assist/types';
 
-import { KeysEnum } from '../storageService';
+interface BackendClusterUserPreferences {
+  pinnedResources?: string[];
+}
 
-import { ThemePreference } from './types';
+export interface BackendUserPreferences {
+  theme: Theme;
+  onboard?: OnboardUserPreferences;
+  clusterPreferences?: BackendClusterUserPreferences;
+  unifiedResourcePreferences?: UnifiedResourcePreferences;
+}
 
-import type {
-  GetUserPreferencesResponse,
-  UserClusterPreferences,
-  UserPreferences,
-} from 'teleport/services/userPreferences/types';
-
-export async function getUserPreferences() {
-  const res: GetUserPreferencesResponse = await api.get(
+export async function getUserPreferences(): Promise<UserPreferences> {
+  const res: BackendUserPreferences = await api.get(
     cfg.api.userPreferencesPath
   );
 
-  return res;
+  return convertBackendUserPreferences(res);
 }
 
-export async function getUserClusterPreferences(clusterId: string) {
+export async function getUserClusterPreferences(
+  clusterId: string
+): Promise<ClusterUserPreferences> {
   return await api
     .get(cfg.getUserClusterPreferencesUrl(clusterId))
-    .then(res => {
-      // TODO (avatus) DELETE IN 15
-      // this item is used to disabled the pinned resources button if they
-      // haven't upgraded to 14.1.0 yet. Anything lower than 14 doesn't matter
-      // because the unified resource view isn't enabled so pinning isn't there either
-      localStorage.removeItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED);
-      return res;
-    })
-    .catch(res => {
-      if (res.response?.status === 403 || res.response?.status === 404) {
-        localStorage.setItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED, 'true');
-        // we handle this null error in the user context where we cache cluster
-        // preferences. We want to fail gracefully here and use our "not supported"
-        // message instead.
-        return null;
-      }
-      // return all other errors here
-      return res;
-    });
+    .then(convertBackendClusterUserPreferences);
 }
 
 export function updateUserClusterPreferences(
   clusterId: string,
   preferences: UserPreferences
 ) {
-  return api.put(cfg.getUserClusterPreferencesUrl(clusterId), preferences);
+  return api.put(
+    cfg.getUserClusterPreferencesUrl(clusterId),
+    convertUserPreferences(preferences)
+  );
 }
 
 export function updateUserPreferences(preferences: Partial<UserPreferences>) {
-  return api.put(cfg.api.userPreferencesPath, preferences);
+  return api.put(
+    cfg.api.userPreferencesPath,
+    convertUserPreferences(preferences as UserPreferences)
+  );
 }
 
 export function makeDefaultUserPreferences(): UserPreferences {
+  const prefersDark = getPrefersDark();
   return {
-    theme: ThemePreference.Light,
-    assist: {
-      viewMode: ViewMode.Docked,
-      preferredLogins: [],
-    },
+    theme: prefersDark ? Theme.DARK : Theme.LIGHT,
     onboard: {
       preferredResources: [],
       marketingParams: {
@@ -92,17 +95,66 @@ export function makeDefaultUserPreferences(): UserPreferences {
       },
     },
     unifiedResourcePreferences: {
-      defaultTab: unifiedResourcePreferences.DefaultTab.DEFAULT_TAB_ALL,
-      viewMode: unifiedResourcePreferences.ViewMode.VIEW_MODE_CARD,
-      labelsViewMode:
-        unifiedResourcePreferences.LabelsViewMode.LABELS_VIEW_MODE_COLLAPSED,
+      defaultTab: DefaultTab.ALL,
+      viewMode: ViewMode.CARD,
+      labelsViewMode: LabelsViewMode.COLLAPSED,
+      availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
   };
 }
 
-export function makeDefaultUserClusterPreferences(): UserClusterPreferences {
+export function makeDefaultUserClusterPreferences(): ClusterUserPreferences {
   return {
-    pinnedResources: [],
+    pinnedResources: {
+      resourceIds: [],
+    },
   };
+}
+
+export function convertUserPreferences(
+  preferences: UserPreferences
+): BackendUserPreferences {
+  return {
+    ...preferences,
+    clusterPreferences: {
+      ...preferences.clusterPreferences,
+      pinnedResources:
+        preferences.clusterPreferences?.pinnedResources?.resourceIds ?? [],
+    },
+  };
+}
+
+export function convertBackendUserPreferences(
+  preferences: BackendUserPreferences
+): UserPreferences {
+  return {
+    ...preferences,
+    clusterPreferences: convertBackendClusterUserPreferences(
+      preferences.clusterPreferences
+    ),
+    unifiedResourcePreferences: {
+      availableResourceMode: AvailableResourceMode.NONE,
+      ...preferences.unifiedResourcePreferences,
+    },
+  };
+}
+
+export function convertBackendClusterUserPreferences(
+  clusterPreferences: BackendClusterUserPreferences
+): ClusterUserPreferences {
+  return {
+    ...clusterPreferences,
+    pinnedResources: {
+      resourceIds: clusterPreferences?.pinnedResources ?? [],
+    },
+  };
+}
+
+export function isBackendUserPreferences(
+  preferences: UserPreferences | BackendUserPreferences
+): preferences is BackendUserPreferences {
+  return Array.isArray(
+    (preferences as BackendUserPreferences).clusterPreferences?.pinnedResources
+  );
 }

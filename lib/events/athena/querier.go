@@ -113,7 +113,7 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 
 	if cfg.logger == nil {
 		cfg.logger = log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentAthena,
+			teleport.ComponentKey: teleport.ComponentAthena,
 		})
 	}
 	if cfg.clock == nil {
@@ -308,7 +308,7 @@ func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSess
 	defer span.End()
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
-	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
+	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
@@ -389,11 +389,15 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 		return nil, "", trace.Wrap(err)
 	}
 
-	q.logger.WithField("query", query).
-		WithField("params", params).
-		WithField("startKey", req.startKey).
-		Debug("Executing events query on Athena")
-
+	startTime := time.Now()
+	defer func() {
+		q.logger.WithFields(log.Fields{
+			"query":    query,
+			"params":   params,
+			"startKey": req.startKey,
+			"duration": time.Since(startTime),
+		}).Debug("Executed events query on Athena")
+	}()
 	queryId, err := q.startQueryExecution(ctx, query, params)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

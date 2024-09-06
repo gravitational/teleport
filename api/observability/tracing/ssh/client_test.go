@@ -50,7 +50,7 @@ func TestIsTracingSupported(t *testing.T) {
 			t.Cleanup(cancel)
 			errChan := make(chan error, 5)
 
-			srv := newServer(t, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+			srv := newServer(t, tt.expectedCapability, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 				go ssh.DiscardRequests(requests)
 
 				for {
@@ -111,7 +111,7 @@ func TestSetEnvs(t *testing.T) {
 	// used to collect individual envs requests
 	envReqC := make(chan envReqParams, 3)
 
-	srv := newServer(t, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
+	srv := newServer(t, tracingSupported, func(conn *ssh.ServerConn, channels <-chan ssh.NewChannel, requests <-chan *ssh.Request) {
 		for {
 			select {
 			case <-ctx.Done():
@@ -241,4 +241,30 @@ func TestSetEnvs(t *testing.T) {
 		require.NoError(t, err)
 	default:
 	}
+}
+
+type mockSSHChannel struct {
+	ssh.Channel
+}
+
+func TestWrappedSSHConn(t *testing.T) {
+	sshCh := new(mockSSHChannel)
+	reqs := make(<-chan *ssh.Request)
+
+	// ensure that OpenChannel returns the same SSH channel and requests
+	// chan that wrappedSSHConn was given
+	wrappedConn := &wrappedSSHConn{
+		ch:   sshCh,
+		reqs: reqs,
+	}
+	retCh, retReqs, err := wrappedConn.OpenChannel("", nil)
+	require.NoError(t, err)
+	require.Equal(t, sshCh, retCh)
+	require.Equal(t, reqs, retReqs)
+
+	// ensure the wrapped SSH conn will panic if OpenChannel is called
+	// twice
+	require.Panics(t, func() {
+		wrappedConn.OpenChannel("", nil)
+	})
 }

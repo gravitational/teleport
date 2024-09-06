@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,174 @@ func TestDeduplicateAny(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			require.Equal(t, tc.expected, DeduplicateAny(tc.in, bytes.Equal))
+		})
+	}
+}
+
+func TestContainSameUniqueElements(t *testing.T) {
+	tests := []struct {
+		name  string
+		s1    []string
+		s2    []string
+		check require.BoolAssertionFunc
+	}{
+		{
+			name:  "empty",
+			s1:    nil,
+			s2:    []string{},
+			check: require.True,
+		},
+		{
+			name:  "same",
+			s1:    []string{"a", "b", "c"},
+			s2:    []string{"a", "b", "c"},
+			check: require.True,
+		},
+		{
+			name:  "same with different order",
+			s1:    []string{"b", "c", "a"},
+			s2:    []string{"a", "b", "c"},
+			check: require.True,
+		},
+		{
+			name:  "same with duplicates",
+			s1:    []string{"a", "a", "b", "c"},
+			s2:    []string{"c", "c", "a", "b", "c", "c"},
+			check: require.True,
+		},
+		{
+			name:  "different",
+			s1:    []string{"a", "b"},
+			s2:    []string{"a", "b", "c"},
+			check: require.False,
+		},
+		{
+			name:  "different (same length)",
+			s1:    []string{"d", "a", "b"},
+			s2:    []string{"a", "b", "c"},
+			check: require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.check(t, ContainSameUniqueElements(test.s1, test.s2))
+		})
+	}
+}
+
+func TestAny(t *testing.T) {
+	tests := []struct {
+		name       string
+		inputSlice []int
+		predicate  func(e int) bool
+		expected   bool
+	}{
+		{
+			name:       "empty slice",
+			inputSlice: []int{},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   false,
+		},
+		{
+			name:       "non-empty slice with matching element",
+			inputSlice: []int{1, 2, 3},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   true,
+		},
+		{
+			name:       "non-empty slice with no matching element",
+			inputSlice: []int{-1, -2, -3},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, Any(tt.inputSlice, tt.predicate))
+		})
+	}
+}
+
+func TestAll(t *testing.T) {
+	tests := []struct {
+		name       string
+		inputSlice []int
+		predicate  func(e int) bool
+		expected   bool
+	}{
+		{
+			name:       "empty slice",
+			inputSlice: []int{},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   true,
+		},
+		{
+			name:       "non-empty slice with all matching elements",
+			inputSlice: []int{1, 2, 3},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   true,
+		},
+		{
+			name:       "non-empty slice with at least one non-matching element",
+			inputSlice: []int{1, 2, -3},
+			predicate:  func(e int) bool { return e > 0 },
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, All(tt.inputSlice, tt.predicate))
+		})
+	}
+}
+
+func TestCountBy(t *testing.T) {
+	type testCase struct {
+		name     string
+		elements []int
+		mapper   func(int) string
+		want     map[string]int
+	}
+	tests := []testCase{
+		{
+			name:     "empty slice",
+			elements: nil,
+			mapper:   nil,
+			want:     make(map[string]int),
+		},
+		{
+			name:     "identity",
+			elements: []int{1, 2, 3, 4},
+			mapper:   strconv.Itoa,
+			want: map[string]int{
+				"1": 1,
+				"2": 1,
+				"3": 1,
+				"4": 1,
+			},
+		},
+		{
+			name:     "even-odd",
+			elements: []int{1, 2, 3, 4},
+			mapper: func(i int) string {
+				if i%2 == 0 {
+					return "even"
+				}
+				return "odd"
+			},
+			want: map[string]int{
+				"odd":  2,
+				"even": 2,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CountBy(tt.elements, tt.mapper)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

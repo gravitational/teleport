@@ -32,7 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -69,6 +69,7 @@ func newProvisionTokenFromSpecNoExpire(token string, spec types.ProvisionTokenSp
 
 type tokenTestingPrimitives struct {
 	setup *testSetup
+	reconcilers.ResourceWithoutLabelsAdapter[types.ProvisionToken]
 }
 
 func (g *tokenTestingPrimitives) Init(setup *testSetup) {
@@ -141,19 +142,8 @@ func (g *tokenTestingPrimitives) ModifyKubernetesResource(ctx context.Context, n
 }
 
 func (g *tokenTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.ProvisionToken, kubeResource *resourcesv2.TeleportProvisionToken) (bool, string) {
-	teleportMap, _ := teleportResourceToMap(tResource)
-	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
-
-	equal := cmp.Equal(teleportMap["spec"], kubernetesMap["spec"])
-	if !equal {
-		return false, cmp.Diff(teleportMap["spec"], kubernetesMap["spec"])
-	}
-	// The operator does not support resource expiration, the token should not expire
-	// else we'll end up in an inconsistent state
-	if !tResource.Expiry().IsZero() {
-		return false, "Token expires on the Teleport side"
-	}
-	return true, ""
+	diff := cmp.Diff(tResource, kubeResource.ToTeleport(), testlib.CompareOptions()...)
+	return diff == "", diff
 }
 
 func TestProvisionTokenCreation(t *testing.T) {
@@ -208,7 +198,8 @@ github:
 
 	tokenName := validRandomResourceName("token-")
 
-	obj := resources.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	obj, err := reconcilers.GetUnstructuredObjectFromGVK(teleportTokenGVK)
+	require.NoError(t, err)
 	obj.Object["spec"] = tokenManifest
 	obj.SetName(tokenName)
 	obj.SetNamespace(setup.Namespace.Name)

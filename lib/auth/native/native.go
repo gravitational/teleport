@@ -39,7 +39,7 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentKeyGen,
+	teleport.ComponentKey: teleport.ComponentKeyGen,
 })
 
 // precomputedKeys is a queue of cached keys ready for usage.

@@ -8,7 +8,6 @@ storage:
   symlinks: secure
   acls: try
 debug: false
-auth_server: ""
 certificate_ttl: 1h0m0s
 renewal_interval: 20m0s
 oneshot: false

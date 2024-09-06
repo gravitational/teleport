@@ -1,0 +1,106 @@
+{{ role1="role1" role2="role2" }}
+
+To allow IAM Role `{{role1}}` to assume IAM Role `{{role2}}`, the following is
+generally required:
+
+**1. Configure Trust Relationships on {{role2}}**
+
+`{{role1}}` or its AWS account should be set as `Principal` in `{{role2}}`'s trust
+policy.
+<Tabs>
+<TabsItem label="Role as principal">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<Var name="aws-account-id"/>:role/{{role1}}"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+</TabsItem>
+<TabsItem label="Account as principal">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<Var name="aws-account-id"/>:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+</TabsItem>
+<TabsItem label="Cross-account with external-id">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::<Var name="external-aws-account-id"/>:role/{{role1}}"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "example-external-id"
+        }
+      }
+    }
+  ]
+}
+```
+</TabsItem>
+
+</Tabs>
+
+**2. Configure Permissions Policies on {{role1}}**
+
+`{{role1}}` requires `sts:AssumeRole` permissions, for example:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Resource": "arn:aws:iam::<Var name="aws-account-id"/>:role/{{role2}}"
+        }
+    ]
+}
+```
+
+Note that this policy can be omitted when `{{role1}}` and `{{role2}}` are in the same
+AWS account and `{{role1}}`'s full ARN is configured as Principal in `{{role2}}`'s
+trust policy.
+
+**3. Configure Permissions Boundary on {{role1}}**
+
+If `{{role1}}` does not have an attached
+[Permissions boundary](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html)
+then you can skip this step.
+Otherwise, the boundary policy attached to `{{role1}}` must include
+`sts:AssumeRole` permissions, for example:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": "sts:AssumeRole",
+            "Effect": "Allow",
+            "Resource": "*"
+        }
+    ]
+}
+```

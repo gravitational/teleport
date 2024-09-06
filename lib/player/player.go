@@ -29,18 +29,23 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/player/db"
 	"github.com/gravitational/teleport/lib/session"
 )
 
 // Player is used to stream recorded sessions over a channel.
 type Player struct {
 	// read only config fields
-	clock     clockwork.Clock
-	log       logrus.FieldLogger
-	sessionID session.ID
-	streamer  Streamer
+	clock        clockwork.Clock
+	log          logrus.FieldLogger
+	sessionID    session.ID
+	streamer     Streamer
+	skipIdleTime bool
 
 	speed      atomic.Value // playback speed (1.0 for normal speed)
 	lastPlayed atomic.Int64 // timestamp of most recently played event
@@ -57,6 +62,7 @@ type Player struct {
 	advanceTo atomic.Int64
 
 	emit chan events.AuditEvent
+	wake chan int64
 	done chan struct{}
 
 	// playPause holds a channel to be closed when
@@ -70,6 +76,9 @@ type Player struct {
 
 	// err holds the error (if any) encountered during playback
 	err error
+
+	// translator is the current SessionPrintTranslator used.
+	translator sessionPrintTranslator
 }
 
 const normalPlayback = math.MinInt64
@@ -84,12 +93,25 @@ type Streamer interface {
 	) (chan events.AuditEvent, chan error)
 }
 
+// newSessionPrintTranslatorFunc defines a SessionPrintTranslator constructor.
+type newSessionPrintTranslatorFunc func() sessionPrintTranslator
+
+// sessionPrintTranslator provides a way to transform detailed protocol-specific
+// audit events into a textual representation.
+type sessionPrintTranslator interface {
+	// TranslateEvent takes an audit event and converts it into a print event.
+	// The function might return `nil` in cases where there is no textual
+	// representation for the provided event.
+	TranslateEvent(events.AuditEvent) *events.SessionPrint
+}
+
 // Config configures a session player.
 type Config struct {
-	Clock     clockwork.Clock
-	Log       logrus.FieldLogger
-	SessionID session.ID
-	Streamer  Streamer
+	Clock        clockwork.Clock
+	Log          logrus.FieldLogger
+	SessionID    session.ID
+	Streamer     Streamer
+	SkipIdleTime bool
 }
 
 func New(cfg *Config) (*Player, error) {
@@ -108,7 +130,7 @@ func New(cfg *Config) (*Player, error) {
 
 	var log logrus.FieldLogger = cfg.Log
 	if log == nil {
-		log = logrus.New().WithField(trace.Component, "player")
+		log = logrus.New().WithField(teleport.ComponentKey, "player")
 	}
 
 	p := &Player{
@@ -116,8 +138,9 @@ func New(cfg *Config) (*Player, error) {
 		log:       log,
 		sessionID: cfg.SessionID,
 		streamer:  cfg.Streamer,
-		emit:      make(chan events.AuditEvent, 64),
+		emit:      make(chan events.AuditEvent, 1024),
 		playPause: make(chan chan struct{}, 1),
+		wake:      make(chan int64),
 		done:      make(chan struct{}),
 	}
 
@@ -184,8 +207,14 @@ func (p *Player) stream() {
 				return
 			}
 
+			var skip bool
+			evt, skip = p.translateEvent(evt)
+			if skip {
+				continue
+			}
+
 			currentDelay := getDelay(evt)
-			if currentDelay > 0 && currentDelay > lastDelay {
+			if currentDelay > 0 && currentDelay >= lastDelay {
 				switch adv := p.advanceTo.Load(); {
 				case adv >= currentDelay:
 					// no timing delay necessary, we are fast forwarding
@@ -206,7 +235,13 @@ func (p *Player) stream() {
 						// time we were advanced to
 						lastDelay = adv
 					}
-					if err := p.applyDelay(time.Duration(currentDelay-lastDelay) * time.Millisecond); err != nil {
+
+					switch err := p.applyDelay(lastDelay, currentDelay); {
+					case errors.Is(err, errSeekWhilePaused):
+						p.log.Debug("seeked during pause, will restart stream")
+						go p.stream()
+						return
+					case err != nil:
 						close(p.emit)
 						return
 					}
@@ -215,12 +250,13 @@ func (p *Player) stream() {
 				lastDelay = currentDelay
 			}
 
-			select {
-			case p.emit <- evt:
-				p.lastPlayed.Store(currentDelay)
-			default:
-				p.log.Warnf("dropped event %v, reader too slow", evt.GetID())
-			}
+			// if the receiver can't keep up, let the channel throttle us
+			// (it's better for playback to be a little slower than realtime
+			// than to drop events)
+			//
+			// TODO: consider a select with a timeout to detect blocked readers?
+			p.emit <- evt
+			p.lastPlayed.Store(currentDelay)
 		}
 	}
 }
@@ -267,25 +303,102 @@ func (p *Player) Play() error {
 // from the beginning. A duration greater than the length of the session
 // will cause playback to rapidly advance to the end of the recording.
 func (p *Player) SetPos(d time.Duration) error {
+	// we use a negative value to indicate rewinding, which means we can't
+	// rewind to position 0 (there is no negative 0)
+	if d == 0 {
+		d = 1 * time.Millisecond
+	}
 	if d.Milliseconds() < p.lastPlayed.Load() {
-		// if we're rewinding we store a negative value
 		d = -1 * d
 	}
 	p.advanceTo.Store(d.Milliseconds())
+
+	// try to wake up the player if it's waiting to emit an event
+	select {
+	case p.wake <- d.Milliseconds():
+	default:
+	}
+
 	return nil
 }
 
-// applyDelay "sleeps" for d in a manner that
-// can be canceled
-func (p *Player) applyDelay(d time.Duration) error {
-	scaled := float64(d) / p.speed.Load().(float64)
-	select {
-	case <-p.done:
-		return errClosed
-	case <-p.clock.After(time.Duration(scaled)):
-		return nil
+// applyDelay applies the timing delay between the last emitted event
+// (lastDelay) and the event that will be emitted next (currentDelay).
+//
+// The delay can be interrupted by:
+// 1. The player being closed.
+// 2. The user pausing playback.
+// 3. The user seeking to a new position in the playback (SetPos)
+//
+// A nil return value indicates that the delay has elapsed and that
+// the next even can be emitted.
+func (p *Player) applyDelay(lastDelay, currentDelay int64) error {
+loop:
+	for {
+		// TODO(zmb3): changing play speed during a long sleep
+		// will not apply until after the sleep completes
+		speed := p.speed.Load().(float64)
+		scaled := float64(currentDelay-lastDelay) / speed
+		if p.skipIdleTime {
+			scaled = min(scaled, 500.0*float64(time.Millisecond))
+		}
+
+		timer := p.clock.NewTimer(time.Duration(scaled) * time.Millisecond)
+		defer timer.Stop()
+
+		start := time.Now()
+
+		select {
+		case <-p.done:
+			return errClosed
+		case newPos := <-p.wake:
+			// the sleep was interrupted due to the user changing playback controls
+			switch {
+			case newPos == interruptForPause:
+				// the user paused playback while we were waiting to emit the next event:
+				// 1) figure out much of the sleep we completed
+				dur := float64(time.Since(start).Milliseconds()) * speed
+
+				// 2) wait here until the user resumes playback
+				if err := p.waitWhilePaused(); errors.Is(err, errSeekWhilePaused) {
+					// the user changed the playback position, so consider the delay
+					// applied and let the player pick up from the new position
+					return errSeekWhilePaused
+				}
+
+				// now that we're playing again, update our delay to account
+				// for the portion that was already satisfied and apply the
+				// remaining delay
+				lastDelay += int64(dur)
+				timer.Stop()
+				continue loop
+			case newPos > currentDelay:
+				// the user scrubbed forward in time past the current event,
+				// so we can return as if the delay has elapsed naturally
+				return nil
+			case newPos < 0:
+				// the user has rewinded playback, which means we need to restart
+				// the stream and can consider this delay as having elapsed naturally
+				return nil
+			case newPos < currentDelay:
+				// the user has scrubbed forward in time, but not enough to
+				// emit the next event - we need to delay more
+				lastDelay = newPos
+				timer.Stop()
+				continue loop
+			default:
+				return nil
+			}
+
+		case <-timer.Chan():
+			return nil
+		}
 	}
 }
+
+// interruptForPause is a special value used to interrupt the player's
+// sleep due to the user pausing playback.
+const interruptForPause = math.MaxInt64
 
 func (p *Player) setPlaying(play bool) {
 	ch := <-p.playPause
@@ -293,6 +406,13 @@ func (p *Player) setPlaying(play bool) {
 
 	if alreadyPlaying && !play {
 		ch = make(chan struct{})
+
+		// try to wake up the player if it's waiting to emit an event
+		select {
+		case p.wake <- interruptForPause:
+		default:
+		}
+
 	} else if !alreadyPlaying && play {
 		// signal waiters who are paused that it's time to resume playing
 		close(ch)
@@ -302,20 +422,34 @@ func (p *Player) setPlaying(play bool) {
 	p.playPause <- ch
 }
 
+var errSeekWhilePaused = errors.New("player seeked during pause")
+
 // waitWhilePaused blocks while the player is in a paused state.
 // It returns immediately if the player is currently playing.
 func (p *Player) waitWhilePaused() error {
-	ch := <-p.playPause
-	p.playPause <- ch
+	seeked := false
+	for {
+		ch := <-p.playPause
+		p.playPause <- ch
 
-	if alreadyPlaying := ch == nil; !alreadyPlaying {
-		select {
-		case <-p.done:
-			return errClosed
-		case <-ch:
+		if alreadyPlaying := ch == nil; !alreadyPlaying {
+			select {
+			case <-p.done:
+				return errClosed
+			case <-p.wake:
+				// seek while paused, this can happen an unlimited number of times,
+				// we just keep waiting until we're unpaused
+				seeked = true
+				continue
+			case <-ch:
+				// we have been unpaused
+			}
 		}
+		if seeked {
+			return errSeekWhilePaused
+		}
+		return nil
 	}
-	return nil
 }
 
 // LastPlayed returns the time of the last played event,
@@ -323,6 +457,38 @@ func (p *Player) waitWhilePaused() error {
 func (p *Player) LastPlayed() int64 {
 	return p.lastPlayed.Load()
 }
+
+// translateEvent translates events if applicable and return if they should be
+// skipped.
+func (p *Player) translateEvent(evt events.AuditEvent) (translatedEvent events.AuditEvent, shouldSkip bool) {
+	// We can only define the translator when the first event arrives.
+	switch e := evt.(type) {
+	case *events.DatabaseSessionStart:
+		if newTranslatorFunc, ok := databaseTranslators[e.DatabaseProtocol]; ok {
+			p.translator = newTranslatorFunc()
+		}
+	}
+
+	if p.translator == nil {
+		return evt, false
+	}
+
+	if translatedEvt := p.translator.TranslateEvent(evt); translatedEvt != nil {
+		return translatedEvt, false
+	}
+
+	// Always skip if the translator returns an nil event.
+	return nil, true
+}
+
+// databaseTranslators maps database protocol event translators.
+var databaseTranslators = map[string]newSessionPrintTranslatorFunc{
+	defaults.ProtocolPostgres: func() sessionPrintTranslator { return db.NewPostgresTranslator() },
+}
+
+// SupportedDatabaseProtocols a list of database protocols supported by the
+// player.
+var SupportedDatabaseProtocols = maps.Keys(databaseTranslators)
 
 func getDelay(e events.AuditEvent) int64 {
 	switch x := e.(type) {

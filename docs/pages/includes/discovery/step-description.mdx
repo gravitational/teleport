@@ -1,0 +1,10 @@
+Teleport {{ resourceDesc }} auto-discovery involves two components:
+
+1. The Teleport Discovery Service that watches for new {{ resourceDesc }}s or
+changes to previously discovered {{ resourceDesc }}s.
+It dynamically registers each discovered {{ resourceDesc }} as a
+`{{ resourceKind }}` resource in your Teleport cluster.
+It does not need connectivity to the {{ resourceDesc }}s it discovers.
+2. The Teleport {{ serviceName }} Service that monitors the dynamic
+`{{ resourceKind }}` resources registered by the Discovery Service.
+It proxies communications between users and the {{ resourceDesc }}.

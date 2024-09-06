@@ -19,6 +19,7 @@
 package dbcmd
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -33,6 +34,7 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -78,6 +80,8 @@ const (
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
 	oracleBin = "sql"
+	// spannerBin is a Google Spanner interactive CLI program name.
+	spannerBin = "spanner-cli"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -109,12 +113,19 @@ func (s SystemExecer) LookPath(file string) (string, error) {
 type CLICommandBuilder struct {
 	tc          *client.TeleportClient
 	rootCluster string
-	profile     *client.ProfileStatus
-	db          *tlsca.RouteToDatabase
-	host        string
-	port        int
-	options     connectionCommandOpts
-	uid         utils.UID
+	// profile is the currently selected tsh profile.
+	//
+	// Note that profile.Cluster indicates the cluster selected with `tsh login
+	// <root/leaf>`. However, the target cluster can be overwritten with
+	// --cluster flag. Therefore profile.Cluster is not suitable for
+	// determining the target cluster or the root cluster. Use tc.SiteName for
+	// the target cluster and rootCluster for root cluster.
+	profile *client.ProfileStatus
+	db      *tlsca.RouteToDatabase
+	host    string
+	port    int
+	options connectionCommandOpts
+	uid     utils.UID
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
@@ -163,7 +174,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 // If CLICommandBuilder's options.tolerateMissingCLIClient is set to true, GetConnectCommand
 // shouldn't return an error if it cannot locate a client binary. Check WithTolerateMissingCLIClient
 // docs for more details.
-func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
+func (c *CLICommandBuilder) GetConnectCommand(ctx context.Context) (*exec.Cmd, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolPostgres:
 		return c.getPostgresCommand(), nil
@@ -175,7 +186,7 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 		return c.getMySQLCommand()
 
 	case defaults.ProtocolMongoDB:
-		return c.getMongoCommand(), nil
+		return c.getMongoCommand(ctx)
 
 	case defaults.ProtocolRedis:
 		return c.getRedisCommand(), nil
@@ -206,6 +217,8 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolClickHouse:
 		return c.getClickhouseNativeCommand()
 
+	case defaults.ProtocolSpanner:
+		return c.getSpannerCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -220,8 +233,7 @@ type CommandAlternative struct {
 // GetConnectCommandAlternatives returns optional connection commands for protocols that offer multiple options.
 // Otherwise, it falls back to GetConnectCommand.
 // The keys in the returned map are command descriptions suitable for display to the end user.
-func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternative, error) {
-
+func (c *CLICommandBuilder) GetConnectCommandAlternatives(ctx context.Context) ([]CommandAlternative, error) {
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
@@ -229,7 +241,7 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 		return c.getOpenSearchAlternativeCommands(), nil
 	}
 
-	cmd, err := c.GetConnectCommand()
+	cmd, err := c.GetConnectCommand(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,8 +317,9 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 	}
 
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
+	sslKeyPath := c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
-	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
+	args = append(args, []string{"--ssl-key", sslKeyPath}...)
 	args = append(args, []string{"--ssl-ca", c.profile.CACertPathForCluster(c.rootCluster)}...)
 	args = append(args, []string{"--ssl-cert", sslCertPath}...)
 
@@ -452,16 +465,25 @@ func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
 	return c.isBinAvailable(sqlcmdBin)
 }
 
-func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
+func (c *CLICommandBuilder) shouldUseMongoshBin(db types.Database) bool {
+	// DocumentDB prefers the legacy "mongo" client.
+	if db.GetType() == types.DatabaseTypeDocumentDB {
+		return c.isMongoshBinAvailable() && !c.isBinAvailable(mongoBin)
+	}
 	// Use "mongosh" if available.
 	// If not, use legacy "mongo" if available.
 	// If both are not available, pick "mongosh" in print out.
 	return c.isMongoshBinAvailable() || !c.isBinAvailable(mongoBin)
 }
 
-func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMongoCommand(ctx context.Context) (*exec.Cmd, error) {
+	db, err := c.getDatabase(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// look for `mongosh`
-	useMongosh := c.shouldUseMongoshBin()
+	useMongosh := c.shouldUseMongoshBin(db)
 
 	var args []string
 
@@ -507,11 +529,27 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if useMongosh {
-		return exec.Command(mongoshBin, args...)
+		// DocumentDB does not support retryable writes.
+		// https://docs.aws.amazon.com/documentdb/latest/developerguide/functional-differences.html#functional-differences.retryable-writes
+		if db.GetType() == types.DatabaseTypeDocumentDB {
+			args = append(args, "--retryWrites=false")
+		}
+
+		return exec.Command(mongoshBin, args...), nil
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return exec.Command(mongoBin, args...)
+	return exec.Command(mongoBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getDatabase(ctx context.Context) (types.Database, error) {
+	// Technically, we can just use tc to get the database. But caller may have
+	// extra logic so rely on the callback for now.
+	if c.options.getDatabase == nil {
+		return nil, trace.NotFound("missing GetDatabaseFunc")
+	}
+	db, err := c.options.getDatabase(ctx, c.tc, c.db.ServiceName)
+	return db, trace.Wrap(err)
 }
 
 func (c *CLICommandBuilder) getMongoAddress() string {
@@ -552,7 +590,7 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	if !c.options.noTLS {
 		args = append(args,
 			"--tls",
-			"--key", c.profile.KeyPath(),
+			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName))
 
 		if c.tc.InsecureSkipVerify {
@@ -654,7 +692,9 @@ func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
 func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	cfg := opensearch.ConfigNoTLS(c.host, c.port)
 	if !c.options.noTLS {
-		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
+		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath,
+			c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+			c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName))
 	}
 
 	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
@@ -668,15 +708,23 @@ func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
 	return exec.Command(openSearchCLIBin, args...), nil
 }
 
-func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
-	// we can't guess at what the user wants to do, so this command is for print purposes only,
-	// and it only works with a local proxy tunnel.
-	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+func (c *CLICommandBuilder) checkLocalProxyTunnelOnly(requirePrint bool) error {
+	if (requirePrint && !c.options.printFormat) || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
 		svc := "<db>"
 		if c.db != nil && c.db.ServiceName != "" {
 			svc = c.db.ServiceName
 		}
-		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
+		protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+		return trace.BadParameter("%s requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", protocol, svc)
+	}
+	return nil
+}
+
+func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
+	// we can't guess at what the user wants to do, so this command is for print
+	// purposes only, and it only works with a local proxy tunnel.
+	if err := c.checkLocalProxyTunnelOnly(true); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	args := []string{
 		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),
@@ -684,6 +732,52 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"<command>",
 	}
 	return exec.Command(awsBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getSpannerCommand() (*exec.Cmd, error) {
+	if err := c.checkLocalProxyTunnelOnly(false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var (
+		project,
+		instance,
+		database string
+	)
+	if c.options.printFormat {
+		// default placeholders for a print command if not all info is available
+		project, instance, database = "<project>", "<instance>", "<database>"
+	}
+
+	if c.options.gcp.ProjectID != "" {
+		project = c.options.gcp.ProjectID
+	}
+	if c.options.gcp.InstanceID != "" {
+		instance = c.options.gcp.InstanceID
+	}
+	if c.db.Database != "" {
+		database = c.db.Database
+	}
+
+	protocol := defaults.ReadableDatabaseProtocol(c.db.Protocol)
+	switch {
+	case project == "":
+		return nil, trace.BadParameter("missing GCP project ID for %s command (this is a bug)", protocol)
+	case instance == "":
+		return nil, trace.BadParameter("missing GCP instance ID for %s command (this is a bug)", protocol)
+	case database == "":
+		return nil, trace.BadParameter("missing database name for %s command (this is a bug)", protocol)
+	}
+
+	args := []string{
+		"-p", project,
+		"-i", instance,
+		"-d", database,
+	}
+	cmd := exec.Command(spannerBin, args...)
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("SPANNER_EMULATOR_HOST=%s:%d", c.host, c.port),
+	)
+	return cmd, nil
 }
 
 type jdbcOracleThinConnection struct {
@@ -698,7 +792,7 @@ func (j *jdbcOracleThinConnection) ConnString() string {
 }
 
 func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
-	tnsAdminPath := c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName)
+	tnsAdminPath := c.profile.OracleWalletDir(c.tc.SiteName, c.db.ServiceName)
 	if runtime.GOOS == constants.WindowsOS {
 		tnsAdminPath = strings.ReplaceAll(tnsAdminPath, `\`, `\\`)
 	}
@@ -734,7 +828,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
-			"--key", c.profile.KeyPath(),
+			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 		}
 
@@ -779,7 +873,7 @@ func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternat
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
-			"--key", c.profile.KeyPath(),
+			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 		}
 
@@ -814,6 +908,8 @@ type connectionCommandOpts struct {
 	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
+	gcp                      types.GCPCloudSQL
+	getDatabase              GetDatabaseFunc
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -861,7 +957,7 @@ func WithPassword(pass string) ConnectCommandFunc {
 // WithPrintFormat is known to be used for the following situations:
 // - tsh db config --format cmd <database>
 // - tsh proxy db --tunnel <database>
-// - Teleport Connect where the command is put into a terminal.
+// - Teleport Connect where the gateway command is shown in the UI.
 //
 // WithPrintFormat should NOT be used when the exec.Cmd gets executed by the
 // client application.
@@ -900,6 +996,24 @@ func WithTolerateMissingCLIClient() ConnectCommandFunc {
 func WithExecer(exe Execer) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.exe = exe
+	}
+}
+
+// WithGCP adds GCP metadata for the database command to access.
+// TODO(greedy52) use GetDatabaseFunc instead.
+func WithGCP(gcp types.GCPCloudSQL) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.gcp = gcp
+	}
+}
+
+// GetDatabaseFunc is a callback to retrieve types.Database.
+type GetDatabaseFunc func(context.Context, *client.TeleportClient, string) (types.Database, error)
+
+// WithGetDatabaseFunc provides a callback to retrieve types.Database.
+func WithGetDatabaseFunc(f GetDatabaseFunc) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.getDatabase = f
 	}
 }
 

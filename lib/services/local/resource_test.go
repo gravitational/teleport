@@ -52,7 +52,7 @@ func TestCreateResourcesProvisionToken(t *testing.T) {
 	s := NewProvisioningService(tt.bk)
 	fetchedToken, err := s.GetToken(ctx, "foo")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(token, fetchedToken, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(token, fetchedToken, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
 func TestUserResource(t *testing.T) {
@@ -85,7 +85,7 @@ func runUserResourceTest(
 	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
-	s := NewIdentityService(tt.bk)
+	s := NewTestIdentityService(tt.bk)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
 	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
@@ -156,7 +156,7 @@ func TestTrustedClusterResource(t *testing.T) {
 	err = CreateResources(ctx, tt.bk, foo, bar)
 	require.NoError(t, err)
 
-	s := NewPresenceService(tt.bk)
+	s := NewCAService(tt.bk)
 	_, err = s.GetTrustedCluster(ctx, "foo")
 	require.NoError(t, err)
 	_, err = s.GetTrustedCluster(ctx, "bar")
@@ -196,7 +196,7 @@ func TestGithubConnectorResource(t *testing.T) {
 	err := CreateResources(ctx, tt.bk, connector)
 	require.NoError(t, err)
 
-	s := NewIdentityService(tt.bk)
+	s := NewTestIdentityService(tt.bk)
 	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
 }
@@ -250,5 +250,5 @@ func TestBootstrapLock(t *testing.T) {
 
 	l, err := tt.suite.Access.GetLock(ctx, "test")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nl, l, cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision")))
+	require.Empty(t, cmp.Diff(nl, l, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }

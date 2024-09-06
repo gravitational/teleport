@@ -84,6 +84,10 @@ you'll need:
 
 To set up the operator:
 
+- Make sure CRDs are deployed in the Kuberntes cluster. If they're not, you can deploy them with:
+  ```shell
+  helm install crds ../../examples/chart/teleport-cluster/charts/teleport-operator/ --set enabled=false --set installCRDs=always
+  ```
 - Open a proxy to the Kube API authenticating requests as yourself by following
   [the kube-agent-updater DEBUG guide](./../kube-agent-updater/DEBUG.md)
 - Create the Teleport operator role
@@ -110,6 +114,7 @@ make build
 
 ./bin/manager \
   -join-method token \
+  -token operator-token \
   -auth-server <TELEPORT_ADDR> \
   -kubeconfig <PATH_TO_TEMP_KUBECONFIG> \
   -namespace <NAMESPACE_WHERE_CRS_ARE>

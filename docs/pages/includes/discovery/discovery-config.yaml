@@ -1,27 +1,35 @@
 discovery_service:
     enabled: "yes"
     # discovery_group is used to group discovered resources into different
-    # sets. This is useful when you have multiple Teleport Discovery services
-    # running in the same cluster but polling different cloud providers or cloud
-    # accounts. It prevents discovered services from colliding in Teleport when
+    # sets. This is required when you have multiple Teleport Discovery services
+    # running. It prevents discovered services from colliding in Teleport when
     # managing discovered resources.
+    # If two Discovery Services match the same resources, they must be in the
+    # same discovery group.
+    # If two Discovery Services match different resources, they must be in
+    # different discovery groups.
     discovery_group: "disc-group"
+    # poll_interval is the cadence at which the discovery server will run each of its
+    # discovery cycles. The default is 5m.
+    poll_interval: 5m
+    # Matchers for discovering AWS-hosted resources.
     aws:
-      # AWS resource types. Valid options are:
-      # 'ec2' - discovers and registers AWS EC2 instances.
-      # 'eks' - discovers and registers AWS EKS clusters.
-      # 'rds' - discovers and registers AWS RDS and Aurora databases.
-      # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
-      # 'redshift' - discovers and registers AWS Redshift databases.
-      # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
-      # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-      # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-      # 'opensearch' - discovers and registers AWS OpenSearch Redis databases.
+      # AWS resource types to discover and register with your Teleport cluster.
+      # Valid options are:
+      # 'ec2' - Amazon EC2 instances.
+      # 'eks' - Amazon EKS clusters.
+      # 'rds' - Amazon RDS and Aurora databases.
+      # 'rdsproxy' - Amazon RDS Proxy databases.
+      # 'redshift' - Amazon Redshift databases.
+      # 'redshift-serverless' - Amazon Redshift Serverless databases.
+      # 'elasticache' - Amazon ElastiCache Redis databases.
+      # 'memorydb' - Amazon MemoryDB Redis databases.
+      # 'opensearch' - Amazon OpenSearch Redis databases.
     - types: ["ec2"]
       # AWS regions to search for resources from
       regions: ["us-east-1","us-west-1"]
-      # AWS resource tags to match when registering resources
-      # Optional section: Defaults to "*":"*"
+      # Optional AWS resource tags to match when registering resources
+      # Defaults to a wildcard selector that matches any resource: "*":"*"
       tags:
         "*": "*"
       # Optional AWS role that the Discovery Service will assume to discover
@@ -48,6 +56,11 @@ discovery_service:
         # executed when installing teleport on matching nodes
         # Optional, defaults to: "TeleportDiscoveryInstaller".
         document_name: "TeleportDiscoveryInstaller"
+      # Optional role for which the Discovery Service should create the EKS access entry.
+      # If not set, the Discovery Service will attempt to create the access
+      # entry using its own identity.
+      # If used, the role must match the role configured for a Teleport Kubernetes Service.
+      setup_access_for_arn: arn:aws:iam::123456789012:role/kube-service-role
     # Matchers for discovering Azure-hosted resources.
     azure:
       # Azure resource types. Valid options are:

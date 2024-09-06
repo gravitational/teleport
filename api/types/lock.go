@@ -104,16 +104,6 @@ func (c *LockV2) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetResourceID returns resource ID.
-func (c *LockV2) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (c *LockV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
-}
-
 // GetRevision returns the revision
 func (c *LockV2) GetRevision() string {
 	return c.Metadata.GetRevision()
@@ -209,13 +199,6 @@ func (c *LockV2) CheckAndSetDefaults() error {
 
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
-	}
-	// If the user specifies a server ID but not a node, copy the server ID to the node
-	// field. This is for backwards compatibility with previous versions of Teleport
-	// so that locking a node still works.
-	// TODO: DELETE IN 15.0.0
-	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
-		c.Spec.Target.Node = c.Spec.Target.ServerID
 	}
 	return nil
 }

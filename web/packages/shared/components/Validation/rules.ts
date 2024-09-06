@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { IAM_ROLE_NAME_REGEX } from 'teleport/services/integrations/aws';
+
 /**
  * The result of validating a field.
  */
@@ -36,10 +38,12 @@ export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
  * @param value The value user entered.
  */
 const requiredField =
-  <T = string>(message: string): Rule<string | T[]> =>
+  <T = string>(message: string): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
-    const valid = !(!value || value.length === 0);
+    // TODO(bl-nero): This typecast hides the fact that `requiredField` doesn't
+    // actually work for other primitive types, like `number`.
+    const valid = !(!value || (value as T[]).length === 0);
     return {
       valid,
       message: !valid ? message : '',
@@ -60,10 +64,10 @@ const requiredToken: Rule = value => () => {
 };
 
 const requiredPassword: Rule = value => () => {
-  if (!value || value.length < 6) {
+  if (!value || value.length < 12) {
     return {
       valid: false,
-      message: 'Enter at least 6 characters',
+      message: 'Enter at least 12 characters',
     };
   }
 
@@ -95,13 +99,6 @@ const requiredConfirmedPassword =
     };
   };
 
-/**
- * ROLE_ARN_REGEX uses the same regex matcher used in the backend:
- * https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
- *
- * The regex checks for alphanumerics and select few characters.
- */
-const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
 const isIamRoleNameValid = roleName => {
   return (
     roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
@@ -199,6 +196,34 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
   };
 };
 
+/**
+ * A rule function that combines multiple inner rule functions. All rules must
+ * return `valid`, otherwise it returns a comma separated string containing all
+ * invalid rule messages.
+ * @param rules a list of rule functions to apply
+ * @returns a rule function that ANDs all input rules
+ */
+const requiredAll =
+  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  (value: T) =>
+  () => {
+    let messages = [];
+    for (let r of rules) {
+      let result = r(value)();
+      if (!result.valid) {
+        messages.push(result.message);
+      }
+    }
+
+    if (messages.length > 0) {
+      return {
+        valid: false,
+        message: messages.join('. '),
+      };
+    }
+    return { valid: true };
+  };
+
 export {
   requiredToken,
   requiredPassword,
@@ -207,4 +232,5 @@ export {
   requiredRoleArn,
   requiredIamRoleName,
   requiredEmailLike,
+  requiredAll,
 };

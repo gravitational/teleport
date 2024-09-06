@@ -40,7 +40,7 @@ import { ButtonLockedFeature } from '../ButtonLockedFeature';
 export const ExternalAuditStorageCta = () => {
   const [showCta, setShowCta] = useState<boolean>(false);
   const ctx = useTeleport();
-  const featureEnabled = !ctx.lockedFeatures.externalCloudAudit;
+  const featureEnabled = cfg.externalAuditStorage;
   const userHasAccess = ctx.getFeatureFlags().enrollIntegrationsOrPlugins;
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export const ExternalAuditStorageCta = () => {
         cfg.isCloud &&
         !storageService.getExternalAuditStorageCtaDisabled()
     );
-  }, [cfg.isCloud]);
+  }, [ctx.hasExternalAuditStorage]);
 
   function handleDismiss() {
     storageService.disableExternalAuditStorageCta();

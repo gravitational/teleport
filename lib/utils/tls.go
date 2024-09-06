@@ -21,8 +21,8 @@ package utils
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,7 +37,7 @@ func TLSConfig(cipherSuites []uint16) *tls.Config {
 
 // SetupTLSConfig sets up cipher suites in existing TLS config
 func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
-	// If ciphers suites were passed in, use them. Otherwise use the the
+	// If ciphers suites were passed in, use them. Otherwise use the
 	// Go defaults.
 	if len(cipherSuites) > 0 {
 		config.CipherSuites = cipherSuites
@@ -46,26 +46,6 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 	config.MinVersion = tls.VersionTLS12
 	config.SessionTicketsDisabled = false
 	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
-}
-
-// CreateTLSConfiguration sets up default TLS configuration
-func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*tls.Config, error) {
-	config := TLSConfig(cipherSuites)
-
-	if _, err := os.Stat(certFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
-	}
-	if _, err := os.Stat(keyFile); err != nil {
-		return nil, trace.BadParameter("certificate is not accessible by '%v'", certFile)
-	}
-
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	config.Certificates = []tls.Certificate{cert}
-
-	return config, nil
 }
 
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings
@@ -84,6 +64,63 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 
 	return out, nil
 }
+
+// VerifyConnectionWithRoots returns a [tls.Config.VerifyConnection] function
+// that uses the provided function to generate a [*x509.CertPool] that's used as
+// the source of root CAs for verification. Use of this function requires a
+// modicum of care: the [*tls.Config] using the returned callback should be
+// generated as close to its point of use as possible. An example use for this
+// would be something like:
+//
+//	c := utils.TLSConfig(cfg.cipherSuites)
+//	c.GetClientCertificate = func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+//		return cfg.getCert()
+//	}
+//	c.ServerName = apiutils.EncodeClusterName(cfg.clusterName)
+//	c.InsecureSkipVerify = true
+//	c.VerifyConnection = VerifyConnectionWithRoots(cfg.getRoots)
+//	httpTransport.TLSClientConfig = c
+//	clientConn := grpc.NewClient(target, grpc.WithTransportCredentials(credentials.NewTLS(c)))
+//
+// The necessity of using InsecureSkipVerify is the reason why this construction
+// is deliberately not packaged into a utility function, as the stakes must be
+// clear to whoever is interacting with the constructed [*tls.Config]. The
+// recommended approach is to push the getter functions as close to the point of
+// use as possible.
+func VerifyConnectionWithRoots(getRoots func() (*x509.CertPool, error)) func(cs tls.ConnectionState) error {
+	return func(cs tls.ConnectionState) error {
+		if cs.ServerName == "" {
+			return trace.BadParameter("TLS verification requires a server name")
+		}
+		roots, err := getRoots()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		opts := x509.VerifyOptions{
+			Roots:         roots,
+			Intermediates: nil,
+
+			DNSName: cs.ServerName,
+		}
+		if len(cs.PeerCertificates) > 1 {
+			opts.Intermediates = x509.NewCertPool()
+			for _, cert := range cs.PeerCertificates[1:] {
+				opts.Intermediates.AddCert(cert)
+			}
+		}
+		if _, err := cs.PeerCertificates[0].Verify(opts); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+}
+
+type (
+	GetCertificateFunc = func() (*tls.Certificate, error)
+	GetRootsFunc       = func() (*x509.CertPool, error)
+)
 
 // TLSConn is a `net.Conn` that implements some of the functions defined by the
 // `tls.Conn` struct. This interface can be used where it could receive a

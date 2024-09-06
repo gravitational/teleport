@@ -20,6 +20,7 @@ package lib
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -210,7 +211,7 @@ func ReadPassword(filename string) (string, error) {
 
 	pass := make([]byte, 2000)
 	l, err := f.Read(pass)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
 

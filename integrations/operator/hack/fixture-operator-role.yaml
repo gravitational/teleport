@@ -3,6 +3,11 @@ metadata:
   name: operator
 spec:
   allow:
+    # The operator role can see all nodes.
+    # This is required to reconcile OpenSSH and OpenSSHEICE nodes.
+    # However, it has no login set, so it cannot SSH on them
+    node_labels:
+      "*": ["*"]
     rules:
       - resources:
           - role
@@ -54,6 +59,14 @@ spec:
           - delete
       - resources:
           - access_list
+        verbs:
+          - list
+          - create
+          - read
+          - update
+          - delete
+      - resources:
+          - node
         verbs:
           - list
           - create

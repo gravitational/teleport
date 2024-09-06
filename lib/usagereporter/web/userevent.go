@@ -50,6 +50,7 @@ const (
 	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
 	uiDiscoverIntegrationAWSOIDCConnectEvent          = "tp.ui.discover.integration.awsoidc.connect"
 	uiDiscoverDatabaseRDSEnrollEvent                  = "tp.ui.discover.database.enroll.rds"
+	uiDiscoverKubeEKSEnrollEvent                      = "tp.ui.discover.kube.enroll.eks"
 	uiDiscoverDeployServiceEvent                      = "tp.ui.discover.deployService"
 	uiDiscoverDatabaseRegisterEvent                   = "tp.ui.discover.database.register"
 	uiDiscoverDatabaseConfigureMTLSEvent              = "tp.ui.discover.database.configure.mtls"
@@ -60,6 +61,8 @@ const (
 	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
 	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
 	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
+	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
@@ -88,8 +91,10 @@ var eventsWithDataRequired = []string{
 	uiDiscoverCompletedEvent,
 	uiDiscoverIntegrationAWSOIDCConnectEvent,
 	uiDiscoverDatabaseRDSEnrollEvent,
+	uiDiscoverKubeEKSEnrollEvent,
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
+	uiDiscoverCreateDiscoveryConfigEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -284,6 +289,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverResourceSelectionEvent,
 		uiDiscoverIntegrationAWSOIDCConnectEvent,
 		uiDiscoverDatabaseRDSEnrollEvent,
+		uiDiscoverKubeEKSEnrollEvent,
 		uiDiscoverDeployServiceEvent,
 		uiDiscoverDatabaseRegisterEvent,
 		uiDiscoverDatabaseConfigureMTLSEvent,
@@ -296,6 +302,8 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverEC2InstanceSelectionEvent,
 		uiDiscoverDeployEICEEvent,
 		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateAppServerEvent,
+		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 
 		var discoverEvent DiscoverEventData

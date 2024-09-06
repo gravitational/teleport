@@ -32,7 +32,7 @@ export const BadgeString = () => (
     <ToolTipBadge
       children={'I am a string'}
       badgeTitle="Title"
-      color="success"
+      color="success.main"
     />
   </SomeBox>
 );
@@ -42,7 +42,7 @@ export const BadgeComp = () => (
     I'm a sample container
     <ToolTipBadge
       badgeTitle="Title"
-      color="success"
+      color="success.main"
       children={<Box p={3}>I'm a box component with too much padding</Box>}
     />
   </SomeBox>

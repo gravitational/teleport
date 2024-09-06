@@ -93,6 +93,10 @@ type ProtoStreamerConfig struct {
 	MinUploadBytes int64
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
+	// ForceFlush is used in tests to force a flush of an in-progress slice. Note that
+	// sending on this channel just forces a single flush for whichever upload happens
+	// to receive the signal first, so this may not be suitable for concurrent tests.
+	ForceFlush chan struct{}
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -141,6 +145,7 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		Uploader:          s.cfg.Uploader,
 		MinUploadBytes:    s.cfg.MinUploadBytes,
 		ConcurrentUploads: s.cfg.ConcurrentUploads,
+		ForceFlush:        s.cfg.ForceFlush,
 	})
 }
 
@@ -191,6 +196,10 @@ type ProtoStreamConfig struct {
 	// after which streamer flushes the data to the uploader
 	// to avoid data loss
 	InactivityFlushPeriod time.Duration
+	// ForceFlush is used in tests to force a flush of an in-progress slice. Note that
+	// sending on this channel just forces a single flush for whichever upload happens
+	// to receive the signal first, so this may not be suitable for concurrent tests.
+	ForceFlush chan struct{}
 	// Clock is used to override time in tests
 	Clock clockwork.Clock
 	// ConcurrentUploads sets concurrent uploads per stream
@@ -526,7 +535,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			return nil
 		case <-w.proto.completeCtx.Done():
 			// if present, send remaining data for upload
-			if w.current != nil {
+			if w.current != nil && !w.current.isEmpty() {
 				// mark that the current part is last (last parts are allowed to be
 				// smaller than the certain size, otherwise the padding
 				// have to be added (this is due to S3 API limits)
@@ -548,6 +557,12 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 			delete(w.activeUploads, part.Number)
 			w.updateCompletedParts(*part, upload.lastEventIndex)
+		case <-w.proto.cfg.ForceFlush:
+			if w.current != nil {
+				if err := w.startUploadCurrentSlice(); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 		case <-flushCh:
 			now := clock.Now().UTC()
 			inactivityPeriod := now.Sub(lastEvent)
@@ -559,7 +574,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				// there is no need to schedule a timer until the next
 				// event occurs, set the timer channel to nil
 				flushCh = nil
-				if w.current != nil {
+				if w.current != nil && !w.current.isEmpty() {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
 						return trace.Wrap(err)
@@ -629,6 +644,7 @@ func (b *bufferCloser) Close() error {
 
 func (w *sliceWriter) newSlice() (*slice, error) {
 	w.lastPartNumber++
+	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
 	// reserve bytes for version header
@@ -636,6 +652,8 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
+		// Return the unused buffer to the pool.
+		w.proto.cfg.BufferPool.Put(buffer)
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
@@ -734,12 +752,18 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 		})
 
 		var retry retryutils.Retry
+
+		// create reader once before the retry loop. in the event of an error, the reader must
+		// be reset via Seek rather than recreated.
+		reader, err := slice.reader()
+		if err != nil {
+			activeUpload.setError(err)
+			return
+		}
+
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
-			reader, err := slice.reader()
-			if err != nil {
-				activeUpload.setError(err)
-				return
-			}
+			log := log.WithField("attempt", i)
+
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)
 			if err == nil {
 				activeUpload.setPart(*part)
@@ -769,13 +793,16 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 				}
 			}
 			retry.Inc()
+
+			// reset reader to the beginning of the slice so it can be re-read
 			if _, err := reader.Seek(0, 0); err != nil {
 				activeUpload.setError(err)
 				return
 			}
+
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Part upload failed, retrying after backoff.")
+				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
 			case <-w.proto.cancelCtx.Done():
 				return
 			}
@@ -828,10 +855,12 @@ type slice struct {
 	buffer         *bytes.Buffer
 	isLast         bool
 	lastEventIndex int64
+	eventCount     uint64
 }
 
-// reader returns a reader for the bytes written,
-// no writes should be done after this method is called
+// reader returns a reader for the bytes written, no writes should be done after this
+// method is called and this method should be called at most once per slice, otherwise
+// the resulting recording will be corrupted.
 func (s *slice) reader() (io.ReadSeeker, error) {
 	if err := s.writer.Close(); err != nil {
 		return nil, trace.Wrap(err)
@@ -841,9 +870,10 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 	// non last slices should be at least min upload bytes (as limited by S3 API spec)
 	if !s.isLast && wroteBytes < s.proto.cfg.MinUploadBytes {
 		paddingBytes = s.proto.cfg.MinUploadBytes - wroteBytes
-		if _, err := s.buffer.ReadFrom(utils.NewRepeatReader(byte(0), int(paddingBytes))); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		s.buffer.Grow(int(paddingBytes))
+		padding := s.buffer.AvailableBuffer()[:paddingBytes]
+		clear(padding)
+		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
 	// when the slice was created, the first bytes were reserved
@@ -868,10 +898,18 @@ func (s *slice) shouldUpload() bool {
 	return int64(s.buffer.Len()) >= s.proto.cfg.MinUploadBytes
 }
 
+// isEmpty returns true if the slice hasn't had any events written to
+// it yet.
+func (s *slice) isEmpty() bool {
+	return s.eventCount == 0
+}
+
 // recordEvent emits a single session event to the stream
 func (s *slice) recordEvent(event protoEvent) error {
 	bytes := s.proto.cfg.SlicePool.Get()
 	defer s.proto.cfg.SlicePool.Put(bytes)
+
+	s.eventCount++
 
 	messageSize := event.oneof.Size()
 	recordSize := ProtoStreamV1RecordHeaderSize + messageSize
@@ -880,6 +918,7 @@ func (s *slice) recordEvent(event protoEvent) error {
 		return trace.BadParameter(
 			"error in buffer allocation, expected size to be >= %v, got %v", recordSize, len(bytes))
 	}
+
 	binary.BigEndian.PutUint32(bytes, uint32(messageSize))
 	_, err := event.oneof.MarshalTo(bytes[Int32Size:])
 	if err != nil {
@@ -1064,9 +1103,23 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			// message and the message itself
 			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
 			if err != nil {
-				if err != io.EOF {
+				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
+
+				// due to a bug in older versions of teleport it was possible that padding
+				// bytes would end up inside of the gzip section of the archive. we should
+				// skip any dangling data in the gzip secion.
+				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, r.messageBytes[:])
+				if err != nil {
+					return nil, r.setError(trace.ConvertSystemError(err))
+				}
+
+				if n != 0 {
+					// log the number of bytes that were skipped
+					log.WithField("length", n).Debug("skipped dangling data in session recording section")
+				}
+
 				// reached the end of the current part, but not necessarily
 				// the end of the stream
 				if err := r.gzipReader.Close(); err != nil {

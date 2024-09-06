@@ -20,12 +20,17 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
-import { Platform, getPlatform } from 'design/platform';
-import { Text, Flex } from 'design';
+import { getPlatform } from 'design/platform';
+import { Text, Flex, H3, Subtitle3 } from 'design';
 import * as Icons from 'design/Icon';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { Path, makeDeepLinkWithSafeInput } from 'shared/deepLinks';
+import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
+import {
+  DownloadConnect,
+  getConnectDownloadLinks,
+} from 'shared/components/DownloadConnect/DownloadConnect';
+
+import { P } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -64,7 +69,8 @@ export function SetupConnect(
   const connectMyComputerDeepLink = makeDeepLinkWithSafeInput({
     proxyHost: cluster.publicURL,
     username,
-    path: Path.ConnectMyComputer,
+    path: '/connect_my_computer',
+    searchParams: {},
   });
   const [showHint, setShowHint] = useState(false);
 
@@ -120,10 +126,10 @@ export function SetupConnect(
       // Override max-width to match StyledBox's max-width.
       <HintBox header="We're still looking for your computer" maxWidth="800px">
         <Flex flexDirection="column" gap={3}>
-          <Text>
+          <P>
             There are a couple of possible reasons for why we haven't been able
             to detect your computer.
-          </Text>
+          </P>
 
           <ul
             css={`
@@ -156,10 +162,10 @@ export function SetupConnect(
             </li>
           </ul>
 
-          <Text>
+          <P>
             We'll continue to look for the computer whilst you diagnose the
             issue.
-          </Text>
+          </P>
         </Flex>
       </HintBox>
     );
@@ -192,33 +198,37 @@ export function SetupConnect(
       <Header>Set Up Teleport Connect</Header>
 
       <StyledBox>
-        <Text bold>Step 1: Download and Install Teleport Connect</Text>
+        <header>
+          <H3>Step 1</H3>
+          <Subtitle3 mb={3}>Download and Install Teleport Connect</Subtitle3>
+        </header>
 
-        <Text typography="subtitle1" mb={2}>
+        <P>
           Teleport Connect is a native desktop application for browsing and
           accessing your resources. It can also connect your computer to the
           cluster as an SSH resource.
-          <br />
-          <br />
+        </P>
+        <P mb={3}>
           Once you’ve downloaded Teleport Connect, run the installer to add it
           to your computer’s applications.
-        </Text>
+        </P>
 
         <Flex flexWrap="wrap" alignItems="baseline" gap={2}>
           <DownloadConnect downloadLinks={downloadLinks} />
-          <Text typography="subtitle1">
-            Already have Teleport Connect? Skip to the next step.
-          </Text>
+          <P>Already have Teleport Connect? Skip to the next step.</P>
         </Flex>
       </StyledBox>
 
       <StyledBox>
-        <Text bold>Step 2: Sign In and Connect My Computer</Text>
+        <header>
+          <H3>Step 2</H3>
+          <Subtitle3 mb={3}>Sign In and Connect My Computer</Subtitle3>
+        </header>
 
-        <Text typography="subtitle1" mb={2}>
+        <P mb={3}>
           The button below will open Teleport Connect. Once you are logged in,
           Teleport Connect will prompt you to connect your computer.
-        </Text>
+        </P>
 
         <ButtonSecondary as="a" href={connectMyComputerDeepLink}>
           Sign In & Connect My Computer
@@ -319,64 +329,3 @@ export const usePollForConnectMyComputerNode = (args: {
 
   return { node, isPolling };
 };
-
-type DownloadLink = { text: string; url: string };
-
-const DownloadConnect = (props: { downloadLinks: Array<DownloadLink> }) => {
-  if (props.downloadLinks.length === 1) {
-    const downloadLink = props.downloadLinks[0];
-    return (
-      <ButtonSecondary as="a" href={downloadLink.url}>
-        Download Teleport Connect
-      </ButtonSecondary>
-    );
-  }
-
-  return (
-    <MenuButton buttonText="Download Teleport Connect">
-      {props.downloadLinks.map(link => (
-        <MenuItem key={link.url} as="a" href={link.url}>
-          {link.text}
-        </MenuItem>
-      ))}
-    </MenuButton>
-  );
-};
-
-function getConnectDownloadLinks(
-  platform: Platform,
-  proxyVersion: string
-): Array<DownloadLink> {
-  switch (platform) {
-    case Platform.Windows:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect Setup-${proxyVersion}.exe`,
-        },
-      ];
-    case Platform.macOS:
-      return [
-        {
-          text: 'Teleport Connect',
-          url: `https://cdn.teleport.dev/Teleport Connect-${proxyVersion}.dmg`,
-        },
-      ];
-    case Platform.Linux:
-      return [
-        {
-          text: 'DEB',
-          url: `https://cdn.teleport.dev/teleport-connect_${proxyVersion}_amd64.deb`,
-        },
-        {
-          text: 'RPM',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}.x86_64.rpm`,
-        },
-
-        {
-          text: 'tar.gz',
-          url: `https://cdn.teleport.dev/teleport-connect-${proxyVersion}-x64.tar.gz`,
-        },
-      ];
-  }
-}

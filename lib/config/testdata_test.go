@@ -214,6 +214,10 @@ okta_service:
     api_endpoint: https://some-endpoint
     api_token_path: %v
     sync_period: 300s
+    sync:
+      sync_access_lists: yes
+      default_owners:
+      - owner1
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

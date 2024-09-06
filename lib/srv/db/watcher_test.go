@@ -283,21 +283,32 @@ func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
 	r.SetStaticLabels(staticLabels)
 }
 
+func setDiscoveryTypeLabel(r types.ResourceWithLabels, matcherType string) {
+	staticLabels := r.GetStaticLabels()
+	if staticLabels == nil {
+		staticLabels = make(map[string]string)
+	}
+	staticLabels[types.DiscoveryTypeLabel] = matcherType
+	r.SetStaticLabels(staticLabels)
+}
+
 // TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
 	// Test an AWS fetcher. Note that status AWS can be set by Metadata
 	// service.
 	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
-	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
+	redshiftServerlessDatabase, err := discovery.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	setDiscoveryTypeLabel(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	discovery.ApplyAWSDatabaseNameSuffix(redshiftServerlessDatabase, types.AWSMatcherRedshiftServerless)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	setDiscoveryTypeLabel(azSQLServerDatabase, types.AzureMatcherSQLServer)
 	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
@@ -343,7 +354,7 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 		sort.Sort(d)
 		require.Equal(t, len(d), len(databases))
 		require.Empty(t, cmp.Diff(databases, d,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 			cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 		))
 	case <-time.After(time.Second):
@@ -405,7 +416,7 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 			FullyQualifiedDomainName: to.Ptr("localhost"),
 		},
 	}
-	database, err := services.NewDatabaseFromAzureSQLServer(server)
+	database, err := discovery.NewDatabaseFromAzureSQLServer(server)
 	require.NoError(t, err)
 	discovery.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherSQLServer)
 	return server, database

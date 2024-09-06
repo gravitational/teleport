@@ -379,3 +379,23 @@ tests:
     asserts:
       - matchSnapshot:
           path: spec.ports
+
+  - it: sets extraLabels on Service
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        service:
+          foo: bar
+          baz: override-me
+      proxy:
+        extraLabels:
+          service:
+            baz: overridden
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: overridden

@@ -20,13 +20,14 @@ package local
 
 import (
 	"context"
-	"encoding/json"
-	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,43 +36,121 @@ import (
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
+	log *logrus.Entry
 }
 
 // NewAccessService returns new access service instance
 func NewAccessService(backend backend.Backend) *AccessService {
-	return &AccessService{Backend: backend}
+	return &AccessService{
+		Backend: backend,
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
+	}
 }
 
 // DeleteAllRoles deletes all roles
 func (s *AccessService) DeleteAllRoles(ctx context.Context) error {
-	startKey := backend.Key(rolesPrefix)
+	startKey := backend.NewKey(rolesPrefix)
 	endKey := backend.RangeEnd(startKey)
 	return s.DeleteRange(ctx, startKey, endKey)
 }
 
 // GetRoles returns a list of roles registered with the local auth server
 func (s *AccessService) GetRoles(ctx context.Context) ([]types.Role, error) {
+	var maxIterations = 100_000
+	var roles []types.Role
+	var req proto.ListRolesRequest
+	var iterations int
+	for {
+		iterations++
+		if iterations > maxIterations {
+			return nil, trace.Errorf("too many internal get role page iterations (%d), this is a bug", iterations)
+		}
+		rsp, err := s.ListRoles(ctx, &req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, r := range rsp.Roles {
+			roles = append(roles, r)
+		}
+		req.StartKey = rsp.NextKey
+		if req.StartKey == "" {
+			break
+		}
+	}
+
+	return roles, nil
+}
+
+// ListRoles is a paginated role getter.
+func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
+	const maxPageSize = 16_000
+
+	limit := int(req.Limit)
+
+	if limit == 0 {
+		// it can take a lot of effort to parse roles and until a page is done
+		// parsing, it will be held in memory - so keep this reasonably small
+		limit = 100
+	}
+
+	if limit > maxPageSize {
+		return nil, trace.BadParameter("page size of %d is too large", limit)
+	}
+
 	startKey := backend.ExactKey(rolesPrefix)
-	endKey := backend.RangeEnd(startKey)
-	result, err := s.GetRange(ctx, startKey, endKey, backend.NoLimit)
-	if err != nil {
+	if req.StartKey != "" {
+		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
+	}
+
+	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
+
+	var roles []*types.RoleV6
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(roles) > limit {
+				return true, nil
+			}
+
+			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			role, err := services.UnmarshalRoleV6(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
+			)
+			if err != nil {
+				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
+				continue
+			}
+
+			// if a filter was provided, skip roles that fail to match.
+			if req.Filter != nil && !req.Filter.Match(role) {
+				continue
+			}
+
+			roles = append(roles, role)
+		}
+
+		return len(roles) > limit, nil
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]types.Role, 0, len(result.Items))
-	for _, item := range result.Items {
-		role, err := services.UnmarshalRole(item.Value,
-			services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
-			// Try to get the role name for the error, it allows admins to take action
-			// against the "bad" role.
-			h := &types.ResourceHeader{}
-			_ = json.Unmarshal(item.Value, h)
-			return nil, trace.WrapWithMessage(err, "role %q", h.GetName())
-		}
-		out = append(out, role)
+
+	var nextKey string
+	if len(roles) > limit {
+		nextKey = roles[limit].GetName()
+		roles = roles[:limit]
 	}
-	sort.Sort(services.SortedRoles(out))
-	return out, nil
+
+	return &proto.ListRolesResponse{
+		Roles:   roles,
+		NextKey: nextKey,
+	}, nil
 }
 
 // CreateRole creates a new role.
@@ -88,10 +167,9 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -117,10 +195,9 @@ func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -146,10 +223,9 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
-		ID:       role.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -166,15 +242,16 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
+			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
 			return nil, trace.NotFound("role %v is not found", name)
 		}
 		return nil, trace.Wrap(err)
 	}
 	return services.UnmarshalRole(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // DeleteRole deletes a role from the backend
@@ -182,7 +259,7 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
@@ -196,14 +273,14 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	if name == "" {
 		return nil, trace.BadParameter("missing lock name")
 	}
-	item, err := s.Get(ctx, backend.Key(locksPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("lock %q is not found", name)
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+	return services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 }
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
@@ -216,7 +293,7 @@ func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets 
 
 	out := []types.Lock{}
 	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		lock, err := services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -247,10 +324,9 @@ func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Key:      backend.NewKey(locksPrefix, lock.GetName()),
 		Value:    value,
 		Expires:  lock.Expiry(),
-		ID:       lock.GetResourceID(),
 		Revision: rev,
 	}
 
@@ -265,7 +341,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing lock name")
 	}
-	err := s.Delete(ctx, backend.Key(locksPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("lock %q is not found", name)
@@ -306,19 +382,18 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Key:      backend.NewKey(locksPrefix, lock.GetName()),
 				Value:    value,
 				Expires:  lock.Expiry(),
-				ID:       lock.GetResourceID(),
 				Revision: rev,
 			}
-			newRemoteLocksToStore[string(item.Key)] = item
+			newRemoteLocksToStore[item.Key.String()] = item
 		}
 
 		for _, origLockItem := range origRemoteLocks.Items {
 			// If one of the new remote locks to store is already known,
 			// perform a CompareAndSwap.
-			key := string(origLockItem.Key)
+			key := origLockItem.Key.String()
 			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
 				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
 					return trace.Wrap(err)

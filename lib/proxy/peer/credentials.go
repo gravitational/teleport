@@ -20,8 +20,6 @@ package peer
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -29,7 +27,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -163,49 +160,4 @@ func validatePeer(peerID string, identity *tlsca.Identity) error {
 	}
 
 	return trace.AccessDenied("connected to unexpected proxy")
-}
-
-// getConfigForClient clones and updates the server's tls config with the
-// appropriate client certificate authorities.
-func getConfigForClient(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func(*tls.ClientHelloInfo) (*tls.Config, error) {
-	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve client CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.ClientAuth = tls.RequireAndVerifyClientCert
-		tlsCopy.ClientCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getConfigForServer clones and updates the client's tls config with the
-// appropriate server certificate authorities.
-func getConfigForServer(tlsConfig *tls.Config, ap auth.AccessCache, log logrus.FieldLogger, clusterName string) func() (*tls.Config, error) {
-	return func() (*tls.Config, error) {
-		tlsCopy := tlsConfig.Clone()
-
-		pool, err := getCertPool(ap, clusterName)
-		if err != nil {
-			log.WithError(err).Error("Failed to retrieve server CA pool.")
-			return tlsCopy, nil
-		}
-
-		tlsCopy.RootCAs = pool
-		return tlsCopy, nil
-	}
-}
-
-// getCertPool returns a new cert pool from cache if any.
-func getCertPool(ap auth.AccessCache, clusterName string) (*x509.CertPool, error) {
-	pool, _, err := auth.ClientCertPool(ap, clusterName, types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return pool, nil
 }

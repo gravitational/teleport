@@ -47,6 +47,7 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
+        integration: '',
       },
       {
         kind: 'app',
@@ -67,6 +68,7 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
+        integration: '',
       },
       {
         kind: 'app',
@@ -87,6 +89,7 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: false,
         samlAppSsoUrl: '',
+        integration: '',
       },
       {
         kind: 'app',
@@ -107,6 +110,8 @@ test('correct formatting of apps fetch response', async () => {
         userGroups: [],
         samlApp: true,
         samlAppSsoUrl: 'http://localhost/enterprise/saml-idp/login/saml-app',
+        samlAppPreset: 'gcp-workforce',
+        integration: '',
       },
     ],
     startKey: mockResponse.startKey,
@@ -164,6 +169,7 @@ const mockResponse = {
       name: 'saml-app',
       description: 'SAML Application',
       samlApp: true,
+      samlAppPreset: 'gcp-workforce',
     },
   ],
   startKey: 'mockKey',

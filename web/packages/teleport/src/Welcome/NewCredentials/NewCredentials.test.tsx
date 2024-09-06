@@ -49,6 +49,7 @@ const makeProps = (): NewCredentialsProps => {
     submitAttempt: attempt,
     clearSubmitAttempt: () => {},
     onSubmit: () => {},
+    createNewWebAuthnDevice: () => {},
     onSubmitWithWebauthn: () => {},
     resetToken: resetToken,
     recoveryCodes: recoveryCodes,
@@ -114,7 +115,9 @@ test('renders credential flow for passwordless', () => {
   props.primaryAuthType = 'passwordless';
   render(<NewCredentials {...props} />);
 
-  expect(screen.getByText(/Set A Passwordless Device/i)).toBeInTheDocument();
+  expect(
+    screen.getByText(/Set up Passwordless Authentication/i)
+  ).toBeInTheDocument();
 });
 
 test('renders credential flow for local', () => {

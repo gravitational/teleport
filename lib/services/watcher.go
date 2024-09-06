@@ -37,6 +37,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// smallFanoutCapacity is the default capacity used for the circular event buffer allocated by
+	// resource watchers that implement event fanout.
+	smallFanoutCapacity = 128
+
+	// eventBufferMaxSize is the maximum size of the event buffer used by resource watchers to
+	// batch events that arrive in quick succession. In practice the event buffer should never
+	// grow this large unless we're dealing with a truly massive teleport cluster.
+	eventBufferMaxSize = 2048
+)
+
 // resourceCollector is a generic interface for maintaining an up-to-date view
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
@@ -45,8 +56,11 @@ type resourceCollector interface {
 	// getResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
 	getResourcesAndUpdateCurrent(context.Context) error
-	// processEventAndUpdateCurrent is called when a watcher event is received.
-	processEventAndUpdateCurrent(context.Context, types.Event)
+	// processEventsAndUpdateCurrent is called when a watcher events are received. The event buffer
+	// may be reused so implementers must not retain it, but implementers may mutate the buffer
+	// in place during the call, e.g. in order to filter out undesired events before passing them
+	// to a subsideary bulk-processor such as a fanout.
+	processEventsAndUpdateCurrent(context.Context, []types.Event)
 	// notifyStale is called when the maximum acceptable staleness (if specified)
 	// is exceeded.
 	notifyStale()
@@ -118,6 +132,9 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // It is the caller's responsibility to verify the inputs' validity
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
@@ -326,6 +343,8 @@ func (p *resourceWatcher) watch() error {
 	p.retry.Reset()
 	p.failureStartedAt = time.Time{}
 
+	// start out with a modestly sized event buffer
+	eventBuf := make([]types.Event, 0, 16)
 	for {
 		select {
 		case <-watcher.Done():
@@ -333,7 +352,23 @@ func (p *resourceWatcher) watch() error {
 		case <-p.ctx.Done():
 			return trace.ConnectionProblem(p.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			p.collector.processEventAndUpdateCurrent(p.ctx, event)
+			// resource collectors want to process events in batches
+			// when possible in order to reduce contention on their locks.
+			// we therefore optimistically try to gather a large number of
+			// events without blocking.
+			eventBuf = append(eventBuf, event)
+		CollectEvents:
+			for len(eventBuf) < eventBufferMaxSize {
+				select {
+				case additionalEvent := <-watcher.Events():
+					eventBuf = append(eventBuf, additionalEvent)
+				default:
+					break CollectEvents
+				}
+			}
+			p.collector.processEventsAndUpdateCurrent(p.ctx, eventBuf)
+			clear(eventBuf)
+			eventBuf = eventBuf[:0]
 		case p.LoopC <- struct{}{}:
 			// Used in tests to detect the watch loop is running.
 		case <-p.StaleC:
@@ -451,34 +486,42 @@ func (p *proxyCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *proxyCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindProxy {
-		p.Log.Warningf("Unexpected event: %v.", event)
-		return
-	}
-
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *proxyCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.rw.Lock()
 	defer p.rw.Unlock()
 
-	switch event.Type {
-	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		// Always broadcast when a proxy is deleted.
+	var updated bool
+
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindProxy {
+			p.Log.Warningf("Unexpected event: %v.", event)
+			continue
+		}
+
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			// Always broadcast when a proxy is deleted.
+			updated = true
+		case types.OpPut:
+			server, ok := event.Resource.(types.Server)
+			if !ok {
+				p.Log.Warningf("Unexpected type %T.", event.Resource)
+				continue
+			}
+			current, exists := p.current[server.GetName()]
+			p.current[server.GetName()] = server
+			if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
+				updated = true
+			}
+		default:
+			p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+		}
+	}
+
+	if updated {
 		p.broadcastUpdate(ctx)
-	case types.OpPut:
-		server, ok := event.Resource.(types.Server)
-		if !ok {
-			p.Log.Warningf("Unexpected type %T.", event.Resource)
-			return
-		}
-		current, exists := p.current[server.GetName()]
-		p.current[server.GetName()] = server
-		if !exists || (p.ProxyDiffer != nil && p.ProxyDiffer(current, server)) {
-			p.broadcastUpdate(ctx)
-		}
-	default:
-		p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
 }
 
@@ -552,8 +595,10 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	collector := &lockCollector{
 		LockWatcherConfig: cfg,
-		fanout:            NewFanout(),
-		initializationC:   make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		initializationC: make(chan struct{}),
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -581,7 +626,7 @@ type lockCollector struct {
 	// currentRW is a mutex protecting both current and isStale.
 	currentRW sync.RWMutex
 	// fanout provides support for multiple subscribers to the lock updates.
-	fanout *Fanout
+	fanout *FanoutV2
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
@@ -695,34 +740,38 @@ func (p *lockCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *lockCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindLock {
-		p.Log.Warningf("Unexpected event: %v.", event)
-		return
-	}
-
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *lockCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.currentRW.Lock()
 	defer p.currentRW.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		p.fanout.Emit(event)
-	case types.OpPut:
-		lock, ok := event.Resource.(types.Lock)
-		if !ok {
-			p.Log.Warningf("Unexpected resource type %T.", event.Resource)
-			return
+	eventsToEmit := events[:0]
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindLock {
+			p.Log.Warningf("Unexpected event: %v.", event)
+			continue
 		}
-		if lock.IsInForce(p.Clock.Now()) {
-			p.current[lock.GetName()] = lock
-			p.fanout.Emit(event)
-		} else {
-			delete(p.current, lock.GetName())
+
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			eventsToEmit = append(eventsToEmit, event)
+		case types.OpPut:
+			lock, ok := event.Resource.(types.Lock)
+			if !ok {
+				p.Log.Warningf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			if lock.IsInForce(p.Clock.Now()) {
+				p.current[lock.GetName()] = lock
+				eventsToEmit = append(eventsToEmit, event)
+			} else {
+				delete(p.current, lock.GetName())
+			}
+		default:
+			p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 		}
-	default:
-		p.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
+	p.fanout.Emit(eventsToEmit...)
 }
 
 // notifyStale is called when the maximum acceptable staleness (if specified)
@@ -872,36 +921,39 @@ func (p *databaseCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
-		p.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *databaseCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		select {
-		case <-ctx.Done():
-		case p.DatabasesC <- resourcesToSlice(p.current):
-		}
-	case types.OpPut:
-		database, ok := event.Resource.(types.Database)
-		if !ok {
-			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
-		p.current[database.GetName()] = database
-		select {
-		case <-ctx.Done():
-		case p.DatabasesC <- resourcesToSlice(p.current):
-		}
 
-	default:
-		p.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
+	var updated bool
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindDatabase {
+			p.Log.Warnf("Unexpected event: %v.", event)
+			continue
+		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			updated = true
+		case types.OpPut:
+			database, ok := event.Resource.(types.Database)
+			if !ok {
+				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			p.current[database.GetName()] = database
+			updated = true
+		default:
+			p.Log.Warnf("Unsupported event type %s.", event.Type)
+		}
+	}
+
+	if updated {
+		select {
+		case <-ctx.Done():
+		case p.DatabasesC <- resourcesToSlice(p.current):
+		}
 	}
 }
 
@@ -1010,39 +1062,40 @@ func (p *appCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *appCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindApp {
-		p.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *appCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		p.AppsC <- resourcesToSlice(p.current)
-
-		select {
-		case <-ctx.Done():
-		case p.AppsC <- resourcesToSlice(p.current):
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindApp {
+			p.Log.Warnf("Unexpected event: %v.", event)
+			continue
 		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			p.AppsC <- resourcesToSlice(p.current)
 
-	case types.OpPut:
-		app, ok := event.Resource.(types.Application)
-		if !ok {
-			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
-		p.current[app.GetName()] = app
+			select {
+			case <-ctx.Done():
+			case p.AppsC <- resourcesToSlice(p.current):
+			}
 
-		select {
-		case <-ctx.Done():
-		case p.AppsC <- resourcesToSlice(p.current):
+		case types.OpPut:
+			app, ok := event.Resource.(types.Application)
+			if !ok {
+				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			p.current[app.GetName()] = app
+
+			select {
+			case <-ctx.Done():
+			case p.AppsC <- resourcesToSlice(p.current):
+			}
+		default:
+			p.Log.Warnf("Unsupported event type %s.", event.Type)
 		}
-	default:
-		p.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
 	}
 }
 
@@ -1161,39 +1214,40 @@ func (k *kubeCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (k *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindKubernetesCluster {
-		k.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		delete(k.current, event.Resource.GetName())
-		k.KubeClustersC <- resourcesToSlice(k.current)
-
-		select {
-		case <-ctx.Done():
-		case k.KubeClustersC <- resourcesToSlice(k.current):
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindKubernetesCluster {
+			k.Log.Warnf("Unexpected event: %v.", event)
+			continue
 		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(k.current, event.Resource.GetName())
+			k.KubeClustersC <- resourcesToSlice(k.current)
 
-	case types.OpPut:
-		cluster, ok := event.Resource.(types.KubeCluster)
-		if !ok {
-			k.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
-		k.current[cluster.GetName()] = cluster
+			select {
+			case <-ctx.Done():
+			case k.KubeClustersC <- resourcesToSlice(k.current):
+			}
 
-		select {
-		case <-ctx.Done():
-		case k.KubeClustersC <- resourcesToSlice(k.current):
+		case types.OpPut:
+			cluster, ok := event.Resource.(types.KubeCluster)
+			if !ok {
+				k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			k.current[cluster.GetName()] = cluster
+
+			select {
+			case <-ctx.Done():
+			case k.KubeClustersC <- resourcesToSlice(k.current):
+			}
+		default:
+			k.Log.Warnf("Unsupported event type %s.", event.Type)
 		}
-	default:
-		k.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
 	}
 }
 
@@ -1364,39 +1418,40 @@ func (k *kubeServerCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (k *kubeServerCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
-		k.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
-
-	server, ok := event.Resource.(types.KubeServer)
-	if !ok {
-		k.Log.Warnf("Unexpected resource type %T.", event.Resource)
-		return
-	}
-
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	k.lock.Lock()
 	defer k.lock.Unlock()
 
-	switch event.Type {
-	case types.OpDelete:
-		key := kubeServersKey{
-			// On delete events, the server description is populated with the host ID.
-			hostID:       server.GetMetadata().Description,
-			resourceName: server.GetName(),
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
+			k.Log.Warnf("Unexpected event: %v.", event)
+			continue
 		}
-		delete(k.current, key)
-	case types.OpPut:
-		key := kubeServersKey{
-			hostID:       server.GetHostID(),
-			resourceName: server.GetName(),
+
+		server, ok := event.Resource.(types.KubeServer)
+		if !ok {
+			k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			continue
 		}
-		k.current[key] = server
-	default:
-		k.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
+
+		switch event.Type {
+		case types.OpDelete:
+			key := kubeServersKey{
+				// On delete events, the server description is populated with the host ID.
+				hostID:       server.GetMetadata().Description,
+				resourceName: server.GetName(),
+			}
+			delete(k.current, key)
+		case types.OpPut:
+			key := kubeServersKey{
+				hostID:       server.GetHostID(),
+				resourceName: server.GetName(),
+			}
+			k.current[key] = server
+		default:
+			k.Log.Warnf("Unsupported event type %s.", event.Type)
+		}
 	}
 }
 
@@ -1455,6 +1510,9 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 		}
 		cfg.AuthorityGetter = getter
 	}
+	if len(cfg.Types) == 0 {
+		return trace.BadParameter("missing parameter Types")
+	}
 	return nil
 }
 
@@ -1466,13 +1524,17 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 
 	collector := &caCollector{
 		CertAuthorityWatcherConfig: cfg,
-		fanout:                     NewFanout(),
-		cas:                        make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
-		initializationC:            make(chan struct{}),
+		fanout: NewFanoutV2(FanoutV2Config{
+			Capacity: smallFanoutCapacity,
+		}),
+		cas:             make(map[types.CertAuthType]map[string]types.CertAuthority, len(cfg.Types)),
+		filter:          make(types.CertAuthorityFilter, len(cfg.Types)),
+		initializationC: make(chan struct{}),
 	}
 
 	for _, t := range cfg.Types {
 		collector.cas[t] = make(map[string]types.CertAuthority)
+		collector.filter[t] = types.Wildcard
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
@@ -1494,7 +1556,7 @@ type CertAuthorityWatcher struct {
 // caCollector accompanies resourceWatcher when monitoring cert authority resources.
 type caCollector struct {
 	CertAuthorityWatcherConfig
-	fanout *Fanout
+	fanout *FanoutV2
 
 	// lock protects concurrent access to cas
 	lock sync.RWMutex
@@ -1503,10 +1565,14 @@ type caCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+	filter          types.CertAuthorityFilter
 }
 
 // Subscribe is used to subscribe to the lock updates.
 func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityFilter) (types.Watcher, error) {
+	if len(filter) == 0 {
+		filter = c.filter
+	}
 	watch := types.Watch{
 		Kinds: []types.WatchKind{
 			{
@@ -1532,7 +1598,7 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 
 // resourceKinds specifies the resource kind to watch.
 func (c *caCollector) resourceKinds() []types.WatchKind {
-	return []types.WatchKind{{Kind: types.KindCertAuthority}}
+	return []types.WatchKind{{Kind: types.KindCertAuthority, Filter: c.filter.IntoMap()}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1578,54 +1644,57 @@ func (c *caCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (c *caCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindCertAuthority {
-		c.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		caType := types.CertAuthType(event.Resource.GetSubKind())
-		if !c.watchingType(caType) {
-			return
-		}
 
-		delete(c.cas[caType], event.Resource.GetName())
-		c.fanout.Emit(event)
-	case types.OpPut:
-		ca, ok := event.Resource.(types.CertAuthority)
-		if !ok {
-			c.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
+	eventsToEmit := events[:0]
 
-		if !c.watchingType(ca.GetType()) {
-			return
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindCertAuthority {
+			c.Log.Warnf("Unexpected event: %v.", event)
+			continue
 		}
+		switch event.Type {
+		case types.OpDelete:
+			caType := types.CertAuthType(event.Resource.GetSubKind())
+			if !c.watchingType(caType) {
+				continue
+			}
 
-		authority, ok := c.cas[ca.GetType()][ca.GetName()]
-		if ok && CertAuthoritiesEquivalent(authority, ca) {
-			return
+			delete(c.cas[caType], event.Resource.GetName())
+			eventsToEmit = append(eventsToEmit, event)
+		case types.OpPut:
+			ca, ok := event.Resource.(types.CertAuthority)
+			if !ok {
+				c.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+
+			if !c.watchingType(ca.GetType()) {
+				continue
+			}
+
+			authority, ok := c.cas[ca.GetType()][ca.GetName()]
+			if ok && CertAuthoritiesEquivalent(authority, ca) {
+				continue
+			}
+
+			c.cas[ca.GetType()][ca.GetName()] = ca
+			eventsToEmit = append(eventsToEmit, event)
+		default:
+			c.Log.Warnf("Unsupported event type %s.", event.Type)
 		}
-
-		c.cas[ca.GetType()][ca.GetName()] = ca
-		c.fanout.Emit(event)
-	default:
-		c.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
 	}
+
+	c.fanout.Emit(eventsToEmit...)
 }
 
 func (c *caCollector) watchingType(t types.CertAuthType) bool {
-	for _, caType := range c.Types {
-		if caType == t {
-			return true
-		}
+	if _, ok := c.cas[t]; ok {
+		return true
 	}
-
 	return false
 }
 
@@ -1716,6 +1785,8 @@ type Node interface {
 	GetTeleportVersion() string
 	// GetAddr return server address
 	GetAddr() string
+	// GetPublicAddrs returns all public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetHostname returns server hostname
 	GetHostname() string
 	// GetNamespace returns server namespace
@@ -1726,8 +1797,11 @@ type Node interface {
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
-	// GetProxyID returns a list of proxy ids this server is connected to.
+	// GetProxyIDs returns a list of proxy ids this server is connected to.
 	GetProxyIDs() []string
+	// IsEICE returns whether the Node is an EICE instance.
+	// Must be `openssh-ec2-ice` subkind and have the AccountID and InstanceID information (AWS Metadata or Labels).
+	IsEICE() bool
 }
 
 // GetNodes allows callers to retrieve a subset of nodes that match the filter provided. The
@@ -1749,6 +1823,22 @@ func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []ty
 	}
 
 	return matched
+}
+
+// GetNode allows callers to retrieve a node based on its name. The
+// returned server are a copy and can be safely modified.
+func (n *nodeCollector) GetNode(ctx context.Context, name string) (types.Server, error) {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
+	n.rw.RLock()
+	defer n.rw.RUnlock()
+
+	server, found := n.current[name]
+	if !found {
+		return nil, trace.NotFound("server does not exist")
+	}
+	return server.DeepCopy(), nil
 }
 
 // refreshStaleNodes attempts to reload nodes from the NodeGetter if
@@ -1843,30 +1933,31 @@ func (n *nodeCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
-		n.Log.Warningf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (n *nodeCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	n.rw.Lock()
+	defer n.rw.Unlock()
 
-	switch event.Type {
-	case types.OpDelete:
-		n.rw.Lock()
-		delete(n.current, event.Resource.GetName())
-		n.rw.Unlock()
-	case types.OpPut:
-		server, ok := event.Resource.(types.Server)
-		if !ok {
-			n.Log.Warningf("Unexpected type %T.", event.Resource)
-			return
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindNode {
+			n.Log.Warningf("Unexpected event: %v.", event)
+			continue
 		}
 
-		n.rw.Lock()
-		n.current[server.GetName()] = server
-		n.rw.Unlock()
-	default:
-		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+		switch event.Type {
+		case types.OpDelete:
+			delete(n.current, event.Resource.GetName())
+		case types.OpPut:
+			server, ok := event.Resource.(types.Server)
+			if !ok {
+				n.Log.Warningf("Unexpected type %T.", event.Resource)
+				continue
+			}
+
+			n.current[server.GetName()] = server
+		default:
+			n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
+		}
 	}
 }
 
@@ -1987,36 +2078,38 @@ func (p *accessRequestCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindAccessRequest {
-		p.Log.Warnf("Unexpected event: %v.", event)
-		return
-	}
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (p *accessRequestCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	switch event.Type {
-	case types.OpDelete:
-		delete(p.current, event.Resource.GetName())
-		select {
-		case <-ctx.Done():
-		case p.AccessRequestsC <- resourcesToSlice(p.current):
-		}
-	case types.OpPut:
-		accessRequest, ok := event.Resource.(types.AccessRequest)
-		if !ok {
-			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
-		p.current[accessRequest.GetName()] = accessRequest
-		select {
-		case <-ctx.Done():
-		case p.AccessRequestsC <- resourcesToSlice(p.current):
-		}
 
-	default:
-		p.Log.Warnf("Unsupported event type %s.", event.Type)
-		return
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindAccessRequest {
+			p.Log.Warnf("Unexpected event: %v.", event)
+			continue
+		}
+		switch event.Type {
+		case types.OpDelete:
+			delete(p.current, event.Resource.GetName())
+			select {
+			case <-ctx.Done():
+			case p.AccessRequestsC <- resourcesToSlice(p.current):
+			}
+		case types.OpPut:
+			accessRequest, ok := event.Resource.(types.AccessRequest)
+			if !ok {
+				p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			p.current[accessRequest.GetName()] = accessRequest
+			select {
+			case <-ctx.Done():
+			case p.AccessRequestsC <- resourcesToSlice(p.current):
+			}
+
+		default:
+			p.Log.Warnf("Unsupported event type %s.", event.Type)
+		}
 	}
 }
 
@@ -2160,42 +2253,41 @@ func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
 	})
 }
 
-// processEventAndUpdateCurrent is called when a watcher event is received.
-func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
-		c.log.Warnf("Unexpected event: %v.", event)
-		return
-	}
-	switch event.Type {
-	case types.OpDelete:
-		c.mu.Lock()
-		delete(c.current, event.Resource.GetName())
-		resources := resourcesToSlice(c.current)
-		c.mu.Unlock()
+// processEventsAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		select {
-		case <-ctx.Done():
-		case c.cfg.OktaAssignmentsC <- resources:
+	for _, event := range events {
+		if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
+			c.log.Warnf("Unexpected event: %v.", event)
+			continue
 		}
-	case types.OpPut:
-		oktaAssignment, ok := event.Resource.(types.OktaAssignment)
-		if !ok {
-			c.log.Warnf("Unexpected resource type %T.", event.Resource)
-			return
-		}
-		c.mu.Lock()
-		c.current[oktaAssignment.GetName()] = oktaAssignment
-		resources := resourcesToSlice(c.current)
-		c.mu.Unlock()
+		switch event.Type {
+		case types.OpDelete:
+			delete(c.current, event.Resource.GetName())
+			resources := resourcesToSlice(c.current)
+			select {
+			case <-ctx.Done():
+			case c.cfg.OktaAssignmentsC <- resources:
+			}
+		case types.OpPut:
+			oktaAssignment, ok := event.Resource.(types.OktaAssignment)
+			if !ok {
+				c.log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+			c.current[oktaAssignment.GetName()] = oktaAssignment
+			resources := resourcesToSlice(c.current)
 
-		select {
-		case <-ctx.Done():
-		case c.cfg.OktaAssignmentsC <- resources:
-		}
+			select {
+			case <-ctx.Done():
+			case c.cfg.OktaAssignmentsC <- resources:
+			}
 
-	default:
-		c.log.Warnf("Unsupported event type %s.", event.Type)
-		return
+		default:
+			c.log.Warnf("Unsupported event type %s.", event.Type)
+		}
 	}
 }
 

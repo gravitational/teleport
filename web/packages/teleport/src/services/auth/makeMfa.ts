@@ -92,6 +92,7 @@ export function makeWebauthnCreationResponse(res) {
     type: res.type,
     extensions: {
       appid: Boolean(clientExtentions?.appid),
+      credProps: clientExtentions?.credProps,
     },
     rawId: bufferToBase64url(res.rawId),
     response: {
@@ -109,7 +110,7 @@ export function makeWebauthnCreationResponse(res) {
 // - response.clientDataJSON
 // - response.signature
 // - response.userHandle
-export function makeWebauthnAssertionResponse(res) {
+export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
   // Response can be null if Credential cannot be unambiguously obtained.
   if (!res) {
     throw new Error(

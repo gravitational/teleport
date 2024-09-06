@@ -23,7 +23,7 @@ const GlobalStyle = createGlobalStyle`
 
   html {
     font-family: ${props => props.theme.font};
-    ${props => props.theme.typography.body1};
+    ${props => props.theme.typography.body2};
   }
 
   body {
@@ -35,6 +35,14 @@ const GlobalStyle = createGlobalStyle`
 
   input, textarea {
     font-family: ${props => props.theme.font};
+  }
+
+  input {
+    accent-color: ${props => props.theme.colors.brand};
+
+    ::placeholder {
+      color: ${props => props.theme.colors.text.muted};
+    }
   }
 
   // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]

@@ -20,6 +20,8 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
@@ -46,7 +48,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -66,7 +71,7 @@ type TestContext struct {
 	ClusterName          string
 	TLSServer            *auth.TestTLSServer
 	AuthServer           *auth.Server
-	AuthClient           *auth.Client
+	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
 	KubeServer           *TLSServer
 	KubeProxy            *TLSServer
@@ -91,11 +96,12 @@ type KubeClusterConfig struct {
 
 // TestConfig defines the suite options.
 type TestConfig struct {
-	Clusters         []KubeClusterConfig
-	ResourceMatchers []services.ResourceMatcher
-	OnReconcile      func(types.KubeClusters)
-	OnEvent          func(apievents.AuditEvent)
-	ClusterFeatures  func() proto.Features
+	Clusters             []KubeClusterConfig
+	ResourceMatchers     []services.ResourceMatcher
+	OnReconcile          func(types.KubeClusters)
+	OnEvent              func(apievents.AuditEvent)
+	ClusterFeatures      func() proto.Features
+	CreateAuditStreamErr error
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -150,7 +156,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// Always use *-sync to prevent fileStreamer from running against os.RemoveAll
 	// once the test ends.
 	recConfig.SetMode(types.RecordAtNodeSync)
-	err = authServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
+	_, err = authServer.AuthServer.UpsertSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
@@ -204,9 +210,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
-	client := newAuthClientWithStreamer(testCtx)
+	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
-	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	features := func() proto.Features {
+		return proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.K8s): {Enabled: true},
+			},
+		}
+	}
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
@@ -303,6 +315,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	proxyTLSConfig, err := proxyServerIdentity.TLSConfig(nil)
 	require.NoError(t, err)
+	require.Len(t, proxyTLSConfig.Certificates, 1)
+	require.NotNil(t, proxyTLSConfig.RootCAs)
+
 	// Create kubernetes service server.
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -339,8 +354,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			LockWatcher:       testCtx.lockWatcher,
 			Clock:             clockwork.NewRealClock(),
 			ClusterFeatures:   features,
-			ConnTLSConfig:     proxyTLSConfig.Clone(),
-			PROXYSigner:       &multiplexer.PROXYSigner{},
+			GetConnTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyTLSConfig.Certificates[0], nil
+			},
+			GetConnTLSRoots: func() (*x509.CertPool, error) {
+				return proxyTLSConfig.RootCAs, nil
+			},
+			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
 		AccessPoint:              client,
@@ -424,9 +444,17 @@ type RoleSpec struct {
 	SetupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
-// CreateUserAndRole creates Teleport user and role with specified names
-func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name}, nil)
+// CreateUserWithTraitsAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserWithTraitsAndRole(ctx context.Context, t *testing.T, username string, userTraits map[string][]string, roleSpec RoleSpec) (types.User, types.Role) {
+	user, role, err := auth.CreateUserAndRole(
+		c.TLSServer.Auth(),
+		username,
+		[]string{roleSpec.Name},
+		nil,
+		auth.WithUserMutator(func(user types.User) {
+			user.SetTraits(userTraits)
+		}),
+	)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
@@ -440,6 +468,11 @@ func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, usern
 	upsertedRole, err := c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, upsertedRole
+}
+
+// CreateUserAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
+	return c.CreateUserWithTraitsAndRole(ctx, t, username, nil, roleSpec)
 }
 
 func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
@@ -505,7 +538,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	privPEM, _, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	priv, err := tlsca.ParsePrivateKeyPEM(privPEM)
+	priv, err := keys.ParsePrivateKey(privPEM)
 	require.NoError(t, err)
 
 	id := tlsca.Identity{
@@ -515,6 +548,7 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+		Traits:            user.GetTraits(),
 	}
 	for _, opt := range opts {
 		opt(&id)
@@ -570,16 +604,20 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // and ResumeAuditStream methods to use a events.TeeStreamer to leverage the StreamEmitter
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
-	*auth.Client
-	streamer events.Streamer
+	*authclient.Client
+	streamer             events.Streamer
+	createAuditStreamErr error
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
-func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
+func newAuthClientWithStreamer(testCtx *TestContext, createAuditStreamErr error) *authClientWithStreamer {
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient, createAuditStreamErr: createAuditStreamErr}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {
+	if a.createAuditStreamErr != nil {
+		return nil, trace.Wrap(a.createAuditStreamErr)
+	}
 	return a.streamer.CreateAuditStream(ctx, sID)
 }
 
@@ -588,7 +626,7 @@ func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sess
 }
 
 type fakeClient struct {
-	auth.ClientI
+	authclient.ClientI
 	closeC chan struct{}
 }
 

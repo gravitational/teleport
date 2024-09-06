@@ -20,7 +20,14 @@ import React from 'react';
 
 import { render, fireEvent, screen } from 'design/utils/testing';
 
+import history from 'teleport/services/history';
+
 import FormLogin, { Props } from './FormLogin';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+});
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();
@@ -41,7 +48,7 @@ test('primary username and password with mfa off', () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '');
 });
@@ -64,7 +71,7 @@ test('auth2faType: otp', () => {
   fireEvent.change(screen.getByPlaceholderText(/123 456/i), {
     target: { value: '456' },
   });
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
@@ -91,7 +98,7 @@ test('auth2faType: webauthn', async () => {
     target: { value: '123' },
   });
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
   expect(onLoginWithWebauthn).toHaveBeenCalledWith({
     username: 'username',
     password: '123',
@@ -113,7 +120,7 @@ test('input validation error handling', async () => {
     />
   );
 
-  fireEvent.click(screen.getByText(/sign in/i));
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).not.toHaveBeenCalled();
   expect(onLoginWithSso).not.toHaveBeenCalled();
@@ -181,6 +188,53 @@ test('primary passwordless', () => {
   expect(screen.queryByTestId('passwordless')).toBeVisible();
   expect(screen.queryByTestId('sso-list')).not.toBeInTheDocument();
   expect(screen.queryByTestId('userpassword')).not.toBeInTheDocument();
+});
+
+test('focuses the username input', () => {
+  render(<FormLogin {...props} isPasswordlessEnabled />);
+
+  expect(screen.getByLabelText(/username/i)).toHaveFocus();
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).not.toHaveFocus();
+});
+
+test('focuses the passkey button', () => {
+  render(
+    <FormLogin
+      {...props}
+      isPasswordlessEnabled
+      primaryAuthType="passwordless"
+      authProviders={[
+        { name: 'github', type: 'github', url: '' },
+        { name: 'google', type: 'saml', url: '' },
+      ]}
+    />
+  );
+
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'github' })).not.toHaveFocus();
+});
+
+test('focuses the first SSO button', () => {
+  render(
+    <FormLogin
+      {...props}
+      authProviders={[
+        { name: 'github', type: 'github', url: '' },
+        { name: 'google', type: 'saml', url: '' },
+      ]}
+      isPasswordlessEnabled
+      primaryAuthType="sso"
+    />
+  );
+
+  expect(screen.getByRole('button', { name: 'github' })).toHaveFocus();
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).not.toHaveFocus();
 });
 
 const props: Props = {

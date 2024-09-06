@@ -5,26 +5,17 @@ commands for your authentication provider:
 <Tabs>
 <TabItem label="Local User">
 
-1. Retrieve your local user's configuration resource:
+1. Retrieve your local user's roles as a comma-separated list:
    
    ```code
-   $ tctl get users/$(tsh status -f json | jq -r '.active.username') > out.yaml
+   $ ROLES=$(tsh status -f json | jq -r '.active.roles | join(",")')
    ```
 
-1. Edit `out.yaml`, adding `{{ role }}` to the list of existing roles:
-   
-   ```diff
-     roles:
-      - access
-      - auditor
-      - editor
-   +  - {{ role }} 
-   ```
+1. Edit your local user to add the new role:
 
-1. Apply your changes:
-   
    ```code
-   $ tctl create -f out.yaml
+   $ tctl users update $(tsh status -f json | jq -r '.active.username') \
+     --set-roles "${ROLES?},{{ role }}"
    ```
 
 1. Sign out of the Teleport cluster and sign in again to assume the new role.

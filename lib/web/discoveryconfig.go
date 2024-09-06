@@ -53,6 +53,7 @@ func (h *Handler) discoveryconfigCreate(w http.ResponseWriter, r *http.Request, 
 			Azure:          req.Azure,
 			GCP:            req.GCP,
 			Kube:           req.Kube,
+			AccessGraph:    req.AccessGraph,
 		},
 	)
 	if err != nil {
@@ -106,8 +107,10 @@ func (h *Handler) discoveryconfigUpdate(w http.ResponseWriter, r *http.Request, 
 	dc.Spec.Azure = req.Azure
 	dc.Spec.GCP = req.GCP
 	dc.Spec.Kube = req.Kube
+	dc.Spec.AccessGraph = req.AccessGraph
 
-	if _, err := clt.DiscoveryConfigClient().UpdateDiscoveryConfig(r.Context(), dc); err != nil {
+	dc, err = clt.DiscoveryConfigClient().UpdateDiscoveryConfig(r.Context(), dc)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -161,7 +164,7 @@ func (h *Handler) discoveryconfigList(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	values := r.URL.Query()
-	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	limit, err := QueryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1,0 +1,5 @@
+proxy_templates:
+  - template: "^(.*).CLUSTERNAME:[0-9]+$" # <nodename>.<clustername>:<port>
+    query: 'contains(split(labels.NODENAME, ","), "$1")'
+    # query: 'labels.NODENAME == "$1"'
+    # search: "$1"

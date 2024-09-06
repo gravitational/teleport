@@ -30,11 +30,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/lib/sshutils/networking"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
-
-// TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
-type TCPIPForwardDialer func(string) (net.Conn, error)
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
@@ -59,9 +57,9 @@ type ConnectionContext struct {
 	// when handling node-side connections for users with MaxSessions applied.
 	sessions int64
 
-	// tcpipForwardDialer is a lazily initialized dialer used to handle all tcpip
-	// forwarding requests.
-	tcpipForwardDialer TCPIPForwardDialer
+	// networkingProcess is a lazily initialized connection to the subprocess that
+	// handles connection-level networking requests. e.g. port/agent forwarding.
+	networkingProcess *networking.Process
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -76,6 +74,9 @@ type ConnectionContext struct {
 
 	// clientLastActive records the last time there was activity from the client.
 	clientLastActive time.Time
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 
 	clock clockwork.Clock
 }
@@ -232,25 +233,6 @@ func (c *ConnectionContext) UpdateClientActivity() {
 	c.clientLastActive = c.clock.Now().UTC()
 }
 
-// TrySetDirectTCPIPForwardDialer attempts to registers a DirectTCPIPForwardDialer. If a different dialer was
-// concurrently registered, ok is false and the previously registered dialer is returned.
-func (c *ConnectionContext) TrySetDirectTCPIPForwardDialer(d TCPIPForwardDialer) (registered TCPIPForwardDialer, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.tcpipForwardDialer != nil {
-		return c.tcpipForwardDialer, false
-	}
-	c.tcpipForwardDialer = d
-	return c.tcpipForwardDialer, true
-}
-
-// GetDirectTCPIPForwardDialer gets the registered DirectTCPIPForwardDialer if one exists.
-func (c *ConnectionContext) GetDirectTCPIPForwardDialer() (d TCPIPForwardDialer, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.tcpipForwardDialer, c.tcpipForwardDialer != nil
-}
-
 // AddCloser adds any closer in ctx that will be called
 // when the underlying connection is closed.
 func (c *ConnectionContext) AddCloser(closer io.Closer) {
@@ -263,6 +245,26 @@ func (c *ConnectionContext) AddCloser(closer io.Closer) {
 		return
 	}
 	c.closers = append(c.closers, closer)
+}
+
+// SetNetworkingProcess attempts to registers a networking process. If a
+// different process was concurrently registered, ok is false and the previously
+// registered process is returned.
+func (c *ConnectionContext) SetNetworkingProcess(proc *networking.Process) (*networking.Process, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.networkingProcess != nil {
+		return c.networkingProcess, false
+	}
+	c.networkingProcess = proc
+	return proc, true
+}
+
+// GetNetworkingProcess gets the registered networking process if one exists.
+func (c *ConnectionContext) GetNetworkingProcess() (*networking.Process, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.networkingProcess, c.networkingProcess != nil
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null

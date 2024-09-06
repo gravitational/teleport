@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -47,7 +46,7 @@ func (f *azureSQLServerFetcher) GetServerLocation(server *armsql.Server) string 
 }
 
 func (f *azureSQLServerFetcher) NewDatabaseFromServer(server *armsql.Server, log logrus.FieldLogger) types.Database {
-	database, err := services.NewDatabaseFromAzureSQLServer(server)
+	database, err := common.NewDatabaseFromAzureSQLServer(server)
 	if err != nil {
 		log.Warnf("Could not convert Azure SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil

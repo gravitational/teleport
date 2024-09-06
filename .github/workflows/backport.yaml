@@ -40,7 +40,7 @@ jobs:
       - name: Installing Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: .github/shared-workflows/bot/go.mod
+          go-version: 'stable'
         # Run "check" subcommand on bot.
       - name: Backport PR
         run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"

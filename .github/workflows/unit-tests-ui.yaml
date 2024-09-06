@@ -7,18 +7,34 @@ on:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
   merge_group:
     paths:
       - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
+      - 'jest.config.js'
 
 jobs:
   test:
     name: Test UI
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       # See https://github.com/gravitational/teleport/blob/2aaa3ec9a129213db8a18083d5b4681f86328d34/web/packages/teleterm/src/agentCleanupDaemon/agentCleanupDaemon.test.ts#L82-L89
       # for the original impetus for adding --init.
       options: --init
@@ -30,11 +46,11 @@ jobs:
         run: |
           node --version
 
-      - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM
-        run: yarn build-wasm
+        run: pnpm build-wasm
 
       - name: Run tests
-        run: yarn test
+        run: pnpm test

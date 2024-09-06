@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -320,7 +321,9 @@ func TestKubeSelection(t *testing.T) {
 		&modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				Kubernetes: true,
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.K8s: {Enabled: true},
+				},
 			},
 		},
 	)
@@ -365,6 +368,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
+			// Do not use a fake clock to better imitate real-world behavior.
 		}),
 	)
 	kubeBarEKS := "bar-eks-us-west-1-123456789012"
@@ -556,7 +560,7 @@ func TestKubeSelection(t *testing.T) {
 					cmdRunner = func(cmd *exec.Cmd) error {
 						config := kubeConfigFromCmdEnv(t, cmd)
 						for _, kube := range test.wantProxied {
-							checkKubeLocalProxyConfig(t, s, config, rootClusterName, kube)
+							checkKubeLocalProxyConfig(t, config, rootClusterName, kube)
 						}
 						return nil
 					}

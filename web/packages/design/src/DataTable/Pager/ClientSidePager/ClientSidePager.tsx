@@ -18,22 +18,27 @@
 
 import React from 'react';
 
-import { Flex, Text } from 'design';
+import { Flex } from 'design';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
+import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
 
 import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
 
-import { useClientSidePager, Props } from './useClientSidePager';
+import { Props, useClientSidePager } from './useClientSidePager';
 
 export function ClientSidePager(props: Props) {
   const { nextPage, prevPage, onFetchMore, fetchStatus } = props;
   const { from, to, count, isNextDisabled, isPrevDisabled } =
     useClientSidePager(props);
 
+  if (count == 0) {
+    return;
+  }
+
   const isFetchingEnabled = onFetchMore && fetchStatus !== 'disabled';
   return (
-    <Flex justifyContent="flex-end" width="100%">
-      <Flex alignItems="center" mr={2}>
+    <Flex justifyContent="flex-end" width="100%" alignItems="center" mb={1}>
+      <Flex mr={2}>
         <PageIndicatorText from={from + 1} to={to + 1} count={count} />
         {isFetchingEnabled && (
           <StyledFetchMoreBtn
@@ -63,27 +68,5 @@ export function ClientSidePager(props: Props) {
         </StyledArrowBtn>
       </Flex>
     </Flex>
-  );
-}
-
-export function PageIndicatorText({
-  from,
-  to,
-  count,
-}: {
-  from: number;
-  to: number;
-  count: number;
-}) {
-  return (
-    <Text
-      typography="body2"
-      color="text.main"
-      mr={1}
-      style={{ whiteSpace: 'nowrap', textTransform: 'uppercase' }}
-    >
-      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
-      <strong>{count}</strong>
-    </Text>
   );
 }

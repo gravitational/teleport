@@ -18,8 +18,10 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Indicator, Flex } from 'design';
+import { Box, Indicator, Flex } from 'design';
 import * as Icons from 'design/Icon';
+
+import { P } from 'design/Text/Text';
 
 import {
   Header,
@@ -46,6 +48,9 @@ export type Props = {
   onPrev(): void;
   children: React.ReactNode;
   infoContent?: React.ReactNode;
+  wantAutoDiscover?: boolean;
+  /** A component below the header and above the main content. */
+  preContent?: React.ReactNode;
 };
 
 export function SetupAccessWrapper({
@@ -61,17 +66,20 @@ export function SetupAccessWrapper({
   onPrev,
   children,
   infoContent,
+  preContent,
+  wantAutoDiscover = false,
 }: Props) {
   const canAddTraits = !isSsoUser && canEditUser;
 
   let $content;
   switch (attempt.status) {
     case 'failed':
+      // TODO(bl-nero): Migrate this to an alert with embedded retry button.
       $content = (
         <>
           <Flex my={3}>
             <Icons.Warning ml={1} mr={2} color="error.main" size="medium" />
-            <Text>Encountered Error: {attempt.statusText}</Text>
+            <P>Encountered Error: {attempt.statusText}</P>
           </Flex>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
             Retry
@@ -130,19 +138,29 @@ export function SetupAccessWrapper({
       break;
   }
 
+  const ssoUserWithAutoDiscover = wantAutoDiscover && isSsoUser;
   return (
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
+      {preContent}
       <Box mb={3}>{$content}</Box>
       {infoContent}
       <ActionButtons
         onProceed={onProceed}
         onPrev={onPrev}
+        lastStep={wantAutoDiscover}
         disableProceed={
           attempt.status === 'failed' ||
           attempt.status === 'processing' ||
-          !hasTraits
+          // Only block on no traits, if the user is not a SSO user
+          // and did not enable auto discover.
+          // SSO user's cannot currently add traits and the SSO user
+          // may already have set upped traits in their roles, but we
+          // currently don't have a way to retrieve all the traits from
+          // users roles - in which the user can end up blocked on this step
+          // with "no traits".
+          (!ssoUserWithAutoDiscover && !hasTraits)
         }
       />
     </Box>

@@ -21,27 +21,31 @@ import { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 
+import { HoverTooltip } from 'shared/components/ToolTip';
+
 import ActionMenu from './ActionMenu';
-import { WarningDropdown } from './WarningDropdown';
+import { AlertDropdown } from './AlertDropdown';
 
 import type { NotificationItem } from 'shared/components/Notification';
 
 export default function TopBar(props: Props) {
   const {
     userHost,
-    clipboardSharingEnabled,
+    isSharingClipboard,
+    clipboardSharingMessage,
     onDisconnect,
     canShareDirectory,
     isSharingDirectory,
     onShareDirectory,
-    warnings,
-    onRemoveWarning,
+    onCtrlAltDel,
+    alerts,
+    onRemoveAlert,
   } = props;
   const theme = useTheme();
 
   const primaryOnTrue = (b: boolean): any => {
     return {
-      color: b ? theme.colors.text.main : theme.colors.text.slightlyMuted,
+      color: b ? theme.colors.text.main : theme.colors.text.disabled,
     };
   };
 
@@ -59,36 +63,40 @@ export default function TopBar(props: Props) {
 
       <Flex px={3}>
         <Flex alignItems="center">
-          <FolderShared
-            style={primaryOnTrue(isSharingDirectory)}
-            pr={3}
-            title={directorySharingTitle(canShareDirectory, isSharingDirectory)}
-          />
-          <Clipboard
-            style={primaryOnTrue(clipboardSharingEnabled)}
-            pr={3}
-            title={
-              clipboardSharingEnabled
-                ? 'Clipboard Sharing Enabled'
-                : 'Clipboard Sharing Disabled'
-            }
-          />
-          <WarningDropdown
-            warnings={warnings}
-            onRemoveWarning={onRemoveWarning}
-          />
+          <HoverTooltip
+            tipContent={directorySharingToolTip(
+              canShareDirectory,
+              isSharingDirectory
+            )}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <FolderShared style={primaryOnTrue(isSharingDirectory)} pr={3} />
+          </HoverTooltip>
+          <HoverTooltip
+            tipContent={clipboardSharingMessage}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
+          </HoverTooltip>
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}
           showShareDirectory={canShareDirectory && !isSharingDirectory}
           onShareDirectory={onShareDirectory}
+          onCtrlAltDel={onCtrlAltDel}
         />
       </Flex>
     </TopNav>
   );
 }
 
-function directorySharingTitle(canShare: boolean, isSharing: boolean): string {
+function directorySharingToolTip(
+  canShare: boolean,
+  isSharing: boolean
+): string {
   if (!canShare) {
     return 'Directory Sharing Disabled';
   }
@@ -102,11 +110,13 @@ export const TopBarHeight = 40;
 
 type Props = {
   userHost: string;
-  clipboardSharingEnabled: boolean;
+  isSharingClipboard: boolean;
+  clipboardSharingMessage: string;
   canShareDirectory: boolean;
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
-  warnings: NotificationItem[];
-  onRemoveWarning(id: string): void;
+  onCtrlAltDel: VoidFunction;
+  alerts: NotificationItem[];
+  onRemoveAlert(id: string): void;
 };

@@ -1,9 +1,11 @@
 # Ignore directories:
 */packages/design/src/assets/**
-*/packages/**/dist/**
+*/packages/teleterm/build/**
 
 # Ignore protobuf files:
 **/*_pb.*
 
 # Ignore WASM generated files:
 web/packages/teleport/src/ironrdp/pkg
+# Ignore generated mockServiceWorker file
+web/.storybook/public/mockServiceWorker.js

@@ -46,13 +46,20 @@ type AlertBody struct {
 	Priority string `json:"priority,omitempty"`
 }
 
-// Responder represents an Opsgenie responder
+// Responder represents an Opsgenie responder.
+// A responder is an entity that receives an alert.
+// It can be a user, a team, or a schedule.
+// The OpsGenie access plugin interacts with 2 types of responders:
+// - it sends notifications to schedule responders
+// - for auto-approval it looks up who the responders are for a given
+// schedule and approves the request if a responder name matches the
+// requester name.
 type Responder struct {
 	// Name is the name of the responder.
 	Name string `json:"name,omitempty"`
 	// Username is the opsgenie username of the responder.
 	Username string `json:"username,omitempty"`
-	// Type is the type of responder team/user
+	// Type is the type of responder team/user/schedule.
 	Type string `json:"type,omitempty"`
 	// ID is the ID of the responder.
 	ID string `json:"id,omitempty"`
@@ -69,7 +76,7 @@ type RespondersResult struct {
 // AlertResult is a wrapper around Alert
 type AlertResult struct {
 	// Alert contains the actual alert data.
-	Alert Alert `json:"alert"`
+	Alert Alert `json:"data"`
 }
 
 // AlertNote represents an Opsgenie alert note
@@ -80,4 +87,18 @@ type AlertNote struct {
 	Source string `json:"source"`
 	// Note is the alert note.
 	Note string `json:"note"`
+}
+
+// CreateAlertResult represents the resulting request information from an Opsgenie create alert request.
+type CreateAlertResult struct {
+	Result    string  `json:"result"`
+	Took      float64 `json:"took"`
+	RequestID string  `json:"requestId"`
+}
+
+// GetAlertRequestResult represents the response of a completed Opsgenie create alert request.
+type GetAlertRequestResult struct {
+	Data struct {
+		AlertID string `json:"alertId"`
+	} `json:"data"`
 }

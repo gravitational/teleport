@@ -37,7 +37,9 @@ export function useIntegrationOperation() {
 
   function edit(req: EditableIntegrationFields) {
     return integrationService.updateIntegration(operation.item.name, {
-      awsoidc: { roleArn: req.roleArn },
+      awsoidc: {
+        roleArn: req.roleArn,
+      },
     });
   }
 
@@ -59,6 +61,9 @@ export function useIntegrationOperation() {
   };
 }
 
+/**
+ * Currently only integration updateable is aws oidc.
+ */
 export type EditableIntegrationFields = {
   roleArn: string;
 };

@@ -17,10 +17,14 @@ package types_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -96,4 +100,184 @@ func TestResource153ToLegacy(t *testing.T) {
 			t.Errorf("Marshal/Unmarshal mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+func TestResourceMethods(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	expiry := clock.Now().UTC()
+
+	// user is an example of a legacy resource.
+	// Any other resource type would to.
+	user := &types.UserV2{
+		Kind: "user",
+		Metadata: types.Metadata{
+			Name:     "llama",
+			Expires:  &expiry,
+			Revision: "alpaca",
+			Labels: map[string]string{
+				types.OriginLabel: "earth",
+			},
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{"human", "camelidae"},
+		},
+	}
+
+	// bot is an example of an RFD 153 "compliant" resource.
+	// Any other resource type would do.
+	bot := &machineidv1.Bot{
+		Kind:    "bot",
+		SubKind: "robot",
+		Metadata: &headerv1.Metadata{
+			Name:     "Bernard",
+			Expires:  timestamppb.New(expiry),
+			Revision: "tinman",
+			Labels: map[string]string{
+				types.OriginLabel: "mars",
+			},
+		},
+		Spec: &machineidv1.BotSpec{
+			Roles: []string{"robot", "human"},
+		},
+	}
+
+	t.Run("GetExpiry", func(t *testing.T) {
+		_, err := types.GetExpiry("invalid type")
+		require.Error(t, err)
+
+		objExpiry, err := types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
+
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, expiry, objExpiry)
+
+		// check the nil expiry special case.
+		user.Metadata.Expires = nil
+		objExpiry, err = types.GetExpiry(user)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
+
+		bot.Metadata.Expires = nil
+		objExpiry, err = types.GetExpiry(bot)
+		require.NoError(t, err)
+		require.Equal(t, time.Time{}, objExpiry)
+	})
+
+	t.Run("GetRevision", func(t *testing.T) {
+		_, err := types.GetRevision("invalid type")
+		require.Error(t, err)
+
+		revision, err := types.GetRevision(user)
+		require.Equal(t, user.GetRevision(), revision)
+		require.NoError(t, err)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, bot.GetMetadata().Revision, revision)
+	})
+
+	t.Run("SetRevision", func(t *testing.T) {
+		rev := uuid.NewString()
+		require.NoError(t, types.SetRevision(bot, rev))
+		require.NoError(t, types.SetRevision(user, rev))
+		require.Error(t, types.SetRevision("invalid type", "dummy"))
+
+		revision, err := types.GetRevision(user)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
+
+		revision, err = types.GetRevision(bot)
+		require.NoError(t, err)
+		require.Equal(t, rev, revision)
+	})
+
+	t.Run("GetKind", func(t *testing.T) {
+		_, err := types.GetKind("invalid type")
+		require.Error(t, err)
+
+		kind, err := types.GetKind(user)
+		require.NoError(t, err)
+		require.Equal(t, types.KindUser, kind)
+
+		kind, err = types.GetKind(bot)
+		require.NoError(t, err)
+		require.Equal(t, types.KindBot, kind)
+	})
+
+	t.Run("GetOrigin", func(t *testing.T) {
+		_, err := types.GetOrigin("invalid type")
+		require.Error(t, err)
+
+		origin, err := types.GetOrigin(user)
+		require.NoError(t, err)
+		require.Equal(t, user.Origin(), origin)
+
+		origin, err = types.GetOrigin(bot)
+		require.NoError(t, err)
+		require.Equal(t, "mars", origin)
+	})
+}
+
+// Tests that expiry is consistent across the different types and transformations.
+func TestExpiryConsistency(t *testing.T) {
+	tests := []struct {
+		name            string
+		expiryTimestamp *timestamppb.Timestamp
+		expectedExpiry  time.Time
+	}{
+		{
+			name:            "nil expiry",
+			expiryTimestamp: nil,
+			expectedExpiry:  time.Time{},
+		},
+		{
+			name:            "zero expiry",
+			expiryTimestamp: timestamppb.New(time.Time{}),
+			expectedExpiry:  time.Time{},
+		},
+		{
+			name:            "set expiry",
+			expiryTimestamp: timestamppb.New(time.Date(2024, 11, 11, 11, 11, 11, 00, time.UTC)),
+			expectedExpiry:  time.Date(2024, 11, 11, 11, 11, 11, 00, time.UTC),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bot := &machineidv1.Bot{
+				Kind:     "bot",
+				SubKind:  "robot",
+				Metadata: &headerv1.Metadata{Name: "Bernard", Expires: tt.expiryTimestamp},
+				Spec: &machineidv1.BotSpec{
+					Roles: []string{"robot", "human"},
+				},
+			}
+
+			legacyResource := types.Resource153ToLegacy(bot)
+
+			// verify expiry time in different ways
+			t.Run("GetExpiry() resource", func(t *testing.T) {
+				expiry, err := types.GetExpiry(bot)
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedExpiry, expiry)
+			})
+
+			t.Run("GetExpiry() wrapper", func(t *testing.T) {
+				expiry, err := types.GetExpiry(legacyResource)
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedExpiry, expiry)
+			})
+
+			t.Run("wrapper .Expiry()", func(t *testing.T) {
+				require.Equal(t, tt.expectedExpiry, legacyResource.Expiry())
+			})
+
+			t.Run("wrapper metadata .Expiry()", func(t *testing.T) {
+				md := legacyResource.GetMetadata()
+				require.Equal(t, tt.expectedExpiry, md.Expiry())
+			})
+		})
+	}
 }

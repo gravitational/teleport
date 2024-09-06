@@ -19,21 +19,22 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
+	"slices"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
-func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onProxyCommand(
+	ctx context.Context, botConfig *config.BotConfig, cf *config.CLIConf,
+) error {
 	wrapper, err := tshwrap.New()
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := tshwrap.CheckTSHSupported(wrapper); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -48,19 +49,34 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	}
 
 	identityPath := filepath.Join(destination.Path, config.IdentityFilePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	// TODO(timothyb89):  We could consider supporting a --cluster passthrough
 	//  here as in `tbot db ...`.
-	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.Proxy}
+	args := []string{"-i", identityPath, "proxy", "--proxy=" + cf.ProxyServer}
 	args = append(args, cf.RemainingArgs...)
 
 	// Pass through the debug flag, and prepend to satisfy argument ordering
 	// needs (`-d` must precede `proxy`).
 	if botConfig.Debug {
 		args = append([]string{"-d"}, args...)
+	}
+
+	// Handle a special case for `tbot proxy kube` where additional env vars
+	// need to be injected.
+	if slices.Contains(cf.RemainingArgs, "kube") {
+		// `tsh kube proxy` uses teleport.EnvKubeConfig to determine the
+		// original kube config file.
+		env[teleport.EnvKubeConfig] = filepath.Join(
+			destination.Path, "kubeconfig.yaml",
+		)
+		// `tsh kube proxy` uses TELEPORT_KUBECONFIG to determine where to write
+		// the modified kube config file intended for proxying.
+		env["TELEPORT_KUBECONFIG"] = filepath.Join(
+			destination.Path, "kubeconfig-proxied.yaml",
+		)
+	}
+	if slices.Contains(cf.RemainingArgs, "ssh") {
+		log.WarnContext(ctx, "`tbot proxy ssh` is deprecated and will stop working in v17. See https://goteleport.com/docs/machine-id/reference/v16-upgrade-guide/")
 	}
 
 	return trace.Wrap(wrapper.Exec(env, args...), "executing `tsh proxy`")

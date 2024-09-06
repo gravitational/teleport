@@ -20,6 +20,9 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import makeNode from '../nodes/makeNode';
+import auth from '../auth/auth';
+import { App } from '../apps';
+import makeApp from '../apps/makeApps';
 
 import {
   Integration,
@@ -32,7 +35,6 @@ import {
   ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   AwsOidcDeployServiceRequest,
-  AwsOidcDeployServiceResponse,
   ListEc2InstancesRequest,
   ListEc2InstancesResponse,
   Ec2InstanceConnectEndpoint,
@@ -43,6 +45,17 @@ import {
   DeployEc2InstanceConnectEndpointRequest,
   DeployEc2InstanceConnectEndpointResponse,
   SecurityGroup,
+  ListEksClustersResponse,
+  EnrollEksClustersResponse,
+  EnrollEksClustersRequest,
+  ListEksClustersRequest,
+  AwsOidcDeployDatabaseServicesRequest,
+  Regions,
+  ListAwsRdsFromAllEnginesResponse,
+  ListAwsSubnetsRequest,
+  ListAwsSubnetsResponse,
+  Subnet,
+  AwsDatabaseVpcsResponse,
 } from './types';
 
 export const integrationService = {
@@ -79,12 +92,123 @@ export const integrationService = {
     return api.get(cfg.api.thumbprintPath);
   },
 
+  fetchAwsRdsRequiredVpcs(
+    integrationName: string,
+    body: { region: string; accountId: string }
+  ): Promise<Record<string, string[]>> {
+    return api
+      .post(cfg.getAwsRdsDbRequiredVpcsUrl(integrationName), body)
+      .then(resp => resp.vpcMapOfSubnets);
+  },
+
+  fetchAwsDatabasesVpcs(
+    integrationName: string,
+    clusterId: string,
+    body: { region: string; accountId: string; nextToken: string }
+  ): Promise<AwsDatabaseVpcsResponse> {
+    return api
+      .post(cfg.getAwsDatabaseVpcsUrl(integrationName, clusterId), body)
+      .then(resp => {
+        const vpcs = resp.vpcs || [];
+        return { vpcs, nextToken: resp.nextToken };
+      });
+  },
+
+  /**
+   * Grabs a page for rds instances and rds clusters.
+   * Used with auto discovery to display "all" the
+   * rds's in a region by page.
+   */
+  fetchAllAwsRdsEnginesDatabases(
+    integrationName: string,
+    req: {
+      region: Regions;
+      instancesNextToken?: string;
+      clustersNextToken?: string;
+      vpcId?: string;
+    }
+  ): Promise<ListAwsRdsFromAllEnginesResponse> {
+    const makeResponse = response => {
+      const dbs = response?.databases ?? [];
+      const madeResponse: ListAwsRdsDatabaseResponse = {
+        databases: dbs.map(makeAwsDatabase),
+        nextToken: response?.nextToken,
+      };
+      return madeResponse;
+    };
+
+    return Promise.allSettled([
+      api
+        .post(cfg.getAwsRdsDbListUrl(integrationName), {
+          region: req.region,
+          vpcId: req.vpcId,
+          nextToken: req.instancesNextToken,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb', 'postgres'],
+        })
+        .then(makeResponse),
+      api
+        .post(cfg.getAwsRdsDbListUrl(integrationName), {
+          region: req.region,
+          vpcId: req.vpcId,
+          nextToken: req.clustersNextToken,
+          rdsType: 'cluster',
+          engines: ['aurora-mysql', 'aurora-postgresql'],
+        })
+        .then(makeResponse),
+    ]).then(response => {
+      const [instances, clusters] = response;
+
+      if (instances.status === 'rejected' && clusters.status === 'rejected') {
+        // Just return one error message, likely the other will be the same error.
+        throw new Error(instances.reason);
+      }
+
+      let madeResponse: ListAwsRdsFromAllEnginesResponse = {
+        databases: [],
+      };
+
+      if (instances.status === 'fulfilled') {
+        madeResponse = {
+          databases: instances.value.databases,
+          instancesNextToken: instances.value.nextToken,
+        };
+      } else {
+        madeResponse = {
+          ...madeResponse,
+          oneOfError: `Failed to fetch RDS instances: ${instances.reason}`,
+        };
+      }
+
+      if (clusters.status === 'fulfilled') {
+        madeResponse = {
+          ...madeResponse,
+          databases: [...madeResponse.databases, ...clusters.value.databases],
+          clustersNextToken: clusters.value.nextToken,
+        };
+      } else {
+        madeResponse = {
+          ...madeResponse,
+          oneOfError: `Failed to fetch RDS clusters: ${clusters.reason}`,
+        };
+      }
+
+      // Sort databases by their names
+      madeResponse.databases = madeResponse.databases.sort((a, b) =>
+        a.name.localeCompare(b.name)
+      );
+
+      return madeResponse;
+    });
+  },
+
   fetchAwsRdsDatabases(
-    integrationName,
+    integrationName: string,
     rdsEngineIdentifier: RdsEngineIdentifier,
     req: {
-      region: AwsOidcListDatabasesRequest['region'];
-      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+      region: Regions;
+      nextToken?: string;
+      vpcId?: string;
     }
   ): Promise<ListAwsRdsDatabaseResponse> {
     let body: AwsOidcListDatabasesRequest;
@@ -130,11 +254,71 @@ export const integrationService = {
       });
   },
 
-  deployAwsOidcService(
+  async deployAwsOidcService(
     integrationName,
     req: AwsOidcDeployServiceRequest
-  ): Promise<AwsOidcDeployServiceResponse> {
-    return api.post(cfg.getAwsDeployTeleportServiceUrl(integrationName), req);
+  ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api
+      .post(
+        cfg.getAwsDeployTeleportServiceUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
+      .then(resp => resp.serviceDashboardUrl);
+  },
+
+  async createAwsAppAccess(integrationName): Promise<App> {
+    return api
+      .post(cfg.getAwsAppAccessUrl(integrationName), null)
+      .then(makeApp);
+  },
+
+  async deployDatabaseServices(
+    integrationName,
+    req: AwsOidcDeployDatabaseServicesRequest
+  ): Promise<string> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api
+      .post(
+        cfg.getAwsRdsDbsDeployServicesUrl(integrationName),
+        req,
+        null,
+        webauthnResponse
+      )
+      .then(resp => resp.clusterDashboardUrl);
+  },
+
+  async enrollEksClusters(
+    integrationName: string,
+    req: EnrollEksClustersRequest
+  ): Promise<EnrollEksClustersResponse> {
+    const webauthnResponse = await auth.getWebauthnResponseForAdminAction(true);
+
+    return api.post(
+      cfg.getEnrollEksClusterUrl(integrationName),
+      req,
+      null,
+      webauthnResponse
+    );
+  },
+
+  fetchEksClusters(
+    integrationName: string,
+    req: ListEksClustersRequest
+  ): Promise<ListEksClustersResponse> {
+    return api
+      .post(cfg.getListEKSClustersUrl(integrationName), req)
+      .then(json => {
+        const eksClusters = json?.clusters ?? [];
+        return {
+          clusters: eksClusters,
+          nextToken: json?.nextToken,
+        };
+      });
   },
 
   // Returns a list of EC2 Instances using the ListEC2ICE action of the AWS OIDC Integration.
@@ -166,18 +350,21 @@ export const integrationService = {
         return {
           endpoints: endpoints.map(makeEc2InstanceConnectEndpoint),
           nextToken: json?.nextToken,
+          dashboardLink: json?.dashboardLink,
         };
       });
   },
 
   // Deploys an EC2 Instance Connect Endpoint.
-  deployAwsEc2InstanceConnectEndpoint(
+  deployAwsEc2InstanceConnectEndpoints(
     integrationName,
     req: DeployEc2InstanceConnectEndpointRequest
   ): Promise<DeployEc2InstanceConnectEndpointResponse> {
     return api
       .post(cfg.getDeployEc2InstanceConnectEndpointUrl(integrationName), req)
-      .then(json => ({ name: json?.name }));
+      .then(resp => {
+        return resp ?? [];
+      });
   },
 
   // Returns a list of VPC Security Groups using the ListSecurityGroups action of the AWS OIDC Integration.
@@ -192,6 +379,23 @@ export const integrationService = {
 
         return {
           securityGroups: securityGroups.map(makeSecurityGroup),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
+
+  fetchAwsSubnets(
+    integrationName: string,
+    clusterId: string,
+    req: ListAwsSubnetsRequest
+  ): Promise<ListAwsSubnetsResponse> {
+    return api
+      .post(cfg.getAwsSubnetListUrl(integrationName, clusterId), req)
+      .then(json => {
+        const subnets = json?.subnets ?? [];
+
+        return {
+          subnets: subnets.map(makeAwsSubnets),
           nextToken: json?.nextToken,
         };
       });
@@ -212,6 +416,8 @@ function makeIntegration(json: any): Integration {
     kind: subKind,
     spec: {
       roleArn: awsoidc?.roleArn,
+      issuerS3Bucket: awsoidc?.issuerS3Bucket,
+      issuerS3Prefix: awsoidc?.issuerS3Prefix,
     },
     // The integration resource does not have a "status" field, but is
     // a required field for the table that lists both plugin and
@@ -242,7 +448,7 @@ export function makeAwsDatabase(json: any): AwsRdsDatabase {
 
 function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
   json = json ?? {};
-  const { name, state, stateMessage, dashboardLink, subnetId } = json;
+  const { name, state, stateMessage, dashboardLink, subnetId, vpcId } = json;
 
   return {
     name,
@@ -250,6 +456,7 @@ function makeEc2InstanceConnectEndpoint(json: any): Ec2InstanceConnectEndpoint {
     stateMessage,
     dashboardLink,
     subnetId,
+    vpcId,
   };
 }
 
@@ -264,5 +471,17 @@ function makeSecurityGroup(json: any): SecurityGroup {
     description,
     inboundRules: inboundRules ?? [],
     outboundRules: outboundRules ?? [],
+  };
+}
+
+function makeAwsSubnets(json: any): Subnet {
+  json = json ?? {};
+
+  const { name, id, availability_zone } = json;
+
+  return {
+    name,
+    id,
+    availabilityZone: availability_zone,
   };
 }

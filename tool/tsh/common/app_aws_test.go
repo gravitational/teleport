@@ -46,7 +46,7 @@ func TestAWS(t *testing.T) {
 	user, awsRole := makeUserWithAWSRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, awsRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
+	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
 		Name: "aws-app",
 		URI:  constants.AWSConsoleURL,
 	})
@@ -59,11 +59,8 @@ func TestAWS(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), CliOption(func(cf *CLIConf) error {
-		cf.MockSSOLogin = mockSSOLogin(t, authServer, user)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
 	require.NoError(t, err)
 
 	// Run "tsh aws". Use a custom "cmdRunner" instead of executing AWS CLI. We
@@ -103,7 +100,7 @@ func TestAWS(t *testing.T) {
 	// Log into the "aws-app" app.
 	err = Run(
 		context.Background(),
-		[]string{"app", "login", "aws-app"},
+		[]string{"app", "login", "--insecure", "--aws-role", "some-aws-role", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
@@ -124,7 +121,7 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
+		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
@@ -190,6 +187,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 			},
 			AWSRoleARNs: []string{
 				"arn:aws:iam::123456789012:role/some-aws-role",
+				"arn:aws:iam::123456789012:role/some-other-aws-role",
 			},
 		},
 	})
@@ -199,7 +197,8 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	return alice, awsRole
 }
 
-func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
+// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
+func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
@@ -223,6 +222,9 @@ func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, prox
 	cfg.Apps.Enabled = true
 	cfg.Apps.Apps = apps
 	cfg.Log = utils.NewLoggerForTests()
+	// Disabling debug service for tests so that it doesn't break if the data
+	// directory path is too long.
+	cfg.DebugService.Enabled = false
 
 	return runTeleport(t, cfg)
 }

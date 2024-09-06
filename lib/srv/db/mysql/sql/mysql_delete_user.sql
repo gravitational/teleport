@@ -16,7 +16,7 @@ BEGIN
         -- Throw a custom error code when user is still active from other sessions.
         SIGNAL SQLSTATE 'TP000' SET MESSAGE_TEXT = 'User has active connections';
     ELSE
-        SET @sql := CONCAT('DROP USER ', QUOTE(username));
+        SET @sql := CONCAT('DROP USER IF EXISTS', QUOTE(username));
         PREPARE stmt FROM @sql;
         EXECUTE stmt;
         DEALLOCATE PREPARE stmt;

@@ -10,13 +10,14 @@ WORKDIR /go/src/github.com/gravitational/teleport/integrations/kube-agent-update
 COPY go.mod go.mod
 COPY go.sum go.sum
 
-# Download and Cache dependencies before building and copying source
-# This will prevent re-downloading the operator's dependencies if they have not changed as this
-# `run` layer will be cached
+# We have to copy the API before `go mod download` because go.mod has a replace directive for it
+COPY api/ api/
+
 RUN go mod download
 
-COPY cmd/ cmd/
-COPY pkg/ pkg/
+# Copy in code
+COPY lib/ lib/
+COPY integrations/kube-agent-updater/ integrations/kube-agent-updater/
 
 ARG TARGETOS
 ARG TARGETARCH

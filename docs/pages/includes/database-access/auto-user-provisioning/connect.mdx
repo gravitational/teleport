@@ -1,3 +1,5 @@
+{{ selectRoles="reader" }}
+
 Now, log into your Teleport cluster and connect to the database:
 
 ```code
@@ -13,4 +15,18 @@ If using a GUI database client like {{gui}}, make sure to use your Teleport
 username as the database username. `tsh db connect` will default to your
 Teleport username automatically when connecting to a database with user
 provisioning enabled.
+
+When connecting to a leaf cluster database with user provisioning enabled, the
+Database Service expects the database username to be
+`remote-<your-teleport-username>-<root-cluster-name>`.
 </Admonition>
+
+
+To view the list of database roles that are allowed for each database, you can
+use the command `tsh db ls -v`. By default, all database roles will be assigned
+to your auto-provisioned database user. You can optionally select a subset of
+the database roles with `--db-roles`:
+
+```code
+$ tsh db connect --db-name <database> --db-roles {{ selectRoles }} example
+```

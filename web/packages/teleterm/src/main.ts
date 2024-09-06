@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, globalShortcut, shell, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, shell, nativeTheme } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 
@@ -38,6 +38,13 @@ import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
+
+if (!app.isPackaged) {
+  // Sets app name and data directories to Electron.
+  // Allows running packaged and non-packaged Connect at the same time.
+  app.setName('Electron');
+}
 
 // Set the app as a default protocol client only if it wasn't started through `electron .`.
 if (!process.defaultApp) {
@@ -53,10 +60,10 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   updateSessionDataPath();
   let devRelaunchScheduled = false;
-  const settings = getRuntimeSettings();
+  const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {
@@ -69,7 +76,7 @@ function initializeApp(): void {
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
-    platform: settings.platform,
+    settings,
   });
 
   nativeTheme.themeSource = configService.get('theme').value;
@@ -90,6 +97,7 @@ function initializeApp(): void {
     windowsManager,
   });
 
+  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
   app.on(
     'certificate-error',
     (event, webContents, url, error, certificate, callback) => {
@@ -142,24 +150,53 @@ function initializeApp(): void {
   // Since setUpDeepLinks adds another listener for second-instance, it's important to call it after
   // the listener which calls windowsManager.focusWindow. This way the focus will be brought to the
   // window before processing the listener for deep links.
-  //
-  // The setup must be done synchronously when starting the app, otherwise the listeners won't get
-  // triggered on macOS if the app is not already running when the user opens a deep link.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  app.whenReady().then(() => {
-    if (mainProcess.settings.dev) {
-      // allow restarts on F6
-      globalShortcut.register('F6', () => {
-        devRelaunchScheduled = true;
-        app.quit();
-      });
-    }
+  const rootClusterProxyHostAllowList = new Set<string>();
 
-    enableWebHandlersProtection();
+  (async () => {
+    const tshdClient = await mainProcess.initTshdClient();
 
-    windowsManager.createWindow();
+    manageRootClusterProxyHostAllowList({
+      tshdClient,
+      logger,
+      allowList: rootClusterProxyHostAllowList,
+    });
+  })().catch(error => {
+    const message =
+      'Could not initialize tsh daemon client in the main process';
+    logger.error(message, error);
+    dialog.showErrorBox(
+      'Error during main process startup',
+      `${message}: ${error}`
+    );
+    app.quit();
   });
+
+  app
+    .whenReady()
+    .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
+      enableWebHandlersProtection();
+
+      windowsManager.createWindow();
+    })
+    .catch(error => {
+      const message = 'Could not initialize the app';
+      logger.error(message, error);
+      dialog.showErrorBox(
+        'Error during app initialization',
+        `${message}: ${error}`
+      );
+      app.quit();
+    });
 
   // Limit navigation capabilities to reduce the attack surface.
   // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.
@@ -168,6 +205,10 @@ function initializeApp(): void {
   // https://github.com/electron/electron/blob/v17.2.0/docs/tutorial/security.md#12-verify-webview-options-before-creation
   app.on('web-contents-created', (_, contents) => {
     contents.on('will-navigate', (event, navigationUrl) => {
+      // Allow reloading the renderer app in dev mode.
+      if (settings.dev && new URL(navigationUrl).host === 'localhost:8080') {
+        return;
+      }
       logger.warn(`Navigation to ${navigationUrl} blocked by 'will-navigate'`);
       event.preventDefault();
     });
@@ -197,6 +238,11 @@ function initializeApp(): void {
         ) {
           return true;
         }
+
+        // Allow opening links to the Web UIs of root clusters currently added in the app.
+        if (rootClusterProxyHostAllowList.has(url.host)) {
+          return true;
+        }
       }
 
       // Open links to documentation and GitHub issues in the external browser.
@@ -206,6 +252,10 @@ function initializeApp(): void {
       } else {
         logger.warn(
           `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+        );
+        dialog.showErrorBox(
+          'Cannot open this link',
+          'The domain does not match any of the allowed domains. Check main.log for more details.'
         );
       }
 
@@ -348,8 +398,8 @@ function launchDeepLink(
         reason = `unknown protocol of the deep link ("${result.protocol}")`;
         break;
       }
-      case 'unsupported-uri': {
-        reason = 'unsupported URI received';
+      case 'unsupported-url': {
+        reason = 'unsupported URL received';
         break;
       }
       case 'malformed-url': {

@@ -16,9 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { Indicator, Flex, Box } from 'design';
+import { Indicator, Box } from 'design';
+import { Danger } from 'design/Alert';
+
+import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
 
 import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
@@ -26,7 +29,6 @@ import Document from 'teleport/Console/Document';
 
 import * as stores from 'teleport/Console/stores/types';
 
-import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
 
 type Props = {
@@ -36,6 +38,7 @@ type Props = {
 
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
+  const [clusterDropdownError, setClusterDropdownError] = useState('');
   const {
     fetchedData,
     fetchNext,
@@ -53,6 +56,7 @@ export default function DocumentNodes(props: Props) {
     getNodeSshLogins,
     onLabelClick,
     pageIndicators,
+    consoleCtx,
   } = useNodes(doc);
 
   function onLoginMenuSelect(
@@ -79,15 +83,14 @@ export default function DocumentNodes(props: Props) {
   return (
     <Document visible={visible}>
       <Container mx="auto" mt="4" px="5">
-        <Flex justifyContent="space-between" mb="4" alignItems="end">
-          <ClusterSelector
-            value={doc.clusterId}
-            width="336px"
-            maxMenuHeight={200}
-            mr="20px"
-            onChange={onChangeCluster}
-          />
-        </Flex>
+        <ClusterDropdown
+          clusterLoader={consoleCtx.clustersService}
+          onChange={onChangeCluster}
+          clusterId={doc.clusterId}
+          onError={setClusterDropdownError}
+          mb={2}
+        />
+        {clusterDropdownError && <Danger>{clusterDropdownError}</Danger>}
         {attempt.status === 'processing' && (
           <Box textAlign="center" m={10}>
             <Indicator />
@@ -125,7 +128,7 @@ const Container = styled(Box)`
   flex: 1;
   max-width: 1024px;
   height: fit-content;
-  ::after {
+  &::after {
     content: ' ';
     padding-bottom: 24px;
   }

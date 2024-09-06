@@ -22,7 +22,7 @@ import { createMemoryHistory } from 'history';
 
 import { ContextProvider, Context } from 'teleport';
 
-import Audit from './Audit';
+import { AuditContainer as Audit } from './Audit';
 import EventList from './EventList';
 import { events, eventsSample } from './fixtures';
 
@@ -34,6 +34,7 @@ export const LoadedSample = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events: eventsSample, startKey: '' });
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
 
   return render(ctx);
 };
@@ -42,6 +43,7 @@ export const LoadedFetchMore = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
     Promise.resolve({ events, startKey: 'any-text' });
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
 
   return render(ctx);
 };
@@ -49,6 +51,8 @@ export const LoadedFetchMore = () => {
 export const Processing = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () => new Promise(() => null);
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
+
   return render(ctx);
 };
 
@@ -56,12 +60,13 @@ export const Failed = () => {
   const ctx = new Context();
   ctx.auditService.fetchEvents = () =>
     Promise.reject(new Error('server error'));
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
+
   return render(ctx);
 };
 
 export const AllPossibleEvents = () => (
   <EventList
-    clusterId="im-a-cluster"
     events={events}
     fetchMore={() => null}
     fetchStatus={''}

@@ -23,8 +23,8 @@ import (
 	"encoding/base64"
 	"errors"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
@@ -34,13 +34,17 @@ type PasswordlessIdentity interface {
 	GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error)
 	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
-	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wanpb.SessionData) error
-	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wanpb.SessionData, error)
+	UpsertGlobalWebauthnSessionData(ctx context.Context, scope, id string, sd *wantypes.SessionData) error
+	GetGlobalWebauthnSessionData(ctx context.Context, scope, id string) (*wantypes.SessionData, error)
 	DeleteGlobalWebauthnSessionData(ctx context.Context, scope, id string) error
 	GetTeleportUserByWebauthnID(ctx context.Context, webID []byte) (string, error)
 }
 
 // PasswordlessFlow provides passwordless authentication.
+//
+// PasswordlessFlow is used mainly for the initial passwordless login.
+// For UV=1 assertions after login, use [LoginFlow.Begin] with the desired
+// [mfav1.ChallengeExtensions.UserVerificationRequirement].
 type PasswordlessFlow struct {
 	Webauthn *types.Webauthn
 	Identity PasswordlessIdentity
@@ -55,19 +59,27 @@ func (f *PasswordlessFlow) Begin(ctx context.Context) (*wantypes.CredentialAsser
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.begin(ctx, "" /* user */, true /* passwordless */)
+	chalExt := &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.begin(ctx, "" /* user */, chalExt)
 }
 
 // Finish is the last step of the passwordless login flow.
 // It works similarly to LoginFlow.Finish, but the user identity is established
 // via the response UserHandle, instead of an explicit Teleport username.
-func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*types.MFADevice, string, error) {
+func (f *PasswordlessFlow) Finish(ctx context.Context, resp *wantypes.CredentialAssertionResponse) (*LoginData, error) {
 	lf := &loginFlow{
 		Webauthn:    f.Webauthn,
 		identity:    passwordlessIdentity{f.Identity},
 		sessionData: (*globalSessionStorage)(f),
 	}
-	return lf.finish(ctx, "" /* user */, resp, true /* passwordless */)
+	requiredExt := &mfav1.ChallengeExtensions{
+		Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
+		AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
+	}
+	return lf.finish(ctx, "" /* user */, resp, requiredExt)
 }
 
 type passwordlessIdentity struct {
@@ -84,12 +96,12 @@ func (p passwordlessIdentity) GetWebauthnLocalAuth(ctx context.Context, user str
 
 type globalSessionStorage PasswordlessFlow
 
-func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wanpb.SessionData) error {
+func (g *globalSessionStorage) Upsert(ctx context.Context, user string, sd *wantypes.SessionData) error {
 	id := base64.RawURLEncoding.EncodeToString(sd.Challenge)
 	return g.Identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id, sd)
 }
 
-func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wanpb.SessionData, error) {
+func (g *globalSessionStorage) Get(ctx context.Context, user string, challenge string) (*wantypes.SessionData, error) {
 	return g.Identity.GetGlobalWebauthnSessionData(ctx, scopeLogin, challenge)
 }
 

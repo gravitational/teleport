@@ -21,6 +21,7 @@ package desktop
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -49,9 +51,9 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.lastDiscoveryResults },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
-		OnUpdate:            s.upsertDesktop,
+		OnUpdate:            s.updateDesktop,
 		OnDelete:            s.deleteDesktop,
-		Log:                 s.cfg.Log,
+		Log:                 logrus.NewEntry(logrus.StandardLogger()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -61,8 +63,8 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		// reconcile once before starting the ticker, so that desktops show up immediately
 		// (we still have a small delay to give the LDAP client time to initialize)
 		time.Sleep(15 * time.Second)
-		if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
-			s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
+		if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+			s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 		}
 
 		// TODO(zmb3): consider making the discovery period configurable
@@ -74,8 +76,8 @@ func (s *WindowsService) startDesktopDiscovery() error {
 			case <-s.closeCtx.Done():
 				return
 			case <-t.Chan():
-				if err := reconciler.Reconcile(s.closeCtx); err != nil && err != context.Canceled {
-					s.cfg.Log.Errorf("desktop reconciliation failed: %v", err)
+				if err := reconciler.Reconcile(s.closeCtx); err != nil && !errors.Is(err, context.Canceled) {
+					s.cfg.Logger.ErrorContext(s.closeCtx, "desktop reconciliation failed", "error", err)
 				}
 			}
 		}
@@ -96,12 +98,12 @@ func (s *WindowsService) ldapSearchFilter() string {
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
 func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	if !s.ldapReady() {
-		s.cfg.Log.Warn("skipping desktop discovery: LDAP not yet initialized")
+		s.cfg.Logger.WarnContext(context.Background(), "skipping desktop discovery: LDAP not yet initialized")
 		return nil
 	}
 
 	filter := s.ldapSearchFilter()
-	s.cfg.Log.Debugf("searching for desktops with LDAP filter %v", filter)
+	s.cfg.Logger.DebugContext(context.Background(), "searching for desktops", "filter", filter)
 
 	var attrs []string
 	attrs = append(attrs, ComputerAttributes...)
@@ -113,23 +115,23 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 		// ready for the next reconcile loop. Return the last known set of desktops
 		// in this case, so that the reconciler doesn't delete the desktops it already
 		// knows about.
-		s.cfg.Log.Info("LDAP connection error when searching for desktops, reinitializing client")
+		s.cfg.Logger.InfoContext(context.Background(), "LDAP connection error when searching for desktops, reinitializing client")
 		if err := s.initializeLDAP(); err != nil {
-			s.cfg.Log.Errorf("failed to reinitialize LDAP client, will retry on next reconcile: %v", err)
+			s.cfg.Logger.ErrorContext(context.Background(), "failed to reinitialize LDAP client, will retry on next reconcile", "error", err)
 		}
 		return s.lastDiscoveryResults
 	} else if err != nil {
-		s.cfg.Log.Warnf("could not discover Windows Desktops: %v", err)
+		s.cfg.Logger.WarnContext(context.Background(), "could not discover Windows Desktops", "error", err)
 		return nil
 	}
 
-	s.cfg.Log.Debugf("discovered %d Windows Desktops", len(entries))
+	s.cfg.Logger.DebugContext(context.Background(), "discovered Windows Desktops", "count", len(entries))
 
 	result := make(map[string]types.WindowsDesktop)
 	for _, entry := range entries {
 		desktop, err := s.ldapEntryToWindowsDesktop(s.closeCtx, entry, s.cfg.HostLabelsFn)
 		if err != nil {
-			s.cfg.Log.Warnf("could not create Windows Desktop from LDAP entry: %v", err)
+			s.cfg.Logger.WarnContext(s.closeCtx, "could not create Windows Desktop from LDAP entry", "error", err)
 			continue
 		}
 		result[desktop.GetName()] = desktop
@@ -139,6 +141,10 @@ func (s *WindowsService) getDesktopsFromLDAP() map[string]types.WindowsDesktop {
 	s.lastDiscoveryResults = result
 
 	return result
+}
+
+func (s *WindowsService) updateDesktop(ctx context.Context, desktop, _ types.WindowsDesktop) error {
+	return s.upsertDesktop(ctx, desktop)
 }
 
 func (s *WindowsService) upsertDesktop(ctx context.Context, d types.WindowsDesktop) error {
@@ -201,8 +207,7 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) ([]
 
 			addrs, err := resolver.LookupNetIP(tctx, "ip4", hostname)
 			if err != nil {
-				s.cfg.Log.Debugf("DNS lookup for %v failed with %s resolver: %v",
-					hostname, resolverName, err)
+				s.cfg.Logger.DebugContext(ctx, "DNS lookup failed", "hostname", hostname, "resolver", resolverName, "error", err)
 			}
 
 			// even though we requested "ip4" it's possible to get IPv4
@@ -250,7 +255,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		for _, a := range entry.Attributes {
 			attrs = append(attrs, fmt.Sprintf("%v=%v", a.Name, a.Values))
 		}
-		s.cfg.Log.Debugf("LDAP entry %v is missing hostname, has attributes %v", entry.DN, strings.Join(attrs, ","))
+		s.cfg.Logger.DebugContext(ctx, "LDAP entry is missing hostname", "dn", entry.DN, "attrs", strings.Join(attrs, ","))
 		return nil, trace.BadParameter("LDAP entry %v missing hostname", entry.DN)
 	}
 	labels := getHostLabels(hostname)
@@ -262,7 +267,7 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *l
 		return nil, trace.WrapWithMessage(err, "couldn't resolve %q", hostname)
 	}
 
-	s.cfg.Log.Debugf("resolved %v => %v", hostname, addrs)
+	s.cfg.Logger.DebugContext(ctx, "resolved desktop host", "hostname", hostname, "addrs", addrs)
 	addr, err := utils.ParseHostPortAddr(addrs[0], defaults.RDPListenPort)
 	if err != nil {
 		return nil, trace.Wrap(err)

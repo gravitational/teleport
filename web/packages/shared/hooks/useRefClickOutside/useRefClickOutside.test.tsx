@@ -36,7 +36,7 @@ test('useRefClickOutside', () => {
   expect(screen.getByText('hello world')).toBeInTheDocument();
 
   // Clicking outside of element, should close it.
-  fireEvent.mouseDown(document);
+  fireEvent.mouseDown(screen.getByText('outside'));
   expect(screen.queryByText('hello world')).not.toBeInTheDocument();
 });
 
@@ -48,6 +48,7 @@ const ExampleUseTestBox = () => {
     <>
       <div onClick={() => setOpen(true)}>click me</div>
       <div ref={ref}>{open && <div>hello world</div>}</div>
+      <div>outside</div>
     </>
   );
 };

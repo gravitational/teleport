@@ -220,8 +220,8 @@ func (c *Config) setDefaults() {
 		logger = log.StandardLogger()
 	}
 	c.Log = logger.WithFields(log.Fields{
-		trace.Component: "SFTP",
-		trace.ComponentFields: log.Fields{
+		teleport.ComponentKey: "SFTP",
+		teleport.ComponentFields: log.Fields{
 			"SrcPaths":      c.srcPaths,
 			"DstPath":       c.dstPath,
 			"Recursive":     c.opts.Recursive,
@@ -239,17 +239,11 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	}
 	defer s.Close()
 
-	// File transfers in a moderated session require these two variables
-	// to check for approval on the ssh server. If they exist in the
-	// context, set them in our env vars
+	// File transfers in a moderated session require this variable
+	// to check for approval on the ssh server
 	if moderatedSessionID, ok := ctx.Value(ModeratedSessionID).(string); ok {
 		s.Setenv(string(ModeratedSessionID), moderatedSessionID)
 	}
-	if fileTransferRequestID, ok := ctx.Value(FileTransferRequestID).(string); ok {
-		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
-	}
-	// set dstPath in env var to check against file transfer request location
-	s.Setenv(FileTransferDstPath, c.dstPath)
 
 	pe, err := s.StderrPipe()
 	if err != nil {

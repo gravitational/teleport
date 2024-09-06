@@ -28,12 +28,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -51,13 +49,17 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// DialTimeout determines how long to wait for dialing to succeed before aborting.
 	DialTimeout time.Duration
+	// DialOpts define options for dialing the client connection.
+	DialOpts []grpc.DialOption
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
+	// ProxyDialer is used to create a client via a Proxy reverse tunnel.
+	ProxyDialer apiclient.ContextDialer
 }
 
 // Connect creates a valid client connection to the auth service.  It may
 // connect directly to the auth server, or tunnel through the proxy.
-func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func Connect(ctx context.Context, cfg *Config) (*Client, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	directClient, err := connectViaAuthDirect(ctx, cfg)
@@ -83,9 +85,9 @@ func Connect(ctx context.Context, cfg *Config) (*auth.Client, error) {
 	)
 }
 
-func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func connectViaAuthDirect(ctx context.Context, cfg *Config) (*Client, error) {
 	// Try connecting to the auth server directly over TLS.
-	directClient, err := auth.NewClient(apiclient.Config{
+	directClient, err := NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
@@ -93,6 +95,7 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.Insecure,
 		DialTimeout:              cfg.DialTimeout,
+		DialOpts:                 cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,42 +111,17 @@ func connectViaAuthDirect(ctx context.Context, cfg *Config) (*auth.Client, error
 	return directClient, nil
 }
 
-func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*auth.Client, error) {
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (*Client, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
-	//
-	// TODO(nic): this logic should be implemented once and reused in IoT
-	// nodes.
-	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: cfg.AuthServers[0].String(),
-		Insecure:  cfg.Insecure,
-		Timeout:   cfg.DialTimeout,
-	})
 
-	resolver, err := reversetunnelclient.CachingResolver(ctx, resolver, nil /* clock */)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
-	// within an SSH tunnel.
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
-		Resolver:              resolver,
-		ClientConfig:          cfg.SSH,
-		Log:                   cfg.Log,
-		InsecureSkipTLSVerify: cfg.Insecure,
-		ClusterCAs:            cfg.TLS.RootCAs,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnelClient, err := auth.NewClient(apiclient.Config{
-		Dialer: dialer,
+	tunnelClient, err := NewClient(apiclient.Config{
+		Dialer: cfg.ProxyDialer,
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
 		},
+		DialOpts: cfg.DialOpts,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -32,7 +32,7 @@ message AccessRequest {
   string request_reason = 4;
   // user is the user who submitted the Access Request
   string user = 5;
-  // a list of roles requested in the AccessRequest
+  // a list of roles requested
   repeated string roles = 6;
   google.protobuf.Timestamp created = 7;
   google.protobuf.Timestamp expires = 8;
@@ -47,6 +47,15 @@ message AccessRequest {
   // promoted_access_list_title is the title of the access
   // list that this access request was promoted to.
   string promoted_access_list_title = 14;
+  // assume_start_time is the time after which the requested access can be assumed.
+  google.protobuf.Timestamp assume_start_time = 15;
+  // max_duration is the maximum duration for which the request is valid.
+  google.protobuf.Timestamp max_duration = 16;
+  // request_ttl is the expiration time of the request (how long it will await
+  // approval).
+  google.protobuf.Timestamp request_ttl = 17;
+  // session_ttl indicates how long a certificate for a session should be valid for.
+  google.protobuf.Timestamp session_ttl = 18;
 }
 
 message AccessRequestReview {
@@ -62,6 +71,9 @@ message AccessRequestReview {
   // promoted_access_list_title is the title of the access
   // list that the access request was promoted to.
   string promoted_access_list_title = 6;
+  // if not a nil value, this reviewer overwrote
+  // the requested start time.
+  google.protobuf.Timestamp assume_start_time = 7;
 }
 
 message ResourceID {

@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -93,8 +93,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (*T
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: defaults.ProtocolClickHouse,
-			"name":          config.Name,
+			teleport.ComponentKey: defaults.ProtocolClickHouse,
+			"name":                config.Name,
 		}),
 	}
 
@@ -250,7 +250,7 @@ func MakeNativeTestClient(ctx context.Context, config common.TestClientConfig) (
 func MakeDBTestClient(ctx context.Context, config common.TestClientConfig) (*sql.DB, error) {
 	conn := clickhouse.OpenDB(&clickhouse.Options{
 		Protocol: toClickhouseProtocol(config.RouteToDatabase.Protocol),
-		Addr:     []string{fmt.Sprintf(config.Address)},
+		Addr:     []string{config.Address},
 	})
 	if err := conn.Ping(); err != nil {
 		conn.Close()

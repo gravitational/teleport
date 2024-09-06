@@ -15,7 +15,7 @@ test: pkg/img/cosign_fixtures_test.go
 .PHONY: docker-build
 docker-build: ## Build docker image
 	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX) \
-		-t ${IMG} --load ./ -f ./Dockerfile
+		-t ${IMG} --load ../.. -f ./Dockerfile
 
 .PHONY: docker-push
 docker-push: ## Push docker image

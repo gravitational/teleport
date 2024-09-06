@@ -21,10 +21,12 @@ package regular
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
@@ -33,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,18 +45,20 @@ import (
 const copyingGoroutines = 2
 
 type sftpSubsys struct {
-	sftpCmd   *exec.Cmd
-	serverCtx *srv.ServerContext
-	errCh     chan error
-	log       *logrus.Entry
+	log *logrus.Entry
+
+	fileTransferReq *srv.FileTransferRequest
+	sftpCmd         *exec.Cmd
+	serverCtx       *srv.ServerContext
+	errCh           chan error
 }
 
-func newSFTPSubsys() (*sftpSubsys, error) {
-	// TODO: add prometheus collectors?
+func newSFTPSubsys(fileTransferReq *srv.FileTransferRequest) (*sftpSubsys, error) {
 	return &sftpSubsys{
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentSubsystemSFTP,
+			teleport.ComponentKey: teleport.ComponentSubsystemSFTP,
 		}),
+		fileTransferReq: fileTransferReq,
 	}, nil
 }
 
@@ -66,6 +71,16 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.
 	if !serverCtx.AllowFileCopying {
+		serverCtx.GetServer().EmitAuditEvent(context.WithoutCancel(ctx), &apievents.SFTP{
+			Metadata: apievents.Metadata{
+				Code: events.SFTPDisallowedCode,
+				Type: events.SFTPEvent,
+				Time: time.Now(),
+			},
+			UserMetadata:   serverCtx.Identity.GetUserMetadata(),
+			ServerMetadata: serverCtx.GetServerMetadata(),
+			Error:          srv.ErrNodeFileCopyingNotPermitted.Error(),
+		})
 		return srv.ErrNodeFileCopyingNotPermitted
 	}
 
@@ -115,8 +130,24 @@ func (s *sftpSubsys) Start(ctx context.Context,
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO: put in cgroup?
 	execRequest.Continue()
+
+	// Send the file transfer request if applicable. The SFTP process
+	// expects the file transfer request data will end with a null byte,
+	// so if there is no request to send just send a null byte so the
+	// SFTP process can detect that no request was sent.
+	encodedReq := []byte{0x0}
+	if s.fileTransferReq != nil {
+		encodedReq, err = json.Marshal(s.fileTransferReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		encodedReq = append(encodedReq, 0x0)
+	}
+	_, err = chReadPipeIn.Write(encodedReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Copy the SSH channel to and from the anonymous pipes
 	s.errCh = make(chan error, copyingGoroutines)

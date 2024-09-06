@@ -6,6 +6,7 @@ with an existing Teleport cluster:
 - Teleport Application access
 - Teleport Database access
 - Teleport Kubernetes App Discovery
+- Teleport Jamf service
 
 To use it, you will need:
 - an existing Teleport cluster (at least proxy and auth services)
@@ -133,14 +134,14 @@ Set the values in the above command as appropriate for your setup.
 
 These are the supported values for the `apps` map:
 
-| Key | Description | Example | Default | Required |
-| --- | --- | --- | --- | --- |
-| `name` | Name of the app to be accessed | `apps[0].name=grafana` | | Yes |
-| `uri` | URI of the app to be accessed | `apps[0].uri=http://localhost:3000` | | Yes |
-| `public_addr` | Public address used to access the app | `apps[0].public_addr=grafana.teleport.example.com` | | No |
-| `labels.[name]` | Key-value pairs to set against the app for grouping/RBAC | `apps[0].labels.env=local,apps[0].labels.region=us-west-1` | | No |
-| `insecure_skip_verify` | Whether to skip validation of TLS certificates presented by backend apps | `apps[0].insecure_skip_verify=true` | `false` | No |
-| `rewrite.redirect` | A list of URLs to rewrite to the public address of the app service | `apps[0].rewrite.redirect[0]=https://192.168.1.1` | | No
+| Key                    | Description                                                              | Example                                                    | Default | Required |
+| ---------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------- | ------- | -------- |
+| `name`                 | Name of the app to be accessed                                           | `apps[0].name=grafana`                                     |         | Yes      |
+| `uri`                  | URI of the app to be accessed                                            | `apps[0].uri=http://localhost:3000`                        |         | Yes      |
+| `public_addr`          | Public address used to access the app                                    | `apps[0].public_addr=grafana.teleport.example.com`         |         | No       |
+| `labels.[name]`        | Key-value pairs to set against the app for grouping/RBAC                 | `apps[0].labels.env=local,apps[0].labels.region=us-west-1` |         | No       |
+| `insecure_skip_verify` | Whether to skip validation of TLS certificates presented by backend apps | `apps[0].insecure_skip_verify=true`                        | `false` | No       |
+| `rewrite.redirect`     | A list of URLs to rewrite to the public address of the app service       | `apps[0].rewrite.redirect[0]=https://192.168.1.1`          |         | No       |
 
 You can add multiple apps using `apps[1].name`, `apps[1].uri`, `apps[2].name`, `apps[2].uri` etc.
 
@@ -219,14 +220,14 @@ Set the values in the above command as appropriate for your setup.
 
 These are the supported values for the `databases` map:
 
-| Key | Description | Example | Default | Required |
-| --- | --- | --- | --- | --- |
-| `name` | Name of the database to be accessed | `databases[0].name=aurora` | | Yes |
-| `uri` | URI of the database to be accessed | `databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432` | | Yes |
-| `protocol` | Database protocol | `databases[0].protocol=postgres` | | Yes |
-| `description` | Free-form description of the database proxy instance | `databases[0].description='AWS Aurora instance of PostgreSQL 13.0'` | | No |
-| `aws.region` | AWS-specific region configuration (only used for RDS/Aurora) | `databases[0].aws.region=us-east-1` | | No |
-| `labels.[name]` | Key-value pairs to set against the database for grouping/RBAC | `databases[0].labels.db=postgres-dev,apps[0].labels.region=us-east-1` | | No |
+| Key             | Description                                                   | Example                                                                            | Default | Required |
+| --------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------- | -------- |
+| `name`          | Name of the database to be accessed                           | `databases[0].name=aurora`                                                         |         | Yes      |
+| `uri`           | URI of the database to be accessed                            | `databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432` |         | Yes      |
+| `protocol`      | Database protocol                                             | `databases[0].protocol=postgres`                                                   |         | Yes      |
+| `description`   | Free-form description of the database proxy instance          | `databases[0].description='AWS Aurora instance of PostgreSQL 13.0'`                |         | No       |
+| `aws.region`    | AWS-specific region configuration (only used for RDS/Aurora)  | `databases[0].aws.region=us-east-1`                                                |         | No       |
+| `labels.[name]` | Key-value pairs to set against the database for grouping/RBAC | `databases[0].labels.db=postgres-dev,apps[0].labels.region=us-east-1`              |         | No       |
 
 You can add multiple databases using `databases[1].name`, `databases[1].uri`, `databases[1].protocol`,
 `databases[2].name`, `databases[2].uri`, `databases[2].protocol` etc.
@@ -254,6 +255,62 @@ to use for discovery you can use `kubernetesDiscovery` property of the chart.
 
 When discovery is running, `kubeClusterName` should be set in values, since it is used as a name for discovery field and as a target label
 for the app service, so it can expose discovered apps.
+
+## Jamf service
+
+To use [Teleport Jamf service](https://goteleport.com/docs/access-controls/device-trust/jamf-integration/), 
+you will also need:
+- provide your Jamf Pro API endpoint
+- provide your Jamf Pro API credentials
+
+To install the agent with Jamf API credentials, run:
+
+```sh
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace teleport \
+  --set roles=jamf \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
+  --set jamfClientId=${JAMF_CLIENT_ID?} \
+  --set jamfClientSecret=${JAMF_CLIENT_SECRET?}
+```
+
+Set the values in the above command as appropriate for your setup.
+
+The Helm chart will install Secrets by default. To avoid specifying the Jamf API credentials in plain text, it's possible to create a secret containing the password beforehand. To do so, run:
+
+```sh
+export JAMF_CLIENT_SECRET=`<jamf client secret> | base64 -w0`
+export JAMF_SECRET_NAME=teleport-jamf-api-credentials
+export TELEPORT_NAMESPACE=teleport
+
+cat <<EOF > secrets.yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${JAMF_SECRET_NAME}
+  namespace: ${TELEPORT_NAMESPACE?}
+type: Opaque
+data:
+  jamfSecret: ${JAMF_CLIENT_SECRET?}
+EOF
+
+$ kubectl apply -f secret.yaml
+
+$ helm install teleport-kube-agent . \
+  --create-namespace \
+  --namespace ${TELEPORT_NAMESPACE?} \
+  --set roles=jamf \
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set jamfApiEndpoint=${JAMF_API_ENDPOINT?} \
+  --set jamfClientId=${JAMF_CLIENT_ID?} \
+  --set jamfCredentialsSecret.name=${JAMF_SECRET_NAME?} \
+  --set jamfCredentialsSecret.create=false
+```
 
 ## Troubleshooting
 

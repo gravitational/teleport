@@ -43,40 +43,56 @@ func main() {
 
 	ctx := context.Background()
 
-	imageIDs := make(map[string]string)
+	imageIDs := make(map[string]map[string]string)
 
 	for _, region := range strings.Split(*regions, ",") {
-		stub := fmt.Sprintf("gravitational-teleport-ami-%v-%v", *amiType, *version)
-		if *amiType == "ent-fips" {
-			stub = fmt.Sprintf("gravitational-teleport-ami-ent-%v-fips", *version)
-		}
+		for _, arch := range []string{"x86_64", "arm64"} {
+			edition := *amiType
+			fips := "false"
+			if *amiType == "ent-fips" {
+				edition = "ent"
+				fips = "true"
+			}
 
-		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-		if err != nil {
-			log.Fatalf("could not load AWS config: %v", err)
-		}
+			cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				log.Fatalf("could not load AWS config for %q: %v", region, err)
+			}
 
-		client := ec2.NewFromConfig(cfg)
-		resp, err := client.DescribeImages(ctx, &ec2.DescribeImagesInput{
-			Filters: []types.Filter{
-				{Name: aws.String("name"), Values: []string{stub}},
-				{Name: aws.String("is-public"), Values: []string{"true"}},
-			},
-			Owners: []string{*account},
-		})
-		if err != nil {
-			log.Fatalf("describe images: %v", err)
-		}
+			client := ec2.NewFromConfig(cfg)
+			resp, err := client.DescribeImages(ctx, &ec2.DescribeImagesInput{
+				Filters: []types.Filter{
+					{Name: aws.String("name"), Values: []string{"teleport-*"}},
+					{Name: aws.String("is-public"), Values: []string{"true"}},
+					{Name: aws.String("tag:Architecture"), Values: []string{arch}},
+					{Name: aws.String("tag:TeleportVersion"), Values: []string{*version}},
+					{Name: aws.String("tag:TeleportEdition"), Values: []string{edition}},
+					{Name: aws.String("tag:TeleportFipsEnabled"), Values: []string{fips}},
+					{Name: aws.String("tag:BuildType"), Values: []string{"production"}},
+				},
+				Owners: []string{*account},
+			})
+			if err != nil {
+				log.Fatalf("describe images in %q: %v", region, err)
+			}
 
-		if l := len(resp.Images); l != 1 {
-			log.Fatalf("expected 1 image for %v, got %v", stub, l)
-		}
+			if l := len(resp.Images); l != 1 {
+				if l == 0 {
+					log.Printf("missing image for region %q type %q ver %q arch %q", region, *amiType, *version, arch)
+					continue
+				}
+				log.Fatalf("expected 1 image for region %q type %q ver %q arch %q, got %v", region, *amiType, *version, arch, l)
+			}
 
-		id := resp.Images[0].ImageId
-		if id == nil {
-			log.Fatalf("image %v is missing ID", stub)
+			id := resp.Images[0].ImageId
+			if id == nil {
+				log.Fatalf("image for region %q type %q ver %q arch %q is missing ID", region, *amiType, *version, arch)
+			}
+			if _, ok := imageIDs[region]; !ok {
+				imageIDs[region] = make(map[string]string)
+			}
+			imageIDs[region][arch] = *id
 		}
-		imageIDs[region] = *id
 	}
 
 	tfDir := filepath.Join("..", "..", "examples", "aws", "terraform")
@@ -96,7 +112,7 @@ func main() {
 	// change version in TF_VAR_ami_name strings
 	for _, tfMode := range tfModes {
 		log.Printf("Updating version in README for %v", tfMode)
-		re, err := regexp.Compile(fmt.Sprintf(`gravitational-teleport-ami-%s-([0-9.]+)`, *amiType))
+		re, err := regexp.Compile(fmt.Sprintf(`teleport-%s-([0-9.]+)`, *amiType))
 		if err != nil {
 			log.Fatalf("invalid regexp for type %q: %v", *amiType, err)
 		}
@@ -107,7 +123,7 @@ func main() {
 			log.Fatalf("could not find README.md for terraform mode %q: %v", tfMode, err)
 		}
 
-		replaced := re.ReplaceAll(b, []byte(fmt.Sprintf("gravitational-teleport-ami-%s-%s", *amiType, *version)))
+		replaced := re.ReplaceAll(b, []byte(fmt.Sprintf("teleport-%s-%s", *amiType, *version)))
 		if err := os.WriteFile(readme, replaced, 0644); err != nil {
 			log.Fatalf("could not update %v: %v", readme, err)
 		}
@@ -120,18 +136,23 @@ func main() {
 	}
 
 	for _, region := range strings.Split(*regions, ",") {
-		newAMI := imageIDs[region]
+		for _, arch := range []string{"x86_64", "arm64"} {
+			newAMI := imageIDs[region][arch]
+			if newAMI == "" {
+				continue
+			}
 
-		ts := AMIType(*amiType)
-		re, err := regexp.Compile(fmt.Sprintf(`(?m)^# %s v(.*) %s: (ami-.*)$`, region, ts.FriendlyType()))
-		if err != nil {
-			log.Fatalf("invalid regexp for region %q type %q: %v", region, *amiType, err)
+			ts := AMIType(*amiType)
+			re, err := regexp.Compile(fmt.Sprintf(`(?m)^# %s v(.*) %s %s: (ami-.*)$`, region, arch, ts.FriendlyType()))
+			if err != nil {
+				log.Fatalf("invalid regexp for region %q type %q arch %q: %v", region, *amiType, arch, err)
+			}
+
+			repl := fmt.Sprintf(`# %s v%s %s %s: %s`, region, *version, arch, ts.FriendlyType(), newAMI)
+			md = re.ReplaceAll(md, []byte(repl))
+
+			log.Printf("[%v %v: %v] -> %v", *amiType, arch, region, newAMI)
 		}
-
-		repl := fmt.Sprintf(`# %s v%s %s: %s`, region, *version, ts.FriendlyType(), newAMI)
-		md = re.ReplaceAll(md, []byte(repl))
-
-		log.Printf("[%v: %v] -> %v", *amiType, region, newAMI)
 	}
 	if err := os.WriteFile(tfPath, md, 0644); err != nil {
 		log.Fatalf("could not update %v: %v", tfPath, err)

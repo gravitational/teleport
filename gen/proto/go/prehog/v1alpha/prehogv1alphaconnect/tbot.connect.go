@@ -22,9 +22,9 @@
 package prehogv1alphaconnect
 
 import (
+	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	connect_go "github.com/bufbuild/connect-go"
 	v1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	http "net/http"
 	strings "strings"
@@ -35,7 +35,7 @@ import (
 // generated with a version of connect newer than the one compiled into your binary. You can fix the
 // problem by either regenerating this code with an older version of connect or updating the connect
 // version compiled into your binary.
-const _ = connect_go.IsAtLeastVersion0_1_0
+const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// TbotReportingServiceName is the fully-qualified name of the TbotReportingService service.
@@ -55,9 +55,15 @@ const (
 	TbotReportingServiceSubmitTbotEventProcedure = "/prehog.v1alpha.TbotReportingService/SubmitTbotEvent"
 )
 
+// These variables are the protoreflect.Descriptor objects for the RPCs defined in this package.
+var (
+	tbotReportingServiceServiceDescriptor               = v1alpha.File_prehog_v1alpha_tbot_proto.Services().ByName("TbotReportingService")
+	tbotReportingServiceSubmitTbotEventMethodDescriptor = tbotReportingServiceServiceDescriptor.Methods().ByName("SubmitTbotEvent")
+)
+
 // TbotReportingServiceClient is a client for the prehog.v1alpha.TbotReportingService service.
 type TbotReportingServiceClient interface {
-	SubmitTbotEvent(context.Context, *connect_go.Request[v1alpha.SubmitTbotEventRequest]) (*connect_go.Response[v1alpha.SubmitTbotEventResponse], error)
+	SubmitTbotEvent(context.Context, *connect.Request[v1alpha.SubmitTbotEventRequest]) (*connect.Response[v1alpha.SubmitTbotEventResponse], error)
 }
 
 // NewTbotReportingServiceClient constructs a client for the prehog.v1alpha.TbotReportingService
@@ -67,31 +73,32 @@ type TbotReportingServiceClient interface {
 //
 // The URL supplied here should be the base URL for the Connect or gRPC server (for example,
 // http://api.acme.com or https://acme.com/grpc).
-func NewTbotReportingServiceClient(httpClient connect_go.HTTPClient, baseURL string, opts ...connect_go.ClientOption) TbotReportingServiceClient {
+func NewTbotReportingServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) TbotReportingServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
 	return &tbotReportingServiceClient{
-		submitTbotEvent: connect_go.NewClient[v1alpha.SubmitTbotEventRequest, v1alpha.SubmitTbotEventResponse](
+		submitTbotEvent: connect.NewClient[v1alpha.SubmitTbotEventRequest, v1alpha.SubmitTbotEventResponse](
 			httpClient,
 			baseURL+TbotReportingServiceSubmitTbotEventProcedure,
-			opts...,
+			connect.WithSchema(tbotReportingServiceSubmitTbotEventMethodDescriptor),
+			connect.WithClientOptions(opts...),
 		),
 	}
 }
 
 // tbotReportingServiceClient implements TbotReportingServiceClient.
 type tbotReportingServiceClient struct {
-	submitTbotEvent *connect_go.Client[v1alpha.SubmitTbotEventRequest, v1alpha.SubmitTbotEventResponse]
+	submitTbotEvent *connect.Client[v1alpha.SubmitTbotEventRequest, v1alpha.SubmitTbotEventResponse]
 }
 
 // SubmitTbotEvent calls prehog.v1alpha.TbotReportingService.SubmitTbotEvent.
-func (c *tbotReportingServiceClient) SubmitTbotEvent(ctx context.Context, req *connect_go.Request[v1alpha.SubmitTbotEventRequest]) (*connect_go.Response[v1alpha.SubmitTbotEventResponse], error) {
+func (c *tbotReportingServiceClient) SubmitTbotEvent(ctx context.Context, req *connect.Request[v1alpha.SubmitTbotEventRequest]) (*connect.Response[v1alpha.SubmitTbotEventResponse], error) {
 	return c.submitTbotEvent.CallUnary(ctx, req)
 }
 
 // TbotReportingServiceHandler is an implementation of the prehog.v1alpha.TbotReportingService
 // service.
 type TbotReportingServiceHandler interface {
-	SubmitTbotEvent(context.Context, *connect_go.Request[v1alpha.SubmitTbotEventRequest]) (*connect_go.Response[v1alpha.SubmitTbotEventResponse], error)
+	SubmitTbotEvent(context.Context, *connect.Request[v1alpha.SubmitTbotEventRequest]) (*connect.Response[v1alpha.SubmitTbotEventResponse], error)
 }
 
 // NewTbotReportingServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -99,11 +106,12 @@ type TbotReportingServiceHandler interface {
 //
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
-func NewTbotReportingServiceHandler(svc TbotReportingServiceHandler, opts ...connect_go.HandlerOption) (string, http.Handler) {
-	tbotReportingServiceSubmitTbotEventHandler := connect_go.NewUnaryHandler(
+func NewTbotReportingServiceHandler(svc TbotReportingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
+	tbotReportingServiceSubmitTbotEventHandler := connect.NewUnaryHandler(
 		TbotReportingServiceSubmitTbotEventProcedure,
 		svc.SubmitTbotEvent,
-		opts...,
+		connect.WithSchema(tbotReportingServiceSubmitTbotEventMethodDescriptor),
+		connect.WithHandlerOptions(opts...),
 	)
 	return "/prehog.v1alpha.TbotReportingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -118,6 +126,6 @@ func NewTbotReportingServiceHandler(svc TbotReportingServiceHandler, opts ...con
 // UnimplementedTbotReportingServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedTbotReportingServiceHandler struct{}
 
-func (UnimplementedTbotReportingServiceHandler) SubmitTbotEvent(context.Context, *connect_go.Request[v1alpha.SubmitTbotEventRequest]) (*connect_go.Response[v1alpha.SubmitTbotEventResponse], error) {
-	return nil, connect_go.NewError(connect_go.CodeUnimplemented, errors.New("prehog.v1alpha.TbotReportingService.SubmitTbotEvent is not implemented"))
+func (UnimplementedTbotReportingServiceHandler) SubmitTbotEvent(context.Context, *connect.Request[v1alpha.SubmitTbotEventRequest]) (*connect.Response[v1alpha.SubmitTbotEventResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("prehog.v1alpha.TbotReportingService.SubmitTbotEvent is not implemented"))
 }

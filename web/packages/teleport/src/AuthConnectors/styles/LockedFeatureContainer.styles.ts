@@ -38,5 +38,5 @@ export const LockedFeatureButton = styled(ButtonLockedFeature)`
   @media screen and (max-width: ${props => props.theme.breakpoints.tablet}px) {
     width: 100%;
     right: 1px;
-  } ;
+  }
 `;

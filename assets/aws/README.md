@@ -8,8 +8,8 @@ Instructions for building Teleport AWS AMIs.
 
 AWS CLI and Packer are required to build Teleport AMIs.
 
-Minimum versions:  
-awscli == 1.14  
+Minimum versions:
+awscli == 1.14
 packer == v1.4.0 
 
 On macOS:
@@ -35,11 +35,7 @@ Follow instructions at: https://www.packer.io/docs/install/index.html
 
 | Param               | Description                                                                                                 |
 |---------------------|-------------------------------------------------------------------------------------------------------------|
-| BUILD_VPC_ID        | With the region you selected in step 3, create or use an existing VPC. ex. `vpc-xxxxxxxx`.                  |
-| BUILD_SUBNET_ID     | Within the VPC above, select a subnet. ex. `subnet-xxxxxxxx`                                                |
-| AWS_REGION          | Region you selected in step 3. ex. `us-east-1`                                                              |
 | TELEPORT_VERSION    | Teleport version. See [Teleport releases](https://github.com/gravitational/teleport/releases). ex. `4.2.10` |
-| INSTANCE_TYPE       | The instance type used for the build. ex. `t2.micro`                                                        |
 | DESTINATION_REGIONS | The regions the AMI will be replicated to. ex. `us-east-1,us-east-2`                                        |
 
 5. Run 
@@ -47,7 +43,7 @@ Follow instructions at: https://www.packer.io/docs/install/index.html
 make oss
 ```
 
-6. Once complete, your AMI should be available, in the regions you specified, with the name  `teleport-debug-ami-<type>-<version>`. (e.g. teleport-debug-ami-oss-4.2.10)
+6. Once complete, your AMI should be available, in the regions you specified, with the name  `teleport-<type>-<version>-<arch>`. (e.g. teleport-oss-4.2.10-arm64)
 
 ## Usage instructions
 

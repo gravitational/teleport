@@ -35,10 +35,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -46,6 +51,7 @@ import (
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	modules.SetInsecureTestMode(true)
 	os.Exit(m.Run())
 }
 
@@ -452,6 +458,11 @@ func TestGetKubeTLSServerName(t *testing.T) {
 			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
+			name:          "localhost, API domain should be used ",
+			kubeProxyAddr: "localhost",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
+		},
+		{
 			name:          "valid hostname",
 			kubeProxyAddr: "example.com",
 			want:          "kube-teleport-proxy-alpn.example.com",
@@ -793,6 +804,15 @@ func TestVirtualPathNames(t *testing.T) {
 			},
 		},
 		{
+			name:   "database client ca",
+			kind:   VirtualPathCA,
+			params: VirtualPathCAParams(types.DatabaseClientCA),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_CA_DB_CLIENT",
+				"TSH_VIRTUAL_PATH_CA",
+			},
+		},
+		{
 			name:   "host ca",
 			kind:   VirtualPathCA,
 			params: VirtualPathCAParams(types.HostCA),
@@ -804,19 +824,39 @@ func TestVirtualPathNames(t *testing.T) {
 		{
 			name:   "database",
 			kind:   VirtualPathDatabase,
-			params: VirtualPathDatabaseParams("foo"),
+			params: VirtualPathDatabaseCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_DB_FOO",
 				"TSH_VIRTUAL_PATH_DB",
 			},
 		},
 		{
+			name:   "database key",
+			kind:   VirtualPathKey,
+			params: VirtualPathDatabaseKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_DB_FOO",
+				"TSH_VIRTUAL_PATH_KEY_DB",
+				"TSH_VIRTUAL_PATH_KEY",
+			},
+		},
+		{
 			name:   "app",
-			kind:   VirtualPathApp,
-			params: VirtualPathAppParams("foo"),
+			kind:   VirtualPathAppCert,
+			params: VirtualPathAppCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_APP_FOO",
 				"TSH_VIRTUAL_PATH_APP",
+			},
+		},
+		{
+			name:   "app key",
+			kind:   VirtualPathKey,
+			params: VirtualPathAppKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_APP_FOO",
+				"TSH_VIRTUAL_PATH_KEY_APP",
+				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{
@@ -870,16 +910,15 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 				require.NoError(t, err)
 				return
 			}
-			traceErr, isTraceErr := err.(*trace.TraceErr)
-
-			if isTraceErr {
+			var traceErr *trace.TraceErr
+			if errors.As(err, &traceErr) {
 				require.EqualError(t, traceErr.OrigError(), tt.wantError)
 			} else {
 				require.EqualError(t, err, tt.wantError)
 			}
 
 			if tt.wantUserMessage != "" {
-				require.True(t, isTraceErr)
+				require.Error(t, traceErr)
 				require.Contains(t, traceErr.Messages, tt.wantUserMessage)
 			}
 		})
@@ -1064,7 +1103,7 @@ func TestRootClusterName(t *testing.T) {
 
 	rootCluster := ca.trustedCerts.ClusterName
 	leafCluster := "leaf-cluster"
-	key := ca.makeSignedKey(t, KeyIndex{
+	keyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: leafCluster,
 		Username:    "teleport-user",
@@ -1077,7 +1116,7 @@ func TestRootClusterName(t *testing.T) {
 		{
 			name: "static TLS",
 			modifyCfg: func(c *Config) {
-				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
 				require.NoError(t, err)
 				c.TLS = tlsConfig
 			},
@@ -1085,7 +1124,7 @@ func TestRootClusterName(t *testing.T) {
 			name: "key store",
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 		},
@@ -1112,18 +1151,18 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 	rootCA := newTestAuthority(t)
 
 	rootCluster := rootCA.trustedCerts.ClusterName
-	key := rootCA.makeSignedKey(t, KeyIndex{
+	keyRing := rootCA.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: rootCluster,
 		Username:    "teleport-user",
 	}, false)
 
-	tlsCertPoolNoCA, err := key.clientCertPool()
+	tlsCertPoolNoCA, err := keyRing.clientCertPool()
 	require.NoError(t, err)
-	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
+	tlsCertPoolRootCA, err := keyRing.clientCertPool(rootCluster)
 	require.NoError(t, err)
 
-	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{rootCluster})
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -1144,7 +1183,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1153,7 +1192,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{rootCluster},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolRootCA,
@@ -1162,7 +1201,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{"leaf-1", "leaf-2"},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1202,7 +1241,125 @@ func TestConnectToProxyCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	proxy, err := clt.ConnectToProxy(ctx)
-	require.Nil(t, proxy)
+	clusterClient, err := clt.ConnectToCluster(ctx)
+	require.Nil(t, clusterClient)
 	require.Error(t, err)
+}
+
+func TestIsErrorResolvableWithRelogin(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              error
+		expectResolvable bool
+	}{
+		{
+			name:             "private key policy error should be resolvable",
+			err:              keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			expectResolvable: true,
+		}, {
+			name: "wrapped private key policy error should be resolvable",
+			err: &interceptors.RemoteError{
+				Err: keys.NewPrivateKeyPolicyError(keys.PrivateKeyPolicyHardwareKey),
+			},
+			expectResolvable: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resolvable := IsErrorResolvableWithRelogin(tt.err)
+			if tt.expectResolvable {
+				require.True(t, resolvable, "Expected error to be resolvable with relogin")
+			} else {
+				require.False(t, resolvable, "Expected error to be unresolvable with relogin")
+			}
+		})
+	}
+}
+
+type fakeResourceClient struct {
+	apiclient.GetResourcesClient
+
+	nodes []*types.ServerV2
+}
+
+func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
+func TestGetTargetNodes(t *testing.T) {
+	tests := []struct {
+		name      string
+		options   SSHOptions
+		labels    map[string]string
+		search    []string
+		predicate string
+		host      string
+		port      int
+		clt       fakeResourceClient
+		expected  []targetNode
+	}{
+		{
+			name: "options override",
+			options: SSHOptions{
+				HostAddress: "test:1234",
+			},
+			expected: []targetNode{{hostname: "test:1234", addr: "test:1234"}},
+		},
+		{
+			name:     "explicit target",
+			host:     "test",
+			port:     1234,
+			expected: []targetNode{{hostname: "test", addr: "test:1234"}},
+		},
+		{
+			name:     "labels",
+			labels:   map[string]string{"foo": "bar"},
+			expected: []targetNode{{hostname: "labels", addr: "abcd:0"}},
+			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}}},
+		},
+		{
+			name:     "search",
+			search:   []string{"foo", "bar"},
+			expected: []targetNode{{hostname: "search", addr: "abcd:0"}},
+			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}}},
+		},
+		{
+			name:      "predicate",
+			predicate: `resource.spec.hostname == "test"`,
+			expected:  []targetNode{{hostname: "predicate", addr: "abcd:0"}},
+			clt:       fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clt := TeleportClient{
+				Config: Config{
+					Tracer:              tracing.NoopTracer(""),
+					Labels:              test.labels,
+					SearchKeywords:      test.search,
+					PredicateExpression: test.predicate,
+					Host:                test.host,
+					HostPort:            test.port,
+				},
+			}
+
+			match, err := clt.getTargetNodes(context.Background(), test.clt, test.options)
+			require.NoError(t, err)
+			require.EqualValues(t, test.expected, match)
+		})
+	}
 }

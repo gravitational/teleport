@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren } from 'react';
+import { Link } from 'react-router-dom';
 import { Box, Card, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
@@ -28,16 +29,12 @@ import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
 
-export default function Container({
-  children,
-}: {
-  children?: React.ReactNode;
-}) {
+export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
 
   // showCTA returns the premium support value for enterprise customers and true for OSS users
-  const showCTA = cfg.isEnterprise ? ctx.lockedFeatures.premiumSupport : true;
+  const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
 
   return (
     <Support
@@ -70,20 +67,20 @@ export const Support = ({
           <Box>
             <Header title="Support" icon={<Icons.Headset />} />
             {isEnterprise && !showPremiumSupportCTA && (
-              <SupportLink
+              <ExternalSupportLink
                 title="Create a Support Ticket"
                 url="https://support.goteleport.com"
               />
             )}
-            <SupportLink
+            <ExternalSupportLink
               title="Ask the Community Questions"
               url="https://github.com/gravitational/teleport/discussions"
             />
-            <SupportLink
+            <ExternalSupportLink
               title="Request a New Feature"
               url="https://github.com/gravitational/teleport/issues/new/choose"
             />
-            <SupportLink
+            <ExternalSupportLink
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
@@ -95,26 +92,26 @@ export const Support = ({
           </Box>
           <Box>
             <Header title="Resources" icon={<Icons.BookOpenText />} />
-            <SupportLink title="Get Started" url={docs.getStarted} />
-            <SupportLink title="tsh User Guide" url={docs.tshGuide} />
-            <SupportLink title="Admin Guides" url={docs.adminGuide} />
-            <SupportLink
-              title="Download Page"
-              url={getDownloadLink(isCloud, isEnterprise)}
-            />
-            <SupportLink title="FAQ" url={docs.faq} />
+            <ExternalSupportLink title="Get Started" url={docs.getStarted} />
+            <ExternalSupportLink title="tsh User Guide" url={docs.tshGuide} />
+            <ExternalSupportLink title="Admin Guides" url={docs.adminGuide} />
+            <DownloadLink isCloud={isCloud} isEnterprise={isEnterprise} />
+            <ExternalSupportLink title="FAQ" url={docs.faq} />
           </Box>
           <Box>
             <Header title="Troubleshooting" icon={<Icons.Graph />} />
-            <SupportLink
+            <ExternalSupportLink
               title="Monitoring & Debugging"
               url={docs.troubleshooting}
             />
           </Box>
           <Box>
             <Header title="Updates" icon={<Icons.NotificationsActive />} />
-            <SupportLink title="Product Changelog" url={docs.changeLog} />
-            <SupportLink
+            <ExternalSupportLink
+              title="Product Changelog"
+              url={docs.changeLog}
+            />
+            <ExternalSupportLink
               title="Teleport Blog"
               url="https://goteleport.com/blog/"
             />
@@ -170,23 +167,13 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   const withUTM = (url = '', anchorHash = '') =>
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
-  let docVer = '';
-  if (version && version.length > 0) {
-    const major = version.split('.')[0];
-    docVer = `/ver/${major}.x`;
-  }
-
   return {
-    getStarted: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
-    tshGuide: withUTM(
-      `https://goteleport.com/docs${docVer}/server-access/guides/tsh`
-    ),
-    adminGuide: withUTM(
-      `https://goteleport.com/docs${docVer}/management/admin/`
-    ),
-    faq: withUTM(`https://goteleport.com${docVer}/docs/faq`),
+    getStarted: withUTM(`https://goteleport.com/docs/get-started/`),
+    tshGuide: withUTM(`https://goteleport.com/docs/connect-your-client/tsh/`),
+    adminGuide: withUTM(`https://goteleport.com/docs/management/admin/`),
+    faq: withUTM(`https://goteleport.com/docs/faq`),
     troubleshooting: withUTM(
-      `https://goteleport.com/docs${docVer}/management/admin/troubleshooting/`
+      `https://goteleport.com/docs/management/admin/troubleshooting/`
     ),
 
     // there isn't a version-specific changelog page
@@ -194,19 +181,39 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   };
 };
 
-const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
+const DownloadLink = ({
+  isCloud,
+  isEnterprise,
+}: {
+  isCloud: boolean;
+  isEnterprise: boolean;
+}) => {
   if (isCloud) {
-    return 'https://goteleport.com/docs/cloud/downloads/';
+    return (
+      <StyledSupportLink as={Link} to={cfg.routes.downloadCenter}>
+        Download Page
+      </StyledSupportLink>
+    );
   }
 
   if (isEnterprise) {
-    return 'https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard';
+    return (
+      <ExternalSupportLink
+        title="Download Page"
+        url="https://goteleport.com/docs/choose-an-edition/teleport-enterprise/introduction/?scope=enterprise#dedicated-account-dashboard"
+      />
+    );
   }
 
-  return 'https://goteleport.com/download/';
+  return (
+    <ExternalSupportLink
+      title="Download Page"
+      url="https://goteleport.com/download/"
+    />
+  );
 };
 
-const SupportLink = ({ title = '', url = '' }) => (
+const ExternalSupportLink = ({ title = '', url = '' }) => (
   <StyledSupportLink href={url} target="_blank">
     {title}
   </StyledSupportLink>
@@ -223,7 +230,7 @@ const StyledSupportLink = styled.a.attrs({
   padding: 4px 8px;
   transition: all 0.3s;
 
-  ${props => props.theme.typography.body2}
+  ${props => props.theme.typography.body3}
   &:hover, &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
@@ -235,10 +242,10 @@ const StyledHeader = styled(Flex)`
 
 export const DataItem = ({ title = '', data = null }) => (
   <Flex mb={3}>
-    <Text typography="body2" bold style={{ width: '130px' }}>
+    <Text typography="body3" bold style={{ width: '130px' }}>
       {title}:
     </Text>
-    <Text typography="body2">{data}</Text>
+    <Text typography="body3">{data}</Text>
   </Flex>
 );
 

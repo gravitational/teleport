@@ -81,3 +81,16 @@ const (
 	// in the role.
 	kubernetesResourcesKey = "kubernetes_resources"
 )
+
+const (
+	// kubernete130BreakingChangeHint is a hint to help users fix the issue when
+	// they are unable to exec into a pod due to RBAC rules not allowing the user
+	// to access the pods/exec using  "get" verbs.
+	kubernetes130BreakingChangeHint = "\n\n Kubernetes 1.30 switched to a new exec API that uses websockets.\n" +
+		"To fix the issue, please ensure that your Kubernetes RBAC rules allow" +
+		" the user to access the pods/exec using \"create\" and \"get\" verbs.\n" +
+		"Please update your Kubernetes RBAC Roles and ClusterRoles with the following rule:\n" +
+		`- apiGroups: [""]
+resources: ["pods/exec"]
+verbs: ["create", "get"]` + "\n"
+)

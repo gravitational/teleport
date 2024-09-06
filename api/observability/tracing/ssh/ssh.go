@@ -36,14 +36,6 @@ const (
 	// See [EnvsReq] for the corresponding payload.
 	EnvsRequest = "envs@goteleport.com"
 
-	// TracingRequest is sent by clients to server to pass along tracing context.
-	// TODO(tross): DELETE in 15.0.0
-	TracingRequest = "tracing@goteleport.com"
-
-	// TracingChannel is a SSH channel used to indicate that servers support tracing.
-	// TODO(tross): DELETE in 15.0.0
-	TracingChannel = "tracing"
-
 	// instrumentationName is the name of this instrumentation package.
 	instrumentationName = "otelssh"
 )
@@ -206,7 +198,7 @@ func peerAttr(addr net.Addr) []attribute.KeyValue {
 }
 
 // Envelope wraps the payload of all ssh messages with
-// tracing context. Any servers that reply to a TracingChannel
+// tracing context. Any servers that support tracing propagation
 // will attempt to parse the Envelope for all received requests and
 // ensure that the original payload is provided to the handlers.
 type Envelope struct {

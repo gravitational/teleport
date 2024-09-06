@@ -162,6 +162,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		name      string
 		input     types.KubernetesResource
 		resources []types.KubernetesResource
+		action    types.RoleConditionType
 		matches   bool
 		assert    require.ErrorAssertionFunc
 	}{
@@ -180,7 +181,101 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.Error,
+			action:  types.Allow,
 			matches: false,
+		},
+		{
+			name: "list namespace matches resource",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "list namespace doesn't match denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "get namespace match denying everything",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
+			name: "get namespace doesn't match denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "get secret matches denying secrets",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeSecret,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
 		},
 		{
 			name: "input matches single resource with wildcard verb",
@@ -199,6 +294,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -218,6 +314,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -237,6 +334,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -255,6 +353,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: false,
 		},
 		{
@@ -286,6 +385,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -305,6 +405,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
@@ -319,6 +420,511 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				{
 					Kind:      types.KindKubePod,
 					Namespace: "default",
+					Name:      "^pod-[0-9]+$",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+		{
+			name: "invalid regex expression",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Name:      "podname-5",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "^podname-[0-+$",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action: types.Allow,
+			assert: require.Error,
+		},
+		{
+			name: "resource with different kind",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      "other_type",
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			action: types.Allow,
+			assert: require.NoError,
+		},
+		{
+			name: "list clusterrole with resource",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeClusterRole,
+					Name:  "clusterrole",
+					Verbs: []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "list clusterrole with wildcard",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "list clusterrole with wildcard deny verb",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Name:  "clusterrole",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.KubeVerbPatch},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+		{
+			name: "list namespace with resource giving read access to namespace",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+
+		{
+			name: "list namespace with resource denying update access to namespace",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Name:  "default",
+				Verbs: []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+
+		{
+			name: "namespace granting read access to pod",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "namespace denying update access to pod",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+
+		{
+			name: "namespace granting read access to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "namespace denying update to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbUpdate},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+		{
+			name: "missing namespace granting read access to custom resource",
+			input: types.KubernetesResource{
+				Kind:      KubeCustomResource,
+				Namespace: "default",
+				Name:      "name",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "name",
+					Verbs:     []string{types.KubeVerbGet},
+				},
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "diffnamespace",
+					Verbs: []string{types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := KubeResourceMatchesRegex(tt.input, tt.resources, tt.action)
+			tt.assert(t, err)
+			require.Equal(t, tt.matches, got)
+		})
+	}
+}
+
+func TestKubeResourceCouldMatchRules(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     types.KubernetesResource
+		resources []types.KubernetesResource
+		action    types.RoleConditionType
+		matches   bool
+		assert    require.ErrorAssertionFunc
+	}{
+		{
+			name: "input misses verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+				},
+			},
+			assert:  require.Error,
+			matches: false,
+		},
+		{
+			name: "input has name",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+				},
+			},
+			assert:  require.Error,
+			matches: false,
+		},
+		{
+			name: "input matches single resource with wildcard verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Allow,
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input doesn't match kind deny",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Deny,
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
+			name: "input doesn't match kind allow",
+			input: types.KubernetesResource{
+				Kind:  types.KindNamespace,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubeSecret,
+					Namespace: "*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Allow,
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input matches single resource with wildcard verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "kube-system",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			action:  types.Allow,
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
+			name: "input matches single resource with matching verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.KubeVerbCreate, types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+			action:  types.Allow,
+		},
+		{
+			name: "input matches single resource with unmatching verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbPatch},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.KubeVerbGet, types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Allow,
+		},
+		{
+			name: "input matches last resource",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "other_namespace",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "other_namespace2",
+					Name:      "other_pod",
+					Verbs:     []string{types.Wildcard},
+				},
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Allow,
+			matches: true,
+		},
+		{
+			name: "input matches regex expression allow",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "^podname-[0-9]+$",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+			action:  types.Allow,
+		},
+		{
+			name: "input matches regex expression deny but doesn't apply to all pods",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "^podname-[0-9]+$",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "input matches regex expression deny and applies to all pods",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default-5",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "defa*",
+					Name:      "*",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+			action:  types.Deny,
+		},
+		{
+			name: "input has no matchers",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default2",
 					Name:      "^pod-[0-9]+$",
 					Verbs:     []string{types.Wildcard},
 				},
@@ -345,11 +951,64 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			assert: require.Error,
 		},
 		{
-			name: "resource with different kind",
+			name: "namespaced resource without namespace allow",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubePod,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+			action:  types.Allow,
+		},
+		{
+			name: "namespaced resource without namespace deny",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubePod,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "namespaced resource without namespace deny + wildcard",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubePod,
+				Verbs: []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "resource with different kind allow",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default",
-				Name:      "podname",
 				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
@@ -359,13 +1018,32 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 					Name:      "podname",
 				},
 			},
-			assert: require.NoError,
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Allow,
 		},
 		{
-			name: "list clusterrole with resource",
+			name: "resource with different kind deny",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      "other_type",
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "list clusterrole with resource allow",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeClusterRole,
-				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
@@ -376,13 +1054,13 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
-			name: "list clusterrole with wildcard",
+			name: "list clusterrole with wildcard allow",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeClusterRole,
-				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
@@ -394,19 +1072,56 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				},
 			},
 			assert:  require.NoError,
+			action:  types.Allow,
 			matches: true,
 		},
 		{
-			name: "list clusterrole with wildcard deny verb",
+			name: "list clusterrole with wildcard allow",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeClusterRole,
-				Name:  "clusterrole",
 				Verbs: []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
 					Kind:      types.Wildcard,
 					Name:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: true,
+		},
+		{
+			name: "list clusterrole with wildcard allow",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeClusterRole,
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "s*",
+					Namespace: types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			action:  types.Deny,
+			matches: false,
+		},
+		{
+			name: "list clusterrole with wildcard deny verb",
+			input: types.KubernetesResource{
+				Kind: types.KindKubeClusterRole,
+
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Name:      "clusterrole",
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.KubeVerbPatch},
 				},
@@ -418,7 +1133,6 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			name: "list namespace with resource giving read access to namespace",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeNamespace,
-				Name:  "default",
 				Verbs: []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
@@ -431,13 +1145,49 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			assert:  require.NoError,
 			matches: true,
+			action:  types.Allow,
+		},
+		{
+			name: "list namespace with resource giving read access to namespace deny",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "list namespace with resource giving read access to namespace deny + wildcard",
+			input: types.KubernetesResource{
+				Kind:  types.KindKubeNamespace,
+				Verbs: []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
 		},
 
 		{
 			name: "list namespace with resource denying update access to namespace",
 			input: types.KubernetesResource{
 				Kind:  types.KindKubeNamespace,
-				Name:  "default",
 				Verbs: []string{types.KubeVerbUpdate},
 			},
 			resources: []types.KubernetesResource{
@@ -457,7 +1207,6 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default",
-				Name:      "podname",
 				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
@@ -469,90 +1218,102 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 			},
 			assert:  require.NoError,
 			matches: true,
+			action:  types.Allow,
 		},
 		{
 			name: "namespace denying update access to pod",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default",
-				Name:      "podname",
-				Verbs:     []string{types.KubeVerbUpdate},
+				Verbs:     []string{types.KubeVerbList},
 			},
 			resources: []types.KubernetesResource{
 				{
 					Kind:  types.KindKubeNamespace,
 					Name:  "default",
-					Verbs: []string{types.KubeVerbGet},
+					Verbs: []string{types.KubeVerbList},
 				},
 			},
 			assert:  require.NoError,
 			matches: false,
+			action:  types.Deny,
 		},
-
 		{
-			name: "namespace granting read access to custom resource",
+			name: "namespace denying list access to pod with different namespace",
 			input: types.KubernetesResource{
-				Kind:      KubeCustomResource,
-				Namespace: "default",
-				Name:      "name",
-				Verbs:     []string{types.KubeVerbGet},
+				Kind:      types.KindKubePod,
+				Namespace: "default2",
+				Verbs:     []string{types.KubeVerbList},
 			},
 			resources: []types.KubernetesResource{
 				{
 					Kind:  types.KindKubeNamespace,
 					Name:  "default",
-					Verbs: []string{types.KubeVerbGet},
+					Verbs: []string{types.KubeVerbList},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "namespace denying list access to pod in all namespaces doesnt match deny",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "",
+				Verbs:     []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbList},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+			action:  types.Deny,
+		},
+		{
+			name: "namespace denying update access to pod in all namespaces matches allow",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "",
+				Verbs:     []string{types.KubeVerbList},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:  types.KindKubeNamespace,
+					Name:  "default",
+					Verbs: []string{types.KubeVerbList},
 				},
 			},
 			assert:  require.NoError,
 			matches: true,
+			action:  types.Allow,
 		},
 		{
-			name: "namespace denying update to custom resource",
+			name: "namespace denying update access to pod deny matches all namespaces",
 			input: types.KubernetesResource{
-				Kind:      KubeCustomResource,
-				Namespace: "default",
-				Name:      "name",
-				Verbs:     []string{types.KubeVerbUpdate},
+				Kind:      types.KindKubePod,
+				Namespace: "",
+				Verbs:     []string{types.KubeVerbList},
 			},
 			resources: []types.KubernetesResource{
 				{
 					Kind:  types.KindKubeNamespace,
-					Name:  "default",
-					Verbs: []string{types.KubeVerbGet},
+					Name:  types.Wildcard,
+					Verbs: []string{types.KubeVerbList},
 				},
 			},
 			assert:  require.NoError,
-			matches: false,
-		},
-		{
-			name: "missing namespace granting read access to custom resource",
-			input: types.KubernetesResource{
-				Kind:      KubeCustomResource,
-				Namespace: "default",
-				Name:      "name",
-				Verbs:     []string{types.KubeVerbGet},
-			},
-			resources: []types.KubernetesResource{
-				{
-					Kind:      types.KindKubePod,
-					Namespace: "default",
-					Name:      "name",
-					Verbs:     []string{types.KubeVerbGet},
-				},
-				{
-					Kind:  types.KindKubeNamespace,
-					Name:  "diffnamespace",
-					Verbs: []string{types.KubeVerbGet},
-				},
-			},
-			assert:  require.NoError,
-			matches: false,
+			matches: true,
+			action:  types.Deny,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := KubeResourceMatchesRegex(tt.input, tt.resources)
+			got, err := KubeResourceCouldMatchRules(tt.input, tt.resources, tt.action)
 			tt.assert(t, err)
 			require.Equal(t, tt.matches, got)
 		})

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package crdgen
 
 type stringSet map[string]struct{}
 
@@ -38,5 +38,10 @@ var ignoredFields = map[string]stringSet{
 	},
 	"GithubConnectorSpecV3": {
 		"TeamsToLogins": struct{}{}, // Deprecated field, removed since v11
+	},
+	"ServerSpecV2": {
+		// Useless field for agentless servers, and potentially dangerous as it
+		// allows remote exec on agentful nodes.
+		"CmdLabels": struct{}{},
 	},
 }

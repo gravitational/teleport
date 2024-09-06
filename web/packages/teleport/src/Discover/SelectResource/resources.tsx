@@ -18,8 +18,12 @@
 
 import { Platform } from 'design/platform';
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-import cfg from 'teleport/config';
+import { assertUnreachable } from 'shared/utils/assertUnreachable';
+
+import {
+  DiscoverDiscoveryConfigMethod,
+  DiscoverEventResource,
+} from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
@@ -29,69 +33,96 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import {
-  ResourceSpec,
-  DatabaseLocation,
   DatabaseEngine,
+  DatabaseLocation,
+  KubeLocation,
+  ResourceSpec,
   ServerLocation,
 } from './types';
-import { SAML_APPLICATIONS } from './resourcesE';
 
-const baseServerKeywords = 'server node';
+const baseServerKeywords = ['server', 'node', 'ssh'];
+const awsKeywords = ['aws', 'amazon', 'amazon web services'];
+const kubeKeywords = ['kubernetes', 'k8s', 'kubes', 'cluster'];
+
 export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'ubuntu',
-    icon: 'Linux',
+    keywords: [...baseServerKeywords, 'ubuntu', 'linux'],
+    icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
   },
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'debian',
-    icon: 'Linux',
+    keywords: [...baseServerKeywords, 'debian', 'linux'],
+    icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
   },
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'rhel centos',
-    icon: 'Linux',
+    keywords: [...baseServerKeywords, 'rhel', 'redhat', 'centos', 'linux'],
+    icon: 'linux',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
   },
   {
     name: 'Amazon Linux 2/2023',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'amazon linux',
-    icon: 'Aws',
+    keywords: [...baseServerKeywords, 'amazon', 'linux'],
+    icon: 'aws',
     event: DiscoverEventResource.Server,
     platform: Platform.Linux,
   },
   {
     name: 'macOS',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'mac macos intel silicone apple',
-    icon: 'Apple',
+    keywords: [
+      ...baseServerKeywords,
+      'mac',
+      'macos',
+      'osx',
+      'intel',
+      'silicon',
+      'apple',
+    ],
+    icon: 'apple',
     event: DiscoverEventResource.Server,
     platform: Platform.macOS,
   },
   {
-    name: 'EC2 Instance',
+    name: 'EC2 Auto Enrollment',
     kind: ResourceKind.Server,
-    keywords:
-      baseServerKeywords + 'ec2 instance connect endpoint aws amazon eice',
-    icon: 'Aws',
+    keywords: [
+      ...baseServerKeywords,
+      ...awsKeywords,
+      'ec2',
+      'instance',
+      'simple systems manager',
+      'ssm',
+      'auto enrollment',
+    ],
+    icon: 'aws',
     event: DiscoverEventResource.Ec2Instance,
-    nodeMeta: { location: ServerLocation.Aws },
+    nodeMeta: {
+      location: ServerLocation.Aws,
+      discoveryConfigMethod: DiscoverDiscoveryConfigMethod.AwsEc2Ssm,
+    },
   },
   {
     name: 'Connect My Computer',
     kind: ResourceKind.ConnectMyComputer,
-    keywords: baseServerKeywords + 'connect my computer',
-    icon: 'Laptop',
+    keywords: [
+      ...baseServerKeywords,
+      'connect my computer',
+      'macos',
+      'osx',
+      'linux',
+    ],
+    icon: 'laptop',
     event: DiscoverEventResource.Server,
     supportedPlatforms: [Platform.macOS, Platform.Linux],
     supportedAuthTypes: ['local', 'passwordless'],
@@ -102,10 +133,18 @@ export const APPLICATIONS: ResourceSpec[] = [
   {
     name: 'Application',
     kind: ResourceKind.Application,
-    keywords: 'application',
-    icon: 'Application',
+    keywords: ['application'],
+    icon: 'application',
     isDialog: true,
     event: DiscoverEventResource.ApplicationHttp,
+  },
+  {
+    name: 'AWS CLI/Console Access',
+    kind: ResourceKind.Application,
+    keywords: [...awsKeywords, 'application', 'cli', 'console access'],
+    icon: 'aws',
+    event: DiscoverEventResource.ApplicationAwsConsole,
+    appMeta: { awsConsole: true },
   },
 ];
 
@@ -113,16 +152,17 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
     name: 'Active Directory Users',
     kind: ResourceKind.Desktop,
-    keywords: 'windows desktop active directory ad',
-    icon: 'Windows',
+    keywords: ['windows', 'desktop', 'microsoft active directory', 'ad'],
+    icon: 'windows',
     event: DiscoverEventResource.WindowsDesktop,
-    platform: Platform.Windows,
+    unguidedLink:
+      'https://goteleport.com/docs/desktop-access/active-directory/',
   },
   {
     name: 'Local Users',
     kind: ResourceKind.Desktop,
-    keywords: 'windows desktop non-ad local',
-    icon: 'Windows',
+    keywords: ['windows', 'desktop', 'non-ad', 'local'],
+    icon: 'windows',
     event: DiscoverEventResource.WindowsDesktopNonAD,
     unguidedLink: 'https://goteleport.com/docs/desktop-access/getting-started/',
   },
@@ -132,13 +172,22 @@ export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
-    keywords: 'kubernetes cluster kubes',
-    icon: 'Kube',
+    keywords: [...kubeKeywords],
+    icon: 'kube',
     event: DiscoverEventResource.Kubernetes,
+    kubeMeta: { location: KubeLocation.SelfHosted },
+  },
+  {
+    name: 'EKS',
+    kind: ResourceKind.Kubernetes,
+    keywords: [...awsKeywords, ...kubeKeywords, 'eks', 'elastic', 'service'],
+    icon: 'aws',
+    event: DiscoverEventResource.KubernetesEks,
+    kubeMeta: { location: KubeLocation.Aws },
   },
 ];
 
-const BASE_RESOURCES: ResourceSpec[] = [
+export const BASE_RESOURCES: ResourceSpec[] = [
   ...APPLICATIONS,
   ...KUBERNETES,
   ...WINDOWS_DESKTOPS,
@@ -148,13 +197,9 @@ const BASE_RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED_DOC,
 ];
 
-export const RESOURCES = !cfg.isEnterprise
-  ? BASE_RESOURCES
-  : [...BASE_RESOURCES, ...SAML_APPLICATIONS];
-
 export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
-    return {};
+    return '';
   }
 
   switch (r.kind) {
@@ -180,11 +225,25 @@ export function getResourcePretitle(r: ResourceSpec) {
       break;
     case ResourceKind.Desktop:
       return 'Windows Desktop';
+    case ResourceKind.Kubernetes:
+      if (r.kubeMeta) {
+        switch (r.kubeMeta.location) {
+          case KubeLocation.Aws:
+            return 'Amazon Web Services (AWS)';
+          case KubeLocation.SelfHosted:
+            return 'Self-Hosted';
+          default:
+            assertUnreachable(r.kubeMeta.location);
+        }
+      }
+      break;
     case ResourceKind.Server:
       if (r.nodeMeta?.location === ServerLocation.Aws) {
         return 'Amazon Web Services (AWS)';
       }
       return 'Server';
+    case ResourceKind.SamlApplication:
+      return 'SAML Application';
   }
 
   return '';

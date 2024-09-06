@@ -17,7 +17,7 @@ You'll need to replace these values in the policy example below:
 
 | Placeholder value | Replace with |
 | - | - |
-| `your-sessions-bucket` | Name to use for the Teleport S3 session recording bucket |
+| <Var name="your-sessions-bucket" description="AWS Sessions Bucket"/> | Name to use for the Teleport S3 session recording bucket |
 
 ```json
 {
@@ -33,7 +33,7 @@ You'll need to replace these values in the policy example below:
                 "s3:GetEncryptionConfiguration",
                 "s3:GetBucketVersioning"
             ],
-            "Resource": "arn:aws:s3:::your-sessions-bucket"
+            "Resource": "arn:aws:s3:::<Var name="your-sessions-bucket" description="AWS Sessions Bucket"/>"
         },
         {
             "Sid": "ObjectActions",
@@ -46,7 +46,7 @@ You'll need to replace these values in the policy example below:
                 "s3:ListMultipartUploadParts",
                 "s3:AbortMultipartUpload"
             ],
-            "Resource": "arn:aws:s3:::your-sessions-bucket/*"
+            "Resource": "arn:aws:s3:::<Var name="your-sessions-bucket" description="AWS Sessions Bucket"/>/*"
         }
     ]
 }
@@ -59,7 +59,7 @@ You'll need to replace these values in the policy example below:
 
 | Placeholder value | Replace with |
 | - | - |
-| `your-sessions-bucket` | Name to use for the Teleport S3 session recording bucket |
+| <Var name="your-sessions-bucket" description="AWS Sessions Bucket"/> | Name to use for the Teleport S3 session recording bucket |
 
 ```json
 {
@@ -78,7 +78,7 @@ You'll need to replace these values in the policy example below:
                 "s3:GetBucketVersioning",
                 "s3:CreateBucket"
             ],
-            "Resource": "arn:aws:s3:::your-sessions-bucket"
+            "Resource": "arn:aws:s3:::<Var name="your-sessions-bucket" description="AWS Sessions Bucket"/>"
         },
         {
             "Sid": "ObjectActions",
@@ -90,7 +90,7 @@ You'll need to replace these values in the policy example below:
                 "s3:ListMultipartUploadParts",
                 "s3:AbortMultipartUpload"
             ],
-            "Resource": "arn:aws:s3:::your-sessions-bucket/*"
+            "Resource": "arn:aws:s3:::<Var name="your-sessions-bucket" description="AWS Sessions Bucket"/>/*"
         }
     ]
 }

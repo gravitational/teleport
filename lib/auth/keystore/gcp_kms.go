@@ -19,7 +19,6 @@
 package keystore
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -27,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -34,11 +34,12 @@ import (
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 const (
@@ -56,59 +57,26 @@ type pendingRetryTag struct{}
 
 var (
 	gcpKMSProtectionLevels = map[string]kmspb.ProtectionLevel{
-		"SOFTWARE": kmspb.ProtectionLevel_SOFTWARE,
-		"HSM":      kmspb.ProtectionLevel_HSM,
+		servicecfg.GCPKMSProtectionLevelHSM:      kmspb.ProtectionLevel_HSM,
+		servicecfg.GCPKMSProtectionLevelSoftware: kmspb.ProtectionLevel_SOFTWARE,
 	}
 )
-
-// GCPKMS holds configuration parameters specific to GCP KMS keystores.
-type GCPKMSConfig struct {
-	// KeyRing is the fully qualified name of the GCP KMS keyring.
-	KeyRing string
-	// ProtectionLevel specifies how cryptographic operations are performed.
-	// For more information, see https://cloud.google.com/kms/docs/algorithms#protection_levels
-	// Supported options are "HSM" and "SOFTWARE".
-	ProtectionLevel string
-	// HostUUID is the UUID of the teleport host (auth server) running this
-	// keystore. Used to label keys so that they can be queried and deleted per
-	// server without races when multiple auth servers are configured with the
-	// same KeyRing.
-	HostUUID string
-
-	kmsClientOverride *kms.KeyManagementClient
-	clockOverride     faketime.Clock
-}
-
-func (cfg *GCPKMSConfig) CheckAndSetDefaults() error {
-	if cfg.KeyRing == "" {
-		return trace.BadParameter("must provide a valid KeyRing to GCPKMSConfig")
-	}
-	if _, ok := gcpKMSProtectionLevels[cfg.ProtectionLevel]; !ok {
-		return trace.BadParameter("unsupported ProtectionLevel %s", cfg.ProtectionLevel)
-	}
-	if cfg.HostUUID == "" {
-		return trace.BadParameter("must provide a valid HostUUID to GCPKMSConfig")
-	}
-	return nil
-}
 
 type gcpKMSKeyStore struct {
 	hostUUID        string
 	keyRing         string
 	protectionLevel kmspb.ProtectionLevel
 	kmsClient       *kms.KeyManagementClient
-	log             logrus.FieldLogger
+	log             *slog.Logger
 	clock           faketime.Clock
 	waiting         chan struct{}
 }
 
 // newGCPKMSKeyStore returns a new keystore configured to use a GCP KMS keyring
 // to manage all key material.
-func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.FieldLogger) (*gcpKMSKeyStore, error) {
-	var kmsClient *kms.KeyManagementClient
-	if cfg.kmsClientOverride != nil {
-		kmsClient = cfg.kmsClientOverride
-	} else {
+func newGCPKMSKeyStore(ctx context.Context, cfg *servicecfg.GCPKMSConfig, opts *Options) (*gcpKMSKeyStore, error) {
+	kmsClient := opts.kmsClient
+	if kmsClient == nil {
 		var err error
 		kmsClient, err = kms.NewKeyManagementClient(ctx)
 		if err != nil {
@@ -116,47 +84,43 @@ func newGCPKMSKeyStore(ctx context.Context, cfg *GCPKMSConfig, logger logrus.Fie
 		}
 	}
 
-	var clock faketime.Clock
-	if cfg.clockOverride == nil {
+	clock := opts.faketimeOverride
+	if clock == nil {
 		clock = faketime.NewRealClock()
-	} else {
-		clock = cfg.clockOverride
 	}
 
-	logger = logger.WithFields(logrus.Fields{trace.Component: "GCPKMSKeyStore"})
-
 	return &gcpKMSKeyStore{
-		hostUUID:        cfg.HostUUID,
+		hostUUID:        opts.HostUUID,
 		keyRing:         cfg.KeyRing,
 		protectionLevel: gcpKMSProtectionLevels[cfg.ProtectionLevel],
 		kmsClient:       kmsClient,
-		log:             logger,
+		log:             opts.Logger,
 		clock:           clock,
 		waiting:         make(chan struct{}),
 	}, nil
 }
 
-// generateRSA creates a new RSA private key and returns its identifier and a
-// crypto.Signer. The returned identifier for gcpKMSKeyStore encoded the full
-// GCP KMS key version name, and can be passed to getSigner later to get the same
-// crypto.Signer.
-func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) ([]byte, crypto.Signer, error) {
-	options := &RSAKeyOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
+func (a *gcpKMSKeyStore) name() string {
+	return storeGCP
+}
 
-	var alg kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm
-	switch options.DigestAlgorithm {
-	case crypto.SHA256, 0:
-		alg = kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256
-	case crypto.SHA512:
-		alg = kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512
-	default:
-		return nil, nil, trace.BadParameter("unsupported digest algorithm: %v", options.DigestAlgorithm)
+// keyTypeDescription returns a human-readable description of the types of keys
+// this backend uses.
+func (g *gcpKMSKeyStore) keyTypeDescription() string {
+	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
+}
+
+// generateKey creates a new private key and returns its identifier and a crypto.Signer. The returned
+// identifier for gcpKMSKeyStore encodes the full GCP KMS key version name, and can be passed to getSigner
+// later to get an equivalent crypto.Signer.
+func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm) ([]byte, crypto.Signer, error) {
+	alg, err := gcpAlgorithm(algorithm)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	keyUUID := uuid.NewString()
+	g.log.InfoContext(ctx, "Creating new GCP KMS keypair.", "id", keyUUID, "algorithm", alg.String())
 
 	req := &kmspb.CreateCryptoKeyRequest{
 		Parent:      g.keyRing,
@@ -188,13 +152,23 @@ func (g *gcpKMSKeyStore) generateRSA(ctx context.Context, opts ...RSAKeyOption) 
 	return keyID.marshal(), signer, nil
 }
 
+func gcpAlgorithm(alg cryptosuites.Algorithm) (kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm, error) {
+	switch alg {
+	case cryptosuites.RSA2048:
+		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
+	case cryptosuites.ECDSAP256:
+		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
+	}
+	return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, trace.BadParameter("unsupported algorithm: %v", alg)
+}
+
 // getSigner returns a crypto.Signer for the given pem-encoded private key.
-func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte) (crypto.Signer, error) {
+func (g *gcpKMSKeyStore) getSigner(ctx context.Context, rawKey []byte, publicKey crypto.PublicKey) (crypto.Signer, error) {
 	keyID, err := parseGCPKMSKeyID(rawKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	signer, err := g.newKmsSigner(ctx, keyID)
+	signer, err := g.newKmsSignerWithPublicKey(ctx, keyID, publicKey)
 	return signer, trace.Wrap(err)
 }
 
@@ -232,7 +206,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 	return true, nil
 }
 
-// DeleteUnusedKeys deletes all keys from the configured KMS keyring if they:
+// deleteUnusedKeys deletes all keys from the configured KMS keyring if they:
 //  1. Are not included in the argument activeKeys
 //  2. Are labeled with hostLabel (teleport_auth_host)
 //  3. The hostLabel value matches the local host UUID
@@ -249,7 +223,7 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 // or a simpler case where: the other auth server is running in a completely
 // different Teleport cluster and the keys it's actively using will never appear
 // in the activeKeys argument.
-func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+func (g *gcpKMSKeyStore) deleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
 	// Make a map of currently active key versions, this is used for lookups to
 	// check which keys in KMS are unused.
 	activeKmsKeyVersions := make(map[string]int)
@@ -319,7 +293,7 @@ func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]by
 	}
 
 	for _, unusedKey := range keysToDelete {
-		g.log.WithFields(logrus.Fields{"key_version": unusedKey.keyVersionName}).Info("Deleting unused GCP KMS key.")
+		g.log.InfoContext(ctx, "Deleting unused GCP KMS key.", "key_version", unusedKey.keyVersionName)
 		err := g.deleteKey(ctx, unusedKey.marshal())
 		// Ignore errors where we can't destroy because the state is already
 		// DESTROYED or DESTROY_SCHEDULED
@@ -354,14 +328,18 @@ func (g *gcpKMSKeyStore) newKmsSigner(ctx context.Context, keyID gcpKMSKeyID) (*
 	}
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "unexpected error parsing public key pem")
+		return nil, trace.Wrap(err, "unexpected error parsing public key PEM")
 	}
 
+	return g.newKmsSignerWithPublicKey(ctx, keyID, pub)
+}
+
+func (g *gcpKMSKeyStore) newKmsSignerWithPublicKey(ctx context.Context, keyID gcpKMSKeyID, publicKey crypto.PublicKey) (*kmsSigner, error) {
 	return &kmsSigner{
 		ctx:    ctx,
 		g:      g,
 		keyID:  keyID,
-		public: pub,
+		public: publicKey,
 	}, nil
 }
 
@@ -370,16 +348,26 @@ func (s *kmsSigner) Public() crypto.PublicKey {
 }
 
 func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) (signature []byte, err error) {
-	requestDigest := &kmspb.Digest{}
+	var (
+		requestDigest *kmspb.Digest
+		data          []byte
+	)
 	switch opts.HashFunc() {
 	case crypto.SHA256:
-		requestDigest.Digest = &kmspb.Digest_Sha256{
-			Sha256: digest,
+		requestDigest = &kmspb.Digest{
+			Digest: &kmspb.Digest_Sha256{
+				Sha256: digest,
+			},
 		}
 	case crypto.SHA512:
-		requestDigest.Digest = &kmspb.Digest_Sha512{
-			Sha512: digest,
+		requestDigest = &kmspb.Digest{
+			Digest: &kmspb.Digest_Sha512{
+				Sha512: digest,
+			},
 		}
+	case crypto.Hash(0):
+		// Ed25519 uses no hash and sends the full raw data.
+		data = digest
 	default:
 		return nil, trace.BadParameter("unsupported hash func for GCP KMS signer: %v", opts.HashFunc())
 	}
@@ -387,6 +375,7 @@ func (s *kmsSigner) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) 
 	resp, err := doGCPRequest(s.ctx, s.g, s.g.kmsClient.AsymmetricSign, &kmspb.AsymmetricSignRequest{
 		Name:   s.keyID.keyVersionName,
 		Digest: requestDigest,
+		Data:   data,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "error while attempting GCP KMS signing operation")
@@ -399,10 +388,20 @@ type gcpKMSKeyID struct {
 }
 
 func (g gcpKMSKeyID) marshal() []byte {
-	var buf bytes.Buffer
-	buf.WriteString(gcpkmsPrefix)
-	buf.WriteString(g.keyVersionName)
-	return buf.Bytes()
+	return []byte(gcpkmsPrefix + g.keyVersionName)
+}
+
+func (g gcpKMSKeyID) keyring() (string, error) {
+	// keyVersionName has this format:
+	//   projects/*/locations/*/keyRings/*/cryptoKeys/*/cryptoKeyVersions/1
+	// want to extract:
+	//   projects/*/locations/*/keyRings/*
+	// project name, location, and keyRing name can't contain '/'
+	splits := strings.SplitN(g.keyVersionName, "/", 7)
+	if len(splits) < 7 {
+		return "", trace.BadParameter("GCP KMS keyVersionName has bad format")
+	}
+	return strings.Join(splits[:6], "/"), nil
 }
 
 func parseGCPKMSKeyID(key []byte) (gcpKMSKeyID, error) {

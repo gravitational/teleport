@@ -22,7 +22,8 @@ app_service:
       # Optional: For access to cloud provider APIs, specify the cloud
       # provider. Allowed values are "AWS", "Azure", and "GCP".
       cloud: ""
-      # URI and Port of Application.
+      # URI of Application. For TCP applications
+      # use tcp, ex: tcp://localhost:5432.
       uri: "http://10.0.1.27:8000"
       # Optionally skip TLS verification. default false
       # insecure_skip_verify: true

@@ -21,7 +21,9 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/kubernetes"
@@ -31,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -103,7 +107,7 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 	case configPath == "" && clusterName != "":
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
-			if err == rest.ErrNotInCluster {
+			if errors.Is(err, rest.ErrNotInCluster) {
 				return nil, trace.NotFound("not running inside of a Kubernetes pod")
 			}
 			return nil, trace.Wrap(err)
@@ -217,29 +221,43 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	return []types.KubeCluster(sorted)
 }
 
-// CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane
-// default based on registered clusters.
-//
-// If no clusters are registered, a NotFound error is returned.
-func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName, teleportClusterName string) (string, error) {
-	kubeClusterNames, err := KubeClusterNames(ctx, p)
+type Pinger interface {
+	Ping(context.Context) (proto.PingResponse, error)
+}
+
+// GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
+// for enrolling EKS clusters.
+func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, releaseChannels automaticupgrades.Channels) (string, error) {
+	pingResponse, err := pinger.Ping(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if kubeClusterName != "" {
-		if !slices.Contains(kubeClusterNames, kubeClusterName) {
-			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
+	agentVersion := pingResponse.ServerVersion
+
+	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
+		defaultVersion, err := releaseChannels.DefaultVersion(ctx)
+		if err == nil {
+			agentVersion = defaultVersion
+		} else if !errors.Is(err, &version.NoNewVersionError{}) {
+			return "", trace.Wrap(err)
 		}
-		return kubeClusterName, nil
 	}
-	// Default is the cluster with a name matching the Teleport cluster
-	// name (for backwards-compatibility with pre-5.0 behavior) or the
-	// first name alphabetically.
-	if len(kubeClusterNames) == 0 {
-		return "", trace.NotFound("no kubernetes clusters registered")
+
+	return strings.TrimPrefix(agentVersion, "v"), nil
+}
+
+// CheckKubeCluster validates kubeClusterName is registered with this Teleport cluster.
+func CheckKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName string) error {
+	if kubeClusterName == "" {
+		return trace.BadParameter("kube cluster name should not be empty.")
 	}
-	if slices.Contains(kubeClusterNames, teleportClusterName) {
-		return teleportClusterName, nil
+	kubeClusterNames, err := KubeClusterNames(ctx, p)
+	if err != nil {
+		return trace.Wrap(err, "failed to get list of available Kubernetes clusters.")
 	}
-	return kubeClusterNames[0], nil
+	if !slices.Contains(kubeClusterNames, kubeClusterName) {
+		return trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'", kubeClusterName)
+	}
+
+	return nil
 }

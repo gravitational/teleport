@@ -89,9 +89,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term.TTY() != nil {
-			scx.ttyName = term.TTY().Name()
-		}
+		scx.ttyName = term.TTYName()
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
 		scx.Errorf("Failed setting window size: %v", err)
@@ -148,12 +146,10 @@ func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Ch
 	}
 
 	if params.Approved {
-		_, err := session.approveFileTransferRequest(params, scx)
-		return trace.Wrap(err)
+		return trace.Wrap(session.approveFileTransferRequest(params, scx))
 	}
 
-	_, err = session.denyFileTransferRequest(params, scx)
-	return trace.Wrap(err)
+	return trace.Wrap(session.denyFileTransferRequest(params, scx))
 }
 
 // HandleFileTransferRequest handles requests of type "file-transfer-request" which will
@@ -172,8 +168,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 		return nil
 	}
 
-	session.addFileTransferRequest(params, scx)
-	return nil
+	return trace.Wrap(session.addFileTransferRequest(params, scx))
 }
 
 // HandleWinChange handles requests of type "window-change" which update the

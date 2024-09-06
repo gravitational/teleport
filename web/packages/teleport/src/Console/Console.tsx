@@ -31,6 +31,7 @@ import Tabs from './Tabs';
 import ActionBar from './ActionBar';
 import DocumentSsh from './DocumentSsh';
 import DocumentNodes from './DocumentNodes';
+import DocumentKubeExec from './DocumentKubeExec';
 import DocumentBlank from './DocumentBlank';
 import usePageTitle from './usePageTitle';
 import useTabRouting from './useTabRouting';
@@ -76,10 +77,6 @@ export default function Console() {
     return consoleCtx.refreshParties();
   }
 
-  function onLogout() {
-    consoleCtx.logout();
-  }
-
   const disableNewTab = storeDocs.getNodeDocuments().length > 0;
   const $docs = documents.map(doc => (
     <MemoizedDocument doc={doc} visible={doc.id === activeDocId} key={doc.id} />
@@ -109,7 +106,6 @@ export default function Console() {
               onNew={onTabNew}
             />
             <ActionBar
-              onLogout={onLogout}
               latencyIndicator={
                 activeDoc?.kind === 'terminal'
                   ? {
@@ -141,6 +137,8 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
         return <DocumentSsh doc={doc} visible={visible} />;
       case 'nodes':
         return <DocumentNodes doc={doc} visible={visible} />;
+      case 'kubeExec':
+        return <DocumentKubeExec doc={doc} visible={visible} />;
       default:
         return <DocumentBlank doc={doc} visible={visible} />;
     }

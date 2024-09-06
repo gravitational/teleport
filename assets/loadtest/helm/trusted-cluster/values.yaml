@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: public.ecr.aws/gravitational/teleport-distroless
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
   pullPolicy: IfNotPresent
   tag: ""
 

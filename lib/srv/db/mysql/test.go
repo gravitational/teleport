@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -135,8 +136,8 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 	}
 
 	log := logrus.WithFields(logrus.Fields{
-		trace.Component: defaults.ProtocolMySQL,
-		"name":          config.Name,
+		teleport.ComponentKey: defaults.ProtocolMySQL,
+		"name":                config.Name,
 	})
 	server := &TestServer{
 		cfg:      config,
@@ -319,7 +320,7 @@ func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, 
 	return params, 0, nil, nil
 }
 func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
-	h.log.Debugf("Received execute %q with args %+v.", args)
+	h.log.Debugf("Received execute %q with args %+v.", query, args)
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
 	}

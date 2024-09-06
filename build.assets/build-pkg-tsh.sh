@@ -106,14 +106,14 @@ password created by APPLE_USERNAME"
   if [[ -z "${DEVELOPER_ID_APPLICATION}" ]]; then
     echo "\
 The DEVELOPER_ID_APPLICATION environment variable needs to be set to the hash\
-of the key to sign applications"
+or name of the key to sign applications"
     exit 1
   fi
 
   if [[ -z "${DEVELOPER_ID_INSTALLER}" ]]; then
     echo "\
 The DEVELOPER_ID_INSTALLER environment variable needs to be set to the hash\
-of the key to sign packages"
+or name of the key to sign packages"
     exit 1
   fi
 
@@ -152,18 +152,15 @@ of the key to sign packages"
   tar xzf "$tarname" -C "$tmp"
 
   # Prepare app shell.
-  local skel="$buildassets/macos/$TSH_SKELETON"
   local target="$tmp/root/tsh.app"
-  cp -r "$skel/tsh.app" "$target"
-  mkdir -p "$target/Contents/MacOS/"
-  cp "$tmp"/teleport*/tsh "$target/Contents/MacOS/"
+  cp -r "$tmp/teleport/tsh.app" "$target"
 
   # Sign app.
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
     -i "$BUNDLEID" \
-    --entitlements "$skel"/tsh*.entitlements \
+    --entitlements "$buildassets"/macos/$TSH_SKELETON/tsh*.entitlements \
     --timestamp \
     "$target"
 

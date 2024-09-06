@@ -25,41 +25,47 @@ import type { RouteProps } from 'react-router';
  * These are for identifying a specific resource within a root cluster.
  */
 
-type RootClusterId = string;
-type LeafClusterId = string;
-type ServerId = string;
-type KubeId = string;
-type DbId = string;
-export type RootClusterUri = `/clusters/${RootClusterId}`;
-export type RootClusterServerUri =
-  `/clusters/${RootClusterId}/servers/${ServerId}`;
-export type RootClusterKubeUri = `/clusters/${RootClusterId}/kubes/${KubeId}`;
-export type RootClusterDatabaseUri = `/clusters/${RootClusterId}/dbs/${DbId}`;
+// TODO(gzdunek): These types used to be template literals
+// (for example, RootClusterUri = `/clusters/${RootClusterId}`).
+// They were replaced with strings here https://github.com/gravitational/teleport/pull/39828,
+// because we started using the generated proto types directly
+// (so it was not possible to assign these types to plain strings).
+// However, I didn't remove the type aliases below, because:
+// 1. Ripping them out is too much work.
+// 2. They still carry some useful information.
+// 3. We might be able to add them back in the future
+// (maybe with some sort of TypeScript declaration merging).
+export type RootClusterUri = string;
+export type RootClusterServerUri = string;
+export type RootClusterKubeUri = string;
+export type RootClusterDatabaseUri = string;
+export type RootClusterAppUri = string;
 export type RootClusterResourceUri =
   | RootClusterServerUri
   | RootClusterKubeUri
-  | RootClusterDatabaseUri;
+  | RootClusterDatabaseUri
+  | RootClusterAppUri;
 export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
-export type LeafClusterUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}`;
-export type LeafClusterServerUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/servers/${ServerId}`;
-export type LeafClusterKubeUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/kubes/${KubeId}`;
-export type LeafClusterDatabaseUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/dbs/${DbId}`;
+export type LeafClusterUri = string;
+export type LeafClusterServerUri = string;
+export type LeafClusterKubeUri = string;
+export type LeafClusterDatabaseUri = string;
+export type LeafClusterAppUri = string;
 export type LeafClusterResourceUri =
   | LeafClusterServerUri
   | LeafClusterKubeUri
-  | LeafClusterDatabaseUri;
+  | LeafClusterDatabaseUri
+  | LeafClusterAppUri;
 export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
 
 export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
 export type ClusterUri = RootClusterUri | LeafClusterUri;
 export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
 export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
+export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
+export type GatewayTargetUri = DatabaseUri | KubeUri | AppUri;
 
 /*
  * Document URIs
@@ -74,8 +80,7 @@ export type DocumentUri = `/docs/${DocumentId}`;
  * These are for gateways (proxies) managed by the tsh daemon.
  */
 
-type GatewayId = string;
-export type GatewayUri = `/gateways/${GatewayId}`;
+export type GatewayUri = string;
 
 export const paths = {
   // Resources.
@@ -86,7 +91,11 @@ export const paths = {
   serverLeaf:
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
+  kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
+  app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
+  appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId?/apps/:appId',
   // Documents.
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -115,6 +124,10 @@ export const routing = {
 
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
+  },
+
+  parseAppUri(uri: string) {
+    return routing.parseUri(uri, paths.app);
   },
 
   parseServerUri(uri: string) {
@@ -180,6 +193,45 @@ export const routing = {
     }
   },
 
+  getAppUri(params: Params) {
+    if (params.leafClusterId) {
+      // paths.appLeaf is needed as path-to-regexp used by react-router doesn't support
+      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
+      //
+      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
+      return generatePath(paths.appLeaf, params as any) as LeafClusterAppUri;
+    } else {
+      return generatePath(paths.app, params as any) as RootClusterAppUri;
+    }
+  },
+
+  getDbUri(params: Params) {
+    if (params.leafClusterId) {
+      // paths.dbLeaf is needed as path-to-regexp used by react-router doesn't support
+      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
+      //
+      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
+      return generatePath(
+        paths.dbLeaf,
+        params as any
+      ) as LeafClusterDatabaseUri;
+    } else {
+      return generatePath(paths.db, params as any) as RootClusterDatabaseUri;
+    }
+  },
+
+  getKubeUri(params: Params) {
+    if (params.leafClusterId) {
+      // paths.kubeLeaf is needed as path-to-regexp used by react-router doesn't support
+      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
+      //
+      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
+      return generatePath(paths.kubeLeaf, params as any) as LeafClusterKubeUri;
+    } else {
+      return generatePath(paths.kube, params as any) as RootClusterKubeUri;
+    }
+  },
+
   isClusterServer(clusterUri: ClusterUri, serverUri: ServerUri) {
     return serverUri.startsWith(`${clusterUri}/servers/`);
   },
@@ -216,6 +268,22 @@ export const routing = {
   },
 };
 
+export function isAppUri(uri: string): uri is AppUri {
+  return !!routing.parseAppUri(uri);
+}
+
+export function isDatabaseUri(uri: string): uri is DatabaseUri {
+  return !!routing.parseDbUri(uri);
+}
+
+export function isServerUri(uri: string): uri is ServerUri {
+  return !!routing.parseServerUri(uri);
+}
+
+export function isKubeUri(uri: string): uri is KubeUri {
+  return !!routing.parseKubeUri(uri);
+}
+
 export type Params = {
   rootClusterId?: string;
   leafClusterId?: string;
@@ -226,4 +294,5 @@ export type Params = {
   tabId?: string;
   sid?: string;
   docId?: string;
+  appId?: string;
 };

@@ -60,7 +60,7 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 
 		validateCmd := func(cmd *exec.Cmd) error {
 			config := kubeConfigFromCmdEnv(t, cmd)
-			checkKubeLocalProxyConfig(t, p.suite, config, p.rootClusterName, p.rootKubeCluster1)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster1)
 			return nil
 		}
 		err := Run(
@@ -82,8 +82,8 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 
 		validateCmd := func(cmd *exec.Cmd) error {
 			config := kubeConfigFromCmdEnv(t, cmd)
-			checkKubeLocalProxyConfig(t, p.suite, config, p.rootClusterName, p.rootKubeCluster2)
-			checkKubeLocalProxyConfig(t, p.suite, config, p.leafClusterName, p.leafKubeCluster)
+			checkKubeLocalProxyConfig(t, config, p.rootClusterName, p.rootKubeCluster2)
+			checkKubeLocalProxyConfig(t, config, p.leafClusterName, p.leafKubeCluster)
 			return nil
 		}
 		err := Run(
@@ -116,7 +116,7 @@ func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 	return nil
 }
 
-func checkKubeLocalProxyConfig(t *testing.T, s *suite, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
+func checkKubeLocalProxyConfig(t *testing.T, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
 	t.Helper()
 
 	sendRequestToKubeLocalProxy(t, config, teleportCluster, kubeCluster)

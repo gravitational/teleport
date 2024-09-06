@@ -32,13 +32,14 @@ import (
 
 // TestReconciler makes sure appropriate callbacks are called during reconciliation.
 func TestReconciler(t *testing.T) {
+	type updateCall struct{ new, old testResource }
 	tests := []struct {
 		description         string
 		selectors           []ResourceMatcher
 		registeredResources []testResource
 		newResources        []testResource
 		onCreateCalls       []testResource
-		onUpdateCalls       []testResource
+		onUpdateCalls       []updateCall
 		onDeleteCalls       []testResource
 	}{
 		{
@@ -91,7 +92,12 @@ func TestReconciler(t *testing.T) {
 			}},
 			registeredResources: []testResource{makeDynamicResource("res1", nil)},
 			newResources:        []testResource{makeDynamicResource("res1", map[string]string{"env": "dev"})},
-			onUpdateCalls:       []testResource{makeDynamicResource("res1", map[string]string{"env": "dev"})},
+			onUpdateCalls: []updateCall{
+				{
+					old: makeDynamicResource("res1", nil),
+					new: makeDynamicResource("res1", map[string]string{"env": "dev"}),
+				},
+			},
 		},
 		{
 			description: "non-matching updated resource should be removed",
@@ -125,8 +131,11 @@ func TestReconciler(t *testing.T) {
 			onCreateCalls: []testResource{
 				makeDynamicResource("res5", map[string]string{"env": "prod"}),
 			},
-			onUpdateCalls: []testResource{
-				makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
+			onUpdateCalls: []updateCall{
+				{
+					new: makeDynamicResource("res2", map[string]string{"env": "prod", "a": "b"}),
+					old: makeDynamicResource("res2", map[string]string{"env": "prod"}),
+				},
 			},
 			onDeleteCalls: []testResource{
 				makeDynamicResource("res1", map[string]string{"env": "prod"}),
@@ -138,7 +147,8 @@ func TestReconciler(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
 			// Reconciler will record all callback calls in these lists.
-			var onCreateCalls, onUpdateCalls, onDeleteCalls []testResource
+			var onCreateCalls, onDeleteCalls []testResource
+			var onUpdateCalls []updateCall
 
 			reconciler, err := NewReconciler[testResource](ReconcilerConfig[testResource]{
 				Matcher: func(tr testResource) bool {
@@ -158,8 +168,8 @@ func TestReconciler(t *testing.T) {
 					onCreateCalls = append(onCreateCalls, tr)
 					return nil
 				},
-				OnUpdate: func(ctx context.Context, tr testResource) error {
-					onUpdateCalls = append(onUpdateCalls, tr)
+				OnUpdate: func(ctx context.Context, tr, old testResource) error {
+					onUpdateCalls = append(onUpdateCalls, updateCall{new: tr, old: old})
 					return nil
 				},
 				OnDelete: func(ctx context.Context, tr testResource) error {
@@ -218,4 +228,8 @@ func (r testResource) GetMetadata() *headerv1.Metadata {
 
 func (r testResource) GetName() string {
 	return r.Metadata.GetName()
+}
+
+func (r testResource) GetKind() string {
+	return "testResource"
 }

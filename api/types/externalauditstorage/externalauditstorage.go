@@ -234,9 +234,14 @@ func (a *ExternalAuditStorage) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
-// CloneResource returns a copy of the resource as types.ResourceWithLabels.
-func (a *ExternalAuditStorage) CloneResource() types.ResourceWithLabels {
+// Clone returs a copy of the resource.
+func (a *ExternalAuditStorage) Clone() *ExternalAuditStorage {
 	var copy *ExternalAuditStorage
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
+}
+
+// CloneResource returns a copy of the resource as types.ResourceWithLabels.
+func (a *ExternalAuditStorage) CloneResource() types.ResourceWithLabels {
+	return a.Clone()
 }

@@ -33,9 +33,6 @@ type Gateway interface {
 	Serve() error
 	// Close terminates gateway connection.
 	Close() error
-	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
-	// updates the cert of the running local proxy.
-	ReloadCert() error
 
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI
@@ -66,6 +63,14 @@ func AsKube(g Gateway) (Kube, error) {
 	return nil, trace.BadParameter("expecting kube gateway but got %T", g)
 }
 
+// AsApp converts provided gateway to a kube gateway.
+func AsApp(g Gateway) (App, error) {
+	if app, ok := g.(App); ok {
+		return app, nil
+	}
+	return nil, trace.BadParameter("expecting app gateway but got %T", g)
+}
+
 // Database defines a database gateway.
 type Database interface {
 	Gateway
@@ -84,4 +89,12 @@ type Kube interface {
 	// KubeconfigPath returns the path to the kubeconfig used to connect the
 	// local proxy.
 	KubeconfigPath() string
+}
+
+// App defines an app gateway.
+type App interface {
+	Gateway
+
+	// LocalProxyURL returns the URL of the local proxy.
+	LocalProxyURL() string
 }

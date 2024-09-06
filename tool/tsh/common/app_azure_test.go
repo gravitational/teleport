@@ -47,7 +47,7 @@ func TestAzure(t *testing.T) {
 	user, azureRole := makeUserWithAzureRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, azureRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
+	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
 		Name:  "azure-api",
 		Cloud: types.CloudAzure,
 	})
@@ -61,10 +61,7 @@ func TestAzure(t *testing.T) {
 	// helper function
 	run := func(args []string, opts ...CliOption) {
 		opts = append(opts, setHomePath(tmpHomePath))
-		opts = append(opts, func(cf *CLIConf) error {
-			cf.MockSSOLogin = mockSSOLogin(t, authServer, user)
-			return nil
-		})
+		opts = append(opts, setMockSSOLogin(authServer, user, connector.GetName()))
 		err := Run(context.Background(), args, opts...)
 		require.NoError(t, err)
 	}
@@ -73,18 +70,18 @@ func TestAzure(t *testing.T) {
 	t.Setenv("MSI_ENDPOINT", "https://azure-msi.teleport.dev/very-secret")
 
 	// Log into Teleport cluster.
-	run([]string{"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String()})
+	run([]string{"login", "--insecure", "--debug", "--proxy", proxyAddr.String()})
 
 	// Log into the "azure-api" app.
 	// Verify `tsh az login ...` gets called.
-	run([]string{"app", "login", "azure-api"},
+	run([]string{"app", "login", "--insecure", "--azure-identity", "dummy_azure_identity", "azure-api"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
 		}))
 
 	// Log into the "azure-api" app -- now with --debug flag.
-	run([]string{"app", "login", "azure-api", "--debug"},
+	run([]string{"app", "login", "--insecure", "azure-api", "--debug"},
 		setCmdRunner(func(cmd *exec.Cmd) error {
 			require.Equal(t, []string{"--debug", "az", "login", "--identity", "-u", "dummy_azure_identity"}, cmd.Args[1:])
 			return nil
@@ -133,7 +130,6 @@ func TestAzure(t *testing.T) {
 				require.NotZero(t, req.ExpiresOn)
 				require.NotZero(t, req.ExtExpiresIn)
 				require.NotZero(t, req.NotBefore)
-
 			},
 		},
 	}
@@ -209,7 +205,10 @@ func makeUserWithAzureRole(t *testing.T) (types.User, types.Role) {
 	role := services.NewPresetAccessRole()
 
 	alice.SetRoles([]string{role.GetName()})
-	alice.SetAzureIdentities([]string{"dummy_azure_identity"})
+	alice.SetAzureIdentities([]string{
+		"dummy_azure_identity",
+		"other_dummy_azure_identity",
+	})
 
 	return alice, role
 }

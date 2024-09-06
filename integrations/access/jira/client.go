@@ -42,9 +42,10 @@ const (
 
 	jiraMaxConns    = 100
 	jiraHTTPTimeout = 10 * time.Second
-	// Teleport has a 4096 character limit for the reason field so we
+	// JiraReasonLimit is the max size for a reason in jira.
+	// Teleport has a 4096-character limit for the reason field, so we
 	// truncate all reasons to a generous but conservative limit
-	jiraReasonLimit = 3000
+	JiraReasonLimit = 3000
 
 	jiraStatusUpdateTimeout time.Duration = 10 * time.Second
 )
@@ -130,7 +131,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 				if resp.IsError() {
 					switch result := resp.Error().(type) {
 					case *ErrorResult:
-						return trace.Errorf("http error code=%v, errors=[%v]", resp.StatusCode(), strings.Join(result.ErrorMessages, ", "))
+						return trace.Errorf("http error code=%v, errors=[%s]", resp.StatusCode(), result)
 					case nil:
 						return nil
 					default:
@@ -160,6 +161,17 @@ func statusFromStatusCode(httpCode int) types.PluginStatus {
 		code = types.PluginStatusCode_OTHER_ERROR
 	}
 	return &types.PluginStatusV1{Code: code}
+}
+
+// buildSummary creates the Issue's summary by using the user name and roles.
+// No official docs seem to exist, but it's _known_ that summary field must be less than 255 chars:
+// Eg https://community.atlassian.com/t5/Jira-questions/Summary-must-be-less-than-255-characters/qaq-p/989632
+func buildSummary(reqData RequestData) string {
+	summary := fmt.Sprintf("%s requested %s", reqData.User, strings.Join(reqData.Roles, ", "))
+	if len(summary) <= 254 {
+		return summary
+	}
+	return fmt.Sprintf("%s requested access to %d roles", reqData.User, len(reqData.Roles))
 }
 
 // HealthCheck checks Jira endpoint for validity and also checks the project permissions.
@@ -241,9 +253,9 @@ func (j *Jira) CreateIssue(ctx context.Context, reqID string, reqData RequestDat
 			},
 		},
 		Fields: IssueFieldsInput{
-			Type:        &IssueType{Name: "Task"},
+			Type:        &IssueType{Name: j.issueType},
 			Project:     &Project{Key: j.project},
-			Summary:     fmt.Sprintf("%s requested %s", reqData.User, strings.Join(reqData.Roles, ", ")),
+			Summary:     buildSummary(reqData),
 			Description: description,
 		},
 	}
@@ -450,11 +462,11 @@ func (j *Jira) AddResolutionComment(ctx context.Context, id string, resolution R
 }
 
 func truncateReasonFields(reqData RequestData) RequestData {
-	if reqData.Resolution.Reason != "" && len(reqData.Resolution.Reason) > jiraReasonLimit {
-		reqData.Resolution.Reason = reqData.Resolution.Reason[:jiraReasonLimit]
+	if reqData.Resolution.Reason != "" && len(reqData.Resolution.Reason) > JiraReasonLimit {
+		reqData.Resolution.Reason = reqData.Resolution.Reason[:JiraReasonLimit]
 	}
-	if reqData.RequestReason != "" && len(reqData.RequestReason) > jiraReasonLimit {
-		reqData.RequestReason = reqData.RequestReason[:jiraReasonLimit]
+	if reqData.RequestReason != "" && len(reqData.RequestReason) > JiraReasonLimit {
+		reqData.RequestReason = reqData.RequestReason[:JiraReasonLimit]
 	}
 	return reqData
 }

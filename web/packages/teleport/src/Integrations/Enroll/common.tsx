@@ -17,10 +17,14 @@
  */
 
 import React from 'react';
-import { Box, Flex, Text } from 'design';
+import { Box, Flex, H2 } from 'design';
 import styled from 'styled-components';
+import { P } from 'design/Text/Text';
 
-export const IntegrationTile = styled(Flex)`
+export const IntegrationTile = styled(Flex)<{
+  disabled?: boolean;
+  $exists?: boolean;
+}>`
   color: inherit;
   text-decoration: none;
   flex-direction: column;
@@ -34,7 +38,7 @@ export const IntegrationTile = styled(Flex)`
   cursor: pointer;
 
   ${props => {
-    const pointerEvents = props.disabled ? 'none' : null;
+    const pointerEvents = props.disabled || props.$exists ? 'none' : 'auto';
     if (props.$exists) {
       return { pointerEvents };
     }
@@ -44,18 +48,17 @@ export const IntegrationTile = styled(Flex)`
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
+    pointer-events: ${pointerEvents};
     `;
   }}
 `;
 
 export const NoCodeIntegrationDescription = () => (
   <Box mb={3}>
-    <Text fontWeight="bold" typography="h4">
-      No-Code Integrations
-    </Text>
-    <Text typography="body1">
+    <H2 mb={1}>No-Code Integrations</H2>
+    <P>
       Set up Teleport to post notifications to messaging apps, discover and
       import resources from cloud providers and other services.
-    </Text>
+    </P>
   </Box>
 );

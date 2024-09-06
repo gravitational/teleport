@@ -18,12 +18,22 @@
 
 package local
 
-import "github.com/jonboulle/clockwork"
+import "time"
 
 // SessionDataLimiter exports sdLimiter for tests.
 var SessionDataLimiter = sdLimiter
 
-// SetDesyncedClockForTesting sets its namesake clock in the identity service.
-func (s *IdentityService) SetDesyncedClockForTesting(clock clockwork.Clock) {
-	s.desyncedClockForTesting = clock
+// Reset resets the limiter to its initial state.
+// Exposed for testing.
+func (l *globalSessionDataLimiter) Reset() {
+	l.mu.Lock()
+	l.scopeCount = make(map[string]int)
+	l.lastReset = time.Time{}
+	l.mu.Unlock()
 }
+
+const (
+	WebPrefix    = webPrefix
+	UsersPrefix  = usersPrefix
+	ParamsPrefix = paramsPrefix
+)

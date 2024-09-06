@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib"
@@ -71,11 +72,19 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEmpty(t, jwksKeys.Keys)
-	key := jwksKeys.Keys[0]
-	require.Equal(t, "sig", key.Use)
-	require.Equal(t, "RSA", key.KeyType)
-	require.Equal(t, "RS256", key.Alg)
-	require.NotNil(t, key.KeyID) // AWS requires this to be present (even if empty string).
+	require.Len(t, jwksKeys.Keys, 2)
+
+	// Expect the same key twice, once with a synthesized Key ID, and once with an empty Key ID for compatibility.
+	key1 := jwksKeys.Keys[0]
+	key2 := jwksKeys.Keys[1]
+	assert.Equal(t, "sig", key1.Use)
+	assert.Equal(t, "EC", key1.KeyType)
+	assert.Equal(t, "ES256", key1.Alg)
+	assert.Equal(t, key1.Use, key2.Use)
+	assert.Equal(t, key1.KeyType, key2.KeyType)
+	assert.Equal(t, key1.Alg, key2.Alg)
+	assert.NotEmpty(t, *key1.KeyID)
+	assert.Equal(t, "", *key2.KeyID)
 }
 
 func TestThumbprint(t *testing.T) {

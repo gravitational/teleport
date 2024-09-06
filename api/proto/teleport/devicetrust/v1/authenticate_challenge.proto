@@ -1,0 +1,58 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.v1;
+
+import "teleport/devicetrust/v1/tpm.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
+
+// AuthenticateDeviceChallenge carries the authentication challenge.
+message AuthenticateDeviceChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// AuthenticateDeviceChallengeResponse carries the authentication challenge
+// response.
+message AuthenticateDeviceChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 1;
+  // Signature over the challenge, using the SSH key. This is required when the
+  // SSH and TLS public keys do not match, to prove ownership of the private key
+  // associated with the SSH certificate being augmented.
+  bytes ssh_signature = 2;
+}
+
+// TPMAuthenticateDeviceChallenge carries the authentication challenge
+// specific to TPMs.
+message TPMAuthenticateDeviceChallenge {
+  // Randomly-generated nonce to be used during platform attestation by the
+  // TPM.
+  bytes attestation_nonce = 1;
+}
+
+// TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
+// response specific to TPMs.
+message TPMAuthenticateDeviceChallengeResponse {
+  // The result of the client's platform attestation with the nonce provided
+  // in `TPMAuthenticateDeviceChallenge`.
+  TPMPlatformParameters platform_parameters = 1;
+  // Signature over the attestation_nonce, using the SSH key. This is required
+  // when the SSH and TLS public keys do not match, to prove ownership of the
+  // private key associated with the SSH certificate being augmented.
+  bytes ssh_signature = 2;
+}

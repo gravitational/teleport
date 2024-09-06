@@ -1,0 +1,14 @@
+#!/bin/sh
+
+#
+# the directory where Teleport binaries will be located
+#
+BINDIR=/usr/local/bin
+
+[ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
+cd $(dirname $0)
+mkdir -p $BINDIR $DATADIR || exit 1
+cp -f teleport-event-handler $BINDIR/ || exit 1
+
+echo "Teleport Event Handler binaries have been copied to $BINDIR"
+echo "See https://goteleport.com/docs/management/export-audit-events/fluentd/ for configuration information"

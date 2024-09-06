@@ -21,10 +21,12 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -57,6 +59,8 @@ type awsFetcherConfig struct {
 	// Log is a field logger to provide structured logging for each matcher,
 	// based on its config settings by default.
 	Log logrus.FieldLogger
+	// Logger is the slog.Logger
+	Logger *slog.Logger
 	// Integration is the integration name to be used to fetch credentials.
 	// When present, it will use this integration and discard any local credentials.
 	Integration string
@@ -82,12 +86,25 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 		}
 		cfg.Log = logrus.WithFields(logrus.Fields{
-			trace.Component: "watch:" + component,
-			"labels":        cfg.Labels,
-			"region":        cfg.Region,
-			"role":          cfg.AssumeRole,
-			"credentials":   credentialsSource,
+			teleport.ComponentKey: "watch:" + component,
+			"labels":              cfg.Labels,
+			"region":              cfg.Region,
+			"role":                cfg.AssumeRole,
+			"credentials":         credentialsSource,
 		})
+	}
+	if cfg.Logger == nil {
+		credentialsSource := "environment"
+		if cfg.Integration != "" {
+			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
+		}
+		cfg.Logger = slog.With(
+			teleport.ComponentKey, "watch:"+component,
+			"labels", cfg.Labels,
+			"region", cfg.Region,
+			"role", cfg.AssumeRole,
+			"credentials", credentialsSource,
+		)
 	}
 	return nil
 }

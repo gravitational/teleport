@@ -2,6 +2,8 @@
 gitref.go
 .data
 debug
+!/lib/srv/debug
+!/lib/client/debug
 default.etcd
 /darwin
 
@@ -24,6 +26,7 @@ build
 *.o
 *.a
 *.so
+*.syso
 
 # Folders
 _obj
@@ -100,3 +103,10 @@ web/certs/
 
 # Files produced by tests
 *.avi
+
+# We have switched to pnpm, ignore Yarn lockfile
+yarn.lock
+
+# mockServiceWorker.js is generated on each start of Storybook instead of being vendored into the
+# repo, see web/scripts/run-storybook.sh.
+web/.storybook/public/mockServiceWorker.js

@@ -24,7 +24,7 @@ import { createMemoryHistory } from 'history';
 
 import { Router, Route } from 'teleport/components/Router';
 
-import PlayerComponent from './Player';
+import { Player } from './Player';
 
 export default {
   title: 'Teleport/Player',
@@ -32,7 +32,9 @@ export default {
 
 export const SSH = () => {
   const history = createMemoryHistory({
-    initialEntries: ['/web/cluster/localhost/session/123?recordingType=ssh'],
+    initialEntries: [
+      '/web/cluster/localhost/session/123?recordingType=ssh&durationMs=1234',
+    ],
     initialIndex: 0,
   });
 
@@ -40,12 +42,17 @@ export const SSH = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
   );
 };
+
+// SSH player attempts to write to a web socket, and currently, there's no
+// official support for web sockets in MSW (see
+// https://github.com/mswjs/msw/issues/156).
+SSH.tags = ['skip-test'];
 
 export const Desktop = () => {
   const history = createMemoryHistory({
@@ -59,7 +66,7 @@ export const Desktop = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
@@ -76,7 +83,7 @@ export const RecordingTypeError = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>
@@ -95,7 +102,7 @@ export const DurationMsError = () => {
     <Router history={history}>
       <Flex m={-3}>
         <Route path="/web/cluster/:clusterId/session/:sid">
-          <PlayerComponent />
+          <Player />
         </Route>
       </Flex>
     </Router>

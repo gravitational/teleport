@@ -1,0 +1,12 @@
+### SSL SYSCALL error
+
+You may encounter the following error when your local `psql` is not compatible
+with newer versions of OpenSSL:
+```code
+$ tsh db connect --db-user postgres --db-name postgres postgres
+psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
+    Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 12345 failed: SSL SYSCALL error: Undefined error: 0
+```
+
+Please upgrade your local `psql` to the latest version.

@@ -22,18 +22,49 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum install -y centos-release-scl-rh && \
     yum install -y \
-        centos-release-scl \
-        cmake3 \
-        git \
-        scl-utils && \
+    centos-release-scl \
+    cmake3 \
+    git \
+    scl-utils && \
     yum clean all
 
 # As mentioned above, these packages are unsigned.
 RUN yum install --nogpgcheck -y \
-        ${DEVTOOLSET}-gcc \
-        ${DEVTOOLSET}-gcc-c++ \
-        ${DEVTOOLSET}-make && \
+    ${DEVTOOLSET}-gcc \
+    ${DEVTOOLSET}-gcc-c++ \
+    ${DEVTOOLSET}-make && \
     yum clean all
+
+## NINJA-BUILD ###################################################################
+
+## ninja-build is required for building boringssl. The version included in CentOS 7 AMR64
+## is too old, so we need to build it from source.
+FROM --platform=$BUILDPLATFORM centos-devtoolset AS ninja-build
+
+# Install additional required dependencies.
+RUN  yum install -y expat-devel \
+    gettext \
+    libcurl-devel \
+    openssl-devel \
+    pcre-devel \
+    xmlto \
+    zlib-devel \
+    && yum clean all
+
+# mno-outline-atomics flag is needed to make the build works on ARM64 docker.
+RUN git clone --depth=1 https://github.com/Kitware/CMake.git -b v3.28.1 && \
+    cd CMake && \
+    [ "$(git rev-parse HEAD)" = '1eed682d7cca9bb2c2b0709a6c3202a3b08613b2' ] && \
+    scl enable ${DEVTOOLSET} "if [ "${BUILDARCH}" = "arm64" ]; then export CFLAGS=-mno-outline-atomics; fi &&  ./bootstrap --parallel="$(nproc)" && make -j"$(nproc)" && make install"
+
+ENV PATH="/opt/cmake/bin:$PATH"
+
+RUN git clone --depth=1 https://github.com/ninja-build/ninja.git -b v1.11.1 && \
+    cd ninja && \
+    [ "$(git rev-parse HEAD)" = 'a524bf3f6bacd1b4ad85d719eed2737d8562f27a' ] && \
+    scl enable ${DEVTOOLSET} "cmake -Bbuild-cmake && \
+    cmake --build build-cmake -j"$(nproc)" && \
+    cmake --build build-cmake --target  install"
 
 # Use just created devtool image with newer GCC and Cmake
 FROM --platform=$BUILDPLATFORM centos-devtoolset as clang12
@@ -44,7 +75,7 @@ ARG DEVTOOLSET
 # CentOS 7 doesn't provide it as a package unfortunately.
 # This version of Clang is explicitly required for FIPS compliance when building BoringSSL.
 # For more information please refer to the section 12. Guidance and Secure Operation of:
-# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4407.pdf
+# TODO(reed) -- fill in URL
 # LLVM_INCLUDE_BENCHMARKS must be off, otherwise compilation fails,
 # CLANG_BUILD_TOOLS must be on, it builds clang binary,
 # LLVM_BUILD_TOOLS must be on, it builds llvm-strip binary.
@@ -54,12 +85,12 @@ RUN git clone --branch llvmorg-12.0.0 --depth=1 https://github.com/llvm/llvm-pro
     [ "$(git rev-parse HEAD)" = 'd28af7c654d8db0b68c175db5ce212d74fb5e9bc' ] && \
     mkdir build && cd build/ && \
     scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
--DCMAKE_BUILD_TYPE=Release \
--DCMAKE_INSTALL_PREFIX=/opt/llvm \
--DLLVM_ENABLE_PROJECTS=clang \
--DLLVM_BUILD_TOOLS=ON \
--G \"Unix Makefiles\" ../llvm && \
-make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang"' && \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/llvm \
+    -DLLVM_ENABLE_PROJECTS=clang \
+    -DLLVM_BUILD_TOOLS=ON \
+    -G \"Unix Makefiles\" ../llvm && \
+    make -j$(grep -c processor /proc/cpuinfo) install-llvm-strip install-clang-format install-clang install-clang-resource-headers install-libclang"' && \
     cd ../.. && \
     rm -rf llvm-project
 
@@ -74,7 +105,7 @@ RUN mkdir -p /opt/custom-packages && cd /opt && \
     yumdownloader --source elfutils-libelf-devel-static && \
     yum-builddep -y elfutils-libelf-devel-static && \
     export DIST=$(rpm -qp --queryformat '%{RELEASE}' elfutils-*.src.rpm | cut -d '.' -f 2) && \
-    rpmbuild --rebuild --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" elfutils-*.src.rpm && \
+    rpmbuild --rebuild --nocheck --define "optflags `rpm -E %{optflags}` -fPIC" --define "dist .${DIST}" elfutils-*.src.rpm && \
     if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
     cp /root/rpmbuild/RPMS/${BUILDARCH}/elfutils-libelf-devel-static-*${DIST}.${BUILDARCH}.rpm /opt/custom-packages/
 
@@ -93,6 +124,9 @@ FROM scratch AS buildbox-centos7-assets
 
 # Copy Clang into the final image.
 COPY --from=clang12 /opt/llvm /opt/llvm/
+
+# Copy ninja into the final image.
+COPY --from=ninja-build /usr/local/bin/ninja /usr/local/bin/ninja
 
 # Copy custom packages into the final image.
 COPY --from=custom-packages /opt/custom-packages /opt/custom-packages/

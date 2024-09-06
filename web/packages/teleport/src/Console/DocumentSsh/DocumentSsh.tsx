@@ -33,12 +33,6 @@ import * as stores from 'teleport/Console/stores';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 
-import { TerminalAssistContextProvider } from 'teleport/Console/DocumentSsh/TerminalAssist/TerminalAssistContext';
-
-import { useTeleport } from 'teleport';
-
-import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
-
 import Document from '../Document';
 
 import { Terminal, TerminalRef } from './Terminal';
@@ -54,12 +48,6 @@ export default function DocumentSshWrapper(props: PropTypes) {
 }
 
 function DocumentSsh({ doc, visible }: PropTypes) {
-  const ctx = useTeleport();
-  const consoleCtx = useConsoleContext();
-
-  const assistEnabled =
-    consoleCtx.storeUser.getAssistantAccess().list && ctx.assistEnabled;
-
   const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
@@ -90,7 +78,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
       tty={tty}
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
-      assistEnabled={assistEnabled}
     />
   );
 
@@ -109,14 +96,7 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           errorText={webauthn.errorText}
         />
       )}
-      {status === 'initialized' &&
-        (assistEnabled ? (
-          <TerminalAssistContextProvider>
-            {terminal}
-          </TerminalAssistContextProvider>
-        ) : (
-          terminal
-        ))}
+      {status === 'initialized' && terminal}
       <FileTransfer
         FileTransferRequestsComponent={
           <FileTransferRequests

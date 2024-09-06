@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // MaxChunkSize is the maximum number of bytes to send in a single data message.
@@ -70,9 +72,10 @@ func (c *ReadWriter) Read(b []byte) (n int, err error) {
 
 	if len(c.rBytes) == 0 {
 		data, err := c.source.Recv()
-		if errors.Is(err, io.EOF) {
+		if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
 			return 0, io.EOF
 		}
+
 		if err != nil {
 			return 0, trace.ConnectionProblem(trace.Wrap(err), "failed to receive from source: %v", err)
 		}
@@ -125,8 +128,6 @@ func (c *ReadWriter) Write(b []byte) (int, error) {
 // Close cleans up resources used by the stream.
 func (c *ReadWriter) Close() error {
 	if cs, ok := c.source.(io.Closer); ok {
-		c.wLock.Lock()
-		defer c.wLock.Unlock()
 		return trace.Wrap(cs.Close())
 	}
 

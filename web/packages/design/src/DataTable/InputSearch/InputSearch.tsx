@@ -16,21 +16,30 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { SetStateAction } from 'react';
+import React, { JSX, SetStateAction } from 'react';
 import styled from 'styled-components';
 
-import { height, space, color } from 'design/system';
+import {
+  height,
+  HeightProps,
+  space,
+  SpaceProps,
+  color,
+  ColorProps,
+} from 'design/system';
 
 export default function InputSearch({
   searchValue,
   setSearchValue,
   children,
+  bigInputSize = false,
 }: Props) {
   return (
-    <WrapperBackground>
+    <WrapperBackground bigSize={bigInputSize}>
       <Wrapper>
         <StyledInput
-          placeholder="SEARCH..."
+          bigInputSize={bigInputSize}
+          placeholder="Search..."
           px={3}
           value={searchValue}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -49,6 +58,7 @@ type Props = {
   searchValue: string;
   setSearchValue: React.Dispatch<SetStateAction<string>>;
   children?: JSX.Element;
+  bigInputSize?: boolean;
 };
 
 const ChildWrapper = styled.div`
@@ -58,8 +68,7 @@ const ChildWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.theme.colors.spotBackground[0]};
-  border-radius: 200px;
+  border-radius: 0 200px 200px 0;
 `;
 
 const ChildWrapperBackground = styled.div`
@@ -69,63 +78,46 @@ const ChildWrapperBackground = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props =>
-    props.theme.type === 'dark'
-      ? props.theme.colors.levels.surface
-      : props.theme.colors.levels.deep};
-  border-radius: 200px;
+  border-left: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.spotBackground[0]};
+  border-radius: 0 200px 200px 0;
 `;
 
 const Wrapper = styled.div`
   position: relative;
   display: flex;
   overflow: hidden;
-  width: 100%;
   border-radius: 200px;
-  height: 32px;
+  height: 100%;
   background: transparent;
+  max-width: 725px;
 `;
 
-const WrapperBackground = styled.div`
-  background: ${props => props.theme.colors.levels.sunken};
+const WrapperBackground = styled.div<{ bigSize: boolean }>`
   border-radius: 200px;
   width: 100%;
-  height: 32px;
+  height: ${props =>
+    props.bigSize ? props.theme.space[7] : props.theme.space[6]}px;
 `;
 
-const StyledInput = styled.input`
+interface StyledInputProps extends ColorProps, SpaceProps, HeightProps {
+  bigInputSize: boolean;
+}
+
+const StyledInput = styled.input<StyledInputProps>`
   border: none;
   outline: none;
   box-sizing: border-box;
-  height: 100%;
-  font-size: 12px;
+  font-size: ${props =>
+    props.bigInputSize ? props.theme.fontSizes[3] : props.theme.fontSizes[2]}px;
   width: 100%;
   transition: all 0.2s;
   ${color}
   ${space}
   ${height}
-  ${fromTheme};
+  color: ${props => props.theme.colors.text.main};
+  background: ${props => props.theme.colors.spotBackground[0]};
   padding-right: 184px;
+  // should match padding-left on StyledTable &:first-child to align Search content to Table content
+  padding-left: ${props => props.theme.space[4]}px;
 `;
-
-function fromTheme(props) {
-  return {
-    color: props.theme.colors.text.main,
-    background:
-      props.theme.type === 'dark'
-        ? props.theme.colors.levels.sunken
-        : props.theme.colors.levels.deep,
-
-    '&:hover, &:focus, &:active': {
-      color: props.theme.colors.text.main,
-      background:
-        props.theme.type === 'dark'
-          ? props.theme.colors.spotBackground[0]
-          : props.theme.colors.levels.sunken,
-    },
-    '&::placeholder': {
-      color: props.theme.colors.text.muted,
-      fontSize: props.theme.fontSizes[1],
-    },
-  };
-}

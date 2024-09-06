@@ -2,7 +2,7 @@
 // set up in the public subnet. This is the only group of servers that are
 // accepting traffic from the internet.
 
-// letsencrypt
+// Let's Encrypt
 resource "aws_autoscaling_group" "proxy" {
   name                      = "${var.cluster_name}-proxy"
   max_size                  = 5
@@ -124,13 +124,11 @@ resource "aws_launch_template" "proxy" {
       region                   = data.aws_region.current.name
       cluster_name             = var.cluster_name
       auth_server_addr         = aws_lb.auth.dns_name
-      proxy_server_lb_addr     = var.use_acm ? aws_lb.proxy_acm[0].dns_name : aws_lb.proxy[0].dns_name
+      proxy_server_lb_addr     = var.use_acm ? var.use_tls_routing ? aws_lb.proxy_acm[0].dns_name : aws_lb.proxy[0].dns_name : aws_lb.proxy[0].dns_name
       proxy_server_nlb_alias   = var.route53_domain_acm_nlb_alias
-      influxdb_addr            = "http://${aws_lb.monitor.dns_name}:8086"
       email                    = var.email
       domain_name              = var.route53_domain
       s3_bucket                = var.s3_bucket_name
-      telegraf_version         = var.telegraf_version
       enable_mongodb_listener  = var.enable_mongodb_listener
       enable_mysql_listener    = var.enable_mysql_listener
       enable_postgres_listener = var.enable_postgres_listener

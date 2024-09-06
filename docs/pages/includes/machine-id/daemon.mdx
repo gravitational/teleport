@@ -4,36 +4,28 @@ service manager will start `tbot` on boot and ensure it is restarted if it
 fails. For this guide, systemd will be demonstrated but `tbot` should be
 compatible with all common alternatives.
 
-Create a systemd unit file `/etc/systemd/system/tbot.service`:
+Use `tbot install systemd` to generate a systemd service file:
 
-```systemd
-[Unit]
-Description=Teleport Machine ID Service
-After=network.target
-
-[Service]
-Type=simple
-User=teleport
-Group=teleport
-Restart=on-failure
-Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
-ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
-ExecReload=/bin/kill -HUP $MAINPID
-PIDFile=/run/tbot.pid
-LimitNOFILE=524288
-
-[Install]
-WantedBy=multi-user.target
+```code
+$ tbot install systemd \
+   --write \
+   --config /etc/tbot.yaml \
+   --user teleport \
+   --group teleport \
+   --anonymous-telemetry
 ```
 
 Ensure that you replace:
 
 - `teleport` with the name of Linux user you wish to run `tbot` as.
-- `/etc/tbot.yaml` with the path to the configuration file you have created
+- `/etc/tbot.yaml` with the path to the configuration file you have created.
 
-`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
-telemetry. This helps us shape the future development of `tbot`. You can disable
-this by omitting this.
+You can omit `--write` to print the systemd service file to the console instead
+of writing it to disk.
+
+`--anonymous-telemetry` enables the submission of anonymous usage telemetry.
+This helps us shape the future development of `tbot`. You can disable this by
+omitting this.
 
 Next, enable the service so that it will start on boot and then start the
 service:

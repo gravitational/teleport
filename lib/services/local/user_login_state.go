@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/backend"
@@ -55,14 +56,15 @@ func NewUserLoginStateService(backend backend.Backend) (*UserLoginStateService, 
 	}
 
 	return &UserLoginStateService{
-		log: logrus.WithFields(logrus.Fields{trace.Component: "user-login-state:local-service"}),
+		log: logrus.WithFields(logrus.Fields{teleport.ComponentKey: "user-login-state:local-service"}),
 		svc: svc,
 	}, nil
 }
 
 // GetUserLoginStates returns the all user login state resources.
 func (u *UserLoginStateService) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
-	return u.svc.GetResources(ctx)
+	states, err := u.svc.GetResources(ctx)
+	return states, trace.Wrap(err)
 }
 
 // GetUserLoginState returns the specified user login state resource.
@@ -73,10 +75,8 @@ func (u *UserLoginStateService) GetUserLoginState(ctx context.Context, name stri
 
 // UpsertUserLoginState creates or updates a user login state resource.
 func (u *UserLoginStateService) UpsertUserLoginState(ctx context.Context, userLoginState *userloginstate.UserLoginState) (*userloginstate.UserLoginState, error) {
-	if err := trace.Wrap(u.svc.UpsertResource(ctx, userLoginState)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return userLoginState, nil
+	upserted, err := u.svc.UpsertResource(ctx, userLoginState)
+	return upserted, trace.Wrap(err)
 }
 
 // DeleteUserLoginState removes the specified user login state resource.

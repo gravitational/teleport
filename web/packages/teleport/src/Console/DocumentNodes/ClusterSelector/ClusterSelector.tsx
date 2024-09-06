@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, LabelInput } from 'design';
 import { SelectAsync } from 'shared/components/Select';
+
+import { resolveUndefinedOptions } from 'shared/components/FieldSelect';
 
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
@@ -29,8 +31,8 @@ export default function ClusterSelector({
   ...styles
 }) {
   const consoleCtx = useConsoleContext();
-  const [errorMessage, setError] = React.useState(null);
-  const [options, setOptions] = React.useState<Option[]>([]);
+  const [errorMessage, setError] = useState(null);
+  const [options, setOptions] = useState<Option[]>([]);
 
   const selectedOption = {
     value,
@@ -44,7 +46,7 @@ export default function ClusterSelector({
   function onLoadOptions(inputValue: string) {
     let promise = Promise.resolve(options);
     if (options.length === 0) {
-      promise = consoleCtx
+      promise = consoleCtx.clustersService
         .fetchClusters()
         .then(clusters =>
           clusters.map(o => ({
@@ -62,6 +64,7 @@ export default function ClusterSelector({
       .then(options => filterOptions(inputValue, options))
       .catch((err: Error) => {
         setError(err.message);
+        return [];
       });
   }
 
@@ -80,12 +83,11 @@ export default function ClusterSelector({
         noOptionsMessage={getNoOptionsMessage}
         value={selectedOption}
         onChange={onChangeOption}
-        loadOptions={onLoadOptions}
+        loadOptions={resolveUndefinedOptions(onLoadOptions)}
         defaultMenuIsOpen={defaultMenuIsOpen}
         hasError={false}
         maxMenuHeight={400}
         isSearchable
-        isSimpleValue={false}
         isClearable={false}
         defaultOptions
         cacheOptions

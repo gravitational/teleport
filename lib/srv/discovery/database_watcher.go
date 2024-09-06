@@ -138,18 +138,16 @@ func (s *Server) getCurrentDatabases() map[string]types.Database {
 func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) error {
 	s.Log.Debugf("Creating database %s.", database.GetName())
 	err := s.AccessPoint.CreateDatabase(ctx, database)
-	// If the resource already exists, it means that the resource was created
-	// by a previous discovery_service instance that didn't support the discovery
-	// group feature or the discovery group was changed.
-	// In this case, we need to update the resource with the
-	// discovery group label to ensure the user doesn't have to manually delete
-	// the resource.
-	// TODO(tigrato): DELETE on 15.0.0
-	if trace.IsAlreadyExists(err) {
-		return trace.Wrap(s.onDatabaseUpdate(ctx, database))
-	}
+	// If the database already exists but has cloud origin and an empty
+	// discovery group, then update it.
 	if err != nil {
-		return trace.Wrap(err)
+		err := s.resolveCreateErr(err, types.OriginCloud, func() (types.ResourceWithLabels, error) {
+			return s.AccessPoint.GetDatabase(ctx, database.GetName())
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
 	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
 		databaseEventPrefix + database.GetName(): {
@@ -168,7 +166,7 @@ func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) 
 	return nil
 }
 
-func (s *Server) onDatabaseUpdate(ctx context.Context, database types.Database) error {
+func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {
 	s.Log.Debugf("Updating database %s.", database.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateDatabase(ctx, database))
 }

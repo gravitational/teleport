@@ -35,7 +35,20 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(
+// proxyCommandQuote prepares a string for insertion into the ssh_config
+func proxyCommandQuote(s string) string {
+	s = `'` + strings.ReplaceAll(s, `'`, `'"'"'`) + `'`
+	// escape any percent signs which could trigger the percent expansion
+	// for ProxyCommand.
+	s = strings.ReplaceAll(s, `%`, `%%`)
+	// escape any newlines which could impact the parsing of ssh_config
+	s = strings.ReplaceAll(s, "\n", `'"\n"'`)
+	return s
+}
+
+var sshConfigTemplate = template.Must(template.New("ssh-config").Funcs(template.FuncMap{
+	"proxyCommandQuote": proxyCommandQuote,
+}).Parse(
 	`# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
 {{$dot := . }}
 {{- range $clusterName := .ClusterNames }}
@@ -52,10 +65,15 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
 # Flags for all {{ $clusterName }} hosts except the proxy
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port {{ $dot.Port }}
-    {{- if eq $dot.AppName "tsh" }}
+{{- if eq $dot.AppName "tsh" }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
-{{- end }}{{- if eq $dot.AppName "tbot" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+{{- end }}
+{{- if eq $dot.AppName "tbot" }}
+{{- if $dot.PureTBotProxyCommand }}
+    ProxyCommand {{ proxyCommandQuote $dot.ExecutablePath }} ssh-proxy-command --destination-dir={{ proxyCommandQuote $dot.DestinationDir }} --proxy-server={{ proxyCommandQuote (print $dot.ProxyHost ":" $dot.ProxyPort) }} --cluster={{ proxyCommandQuote $clusterName }} {{ if $dot.TLSRouting }}--tls-routing{{ else }}--no-tls-routing{{ end }} {{ if $dot.ConnectionUpgrade }}--connection-upgrade{{ else }}--no-connection-upgrade{{ end }} {{ if $dot.Resume }}--resume{{ else }}--no-resume{{ end }} --user=%r --host=%h --port=%p
+{{- else }}
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy-server={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+{{- end }}
 {{- end }}
 {{- end }}
     {{- if ne $dot.Username "" }}
@@ -79,6 +97,15 @@ type SSHConfigParameters struct {
 	DestinationDir      string
 	// Port is the node port to use, defaulting to 3022, if not specified by flag
 	Port int
+
+	// PureTBotProxyCommand enables the new `ssh-proxy-command` operating mode
+	// when generating the ssh_config for tbot.
+	PureTBotProxyCommand bool
+	ConnectionUpgrade    bool
+	TLSRouting           bool
+	Insecure             bool
+	FIPS                 bool
+	Resume               bool
 }
 
 type sshTmplParams struct {
@@ -225,6 +252,69 @@ func (c *SSHConfig) GetSSHConfig(sb *strings.Builder, config *SSHConfigParameter
 	if err := sshConfigTemplate.Execute(sb, sshTmplParams{
 		SSHConfigParameters: *config,
 		sshConfigOptions:    *sshOptions,
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+var muxedSSHConfigTemplate = template.Must(template.New("muxed-ssh-config").Funcs(template.FuncMap{
+	"proxyCommandQuote": proxyCommandQuote,
+}).Parse(
+	`# Begin generated Teleport configuration by {{ .AppName }} for the ssh-multiplexer service
+{{$dot := . }}
+{{- range $clusterName := .ClusterNames }}
+Host *.{{ $clusterName }}
+    Port {{ $dot.Port }}
+    UserKnownHostsFile {{ proxyCommandQuote $dot.KnownHostsPath }}
+    HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
+    IdentityFile none
+    IdentityAgent {{ proxyCommandQuote $dot.AgentSocketPath }}    
+    ProxyCommand {{range $v := $dot.ProxyCommand}}{{ proxyCommandQuote $v }} {{end}}{{ proxyCommandQuote $dot.MuxSocketPath }} '%h:%p|{{ $clusterName }}'
+    ProxyUseFDPass yes
+{{- end }}
+# End generated Teleport configuration
+`))
+
+// MuxedSSHConfigParameters is a set of SSH related parameters used to generate
+// a ssh_config file for the ssh-multiplexer service.
+type MuxedSSHConfigParameters struct {
+	AppName         SSHConfigApps
+	ClusterNames    []string
+	KnownHostsPath  string
+	ProxyCommand    []string
+	MuxSocketPath   string
+	AgentSocketPath string
+	// Port is the node port to use, defaulting to 3022, if not specified by flag
+	Port int
+}
+
+type muxedSSHTmplParams struct {
+	MuxedSSHConfigParameters
+	sshConfigOptions
+}
+
+// GetMuxedSSHConfig generates a ssh_config file for the ssh-multiplexer service.
+func (c *SSHConfig) GetMuxedSSHConfig(sb *strings.Builder, config *MuxedSSHConfigParameters) error {
+	var sshOptions *sshConfigOptions
+	version, err := c.getSSHVersion()
+	if err != nil {
+		c.log.WithError(err).Debugf("Could not determine SSH version, using default SSH config")
+		sshOptions = getDefaultSSHConfigOptions()
+	} else {
+		c.log.Debugf("Found OpenSSH version %s", version)
+		sshOptions = getSSHConfigOptions(version)
+	}
+	if config.Port == 0 {
+		config.Port = defaults.SSHServerListenPort
+	}
+
+	c.log.Debugf("Using SSH options: %s", sshOptions)
+
+	if err := muxedSSHConfigTemplate.Execute(sb, muxedSSHTmplParams{
+		MuxedSSHConfigParameters: *config,
+		sshConfigOptions:         *sshOptions,
 	}); err != nil {
 		return trace.Wrap(err)
 	}

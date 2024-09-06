@@ -6,17 +6,31 @@ on:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
   merge_group:
     paths:
       - 'web/**'
       - 'gen/proto/js/**'
+      - 'gen/proto/ts/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'tsconfig.json'
+      - 'tsconfig.node.json'
 
 jobs:
   lint:
     name: Prettier, ESLint, & TSC
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
     steps:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v4
@@ -25,17 +39,17 @@ jobs:
         run: |
           node --version
 
-      - name: Install Yarn dependencies
-        run: yarn --frozen-lockfile
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM
-        run: yarn build-wasm
+        run: pnpm build-wasm
 
       - name: Run Type Check
-        run: yarn type-check
+        run: pnpm type-check
 
       - name: Run lint
-        run: yarn lint
+        run: pnpm lint
 
       - name: Run Storybook smoke test
-        run: yarn storybook-smoke-test
+        run: pnpm storybook-smoke-test

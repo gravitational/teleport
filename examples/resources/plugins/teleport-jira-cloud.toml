@@ -3,7 +3,9 @@
 # Proxy Service domain and HTTPS port
 auth_server = "myinstance.teleport.sh:443"
 # Teleport identity file location
-identity = "/var/lib/teleport/plugins/jira/auth.pem"
+identity = "/var/lib/teleport/plugins/jira/identity"
+# Refresh identity file on a periodic basis.
+refresh_identity = true
 
 [jira]
 url = "https://[my-jira].atlassian.net"    # JIRA URL

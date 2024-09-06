@@ -18,6 +18,10 @@
 #![allow(clippy::new_without_default)]
 
 use ironrdp_graphics::image_processing::PixelFormat;
+use ironrdp_pdu::cursor::ReadCursor;
+use ironrdp_pdu::decode_cursor;
+use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
+use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
 use ironrdp_pdu::write_buf::WriteBuf;
 use ironrdp_session::fast_path::UpdateKind;
@@ -29,7 +33,6 @@ use ironrdp_session::{
 };
 use js_sys::Uint8Array;
 use log::{debug, warn};
-use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
 
@@ -62,36 +65,7 @@ pub fn init_wasm_log(log_level: &str) {
             .with(level_filter)
             .init();
 
-        debug!("IronRDP wasm log is ready");
-        // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
-    }
-}
-
-/// | message type (29) | data_length uint32 | data []byte |
-///
-/// This type is used in javascript pass raw RDP Server Fast-Path Update PDU data to Rust.
-#[wasm_bindgen]
-pub struct RDPFastPathPDU {
-    data: Uint8Array,
-}
-
-#[wasm_bindgen]
-impl RDPFastPathPDU {
-    #[wasm_bindgen(constructor)]
-    pub fn new(data: Uint8Array) -> Self {
-        Self { data }
-    }
-}
-
-struct RustRDPFastPathPDU {
-    data: Vec<u8>,
-}
-
-impl From<RDPFastPathPDU> for RustRDPFastPathPDU {
-    fn from(js_frame: RDPFastPathPDU) -> Self {
-        Self {
-            data: js_frame.data.to_vec(), // TODO(isaiah): is it possible to avoid copy?
-        }
+        debug!("WASM log is ready");
     }
 }
 
@@ -116,45 +90,7 @@ impl BitmapFrame {
 
     #[wasm_bindgen(getter)]
     pub fn image_data(&self) -> ImageData {
-        self.image_data.clone() // todo(isaiah): bad, see below for a potential approach:
-
-        // You can pass the `&[u8]` from Rust to JavaScript without copying it by using the `wasm_bindgen::memory`
-        // function to directly access the WebAssembly linear memory. Here's how you can achieve this:
-
-        // 1. Get a pointer to the data and its length.
-        // 2. Create a `Uint8Array` that directly refers to the WebAssembly linear memory.
-        // 3. Use the `subarray` method to create a new view that refers to the desired data without copying it.
-
-        // ```rust
-        // #[wasm_bindgen(getter)]
-        // pub fn image_data(&self) -> JsValue {
-        //     let data = self.image_data.data();
-        //     let data_ptr = data.as_ptr() as u32;
-        //     let data_len = data.len() as u32;
-
-        //     let memory_buffer = wasm_bindgen::memory()
-        //         .dyn_into::<WebAssembly::Memory>()
-        //         .unwrap()
-        //         .buffer();
-
-        //     let data_array = js_sys::Uint8Array::new(&memory_buffer).subarray(data_ptr, data_ptr + data_len);
-
-        //     let obj = js_sys::Object::new();
-        //     js_sys::Reflect::set(&obj, &"data".into(), &data_array).unwrap();
-        //     js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(self.image_data.width())).unwrap();
-        //     js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(self.image_data.height())).unwrap();
-
-        //     obj.into()
-        // }
-        // ```
-
-        // This implementation should pass the data from Rust to JavaScript without copying it.
-        // Note that the returned `Uint8Array` is a view over the WebAssembly linear memory, so
-        // you need to make sure that the data is not modified on the Rust side while it's being
-        // used in JavaScript. Also, keep in mind that the lifetime of the `Uint8Array` is tied
-        // to the lifetime of the `ImageData` object in Rust. If the `ImageData` object is dropped,
-        // the underlying data may be deallocated, and the `Uint8Array` in JavaScript may become
-        // invalid.
+        self.image_data.clone() // TODO(isaiah): can we remove this clone?
     }
 }
 
@@ -173,6 +109,7 @@ fn create_image_data_from_image_and_region(
 pub struct FastPathProcessor {
     fast_path_processor: IronRdpFastPathProcessor,
     image: DecodedImage,
+    remote_fx_check_required: bool,
 }
 
 #[wasm_bindgen]
@@ -185,31 +122,47 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                no_server_pointer: true,
+                no_server_pointer: false,
                 pointer_software_rendering: false,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
+            remote_fx_check_required: true,
         }
     }
 
-    /// draw_cb: (bitmapFrame: BitmapFrame) => void
+    pub fn resize(&mut self, width: u16, height: u16) -> Result<(), JsValue> {
+        self.image = DecodedImage::new(PixelFormat::RgbA32, width, height);
+        Ok(())
+    }
+
+    /// `tdp_fast_path_frame: Uint8Array`
     ///
-    /// respond_cb: (responseFrame: ArrayBuffer) => void
+    /// `cb_context: tdp.Client`
+    ///
+    /// `draw_cb: (bitmapFrame: BitmapFrame) => void`
+    ///
+    /// `respond_cb: (responseFrame: ArrayBuffer) => void`
+    ///
+    /// If `data` is `false` we hide the cursor (but remember its value), if `data` is `true` we restore
+    /// the last cursor value; otherwise we set the cursor to a bitmap from `ImageData`.
+    /// `update_pointer_cb: (data: ImageData | boolean, hotspot_x: number, hotspot_y: number) => void`
     pub fn process(
         &mut self,
-        tdp_fast_path_frame: RDPFastPathPDU,
+        tdp_fast_path_frame: &[u8],
         cb_context: &JsValue,
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
+        update_pointer_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
+        self.check_remote_fx(tdp_fast_path_frame)?;
+
         let (rdp_responses, client_updates) = {
             let mut output = WriteBuf::new();
-            let tdp_fast_path_frame: RustRDPFastPathPDU = tdp_fast_path_frame.into();
 
             let processor_updates = self
                 .fast_path_processor
-                .process(&mut self.image, &tdp_fast_path_frame.data, &mut output)
+                .process(&mut self.image, tdp_fast_path_frame, &mut output)
                 .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
 
             (output.into_inner(), processor_updates)
@@ -228,12 +181,18 @@ impl FastPathProcessor {
                     UpdateKind::Region(region) => {
                         outputs.push(ActiveStageOutput::GraphicsUpdate(region));
                     }
-                    UpdateKind::PointerDefault
-                    | UpdateKind::PointerHidden
-                    | UpdateKind::PointerPosition { .. }
-                    | UpdateKind::PointerBitmap(_) => {
-                        warn!("Pointer updates are not supported");
+                    UpdateKind::PointerDefault => {
+                        outputs.push(ActiveStageOutput::PointerDefault);
+                    }
+                    UpdateKind::PointerHidden => {
+                        outputs.push(ActiveStageOutput::PointerHidden);
+                    }
+                    UpdateKind::PointerPosition { .. } => {
+                        warn!("Pointer position updates are not supported");
                         continue;
+                    }
+                    UpdateKind::PointerBitmap(pointer) => {
+                        outputs.push(ActiveStageOutput::PointerBitmap(pointer))
                     }
                 }
             }
@@ -254,8 +213,32 @@ impl FastPathProcessor {
                     let frame = Uint8Array::from(frame.as_slice()); // todo(isaiah): this is a copy
                     let _ = respond_cb.call1(cb_context, &frame.buffer())?;
                 }
-                ActiveStageOutput::Terminate => {
+                ActiveStageOutput::Terminate(_) => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
+                }
+                ActiveStageOutput::PointerBitmap(pointer) => {
+                    let data = &pointer.bitmap_data;
+                    let image_data = create_image_data_from_image_and_region(
+                        data,
+                        InclusiveRectangle {
+                            left: 0,
+                            top: 0,
+                            right: pointer.width - 1,
+                            bottom: pointer.height - 1,
+                        },
+                    )?;
+                    update_pointer_cb.call3(
+                        cb_context,
+                        &JsValue::from(image_data),
+                        &JsValue::from(pointer.hotspot_x),
+                        &JsValue::from(pointer.hotspot_y),
+                    )?;
+                }
+                ActiveStageOutput::PointerDefault => {
+                    update_pointer_cb.call1(cb_context, &JsValue::from(true))?;
+                }
+                ActiveStageOutput::PointerHidden => {
+                    update_pointer_cb.call1(cb_context, &JsValue::from(false))?;
                 }
                 _ => {
                     debug!("Unhandled ActiveStageOutput: {:?}", output);
@@ -264,6 +247,35 @@ impl FastPathProcessor {
         }
 
         Ok(())
+    }
+
+    /// check_remote_fx check if each fast path frame is RemoteFX frame, if we find bitmap frame
+    /// (i.e. RemoteFX is not enabled on the server) we return error with helpful message
+    fn check_remote_fx(&mut self, tdp_fast_path_frame: &[u8]) -> Result<(), JsValue> {
+        if !self.remote_fx_check_required {
+            return Ok(());
+        }
+
+        // we have to, at least partially, parse frame to check update code,
+        // code here is copied from fast_path::Processor::process
+        let mut input = ReadCursor::new(tdp_fast_path_frame);
+        decode_cursor::<FastPathHeader>(&mut input)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+        let update_pdu = decode_cursor::<FastPathUpdatePdu<'_>>(&mut input)
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+
+        match update_pdu.update_code {
+            SurfaceCommands => {
+                self.remote_fx_check_required = false;
+                Ok(())
+            }
+            Bitmap => Err(JsValue::from_str(concat!(
+                "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
+                "but it is not currently enabled. For detailed instructions, see:\n",
+                "https://goteleport.com/docs/desktop-access/active-directory/#enable-remotefx"
+            ))),
+            _ => Ok(()),
+        }
     }
 
     fn apply_image_to_canvas(
@@ -291,6 +303,7 @@ impl FastPathProcessor {
     }
 }
 
+/// Taken from https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L6
 pub fn extract_partial_image(
     image: &DecodedImage,
     region: InclusiveRectangle,
@@ -303,14 +316,16 @@ pub fn extract_partial_image(
     }
 }
 
-// Faster for low-height and smaller images
+/// Faster for low-height and smaller images
+///
+/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L16
 fn extract_smallest_rectangle(
     image: &DecodedImage,
     region: InclusiveRectangle,
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);
@@ -339,14 +354,16 @@ fn extract_smallest_rectangle(
     (region, dst)
 }
 
-// Faster for high-height and bigger images
+/// Faster for high-height and bigger images
+///
+/// https://github.com/Devolutions/IronRDP/blob/35839459aa58c5c42cd686b39b63a7944285c0de/crates/ironrdp-web/src/image.rs#L49
 fn extract_whole_rows(
     image: &DecodedImage,
     region: InclusiveRectangle,
 ) -> (InclusiveRectangle, Vec<u8>) {
     let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
 
-    let image_width = usize::try_from(image.width()).unwrap();
+    let image_width = usize::from(image.width());
     let image_stride = image_width * pixel_size;
 
     let region_top = usize::from(region.top);

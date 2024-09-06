@@ -179,8 +179,34 @@ const (
 	// MetricBackendWriteRequests measures backend write requests count
 	MetricBackendWriteRequests = "backend_write_requests_total"
 
+	// MetricBackendWrites tallies all individual backend writes (this is distinct from backend write
+	// requests in that bulk writes count as multiple writes).
+	MetricBackendWrites = "backend_writes_total"
+
 	// MetricBackendWriteFailedRequests measures failed backend write requests count
 	MetricBackendWriteFailedRequests = "backend_write_requests_failed_total"
+
+	// MetricBackendWriteFailedPreconditionRequests measures the portion of failed backend write requests
+	// that failed due to a custom precondition (existence, revision, value, etc).
+	MetricBackendWriteFailedPreconditionRequests = "backend_write_requests_failed_precondition_total"
+
+	// MetricBackendAtomicWriteRequests measures backend atomic write requests count
+	MetricBackendAtomicWriteRequests = "backend_atomic_write_requests_total"
+
+	// MetricBackendAtomicWriteFailedRequests measures failed backend atomic write requests count
+	MetricBackendAtomicWriteFailedRequests = "backend_atomic_write_requests_failed_total"
+
+	// MetricBackendAtomicWriteConditionFailed measures the amount of atomic write requests that result in condition failure.
+	MetricBackendAtomicWriteConditionFailed = "backend_atomic_write_condition_failed_total"
+
+	// MetricBackendAtomicWriteHistogram measures histogram of backend write latencies
+	MetricBackendAtomicWriteHistogram = "backend_atomic_write_seconds"
+
+	// MetricBackendAtomicWriteSize measures the histogram of atomic write batch sizes
+	MetricBackendAtomicWriteSize = "backend_atomic_write_size"
+
+	// MetricBackendAtomicWriteContention counts the amount of times atomic writes experience internal retries due to contention.
+	MetricBackendAtomicWriteContention = "backend_atomic_write_contention"
 
 	// MetricBackendBatchWriteRequests measures batch backend writes count
 	MetricBackendBatchWriteRequests = "backend_batch_write_requests_total"
@@ -190,6 +216,10 @@ const (
 
 	// MetricBackendReadRequests measures backend read requests count
 	MetricBackendReadRequests = "backend_read_requests_total"
+
+	// MetricBackendReads tallies all individual backend reads (this is distinct from backend read
+	// requests in that bulk reads count as multiple reads).
+	MetricBackendReads = "backend_reads_total"
 
 	// MetricBackendFailedReadRequests measures failed backend read requests count
 	MetricBackendFailedReadRequests = "backend_read_requests_failed_total"
@@ -293,6 +323,10 @@ const (
 	// Only a subset of services are monitored. See [lib/service.metricsServicesRunningMap]
 	// Eg, discovery_service
 	TagServiceName = "service_name"
+
+	// TagAutomaticUpdates is a prometheus label to indicate whether the instance
+	// is enrolled in automatic updates.
+	TagAutomaticUpdates = "automatic_updates"
 )
 
 const (

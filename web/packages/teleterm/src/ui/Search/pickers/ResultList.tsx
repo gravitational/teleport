@@ -77,11 +77,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
   }
 
   useEffect(() => {
+    // This needs to happen directly in `useEffect` because it gives us a guarantee
+    // that activeIndex matches the activeItemRef.
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+
     const handleArrowKey = (e: KeyboardEvent, nudge: number) => {
       const next = getNext(activeItemIndex + nudge, items.length);
       setActiveItemIndex(next);
-      // `false` - bottom of the element will be aligned to the bottom of the visible area of the scrollable ancestor
-      activeItemRef.current?.scrollIntoView(false);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -163,7 +165,7 @@ export const NonInteractiveItem = styled.div`
     background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
-  :not(:last-of-type) {
+  &:not(:last-of-type) {
     border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
@@ -171,7 +173,7 @@ export const NonInteractiveItem = styled.div`
   color: ${props => props.theme.colors.text.main};
 `;
 
-const InteractiveItem = styled(NonInteractiveItem)`
+const InteractiveItem = styled(NonInteractiveItem)<{ active?: boolean }>`
   cursor: pointer;
 
   &:hover,
@@ -195,13 +197,20 @@ export function IconAndContent(
   props: React.PropsWithChildren<{
     Icon: React.ComponentType<IconProps>;
     iconColor: string;
+    iconOpacity?: number;
   }>
 ) {
   return (
     <Flex alignItems="flex-start" gap={2}>
       {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
       <Flex height="24px">
-        <props.Icon color={props.iconColor} size="medium" />
+        <props.Icon
+          color={props.iconColor}
+          size="medium"
+          style={{
+            opacity: props.iconOpacity,
+          }}
+        />
       </Flex>
       <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
         {props.children}

@@ -33,8 +33,8 @@ use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryWriteResponse,
-    TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -43,6 +43,7 @@ use std::ptr;
 use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
+mod network_client;
 mod piv;
 mod rdpdr;
 mod ssl;
@@ -81,7 +82,7 @@ pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
 /// # Safety
 ///
 /// The caller must ensure that cgo_handle is a valid handle and that
-/// go_addr, go_username, cert_der, key_der point to valid buffers.
+/// go_addr, go_domain, go_kdc, cert_der, key_der point to valid buffers.
 #[no_mangle]
 pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectParams) -> CGOResult {
     trace!("client_run");
@@ -90,12 +91,25 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
+    let kdc = from_c_string(params.go_kdc_addr);
+    let kdc = if kdc.is_empty() { None } else { Some(kdc) };
+
+    let computer_name = from_c_string(params.go_computer_name);
+    let computer_name = if computer_name.is_empty() {
+        None
+    } else {
+        Some(computer_name)
+    };
+
     match Client::run(
         cgo_handle,
         ConnectParams {
+            ad: params.ad,
             addr,
+            computer_name,
             cert_der,
             key_der,
+            kdc_addr: kdc,
             screen_width: params.screen_width,
             screen_height: params.screen_height,
             allow_clipboard: params.allow_clipboard,
@@ -103,10 +117,16 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(_) => CGOResult {
+        Ok(res) => CGOResult {
             err_code: CGOErrCode::ErrCodeSuccess,
-            message: ptr::null_mut(),
+            message: match res {
+                Some(reason) => CString::new(reason.description().to_string())
+                    .map(|c| c.into_raw())
+                    .unwrap_or(ptr::null_mut()),
+                None => ptr::null_mut(),
+            },
         },
+
         Err(e) => {
             error!("client_run failed: {:?}", e);
             CGOResult {
@@ -159,8 +179,7 @@ pub unsafe extern "C" fn client_stop(cgo_handle: CgoHandle) -> CGOErrCode {
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// data MUST be a valid pointer.
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
@@ -190,8 +209,7 @@ pub unsafe extern "C" fn client_update_clipboard(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
@@ -212,8 +230,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
 #[no_mangle]
@@ -234,8 +251,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_info_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
     cgo_handle: CgoHandle,
@@ -254,8 +270,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_create_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
     cgo_handle: CgoHandle,
@@ -272,8 +287,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_delete_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 ///
 /// res.fso_list MUST be a valid pointer
 /// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
@@ -297,7 +311,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_list_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
     cgo_handle: CgoHandle,
@@ -316,7 +330,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_read_response(
 ///
 /// # Safety
 ///
-/// client_ptr must be a valid pointer
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
     cgo_handle: CgoHandle,
@@ -334,8 +348,7 @@ pub unsafe extern "C" fn client_handle_tdp_sd_write_response(
 ///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     cgo_handle: CgoHandle,
@@ -348,16 +361,33 @@ pub unsafe extern "C" fn client_handle_tdp_sd_move_response(
     )
 }
 
+/// client_handle_tdp_sd_truncate_response handles a TDP Shared Directory Truncate Response
+/// message
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_tdp_sd_truncate_response(
+    cgo_handle: CgoHandle,
+    res: CGOSharedDirectoryTruncateResponse,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_handle_tdp_sd_truncate_response",
+        move |client_handle| client_handle.handle_tdp_sd_truncate_response(res),
+    )
+}
+
 /// client_handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
 /// created by the ironrdp client on the frontend and sends it directly to the RDP server.
 ///
 /// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
 /// array length header.
-///n
+///
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     cgo_handle: CgoHandle,
@@ -374,8 +404,7 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
 
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_pointer(
     cgo_handle: CgoHandle,
@@ -390,8 +419,7 @@ pub unsafe extern "C" fn client_write_rdp_pointer(
 
 /// # Safety
 ///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+/// `cgo_handle` must be a valid handle.
 #[no_mangle]
 pub unsafe extern "C" fn client_write_rdp_keyboard(
     cgo_handle: CgoHandle,
@@ -404,9 +432,44 @@ pub unsafe extern "C" fn client_write_rdp_keyboard(
     )
 }
 
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_write_rdp_sync_keys(
+    cgo_handle: CgoHandle,
+    keys: CGOSyncKeys,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_write_rdp_sync_keys",
+        move |client_handle| client_handle.write_rdp_sync_keys(keys),
+    )
+}
+
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_write_screen_resize(
+    cgo_handle: CgoHandle,
+    width: u32,
+    height: u32,
+) -> CGOErrCode {
+    handle_operation(
+        cgo_handle,
+        "client_write_screen_resize",
+        move |client_handle| client_handle.write_screen_resize(width, height),
+    )
+}
+
 #[repr(C)]
 pub struct CGOConnectParams {
+    ad: bool,
     go_addr: *const c_char,
+    go_domain: *const c_char,
+    go_kdc_addr: *const c_char,
+    go_computer_name: *const c_char,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
@@ -441,19 +504,6 @@ pub enum CGODisconnectCode {
     DisconnectCodeServer = 2,
 }
 
-#[repr(C)]
-pub struct CGOReadRdpOutputReturns {
-    user_message: *const c_char,
-    disconnect_code: CGODisconnectCode,
-    err_code: CGOErrCode,
-}
-
-#[repr(C)]
-pub struct CGOClientOrError {
-    client: u64,
-    err: CGOErrCode,
-}
-
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
 /// PointerEvent is a mouse move or click update from the user.
 #[repr(C)]
@@ -465,6 +515,15 @@ pub struct CGOMousePointerEvent {
     pub down: bool,
     pub wheel: CGOPointerWheel,
     pub wheel_delta: i16,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct CGOSyncKeys {
+    pub scroll_lock_down: bool,
+    pub num_lock_down: bool,
+    pub caps_lock_down: bool,
+    pub kana_lock_down: bool,
 }
 
 #[repr(C)]
@@ -631,15 +690,27 @@ pub struct CGOSharedDirectoryListRequest {
     pub path: *const c_char,
 }
 
+#[repr(C)]
+pub struct CGOSharedDirectoryTruncateRequest {
+    pub completion_id: u32,
+    pub directory_id: u32,
+    pub path: *const c_char,
+    pub end_of_file: u32,
+}
+
+pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
+
 // These functions are defined on the Go side.
 // Look for functions with '//export funcname' comments.
 extern "C" {
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
-    fn cgo_handle_rdp_channel_ids(
+    fn cgo_handle_rdp_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
         user_channel_id: u16,
+        screen_width: u16,
+        screen_height: u16,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,
@@ -672,6 +743,10 @@ extern "C" {
     fn cgo_tdp_sd_move_request(
         cgo_handle: CgoHandle,
         req: *mut CGOSharedDirectoryMoveRequest,
+    ) -> CGOErrCode;
+    fn cgo_tdp_sd_truncate_request(
+        cgo_handle: CgoHandle,
+        req: *mut CGOSharedDirectoryTruncateRequest,
     ) -> CGOErrCode;
 }
 

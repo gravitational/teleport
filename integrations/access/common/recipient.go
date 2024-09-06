@@ -28,6 +28,8 @@ import (
 const (
 	// RecipientKindSchedule shows a recipient is a schedule.
 	RecipientKindSchedule = "schedule"
+	// RecipientKindTeam shows a recipient is a team.
+	RecipientKindTeam = "team"
 )
 
 // RawRecipientsMap is a mapping of roles to recipient(s).
@@ -144,4 +146,16 @@ func (s *RecipientSet) ToSlice() []Recipient {
 		recipientSlice = append(recipientSlice, recipient)
 	}
 	return recipientSlice
+}
+
+// ForEach applies run the given func with each recipient in the set as the argument.
+func (s *RecipientSet) ForEach(f func(r Recipient)) {
+	for _, v := range s.recipients {
+		f(v)
+	}
+}
+
+// Len returns number of recipients
+func (s *RecipientSet) Len() int {
+	return len(s.recipients)
 }

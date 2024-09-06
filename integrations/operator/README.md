@@ -15,7 +15,9 @@ For more details, read the corresponding [RFD](https://github.com/gravitational/
 The operator supports reconciling the following Kubernetes CRs:
 
 - TeleportUser
-- TeleportRole
+- TeleportRole (creates role v5)
+- TeleportRoleV6 (creates role v6)
+- TeleportRoleV7 (creates role v7)
 - TeleportProvisionToken
 - TeleportGithubConnector
 - TeleportSAMLConnector [1]

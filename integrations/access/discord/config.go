@@ -22,9 +22,11 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -120,4 +122,31 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		clusterName: clusterName,
 		webProxyURL: webProxyURL,
 	}, nil
+}
+
+// LoadDiscordConfig reads the config file, initializes a new Discord Config
+// struct object, and returns it. Optionally returns an error if the file is
+// not readable, or if file format is invalid.
+func LoadDiscordConfig(filepath string) (*Config, error) {
+	t, err := toml.LoadFile(filepath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conf := &Config{}
+	if err := t.Unmarshal(conf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if strings.HasPrefix(conf.Discord.Token, "/") {
+		conf.Discord.Token, err = lib.ReadPassword(conf.Discord.Token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := conf.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conf, nil
 }

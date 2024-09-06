@@ -1,0 +1,14 @@
+If you're [creating](https://console.cloud.google.com/sql/choose-instance-engine)
+a new {{ type }} instance, make sure to add the `cloudsql.iam_authentication`
+database flag under "Customize your instance / Flags" section:
+
+![Enable IAM Authentication](../../../img/database-access/guides/cloudsql/iam-new-instance@2x.png)
+
+To check whether IAM authentication is enabled for an existing Cloud SQL instance,
+look for the flag on the Configuration panel on the instance's Overview page:
+
+![Check IAM Authentication](../../../img/database-access/guides/cloudsql/iam-existing-instance@2x.png)
+
+If it isn't enabled, you can add this flag using the "Edit configuration" dialog
+at the bottom of the Configuration panel. Changing this setting may require a
+database instance reboot.

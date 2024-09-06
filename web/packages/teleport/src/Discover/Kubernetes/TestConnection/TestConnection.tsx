@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Text, Box } from 'design';
+import { Box, H3, Subtitle3 } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -27,6 +27,8 @@ import { Option } from 'shared/components/Select';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
+
+import { MfaChallengeScope } from 'teleport/services/auth/auth';
 
 import {
   ActionButtons,
@@ -101,6 +103,7 @@ export function TestConnection({
             <ReAuthenticate
               onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
               onClose={cancelMfaDialog}
+              challengeScope={MfaChallengeScope.USER_SESSION}
             />
           )}
           <Header>Test Connection</Header>
@@ -109,10 +112,10 @@ export function TestConnection({
             Kubernetes cluster you just added.
           </HeaderSubtitle>
           <StyledBox mb={5}>
-            <Text bold>Step 1</Text>
-            <Text typography="subtitle1" mb={3}>
-              Define the namespace to test.
-            </Text>
+            <header>
+              <H3>Step 1</H3>
+              <Subtitle3 mb={3}>Define the namespace to test.</Subtitle3>
+            </header>
             <Box width="500px">
               <FieldInput
                 label="Namespace"
@@ -125,10 +128,10 @@ export function TestConnection({
             </Box>
           </StyledBox>
           <StyledBox mb={5}>
-            <Text bold>Step 2</Text>
-            <Text typography="subtitle1" mb={3}>
-              Select groups and a user to test.
-            </Text>
+            <header>
+              <H3>Step 2</H3>
+              <Subtitle3 mb={3}>Select groups and a user to test.</Subtitle3>
+            </header>
             <Box width="500px">
               <FieldSelect
                 label="Kubernetes Groups"
@@ -177,9 +180,7 @@ export function TestConnection({
             stepDescription="Verify that the Kubernetes is accessible"
           />
           <StyledBox>
-            <Text bold mb={3}>
-              To Access your Kubernetes cluster
-            </Text>
+            <H3 mb={3}>To Access your Kubernetes cluster</H3>
             <Box mb={2}>
               Log into your Teleport cluster
               <TextSelectCopy

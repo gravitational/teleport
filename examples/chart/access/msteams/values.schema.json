@@ -1,0 +1,429 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "http://example.com/example.json",
+    "default": {},
+    "required": [
+        "image",
+        "imagePullSecrets",
+        "nameOverride",
+        "fullnameOverride",
+        "podAnnotations",
+        "podSecurityContext",
+        "securityContext",
+        "nodeSelector",
+        "tolerations",
+        "affinity",
+        "msTeams",
+        "teleport",
+        "roleToRecipients",
+        "log"
+    ],
+    "properties": {
+        "image": {
+            "$id": "#/properties/image",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "repository": "public.ecr.aws/gravitational/teleport-plugin-msteams",
+                    "pullPolicy": "IfNotPresent",
+                    "tag": ""
+                }
+            ],
+            "required": [
+                "repository",
+                "pullPolicy",
+                "tag"
+            ],
+            "properties": {
+                "repository": {
+                    "$id": "#/properties/image/properties/repository",
+                    "type": "string",
+                    "default": "public.ecr.aws/gravitational/teleport-plugin-msteams",
+                    "examples": [
+                        "public.ecr.aws/gravitational/teleport-plugin-msteams"
+                    ]
+                },
+                "pullPolicy": {
+                    "$id": "#/properties/image/properties/pullPolicy",
+                    "type": "string",
+                    "default": "IfNotPresent",
+                    "examples": [
+                        "IfNotPresent"
+                    ]
+                },
+                "tag": {
+                    "$id": "#/properties/image/properties/tag",
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "additionalProperties": true
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": [],
+            "examples": [
+                [
+                    {
+                        "name": "image-pull-secrets"
+                    }
+                ]
+            ],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/imagePullSecrets/items"
+            }
+        },
+        "nameOverride": {
+            "$id": "#/properties/nameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "$id": "#/properties/fullnameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "podAnnotations": {
+            "$id": "#/properties/podAnnotations",
+            "type": "object",
+            "additionalProperties": true
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object",
+            "required": [],
+            "additionalProperties": true
+        },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "properties": {
+                "capabilities": {
+                    "$id": "#/properties/securityContext/properties/capabilities",
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "readOnlyRootFilesystem": {
+                    "$id": "#/properties/securityContext/properties/readOnlyRootFilesystem",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsNonRoot": {
+                    "$id": "#/properties/securityContext/properties/runAsNonRoot",
+                    "type": "boolean",
+                    "default": false,
+                    "examples": [
+                        true
+                    ]
+                },
+                "runAsUser": {
+                    "$id": "#/properties/securityContext/properties/runAsUser",
+                    "type": "integer",
+                    "default": 0,
+                    "examples": [
+                        1000
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "limits": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "128Mi"
+                    }
+                }
+            ],
+            "properties": {
+                "limits": {
+                    "$id": "#/properties/resources/properties/limits",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/limits/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/limits/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "requests": {
+                    "$id": "#/properties/resources/properties/requests",
+                    "type": "object",
+                    "default": {},
+                    "examples": [
+                        {
+                            "cpu": "100m",
+                            "memory": "128Mi"
+                        }
+                    ],
+                    "required": [
+                        "cpu",
+                        "memory"
+                    ],
+                    "properties": {
+                        "cpu": {
+                            "$id": "#/properties/resources/properties/requests/properties/cpu",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "100m"
+                            ]
+                        },
+                        "memory": {
+                            "$id": "#/properties/resources/properties/requests/properties/memory",
+                            "type": "string",
+                            "default": "",
+                            "examples": [
+                                "128Mi"
+                            ]
+                        }
+                    },
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": [],
+            "additionalItems": true,
+            "items": {
+                "$id": "#/properties/tolerations/items"
+            }
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {},
+            "additionalProperties": true
+        },
+        "teleport": {
+            "$id": "#/properties/teleport",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "address": "auth.example.com:3025",
+                    "identitySecretName": "teleport-plugin-msteams-auth-id",
+                    "identitySecretPath": "auth_id"
+                }
+            ],
+            "required": [
+                "address",
+                "identitySecretName",
+                "identitySecretPath"
+            ],
+            "properties": {
+                "address": {
+                    "$id": "#/properties/teleport/properties/address",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "auth.example.com:3025"
+                    ]
+                },
+                "identitySecretName": {
+                    "$id": "#/properties/teleport/properties/identitySecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "identitySecretPath": {
+                    "$id": "#/properties/teleport/properties/identitySecretPath",
+                    "type": "string",
+                    "default": "auth_id",
+                    "examples": [
+                        "auth_id"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "msTeams": {
+            "$id": "#/properties/msTeams",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "appID": "00112233-4455-6677-c899-aabbccddeeff",
+                    "appSecret": "example-azure-secret",
+                    "tenantID": "00112233-4455-6677-c899-aabbccddeeff",
+                    "teamsAppID": "00112233-4455-6677-c899-aabbccddeeff"
+                }
+            ],
+            "required": [
+                "appID",
+                "tenantID",
+                "teamsAppID",
+                "appSecret",
+                "appSecretFromSecret",
+                "appSecretFromSecretKey"
+            ],
+            "properties": {
+                "appID": {
+                    "$id": "#/properties/msTeams/properties/appID",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "00112233-4455-6677-c899-aabbccddeeff"
+                    ]
+                },
+                "appSecret": {
+                    "$id": "#/properties/msTeams/properties/appSecret",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "example-azure-secret"
+                    ]
+                },
+                "tenantID": {
+                    "$id": "#/properties/msTeams/properties/tenantID",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "00112233-4455-6677-c899-aabbccddeeff"
+                    ]
+                },
+                "teamsAppID": {
+                    "$id": "#/properties/msTeams/properties/teamsAppID",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "00112233-4455-6677-c899-aabbccddeeff"
+                    ]
+                },
+                "appSecretFromSecret": {
+                    "$id": "#/properties/msTeams/properties/appSecretFromSecret",
+                    "type": "string",
+                    "default": "",
+                    "examples": [
+                        "my-kubernetes-secret-name"
+                    ]
+                },
+                "appSecretFromSecretKey": {
+                    "$id": "#/properties/msTeams/properties/appSecretFromSecretKey",
+                    "type": "string",
+                    "default": "appSecret",
+                    "examples": [
+                        "appSecret"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "roleToRecipients": {
+            "$id": "#/properties/roleToRecipients",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "dev": [
+                        "devs-teams-channel"
+                    ],
+                    "*": [
+                        "admin@email.com",
+                        "admin-teams-channel"
+                    ]
+                }
+            ],
+            "additionalProperties": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "examples": [
+                        "example-teams-channel",
+                        "user@example.com"
+                    ]
+                },
+                "minItems": 1
+            }
+        },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "default": {},
+            "examples": [
+                {
+                    "output": "stdout",
+                    "severity": "INFO"
+                }
+            ],
+            "required": [
+                "output",
+                "severity"
+            ],
+            "properties": {
+                "output": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": "stdout",
+                    "examples": [
+                        "stdout"
+                    ]
+                },
+                "severity": {
+                    "$id": "#/properties/log/properties/severity",
+                    "type": "string",
+                    "default": "INFO",
+                    "examples": [
+                        "INFO"
+                    ]
+                }
+            },
+            "additionalProperties": true
+        },
+        "secretVolumeName": {
+            "$id": "#/properties/secretVolumeName",
+            "type": "string",
+            "default": "password-file",
+            "examples": [
+                "my-secret-volume"
+            ]
+        }
+    },
+    "additionalProperties": true
+}

@@ -1,5 +1,5 @@
 image:
-  repository: public.ecr.aws/gravitational/teleport
+  repository: public.ecr.aws/gravitational/teleport-ent-distroless-debug
   pullPolicy: IfNotPresent
   tag: ""
 

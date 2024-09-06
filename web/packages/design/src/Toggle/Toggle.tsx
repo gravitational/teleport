@@ -25,12 +25,14 @@ export function Toggle({
   children,
   disabled,
   className,
+  size = 'small',
 }: {
   isToggled: boolean;
   onToggle: () => void;
   children?: ReactNode;
   disabled?: boolean;
   className?: string;
+  size?: 'small' | 'large';
 }) {
   return (
     <StyledWrapper disabled={disabled} className={className}>
@@ -38,14 +40,16 @@ export function Toggle({
         checked={isToggled}
         onChange={onToggle}
         disabled={disabled}
+        $size={size}
+        data-testid="toggle"
       />
-      <StyledSlider />
+      <StyledSlider $size={size} />
       {children}
     </StyledWrapper>
   );
 }
 
-const StyledWrapper = styled.label`
+const StyledWrapper = styled.label<{ disabled?: boolean }>`
   position: relative;
   display: flex;
   align-items: center;
@@ -56,44 +60,107 @@ const StyledWrapper = styled.label`
   }
 `;
 
-const StyledSlider = styled.div`
-  width: 32px;
-  height: 12px;
-  border-radius: 12px;
-  background: ${props => props.theme.colors.levels.surface};
+interface SizeProps {
+  $size?: 'small' | 'large';
+}
+
+const size = (props: SizeProps) => {
+  switch (props.$size) {
+    case 'large':
+      return {
+        track: {
+          width: 40,
+          height: 20,
+        },
+        circle: {
+          width: 14,
+          height: 14,
+          transform: 'translate(3px, -50%)',
+        },
+        translate: 'translate(23px, -50%)',
+      };
+    default:
+      // small
+      return {
+        track: {
+          width: 32,
+          height: 16,
+        },
+        circle: {
+          width: 12,
+          height: 12,
+          transform: 'translate(2px, -50%)',
+        },
+        translate: 'translate(18px, -50%)',
+      };
+  }
+};
+
+const StyledSlider = styled.div<SizeProps>`
+  // the slider 'track'
+  ${props => size(props).track};
+  border-radius: 10px;
   cursor: inherit;
   flex-shrink: 0;
+  background: ${props => props.theme.colors.buttons.secondary.default};
+  transition: background 0.15s ease-in-out;
 
+  &:hover {
+    background: ${props => props.theme.colors.buttons.secondary.hover};
+  }
+
+  &:active {
+    background: ${props => props.theme.colors.buttons.secondary.active};
+  }
+
+  // the slider 'circle'
   &:before {
     content: '';
     position: absolute;
     top: 50%;
-    transform: translate(0, -50%);
-    width: 16px;
-    height: 16px;
-    border-radius: 16px;
-    background: ${props => props.theme.colors.brand};
+    ${props => size(props).circle};
+    border-radius: 14px;
+    background: ${props => props.theme.colors.interactionHandle};
+    box-shadow: ${props => props.theme.boxShadow[0]};
+    transition: transform 0.05s ease-in;
   }
 `;
 
-const StyledInput = styled.input.attrs({ type: 'checkbox' })`
+const StyledInput = styled.input.attrs({ type: 'checkbox' })<SizeProps>`
   opacity: 0;
   position: absolute;
   cursor: inherit;
+  z-index: -1;
 
   &:checked + ${StyledSlider} {
-    background: ${props => props.theme.colors.spotBackground[1]};
-
     &:before {
-      transform: translate(16px, -50%);
+      transform: ${props => size(props).translate};
+    }
+  }
+
+  &:enabled:checked + ${StyledSlider} {
+    background: ${props => props.theme.colors.success.main};
+
+    &:hover {
+      background: ${props => props.theme.colors.success.hover};
+    }
+
+    &:active {
+      background: ${props => props.theme.colors.success.active};
     }
   }
 
   &:disabled + ${StyledSlider} {
-    background: ${props => props.theme.colors.levels.surface};
+    background: ${props => props.theme.colors.spotBackground[0]};
 
     &:before {
-      background: ${props => props.theme.colors.grey[700]};
+      opacity: 0.36;
+      box-shadow: none;
     }
+  }
+
+  &:disabled:checked + ${StyledSlider} {
+    background: ${props =>
+      props.theme.colors.interactive.tonal.success[2].background};
   }
 `;

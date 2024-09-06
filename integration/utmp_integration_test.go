@@ -38,11 +38,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -65,7 +67,7 @@ type SrvCtx struct {
 	signer     ssh.Signer
 	server     *auth.TestServer
 	clock      clockwork.FakeClock
-	nodeClient *auth.Client
+	nodeClient *authclient.Client
 	nodeID     string
 	utmpPath   string
 	wtmpPath   string
@@ -251,24 +253,28 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-
-	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
 	require.NoError(t, err)
+	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
-			PublicSSHKey: pub,
-			PublicTLSKey: tlsPub,
+			PublicSSHKey: sshPublicKey,
+			PublicTLSKey: tlsPublicKey,
 		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
+	s.signer, err = sshutils.NewSigner(privateKeyPEM, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New().String()
@@ -315,7 +321,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		ctx,
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
-		[]ssh.Signer{s.signer},
+		sshutils.StaticHostSigners(s.signer),
 		s.nodeClient,
 		nodeDir,
 		"",
@@ -324,7 +330,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUUID(s.nodeID),
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
-		regular.SetShell("/bin/sh"),
 		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
@@ -336,7 +341,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 			}, nil,
 		),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath),
 		regular.SetLockWatcher(lockWatcher),

@@ -39,6 +39,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -81,6 +82,16 @@ func WithLogFormat(format LoggingFormat) LoggerOption {
 	}
 }
 
+// IsTerminal checks whether writer is a terminal
+func IsTerminal(w io.Writer) bool {
+	switch v := w.(type) {
+	case *os.File:
+		return term.IsTerminal(int(v.Fd()))
+	default:
+		return false
+	}
+}
+
 // InitLogger configures the global logger for a given purpose / verbosity level
 func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) {
 	var o logOpts
@@ -101,14 +112,14 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == slog.LevelDebug {
-			enableColors = trace.IsTerminal(os.Stderr)
+			enableColors = IsTerminal(os.Stderr)
 			w = logutils.NewSharedWriter(os.Stderr)
 		} else {
 			w = io.Discard
 			enableColors = false
 		}
 	case LoggingForDaemon:
-		enableColors = trace.IsTerminal(os.Stderr)
+		enableColors = IsTerminal(os.Stderr)
 		w = logutils.NewSharedWriter(os.Stderr)
 	}
 
@@ -128,14 +139,15 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 		}
 
 		formatter = textFormatter
-		handler = logutils.NewSlogTextHandler(w, &logutils.SlogTextHandlerConfig{
+		handler = logutils.NewSlogTextHandler(w, logutils.SlogTextHandlerConfig{
 			Level:        level,
 			EnableColors: enableColors,
-			WithCaller:   true,
 		})
 	case LogFormatJSON:
 		formatter = &logutils.JSONFormatter{}
-		handler = logutils.NewSlogJSONHandler(w, level)
+		handler = logutils.NewSlogJSONHandler(w, logutils.SlogJSONHandlerConfig{
+			Level: level,
+		})
 	}
 
 	logrus.SetFormatter(formatter)
@@ -164,7 +176,7 @@ func InitLoggerForTests() {
 
 		output := logutils.NewSharedWriter(w)
 		logger.SetOutput(output)
-		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, level)))
+		slog.SetDefault(slog.New(logutils.NewSlogJSONHandler(output, logutils.SlogJSONHandlerConfig{Level: level})))
 	})
 }
 
@@ -199,14 +211,6 @@ type Logger interface {
 	GetLevel() logrus.Level
 	// SetLevel sets the logger's level to the specified value
 	SetLevel(level logrus.Level)
-}
-
-// FieldLoggerWithWriter describes a logger that can expose a writer
-// to be used by stdlib loggers.
-type FieldLoggerWithWriter interface {
-	logrus.FieldLogger
-	Writer() *io.PipeWriter
-	WriterLevel(logrus.Level) *io.PipeWriter
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

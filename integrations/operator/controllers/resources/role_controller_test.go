@@ -29,15 +29,23 @@ import (
 	"github.com/stretchr/testify/require"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 )
+
+var TeleportRoleGVKV5 = schema.GroupVersionKind{
+	Group:   resourcesv5.GroupVersion.Group,
+	Version: resourcesv5.GroupVersion.Version,
+	Kind:    "TeleportRole",
+}
 
 // When I create or delete a TeleportRole CR in Kubernetes,
 // the corresponding TeleportRole must be created/deleted in Teleport.
@@ -90,7 +98,7 @@ allow:
   - ubuntu
   - root
 options:
-  create_host_user_mode: 4
+  create_host_user_mode: 3
 `,
 			shouldFail: false,
 			expectedSpec: &types.RoleSpecV6{
@@ -98,7 +106,7 @@ options:
 					Logins: []string{"ubuntu", "root"},
 				},
 				Options: types.RoleOptions{
-					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+					CreateHostUserMode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 				},
 			},
 		},
@@ -190,7 +198,8 @@ allow:
 
 			roleName := validRandomResourceName("role-")
 
-			obj := resources.GetUnstructuredObjectFromGVK(resources.TeleportRoleGVKV5)
+			obj, err := reconcilers.GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+			require.NoError(t, err)
 			obj.Object["spec"] = roleManifest
 			obj.SetName(roleName)
 			obj.SetNamespace(setup.Namespace.Name)
@@ -399,61 +408,9 @@ func k8sCreateRole(ctx context.Context, t *testing.T, kc kclient.Client, role *r
 	require.NoError(t, err)
 }
 
-func TestAddTeleportResourceOriginRole(t *testing.T) {
-	r := resources.RoleReconciler{}
-	tests := []struct {
-		name     string
-		resource types.Role
-	}{
-		{
-			name: "origin already set correctly",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginKubernetes},
-				},
-			},
-		},
-		{
-			name: "origin already set incorrectly",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
-				},
-			},
-		},
-		{
-			name: "origin not set",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{"foo": "bar"},
-				},
-			},
-		},
-		{
-			name: "no labels",
-			resource: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: "user with no labels",
-				},
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r.AddTeleportResourceOrigin(tc.resource)
-			metadata := tc.resource.GetMetadata()
-			require.Contains(t, metadata.Labels, types.OriginLabel)
-			require.Equal(t, types.OriginKubernetes, metadata.Labels[types.OriginLabel])
-		})
-	}
-}
-
 func getRoleStatusConditionError(object map[string]interface{}) []metav1.Condition {
 	var conditionsWithError []metav1.Condition
-	var status resourcesv5.TeleportRoleStatus
+	var status apiresources.Status
 	_ = mapstructure.Decode(object["status"], &status)
 
 	for _, condition := range status.Conditions {

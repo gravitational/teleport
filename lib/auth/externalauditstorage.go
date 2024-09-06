@@ -24,50 +24,18 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
-	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // GenerateExternalAuditStorageOIDCToken generates a signed OIDC token for use by
 // the External Audit Storage feature when authenticating to customer AWS accounts.
-func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context) (string, error) {
-	clusterName, err := a.GetDomainName()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.OIDCIdPCA,
-		DomainName: clusterName,
-	}, true /*loadKeys*/)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	signer, err := a.GetKeyStore().GetJWTSigner(ctx, ca)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	privateKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), a.clock)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	issuer, err := oidc.IssuerForCluster(ctx, a)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	token, err := privateKey.SignAWSOIDC(jwt.SignParams{
-		Username: a.ServerID,
-		Audience: types.IntegrationAWSOIDCAudience,
-		Subject:  types.IntegrationAWSOIDCSubjectAuth,
-		Issuer:   issuer,
-		Expires:  a.clock.Now().Add(externalauditstorage.TokenLifetime),
+func (a *Server) GenerateExternalAuditStorageOIDCToken(ctx context.Context, integration string) (string, error) {
+	token, err := awsoidc.GenerateAWSOIDCToken(ctx, a, a.GetKeyStore(), awsoidc.GenerateAWSOIDCTokenRequest{
+		Integration: integration,
+		Username:    a.ServerID,
+		Subject:     types.IntegrationAWSOIDCSubjectAuth,
+		Clock:       a.clock,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

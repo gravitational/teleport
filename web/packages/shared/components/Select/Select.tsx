@@ -17,15 +17,26 @@
  */
 
 import React from 'react';
-import ReactSelect from 'react-select';
+import ReactSelect, { GroupBase } from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import CreatableSelect from 'react-select/creatable';
+import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import styled from 'styled-components';
-import { width, space } from 'design/system';
+import { width, WidthProps, space, SpaceProps } from 'design/system';
 
-import { Props, AsyncProps, CreatableProps } from './types';
+import {
+  Props,
+  AsyncProps,
+  CreatableProps,
+  Option,
+  AsyncCreatableProps,
+} from './types';
 
-export default function Select(props: Props) {
+export default function Select<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>(props: Props<Opt, IsMulti, Group>) {
   const {
     hasError = false,
     elevated = false,
@@ -35,12 +46,11 @@ export default function Select(props: Props) {
   } = props;
   return (
     <StyledSelect hasError={hasError} elevated={elevated}>
-      <ReactSelect
+      <ReactSelect<Opt, IsMulti, Group>
         menuPlacement="auto"
         className="react-select-container"
         classNamePrefix="react-select"
-        clearable={false}
-        isMulti={false}
+        isClearable={false}
         isSearchable={true}
         closeMenuOnSelect={closeMenuOnSelect}
         placeholder="Select..."
@@ -51,14 +61,18 @@ export default function Select(props: Props) {
   );
 }
 
-export function SelectAsync(props: AsyncProps) {
+export function SelectAsync<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>(props: AsyncProps<Opt, IsMulti, Group>) {
   const { hasError = false, ...restOfProps } = props;
   return (
     <StyledSelect hasError={hasError}>
-      <ReactSelectAsync
+      <ReactSelectAsync<Opt, IsMulti, Group>
         className="react-select-container"
         classNamePrefix="react-select"
-        clearable={false}
+        isClearable={false}
         isSearchable={true}
         defaultOptions={false}
         cacheOptions={false}
@@ -70,11 +84,15 @@ export function SelectAsync(props: AsyncProps) {
   );
 }
 
-export function SelectCreatable(props: CreatableProps) {
+export function SelectCreatable<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>(props: CreatableProps<Opt, IsMulti, Group>) {
   const { hasError = false, stylesConfig, ...restOfProps } = props;
   return (
     <StyledSelect hasError={hasError}>
-      <CreatableSelect
+      <CreatableSelect<Opt, IsMulti, Group>
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
@@ -84,7 +102,35 @@ export function SelectCreatable(props: CreatableProps) {
   );
 }
 
-export const StyledSelect = styled.div`
+export function SelectCreatableAsync<
+  Opt = Option,
+  IsMulti extends boolean = false,
+  Group extends GroupBase<Opt> = GroupBase<Opt>,
+>(props: AsyncCreatableProps<Opt, IsMulti, Group>) {
+  const { hasError = false, stylesConfig, ...restOfProps } = props;
+  return (
+    <StyledSelect hasError={hasError}>
+      <ReactSelectCreatableAsync<Opt, IsMulti, Group>
+        className="react-select-container"
+        classNamePrefix="react-select"
+        styles={stylesConfig}
+        isClearable={false}
+        isSearchable={true}
+        defaultOptions={false}
+        cacheOptions={false}
+        defaultMenuIsOpen={false}
+        {...restOfProps}
+      />
+    </StyledSelect>
+  );
+}
+
+interface StyledSelectProps extends WidthProps, SpaceProps {
+  hasError?: boolean;
+  elevated?: boolean;
+}
+
+export const StyledSelect = styled.div<StyledSelectProps>`
   .react-select-container {
     box-sizing: border-box;
     display: block;
@@ -233,7 +279,6 @@ export const StyledSelect = styled.div`
     display: none;
   }
 
-  .react-select--is-disabled,
   .react-select__control--is-disabled {
     color: ${props => props.theme.colors.text.disabled};
     border: 1px solid ${props => props.theme.colors.text.disabled};
@@ -247,7 +292,7 @@ export const StyledSelect = styled.div`
     }
   }
 
-  .react-select__input {
+  .react-select__input-container {
     color: ${props => props.theme.colors.text.main};
   }
 

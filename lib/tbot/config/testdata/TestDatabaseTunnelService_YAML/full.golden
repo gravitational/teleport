@@ -1,0 +1,8 @@
+type: database-tunnel
+listen: tcp://0.0.0.0:3621
+roles:
+  - role1
+  - role2
+service: service
+database: database
+username: username

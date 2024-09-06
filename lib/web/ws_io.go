@@ -63,11 +63,15 @@ func (ws *WebsocketIO) Close() error {
 	return trace.Wrap(ws.Conn.Close())
 }
 
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
+type wsPinger interface {
+	WriteControl(messageType int, data []byte, deadline time.Time) error
+}
+
+// startWSPingLoop starts a loop that will continuously send a ping frame through the websocket
 // to prevent the connection between web client and teleport proxy from becoming idle.
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when the context is canceled.
-func startPingLoop(ctx context.Context, ws WSConn, keepAliveInterval time.Duration, log logrus.FieldLogger, onClose func() error) {
+func startWSPingLoop(ctx context.Context, pinger wsPinger, keepAliveInterval time.Duration, log logrus.FieldLogger, onClose func() error) {
 	log.Debugf("Starting websocket ping loop with interval %v.", keepAliveInterval)
 	tickerCh := time.NewTicker(keepAliveInterval)
 	defer tickerCh.Stop()
@@ -78,7 +82,7 @@ func startPingLoop(ctx context.Context, ws WSConn, keepAliveInterval time.Durati
 			// A short deadline is used here to detect a broken connection quickly.
 			// If this is just a temporary issue, we will retry shortly anyway.
 			deadline := time.Now().Add(time.Second)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+			if err := pinger.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				log.WithError(err).Error("Unable to send ping frame to web client")
 				if onClose != nil {
 					if err := onClose(); err != nil {

@@ -182,27 +182,65 @@ func TestAuditMarshaling(t *testing.T) {
 }
 
 func TestAuditUnmarshaling(t *testing.T) {
-	raw := map[string]interface{}{
-		"next_audit_date": "2023-02-02T00:00:00Z",
-		"recurrence": map[string]interface{}{
-			"frequency":    "3 months",
-			"day_of_month": "1",
+	tests := []struct {
+		name                      string
+		input                     map[string]interface{}
+		expectedNextAudit         time.Time
+		expectedRecurrence        Recurrence
+		expectedNotificationStart time.Duration
+	}{
+		{
+			name: "with next_audit_date",
+			input: map[string]interface{}{
+				"next_audit_date": "2023-02-02T00:00:00Z",
+				"recurrence": map[string]interface{}{
+					"frequency":    "3 months",
+					"day_of_month": "1",
+				},
+				"notifications": map[string]interface{}{
+					"start": twoWeeks.String(),
+				},
+			},
+			expectedNextAudit: time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC),
+			expectedRecurrence: Recurrence{
+				Frequency:  ThreeMonths,
+				DayOfMonth: FirstDayOfMonth,
+			},
+			expectedNotificationStart: twoWeeks,
 		},
-		"notifications": map[string]interface{}{
-			"start": twoWeeks.String(),
+		{
+			name: "without next_audit_date",
+			input: map[string]interface{}{
+				"recurrence": map[string]interface{}{
+					"frequency":    "3 months",
+					"day_of_month": "1",
+				},
+				"notifications": map[string]interface{}{
+					"start": twoWeeks.String(),
+				},
+			},
+			expectedNextAudit: time.Time{},
+			expectedRecurrence: Recurrence{
+				Frequency:  ThreeMonths,
+				DayOfMonth: FirstDayOfMonth,
+			},
+			expectedNotificationStart: twoWeeks,
 		},
 	}
 
-	data, err := json.Marshal(&raw)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(&tt.input)
+			require.NoError(t, err)
 
-	var audit Audit
-	require.NoError(t, json.Unmarshal(data, &audit))
+			var audit Audit
+			require.NoError(t, json.Unmarshal(data, &audit))
 
-	require.Equal(t, time.Date(2023, 02, 02, 0, 0, 0, 0, time.UTC), audit.NextAuditDate)
-	require.Equal(t, ThreeMonths, audit.Recurrence.Frequency)
-	require.Equal(t, FirstDayOfMonth, audit.Recurrence.DayOfMonth)
-	require.Equal(t, twoWeeks, audit.Notifications.Start)
+			require.Equal(t, tt.expectedNextAudit, audit.NextAuditDate)
+			require.Equal(t, tt.expectedRecurrence, audit.Recurrence)
+			require.Equal(t, tt.expectedNotificationStart, audit.Notifications.Start)
+		})
+	}
 }
 
 func TestAccessListDefaults(t *testing.T) {
@@ -224,59 +262,13 @@ func TestAccessListDefaults(t *testing.T) {
 		}
 	}
 
-	t.Run("ownership defaults to explicit", func(t *testing.T) {
+	t.Run("owners are required", func(t *testing.T) {
 		uut := newValidAccessList()
-		uut.Spec.Ownership = InclusionUnspecified
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, InclusionExplicit, uut.Spec.Ownership)
-	})
-
-	t.Run("invalid ownership is an error", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Ownership = Inclusion("potato")
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "ownership")
-	})
-
-	t.Run("membership defaults to explicit", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Membership = InclusionUnspecified
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
-		require.Equal(t, InclusionExplicit, uut.Spec.Membership)
-	})
-
-	t.Run("invalid membership is an error", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Membership = Inclusion("banana")
-
-		err := uut.CheckAndSetDefaults()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "membership")
-	})
-
-	t.Run("owners are required for explicit owner lists", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Ownership = InclusionExplicit
 		uut.Spec.Owners = []Owner{}
 
 		err := uut.CheckAndSetDefaults()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "owners")
-	})
-
-	t.Run("owners are not required for implicit owner lists", func(t *testing.T) {
-		uut := newValidAccessList()
-		uut.Spec.Ownership = InclusionImplicit
-		uut.Spec.Owners = []Owner{}
-
-		err := uut.CheckAndSetDefaults()
-		require.NoError(t, err)
 	})
 }
 

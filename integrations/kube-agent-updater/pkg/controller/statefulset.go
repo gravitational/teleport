@@ -34,7 +34,7 @@ import (
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 type StatefulSetVersionUpdater struct {
@@ -104,6 +104,7 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 	var (
 		noNewVersionErr *version.NoNewVersionError
 		maintenanceErr  *MaintenanceNotTriggeredError
+		trustErr        *trace.TrustError
 	)
 	switch {
 	case errors.As(err, &noNewVersionErr):
@@ -119,9 +120,9 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		// No need to check for blocked rollout because the unhealthy workload
 		// trigger has not approved the maintenance
 		return requeueLater, nil
-	case trace.IsTrustError(err):
+	case errors.As(err, &trustErr):
 		// Logging as error as image verification should not fail under normal use
-		log.Error(err, "Image verification failed, not updating.")
+		log.Error(trustErr.OrigError(), "Image verification failed, not updating.")
 		if err := r.unblockStatefulSetRolloutIfStuck(ctx, &obj); err != nil {
 			log.Error(err, "statefulset unblocking failed, the rollout might get stuck")
 		}

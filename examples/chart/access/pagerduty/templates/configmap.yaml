@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pagerduty.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "pagerduty.labels" . | nindent 4 }}
+data:
+  teleport-pagerduty.toml: |
+    [teleport]
+    addr = "{{ .Values.teleport.address }}"
+    identity = "/var/lib/teleport/plugins/pagerduty/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    refresh_identity = true
+
+    [pagerduty]
+    api_key    = "/var/lib/teleport/plugins/pagerduty/pagerduty_api_key"
+    user_email = "{{ .Values.pagerduty.userEmail }}"
+
+    [log]
+    output = "{{ .Values.log.output }}"
+    severity = "{{ .Values.log.severity }}"

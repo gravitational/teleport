@@ -1,4 +1,4 @@
-//go:build !piv
+//go:build !piv && !pivtest
 
 /*
 Copyright 2022 Gravitational, Inc.
@@ -34,4 +34,10 @@ func parseYubiKeyPrivateKeyData(keyDataBytes []byte) (*PrivateKey, error) {
 
 func (s PIVSlot) validate() error {
 	return trace.Wrap(errPIVUnavailable)
+}
+
+// IsHardware returns true if [k] is a hardware PIV key.
+func (k *PrivateKey) IsHardware() bool {
+	// Built without PIV support - this must be false.
+	return false
 }

@@ -17,9 +17,9 @@
  */
 
 import React from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
-import { Box, Text, Flex, Link } from 'design';
+import { Box, Flex, Link } from 'design';
 
 import { IconCircle } from 'design/Icon/IconCircle';
 
@@ -28,6 +28,8 @@ import { Windows, Linux, Apple } from 'design/Icon';
 import { LockIcon } from 'design/SVGIcon';
 
 import Table, { Cell } from 'design/DataTable';
+
+import { P } from 'design/Text/Text';
 
 import {
   DeviceListProps,
@@ -43,8 +45,6 @@ import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export function DeviceTrustLocked() {
-  const theme = useTheme();
-
   return (
     <FeatureBox>
       <FeatureHeader>
@@ -67,10 +67,10 @@ export function DeviceTrustLocked() {
         />
       </Box>
       <StyledMessageContainer>
-        <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
+        <Box p="3" borderRadius="50%">
           <IconCircle Icon={LockIcon} size={64} />
         </Box>
-        <Text typography="subtitle" textAlign="justify">
+        <P textAlign="justify">
           Device Trust enables trusted and authenticated device access. When
           resources are configured with the Device Trust mode “required”,
           Teleport will authenticate the Trusted Device, in addition to
@@ -86,7 +86,7 @@ export function DeviceTrustLocked() {
             Device Trust documentation
           </Link>
           .
-        </Text>
+        </P>
         <Box>
           <ButtonLockedFeature event={CtaEvent.CTA_TRUSTED_DEVICES}>
             Unlock Device Trust with Teleport Enterprise
@@ -175,7 +175,9 @@ const StyledMessageContainer = styled(Flex)`
   padding: 24px;
   gap: 24px;
   width: 600px;
-  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
-    0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 5px 5px -3px rgba(0, 0, 0, 0.2),
+    0 8px 10px 1px rgba(0, 0, 0, 0.14),
+    0 3px 14px 2px rgba(0, 0, 0, 0.12);
   border-radius: 8px;
 `;

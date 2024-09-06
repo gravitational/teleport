@@ -98,6 +98,7 @@ export default function useAuditEvents(
     range,
     setRange,
     rangeOptions,
+    ctx,
   };
 }
 

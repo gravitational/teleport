@@ -22,96 +22,60 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
-func TestCheckOrSetKubeCluster(t *testing.T) {
+func TestCheckKubeCluster(t *testing.T) {
 	t.Parallel()
-	ctx := context.TODO()
+	ctx := context.Background()
+
+	kubeServers := []types.KubeServer{
+		kubeServer(t, "k8s-1", "server1", "uuuid"),
+		kubeServer(t, "k8s-2", "server1", "uuuid"),
+		kubeServer(t, "k8s-3", "server1", "uuuid"),
+		kubeServer(t, "k8s-4", "server1", "uuuid"),
+	}
 
 	tests := []struct {
 		desc        string
 		services    []types.KubeServer
 		kubeCluster string
-		teleCluster string
-		want        string
 		assertErr   require.ErrorAssertionFunc
 	}{
 		{
-			desc: "valid cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
+			desc:        "valid cluster name",
+			services:    kubeServers,
 			kubeCluster: "k8s-4",
-			teleCluster: "zzz-tele-cluster",
-			want:        "k8s-4",
 			assertErr:   require.NoError,
 		},
 		{
-			desc: "invalid cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
+			desc:        "invalid cluster name",
+			services:    kubeServers,
 			kubeCluster: "k8s-5",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
 			desc:        "no registered clusters",
 			services:    []types.KubeServer{},
 			kubeCluster: "k8s-1",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
 		},
 		{
-			desc:        "no registered clusters and empty cluster provided",
-			services:    []types.KubeServer{},
+			desc:        "empty cluster provided",
+			services:    kubeServers,
 			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
 			assertErr:   require.Error,
-		},
-		{
-			desc: "no cluster provided, default to first alphabetically",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
-			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
-			want:        "k8s-1",
-			assertErr:   require.NoError,
-		},
-		{
-			desc: "no cluster provided, default to teleport cluster name",
-			services: []types.KubeServer{
-				kubeServer(t, "k8s-1", "server1", "uuuid"),
-				kubeServer(t, "k8s-2", "server1", "uuuid"),
-				kubeServer(t, "k8s-3", "server2", "uuuid2"),
-
-				kubeServer(t, "zzz-tele-cluster", "server2", "uuuid2"),
-				kubeServer(t, "k8s-4", "server2", "uuuid2"),
-			},
-			kubeCluster: "",
-			teleCluster: "zzz-tele-cluster",
-			want:        "zzz-tele-cluster",
-			assertErr:   require.NoError,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := CheckOrSetKubeCluster(ctx, mockKubeServicesPresence(tt.services), tt.kubeCluster, tt.teleCluster)
+			err := CheckKubeCluster(ctx, mockKubeServicesPresence(tt.services), tt.kubeCluster)
 			tt.assertErr(t, err)
-			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -128,6 +92,75 @@ func kubeServer(t *testing.T, kubeCluster, hostname, hostID string) types.KubeSe
 	server, err := types.NewKubernetesServerV3FromCluster(cluster, hostname, hostID)
 	require.NoError(t, err)
 	return server
+}
+
+func TestGetAgentVersion(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	testCases := []struct {
+		desc            string
+		ping            func(ctx context.Context) (proto.PingResponse, error)
+		clusterFeatures proto.Features
+		channelVersion  string
+		expectedVersion string
+		errorAssert     require.ErrorAssertionFunc
+	}{
+		{
+			desc: "ping error",
+			ping: func(ctx context.Context) (proto.PingResponse, error) {
+				return proto.PingResponse{}, trace.BadParameter("ping error")
+			},
+			expectedVersion: "",
+			errorAssert:     require.Error,
+		},
+		{
+			desc: "no automatic upgrades",
+			ping: func(ctx context.Context) (proto.PingResponse, error) {
+				return proto.PingResponse{ServerVersion: "1.2.3"}, nil
+			},
+			expectedVersion: "1.2.3",
+			errorAssert:     require.NoError,
+		},
+		{
+			desc: "automatic upgrades",
+			ping: func(ctx context.Context) (proto.PingResponse, error) {
+				return proto.PingResponse{ServerVersion: "10"}, nil
+			},
+			clusterFeatures: proto.Features{AutomaticUpgrades: true, Cloud: true},
+			channelVersion:  "v1.2.3",
+			expectedVersion: "1.2.3",
+			errorAssert:     require.NoError,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			p := &pinger{pingFn: tt.ping}
+
+			var channel *automaticupgrades.Channel
+			if tt.channelVersion != "" {
+				channel = &automaticupgrades.Channel{StaticVersion: tt.channelVersion}
+				err := channel.CheckAndSetDefaults()
+				require.NoError(t, err)
+			}
+			releaseChannels := automaticupgrades.Channels{automaticupgrades.DefaultChannelName: channel}
+
+			version, err := GetKubeAgentVersion(ctx, p, tt.clusterFeatures, releaseChannels)
+
+			tt.errorAssert(t, err)
+			require.Equal(t, tt.expectedVersion, version)
+		})
+	}
+}
+
+type pinger struct {
+	pingFn func(ctx context.Context) (proto.PingResponse, error)
+}
+
+func (p *pinger) Ping(ctx context.Context) (proto.PingResponse, error) {
+	return p.pingFn(ctx)
 }
 
 func TestExtractAndSortKubeClusterNames(t *testing.T) {

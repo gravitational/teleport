@@ -24,12 +24,14 @@ import (
 	ec2TypesV2 "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
@@ -42,12 +44,14 @@ type ResourceTag interface {
 	//  here and use a type switch for now.
 	rdsTypesV2.Tag |
 		ec2TypesV2.Tag |
+		*ec2.Tag |
 		*rds.Tag |
 		*redshift.Tag |
 		*elasticache.Tag |
 		*memorydb.Tag |
 		*redshiftserverless.Tag |
-		*opensearchservice.Tag
+		*opensearchservice.Tag |
+		*secretsmanager.Tag
 }
 
 // TagsToLabels converts a list of AWS resource tags to a label map.
@@ -73,6 +77,8 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 	switch v := any(tag).(type) {
 	case *rds.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
+	case *ec2.Tag:
+		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *redshift.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *elasticache.Tag:
@@ -86,6 +92,8 @@ func resourceTagToKeyValue[Tag ResourceTag](tag Tag) (string, string) {
 	case ec2TypesV2.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	case *opensearchservice.Tag:
+		return aws.StringValue(v.Key), aws.StringValue(v.Value)
+	case *secretsmanager.Tag:
 		return aws.StringValue(v.Key), aws.StringValue(v.Value)
 	default:
 		return "", ""

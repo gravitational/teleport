@@ -60,7 +60,7 @@ export function PingTeleportProvider<T>(props: {
   const result = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
-        if (res.agents.length) {
+        if (res?.agents?.length) {
           return res.agents[0];
         }
 
@@ -83,12 +83,6 @@ export function PingTeleportProvider<T>(props: {
     switch (props.resourceKind) {
       case ResourceKind.Server:
         return ctx.nodeService.fetchNodes(clusterId, request, signal);
-      case ResourceKind.Desktop:
-        return ctx.desktopService.fetchDesktopServices(
-          clusterId,
-          request,
-          signal
-        );
       case ResourceKind.Kubernetes:
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
       case ResourceKind.Database:

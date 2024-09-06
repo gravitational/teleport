@@ -17,7 +17,9 @@
  */
 
 import React from 'react';
-import { Alert, Box, Flex, Indicator, Link, Text } from 'design';
+import { Alert, Box, Flex, H3, Indicator, Link } from 'design';
+
+import { P } from 'design/Text/Text';
 
 import { FeatureBox, FeatureHeaderTitle } from 'teleport/components/Layout';
 import ResourceEditor from 'teleport/components/ResourceEditor';
@@ -36,7 +38,7 @@ import DeleteConnectorDialog from './DeleteConnectorDialog';
 import useAuthConnectors, { State } from './useAuthConnectors';
 import templates from './templates';
 
-export default function Container() {
+export function AuthConnectorsContainer() {
   const state = useAuthConnectors();
   return <AuthConnectors {...state} />;
 }
@@ -51,7 +53,7 @@ export function AuthConnectors(props: State) {
       ? 'Creating a new github connector'
       : 'Editing github connector';
   const description =
-    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Active Directory, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
+    'Auth connectors allow Teleport to authenticate users via an external identity source such as Okta, Microsoft Entra ID, GitHub, etc. This authentication method is commonly known as single sign-on (SSO).';
 
   function handleOnSave(content: string) {
     const name = resources.item.name;
@@ -63,10 +65,11 @@ export function AuthConnectors(props: State) {
     <FeatureBox>
       <ResponsiveFeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <MobileDescription typography="subtitle1">
-          {description}
-        </MobileDescription>
-        <ResponsiveAddButton onClick={() => resources.create('github')}>
+        <MobileDescription>{description}</MobileDescription>
+        <ResponsiveAddButton
+          fill="border"
+          onClick={() => resources.create('github')}
+        >
           New GitHub Connector
         </ResponsiveAddButton>
       </ResponsiveFeatureHeader>
@@ -90,13 +93,9 @@ export function AuthConnectors(props: State) {
               onDelete={resources.remove}
             />
             <DesktopDescription>
-              <Text typography="h6" mb={3} caps>
-                Auth Connectors
-              </Text>
-              <Text typography="subtitle1" mb={3}>
-                {description}
-              </Text>
-              <Text typography="subtitle1" mb={2}>
+              <H3 mb={3}>Auth Connectors</H3>
+              <P mb={3}>{description}</P>
+              <P mb={2}>
                 Please{' '}
                 <Link
                   color="text.main"
@@ -107,7 +106,7 @@ export function AuthConnectors(props: State) {
                   view our documentation
                 </Link>{' '}
                 on how to configure a GitHub connector.
-              </Text>
+              </P>
             </DesktopDescription>
           </>
         </Flex>

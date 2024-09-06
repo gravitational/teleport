@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -56,15 +55,12 @@ func TestService_GetUserPreferences(t *testing.T) {
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
 			want: &userpreferencesv1.GetUserPreferencesResponse{
 				Preferences: &userpreferencesv1.UserPreferences{
-					Assist: &userpreferencesv1.AssistUserPreferences{
-						PreferredLogins: []string{},
-						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-					},
-					Theme: userpreferencesv1.Theme_THEME_LIGHT,
+					Theme: userpreferencesv1.Theme_THEME_UNSPECIFIED,
 					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
-						DefaultTab:     userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
-						ViewMode:       userpreferencesv1.ViewMode_VIEW_MODE_CARD,
-						LabelsViewMode: userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
+						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
+						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
+						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
 					},
 					Onboard: &userpreferencesv1.OnboardUserPreferences{
 						PreferredResources: []userpreferencesv1.Resource{},
@@ -104,10 +100,6 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 	t.Parallel()
 
 	defaultPreferences := &userpreferencesv1.UserPreferences{
-		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: []string{},
-			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-		},
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
 			PreferredResources: []userpreferencesv1.Resource{},
@@ -162,10 +154,6 @@ type testClient struct {
 	services.UserGetter
 }
 
-func (c *testClient) ValidateMFAAuthResponse(ctx context.Context, resp *proto.MFAAuthenticateResponse, user string, passwordless bool) (*types.MFADevice, string, error) {
-	return nil, "", nil
-}
-
 func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -175,12 +163,15 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	require.NoError(t, err)
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc := local.NewTestIdentityService(backend)
 
-	require.NoError(t, clusterConfigSvc.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	require.NoError(t, err)
 	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
-	require.NoError(t, clusterConfigSvc.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig()))
-	require.NoError(t, clusterConfigSvc.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig()))
+	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+	_, err = clusterConfigSvc.UpsertSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	require.NoError(t, err)
 
 	accessPoint := &testClient{
 		ClusterConfiguration: clusterConfigSvc,

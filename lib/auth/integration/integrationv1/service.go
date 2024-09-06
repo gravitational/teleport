@@ -20,41 +20,55 @@ package integrationv1
 
 import (
 	"context"
+	"crypto"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// CAGetter describes the required methods to sign a JWT to be used for AWS OIDC Integration.
-type CAGetter interface {
-	// GetDomainName returns local auth domain of the current auth server
-	GetDomainName() (string, error)
+// Cache is the subset of the cached resources that the Service queries.
+type Cache interface {
+	// GetClusterName returns local cluster name of the current auth server
+	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 
 	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 	// controls if signing keys are loaded
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
 
-	// GetKeyStore returns the KeyStore used by the auth server
-	GetKeyStore() *keystore.Manager
+	// GetProxies returns a list of registered proxies.
+	GetProxies() ([]types.Server, error)
+
+	// IntegrationsGetter defines methods to access Integration resources.
+	services.IntegrationsGetter
+}
+
+// KeyStoreManager defines methods to get signers using the server's keystore.
+type KeyStoreManager interface {
+	// GetJWTSigner selects a usable JWT keypair from the given keySet and returns a [crypto.Signer].
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	Cache      services.IntegrationsGetter
-	Backend    services.Integrations
-	CAGetter   CAGetter
-	Logger     *logrus.Entry
-	Clock      clockwork.Clock
+	Authorizer      authz.Authorizer
+	Backend         services.Integrations
+	Cache           Cache
+	KeyStoreManager KeyStoreManager
+	Logger          *logrus.Entry
+	Clock           clockwork.Clock
+	Emitter         apievents.Emitter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -65,6 +79,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cache is required")
 	}
 
+	if s.KeyStoreManager == nil {
+		return trace.BadParameter("keystore manager is required")
+	}
+
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
 	}
@@ -73,12 +91,12 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is required")
 	}
 
-	if s.CAGetter == nil {
-		return trace.BadParameter("ca getter is required")
+	if s.Emitter == nil {
+		return trace.BadParameter("emitter is required")
 	}
 
 	if s.Logger == nil {
-		s.Logger = logrus.WithField(trace.Component, "integrations.service")
+		s.Logger = logrus.WithField(teleport.ComponentKey, "integrations.service")
 	}
 
 	if s.Clock == nil {
@@ -91,12 +109,13 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
-	authorizer authz.Authorizer
-	cache      services.IntegrationsGetter
-	backend    services.Integrations
-	caGetter   CAGetter
-	logger     *logrus.Entry
-	clock      clockwork.Clock
+	authorizer      authz.Authorizer
+	cache           Cache
+	keyStoreManager KeyStoreManager
+	backend         services.Integrations
+	logger          *logrus.Entry
+	clock           clockwork.Clock
+	emitter         apievents.Emitter
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -106,12 +125,13 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		cache:      cfg.Cache,
-		backend:    cfg.Backend,
-		caGetter:   cfg.CAGetter,
-		clock:      cfg.Clock,
+		logger:          cfg.Logger,
+		authorizer:      cfg.Authorizer,
+		cache:           cfg.Cache,
+		keyStoreManager: cfg.KeyStoreManager,
+		backend:         cfg.Backend,
+		clock:           cfg.Clock,
+		emitter:         cfg.Emitter,
 	}, nil
 }
 
@@ -119,8 +139,12 @@ var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbRead, types.VerbList)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -146,8 +170,12 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 
 // GetIntegration returns the specified Integration resource.
 func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbRead)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	integration, err := s.cache.GetIntegration(ctx, req.GetName())
@@ -165,14 +193,39 @@ func (s *Service) GetIntegration(ctx context.Context, req *integrationpb.GetInte
 
 // CreateIntegration creates a new Okta import rule resource.
 func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.CreateIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbCreate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	igMeta, err := getIntegrationMetadata(ig)
+	if err != nil {
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationCreate{
+		Metadata: apievents.Metadata{
+			Type: events.IntegrationCreateEvent,
+			Code: events.IntegrationCreateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    ig.GetName(),
+			Expires: ig.Expiry(),
+		},
+		IntegrationMetadata: igMeta,
+		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WithError(err).Warn("Failed to emit integration create event.")
 	}
 
 	igV1, ok := ig.(*types.IntegrationV1)
@@ -185,14 +238,39 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 // UpdateIntegration updates an existing Okta import rule resource.
 func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.UpdateIntegrationRequest) (*types.IntegrationV1, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbUpdate)
+	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	igMeta, err := getIntegrationMetadata(ig)
+	if err != nil {
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.IntegrationUpdateEvent,
+			Code: events.IntegrationUpdateCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:    ig.GetName(),
+			Expires: ig.Expiry(),
+		},
+		IntegrationMetadata: igMeta,
+		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WithError(err).Warn("Failed to emit integration update event.")
 	}
 
 	igV1, ok := ig.(*types.IntegrationV1)
@@ -205,7 +283,16 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 // DeleteIntegration removes the specified Integration resource.
 func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.DeleteIntegrationRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbDelete)
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := s.cache.GetIntegration(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,19 +301,53 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
+	igMeta, err := getIntegrationMetadata(ig)
+	if err != nil {
+		s.logger.WithError(err).Warn("Failed to build all integration metadata for audit event")
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.IntegrationDelete{
+		Metadata: apievents.Metadata{
+			Type: events.IntegrationDeleteEvent,
+			Code: events.IntegrationDeleteCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: ig.GetName(),
+		},
+		IntegrationMetadata: igMeta,
+		ConnectionMetadata:  authz.ConnectionMetadata(ctx),
+	}); err != nil {
+		s.logger.WithError(err).Warn("Failed to emit integration delete event.")
+	}
+
 	return &emptypb.Empty{}, nil
 }
 
+func getIntegrationMetadata(ig types.Integration) (apievents.IntegrationMetadata, error) {
+	igMeta := apievents.IntegrationMetadata{
+		SubKind: ig.GetSubKind(),
+	}
+	switch igMeta.SubKind {
+	case types.IntegrationSubKindAWSOIDC:
+		igMeta.AWSOIDC = &apievents.AWSOIDCIntegrationMetadata{
+			RoleARN:     ig.GetAWSOIDCIntegrationSpec().RoleARN,
+			IssuerS3URI: ig.GetAWSOIDCIntegrationSpec().IssuerS3URI,
+		}
+	case types.IntegrationSubKindAzureOIDC:
+		igMeta.AzureOIDC = &apievents.AzureOIDCIntegrationMetadata{
+			TenantID: ig.GetAzureOIDCIntegrationSpec().TenantID,
+			ClientID: ig.GetAzureOIDCIntegrationSpec().ClientID,
+		}
+	default:
+		return apievents.IntegrationMetadata{}, fmt.Errorf("unknown integration subkind: %s", igMeta.SubKind)
+	}
+
+	return igMeta, nil
+}
+
 // DeleteAllIntegrations removes all Integration resources.
+// DEPRECATED: can't delete all integrations over gRPC.
 func (s *Service) DeleteAllIntegrations(ctx context.Context, _ *integrationpb.DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbDelete)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.backend.DeleteAllIntegrations(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
+	return nil, trace.BadParameter("DeleteAllIntegrations is deprecated")
 }

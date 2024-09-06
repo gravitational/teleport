@@ -63,7 +63,7 @@ func (c *DiscoveryResourceCheckerConfig) CheckAndSetDefaults() error {
 		c.Context = context.Background()
 	}
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, teleport.ComponentDatabase)
+		c.Log = logrus.WithField(teleport.ComponentKey, teleport.ComponentDatabase)
 	}
 	return nil
 }

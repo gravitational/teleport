@@ -19,7 +19,6 @@
 package web
 
 import (
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -30,6 +29,6 @@ var log = newPackageLogger()
 // newPackageLogger returns a new instance of the logger
 // configured for the package
 func newPackageLogger(subcomponents ...string) logrus.FieldLogger {
-	return logrus.WithField(trace.Component,
+	return logrus.WithField(teleport.ComponentKey,
 		teleport.Component(append([]string{teleport.ComponentWeb}, subcomponents...)...))
 }

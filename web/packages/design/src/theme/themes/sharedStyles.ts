@@ -29,6 +29,7 @@ const sidebarWidth = 256;
 
 // Styles that are shared by all themes.
 export const sharedStyles: SharedStyles = {
+  sidebarWidth,
   boxShadow: [
     '0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12)',
     '0px 5px 5px -3px rgba(0, 0, 0, 0.2), 0px 8px 10px 1px rgba(0, 0, 0, 0.14), 0px 3px 14px 2px rgba(0, 0, 0, 0.12)',
@@ -36,10 +37,16 @@ export const sharedStyles: SharedStyles = {
     '0px 1px 10px 0px rgba(0, 0, 0, 0.12), 0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 2px 4px -1px rgba(0, 0, 0, 0.20)',
   ],
   breakpoints: {
+    // TODO (avatus): remove mobile/tablet/desktop breakpoints in favor of screensize descriptions
     mobile: 400 + sidebarWidth,
     tablet: 800 + sidebarWidth,
     desktop: 1200 + sidebarWidth,
+    // use these from now on
+    small: 600,
+    medium: 1024,
+    large: 1280,
   },
+  topBarHeight: [44, 56, 72],
   space: [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80],
   borders: [
     0,
@@ -55,7 +62,8 @@ export const sharedStyles: SharedStyles = {
   fonts: fonts,
   fontWeights,
   fontSizes,
-  radii: [0, 2, 4, 8, 16, 9999, '100%'],
+  // TODO(rudream): Clean up radii order in sharedStyles.
+  radii: [0, 2, 4, 8, 16, 9999, '100%', 24],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
 };
@@ -64,6 +72,7 @@ export const sharedStyles: SharedStyles = {
 export const sharedColors: SharedColors = {
   dark: '#000000',
   light: '#FFFFFF',
+  interactionHandle: '#FFFFFF',
   grey: {
     ...blueGrey,
   },

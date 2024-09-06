@@ -62,19 +62,32 @@ type EC2Instances struct {
 	// Rotation is set so instances dont get filtered out for already
 	// existing in the teleport instance
 	Rotation bool
+
+	// Integration is the integration used to fetch the Instance and should be used to access it.
+	// Might be empty for instances that didn't use an Integration.
+	Integration string
+
+	// DiscoveryConfig is the DiscoveryConfig name which originated this Run Request.
+	// Empty if using static matchers (coming from the `teleport.yaml`).
+	DiscoveryConfig string
+
+	// EnrollMode is the mode used to enroll the instance into Teleport.
+	EnrollMode types.InstallParamEnrollMode
 }
 
 // EC2Instance represents an AWS EC2 instance that has been
 // discovered.
 type EC2Instance struct {
-	InstanceID string
-	Tags       map[string]string
+	InstanceID       string
+	Tags             map[string]string
+	OriginalInstance ec2.Instance
 }
 
 func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
 	inst := EC2Instance{
-		InstanceID: aws.StringValue(originalInst.InstanceId),
-		Tags:       make(map[string]string, len(originalInst.Tags)),
+		InstanceID:       aws.StringValue(originalInst.InstanceId),
+		Tags:             make(map[string]string, len(originalInst.Tags)),
+		OriginalInstance: *originalInst,
 	}
 	for _, tag := range originalInst.Tags {
 		if key := aws.StringValue(tag.Key); key != "" {
@@ -131,9 +144,17 @@ func WithPollInterval(interval time.Duration) Option {
 // MakeEvents generates ResourceCreateEvents for these instances.
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
-	if instances.DocumentName == types.AWSAgentlessInstallerDocument {
-		resourceType = types.DiscoveredResourceAgentlessNode
+
+	switch instances.EnrollMode {
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE:
+		resourceType = types.DiscoveredResourceEICENode
+
+	case types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT:
+		if instances.DocumentName == types.AWSAgentlessInstallerDocument {
+			resourceType = types.DiscoveredResourceAgentlessNode
+		}
 	}
+
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
 		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
@@ -164,7 +185,7 @@ func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotat
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients) ([]Fetcher, error) {
+func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, discoveryConfig string) ([]Fetcher, error) {
 	ret := []Fetcher{}
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
@@ -177,15 +198,15 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 			}
 
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
-				Matcher:   matcher,
-				Region:    region,
-				Document:  matcher.SSM.DocumentName,
-				EC2Client: ec2Client,
-				Labels:    matcher.Tags,
+				Matcher:         matcher,
+				Region:          region,
+				Document:        matcher.SSM.DocumentName,
+				EC2Client:       ec2Client,
+				Labels:          matcher.Tags,
+				Integration:     matcher.Integration,
+				DiscoveryConfig: discoveryConfig,
+				EnrollMode:      matcher.Params.EnrollMode,
 			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			ret = append(ret, fetcher)
 		}
 	}
@@ -193,19 +214,25 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatc
 }
 
 type ec2FetcherConfig struct {
-	Matcher   types.AWSMatcher
-	Region    string
-	Document  string
-	EC2Client ec2iface.EC2API
-	Labels    types.Labels
+	Matcher         types.AWSMatcher
+	Region          string
+	Document        string
+	EC2Client       ec2iface.EC2API
+	Labels          types.Labels
+	Integration     string
+	DiscoveryConfig string
+	EnrollMode      types.InstallParamEnrollMode
 }
 
 type ec2InstanceFetcher struct {
-	Filters      []*ec2.Filter
-	EC2          ec2iface.EC2API
-	Region       string
-	DocumentName string
-	Parameters   map[string]string
+	Filters         []*ec2.Filter
+	EC2             ec2iface.EC2API
+	Region          string
+	DocumentName    string
+	Parameters      map[string]string
+	Integration     string
+	DiscoveryConfig string
+	EnrollMode      types.InstallParamEnrollMode
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
@@ -252,6 +279,9 @@ const (
 )
 
 // awsEC2APIChunkSize is the max number of instances SSM will send commands to at a time
+// This is used for limiting the number of instances for API Calls:
+// ssm:SendCommand only accepts between 0 and 50.
+// ssm:DescribeInstanceInformation only accepts between 5 and 50.
 const awsEC2APIChunkSize = 50
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
@@ -288,11 +318,14 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 	}
 
 	fetcherConfig := ec2InstanceFetcher{
-		EC2:          cfg.EC2Client,
-		Filters:      tagFilters,
-		Region:       cfg.Region,
-		DocumentName: cfg.Document,
-		Parameters:   parameters,
+		EC2:             cfg.EC2Client,
+		Filters:         tagFilters,
+		Region:          cfg.Region,
+		DocumentName:    cfg.Document,
+		Parameters:      parameters,
+		Integration:     cfg.Integration,
+		DiscoveryConfig: cfg.DiscoveryConfig,
+		EnrollMode:      cfg.EnrollMode,
 		cachedInstances: &instancesCache{
 			instances: map[cachedInstanceKey]struct{}{},
 		},
@@ -303,13 +336,17 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
 func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error) {
 	insts := EC2Instances{
-		Region:       f.Region,
-		DocumentName: f.DocumentName,
-		Parameters:   f.Parameters,
-		Rotation:     rotation,
+		Region:          f.Region,
+		DocumentName:    f.DocumentName,
+		Parameters:      f.Parameters,
+		Rotation:        rotation,
+		Integration:     f.Integration,
+		DiscoveryConfig: f.DiscoveryConfig,
 	}
 	for _, node := range nodes {
-		if node.GetSubKind() != types.SubKindOpenSSHNode {
+		// Heartbeating and expiration keeps Teleport Agents up to date, no need to consider those nodes.
+		// Agentless and EICE Nodes don't heartbeat, so they must be manually managed by the DiscoveryService.
+		if !types.IsOpenSSHNodeSubKind(node.GetSubKind()) {
 			continue
 		}
 		region, ok := node.GetLabel(types.AWSInstanceRegion)
@@ -352,12 +389,14 @@ func chunkInstances(insts EC2Instances) []Instances {
 			end = len(insts.Instances)
 		}
 		inst := EC2Instances{
-			AccountID:    insts.AccountID,
-			Region:       insts.Region,
-			DocumentName: insts.DocumentName,
-			Parameters:   insts.Parameters,
-			Instances:    insts.Instances[i:end],
-			Rotation:     insts.Rotation,
+			AccountID:       insts.AccountID,
+			Region:          insts.Region,
+			DocumentName:    insts.DocumentName,
+			Parameters:      insts.Parameters,
+			Instances:       insts.Instances[i:end],
+			Rotation:        insts.Rotation,
+			Integration:     insts.Integration,
+			DiscoveryConfig: insts.DiscoveryConfig,
 		}
 		instColl = append(instColl, Instances{EC2: &inst})
 	}
@@ -380,12 +419,15 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 					}
 					ownerID := aws.StringValue(res.OwnerId)
 					inst := EC2Instances{
-						AccountID:    ownerID,
-						Region:       f.Region,
-						DocumentName: f.DocumentName,
-						Instances:    ToEC2Instances(res.Instances[i:end]),
-						Parameters:   f.Parameters,
-						Rotation:     rotation,
+						AccountID:       ownerID,
+						Region:          f.Region,
+						DocumentName:    f.DocumentName,
+						Instances:       ToEC2Instances(res.Instances[i:end]),
+						Parameters:      f.Parameters,
+						Rotation:        rotation,
+						Integration:     f.Integration,
+						DiscoveryConfig: f.DiscoveryConfig,
+						EnrollMode:      f.EnrollMode,
 					}
 					for _, ec2inst := range res.Instances[i:end] {
 						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))

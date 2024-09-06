@@ -40,7 +40,7 @@ func (h *Handler) updateUserHandle(w http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	return updateUser(r, clt, ctx.GetUser())
+	return updateUser(r, clt)
 }
 
 func (h *Handler) createUserHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -104,7 +104,16 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 
 	user.SetRoles(req.Roles)
 
-	updateUserTraits(req, user)
+	// checkAndSetDefaults makes sure either TraitsPreset
+	// or AllTraits field to be populated. Since empty
+	// AllTraits is also used to delete all user traits,
+	// we explicitly check if TraitsPreset is empty so
+	// to prevent traits deletion.
+	if req.TraitsPreset == nil {
+		user.SetTraits(req.AllTraits)
+	} else {
+		updateUserTraitsPreset(req, user)
+	}
 
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: createdBy},
@@ -119,34 +128,34 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	return ui.NewUser(created)
 }
 
-// updateUserTraits receives a saveUserRequest and updates the user traits accordingly
-// It only updates the traits that have a non-nil value in saveUserRequest
-// This allows the partial update of the properties
-func updateUserTraits(req *saveUserRequest, user types.User) {
-	if req.Traits.Logins != nil {
-		user.SetLogins(*req.Traits.Logins)
+// updateUserTraitsPreset receives a saveUserRequest and updates the user traits
+// accordingly. It only updates the traits that have a non-nil value in
+// saveUserRequest. This allows the partial update of the properties
+func updateUserTraitsPreset(req *saveUserRequest, user types.User) {
+	if req.TraitsPreset.Logins != nil {
+		user.SetLogins(*req.TraitsPreset.Logins)
 	}
-	if req.Traits.DatabaseUsers != nil {
-		user.SetDatabaseUsers(*req.Traits.DatabaseUsers)
+	if req.TraitsPreset.DatabaseUsers != nil {
+		user.SetDatabaseUsers(*req.TraitsPreset.DatabaseUsers)
 	}
-	if req.Traits.DatabaseNames != nil {
-		user.SetDatabaseNames(*req.Traits.DatabaseNames)
+	if req.TraitsPreset.DatabaseNames != nil {
+		user.SetDatabaseNames(*req.TraitsPreset.DatabaseNames)
 	}
-	if req.Traits.KubeUsers != nil {
-		user.SetKubeUsers(*req.Traits.KubeUsers)
+	if req.TraitsPreset.KubeUsers != nil {
+		user.SetKubeUsers(*req.TraitsPreset.KubeUsers)
 	}
-	if req.Traits.KubeGroups != nil {
-		user.SetKubeGroups(*req.Traits.KubeGroups)
+	if req.TraitsPreset.KubeGroups != nil {
+		user.SetKubeGroups(*req.TraitsPreset.KubeGroups)
 	}
-	if req.Traits.WindowsLogins != nil {
-		user.SetWindowsLogins(*req.Traits.WindowsLogins)
+	if req.TraitsPreset.WindowsLogins != nil {
+		user.SetWindowsLogins(*req.TraitsPreset.WindowsLogins)
 	}
-	if req.Traits.AWSRoleARNs != nil {
-		user.SetAWSRoleARNs(*req.Traits.AWSRoleARNs)
+	if req.TraitsPreset.AWSRoleARNs != nil {
+		user.SetAWSRoleARNs(*req.TraitsPreset.AWSRoleARNs)
 	}
 }
 
-func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, error) {
+func updateUser(r *http.Request, m userAPIGetter) (*ui.User, error) {
 	var req *saveUserRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -159,6 +168,8 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	// Remove the MFA resp from the context before getting the user.
 	// Otherwise, it will be consumed before the Update which actually
 	// requires the MFA.
+	// TODO(Joerger): Explicitly provide MFA response only where it is
+	// needed instead of removing it like this.
 	getUserCtx := mfa.ContextWithMFAResponse(r.Context(), nil)
 	user, err := m.GetUser(getUserCtx, req.Name, false)
 	if err != nil {
@@ -167,7 +178,16 @@ func updateUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 
 	user.SetRoles(req.Roles)
 
-	updateUserTraits(req, user)
+	// checkAndSetDefaults makes sure either TraitsPreset
+	// or AllTraits field to be populated. Since empty
+	// AllTraits is also used to delete all user traits,
+	// we explicitly check if TraitsPreset is empty so
+	// to prevent traits deletion.
+	if req.TraitsPreset == nil {
+		user.SetTraits(req.AllTraits)
+	} else {
+		updateUserTraitsPreset(req, user)
+	}
 
 	updated, err := m.UpdateUser(r.Context(), user)
 	if err != nil {
@@ -285,7 +305,8 @@ type userAPIGetter interface {
 	DeleteUser(ctx context.Context, user string) error
 }
 
-type userTraits struct {
+// traitsPreset are user traits that are pre-defined in Teleport
+type traitsPreset struct {
 	Logins        *[]string `json:"logins,omitempty"`
 	DatabaseUsers *[]string `json:"databaseUsers,omitempty"`
 	DatabaseNames *[]string `json:"databaseNames,omitempty"`
@@ -301,11 +322,21 @@ type userTraits struct {
 // They are optional and respect the following logic:
 // - if the value is nil, we ignore it
 // - if the value is an empty array we remove every element from the trait
-// - otherwise, we replace the list for that trait
+// - otherwise, we replace the list for that trait.
+// Use TraitsPreset to selectively update traits.
+// Use AllTraits to fully replace existing traits.
 type saveUserRequest struct {
-	Name   string     `json:"name"`
-	Roles  []string   `json:"roles"`
-	Traits userTraits `json:"traits"`
+	// Name is username.
+	Name string `json:"name"`
+	// Roles is slice of user roles assigned to user.
+	Roles []string `json:"roles"`
+	// TraitsPreset holds traits that are pre-defined in Teleport.
+	// Clients may use TraitsPreset to selectively update user traits.
+	TraitsPreset *traitsPreset `json:"traits"`
+	// AllTraits may hold all the user traits, including traits key defined
+	// in TraitsPreset and/or new trait key values defined by Teleport admin.
+	// AllTraits should be used to fully replace and update user traits.
+	AllTraits map[string][]string `json:"allTraits"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {
@@ -314,6 +345,9 @@ func (r *saveUserRequest) checkAndSetDefaults() error {
 	}
 	if len(r.Roles) == 0 {
 		return trace.BadParameter("missing roles")
+	}
+	if len(r.AllTraits) != 0 && r.TraitsPreset != nil {
+		return trace.BadParameter("either traits or allTraits must be provided")
 	}
 	return nil
 }

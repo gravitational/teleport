@@ -84,32 +84,53 @@ func TestAlertSorting(t *testing.T) {
 	}
 }
 
-// TestCheckAndSetDefaults verifies that only valid URLs are set on the link label.
+// TestCheckAndSetDefaults verifies that only valid URLs are set on the link
+// label and that only valid link text can be used.
 func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 	tests := []struct {
-		link   string
-		assert require.ErrorAssertionFunc
+		options []AlertOption
+		name    string
+		assert  require.ErrorAssertionFunc
 	}{
 		{
-			link:   "https://goteleport.com/docs",
+			name:    "valid link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "https://goteleport.com/docs")},
+			assert:  require.NoError,
+		},
+		{
+			name: "valid link with link text",
+			options: []AlertOption{
+				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
+				WithAlertLabel(AlertLinkText, "Contact Support"),
+			},
 			assert: require.NoError,
 		},
 		{
-			link:   "h{t}tps://goteleport.com/docs",
-			assert: require.Error,
+			name:    "invalid link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "h{t}tps://goteleport.com/docs")},
+			assert:  require.Error,
 		},
 		{
-			link:   "https://google.com",
+			name:    "external link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "https://google.com")},
+			assert:  require.Error,
+		},
+		{
+			name: "valid link with invalid link text",
+			options: []AlertOption{
+				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
+				WithAlertLabel(AlertLinkText, "Contact!Support"),
+			},
 			assert: require.Error,
 		},
 	}
 
 	for i, tt := range tests {
-		t.Run(tt.link, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewClusterAlert(
 				fmt.Sprintf("name-%d", i),
 				fmt.Sprintf("message-%d", i),
-				WithAlertLabel(AlertLink, tt.link),
+				tt.options...,
 			)
 			tt.assert(t, err)
 		})
@@ -122,14 +143,14 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 	expires := time.Now().Add(5 * time.Minute)
 
 	testcases := []struct {
-		desc        string
-		ack         *AlertAcknowledgement
-		expectedErr error
+		desc    string
+		ack     *AlertAcknowledgement
+		wantErr bool
 	}{
 		{
-			desc:        "empty",
-			ack:         &AlertAcknowledgement{},
-			expectedErr: &trace.BadParameterError{},
+			desc:    "empty",
+			ack:     &AlertAcknowledgement{},
+			wantErr: true,
 		},
 		{
 			desc: "missing reason",
@@ -137,7 +158,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				AlertID: "alert-id",
 				Expires: expires,
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "missing alert ID",
@@ -145,7 +166,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				Expires: expires,
 				Reason:  "some reason",
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "missing expiry",
@@ -153,7 +174,7 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				AlertID: "alert-id",
 				Reason:  "some reason",
 			},
-			expectedErr: &trace.BadParameterError{},
+			wantErr: true,
 		},
 		{
 			desc: "success",
@@ -162,7 +183,6 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 				Expires: expires,
 				Reason:  "some reason",
 			},
-			expectedErr: nil,
 		},
 	}
 
@@ -170,12 +190,15 @@ func TestAlertAcknowledgement_Check(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			err := tc.ack.Check()
 
-			if tc.expectedErr == nil {
+			if !tc.wantErr {
 				require.NoError(t, err)
 				return
 			}
 
-			require.ErrorAs(t, err, &tc.expectedErr)
+			require.Error(t, err)
+			require.True(t,
+				trace.IsBadParameter(err),
+				"want BadParameter, got %v (%T)", err, trace.Unwrap(err))
 		})
 	}
 }

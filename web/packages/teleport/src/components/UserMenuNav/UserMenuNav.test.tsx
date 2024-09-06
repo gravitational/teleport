@@ -19,9 +19,6 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { setupServer } from 'msw/node';
-import { rest } from 'msw';
-
 import {
   render as testingRender,
   screen,
@@ -38,31 +35,12 @@ import TeleportContext from 'teleport/teleportContext';
 
 import { makeUserContext } from 'teleport/services/user';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
-
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
 import { UserMenuNav } from './UserMenuNav';
 
-const server = setupServer(
-  rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-    return res(
-      ctx.json({
-        theme: ThemePreference.Light,
-        assist: {},
-      })
-    );
-  })
-);
-
-beforeAll(() => server.listen());
-
 beforeEach(() => mockUserContextProviderWith(makeTestUserContext()));
-
-afterEach(() => server.resetHandlers());
-
-afterAll(() => server.close());
 
 describe('navigation items rendering', () => {
   test.each`

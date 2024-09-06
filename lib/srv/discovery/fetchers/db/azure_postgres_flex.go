@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -57,7 +56,7 @@ func (f *azurePostgresFlexServerFetcher) NewDatabaseFromServer(server *armpostgr
 		return nil
 	}
 
-	database, err := services.NewDatabaseFromAzurePostgresFlexServer(server)
+	database, err := common.NewDatabaseFromAzurePostgresFlexServer(server)
 	if err != nil {
 		log.Warnf("Could not convert Azure PostgreSQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
 		return nil

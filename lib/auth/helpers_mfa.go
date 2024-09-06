@@ -28,6 +28,7 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -106,6 +107,9 @@ func (d *TestDevice) registerDevice(
 	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
 	if err != nil {
@@ -221,8 +225,7 @@ func (d *TestDevice) solveRegisterWebauthn(c *proto.MFARegisterChallenge) (*prot
 	d.Key.PreferRPID = true
 
 	if d.passwordless {
-		d.Key.AllowResidentKey = true
-		d.Key.SetUV = true
+		d.Key.SetPasswordless()
 	}
 
 	resp, err := d.Key.SignCredentialCreation(d.Origin(), wantypes.CredentialCreationFromProto(c.GetWebauthn()))

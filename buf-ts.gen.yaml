@@ -1,0 +1,30 @@
+version: v2
+
+inputs:
+  - directory: .
+    paths:
+      - api/proto/teleport/accesslist/
+      - api/proto/teleport/devicetrust/
+      - api/proto/teleport/header/
+      - api/proto/teleport/trait/
+      - api/proto/teleport/userpreferences/
+      - proto/prehog/
+      - proto/teleport/lib/teleterm/
+
+plugins:
+  - local:
+      - npm
+      - exec
+      - --yes
+      - --package=@protobuf-ts/plugin@2.9.3
+      - --
+      - protoc-gen-ts
+    out: gen/proto/ts
+    opt:
+      # the next time we tweak the ts codegen we should put the options in
+      # alphabetical order
+      - eslint_disable
+      - add_pb_suffix
+      - server_grpc1
+      - ts_nocheck
+    strategy: all

@@ -47,6 +47,7 @@ gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
 
 const onlineDocumentGatewayProps: DocumentGatewayProps = {
   gateway: gateway,
+  targetName: gateway.targetName,
   defaultPort: gateway.localPort,
   disconnect: async () => [undefined, null],
   connected: true,
@@ -159,6 +160,15 @@ export function Processing() {
       defaultPort="1337"
       connected={false}
       connectAttempt={makeProcessingAttempt()}
+    />
+  );
+}
+
+export function PortProcessing() {
+  return (
+    <DocumentGateway
+      {...onlineDocumentGatewayProps}
+      changePortAttempt={makeProcessingAttempt()}
     />
   );
 }

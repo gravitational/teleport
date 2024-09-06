@@ -64,7 +64,7 @@ func (m mockAccessPoint) GetClusterName(opts ...services.MarshalOption) (types.C
 	return m.clusterName, nil
 }
 
-func (m mockAccessPoint) GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error) {
+func (m mockAccessPoint) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 	return m.netConfig, nil
 }
 

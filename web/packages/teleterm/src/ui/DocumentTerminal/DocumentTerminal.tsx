@@ -76,9 +76,8 @@ export function DocumentTerminal(props: {
           }
           transferHandlers={{
             getDownloader: async (sourcePath, abortController) => {
-              const fileDialog = await ctx.mainProcessClient.showFileSaveDialog(
-                sourcePath
-              );
+              const fileDialog =
+                await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
               if (fileDialog.canceled) {
                 return;
               }
@@ -115,7 +114,6 @@ export function DocumentTerminal(props: {
       pl={2}
       // adds some space from the top so the shell content is not covered by a shadow
       pt={1}
-      onContextMenu={attempt.data?.openContextMenu}
       autoFocusDisabled={true}
     >
       {$fileTransfer}
@@ -133,6 +131,10 @@ export function DocumentTerminal(props: {
           unsanitizedFontFamily={unsanitizedTerminalFontFamily}
           fontSize={terminalFontSize}
           onEnterKey={attempt.data.refreshTitle}
+          windowsPty={attempt.data.windowsPty}
+          openContextMenu={attempt.data.openContextMenu}
+          configService={configService}
+          keyboardShortcutsService={ctx.keyboardShortcutsService}
         />
       )}
     </Document>

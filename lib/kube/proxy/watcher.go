@@ -131,7 +131,7 @@ func (s *TLSServer) onCreate(ctx context.Context, cluster types.KubeCluster) err
 	return s.registerKubeCluster(ctx, cluster)
 }
 
-func (s *TLSServer) onUpdate(ctx context.Context, cluster types.KubeCluster) error {
+func (s *TLSServer) onUpdate(ctx context.Context, cluster, _ types.KubeCluster) error {
 	return s.updateKubeCluster(ctx, cluster)
 }
 

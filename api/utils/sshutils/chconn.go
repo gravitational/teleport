@@ -17,6 +17,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -136,7 +137,7 @@ func (c *ChConn) Read(data []byte) (int, error) {
 	// A lot of code relies on "use of closed network connection" error to
 	// gracefully handle terminated connections so convert the closed pipe
 	// error to it.
-	if err != nil && err == io.ErrClosedPipe {
+	if err != nil && errors.Is(err, io.ErrClosedPipe) {
 		return n, trace.ConnectionProblem(err, constants.UseOfClosedNetworkConnection)
 	}
 	// Do not wrap the error to avoid masking the underlying error such as

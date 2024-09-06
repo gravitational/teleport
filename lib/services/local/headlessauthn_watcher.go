@@ -205,7 +205,7 @@ func (h *HeadlessAuthenticationWatcher) newWatcher(ctx context.Context) (backend
 	watcher, err := h.identityService.NewWatcher(ctx, backend.Watch{
 		Name:            types.KindHeadlessAuthentication,
 		MetricComponent: types.KindHeadlessAuthentication,
-		Prefixes:        [][]byte{backend.Key(headlessAuthenticationPrefix)},
+		Prefixes:        []backend.Key{backend.NewKey(headlessAuthenticationPrefix)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -381,6 +381,13 @@ func (s *headlessAuthenticationSubscriber) Close() {
 func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication, overwrite bool) {
 	s.updatesMu.Lock()
 	defer s.updatesMu.Unlock()
+
+	select {
+	case <-s.closed:
+		// subscriber is closing, ignore updates.
+		return
+	default:
+	}
 
 	// Drain stale update if there is one.
 	if overwrite {

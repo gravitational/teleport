@@ -17,10 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -70,6 +71,8 @@ type GithubConnector interface {
 	GetEndpointURL() string
 	// GetAPIEndpointURL returns the API endpoint URL
 	GetAPIEndpointURL() string
+	// GetClientRedirectSettings returns the client redirect settings.
+	GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -104,16 +107,6 @@ func (c *GithubConnectorV3) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (c *GithubConnectorV3) SetSubKind(s string) {
 	c.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (c *GithubConnectorV3) GetResourceID() int64 {
-	return c.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (c *GithubConnectorV3) SetResourceID(id int64) {
-	c.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -191,7 +184,7 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 
 	// DELETE IN 11.0.0
 	if len(c.Spec.TeamsToLogins) > 0 {
-		log.Warn("GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
+		slog.WarnContext(context.Background(), "GitHub connector field teams_to_logins is deprecated and will be removed in the next version. Please use teams_to_roles instead.")
 	}
 
 	// make sure claim mappings have either roles or a role template
@@ -287,6 +280,14 @@ func (c *GithubConnectorV3) GetAPIEndpointURL() string {
 	return GithubAPIURL
 }
 
+// GetClientRedirectSettings returns the client redirect settings.
+func (c *GithubConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings {
+	if c == nil {
+		return nil
+	}
+	return c.Spec.ClientRedirectSettings
+}
+
 // MapClaims returns a list of logins based on the provided claims,
 // returns a list of logins and list of kubernetes groups
 func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, []string) {
@@ -337,30 +338,38 @@ func (r *GithubAuthRequest) Expiry() time.Time {
 
 // Check makes sure the request is valid
 func (r *GithubAuthRequest) Check() error {
-	if r.ConnectorID == "" {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
-	}
-	if r.StateToken == "" {
+	case r.StateToken == "":
 		return trace.BadParameter("missing StateToken")
-	}
-	if len(r.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(r.PublicKey)
-		if err != nil {
-			return trace.BadParameter("bad PublicKey: %v", err)
-		}
-		if (r.CertTTL > defaults.MaxCertDuration) || (r.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("wrong CertTTL")
-		}
-	}
-
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if r.SSOTestFlow && r.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !r.SSOTestFlow && r.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
-
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
 }

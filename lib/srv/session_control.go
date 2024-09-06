@@ -114,7 +114,7 @@ func (c *SessionControllerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.WithField(trace.Component, "SessionCtrl")
+		c.Logger = logrus.WithField(teleport.ComponentKey, "SessionCtrl")
 	}
 
 	if c.Clock == nil {
@@ -335,6 +335,7 @@ func (s *SessionController) emitRejection(ctx context.Context, userMetadata apie
 			RemoteAddr: remoteAddr,
 		},
 		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion:   teleport.Version,
 			ServerID:        s.cfg.ServerID,
 			ServerNamespace: apidefaults.Namespace,
 		},

@@ -24,9 +24,9 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
 import TeleportContext from 'teleport/teleportContext';
 import { makeUserContext } from 'teleport/services/user';
+import { LocalNotificationKind } from 'teleport/services/notifications';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
-import { NotificationKind } from 'teleport/stores/storeNotifications';
 
 import { TopBar } from './TopBar';
 
@@ -74,7 +74,7 @@ export function TopBarWithNotifications() {
     notifications: [
       {
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: 'banana',
           route: '',
         },
@@ -83,7 +83,7 @@ export function TopBarWithNotifications() {
       },
       {
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: 'apple',
           route: '',
         },
@@ -92,7 +92,7 @@ export function TopBarWithNotifications() {
       },
       {
         item: {
-          kind: NotificationKind.AccessList,
+          kind: LocalNotificationKind.AccessList,
           resourceName: 'carrot',
           route: '',
         },

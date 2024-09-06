@@ -19,8 +19,10 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -45,6 +47,21 @@ const (
 	// once the requirements are fulfilled again.
 	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
+
+// Match checks if the given role matches this filter.
+func (f *RoleFilter) Match(role *RoleV6) bool {
+	if f.SkipSystemRoles && IsSystemResource(role) {
+		return false
+	}
+
+	if len(f.SearchKeywords) != 0 {
+		if !role.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	return true
+}
 
 // Role contains a set of permissions or settings
 type Role interface {
@@ -71,6 +88,9 @@ type Role interface {
 	GetNamespaces(RoleConditionType) []string
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
+
+	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
+	GetRoleConditions(rct RoleConditionType) RoleConditions
 
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
@@ -151,6 +171,11 @@ type Role interface {
 	GetDatabaseRoles(RoleConditionType) []string
 	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
 	SetDatabaseRoles(RoleConditionType, []string)
+
+	// GetDatabasePermissions gets database permissions for auto-provisioned users.
+	GetDatabasePermissions(rct RoleConditionType) DatabasePermissions
+	// SetDatabasePermissions sets database permissions for auto-provisioned users.
+	SetDatabasePermissions(RoleConditionType, DatabasePermissions)
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
@@ -243,6 +268,11 @@ type Role interface {
 	GetGroupLabels(RoleConditionType) Labels
 	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
 	SetGroupLabels(RoleConditionType, Labels)
+
+	// GetSPIFFEConditions returns the allow or deny SPIFFERoleCondition.
+	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
+	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
+	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
 }
 
 // NewRole constructs new standard V7 role.
@@ -298,16 +328,6 @@ func (r *RoleV6) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (r *RoleV6) SetSubKind(s string) {
 	r.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (r *RoleV6) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *RoleV6) SetResourceID(id int64) {
-	r.Metadata.ID = id
 }
 
 // GetRevision returns the revision
@@ -705,6 +725,23 @@ func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabasePermissions gets a list of database permissions for auto-provisioned users.
+func (r *RoleV6) GetDatabasePermissions(rct RoleConditionType) DatabasePermissions {
+	if rct == Allow {
+		return r.Spec.Allow.DatabasePermissions
+	}
+	return r.Spec.Deny.DatabasePermissions
+}
+
+// SetDatabasePermissions sets a list of database permissions for auto-provisioned users.
+func (r *RoleV6) SetDatabasePermissions(rct RoleConditionType, values DatabasePermissions) {
+	if rct == Allow {
+		r.Spec.Allow.DatabasePermissions = values
+	} else {
+		r.Spec.Deny.DatabasePermissions = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
@@ -886,6 +923,23 @@ func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
 	}
 }
 
+// GetSPIFFEConditions returns the allow or deny SPIFFERoleCondition.
+func (r *RoleV6) GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition {
+	if rct == Allow {
+		return r.Spec.Allow.SPIFFE
+	}
+	return r.Spec.Deny.SPIFFE
+}
+
+// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
+func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition) {
+	if rct == Allow {
+		r.Spec.Allow.SPIFFE = cond
+	} else {
+		r.Spec.Deny.SPIFFE = cond
+	}
+}
+
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
 func (r *RoleV6) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
 	switch r.Spec.Options.RequireMFAType {
@@ -928,6 +982,27 @@ func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
 	} else {
 		r.Spec.Deny.GroupLabels = labels.Clone()
 	}
+}
+
+// CheckAndSetDefaults checks validity of all fields and sets defaults
+func (c *SPIFFERoleCondition) CheckAndSetDefaults() error {
+	if c.Path == "" {
+		return trace.BadParameter("path: should be non-empty")
+	}
+	isRegex := strings.HasPrefix(c.Path, "^") && strings.HasSuffix(c.Path, "$")
+	if !(strings.HasPrefix(c.Path, "/") || isRegex) {
+		return trace.BadParameter(
+			"path: should start with / or be a regex expression starting with ^ and ending with $",
+		)
+	}
+	for i, str := range c.IPSANs {
+		if _, _, err := net.ParseCIDR(str); err != nil {
+			return trace.BadParameter(
+				"validating ip_sans[%d]: %s", i, err.Error(),
+			)
+		}
+	}
+	return nil
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
@@ -1129,6 +1204,37 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
+	for i, perm := range r.Spec.Allow.DatabasePermissions {
+		if err := perm.CheckAndSetDefaults(); err != nil {
+			return trace.BadParameter("failed to process 'allow' db_permission #%v: %v", i+1, err)
+		}
+		// Wildcards permissions are disallowed. Even though this should never pass the db-specific driver,
+		// it doesn't hurt to check it here. Wildcards *are* allowed on deny side,
+		// which is why this check is here and not in CheckAndSetDefaults().
+		for _, permission := range perm.Permissions {
+			if permission == Wildcard {
+				return trace.BadParameter("individual database permissions cannot be wildcards strings")
+			}
+		}
+	}
+	for i, perm := range r.Spec.Deny.DatabasePermissions {
+		if err := perm.CheckAndSetDefaults(); err != nil {
+			return trace.BadParameter("failed to process 'deny' db_permission #%v: %v", i+1, err)
+		}
+	}
+	for i := range r.Spec.Allow.SPIFFE {
+		err := r.Spec.Allow.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.allow.spiffe[%d]", i)
+		}
+	}
+	for i := range r.Spec.Deny.SPIFFE {
+		err := r.Spec.Deny.SPIFFE[i].CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err, "validating spec.deny.spiffe[%d]", i)
+		}
+	}
+
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
 		if err != nil {
@@ -1240,7 +1346,8 @@ func CopyRulesSlice(in []Rule) []Rule {
 // from scalar and list values
 type Labels map[string]utils.Strings
 
-func (l Labels) protoType() *wrappers.LabelValues {
+// ToProto returns a protobuf-compatible representation of Labels.
+func (l Labels) ToProto() *wrappers.LabelValues {
 	v := &wrappers.LabelValues{
 		Values: make(map[string]wrappers.StringValues, len(l)),
 	}
@@ -1256,12 +1363,12 @@ func (l Labels) protoType() *wrappers.LabelValues {
 
 // Marshal marshals value into protobuf representation
 func (l Labels) Marshal() ([]byte, error) {
-	return proto.Marshal(l.protoType())
+	return proto.Marshal(l.ToProto())
 }
 
 // MarshalTo marshals value to the array
 func (l Labels) MarshalTo(data []byte) (int, error) {
-	return l.protoType().MarshalTo(data)
+	return l.ToProto().MarshalTo(data)
 }
 
 // Unmarshal unmarshals value from protobuf
@@ -1283,7 +1390,7 @@ func (l *Labels) Unmarshal(data []byte) error {
 
 // Size returns protobuf size
 func (l Labels) Size() int {
-	return l.protoType().Size()
+	return l.ToProto().Size()
 }
 
 // Clone returns non-shallow copy of the labels set
@@ -1589,6 +1696,16 @@ func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
 	return roleConditions.ReviewRequests.PreviewAsRoles
 }
 
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
+	roleConditions := r.Spec.Allow
+	if rct == Deny {
+		roleConditions = r.Spec.Deny
+	}
+
+	return roleConditions
+}
+
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
 // reviewer while they are viewing a Resource Access Request for the
 // purposes of viewing details such as the hostname and labels of requested
@@ -1640,7 +1757,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		}
 
 		for _, verb := range kubeResource.Verbs {
-			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
 			}
 			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
@@ -1725,7 +1842,10 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
 	case KindKubernetesCluster:
 		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
 	case KindDatabase:
 		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
@@ -1763,7 +1883,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 		cond.KubernetesLabels = labelMatchers.Labels
 		cond.KubernetesLabelsExpression = labelMatchers.Expression
 		return nil
-	case KindApp:
+	case KindApp, KindSAMLIdPServiceProvider:
+		// app_labels will be applied to both app and saml_idp_service_provider resources.
+		// Access to the saml_idp_service_provider can be controlled by the both
+		// app_labels and verbs targeting saml_idp_service_provider resource.
 		cond.AppLabels = labelMatchers.Labels
 		cond.AppLabelsExpression = labelMatchers.Expression
 		return nil
@@ -1853,6 +1976,7 @@ var LabelMatcherKinds = []string{
 
 const (
 	createHostUserModeOffString          = "off"
+	createHostUserModeDropString         = "drop"
 	createHostUserModeKeepString         = "keep"
 	createHostUserModeInsecureDropString = "insecure-drop"
 )
@@ -1863,6 +1987,8 @@ func (h CreateHostUserMode) encode() (string, error) {
 		return "", nil
 	case CreateHostUserMode_HOST_USER_MODE_OFF:
 		return createHostUserModeOffString, nil
+	case CreateHostUserMode_HOST_USER_MODE_DROP:
+		return createHostUserModeDropString, nil
 	case CreateHostUserMode_HOST_USER_MODE_KEEP:
 		return createHostUserModeKeepString, nil
 	case CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
@@ -1902,7 +2028,7 @@ func (h *CreateHostUserMode) decode(val any) error {
 		*h = CreateHostUserMode_HOST_USER_MODE_OFF
 	case createHostUserModeKeepString:
 		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
-	case createHostUserModeInsecureDropString:
+	case createHostUserModeInsecureDropString, createHostUserModeDropString:
 		*h = CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
 	default:
 		return trace.BadParameter("invalid host user mode %v", val)
@@ -1912,6 +2038,10 @@ func (h *CreateHostUserMode) decode(val any) error {
 
 // setFromEnum sets the value from enum value as int32.
 func (h *CreateHostUserMode) setFromEnum(val int32) error {
+	// Map drop to insecure-drop
+	if val == int32(CreateHostUserMode_HOST_USER_MODE_DROP) {
+		val = int32(CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP)
+	}
 	if _, ok := CreateHostUserMode_name[val]; !ok {
 		return trace.BadParameter("invalid host user mode %v", val)
 	}

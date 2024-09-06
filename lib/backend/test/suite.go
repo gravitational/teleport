@@ -26,6 +26,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -369,6 +370,16 @@ func testDeleteRange(t *testing.T, newBackend Constructor) {
 		item.Revision = lease.Revision
 	}
 
+	// Some Backends (e.g. DynamoDB) have a limit on the number of items that can
+	// be deleted in a single operation. This test is designed to be run with
+	// a backend that has a limit of 25 items per delete operation.
+	for i := 0; i < 100; i++ {
+		item := &backend.Item{Key: prefix(fmt.Sprintf("/prefix/c/cn%d", i)), Value: []byte(fmt.Sprintf("val cn%d", i))}
+		lease, err := uut.Create(ctx, *item)
+		require.NoError(t, err, "Failed creating value: %q => %q", item.Key, item.Value)
+		item.Revision = lease.Revision
+	}
+
 	err = uut.DeleteRange(ctx, prefix("/prefix/c"), backend.RangeEnd(prefix("/prefix/c")))
 	require.NoError(t, err)
 
@@ -500,7 +511,7 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// When I create a new watcher...
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -552,6 +563,14 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 // testEvents tests scenarios with event watches
 func testEvents(t *testing.T, newBackend Constructor) {
 	const eventTimeout = 10 * time.Second
+	var ttlDeleteTimeout = eventTimeout
+	// TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT may be set to extend the time waited
+	// for TTL deletion to occur. This is useful for backends where TTL deletion is
+	// handled externally and may take longer than the default of 10 seconds.
+	if d, err := time.ParseDuration(os.Getenv("TELEPORT_BACKEND_TEST_TTL_DELETE_TIMEOUT")); err == nil {
+		ttlDeleteTimeout = d
+		t.Logf("TTL delete timeout overridden by envvar: %s", d)
+	}
 
 	uut, clock, err := newBackend()
 	require.NoError(t, err)
@@ -562,7 +581,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -620,7 +639,7 @@ func testEvents(t *testing.T, newBackend Constructor) {
 	require.Error(t, err)
 
 	// Make sure a DELETE event is emitted.
-	requireEvent(t, watcher, types.OpDelete, item.Key, eventTimeout)
+	requireEvent(t, watcher, types.OpDelete, item.Key, ttlDeleteTimeout)
 }
 
 // testFetchLimit tests fetch max items size limit.
@@ -692,7 +711,7 @@ func testLimit(t *testing.T, newBackend Constructor) {
 // requireEvent asserts that a given event type with the given key is emitted
 // by a watcher within the supplied timeout, returning that event for further
 // inspection if successful.
-func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key []byte, timeout time.Duration) backend.Event {
+func requireEvent(t *testing.T, watcher backend.Watcher, eventType types.OpType, key backend.Key, timeout time.Duration) backend.Event {
 	t.Helper()
 	select {
 	case e := <-watcher.Events():
@@ -741,7 +760,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 
 	// cancel context -> get watcher to close
@@ -754,7 +773,7 @@ func testWatchersClose(t *testing.T, newBackend Constructor) {
 	}
 
 	// closing backend should close associated watcher too
-	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err = uut.NewWatcher(context.Background(), backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 
 	require.NoError(t, uut.Close())
@@ -1012,7 +1031,7 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	defer cancel()
 
 	// Create a new watcher for the test prefix.
-	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{prefix("")}})
+	watcher, err := uut.NewWatcher(ctx, backend.Watch{Prefixes: []backend.Key{prefix("")}})
 	require.NoError(t, err)
 	defer func() { require.NoError(t, watcher.Close()) }()
 
@@ -1032,9 +1051,9 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	item, err = uut.Get(ctx, item.Key)
 	require.NoError(t, err)
 
-	// Save the original ID, later in this test after an update, the ID should
+	// Save the original revision, later in this test after an update, the revision should
 	// not have changed in mirror mode.
-	originalID := item.ID
+	originalRevision := item.Revision
 
 	// Make sure a PUT event is emitted.
 	e := requireEvent(t, watcher, types.OpPut, item.Key, eventTimeout)
@@ -1059,10 +1078,10 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	})
 	require.NoError(t, err)
 
-	// Get update item and make sure that the ID has not changed.
+	// Get update item and make sure that the revision has not changed.
 	item, err = uut.Get(ctx, prefix("a"))
 	require.NoError(t, err)
-	require.Equal(t, originalID, item.ID)
+	require.Equal(t, originalRevision, item.Revision)
 
 	// Add item to backend that is already expired.
 	item2 := &backend.Item{
@@ -1169,7 +1188,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	}
 }
 
-func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key []byte, value string, expires time.Time) (backend.Item, backend.Lease) {
+func AddItem(ctx context.Context, t *testing.T, uut backend.Backend, key backend.Key, value string, expires time.Time) (backend.Item, backend.Lease) {
 	t.Helper()
 	item := backend.Item{
 		Key:     key,
@@ -1200,9 +1219,9 @@ func requireWaitGroupToFinish(ctx context.Context, t *testing.T, waitGroup *sync
 
 // MakePrefix returns function that appends unique prefix
 // to any key, used to make test suite concurrent-run proof
-func MakePrefix() func(k string) []byte {
+func MakePrefix() func(k string) backend.Key {
 	id := "/" + uuid.New().String()
-	return func(k string) []byte {
-		return []byte(id + k)
+	return func(k string) backend.Key {
+		return backend.Key(id + k)
 	}
 }

@@ -18,17 +18,19 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex, Link, Text, Box } from 'design';
+import { Flex, Link, Box, H3 } from 'design';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
 import TextEditor from 'shared/components/TextEditor';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+
+import { P } from 'design/Text/Text';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
-type AwsResourceKind = 'rds' | 'ec2';
+type AwsResourceKind = 'rds' | 'ec2' | 'eks';
 
 export function ConfigureIamPerms({
   region,
@@ -89,6 +91,44 @@ export function ConfigureIamPerms({
       );
       break;
     }
+    case 'eks': {
+      iamPolicyName = 'EKSAccess';
+      msg = 'We were unable to list your EKS clusters.';
+      scriptUrl = cfg.getEksIamConfigureScriptUrl({
+        region,
+        iamRoleName,
+      });
+
+      const json = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:ListClusters",
+        "eks:DescribeCluster",
+        "eks:ListAccessEntries",
+        "eks:CreateAccessEntry",
+        "eks:DeleteAccessEntry",
+        "eks:AssociateAccessPolicy",
+        "eks:TagResource"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
+
+      editor = (
+        <EditorWrapper $height={345}>
+          <TextEditor
+            readOnly={true}
+            data={[{ content: json, type: 'json' }]}
+            bg="levels.deep"
+          />
+        </EditorWrapper>
+      );
+      break;
+    }
     case 'rds': {
       iamPolicyName = 'ListDatabases';
       msg = 'We were unable to list your RDS instances.';
@@ -105,7 +145,9 @@ export function ConfigureIamPerms({
       "Action": [
         "rds:DescribeDBInstances",
         "rds:DescribeDBClusters",
-        "ec2:DescribeSecurityGroups"
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs"
       ],
       "Resource": "*"
     }
@@ -133,16 +175,14 @@ export function ConfigureIamPerms({
       header={
         <>
           <Flex alignItems="center">
-            <Text bold mr={1}>
-              Configure your AWS IAM permissions
-            </Text>
+            <H3 mr={1}>Configure your AWS IAM permissions</H3>
             <ToolTipInfo sticky={true} maxWidth={450}>
               The following IAM permissions will be added as an inline policy
               named <b>{iamPolicyName}</b> to IAM role <b>{iamRoleName}</b>
               <Box mb={2}>{editor}</Box>
             </ToolTipInfo>
           </Flex>
-          <Text typography="subtitle1" mb={3}>
+          <P mb={3}>
             {msg} Run the command below on your{' '}
             <Link
               href="https://console.aws.amazon.com/cloudshell/home"
@@ -152,7 +192,7 @@ export function ConfigureIamPerms({
             </Link>{' '}
             to configure your IAM permissions. Then press the refresh button
             above.
-          </Text>
+          </P>
         </>
       }
       hasTtl={false}
@@ -164,8 +204,7 @@ export function ConfigureIamPerms({
   );
 }
 
-const EditorWrapper = styled(Flex)`
-  flex-directions: column;
+const EditorWrapper = styled(Flex)<{ $height: number }>`
   height: ${p => p.$height}px;
   margin-top: ${p => p.theme.space[3]}px;
   width: 450px;

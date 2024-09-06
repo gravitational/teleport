@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { DeepLinkParseResult, DeepURL } from 'teleterm/deepLinks';
-import { routing } from 'teleterm/ui/uri';
+import { AuthenticateWebDeviceDeepURL, DeepURL } from 'shared/deepLinks';
+
+import { DeepLinkParseResult } from 'teleterm/deepLinks';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 import { RuntimeSettings } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
@@ -25,6 +27,7 @@ import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 
+const confirmPath = 'webapi/devices/webconfirm';
 export class DeepLinksService {
   constructor(
     private runtimeSettings: RuntimeSettings,
@@ -50,14 +53,14 @@ export class DeepLinksService {
           reason = `The URL of the link is of an unknown protocol.`;
           break;
         }
-        case 'unsupported-uri': {
+        case 'unsupported-url': {
           reason =
             'The received link does not point at a resource or an action that can be launched from a link. ' +
             'Either this version of Teleport Connect does not support it or the link is incorrect.';
           break;
         }
         case 'malformed-url': {
-          reason = `The URL of the link appears to be malformed.`;
+          reason = `The URL of the link appears to be malformed. ${result.error.message}`;
           break;
         }
         default: {
@@ -83,14 +86,59 @@ export class DeepLinksService {
     switch (result.url.pathname) {
       case '/connect_my_computer': {
         await this.launchConnectMyComputer(result.url);
+        break;
+      }
+      case '/authenticate_web_device': {
+        await this.askAuthorizeDeviceTrust(result.url);
+        break;
       }
     }
   }
 
   /**
+   * askAuthorizeDeviceTrust opens a dialog asking the user if they'd like to authorize
+   * a web session with device trust. If confirmed, the web session will be upgraded and the
+   * user will be directed back to the web UI
+   */
+  private async askAuthorizeDeviceTrust(
+    url: AuthenticateWebDeviceDeepURL
+  ): Promise<void> {
+    const { id, token } = url.searchParams;
+
+    const result = await this.loginAndSetActiveWorkspace(url);
+    if (!result.isAtDesiredWorkspace) {
+      return;
+    }
+
+    const { rootClusterUri } = result;
+    const rootCluster = this.clustersService.findCluster(rootClusterUri);
+
+    this.modalsService.openRegularDialog({
+      kind: 'device-trust-authorize',
+      rootClusterUri,
+      onCancel: () => {
+        window.open(`https://${rootCluster.proxyHost}/web`);
+      },
+      onAuthorize: async () => {
+        const result = await this.clustersService.authenticateWebDevice(
+          rootClusterUri,
+          {
+            id,
+            token,
+          }
+        );
+        // open url to confirm the token. This endpoint verifies the token and "upgrades"
+        // the web session and redirects to "/web"
+        window.open(
+          `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`
+        );
+      },
+    });
+  }
+
+  /**
    * launchConnectMyComputer opens a Connect My Computer tab in the cluster workspace that the URL
-   * points to. If the relevant cluster is not in the app yet, it opens a login dialog with the
-   * cluster address and username prefilled from the URL.
+   * points to.
    */
   private async launchConnectMyComputer(url: DeepURL): Promise<void> {
     if (this.runtimeSettings.platform === 'win32') {
@@ -100,6 +148,32 @@ export class DeepLinksService {
       return;
     }
 
+    const result = await this.loginAndSetActiveWorkspace(url);
+
+    if (!result.isAtDesiredWorkspace) {
+      return;
+    }
+
+    const { rootClusterUri } = result;
+
+    this.workspacesService
+      .getWorkspaceDocumentService(rootClusterUri)
+      .openConnectMyComputerDocument({ rootClusterUri });
+  }
+
+  /**
+   * loginAndSetActiveWorkspace will set the relevant cluster if it is in the app and, if not,
+   * it opens a login dialog with cluster address and username prefilled from the URL.
+   */
+  private async loginAndSetActiveWorkspace(url: DeepURL): Promise<
+    | {
+        isAtDesiredWorkspace: false;
+      }
+    | {
+        isAtDesiredWorkspace: true;
+        rootClusterUri: RootClusterUri;
+      }
+  > {
     const rootClusterId = url.hostname;
     const clusterAddress = url.host;
     const prefill = {
@@ -123,7 +197,9 @@ export class DeepLinksService {
       });
 
       if (canceled) {
-        return;
+        return {
+          isAtDesiredWorkspace: false,
+        };
       }
     }
 
@@ -136,12 +212,6 @@ export class DeepLinksService {
         prefill
       );
 
-    if (!isAtDesiredWorkspace) {
-      return;
-    }
-
-    this.workspacesService
-      .getWorkspaceDocumentService(rootClusterUri)
-      .openConnectMyComputerDocument({ rootClusterUri });
+    return { isAtDesiredWorkspace, rootClusterUri };
   }
 }
