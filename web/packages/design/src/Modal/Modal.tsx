@@ -38,7 +38,7 @@ type Props = {
   children?: React.ReactElement;
 
   /**
-   * Properties applied to the [`Backdrop`](/api/backdrop/) element.
+   * Properties applied to the Backdrop element.
    *
    * invisible: Boolean - allows backdrop to keep bg color of parent eg: popup menu
    */
