@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -51,6 +52,7 @@ func (a *awsFetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.A
 	var policies []*accessgraphv1alpha.AWSPolicyV1
 	var errs []error
 	var mu sync.Mutex
+	var existing = a.lastResult
 	collect := func(policy *accessgraphv1alpha.AWSPolicyV1, err error) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -82,12 +84,15 @@ func (a *awsFetcher) fetchPolicies(ctx context.Context) ([]*accessgraphv1alpha.A
 			pp := page.Policies
 			eGroup.Go(func() error {
 				for _, policy := range pp {
+					oldPolicy := sliceFilterPickFirst(existing.Policies, func(p *accessgraphv1alpha.AWSPolicyV1) bool {
+						return p.Arn == aws.ToString(policy.Arn) && p.AccountId == a.AccountID
+					})
 					out, err := iamClient.GetPolicyVersionWithContext(ctx, &iam.GetPolicyVersionInput{
 						PolicyArn: policy.Arn,
 						VersionId: policy.DefaultVersionId,
 					})
 					if err != nil {
-						collect(nil, trace.Wrap(err, "failed to fetch policy %q", *policy.Arn))
+						collect(oldPolicy, trace.Wrap(err, "failed to fetch policy %q", *policy.Arn))
 						continue
 					}
 					collect(
@@ -129,5 +134,6 @@ func awsPolicyToProtoPolicy(policy *iam.Policy, policyDoc []byte, accountID stri
 		Tags:             tags,
 		PolicyDocument:   policyDoc,
 		AccountId:        accountID,
+		LastSyncTime:     timestamppb.Now(),
 	}
 }
