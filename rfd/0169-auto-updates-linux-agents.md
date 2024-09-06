@@ -80,22 +80,27 @@ Rollouts may be retried with `tctl autoupdate run`.
 #### Window Capture
 
 Instance heartbeats will be cached by auth servers using a dedicated cache.
-This cache is updated using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
-The rate is modulated by the total number of instance heartbeats, to avoid putting too much load on the backend on large clusters.
-The cache is considered healthy when all instance heartbeats present on the backend have been read within a time period that is also modulated by the total number of heartbeats.
+This cache is initialized from the backend when the auth server starts, and kept up-to-date when the heartbeats are broadcast to all auth servers.
 
-At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend under a single key.
+When the auth server is started, the cache is initialized using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
+The rate is modulated by the total number of instance heartbeats, to avoid putting too much load on the backend on large clusters.
+The cache is considered healthy when all instance heartbeats present on the backend have been read at least once.
+
+Instance heartbeats are currently broadcast to all auth servers.
+The cache will be kept up-to-date when the auth server receives updates.
+
+At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend.
 This plan is protected by optimistic locking, and contains the following data:
 
-Data key: `/autoupdate/[name of group](/[page uuid])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`)
+Data key: `/autoupdate/[name of group](/[auth ID]/page[number])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page1`)
 
 Data value JSON:
 - `start_time`: timestamp of current window start time
 - `version`: version for which this rollout is valid
 - `schedule`: type of schedule that triggered the rollout
 - `hosts`: list of host UUIDs in randomized order
-- `next_page`: additional UUIDs, if list is greater than 100,000 UUIDs
-- `auth_server`: ID of auth server writing the plan
+- `auth_id`: ID of the auth server writing the plan
+
 
 Expiration time of each key is 2 weeks.
 
@@ -108,24 +113,26 @@ If the resource size is greater than 100 KiB, auth servers will divide the resou
 This is necessary to support backends with a value size limit.
 
 Each page will duplicate all values besides `hosts`, which will be different for each page.
-All pages besides the first page will be suffixed with a randomly generated number.
-Pages will be written in reverse order, in a linked-link, before the final atomic non-suffixed write of the first page.
-If the non-suffixed write fails, the auth server is responsible for cleaning up the unusable pages.
+All pages besides the first page will be prefixed with the auth server's ID.
+Pages will be written in reverse order before the final atomic non-prefixed write of the first page.
+If the non-prefixed write fails, the auth server is responsible for cleaning up the unusable pages.
 If cleanup fails, the unusable pages will expire from the backend after 2 weeks.
 
 ```
 Winning auth:
-  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56 | next_page: null
-  WRITE: /autoupdate/staging/9ae65c11-35f2-483c-987e-73ef36989d3b | next_page: 58526ba2-c12d-4a49-b5a4-1b694b82bf56
-  WRITE: /autoupdate/staging | next_page: 9ae65c11-35f2-483c-987e-73ef36989d3b
+  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page2
+  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page1
+  WRITE: /autoupdate/staging | auth_id: 58526ba2-c12d-4a49-b5a4-1b694b82bf56
 
 Losing auth:
-  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530 | next_page: null
-  WRITE: /autoupdate/staging/dc27497b-ce25-4d85-b537-d0639996110d | next_page: dd850e65-d2b2-4557-8ffb-def893c52530
-  WRITE CONFLICT: /autoupdate/staging | next_page: dc27497b-ce25-4d85-b537-d0639996110d
-  DELETE: /autoupdate/staging/dc27497b-ce25-4d85-b537-d0639996110d
-  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530
+  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page2
+  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page1
+  WRITE CONFLICT: /autoupdate/staging | auth_id: dd850e65-d2b2-4557-8ffb-def893c52530
+  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page1
+  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page2
 ```
+
+To read all pages, auth servers read the first page, get the auth server ID from the `auth_id` field, and then range-read the remaining pages.
 
 #### Rollout
 
@@ -169,7 +176,7 @@ upgrading := make(map[UUID]bool)
 ```
 Proxies watch for changes to the plan and update the map accordingly.
 
-When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]`, the proxies query the map to determine the value of `agent_autoupdate: true`.
+When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]&group=[name]`, the proxies query the map to determine the value of `agent_autoupdate: true`.
 
 Updating all agents generates the following additional backend write load:
 - One write per page of the rollout plan per update group.
