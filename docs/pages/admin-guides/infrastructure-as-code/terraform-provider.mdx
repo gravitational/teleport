@@ -18,6 +18,9 @@ For instructions on managing the Teleport dynamic resources as code using
 GitOps, read the guide to using the Teleport Terraform provider with [Spacelift
 and Machine ID](../../enroll-resources/machine-id/deployment/spacelift.mdx).
 
+If using HCP Terraform (Terraform Cloud) or Terraform Enterprise, refer to our
+[dedicated Terraform Cloud setup guide](../../enroll-resources/machine-id/deployment/terraform-cloud.mdx).
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -154,7 +157,7 @@ To prepare a Terraform configuration file:
 
 1. Create a new file called `provider.tf` and open it in an editor.
 
-1. Use the Teleport Terraform provider and connect it to your Teleport cluster 
+1. Use the Teleport Terraform provider and connect it to your Teleport cluster
    by pasting the following content into the `provider.tf` file:
 
    <Tabs>
@@ -207,7 +210,7 @@ To apply the configuration:
 ## Step 4/4. [Optional] Import existing resources
 
 This section shows you how to import existing dynamic Teleport resources as
-Terraform resources. 
+Terraform resources.
 
 If you already created Teleport resources using another client tool like `tctl`
 or the Kubernetes Operator, and want to manage all Teleport resources using your
