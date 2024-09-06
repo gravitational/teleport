@@ -22,11 +22,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 
 // AccessMonitoringRule represents an access monitoring rule resources.
 message AccessMonitoringRule {
-  // metadata is the rules's metadata.
+  // metadata is the rule's metadata.
   teleport.header.v1.Metadata metadata = 1;
   // kind is a resource kind
   string kind = 2;
-  // sub_kind is an optional resource sub kind, used in some resources
+  // optional resource sub kind, used in some resources
   string sub_kind = 3;
   // version is version
   string version = 4;

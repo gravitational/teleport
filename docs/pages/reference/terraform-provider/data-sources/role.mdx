@@ -70,11 +70,11 @@ Optional:
 - `host_sudoers` (List of String) HostSudoers is a list of entries to include in a users sudoer file
 - `impersonate` (Attributes) Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. (see [below for nested schema](#nested-schema-for-specallowimpersonate))
 - `join_sessions` (Attributes List) JoinSessions specifies policies to allow users to join other sessions. (see [below for nested schema](#nested-schema-for-specallowjoin_sessions))
-- `kubernetes_groups` (List of String) KubeGroups is a list of kubernetes groups
+- `kubernetes_groups` (List of String) KubeGroups is a list of Kubernetes groups
 - `kubernetes_labels` (Map of List of String)
-- `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
+- `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specallowkubernetes_resources))
-- `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `kubernetes_users` (List of String) KubeUsers indicates optional Kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `node_labels` (Map of List of String)
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
@@ -233,11 +233,11 @@ Optional:
 - `host_sudoers` (List of String) HostSudoers is a list of entries to include in a users sudoer file
 - `impersonate` (Attributes) Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means. (see [below for nested schema](#nested-schema-for-specdenyimpersonate))
 - `join_sessions` (Attributes List) JoinSessions specifies policies to allow users to join other sessions. (see [below for nested schema](#nested-schema-for-specdenyjoin_sessions))
-- `kubernetes_groups` (List of String) KubeGroups is a list of kubernetes groups
+- `kubernetes_groups` (List of String) KubeGroups is a list of Kubernetes groups
 - `kubernetes_labels` (Map of List of String)
-- `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.
+- `kubernetes_labels_expression` (String) KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.
 - `kubernetes_resources` (Attributes List) KubernetesResources is the Kubernetes Resources this Role grants access to. (see [below for nested schema](#nested-schema-for-specdenykubernetes_resources))
-- `kubernetes_users` (List of String) KubeUsers is an optional kubernetes users to impersonate
+- `kubernetes_users` (List of String) KubeUsers indicates optional Kubernetes users to impersonate
 - `logins` (List of String) Logins is a list of *nix system logins.
 - `node_labels` (Map of List of String)
 - `node_labels_expression` (String) NodeLabelsExpression is a predicate expression used to allow/deny access to SSH nodes.
@@ -378,7 +378,7 @@ Optional:
 - `cert_format` (String) CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.
 - `client_idle_timeout` (String) ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.
 - `create_db_user` (Boolean)
-- `create_db_user_mode` (Number) CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
+- `create_db_user_mode` (Number) CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`.
 - `create_desktop_user` (Boolean)
 - `create_host_user` (Boolean)
 - `create_host_user_default_shell` (String) CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
@@ -390,7 +390,7 @@ Optional:
 - `enhanced_recording` (List of String) BPF defines what events to record for the BPF-based session recorder.
 - `forward_agent` (Boolean) ForwardAgent is SSH agent forwarding.
 - `idp` (Attributes) IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise. (see [below for nested schema](#nested-schema-for-specoptionsidp))
-- `lock` (String) Lock specifies the locking mode (strict|best_effort) to be applied with the role.
+- `lock` (String) Lock specifies the locking mode (`strict` or `best_effort`) to be applied with the role.
 - `max_connections` (Number) MaxConnections defines the maximum number of concurrent connections a user may hold.
 - `max_kubernetes_connections` (Number) MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.
 - `max_session_ttl` (String) MaxSessionTTL defines how long a SSH session can last for.

@@ -87,7 +87,7 @@ Optional:
 
 Optional:
 
-- `github_identities` (Attributes List) GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specgithub_identities))
+- `github_identities` (Attributes List) GithubIdentities list associated GitHub OAuth2 identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specgithub_identities))
 - `oidc_identities` (Attributes List) OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specoidc_identities))
 - `roles` (List of String) Roles is a list of roles assigned to user
 - `saml_identities` (Attributes List) SAMLIdentities lists associated SAML identities that let user log in using externally verified identity (see [below for nested schema](#nested-schema-for-specsaml_identities))
@@ -126,5 +126,5 @@ Optional:
 
 Optional:
 
-- `password_state` (Number) password_state reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
+- `password_state` (Number) PasswordState reflects what the system knows about the user's password. Note that this is a "best effort" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!
 

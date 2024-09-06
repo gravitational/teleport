@@ -156,7 +156,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 						Optional:    true,
 					}}),
-					Description: "Azure allows the configuration of options specific to the \"azure\" join method.",
+					Description: "Azure allows the configuration of options specific to the `azure` join method.",
 					Optional:    true,
 				},
 				"bot_name": {
@@ -188,7 +188,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "CircleCI allows the configuration of options specific to the \"circleci\" join method.",
+					Description: "CircleCI allows the configuration of options specific to the `circleci` join method.",
 					Optional:    true,
 				},
 				"gcp": {
@@ -213,7 +213,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						Description: "Allow is a list of Rules, nodes using this token must match one allow rule to use this token.",
 						Optional:    true,
 					}}),
-					Description: "GCP allows the configuration of options specific to the \"gcp\" join method.",
+					Description: "GCP allows the configuration of options specific to the `gcp` join method.",
 					Optional:    true,
 				},
 				"github": {
@@ -251,7 +251,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"sub": {
-									Description: "Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.",
+									Description: "Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of GitHub Actions run.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -275,7 +275,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "GitHub allows the configuration of options specific to the \"github\" join method.",
+					Description: "GitHub allows the configuration of options specific to the `github` join method.",
 					Optional:    true,
 				},
 				"gitlab": {
@@ -288,7 +288,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"ci_config_sha": {
-									Description: "CIConfigSHA is the git commit SHA for the ci_config_ref_uri.",
+									Description: "CIConfigSHA is the git commit SHA for the `ci_config_ref_uri`.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -324,7 +324,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"ref": {
-									Description: "Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Description: "Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with `ref_type`.  This field supports simple \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -364,11 +364,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "GitLab allows the configuration of options specific to the \"gitlab\" join method.",
+					Description: "GitLab allows the configuration of options specific to the `gitlab` join method.",
 					Optional:    true,
 				},
 				"join_method": {
-					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: azure, circleci, ec2, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm",
+					Description: "JoinMethod is the joining method required in order to use this token. Supported joining methods include: `azure`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -398,7 +398,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "Kubernetes allows the configuration of options specific to the \"kubernetes\" join method.",
+					Description: "Kubernetes allows the configuration of options specific to the `kubernetes` join method.",
 					Optional:    true,
 				},
 				"roles": {
@@ -411,12 +411,12 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"caller_id": {
-									Description: "CallerID is the ID of the caller, ie. the stack or module that generated the run.",
+									Description: "CallerID is the ID of the caller, i.e., the stack or module that generated the run.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"caller_type": {
-									Description: "CallerType is the type of the caller, ie. the entity that owns the run - either `stack` or `module`.",
+									Description: "CallerType is the type of the caller, i.e., the entity that owns the run - either `stack` or `module`.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -440,7 +440,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "Spacelift allows the configuration of options specific to the \"spacelift\" join method.",
+					Description: "Spacelift allows the configuration of options specific to the `spacelift` join method.",
 					Optional:    true,
 				},
 				"suggested_agent_matcher_labels": GenSchemaLabels(ctx),
@@ -499,7 +499,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "TerraformCloud allows the configuration of options specific to the \"terraform_cloud\" join method.",
+					Description: "TerraformCloud allows the configuration of options specific to the `terraform_cloud` join method.",
 					Optional:    true,
 				},
 				"tpm": {
@@ -531,7 +531,7 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Description: "TPM allows the configuration of options specific to the \"tpm\" join method.",
+					Description: "TPM allows the configuration of options specific to the `tpm` join method.",
 					Optional:    true,
 				},
 			}),

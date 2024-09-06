@@ -88,7 +88,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
-			Description: "metadata is the rules's metadata.",
+			Description: "metadata is the rule's metadata.",
 			Optional:    true,
 		},
 		"spec": {
@@ -129,7 +129,7 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "sub_kind is an optional resource sub kind, used in some resources",
+			Description: "optional resource sub kind, used in some resources",
 			Optional:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
