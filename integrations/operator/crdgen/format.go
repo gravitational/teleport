@@ -42,7 +42,7 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, string, error)
 	return doc, "yaml", nil
 }
 
-var crdDocTmpl string = `---
+var crdDocTmpl string = strings.ReplaceAll(`---
 title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
@@ -56,22 +56,22 @@ tocDepth: 3
 {{ range .Sections}}
 ## {{.APIVersion}}
 
-**apiVersion:** {{.APIVersion}}
+BACKTICKapiVersion: {{.APIVersion}}BACKTICK
 
 {{- range .Subsections }}
 {{- if ne .Name "" }}
-### {{.Name}}
+### BACKTICK{{.Name}}BACKTICK
 {{- end }}
 
 |Field|Type|Description|
 |---|---|---|
 {{- range .Fields }}
-|{{.Name}}|{{.Type}}|{{.Description}}|
+|BACKTICK{{.Name}}BACKTICK|{{.Type}}|{{.Description}}|
 {{- end }}
 {{ end }}
 
 {{- end}}
-`
+`, "BACKTICK", "`")
 
 type ResourcePage struct {
 	Title       string
