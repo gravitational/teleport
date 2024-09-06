@@ -26,7 +26,7 @@ message AccessMonitoringRule {
   teleport.header.v1.Metadata metadata = 1;
   // kind is a resource kind
   string kind = 2;
-  // sub_kind is an optional resource sub kind, used in some resources
+  // optional resource sub kind, used in some resources
   string sub_kind = 3;
   // version is version
   string version = 4;

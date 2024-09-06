@@ -34,12 +34,12 @@ Optional:
 - `client_redirect_settings` (Attributes) ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. (see [below for nested schema](#nested-schema-for-specclient_redirect_settings))
 - `client_secret` (String, Sensitive) ClientSecret is used to authenticate the client.
 - `display` (String) Display is the friendly name for this provider.
-- `google_admin_email` (String) GoogleAdminEmail is the email of a google admin to impersonate.
-- `google_service_account` (String, Sensitive) GoogleServiceAccount is a string containing google service account credentials.
-- `google_service_account_uri` (String) GoogleServiceAccountURI is a path to a google service account uri.
+- `google_admin_email` (String) GoogleAdminEmail is the email of a Google admin to impersonate.
+- `google_service_account` (String, Sensitive) GoogleServiceAccount is a string containing Google service account credentials.
+- `google_service_account_uri` (String) GoogleServiceAccountURI is a path to a Google service account URI.
 - `issuer_url` (String) IssuerURL is the endpoint of the provider, e.g. https://accounts.google.com.
 - `max_age` (String)
-- `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.
+- `prompt` (String) Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to `select_account` for backwards compatibility.
 - `provider` (String) Provider is the external identity provider.
 - `redirect_url` (List of String)
 - `scope` (List of String) Scope specifies additional scopes set by provider.
