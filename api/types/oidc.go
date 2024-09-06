@@ -108,8 +108,10 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
-	// GetAllowAsMFAMethod returns the connector's MFA settings.
-	GetAllowAsMFAMethod() bool
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() OIDCConnectorMFASettings
+	// WithMFASettings overwrites some connector settings from MFA settings.
+	WithMFASettings() error
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -498,9 +500,33 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 	return o.Spec.ClientRedirectSettings
 }
 
-// GetAllowAsMFAMethod returns the connector's MFA settings.
-func (o *OIDCConnectorV3) GetAllowAsMFAMethod() bool {
-	return o.Spec.MFASettings != nil
+// GetMFASettings returns the connector's MFA settings.
+func (o *OIDCConnectorV3) GetMFASettings() OIDCConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return OIDCConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *OIDCConnectorV3) WithMFASettings() error {
+	mfaSettings := o.GetMFASettings()
+	if !mfaSettings.Enabled {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	// If either client id and secret are set, overwrite the connector's client id and secret fields.
+	if mfaSettings.ClientId != "" && mfaSettings.ClientSecret != "" {
+		o.Spec.ClientID = mfaSettings.ClientId
+		o.Spec.ClientSecret = mfaSettings.ClientSecret
+	}
+
+	// Always overwrite MaxAge
+	o.Spec.MaxAge = &MaxAge{Value: mfaSettings.MaxAge}
+
+	return nil
 }
 
 // Check returns nil if all parameters are great, err otherwise

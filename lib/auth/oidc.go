@@ -32,7 +32,7 @@ import (
 )
 
 type OIDCService interface {
-	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
+	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, mfa bool) (*types.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
 }
 
@@ -124,12 +124,12 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
-func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, mfa bool) (*types.OIDCAuthRequest, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
 	}
 
-	rq, err := a.oidcAuthService.CreateOIDCAuthRequest(ctx, req)
+	rq, err := a.oidcAuthService.CreateOIDCAuthRequest(ctx, req, mfa)
 	return rq, trace.Wrap(err)
 }
 

@@ -2012,15 +2012,6 @@ message AuthPreferenceSpecV2 {
   // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
   // The current default value is "legacy". This field is not yet fully supported.
   SignatureAlgorithmSuite signature_algorithm_suite = 20;
-
-  // MFAConnectorName is the name of an SSO connector to use for MFA verification.
-  // If this value is not set, the first connector in the backend with AllowAsMFAMethod
-  // set to YES or ONLY will be used, starting with ConnectorName.
-  string MFAConnectorName = 21 [(gogoproto.jsontag) = "mfa_connector_name,omitempty"];
-
-  // MFAConnectorType is the type of SSO connector to use for MFA verification, if any.
-  // Defaults to the auth Type set above.
-  string MFAConnectorType = 22 [(gogoproto.jsontag) = "mfa_connector_type,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -3687,8 +3678,11 @@ message WebauthnDevice {
   google.protobuf.BoolValue credential_backed_up = 10;
 }
 
+// SSOMFADevice contains details of an SSO MFA method.
 message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
   string connector_id = 1;
+  // connector_type is the type of the SSO connector.
   string connector_type = 2;
 }
 
@@ -4455,7 +4449,7 @@ message OIDCConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
-  // MFASettings contains settings to enable SSO MFA checks.
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
 }
 
@@ -4463,18 +4457,29 @@ message OIDCConnectorSpecV3 {
 // which will only apply to the SSO MFA flow. If unset, this connector will
 // not support MFA requests.
 message OIDCConnectorMFASettings {
-  // ClientID is the id of the authentication client (Teleport Auth server).
-  string client_id = 1;
-  // ClientSecret is used to authenticate the client.
-  string client_secret = 2;
-  // ACR is an Authentication Context Class Reference value. The meaning of the ACR
-  // value is context-specific and varies for identity providers.
-  string acr = 3;
-  // Scope specifies additional scopes set by provider.
-  repeated string scope = 4;
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode mfa_mode = 2;
+  // ClientID is the id of the authentication client (Teleport Auth server). If unset,
+  // the parent OIDC connector's ClientID will be used.
+  string client_id = 3;
+  // ClientSecret is used to authenticate the client. If unset, the parent OIDC connector's
+  // ClientSecret will be used.
+  string client_secret = 4;
+  // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
+  // value is context-specific and varies for identity providers. Some identity providers
+  // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+  string acr_values = 5;
   // Prompt is an optional OIDC prompt. An empty string omits prompt.
   // If not specified, it defaults to select_account for backwards compatibility.
-  string prompt = 5;
+  string prompt = 6;
+  // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
+  // force re-authentication for MFA checks. This should only be set to a non-zero value if
+  // the IdP is setup to perform MFA checks on top of active user sessions.
+  //
+  // Note: types.Duration overlaps with "google/protobuf/duration.proto", so we cannot use the latter.
+  int64 max_age = 7 [(gogoproto.casttype) = "Duration"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4493,6 +4498,18 @@ message SSOClientRedirectSettings {
   repeated string allowed_https_hostnames = 1;
   // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
   repeated string insecure_allowed_cidr_ranges = 2;
+}
+
+// AuthConnectorMFAMode specified the MFA mode of an Auth Connector.
+enum AuthConnectorMFAMode {
+  // UNSPECIFIED is treated as OPTIONAL.
+  AUTH_CONNECTOR_MFA_MODE_UNSPECIFIED = 0;
+  // OPTIONAL mfa through this auth connector is optional and other MFA methods are preferred.
+  AUTH_CONNECTOR_MFA_MODE_OPTIONAL = 1;
+  // PREFERRED mfa through this auth connector is preferred and other MFA methods are optional.
+  AUTH_CONNECTOR_MFA_MODE_PREFERRED = 2;
+  // REQUIRED mfa through this auth connector is required and other MFA methods are disabled.
+  AUTH_CONNECTOR_MFA_MODE_REQUIRED = 3;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4567,6 +4584,9 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // Username is the Teleport username for the auth request. This must be set for MFA requests.
+  string Username = 20 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4647,15 +4667,40 @@ message SAMLConnectorSpecV2 {
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   SAMLConnectorMFASettings MFASettings = 17;
+  // ForceReauth specified whether re-authentication should be forced on login. UNSPECIFIED
+  // is treated as NO.
+  SAMLForceReauth ForceReauth = 18 [(gogoproto.jsontag) = "force_reauth,omitempty"];
 }
 
 message SAMLConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode mfa_mode = 2;
   // EntityDescriptor is XML with descriptor. It can be used to supply configuration
   // parameters in one XML file rather than supplying them in the individual elements.
-  string entity_descriptor = 1;
-  // EntityDescriptorUrl is a URL that supplies a configuration XML.
-  string entity_descriptor_url = 2;
+  // If unset, the parent SAML connector's EntityDescriptor will be used.
+  string entity_descriptor = 3;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML. If unset,
+  // the parent SAML connector's EntityDescriptor will be used.
+  string entity_descriptor_url = 4;
+  // ForceReauth specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is
+  // treated as YES. to always re-authentication for MFA checks. This should only be set to YES if the
+  // IdP is setup to perform MFA checks on top of active user sessions.
+  SAMLForceReauth force_reauth = 5;
+}
+
+// SAMLForceReauth specified whether existing SAML sessions should be accepted or re-authentication
+// should be forced.
+enum SAMLForceReauth {
+  // UNSPECIFIED is treated as the default value for the context; NO for login, YES for MFA checks.
+  FORCE_REAUTH_UNSPECIFIED = 0;
+  // YES re-authentication should be forced for existing SAML sessions..
+  FORCE_REAUTH_YES = 1;
+  // NO re-authentication should not be forced for existing SAML sessions.
+  FORCE_REAUTH_NO = 2;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -4801,9 +4846,27 @@ message GithubConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 9 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
-  // AllowAsMFAMethod represents whether this auth connector can be used as an MFA
-  // method or not.
-  AllowAsMFAMethod AllowAsMFAMethod = 10 [(gogoproto.jsontag) = "allow_as_mfa_method,omitempty"];
+  // MFASettings contains settings to enabled SSO MFA checks through this auth connector.
+  GithubConnectorMFASettings MFASettings = 10 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
+}
+
+message GithubConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
+  AuthConnectorMFAMode mfa_mode = 2;
+  // ClientID is the id of the authentication client (Teleport Auth server). If unset, the parent
+  // Github connector's ClientID will be used.
+  string client_id = 3;
+  // ClientSecret is used to authenticate the client. If unset, the parent Github connector's
+  // ClientSecret will be used.
+  string client_secret = 4;
+  // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
+  // force re-authentication for MFA checks. This should only be set to a non-zero value if
+  // the IdP is setup to perform MFA checks on top of active user sessions.
+  //
+  // Note: types.Duration overlaps with "google/protobuf/duration.proto", so we cannot use the latter.
+  int64 max_age = 5 [(gogoproto.casttype) = "Duration"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -5050,20 +5113,6 @@ message TeamRolesMapping {
   string Team = 2 [(gogoproto.jsontag) = "team"];
   // Roles is a list of allowed logins for this org/team.
   repeated string Roles = 3 [(gogoproto.jsontag) = "roles,omitempty"];
-}
-
-// AllowAsMFAMethod represents whether an Authentication can be used as an
-// MFA method or not.
-enum AllowAsMFAMethod {
-  ALLOW_AS_MFA_METHOD_UNSPECIFIED = 0;
-  // NO this auth connector cannot be used as an MFA method.
-  ALLOW_AS_MFA_METHOD_NO = 1;
-  // YES this auth connector can be used as an MFA method.
-  ALLOW_AS_MFA_METHOD_YES = 2;
-  // ONLY means this auth connector can only be used as an MFA method, and not
-  // as a primary authentication mechanism. In order for this MFA method to work,
-  // it must be configured for the users from the primary authentication method.
-  ALLOW_AS_MFA_METHOD_ONLY = 3;
 }
 
 // TrustedClusterV2 represents a Trusted Cluster.

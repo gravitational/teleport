@@ -104,8 +104,10 @@ type SAMLConnector interface {
 	GetSingleLogoutURL() string
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
-	// GetAllowAsMFAMethod returns the connector's MFA settings.
-	GetAllowAsMFAMethod() bool
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() SAMLConnectorMFASettings
+	// WithMFASettings overwrites some connector settings from MFA settings.
+	WithMFASettings() error
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -393,9 +395,33 @@ func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 	o.Spec.SingleLogoutURL = url
 }
 
-// GetAllowAsMFAMethod returns the connector's MFA settings.
-func (o *SAMLConnectorV2) GetAllowAsMFAMethod() bool {
-	return o.Spec.MFASettings != nil
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() SAMLConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return SAMLConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	mfaSettings := o.GetMFASettings()
+	if !mfaSettings.Enabled {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	// If either entity descriptor field is set, overwrite the connector's entity descriptor fields.
+	if mfaSettings.EntityDescriptor != "" || mfaSettings.EntityDescriptorUrl != "" {
+		o.Spec.EntityDescriptor = mfaSettings.EntityDescriptor
+		o.Spec.EntityDescriptorURL = mfaSettings.EntityDescriptorUrl
+	}
+
+	// Always overwrite ForceReauthn
+	o.Spec.ForceReauth = mfaSettings.ForceReauth
+
+	return nil
 }
 
 // setStaticFields sets static resource header and metadata fields.

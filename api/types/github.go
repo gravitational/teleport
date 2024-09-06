@@ -73,8 +73,8 @@ type GithubConnector interface {
 	GetAPIEndpointURL() string
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
-	// GetAllowAsMFAMethod returns the whether this connector supports MFA checks.
-	GetAllowAsMFAMethod() bool
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() GithubConnectorMFASettings
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -290,9 +290,14 @@ func (c *GithubConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettin
 	return c.Spec.ClientRedirectSettings
 }
 
-// GetAllowAsMFAMethod returns the connector's MFA settings.
-func (c *GithubConnectorV3) GetAllowAsMFAMethod() bool {
-	return c.Spec.AllowAsMFAMethod == AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
+// GetMFASettings returns the connector's MFA settings.
+func (o *GithubConnectorV3) GetMFASettings() GithubConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return GithubConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
 }
 
 // MapClaims returns a list of logins based on the provided claims,

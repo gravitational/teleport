@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/webauthntypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -455,13 +456,15 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind s
 	return convertedToken, nil
 }
 
-func (a *Server) CreateSSOMFASession(ctx context.Context, username, sessionID string) (*webauthntypes.SSOMFASessionData, error) {
-	sd, err := a.CreateSSOMFASession(ctx, username, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sd, nil
+func (a *Server) CreateSSOMFASession(ctx context.Context, requestID string, user string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
+	err := a.UpsertSSOMFASessionData(ctx, &wantypes.SSOMFASessionData{
+		RequestID:           requestID,
+		Username:            user,
+		ConnectorID:         connectorID,
+		ConnectorType:       connectorType,
+		ChallengeExtensions: ext,
+	})
+	return trace.Wrap(err)
 }
 
 func (a *Server) GetSSOMFASession(ctx context.Context, username, sessionID string) (*webauthntypes.SSOMFASessionData, error) {

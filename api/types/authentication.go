@@ -96,15 +96,6 @@ type AuthPreference interface {
 	// this value is empty, we fall back to the first connector in the backend.
 	SetConnectorName(string)
 
-	// GetConnectorName gets the name of the auth connector to use for MFA. If
-	// this value is empty, we fall back to the first connector in the backend
-	// that can be used for MFA, starting with ConnectorName if set.
-	GetMFAConnectorName() string
-	// GetConnectorName gets the type of the auth connector to use for MFA. If
-	// this value is empty, we fall back to the first connector in the backend
-	// that can be used for MFA, starting with ConnectorName if set.
-	GetMFAConnectorType() string
-
 	// GetU2F gets the U2F configuration settings.
 	GetU2F() (*U2F, error)
 	// SetU2F sets the U2F configuration settings.
@@ -379,25 +370,6 @@ func (c *AuthPreferenceV2) GetConnectorName() string {
 // this value is empty, we fall back to the first connector in the backend.
 func (c *AuthPreferenceV2) SetConnectorName(cn string) {
 	c.Spec.ConnectorName = cn
-}
-
-// GetConnectorName gets the name of the auth connector to use for MFA. If
-// this value is empty, we fall back to the first connector in the backend
-// that can be used for MFA, starting with ConnectorName if set.
-func (c *AuthPreferenceV2) GetMFAConnectorName() string {
-	if c.Spec.MFAConnectorName != "" {
-		return c.Spec.MFAConnectorName
-	}
-	return c.Spec.ConnectorName
-}
-
-// GetMFAConnectorType gets the type of auth connector to use for MFA. If
-// this value is empty, we fall back to the general auth type.
-func (c *AuthPreferenceV2) GetMFAConnectorType() string {
-	if c.Spec.MFAConnectorType != "" {
-		return c.Spec.MFAConnectorType
-	}
-	return c.Spec.Type
 }
 
 // GetU2F gets the U2F configuration settings.
@@ -1071,86 +1043,42 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 // backwards compatibility with the json/yaml tag "require_session_mfa",
 // which used to be a boolean.
 func (r *RequireMFAType) decode(val interface{}) error {
-	switch v := val.(type) {
-	case string:
-		switch v {
-		case RequireMFATypeHardwareKeyString:
-			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
-		case RequireMFATypeHardwareKeyTouchString:
-			*r = RequireMFAType_HARDWARE_KEY_TOUCH
-		case RequireMFATypeHardwareKeyPINString:
-			*r = RequireMFAType_HARDWARE_KEY_PIN
-		case RequireMFATypeHardwareKeyTouchAndPINString:
-			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
-		case "":
-			// default to off
-			*r = RequireMFAType_OFF
-		default:
-			// try parsing as a boolean
-			switch strings.ToLower(v) {
-			case "yes", "yeah", "y", "true", "1", "on":
-				*r = RequireMFAType_SESSION
-			case "no", "nope", "n", "false", "0", "off":
-				*r = RequireMFAType_OFF
-			default:
-				return trace.BadParameter("RequireMFAType invalid value %v", val)
-			}
-		}
-	case bool:
-		if v {
-			*r = RequireMFAType_SESSION
-		} else {
-			*r = RequireMFAType_OFF
-		}
-	case int32:
-		return trace.Wrap(r.setFromEnum(v))
-	case int64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case int:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case float64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case float32:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	default:
-		return trace.BadParameter("RequireMFAType invalid type %T", val)
-	}
-	return nil
+	err := decodeEnumRepresentation[RequireMFAType](r, val, map[interface{}]RequireMFAType{
+		"":                                   RequireMFAType_OFF, // default to off
+		false:                                RequireMFAType_OFF,
+		true:                                 RequireMFAType_SESSION,
+		RequireMFATypeHardwareKeyString:      RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		RequireMFATypeHardwareKeyTouchString: RequireMFAType_HARDWARE_KEY_TOUCH,
+		RequireMFATypeHardwareKeyPINString:   RequireMFAType_HARDWARE_KEY_PIN,
+		RequireMFATypeHardwareKeyTouchAndPINString: RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
+	}, RequireMFAType_name)
+	return trace.Wrap(err, "failed to decode require mfa type")
 }
 
-// setFromEnum sets the value from enum value as int32.
-func (r *RequireMFAType) setFromEnum(val int32) error {
-	if _, ok := RequireMFAType_name[val]; !ok {
-		return trace.BadParameter("invalid required mfa mode %v", val)
-	}
-	*r = RequireMFAType(val)
-	return nil
-}
-
-// MarshalJSON marshals AllowAsMFAMethod to alias.
-func (a *AllowAsMFAMethod) MarshalYAML() (interface{}, error) {
-	val, err := a.encode()
+// MarshalJSON marshals AuthConnectorMFAMode to boolean or string.
+func (r *AuthConnectorMFAMode) MarshalYAML() (interface{}, error) {
+	val, err := r.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return val, nil
 }
 
-// UnmarshalYAML supports parsing AllowAsMFAMethod from alias.
-func (a *AllowAsMFAMethod) UnmarshalYAML(unmarshal func(interface{}) error) error {
+// UnmarshalYAML supports parsing AuthConnectorMFAMode from boolean or alias.
+func (r *AuthConnectorMFAMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var val interface{}
 	err := unmarshal(&val)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = a.decode(val)
+	err = r.decode(val)
 	return trace.Wrap(err)
 }
 
-// MarshalJSON marshals AllowAsMFAMethod to boolean or string.
-func (a *AllowAsMFAMethod) MarshalJSON() ([]byte, error) {
-	val, err := a.encode()
+// MarshalJSON marshals AuthConnectorMFAMode to boolean or string.
+func (r *AuthConnectorMFAMode) MarshalJSON() ([]byte, error) {
+	val, err := r.encode()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1158,81 +1086,108 @@ func (a *AllowAsMFAMethod) MarshalJSON() ([]byte, error) {
 	return out, trace.Wrap(err)
 }
 
-// UnmarshalJSON supports parsing AllowAsMFAMethod from boolean or alias.
-func (a *AllowAsMFAMethod) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON supports parsing AuthConnectorMFAMode from boolean or alias.
+func (r *AuthConnectorMFAMode) UnmarshalJSON(data []byte) error {
 	var val interface{}
 	err := json.Unmarshal(data, &val)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = a.decode(val)
+	err = r.decode(val)
 	return trace.Wrap(err)
 }
 
-// encode AllowAsMFAMethod into a string or boolean.
-func (a *AllowAsMFAMethod) encode() (interface{}, error) {
-	switch *a {
-	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_UNSPECIFIED:
-		return "", nil
-	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO:
-		return false, nil
-	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES:
-		return true, nil
-	case AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY:
-		return "only", nil
+const (
+	// AuthConnectorMFAModeOptional is the string representation of AUTH_CONNECTOR_MFA_MODE_OPTIONAL
+	AuthConnectorMFAModeOptional = "optional"
+	// AuthConnectorMFAModePreferred is the string representation of AUTH_CONNECTOR_MFA_MODE_PREFERRED
+	AuthConnectorMFAModePreferred = "preferred"
+	// AuthConnectorMFAModeRequired is the string representation of AUTH_CONNECTOR_MFA_MODE_REQUIRED
+	AuthConnectorMFAModeRequired = "required"
+)
+
+// encode AuthConnectorMFAMode into a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (r *AuthConnectorMFAMode) encode() (interface{}, error) {
+	switch *r {
+	case AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_UNSPECIFIED:
+		return nil, nil
+	case AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_OPTIONAL:
+		return AuthConnectorMFAModeOptional, nil
+	case AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_PREFERRED:
+		return AuthConnectorMFAModePreferred, nil
+	case AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_REQUIRED:
+		return AuthConnectorMFAModeRequired, nil
 	default:
-		return nil, trace.BadParameter("AllowAsMFAMethod invalid value %v", *a)
+		return nil, trace.BadParameter("AuthConnectorMFAMode invalid value %v", *r)
 	}
 }
 
-// decode AllowAsMFAMethod from a string or boolean.
-func (r *AllowAsMFAMethod) decode(val interface{}) error {
+// decode AuthConnectorMFAMode from a string or boolean. This is necessary for
+// backwards compatibility with the json/yaml tag "require_session_mfa",
+// which used to be a boolean.
+func (m *AuthConnectorMFAMode) decode(val interface{}) error {
+	err := decodeEnumRepresentation[AuthConnectorMFAMode](m, val, map[interface{}]AuthConnectorMFAMode{
+		"":                            AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_OPTIONAL, // default to optional
+		AuthConnectorMFAModeOptional:  AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_OPTIONAL,
+		AuthConnectorMFAModePreferred: AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_PREFERRED,
+		AuthConnectorMFAModeRequired:  AuthConnectorMFAMode_AUTH_CONNECTOR_MFA_MODE_REQUIRED,
+	}, AuthConnectorMFAMode_name)
+	return trace.Wrap(err, "failed to decode auth connector mfa mode")
+}
+
+// decodeEnumRepresentation decodes a protobuf enum from a representational value, usually a bool,
+// string, or from the actual enum (int32) value. If the value is valid, it is saved in the given
+// enum pointer.
+func decodeEnumRepresentation[T ~int32](p *T, val interface{}, representationMap map[interface{}]T, enumMap map[int32]string) error {
+	if v, ok := representationMap[val]; ok {
+		*p = v
+		return nil
+	}
+
+	var enumVal int32
 	switch v := val.(type) {
 	case string:
-		switch v {
-		case "only":
-			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_ONLY
-		case "":
-			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_UNSPECIFIED
-		default:
-			// try parsing as a boolean
-			switch strings.ToLower(v) {
-			case "yes", "yeah", "y", "true", "1", "on":
-				*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
-			case "no", "nope", "n", "false", "0", "off":
-				*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO
-			default:
-				return trace.BadParameter("AllowAsMFAMethod invalid value %v", val)
+		// try parsing as a boolean
+		switch strings.ToLower(v) {
+		case "yes", "yeah", "y", "true", "1", "on":
+			if v, ok := representationMap[v]; ok {
+				*p = v
+				return nil
+			}
+		case "no", "nope", "n", "false", "0", "off":
+			if v, ok := representationMap[v]; ok {
+				*p = v
+				return nil
 			}
 		}
-	case bool:
-		if v {
-			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_YES
-		} else {
-			*r = AllowAsMFAMethod_ALLOW_AS_MFA_METHOD_NO
-		}
-	case int32:
-		return trace.Wrap(r.setFromEnum(v))
-	case int64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
+		return trace.BadParameter("unknown enum value %v", val)
 	case int:
-		return trace.Wrap(r.setFromEnum(int32(v)))
+		enumVal = int32(v)
+	case int32:
+		enumVal = int32(v)
+	case int64:
+		enumVal = int32(v)
 	case float64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
+		enumVal = int32(v)
 	case float32:
-		return trace.Wrap(r.setFromEnum(int32(v)))
+		enumVal = int32(v)
 	default:
-		return trace.BadParameter("AllowAsMFAMethod invalid type %T", val)
+		return trace.BadParameter("unknown enum value %v", val)
+	}
+
+	if err := checkEnum(enumMap, enumVal); err != nil {
+		return trace.BadParameter("unknown enum value %v", val)
 	}
 	return nil
 }
 
-// setFromEnum sets the value from enum value as int32.
-func (r *AllowAsMFAMethod) setFromEnum(val int32) error {
-	if _, ok := AllowAsMFAMethod_name[val]; !ok {
-		return trace.BadParameter("invalid allow_as_mfa_method value %v", val)
+// checkEnum checks if the given enum is valid.
+func checkEnum(enumMap map[int32]string, val int32) error {
+	if _, ok := AuthConnectorMFAMode_name[val]; ok {
+		return nil
 	}
-	*r = AllowAsMFAMethod(val)
-	return nil
+	return trace.NotFound("enum %v not found in enum map", val)
 }

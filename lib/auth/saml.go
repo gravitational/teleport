@@ -45,7 +45,7 @@ var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only 
 // implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
-	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
+	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, forMFASession bool) (*types.SAMLAuthRequest, error)
 	// ValidateSAMLResponse validates SAML auth response
 	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
@@ -204,13 +204,14 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 }
 
 // CreateSAMLAuthRequest delegates the method call to the samlAuthService if present,
-// or returns a NotImplemented error if not present.
-func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+// or returns a NotImplemented error if not present. If forMFASession is set, this
+// auth request will use details from the connector's MFA settings.
+func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, forMFASession bool) (*types.SAMLAuthRequest, error) {
 	if a.samlAuthService == nil {
 		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
 	}
 
-	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
+	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req, forMFASession)
 	return rq, trace.Wrap(err)
 }
 

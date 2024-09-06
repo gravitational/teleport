@@ -3690,7 +3690,7 @@ func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.O
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req)
+	oidcReq, err := a.authServer.CreateOIDCAuthRequest(ctx, req, false)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodOIDC, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)
@@ -3848,7 +3848,7 @@ func (a *ServerWithRoles) CreateSAMLAuthRequest(ctx context.Context, req types.S
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req)
+	samlReq, err := a.authServer.CreateSAMLAuthRequest(ctx, req, false /*forMFASession*/)
 	if err != nil {
 		emitSSOLoginFailureEvent(a.CloseContext(), a.authServer.emitter, events.LoginMethodSAML, err, req.SSOTestFlow)
 		return nil, trace.Wrap(err)

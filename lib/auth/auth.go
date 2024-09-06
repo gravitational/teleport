@@ -3690,12 +3690,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 		return nil, trace.Wrap(err)
 	}
 
-	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	userSSODev, err := a.getUserSSOMFADevice(ctx, readOnlyAuthPref, username)
+	userSSODev, err := a.getUserSSOMFADevice(ctx, username)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if userSSODev != nil {
@@ -6588,7 +6583,8 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	return challenge, nil
 }
 
-func (a *Server) getUserSSOMFADevice(ctx context.Context, apref readonly.AuthPreference, username string) (*types.MFADevice, error) {
+// getUserSSOMFADevice gets the SSO MFA device for this user, or nil if there isn't one.
+func (a *Server) getUserSSOMFADevice(ctx context.Context, username string) (*types.MFADevice, error) {
 	user, err := a.GetUser(ctx, username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6598,18 +6594,28 @@ func (a *Server) getUserSSOMFADevice(ctx context.Context, apref readonly.AuthPre
 	if cb.Connector == nil {
 		return nil, nil
 	}
+
 	switch cb.Connector.Type {
 	case constants.SAML:
-		if connector, err := a.GetSAMLConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
+		if connector, err := a.GetSAMLConnector(ctx, cb.Connector.ID, false); err != nil {
 			return nil, trace.Wrap(err)
+		} else if !connector.GetMFASettings().Enabled {
+			// mfa not enabled, return no device.
+			return nil, nil
 		}
 	case constants.OIDC:
-		if connector, err := a.GetOIDCConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
+		if connector, err := a.GetOIDCConnector(ctx, cb.Connector.ID, false); err != nil {
 			return nil, trace.Wrap(err)
+		} else if !connector.GetMFASettings().Enabled {
+			// mfa not enabled, return no device.
+			return nil, nil
 		}
 	case constants.Github:
-		if connector, err := a.GetGithubConnector(ctx, cb.Connector.ID, false); err != nil || !connector.GetAllowAsMFAMethod() {
+		if connector, err := a.GetGithubConnector(ctx, cb.Connector.ID, false); err != nil {
 			return nil, trace.Wrap(err)
+		} else if !connector.GetMFASettings().Enabled {
+			// mfa not enabled, return no device.
+			return nil, nil
 		}
 	default:
 		return nil, trace.BadParameter("user created by unknown auth connector type %v", cb.Connector.Type)
@@ -6636,7 +6642,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 			ConnectorID:       ssoMFAConnector.ConnectorId,
 			Type:              ssoMFAConnector.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
-		})
+		}, true /*forMFASession*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6647,7 +6653,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 			ConnectorID:       ssoMFAConnector.ConnectorId,
 			Type:              ssoMFAConnector.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
-		})
+		}, true /*mfa*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -6668,49 +6674,11 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 		return nil, trace.BadParameter("unexpected sso connector type %v", ssoMFAConnector.ConnectorType)
 	}
 
-	if err := a.UpsertSSOMFASessionData(ctx, &wantypes.SSOMFASessionData{
-		RequestID:           chal.RequestId,
-		Username:            user,
-		ConnectorID:         ssoMFAConnector.ConnectorId,
-		ConnectorType:       ssoMFAConnector.ConnectorType,
-		ChallengeExtensions: ext,
-	}); err != nil {
+	if err := a.CreateSSOMFASession(ctx, chal.RequestId, user, ssoMFAConnector.ConnectorId, ssoMFAConnector.ConnectorType, ext); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return chal, nil
-}
-
-type externalConnector interface {
-	// GetName returns the name of the resource
-	GetName() string
-	// GetKind returns resource kind (saml, oidc, or github)
-	GetKind() string
-	// GetAllowAsMFAMethod returns the whether this connector supports MFA checks.
-	GetAllowAsMFAMethod() bool
-}
-
-func (a *Server) getUserConnector(ctx context.Context, apref readonly.AuthPreference, username string) (externalConnector, error) {
-	user, err := a.GetUser(ctx, username, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cb := user.GetCreatedBy()
-	if cb.Connector == nil {
-		return nil, nil
-	}
-
-	switch cb.Connector.Type {
-	case constants.SAML:
-		return a.GetSAMLConnector(ctx, cb.Connector.ID, false)
-	case constants.OIDC:
-		return a.GetOIDCConnector(ctx, cb.Connector.ID, false)
-	case constants.Github:
-		return a.GetGithubConnector(ctx, cb.Connector.ID, false)
-	default:
-		return nil, trace.BadParameter("unexpected user connector type %v", cb.Connector.Type)
-	}
 }
 
 type devicesByType struct {
@@ -6949,12 +6917,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 		// Validate that the connector that created the token matches the connector that created
 		// the user. This prevents race conditions around overlapping identites between connector
-		cap, err := a.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		userSSODev, err := a.getUserSSOMFADevice(ctx, cap, user)
+		userSSODev, err := a.getUserSSOMFADevice(ctx, user)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
