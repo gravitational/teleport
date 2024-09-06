@@ -14,7 +14,7 @@ resource "aws_autoscaling_group" "auth" {
 
   launch_template {
     name    = aws_launch_template.auth.name
-    version = "$Latest"
+    version = aws_launch_template.auth.latest_version
   }
 
   // These are target groups of the auth server network load balancer
