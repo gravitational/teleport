@@ -35,6 +35,10 @@ type Props = {
   // that use <Modal> to TypeScript.
   modalCss?: StyleFunction<any>;
 
+  /**
+   * The child must be a single HTML element, as Modal calls methods such as focus and setAttribute
+   * on it.
+   */
   children?: React.ReactElement;
 
   /**
