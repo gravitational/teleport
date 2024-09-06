@@ -92,7 +92,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
@@ -1052,13 +1051,6 @@ func waitAndReload(ctx context.Context, sigC <-chan os.Signal, cfg servicecfg.Co
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	var err error
-
-	// auth and proxy benefit from precomputing keys since they can experience spikes in key
-	// generation due to web session creation and recorded session creation respectively.
-	// for all other agents precomputing keys consumes excess resources.
-	if cfg.Auth.Enabled || cfg.Proxy.Enabled {
-		native.PrecomputeKeys()
-	}
 
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()

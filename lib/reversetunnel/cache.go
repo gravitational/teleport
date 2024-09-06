@@ -142,11 +142,10 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 
 	if _, isRSA := hostKey.Public().(*rsa.PublicKey); isRSA {
 		// Ensure the native package is precomputing RSA keys if we ever
-		// generate one. [native.PrecomputeKeys] is idempotent. Do this here
-		// instead of in newHostCertificateCache for 2 reasons:
-		// 1. This will handle changes to the configured algorithm suite.
-		// 2. This won't start precomputing keys if a host key is never actually
-		//    needed, which can be a major benefit in tests.
+		// generate one. [native.PrecomputeKeys] is idempotent.
+		// Doing this lazily easily handles changing signature algorithm suites
+		// and won't start precomputing keys if they are never needed (a major
+		// benefit in tests).
 		native.PrecomputeKeys()
 	}
 
