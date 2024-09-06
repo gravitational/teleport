@@ -109,6 +109,14 @@ func ConvertIAMv2Error(err error) error {
 		return trace.BadParameter(*malformedPolicyDocument.Message)
 	}
 
+	return convertGenericSDKV2error(err)
+}
+
+func convertGenericSDKV2error(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	var re *awshttp.ResponseError
 	if errors.As(err, &re) {
 		return convertRequestFailureErrorFromStatusCode(re.HTTPStatusCode(), re.Err)

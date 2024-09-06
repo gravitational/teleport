@@ -253,7 +253,7 @@ func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, database types.Databa
 
 func (a *dbAuth) getRedshiftIAMRoleAuthToken(ctx context.Context, database types.Database, databaseUser string, databaseName string) (string, string, error) {
 	meta := database.GetAWS()
-	roleARN, err := a.buildAWSRoleARNFromDatabaseUser(ctx, database, databaseUser)
+	roleARN, err := a.buildAWSRoleARNFromDatabaseUser(ctx, database, databaseUser, a.getAWSAccountIDLegacy)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -1070,7 +1070,37 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 	return vm, nil
 }
 
-func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database types.Database, databaseUser string) (string, error) {
+// getAWSAccountIDFunc defines a function for retrieving AWS Account ID.
+// TODO(greedy52) migrate to aws-sdk-go-v2 and remove getAWSAccountIDLegacy.
+type getAWSAccountIDFunc func(context.Context, string) (string, error)
+
+func (a *dbAuth) getAWSAccountIDLegacy(ctx context.Context, region string) (string, error) {
+	stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, region, cloud.WithAmbientCredentials())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return identity.GetAccountID(), nil
+}
+
+func (a *dbAuth) getAWSAccountID(ctx context.Context, region string) (string, error) {
+	stsClient, err := a.cfg.Clients.GetAWSSTSClientV2(ctx, region, cloud.WithAmbientCredentials())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	identity, err := awslib.GetIdentityFromSTSAPI(ctx, stsClient)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return identity.GetAccountID(), nil
+}
+
+func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database types.Database, databaseUser string, getAWSAccountID getAWSAccountIDFunc) (string, error) {
 	dbAWS := database.GetAWS()
 	awsAccountID := dbAWS.AccountID
 
@@ -1086,17 +1116,11 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 			awsAccountID = assumeRoleARN.AccountID
 		default:
 			a.cfg.Log.Debug("Fetching AWS Account ID to build role ARN")
-			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region, cloud.WithAmbientCredentials())
+			var err error
+			awsAccountID, err = getAWSAccountID(ctx, dbAWS.Region)
 			if err != nil {
 				return "", trace.Wrap(err)
 			}
-
-			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			awsAccountID = identity.GetAccountID()
 		}
 	}
 
@@ -1108,12 +1132,12 @@ func (a *dbAuth) buildAWSRoleARNFromDatabaseUser(ctx context.Context, database t
 // access key and session token.
 func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, databaseUser string) (string, string, string, error) {
 	dbAWS := database.GetAWS()
-	arn, err := a.buildAWSRoleARNFromDatabaseUser(ctx, database, databaseUser)
+	arn, err := a.buildAWSRoleARNFromDatabaseUser(ctx, database, databaseUser, a.getAWSAccountID)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
 
-	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
+	baseConfig, err := a.cfg.Clients.GetAWSConfigV2(ctx, dbAWS.Region,
 		cloud.WithAssumeRoleFromAWSMeta(dbAWS),
 		cloud.WithAmbientCredentials(),
 	)
@@ -1121,18 +1145,17 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, da
 		return "", "", "", trace.Wrap(err)
 	}
 
-	// ExternalID should only be used once. If the baseSession assumes a role,
+	// ExternalID should only be used once. If the baseConfig assumes a role,
 	// the chained sessions should have an empty external ID.
-
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region,
-		cloud.WithChainedAssumeRole(baseSession, arn, externalIDForChainedAssumeRole(dbAWS)),
+	config, err := a.cfg.Clients.GetAWSConfigV2(ctx, dbAWS.Region,
+		cloud.WithChainedAssumeRole(baseConfig, arn, externalIDForChainedAssumeRole(dbAWS)),
 		cloud.WithAmbientCredentials(),
 	)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
 
-	creds, err := sess.Config.Credentials.Get()
+	creds, err := config.Credentials.Retrieve(ctx)
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
