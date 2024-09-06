@@ -90,7 +90,7 @@ USER fluent
 
 Build the Docker image:
 
-```shell
+```code
 $ docker build -t fluentd-s3 .
 ```
 
@@ -192,7 +192,7 @@ Add the <filter> and <match> sections to the file.
 
 Start the Fluentd container:
 
-```shell
+```code
 $ docker run -p 8888:8888 -v $(pwd):/keys -v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf fluentd-s3
 ```
 This will start the Fluentd container and expose port 8888 for the Teleport Event Handler to send logs to. 
