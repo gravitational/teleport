@@ -92,7 +92,7 @@ The cache will be kept up-to-date when the auth server receives updates.
 At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend.
 This plan is protected by optimistic locking, and contains the following data:
 
-Data key: `/autoupdate/[name of group](/[auth ID]/page[number])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page1`)
+Data key: `/autoupdate/[name of group](/[auth ID]/[number])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/1`)
 
 Data value JSON:
 - `start_time`: timestamp of current window start time
@@ -120,16 +120,16 @@ If cleanup fails, the unusable pages will expire from the backend after 2 weeks.
 
 ```
 Winning auth:
-  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page2
-  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/page1
+  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/2
+  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/1
   WRITE: /autoupdate/staging | auth_id: 58526ba2-c12d-4a49-b5a4-1b694b82bf56
 
 Losing auth:
-  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page2
-  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page1
+  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/2
+  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/1
   WRITE CONFLICT: /autoupdate/staging | auth_id: dd850e65-d2b2-4557-8ffb-def893c52530
-  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page1
-  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/page2
+  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/1
+  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/2
 ```
 
 To read all pages, auth servers read the first page, get the auth server ID from the `auth_id` field, and then range-read the remaining pages.
