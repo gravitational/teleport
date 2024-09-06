@@ -46,12 +46,13 @@ type TeleportVersion struct {
 	DownloadClient *http.Client
 }
 
+// Remove a Teleport version directory from in /var/lib/teleport/versions/.
 func (tv *TeleportVersion) Remove(version string) error {
 	versionPath := filepath.Join(tv.VersionsDir, version)
 	sumPath := filepath.Join(versionPath, checksumType)
 
 	// invalidate checksum first, to protect against partially-removed
-	// directory with valid checksum
+	// directory with valid checksum.
 	if err := os.Remove(sumPath); err != nil {
 		return trace.Wrap(err)
 	}
@@ -61,31 +62,27 @@ func (tv *TeleportVersion) Remove(version string) error {
 	return nil
 }
 
+// Create a Teleport version directory in /var/lib/teleport/versions/.
 func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) error {
 	versionPath := filepath.Join(tv.VersionsDir, version)
 	sumPath := filepath.Join(versionPath, checksumType)
 
-	tmpl, err := template.New("uri").Parse(uriTmpl)
+	// generate download URI from template
+	uri, err := makeURL(uriTmpl, version)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	var uriBuf bytes.Buffer
-	params := struct {
-		OS, Version, Arch string
-	}{runtime.GOOS, version, runtime.GOARCH}
-	err = tmpl.Execute(&uriBuf, params)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	uri := uriBuf.String()
 
-	sum, err := tv.getChecksum(ctx, uri+"."+checksumType)
+	// Get new and old checksums. If they match, skip download.
+	// Otherwise, clear the old version directory and re-download.
+	checksumURI := uri + "." + checksumType
+	newSum, err := tv.getChecksum(ctx, checksumURI)
 	if err != nil {
-		return trace.Errorf("failed to download checksum from %s: %w", uri, err)
+		return trace.Errorf("failed to download checksum from %s: %w", checksumURI, err)
 	}
-	existSum, err := readChecksum(ctx, sumPath)
+	oldSum, err := readChecksum(ctx, sumPath)
 	if err == nil {
-		if bytes.Equal(existSum, sum) {
+		if bytes.Equal(oldSum, newSum) {
 			plog.InfoContext(ctx, "Version already present", "version", version)
 			return nil
 		}
@@ -106,14 +103,16 @@ func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) 
 		}
 	}()
 
-	if !bytes.Equal(sum, pathSum) {
+	// Avoid gzip bomb by validating checksum before any decompression
+	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
 	}
-	// avoid gzip bomb by validating checksum before decompression
+	// Get uncompressed size of the tgz
 	n, err := uncompressedSize(tgz)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Seek to start of tgz after reading size
 	if _, err := tgz.Seek(0, io.SeekStart); err != nil {
 		return trace.Errorf("failed seek to start: %w", err)
 	}
@@ -124,6 +123,7 @@ func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) 
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk in %q: %w", versionPath, err)
 	}
+	// Bail if there's not enough free disk space at the target
 	if d := free - n; d < 0 {
 		return trace.Errorf("%q needs %d additional bytes of disk space for download", versionPath, -d)
 	}
@@ -131,13 +131,32 @@ func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(sum)), 0755)
+	// Write the checksum last. This marks the version directory as valid.
+	err = os.WriteFile(sumPath, []byte(hex.EncodeToString(newSum)), 0755)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
+// makeURL to download the Teleport tgz.
+func makeURL(uriTmpl, version string) (string, error) {
+	tmpl, err := template.New("uri").Parse(uriTmpl)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	var uriBuf bytes.Buffer
+	params := struct {
+		OS, Version, Arch string
+	}{runtime.GOOS, version, runtime.GOARCH}
+	err = tmpl.Execute(&uriBuf, params)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return uriBuf.String(), nil
+}
+
+// readChecksum from the version directory.
 func readChecksum(ctx context.Context, path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -190,25 +209,32 @@ func (tv *TeleportVersion) download(ctx context.Context, url string) (r io.ReadS
 	defer resp.Body.Close()
 	plog.InfoContext(ctx, "Downloading Teleport tarball", "path", f.Name(), "size", resp.ContentLength)
 
-	if resp.ContentLength < 0 {
+	// Ensure there's enough space in /tmp for the download.
+	size := resp.ContentLength
+	if size < 0 {
 		plog.Warn("Content length missing from response, unable to verify Teleport download size")
-	} else if resp.ContentLength > free {
+	} else if size > free {
 		return nil, nil, trace.Errorf("size of download (%d bytes) exceeds available disk space (%d bytes)", resp.ContentLength, free)
 	}
+
+	// Calculate checksum concurrently with download.
 	shaReader := sha256.New()
-	n, err := io.Copy(f, io.TeeReader(resp.Body, shaReader))
+	n, err := io.Copy(f, io.TeeReader(io.LimitReader(resp.Body, size), shaReader))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 	if resp.ContentLength >= 0 && n != resp.ContentLength {
 		return nil, nil, trace.Errorf("mismatch in Teleport download size")
 	}
+
+	// Seek to the start of the temp file after writing
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, nil, trace.Errorf("failed seek to start of download: %w", err)
 	}
 	return rmCloser{f}, shaReader.Sum(nil), nil
 }
 
+// rmCloser removes a file from disk after it is closed.
 type rmCloser struct {
 	*os.File
 }
@@ -269,9 +295,9 @@ func (tv *TeleportVersion) getChecksum(ctx context.Context, url string) ([]byte,
 	}
 	defer resp.Body.Close()
 
-	r := io.LimitReader(resp.Body, 64)
+	// Only attempt to read first 64 bytes
 	var buf bytes.Buffer
-	_, err = io.Copy(&buf, r)
+	_, err = io.Copy(&buf, io.LimitReader(resp.Body, 64))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
