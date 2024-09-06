@@ -80,8 +80,8 @@ message AccessListOwner {
   // owner.
   string description = 2;
 
-  // ineligible_status describes if this owner is eligible or not
-  // and if not, describes how they're lacking eligibility.
+  // describes if this owner is eligible or not and if not, describes how
+  // they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
 }
 
