@@ -7,9 +7,11 @@ AKIA
 ALPN
 AMAZ
 ANPAW
+APIs
 APPDATA
 APPSECRET
 AQAB
+ARNs
 AUTHINFO
 AWSARN
 AWSIIDTTL
@@ -25,9 +27,11 @@ BUCKETNAME
 Binm
 Brosnan
 CAcreateserial
+CAs
 CCDC
 CHANGEID
 CHANGEME
+CIDRs
 CLOUDSDK
 CREATEDB
 CTAP
@@ -110,6 +114,7 @@ Jlbn
 Jpji
 Jqlang
 Kanban
+Kerberos
 Keycloak
 Keyspaces
 Kubelet
@@ -145,6 +150,7 @@ ODBC
 OIDC
 OTLP
 Obxo
+Okta
 Olsi
 Olsia
 OpenAI
@@ -215,9 +221,11 @@ TENANTID
 TESTDEVICE
 TOTP
 TOUCHID
+TPMs
 TSPN
 Tatham
 Tele
+Teleport's
 Templating
 Tmkx
 Toboth
@@ -517,6 +525,8 @@ hostcert
 hostdb
 hostedzone
 hostip
+hostname
+hostnames
 hostssl
 hsm-ppzzfxbleki
 httpout
@@ -606,6 +616,7 @@ managedclusters
 mant
 masterauth
 masteruser
+matchers
 mattermosttokenfromsecret
 mcache
 memlock
@@ -667,7 +678,8 @@ myvolume
 nameid
 nameidentifier
 nameserver
-namespacedname
+namespace
+namespaced
 navin
 ndots
 netcat
@@ -685,6 +697,8 @@ nodename
 nohup
 nologin
 nologo
+nonce
+nonces
 nonprod
 noout
 noprompt
@@ -731,6 +745,7 @@ pguser
 pidof
 pkill
 pkinit
+plaintext
 plugindata
 portforward
 postgresqlselfhosted
@@ -820,6 +835,7 @@ selfsubjectaccessreviews
 selfsubjectrulesreviews
 sendall
 seqno
+serverless
 serviceaccount
 serviceaccountname
 serviceaccounts
@@ -930,6 +946,8 @@ structs
 subchart
 subgroups
 subkind
+subnet
+subnets
 sudoer
 supervillain
 svid
@@ -1039,6 +1057,7 @@ windowsdesktop
 winpty
 winscp
 winserver
+workgroup
 workgroups
 wtmp
 xample
