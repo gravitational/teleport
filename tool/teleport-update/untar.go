@@ -34,6 +34,9 @@ import (
 )
 
 // From: https://github.com/golang/build/blob/8ac64ccecd1b81ab8fee4b64bc46b21913564767/internal/untar/untar.go
+// Untarring in Go can be risky. E.g., it's easy to construct a tarball that writes to arbitrary FS locations using symlinks.
+// Various operating systems and version control systems may react poorly to unusual permissions or future timestamps due to clock skew.
+// This battle-tested implementation is copied directly from Go's build repository and fails on symlinks.
 
 func untar(r io.Reader, dir string) (err error) {
 	t0 := time.Now()
