@@ -20,7 +20,10 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -28,9 +31,12 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -76,6 +82,139 @@ func assertTraceErr(f func(error) bool) require.ErrorAssertionFunc {
 	return func(t require.TestingT, err error, _ ...any) {
 		require.Error(t, err)
 		require.True(t, f(err), "unexpected error: %v", err)
+	}
+}
+
+func TestStaticHostUserAuditEvents(t *testing.T) {
+	env := initSvc(t, authorizeWithVerbs([]string{types.VerbDelete, types.VerbCreate, types.VerbUpdate}, true))
+
+	ctx := context.Background()
+	user, err := env.resourceService.CreateStaticHostUser(
+		ctx,
+		&userprovisioningpb.CreateStaticHostUserRequest{
+			User: userprovisioning.NewStaticHostUser(
+				"test",
+				&userprovisioningpb.StaticHostUserSpec{
+					Matchers: []*userprovisioningpb.Matcher{
+						{
+							Gid:                  1,
+							Uid:                  2,
+							Groups:               []string{"bar", "baz"},
+							NodeLabelsExpression: `labels.dev == "test"`,
+						},
+					},
+				},
+			)},
+	)
+	require.NoError(t, err)
+
+	select {
+	case evt := <-env.emitter.C():
+		expectedEvent := &apievents.StaticHostUserCreate{
+			Metadata: apievents.Metadata{
+				Type: events.StaticHostUserCreateEvent,
+				Code: events.StaticHostUserCreateCode,
+			},
+			Status: apievents.Status{
+				Success: true,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: "test",
+			},
+			UserMetadata: apievents.UserMetadata{
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		}
+
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for static host user create event")
+	}
+
+	user, err = env.resourceService.UpdateStaticHostUser(
+		ctx,
+		&userprovisioningpb.UpdateStaticHostUserRequest{User: user},
+	)
+	require.NoError(t, err)
+
+	select {
+	case evt := <-env.emitter.C():
+		expectedEvent := &apievents.StaticHostUserUpdate{
+			Metadata: apievents.Metadata{
+				Type: events.StaticHostUserUpdateEvent,
+				Code: events.StaticHostUserUpdateCode,
+			},
+			Status: apievents.Status{
+				Success: true,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: "test",
+			},
+			UserMetadata: apievents.UserMetadata{
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		}
+
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for static host user update event")
+	}
+	user, err = env.resourceService.UpsertStaticHostUser(
+		ctx,
+		&userprovisioningpb.UpsertStaticHostUserRequest{User: user},
+	)
+	require.NoError(t, err)
+
+	select {
+	case evt := <-env.emitter.C():
+		expectedEvent := &apievents.StaticHostUserCreate{
+			Metadata: apievents.Metadata{
+				Type: events.StaticHostUserCreateEvent,
+				Code: events.StaticHostUserCreateCode,
+			},
+			Status: apievents.Status{
+				Success: true,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: "test",
+			},
+			UserMetadata: apievents.UserMetadata{
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		}
+
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for static host user upsert event")
+	}
+	_, err = env.resourceService.DeleteStaticHostUser(
+		ctx,
+		&userprovisioningpb.DeleteStaticHostUserRequest{Name: user.Metadata.Name},
+	)
+	require.NoError(t, err)
+
+	select {
+	case evt := <-env.emitter.C():
+		expectedEvent := &apievents.StaticHostUserDelete{
+			Metadata: apievents.Metadata{
+				Type: events.StaticHostUserDeleteEvent,
+				Code: events.StaticHostUserDeleteCode,
+			},
+			Status: apievents.Status{
+				Success: true,
+			},
+			ResourceMetadata: apievents.ResourceMetadata{
+				Name: "test",
+			},
+			UserMetadata: apievents.UserMetadata{
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+			},
+		}
+
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
+	case <-time.After(15 * time.Second):
+		t.Fatalf("timed out waiting for static host user delete event")
 	}
 }
 
@@ -283,8 +422,8 @@ func testStaticHostUserAccess(
 	request func(ctx context.Context, svc *Service, localSvc *local.StaticHostUserService) error,
 	assert require.ErrorAssertionFunc,
 ) {
-	ctx, resourceSvc, localSvc := initSvc(t, authorizer)
-	err := request(ctx, resourceSvc, localSvc)
+	env := initSvc(t, authorizer)
+	err := request(context.Background(), env.resourceService, env.localService)
 	assert(t, err)
 }
 
@@ -337,7 +476,15 @@ type localClient interface {
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 }
 
-func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) (context.Context, *Service, *local.StaticHostUserService) {
+type testEnv struct {
+	resourceService *Service
+
+	localService *local.StaticHostUserService
+
+	emitter *eventstest.ChannelEmitter
+}
+
+func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) authz.Authorizer) testEnv {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -378,12 +525,19 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 		CA:                          caSrv,
 	}
 
+	emitter := eventstest.NewChannelEmitter(10)
+
 	resourceSvc, err := NewService(ServiceConfig{
 		Authorizer: authorizerFn(t, client),
+		Emitter:    emitter,
 		Backend:    localResourceService,
 		Cache:      localResourceService,
 	})
 	require.NoError(t, err)
 
-	return ctx, resourceSvc, localResourceService
+	return testEnv{
+		resourceService: resourceSvc,
+		localService:    localResourceService,
+		emitter:         emitter,
+	}
 }
