@@ -237,7 +237,7 @@ type SSOUserPublicKeys struct {
 	// PublicKey is a public key the user wants as the subject of their SSH and TLS
 	// certificates. It must be in SSH authorized_keys format.
 	//
-	// Soon to be deprecated after references are removed from teleport.e.
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
 	PublicKey []byte `json:"public_key,omitempty"`
 	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
 	// certificate. It must be in SSH authorized_keys format.
@@ -248,7 +248,7 @@ type SSOUserPublicKeys struct {
 
 	// AttestationStatement is an attestation statement associated with the given public key.
 	//
-	// Soon to be deprecated after references are removed from teleport.e.
+	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 	// SSHAttestationStatement is an attestation statement associated with the
 	// given SSH public key.
