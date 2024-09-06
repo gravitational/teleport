@@ -21,7 +21,6 @@ package tbot
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -30,16 +29,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	secretv3pb "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -49,13 +46,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 	"github.com/gravitational/teleport/lib/uds"
 )
@@ -72,80 +68,16 @@ import (
 type SPIFFEWorkloadAPIService struct {
 	workloadpb.UnimplementedSpiffeWorkloadAPIServer
 
-	svcIdentity *config.UnstableClientCredentialOutput
-	botCfg      *config.BotConfig
-	cfg         *config.SPIFFEWorkloadAPIService
-	log         *slog.Logger
-	botClient   *authclient.Client
-	resolver    reversetunnelclient.Resolver
-	// rootReloadBroadcaster allows the service to listen for CA rotations and
-	// update the trust bundle cache.
-	rootReloadBroadcaster *channelBroadcaster
-	// trustBundleBroadcast is a channel broadcaster is triggered when the trust
-	// bundle cache has been updated and active streams should be renewed.
-	trustBundleBroadcast *channelBroadcaster
+	svcIdentity      *config.UnstableClientCredentialOutput
+	botCfg           *config.BotConfig
+	cfg              *config.SPIFFEWorkloadAPIService
+	log              *slog.Logger
+	resolver         reversetunnelclient.Resolver
+	trustBundleCache *spiffe.TrustBundleCache
 
 	// client holds the impersonated client for the service
-	client *authclient.Client
-
-	trustDomain spiffeid.TrustDomain
-
+	client   *authclient.Client
 	attestor *workloadattest.Attestor
-
-	// trustBundle is protected by trustBundleMu. Use setTrustBundle and
-	// getTrustBundle to access it.
-	trustBundle   *x509bundle.Bundle
-	trustBundleMu sync.Mutex
-}
-
-func (s *SPIFFEWorkloadAPIService) setTrustBundle(trustBundle *x509bundle.Bundle) {
-	s.trustBundleMu.Lock()
-	s.trustBundle = trustBundle
-	s.trustBundleMu.Unlock()
-	// Alert active streaming RPCs to renew their trust bundles
-	s.trustBundleBroadcast.broadcast()
-}
-
-func (s *SPIFFEWorkloadAPIService) getTrustBundle() *x509bundle.Bundle {
-	s.trustBundleMu.Lock()
-	defer s.trustBundleMu.Unlock()
-	return s.trustBundle
-}
-
-// trustBundleToRawCerts converts a trust bundle's certs to raw bytes.
-// What's particularly special is that the certs are not pem encoded and
-// are appended directly to one another. This is the way that the SPIFFE
-// workload API clients expect.
-func trustBundleToRawCerts(bundle *x509bundle.Bundle) []byte {
-	out := []byte{}
-	for _, cert := range bundle.X509Authorities() {
-		out = append(out, cert.Raw...)
-	}
-	return out
-}
-
-func (s *SPIFFEWorkloadAPIService) fetchBundle(ctx context.Context) error {
-	ca, err := s.botClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
-		DomainName: s.trustDomain.Name(),
-	}, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	bundle := x509bundle.New(s.trustDomain)
-	for _, certBytes := range services.GetTLSCerts(ca) {
-		block, _ := pem.Decode(certBytes)
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return trace.Wrap(err, "parsing cert")
-		}
-		bundle.AddX509Authority(cert)
-	}
-
-	s.log.InfoContext(ctx, "Fetched new trust bundle")
-	s.setTrustBundle(bundle)
-	return nil
 }
 
 // setup initializes the service, performing tasks such as determining the
@@ -181,15 +113,6 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 			client.Close()
 		}
 	}()
-
-	s.trustDomain, err = spiffeid.TrustDomainFromString(facade.Get().ClusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.fetchBundle(ctx); err != nil {
-		return trace.Wrap(err)
-	}
 
 	s.attestor, err = workloadattest.NewAttestor(s.log, s.cfg.Attestors)
 	if err != nil {
@@ -295,10 +218,9 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		cfg:    s.cfg,
 		botCfg: s.botCfg,
 
-		clientAuthenticator:         s.authenticateClient,
-		trustBundleGetter:           s.getTrustBundle,
-		trustBundleUpdateSubscriber: s.trustBundleBroadcast.subscribe,
-		svidFetcher:                 s.fetchX509SVIDs,
+		trustBundleCache:    s.trustBundleCache,
+		clientAuthenticator: s.authenticateClient,
+		svidFetcher:         s.fetchX509SVIDs,
 	}
 	secretv3pb.RegisterSecretDiscoveryServiceServer(srv, sdsHandler)
 
@@ -332,34 +254,8 @@ func (s *SPIFFEWorkloadAPIService) Run(ctx context.Context) error {
 		s.log.InfoContext(ctx, "Shut down Workload API endpoint")
 		return nil
 	})
-	eg.Go(func() error {
-		// Handle CA rotations
-		return s.handleCARotations(egCtx)
-	})
 
 	return trace.Wrap(eg.Wait())
-}
-
-// handleCARotations listens on a channel subscribed to the bot's CA watcher and
-// refetches the trust bundle when a rotation is detected.
-func (s *SPIFFEWorkloadAPIService) handleCARotations(ctx context.Context) error {
-	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/handleCARotations")
-	defer span.End()
-	reloadCh, unsubscribe := s.rootReloadBroadcaster.subscribe()
-	defer unsubscribe()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-reloadCh:
-		}
-
-		s.log.InfoContext(ctx, "CA rotation detected, fetching trust bundle")
-		err := s.fetchBundle(ctx)
-		if err != nil {
-			return trace.Wrap(err, "updating trust bundle")
-		}
-	}
 }
 
 // serialString returns a human-readable colon-separated string of the serial
@@ -385,15 +281,11 @@ func serialString(serial *big.Int) string {
 func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 	ctx context.Context,
 	log *slog.Logger,
+	localBundle *spiffebundle.Bundle,
 	svidRequests []config.SVIDRequest,
 ) ([]*workloadpb.X509SVID, error) {
 	ctx, span := tracer.Start(ctx, "SPIFFEWorkloadAPIService/fetchX509SVIDs")
 	defer span.End()
-	// Fetch this once at the start and share it across all SVIDs to reduce
-	// contention on the mutex and to ensure that all SVIDs are using the
-	// same trust bundle.
-	trustBundle := s.getTrustBundle()
-	bundleRawCerts := trustBundleToRawCerts(trustBundle)
 
 	// TODO(noah): We should probably take inspiration from SPIRE agent's
 	// behavior of pre-fetching the SVIDs rather than doing this for
@@ -415,6 +307,8 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
+	marshaledBundle := spiffe.MarshalX509Bundle(localBundle.X509Bundle())
+
 	// Convert responses from the Teleport API to the SPIFFE Workload API
 	// format.
 	svids := make([]*workloadpb.X509SVID, len(res.Svids))
@@ -428,7 +322,7 @@ func (s *SPIFFEWorkloadAPIService) fetchX509SVIDs(
 			// Required. ASN.1 DER encoded PKCS#8 private key. MUST be unencrypted.
 			X509SvidKey: pkcs8PrivateKey,
 			// Required. ASN.1 DER encoded X.509 bundle for the trust domain.
-			Bundle: bundleRawCerts,
+			Bundle: marshaledBundle,
 			Hint:   svidRes.Hint,
 		}
 		cert, err := x509.ParseCertificate(svidRes.Certificate)
@@ -628,8 +522,6 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 	_ *workloadpb.X509SVIDRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchX509SVIDServer,
 ) error {
-	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
 	ctx := srv.Context()
 
 	log, creds, err := s.authenticateClient(ctx)
@@ -659,15 +551,32 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		)
 	}
 
+	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
+	defer stopBundleSetCh()
+
+	var bundleSet *spiffe.BundleSet
+	select {
+	case <-ctx.Done():
+		return nil
+	case bundleSet = <-bundleSetCh:
+	}
+	// TODO: If no value is available within the first X seconds, should we drop
+	// the client rather than keeping them waiting.
+
+	var svids []*workloadpb.X509SVID
 	for {
 		log.InfoContext(ctx, "Starting to issue X509 SVIDs to workload")
 
-		svids, err := s.fetchX509SVIDs(ctx, log, svidReqs)
-		if err != nil {
-			return trace.Wrap(err)
+		// Fetch SVIDs if necessary.
+		if svids == nil {
+			svids, err = s.fetchX509SVIDs(ctx, log, bundleSet.Local, svidReqs)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		err = srv.Send(&workloadpb.X509SVIDResponse{
-			Svids: svids,
+			Svids:            svids,
+			FederatedBundles: bundleSet.EncodedX509Bundles(false),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -680,12 +589,18 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		case <-ctx.Done():
 			log.DebugContext(ctx, "Context closed, stopping SVID stream")
 			return nil
+		case newBundleSet := <-bundleSetCh:
+			log.DebugContext(ctx, "Federated trust bundles have been updated, renewing SVIDs")
+			if !newBundleSet.Local.Equal(bundleSet.Local) {
+				// If the "local" trust domain's CA has changed, we need to
+				// reissue the SVIDs.
+				svids = nil
+			}
+			bundleSet = newBundleSet
+			continue
 		case <-time.After(s.botCfg.RenewalInterval):
 			log.DebugContext(ctx, "Renewal interval reached, renewing SVIDs")
-			// Time to renew the certificate
-			continue
-		case <-renewCh:
-			log.DebugContext(ctx, "Trust bundle has been updated, renewing SVIDs")
+			svids = nil
 			continue
 		}
 	}
@@ -702,29 +617,26 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	ctx := srv.Context()
 	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
 	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
-	renewCh, unsubscribe := s.trustBundleBroadcast.subscribe()
-	defer unsubscribe()
+
+	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
+	defer stopBundleSetCh()
 
 	for {
+		var bundleSet *spiffe.BundleSet
+		select {
+		case <-ctx.Done():
+			return nil
+		case bundleSet = <-bundleSetCh:
+		}
+		// TODO: If no value is available within the first X seconds, should we drop
+		// the client rather than keeping them waiting.
+
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
-		tb := s.getTrustBundle()
 		err := srv.Send(&workloadpb.X509BundlesResponse{
-			// Bundles keyed by trust domain
-			Bundles: map[string][]byte{
-				tb.TrustDomain().IDString(): trustBundleToRawCerts(tb),
-			},
+			Bundles: bundleSet.EncodedX509Bundles(true),
 		})
 		if err != nil {
 			return trace.Wrap(err)
-		}
-
-		select {
-		case <-ctx.Done():
-			s.log.DebugContext(ctx, "Context closed, stopping x.509 trust bundle stream")
-			return nil
-		case <-renewCh:
-			s.log.DebugContext(ctx, "Trust bundle has been updated, resending trust bundle")
-			continue
 		}
 	}
 }

@@ -396,9 +396,6 @@ type Policies interface {
 	Retrieve(ctx context.Context, arn string, tags map[string]string) (policy *iam.Policy, policyVersions []*iam.PolicyVersion, err error)
 	// Attach attaches a policy with `arn` to the provided `identity`.
 	Attach(ctx context.Context, arn string, identity Identity) error
-	// AttachBoundary attaches a policy boundary with `arn` to the provided
-	// `identity`.
-	AttachBoundary(ctx context.Context, arn string, identity Identity) error
 }
 
 // policies default implementation of the policies functions.
@@ -563,39 +560,6 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 		}
 	default:
 		return trace.BadParameter("policies can be attached to users and roles, received %q.", identity.GetType())
-	}
-
-	return nil
-}
-
-// AttachBoundary attaches a policy boundary with `arn` to the provided
-// `identity`.
-//
-// Only `User` and `Role` identities supported.
-//
-// Requires the following AWS permissions to be performed:
-// * `iam:PutUserPermissionsBoundary`: wildcard ("*") or provided user identity;
-// * `iam:PutRolePermissionsBoundary`: wildcard ("*") or provided role identity;
-func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Identity) error {
-	switch identity.(type) {
-	case User, *User:
-		_, err := p.iamClient.PutUserPermissionsBoundaryWithContext(ctx, &iam.PutUserPermissionsBoundaryInput{
-			PermissionsBoundary: aws.String(arn),
-			UserName:            aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
-		}
-	case Role, *Role:
-		_, err := p.iamClient.PutRolePermissionsBoundaryWithContext(ctx, &iam.PutRolePermissionsBoundaryInput{
-			PermissionsBoundary: aws.String(arn),
-			RoleName:            aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
-		}
-	default:
-		return trace.BadParameter("boundary policies can be attached to users and roles, received %q.", identity.GetType())
 	}
 
 	return nil
