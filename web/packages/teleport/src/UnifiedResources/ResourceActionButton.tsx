@@ -156,21 +156,28 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
     samlApp,
     samlAppSsoUrl,
     samlAppPreset,
+    permission_sets,
   } = app;
   const { actions, userSamlIdPPerm } = useSamlAppAction();
+  
+  function getawsLaunchUrl(arn, display) {
+    if (permission_sets.length > 0) {
+     return `${publicAddr}&role_name=${display}`
+      } else {
+        return cfg.getAppLauncherRoute({
+          fqdn,
+          clusterId,
+          publicAddr,
+          arn,
+        })
+      }
+  }
   if (awsConsole) {
     return (
       <AwsLaunchButton
         width="123px"
         awsRoles={awsRoles}
-        getLaunchUrl={arn =>
-          cfg.getAppLauncherRoute({
-            fqdn,
-            clusterId,
-            publicAddr,
-            arn,
-          })
-        }
+        getLaunchUrl={getawsLaunchUrl}
       />
     );
   }

@@ -937,6 +937,8 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 			}
 		}
 
+		// loginURL := fmt.Sprintf("https://%s.awsapps.com/start/#/console?account_id=%s&role_name=%s",acct.Metadata.Name )
+
 		protoResource = &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
 				AppServer: &types.AppServerV3{
@@ -954,7 +956,8 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 								Labels:      acct.Metadata.Labels,
 							},
 							Spec: types.AppSpecV3{
-								URI: "https://console.aws.amazon.com/#start",
+								URI:        acct.Spec.StartUrl,
+								PublicAddr: acct.Spec.StartUrl,
 								AWS: &types.AppAWS{
 									ExternalID: acct.Spec.Id,
 								},

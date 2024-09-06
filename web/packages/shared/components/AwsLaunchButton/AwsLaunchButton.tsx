@@ -113,7 +113,7 @@ function RoleItemList({
 }) {
   const awsRoleItems = awsRoles.map((item, key) => {
     const { display, arn, name, accountId } = item;
-    const launchUrl = getLaunchUrl(arn);
+    const launchUrl = getLaunchUrl(arn, name);
     let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
@@ -178,7 +178,7 @@ function RoleItemList({
 
 type Props = {
   awsRoles: AwsRole[];
-  getLaunchUrl(arn: string): string;
+  getLaunchUrl(arn: string, display?: string): string;
   onLaunchUrl?(arn: string): void;
   width?: string;
 };
