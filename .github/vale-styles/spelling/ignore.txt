@@ -415,6 +415,7 @@ dbuser
 deanonymize
 deletecollection
 demodb
+deregister
 deregisters
 devel
 develnode
