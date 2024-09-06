@@ -7,7 +7,7 @@ When running the Teleport Terraform provider on Terraform Cloud, you can use its
 built-in Machine ID support to dynamically authenticate to your Teleport cluster
 without any shared secrets.
 
-Run when in this configuration, the Terraform provider proves its identity to
+When run in this configuration, the Terraform provider proves its identity to
 the Teleport Auth Service using Terraform Cloud's [Workload Identity] tokens.
 
 [Workload Identity]: https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens
@@ -15,6 +15,11 @@ the Teleport Auth Service using Terraform Cloud's [Workload Identity] tokens.
 While following this guide, you'll configure your Teleport cluster to accept
 join requests from Terraform Cloud runs and configure the provider to
 authenticate using the Terraform Cloud join method.
+
+Note that this guide applies to both the public HCP Terraform a.k.a. Terraform
+Cloud SaaS, as well as self-hosted Terraform Enterprise. This does **not** apply
+to Terraform or OpenTofu when run on other CI/CD platforms like Spacelift, so
+refer to guides that apply to your particular environment where available.
 
 ## Prerequisites
 
@@ -30,12 +35,13 @@ authenticate using the Terraform Cloud join method.
 
   To import existing Teleport resources as Terraform resources, you must have
   Terraform version `v1.5.0` or above.
-- A Terraform Cloud account and project.
+- An account and project on either the public Terraform Cloud SaaS or a
+  Terraform Enterprise instance
 - The Teleport Terraform provider, v16.3.0 or later
 
 [//]: # (TODO: verify which Teleport release will contain the TF Cloud method)
 
-## Step 1/4: Configure Terraform Cloud joining
+## Step 1/4: Configure Terraform Cloud joining in Teleport
 
 To start, the Teleport Auth Service needs to be configured to accept join
 requests from Terraform Cloud runs.
@@ -114,23 +120,59 @@ requests from Terraform Cloud runs.
 
 1. Finally, the new bot needs to be allowed to authenticate with Terraform Cloud
    Workload Identity credentials. Create a file named `terraform_token.yaml`
-   with this content:
+   with this content, depending on whether you are using Terraform Cloud or
+   self-hosted Terraform Enterprise:
 
-   ```yaml
-   kind: token
-   version: v2
-   metadata:
-     name: terraform
-   spec:
-     roles: [Bot]
-     join_method: terraform_cloud
-     bot_name: terraform
-     terraform:
-       allow:
-         - organization_name: ExampleOrganization
-           project_name: example-project
-           workspace_name: example-workspace
+   <Tabs>
+   <TabItem label="Terraform Cloud">
+     ```yaml
+     kind: token
+     version: v2
+     metadata:
+       name: terraform
+     spec:
+       roles: [Bot]
+       join_method: terraform_cloud
+       bot_name: terraform
+       terraform:
+         allow:
+           - organization_name: ExampleOrganization
+             project_name: example-project
+             workspace_name: example-workspace
    ```
+   </TabItem>
+   <TabItem label="Terraform Enterprise">
+     Self-hosted Terraform Enterprise installations will need to additionally
+     configure the `hostname` parameter:
+
+     ```yaml
+     kind: token
+     version: v2
+     metadata:
+       name: terraform
+     spec:
+       roles: [Bot]
+       join_method: terraform_cloud
+       bot_name: terraform
+       terraform:
+         hostname: terraform.example.com
+         allow:
+           - organization_name: ExampleOrganization
+             project_name: example-project
+             workspace_name: example-workspace
+     ```
+
+     This `hostname` value should match the `iss` parameter of the JWTs issued
+     to your Terraform Enterprise runs, without the `https://` prefix. For more
+     information, refer to the [Terraform Enterprise documentation][tfe-docs].
+
+     Note that if `hostname` is not configured, it will default to the Terraform
+     Cloud issuer and join attempts will fail.
+
+     [tfe-docs]: https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
+   </TabItem>
+   </Tabs>
+
 
    This token, named `terraform`, allows Terraform Cloud runs to authenticate
    with Teleport when all 3 of the values allowed in the token match those
@@ -139,8 +181,8 @@ requests from Terraform Cloud runs.
    Make sure to replace the organization, project, and workspace names to match
    your Terraform Cloud project or projects. If desired, the fields
    `organization_id`, `project_id`, and `workspace_id` can be used as well to
-   specify †he exact resource IDs. The values must exactly match those shown in
-   the Terraform Cloud dashboard.
+   specify exact resource IDs. The values must exactly match those shown in the
+   Terraform Cloud dashboard.
 
    Note that each `allow` rule must specify at least an `organization_name` or
    `organization_id`, and at least one other option (workspace and/or project).
@@ -178,13 +220,14 @@ The end result should look like this:
 ![Terraform Cloud Dashboard Example](../../../../img/machine-id/terraform-cloud-variables.png)
 
 Once this variable is set, all subsequent runs in this workspace will be issued
-JWTs.
+JWTs with the audience configured in the variable value, i.e.
+`example.teleport.sh` as shown here.
 
 ## Step 3/4: Configure the Terraform Provider
 
 In your `provider.tf` or similar, configure the `teleport` provider:
 
-```terraform
+```hcl
 provider "teleport" {
   addr = "example.teleport.sh:443"
   join_method = "terraform_cloud"
@@ -195,16 +238,20 @@ provider "teleport" {
 
 Critically, these parameters should be set:
 * `addr` should match the public hostname and port of your Teleport cluster
-* `join_method` should be `terraform_cloud`
+* `join_method` should be `terraform_cloud`. Note that Terraform Enterprise also
+  uses the same join method, with a hostname as configured in Step 1.
 * `join_token` should match the name of the `token` resource created in Step #2
 * `audience_tag` should match the suffix on the key of the variable created in
   the Terraform Cloud dashboard. For example, given the variable key
   `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT`, the audience tag should be
   `teleport`.
 
+Be sure to remove any preexisting `identity_file_path`; it is replaced by
+`join_method` and `join_token`.
+
 For a complete example, consider this minimal `provider.tf`:
 
-```terraform
+```hcl
 terraform {
   cloud {
     organization = "ExampleOrganization"
@@ -217,7 +264,7 @@ terraform {
   required_providers {
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = "17.0.0-dev.1"
+      version = "(=teleport.plugin.version=)"
     }
   }
 }
@@ -243,8 +290,9 @@ resource "teleport_role" "test" {
 
 ## Step 4/4: Run Terraform
 
-You should now be able to perform a Terraform `plan` or `apply`. Both the CLI
-and API/Git triggers are supported.
+You should now be able to perform a Terraform `plan` or `apply`. All types of
+triggers should work, including CLI, API, and Git, so long as the run is
+coordinated by Terraform Cloud.
 
 Assuming your local `terraform` is authenticated to Terraform Cloud, try:
 ```code
@@ -253,3 +301,31 @@ $ terraform plan
 
 The workflow should successfully execute, depending on your Terraform
 configuration.
+
+## Troubleshooting
+
+### Extracting a JWT for debugging purposes
+
+If you need to view a JWT sample for debugging purposes, you can create a
+`null_resource` that prints the JWT for the run:
+
+```hcl
+resource "null_resource" "print_token" {
+  provisioner "local-exec" {
+    command = "echo TFC_WORKLOAD_IDENTITY_TOKEN_TELEPORT: $TFC_WORKLOAD_IDENTITY_TOKEN_TELEPORT"
+  }
+}
+```
+
+Once applied, you should see the encoded JWT printed in your Terraform log.
+These values can be decoded either by hand or with any number of tools, for
+example [`jwt-cli`].
+
+[`jwt-cli`]: https://github.com/mike-engel/jwt-cli
+
+Note that these JWTs are generally valid for 2 hours and can potentially be used
+to authenticate to your Teleport cluster, so this value should be treated with
+care.
+
+This may be useful for determining the exact issuer (`iss`) value needed to
+configure Terraform Enterprise join tokens, or if you need to request support.
