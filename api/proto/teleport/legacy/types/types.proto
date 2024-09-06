@@ -6031,7 +6031,7 @@ message PluginSpecV1 {
     PluginSCIMSettings scim = 14;
 
     // Placeholder for a real service
-    PluginAWSICSettings aws_iam_ic = 99;
+    PluginAWSICSettings aws_ic = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6283,16 +6283,29 @@ message PluginSCIMSettings {
 message PluginAWSICSettings {
   option (gogoproto.equal) = true;
 
-  // IntegrationId is the OIDC integration used to gain access to the
+  // IntegrationName is the OIDC integration used to gain access to the
   // AWS account
-  string integration_id = 1;
+  string integration_name = 1;
 
-  // InstanceRegion is the region the target Identity Center instance is
+  // Region is the region the target Identity Center instance is
   // configured in
-  string instance_region = 2;
+  string region = 2;
 
-  // InstanceARN is the arn of the Identity Center instance to manage
-  string instance_arn = 3;
+  // ARN is the arn of the Identity Center instance to manage
+  string arn = 3;
+
+  AWSICProvisioningSpec provisioning_spec = 4;
+}
+
+message AWSICProvisioningSpec {
+  option (gogoproto.equal) = true;
+
+  // BaseURL is the SCIM base URL
+  string base_url = 1;
+
+  string access_token = 2;
+
+  repeated string default_owners = 3;
 }
 
 message PluginBootstrapCredentialsV1 {

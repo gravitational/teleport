@@ -326,12 +326,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	case *PluginSpecV1_AwsIamIc:
-		if settings.AwsIamIc == nil {
+	case *PluginSpecV1_AwsIc:
+		if settings.AwsIc == nil {
 			return trace.BadParameter("Must be used with AWS IC settings")
 		}
 
-		if err := settings.AwsIamIc.CheckAndSetDefaults(); err != nil {
+		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "invalid AWS Identity Center plugin configuration")
 		}
 
@@ -497,7 +497,7 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-	case *PluginSpecV1_AwsIamIc:
+	case *PluginSpecV1_AwsIc:
 		return PluginTypeAWSIC
 	default:
 		return PluginTypeUnknown
@@ -676,13 +676,38 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 }
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
-	if c.InstanceArn == "" {
+	if c.IntegrationName == "" {
+		return trace.BadParameter("AWS OIDC integration name must be set")
+	}
+
+	if c.Arn == "" {
 		return trace.BadParameter("instance_arn ust be set")
 	}
 
-	if !arn.IsARN(c.InstanceArn) {
+	if !arn.IsARN(c.Arn) {
 		return trace.BadParameter("malformed instance_arn")
 	}
+
+	if c.Region == "" {
+		return trace.BadParameter("AWS Identity Center region must be set")
+	}
+
+	if c.ProvisioningSpec == nil {
+		return trace.BadParameter("provisioning spec must be set")
+	}
+
+	if err := c.ProvisioningSpec.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "checking provisioning config")
+	}
+
+	return nil
+}
+
+func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
+	if c.BaseUrl == "" {
+		return trace.BadParameter("base URL data must be set")
+	}
+
 	return nil
 }
 

@@ -191,7 +191,7 @@ func ForAuth(cfg Config) Config {
 		// in-memory database from the stateful backend. Removing them
 		// from this watchKind forces presence service to lookup
 		// in stateful-database instead of in-memory which is the default.
-		// {Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterAccount},
 		{Kind: types.KindIdentityCenterPrincipalAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize

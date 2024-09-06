@@ -1640,7 +1640,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
 		case settingsAWDIC:
-			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIamIc{}
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_AwsIc{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
