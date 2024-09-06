@@ -300,7 +300,6 @@ const Container = styled(Box)`
   position: relative;
   background: ${props => props.theme.colors.levels.elevated};
   border-left: ${props => props.theme.borders[3]};
-  min-height: 40px;
   width: 320px;
   box-shadow:
     0px 3px 5px -1px rgba(0, 0, 0, 0.2),
