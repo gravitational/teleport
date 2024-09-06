@@ -5,7 +5,7 @@
 # Teleport-published image.
 image: public.ecr.aws/gravitational/tbot-distroless
 # clusterName(string) -- should be the name of the Teleport cluster that your
-# Bot will join.
+# Bot will join. You can retrieve it by running `tctl status`.
 #
 # For example: `clusterName: "test.teleport.sh"`
 clusterName: ""
@@ -13,14 +13,31 @@ clusterName: ""
 nameOverride: ""
 fullnameOverride: ""
 
-# teleportAuthAddress(string)
-# Mutually exclusive with teleportProxyAddress.
-# Ignored if `customConfig` is set.
-teleportAuthAddress: ""
-# teleportProxyAddress(string)
-# Mutually exclusive with teleportAuthAddress.
-# Ignored if `customConfig` is set.
+# teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
+# This must contain the port number, usually 443 or 3080 for Proxy Service.
+# Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+# This is mandatory to connect to Teleport Cloud.
+#
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+#
+# For example:
+# ```yaml
+# teleportProxyAddress: "test.teleport.sh:443"
+# ```
 teleportProxyAddress: ""
+# teleportAuthAddress(string) -- is the teleport Auth Service address the bot will connect to.
+# This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+# should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+# Helm release and have direct access to the Auth Service.
+# Else, you should prefer connecting via the Proxy Service.
+#
+# This setting is mutually exclusive with teleportProxyAddress and is ignored if `customConfig` is set.
+#
+# For example:
+# ```yaml
+# teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+# ```
+teleportAuthAddress: ""
 
 # defaultOutput -- controls the default output configured for the tbot agent.
 # Ignored if `customConfig` is set.
@@ -28,7 +45,10 @@ defaultOutput:
   # defaultOutput.enabled(bool) -- controls whether the default output is enabled.
   enabled: true
   # defaultOutput.secretName(string) -- sets the name of the Kubernetes Secret
-  # that the default output will be written to.
+  # that the default output will be written to. Defaults to a secret named
+  # `<fullname>-output`. The chart fullname is:
+  # - `<release-name>-<chart-name>` if the release name doesn't contain the chart name already
+  # - `<release-name>` if the release name contain the chart name
   secretName: ""
 
 # persistence -- controls how the tbot agent stores its data.
@@ -56,10 +76,12 @@ outputs: []
 services: []
 
 # joinMethod(string) -- describes how tbot joins the Teleport cluster.
+# See [the join method reference](../../join-methods.mdx) for a list fo supported values and detailed explanations.
 # Ignored if `customConfig` is set.
 joinMethod: "kubernetes"
 
 # token(string) -- is the name of the token used by tbot to join the Teleport cluster.
+# This value is not sensitive unless the `joinMethod` is set to `"token"`.
 # Ignored if `customConfig` is set.
 token: ""
 
