@@ -77,3 +77,46 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	})
 	require.Empty(t, amrh.getAccessMonitoringRules())
 }
+
+func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
+	amrh := NewRuleHandler(RuleHandlerConfig{
+		PluginName:             "fakePluginName",
+		FetchRecipientCallback: mockFetchRecipient,
+	})
+
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Name:       "notTheFakePluginName",
+			Recipients: []string{"a", "b"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule1),
+	})
+	require.Len(t, amrh.getAccessMonitoringRules(), 0)
+
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+		Subjects:  []string{types.KindAccessRequest},
+		Condition: "true",
+		Notification: &pb.Notification{
+			Name:       "fakePluginName",
+			Recipients: []string{"c", "d"},
+		},
+	})
+	require.NoError(t, err)
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(rule2),
+	})
+	require.Len(t, amrh.getAccessMonitoringRules(), 1)
+
+	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
+		Type:     types.OpDelete,
+		Resource: types.Resource153ToLegacy(rule2),
+	})
+	require.Empty(t, amrh.getAccessMonitoringRules())
+}
