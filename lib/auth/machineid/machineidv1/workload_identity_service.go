@@ -59,13 +59,19 @@ type WorkloadIdentityServiceConfig struct {
 	KeyStore   KeyStorer
 }
 
+// WorkloadIdentityCacher is an interface that provides methods to retrieve
+// cached information that is necessary for the workload identity service to
+// function.
 type WorkloadIdentityCacher interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
+// KeyStorer is an interface that provides methods to retrieve keys and
+// certificates from the backend.
 type KeyStorer interface {
 	GetTLSCertAndSigner(ctx context.Context, ca types.CertAuthority) ([]byte, crypto.Signer, error)
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
 // NewWorkloadIdentityService returns a new instance of the
@@ -352,4 +358,64 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	}
 
 	return res, nil
+}
+
+func (wis *WorkloadIdentityService) signJWTSVID(
+	ctx context.Context,
+	req *pb.JWTSVIDRequest,
+) (err error) {
+	var spiffeID *url.URL
+	defer func() {
+		evt := &apievents.SPIFFESVIDIssued{
+			Metadata: apievents.Metadata{
+				Type: events.SPIFFESVIDIssuedEvent,
+				Code: events.SPIFFESVIDIssuedSuccessCode,
+			},
+			UserMetadata:       authz.ClientUserMetadata(ctx),
+			ConnectionMetadata: authz.ConnectionMetadata(ctx),
+			Hint:               req.Hint,
+			SVIDType:           "jwt",
+		}
+		if err != nil {
+			evt.Code = events.SPIFFESVIDIssuedFailureCode
+		}
+		if spiffeID != nil {
+			evt.SPIFFEID = spiffeID.String()
+		}
+		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
+			wis.logger.WithError(emitErr).Warn(
+				"Failed to emit SPIFFE SVID issued event.",
+			)
+		}
+	}()
+	// TODO: JTI for audit log trail
+}
+
+// SignJWTSVIDs signs and returns the requested JWT SVIDs.
+func (wis *WorkloadIdentityService) SignJWTSVIDs(
+	ctx context.Context, req *pb.SignJWTSVIDsRequest,
+) (*pb.SignJWTSVIDsResponse, error) {
+	if len(req.Svids) == 0 {
+		return nil, trace.BadParameter("svids: must be non-empty")
+	}
+
+	authCtx, err := wis.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch info that will be needed to create the SVIDs
+	clusterName, err := wis.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting cluster name")
+	}
+	ca, err := wis.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: clusterName.GetClusterName(),
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting SPIFFE CA")
+	}
+	jwtSigner, err := wis.keyStorer.GetJWTSigner(ctx, ca)
+
 }
