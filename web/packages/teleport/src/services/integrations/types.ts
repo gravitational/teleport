@@ -186,8 +186,8 @@ export type PluginOpsgenieSpec = {
 };
 
 export type PluginDatadogSpec = {
-    fallbackRecipient: string;
-}
+  fallbackRecipient: string;
+};
 
 export type IntegrationCreateRequest = {
   name: string;
