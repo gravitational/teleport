@@ -74,10 +74,9 @@ const appRedirectHTML = `
       (function() {
         var url = new URL(window.location);
         var params = new URLSearchParams(url.search);
-        var searchParts = window.location.search.split('=');
-        var stateValue = params.get("state");
-        var subjectValue = params.get("subject");
-        var path = params.get("path");
+        var stateValue = params.get('state');
+        var subjectValue = params.get('subject');
+        var path = params.get('path');
         if (!stateValue) {
           return;
         }
@@ -89,6 +88,7 @@ const appRedirectHTML = `
           state_value: stateValue,
           cookie_value: hashParts[1],
           subject_cookie_value: subjectValue,
+          required_apps: params.get('required-apps'),
         };
         fetch('/x-teleport-auth', {
           method: 'POST',
@@ -100,6 +100,11 @@ const appRedirectHTML = `
           body: JSON.stringify(data),
         }).then(response => {
           if (response.ok) {
+            const nextAppRedirectUrl = response.headers.get("X-Teleport-NextAppRedirectUrl")
+            if (nextAppRedirectUrl) {
+              window.location.replace(nextAppRedirectUrl)
+              return;
+            }
             try {
               // if a path parameter was passed through the redirect, append that path to the target url
               if (path) {
@@ -109,8 +114,8 @@ const appRedirectHTML = `
                 window.location.replace(url.origin);
               }
             } catch (error) {
-                // in case of malformed url, return to origin
-                window.location.replace(url.origin)
+              // in case of malformed url, return to origin
+              window.location.replace(url.origin)
             }
           }
         });
