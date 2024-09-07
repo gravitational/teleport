@@ -16,6 +16,11 @@ spec:
     # Teleport cluster name. It is not recommended to override this value.
     audience: ''
 
+    # Specify the hostname of a Terraform Enterprise instance. Overriding this
+    # value to use Terraform Enterprise requires Teleport Enterprise.
+    # If unset, refers to the public `app.terraform.io` instance.
+    hostname: ''
+
     allow:
       # At least one of `organization_name` or `organization_id` must be set.
       # Values are case and whitespace sensitive.
