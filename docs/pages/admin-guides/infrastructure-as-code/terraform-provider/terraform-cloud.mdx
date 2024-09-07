@@ -15,9 +15,7 @@ When running the Teleport Terraform provider on Terraform Cloud, you can use its
 built-in Machine ID support to dynamically authenticate to your Teleport cluster
 without any shared secrets. When run in this configuration, the Terraform
 provider proves its identity to the Teleport Auth Service using Terraform
-Cloud's [Workload Identity] tokens.
-
-[Workload Identity]: https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens
+Cloud's [Workload Identity][tf-workload-id] tokens.
 
 While following this guide, you'll configure your Teleport cluster to accept
 join requests from Terraform Cloud runs and configure the provider to
@@ -47,15 +45,13 @@ provider in these environments.
   Terraform Enterprise instance
 - The Teleport Terraform provider, v16.3.0 or later
 
-[//]: # (TODO: verify which Teleport release will contain the TF Cloud method)
-
 ## Step 1/4: Configure Terraform Cloud joining in Teleport
 
 To start, the Teleport Auth Service needs to be configured to accept join
-requests from Terraform Cloud runs. We'll do this by creating [a bot] named
-`terraform` which the Teleport Terraform provider will use in a later step.
-
-[a bot]: ../../../reference/architecture/machine-id-architecture.mdx#what-is-a-bot
+requests from Terraform Cloud runs. We'll do this by creating
+[a bot](../../../reference/architecture/machine-id-architecture.mdx#what-is-a-bot)
+named `terraform` which the Teleport Terraform provider will use in a later
+step.
 
 ```yaml
 kind: bot
@@ -125,11 +121,9 @@ self-hosted Terraform Enterprise:
 
   This `hostname` value should match the `iss` parameter of the JWTs issued
   to your Terraform Enterprise runs, without the `https://` prefix. For more
-  information, refer to the [Terraform Enterprise documentation][tfe-docs].
+  information, refer to the [Terraform Enterprise documentation][tf-workload-id].
   Note that if `hostname` is not configured, it will default to the Terraform
   Cloud issuer and join attempts will fail.
-
-  [tfe-docs]: https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
 </TabItem>
 </Tabs>
 
@@ -195,11 +189,11 @@ provider "teleport" {
 ```
 
 Critically, these parameters should be set:
-* `addr` should match the public hostname and port of your Teleport cluster
-* `join_method` should be `terraform_cloud`. Note that Terraform Enterprise also
+- `addr` should match the public hostname and port of your Teleport cluster
+- `join_method` should be `terraform_cloud`. Note that Terraform Enterprise also
   uses the same join method, with a hostname as configured in Step 1.
-* `join_token` should match the name of the `token` resource created in Step #2
-* `audience_tag` should match the suffix on the key of the variable created in
+- `join_token` should match the name of the `token` resource created in Step #2
+- `audience_tag` should match the suffix on the key of the variable created in
   the Terraform Cloud dashboard. For example, given the variable key
   `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT`, the audience tag should be
   `teleport`.
@@ -287,3 +281,5 @@ care. The full encoded token should not be shared.
 
 This may be useful for determining the exact issuer (`iss`) value needed to
 configure Terraform Enterprise join tokens, or if you need to request support.
+
+[tf-workload-id]: https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens
