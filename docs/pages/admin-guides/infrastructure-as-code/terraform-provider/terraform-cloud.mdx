@@ -41,8 +41,10 @@ provider in these environments.
 
   To import existing Teleport resources as Terraform resources, you must have
   Terraform version `v1.5.0` or above.
+
 - An account and project on either the public Terraform Cloud SaaS or a
   Terraform Enterprise instance
+
 - The Teleport Terraform provider, v16.3.0 or later
 
 ## Step 1/4: Configure Terraform Cloud joining in Teleport
@@ -273,8 +275,6 @@ Once applied, you should see the encoded JWT printed in your Terraform log.
 These values can be decoded either by hand or with any number of tools, for
 example [`jwt-cli`].
 
-[`jwt-cli`]: https://github.com/mike-engel/jwt-cli
-
 Note that these JWTs are generally valid for 2 hours and can potentially be used
 to authenticate to your Teleport cluster, so this value should be treated with
 care. The full encoded token should not be shared.
@@ -283,3 +283,4 @@ This may be useful for determining the exact issuer (`iss`) value needed to
 configure Terraform Enterprise join tokens, or if you need to request support.
 
 [tf-workload-id]: https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens
+[`jwt-cli`]: https://github.com/mike-engel/jwt-cli
