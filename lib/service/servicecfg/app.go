@@ -87,6 +87,10 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string
+
+	// RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredAppNames []string
 }
 
 // CheckAndSetDefaults validates an application.
