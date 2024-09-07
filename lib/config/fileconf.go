@@ -1031,6 +1031,9 @@ type AuthenticationConfig struct {
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
 	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
+
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `yaml:"signature_algorithm_suite"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1078,20 +1081,21 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:              a.Type,
-		SecondFactor:      a.SecondFactor,
-		ConnectorName:     a.ConnectorName,
-		U2F:               u,
-		Webauthn:          w,
-		RequireMFAType:    a.RequireMFAType,
-		LockingMode:       a.LockingMode,
-		AllowLocalAuth:    a.LocalAuth,
-		AllowPasswordless: a.Passwordless,
-		AllowHeadless:     a.Headless,
-		DeviceTrust:       dt,
-		DefaultSessionTTL: a.DefaultSessionTTL,
-		PIVSlot:           string(a.PIVSlot),
-		HardwareKey:       h,
+		Type:                    a.Type,
+		SecondFactor:            a.SecondFactor,
+		ConnectorName:           a.ConnectorName,
+		U2F:                     u,
+		Webauthn:                w,
+		RequireMFAType:          a.RequireMFAType,
+		LockingMode:             a.LockingMode,
+		AllowLocalAuth:          a.LocalAuth,
+		AllowPasswordless:       a.Passwordless,
+		AllowHeadless:           a.Headless,
+		DeviceTrust:             dt,
+		DefaultSessionTTL:       a.DefaultSessionTTL,
+		PIVSlot:                 string(a.PIVSlot),
+		HardwareKey:             h,
+		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
 	})
 }
 
@@ -1996,6 +2000,10 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

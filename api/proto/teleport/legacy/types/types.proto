@@ -970,6 +970,9 @@ message AppSpecV3 {
   // Only applicable to AWS App Access.
   // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
   string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
+  // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+  // be part of the authentication redirect flow and authenticate along side this app.
+  repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -4555,10 +4558,14 @@ message OIDCAuthRequest {
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
 
-  // PublicKey is an optional public key, users want these
-  // keys to be signed by auth servers user CA in case
-  // of successful auth
-  bytes PublicKey = 7 [(gogoproto.jsontag) = "public_key"];
+  // PublicKey is an optional public key, users want these keys to be signed by
+  // auth servers user CA in case of successful auth.
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 7 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -4596,7 +4603,12 @@ message OIDCAuthRequest {
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -4604,6 +4616,17 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 20 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 21 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4707,7 +4730,12 @@ message SAMLAuthRequest {
   // PublicKey is an optional public key, users want these
   // keys to be signed by auth servers user CA in case
   // of successful auth.
-  bytes PublicKey = 6 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 6 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -4742,6 +4770,8 @@ message SAMLAuthRequest {
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
@@ -4750,6 +4780,17 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4842,7 +4883,12 @@ message GithubAuthRequest {
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
   // PublicKey is an optional public key to sign in case of successful auth.
-  bytes PublicKey = 5 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 5 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -4872,13 +4918,28 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // AttestationStatement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
   // ClientUserAgent is the user agent of the Web browser, used for issuing
   // a DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -6175,6 +6236,11 @@ message PluginOktaSyncSettings {
   //   ^app.*$
   //   ^.*service.*$
   repeated string app_filters = 7;
+
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. May be missing for old Okta integration installs.
+  string app_name = 8;
 }
 
 // Defines a set of discord channel IDs

@@ -767,58 +767,6 @@ func TestAttachPolicy(t *testing.T) {
 	}
 }
 
-func TestAttachPolicyBoundary(t *testing.T) {
-	ctx := context.Background()
-
-	tests := map[string]struct {
-		returnError bool
-		identity    Identity
-		iamMock     *iamMock
-	}{
-		"AttachToUser": {
-			identity: userIdentity(),
-			iamMock: &iamMock{
-				attachUserBoundary: true,
-			},
-		},
-		"AttachToRole": {
-			identity: roleIdentity(),
-			iamMock: &iamMock{
-				attachRoleBoundary: true,
-			},
-		},
-		"UnsupportedIdentity": {
-			returnError: true,
-			identity:    unknownIdentity(),
-			iamMock: &iamMock{
-				// "enable" both attach to ensure the error doesn't come from
-				// the IAM client.
-				attachUserBoundary: true,
-				attachRoleBoundary: true,
-			},
-		},
-		"AttachError": {
-			returnError: true,
-			identity:    userIdentity(),
-			iamMock:     &iamMock{},
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			policies := NewPolicies("", "", test.iamMock)
-
-			err := policies.AttachBoundary(ctx, "", test.identity)
-			if test.returnError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-		})
-	}
-}
-
 // userIdentity helper function to generate an user `Identity` .
 func userIdentity() Identity {
 	return &User{
@@ -851,10 +799,8 @@ type iamMock struct {
 	policyVersionCreated *iam.PolicyVersion
 	policyVersionDeleted bool
 
-	attachUserPolicy   bool
-	attachRolePolicy   bool
-	attachUserBoundary bool
-	attachRoleBoundary bool
+	attachUserPolicy bool
+	attachRolePolicy bool
 }
 
 func (m *iamMock) GetPolicyWithContext(context.Context, *iam.GetPolicyInput, ...request.Option) (*iam.GetPolicyOutput, error) {
@@ -911,22 +857,6 @@ func (m *iamMock) AttachRolePolicyWithContext(context.Context, *iam.AttachRolePo
 	}
 
 	return &iam.AttachRolePolicyOutput{}, nil
-}
-
-func (m *iamMock) PutUserPermissionsBoundaryWithContext(context.Context, *iam.PutUserPermissionsBoundaryInput, ...request.Option) (*iam.PutUserPermissionsBoundaryOutput, error) {
-	if !m.attachUserBoundary {
-		return nil, awserr.NewRequestFailure(awserr.New(iam.ErrCodeServiceNotSupportedException, "not implemented", nil), 501, "")
-	}
-
-	return &iam.PutUserPermissionsBoundaryOutput{}, nil
-}
-
-func (m *iamMock) PutRolePermissionsBoundaryWithContext(context.Context, *iam.PutRolePermissionsBoundaryInput, ...request.Option) (*iam.PutRolePermissionsBoundaryOutput, error) {
-	if !m.attachRoleBoundary {
-		return nil, awserr.NewRequestFailure(awserr.New(iam.ErrCodeServiceNotSupportedException, "not implemented", nil), 501, "")
-	}
-
-	return &iam.PutRolePermissionsBoundaryOutput{}, nil
 }
 
 func TestEqualStatement(t *testing.T) {

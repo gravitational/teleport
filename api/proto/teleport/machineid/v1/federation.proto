@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.machineid.v1;
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
@@ -72,11 +71,22 @@ message SPIFFEFederationSpec {
 
 // FederationStatus is the status of a trust domain federation.
 message SPIFFEFederationStatus {
+  reserved 3;
+  reserved "current_bundle_refresh_hint";
+
   // The most recently fetched bundle from the federated trust domain.
   string current_bundle = 1;
   // The time that the most recently fetched bundle was obtained.
   google.protobuf.Timestamp current_bundle_synced_at = 2;
-  // The duration that the current bundle suggests the next bundle should be
-  // refresh after.
-  google.protobuf.Duration current_bundle_refresh_hint = 3;
+  // The time that this SPIFFE federation should be synced again. This is
+  // usually determined by the refresh hint provided within the current bundle
+  // but this can be overridden by the server where the provided refresh hint
+  // is not appropriate.
+  //
+  // A value of zero indicates that an automatic sync is not scheduled (e.g.
+  // because the bundle source is static).
+  google.protobuf.Timestamp next_sync_at = 4;
+  // The SPIFFEFederationBundleSource that was used for the currently synced
+  // bundle. This allows the bundle to be resynced if the source changes.
+  SPIFFEFederationBundleSource current_bundle_synced_from = 5;
 }

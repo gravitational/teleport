@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -271,7 +272,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 					SemaphoreKind: types.KindAccessGraph,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
-					Expires:       s.clock.Now().Add(semaphoreExpiration),
 					Holder:        s.Config.ServerID,
 				},
 				Expiry: semaphoreExpiration,
@@ -359,7 +359,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
 			// before starting the sync.
-			return nil
+			_, err := stream.CloseAndRecv() /* signal the end of the stream  and wait for the response */
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+			return trace.Wrap(err)
 		}
 		select {
 		case <-ctx.Done():

@@ -308,6 +308,9 @@ export const eventCodes = {
   INTEGRATION_CREATE: 'IG001I',
   INTEGRATION_UPDATE: 'IG002I',
   INTEGRATION_DELETE: 'IG003I',
+  STATIC_HOST_USER_CREATE: 'SHU001I',
+  STATIC_HOST_USER_UPDATE: 'SHU002I',
+  STATIC_HOST_USER_DELETE: 'SHU003I',
 } as const;
 
 /**
@@ -1697,6 +1700,18 @@ export type RawEvents = {
   >;
   [eventCodes.INTEGRATION_DELETE]: RawEvent<
     typeof eventCodes.INTEGRATION_DELETE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_CREATE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_CREATE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_UPDATE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_UPDATE,
+    HasName
+  >;
+  [eventCodes.STATIC_HOST_USER_DELETE]: RawEvent<
+    typeof eventCodes.STATIC_HOST_USER_DELETE,
     HasName
   >;
 };
