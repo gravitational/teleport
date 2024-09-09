@@ -143,8 +143,7 @@ func Run(args []string) error {
 		return trace.Errorf("setting up logger")
 	}
 
-	err = validateCLIConfig(&ccfg)
-	if err != nil {
+	if err := validateCLIConfig(&ccfg); err != nil {
 		return trace.Wrap(err)
 	}
 
