@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -314,6 +315,204 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 	us, err := f.authServer.GetUserLoginState(f.testContext, username)
 	require.NoError(t, err)
 	require.Equal(t, postProcessedUserState, us)
+}
+
+// TestSAMLPostProcessingPreservesIntegrationRoles asserts that the default
+// roles assigned by an integration are preserved.
+func TestSAMLPostProcessingPreservesIntegrationRoles(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN a Teleport cluster with a SAML login service and various roles
+	// configured
+	f := newSAMLTestFixture(t)
+
+	for _, roleName := range []string{"drummer", "guitarist", teleport.SystemOktaRequesterRoleName} {
+		r, err := types.NewRole(roleName, types.RoleSpecV6{})
+		require.NoError(t, err)
+
+		_, err = f.authServer.CreateRole(f.testContext, r)
+		require.NoError(t, err)
+	}
+
+	// ALSO GIVEN a SAML connector configured with an attribute-to-role mapping
+	connector, err := types.NewSAMLConnector(
+		"test-ctor",
+		types.SAMLConnectorSpecV2{
+			AssertionConsumerService: "https://example.com/saml/v2",
+			EntityDescriptorURL:      "https://example.com/saml/v2/identity_descriptor",
+			AttributesToRoles: []types.AttributeMapping{
+				{
+					Name:  "instruments",
+					Value: "drums",
+					Roles: []string{"drummer"},
+				},
+				{
+					Name:  "instruments",
+					Value: "guitar",
+					Roles: []string{"guitarist"},
+				},
+			},
+		})
+	require.NoError(t, err, "failed creating SAML connector")
+
+	// // ALSO GIVEN a userGeorge configured with Origin: Okta but DOES NOT have the Okta
+	// // integration's default "okta requester" role
+	// userGeorge, err := types.NewUser(usernameGeorge)
+	// require.NoError(t, err)
+	// userGeorge.SetOrigin(types.OriginOkta)
+	// _, err = f.authServer.Services.CreateUser(f.testContext, userGeorge)
+	// require.NoError(t, err)
+
+	diagContext := auth.NewSSODiagContext(types.KindSAML, f.samlService.auth)
+
+	t.Run("preserved role is not deleted", func(t *testing.T) {
+		const username = "ringo@apple-records.example.com"
+
+		// GIVEN all the above, and...
+
+		// ALSO GIVEN a user configured with Origin: Okta AND having the Okta
+		// integration's default "okta requester" role
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+		src.SetOrigin(types.OriginOkta)
+		src.SetRoles([]string{teleport.SystemOktaRequesterRoleName})
+		ringo, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		// WHEN I simulate a SAML login by invoking the user post-login processor
+		// with a set of SAML assertions that do not match the existing traits of
+		// the target user
+		authRequest := &types.SAMLAuthRequest{}
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{
+				"instruments": samltypes.Attribute{
+					Name:   "instruments",
+					Values: []samltypes.AttributeValue{{Value: "drums"}},
+				},
+			},
+		}
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			ringo,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo)
+
+		// EXPECT that the operation succeeds
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+
+		// ALSO EXPECT that the returned UserState has a role-set derived
+		// applying the AttributesToRoles to the updated, SAML-derived traits
+		// WHILE ALSO preserving the Okta-default "okta-requester" role
+		expectedRoles := []string{"drummer", teleport.SystemOktaRequesterRoleName}
+		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
+	})
+
+	t.Run("preserved role is not added", func(t *testing.T) {
+		const username = "george@apple-records.example.com"
+
+		// GIVEN all the above, and...
+
+		// ALSO GIVEN a user configured with Origin: Okta BUT DOES NOT have the
+		// Okta integration's default "okta requester" role
+		src, err := types.NewUser(username)
+		require.NoError(t, err)
+		src.SetOrigin(types.OriginOkta)
+		george, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		// WHEN I simulate a SAML login by invoking the user post-login processor
+		// with a set of SAML assertions that do not match the existing traits of
+		// the target user
+		authRequest := &types.SAMLAuthRequest{}
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{
+				"instruments": samltypes.Attribute{
+					Name:   "instruments",
+					Values: []samltypes.AttributeValue{{Value: "guitar"}},
+				},
+			},
+		}
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			george,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo)
+
+		// EXPECT that the operation succeeds
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+
+		// ALSO EXPECT that the returned UserState has a role-set derived
+		// applying the AttributesToRoles to the updated, SAML-derived traits
+		// WHILE ALSO preserving the Okta-default "okta-requester" role
+		expectedRoles := []string{"guitarist"}
+		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
+	})
+
+	t.Run("origin without preserved roles doesn't crash", func(t *testing.T) {
+		const (
+			username = "john@apple-records.example.com"
+			origin   = types.OriginEntraID
+		)
+
+		// GIVEN all the above, and...
+
+		// ALSO GIVEN a user configured with an origin that has no preserved
+		// roles
+
+		// let's just make sure the target origin's preserved role set actually
+		// *is* empty, otherwise this test is invalid.
+		preservedRoles, _ := f.samlService.preservedRoles.Load(origin)
+		require.Empty(t, preservedRoles)
+
+		src, err := types.NewUser(username)
+		src.SetOrigin(origin)
+		require.NoError(t, err)
+		john, err := f.authServer.Services.CreateUser(f.testContext, src)
+		require.NoError(t, err)
+
+		// WHEN I simulate a SAML login by invoking the user post-login processor
+		// with a set of SAML assertions that do not match the existing traits of
+		// the target user
+
+		authRequest := &types.SAMLAuthRequest{}
+		assertionInfo := &saml2.AssertionInfo{
+			NameID: username,
+			Values: saml2.Values{
+				"instruments": samltypes.Attribute{
+					Name:   "instruments",
+					Values: []samltypes.AttributeValue{{Value: "guitar"}},
+				},
+			},
+		}
+
+		postProcessedUserState, err := f.samlService.postProcessUser(
+			f.testContext,
+			john,
+			connector,
+			diagContext,
+			authRequest,
+			assertionInfo)
+
+		// EXPECT that the operation succeeds
+		require.NoError(t, err)
+		require.NotNil(t, postProcessedUserState)
+
+		// ALSO EXPECT that the returned UserState has a role-set derived
+		// applying the AttributesToRoles to the updated, SAML-derived traits
+		// WHILE ALSO preserving the Okta-default "okta-requester" role
+		expectedRoles := []string{"guitarist"}
+		require.ElementsMatch(t, expectedRoles, postProcessedUserState.GetRoles())
+	})
 }
 
 func TestEncryptedSAML(t *testing.T) {
