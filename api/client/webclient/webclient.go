@@ -68,9 +68,6 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
-	// Group is an optional agent group identifier that modulates
-	// the returned desired agent version update information.
-	Group string
 }
 
 // CheckAndSetDefaults checks and sets defaults
