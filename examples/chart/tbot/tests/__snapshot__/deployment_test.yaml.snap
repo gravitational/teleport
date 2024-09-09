@@ -148,7 +148,7 @@ should match the snapshot (simple):
       template:
         metadata:
           annotations:
-            checksum/config: d2cdae314c8b3dc7867f8889e03e33fffd46f96339fe76512ba7e7fab460cab2
+            checksum/config: 6734638a61b26526de2160a96d6e83a47f6d5c05195d12fa8f354ac90f153d36
           labels:
             app.kubernetes.io/component: tbot
             app.kubernetes.io/instance: RELEASE-NAME

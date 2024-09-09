@@ -7,9 +7,6 @@
 {{ if not .Values.token }}
   {{- $_ := required "`token` must be provided" "" }}
 {{ end }}
-{{ if and (.Values.defaultOutput.enabled) (not .Values.defaultOutput.secretName) }}
-  {{- $_ := required "`defaultOutput.secretName` must be provided" "" }}
-{{ end }}
 {{ if (and .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
   {{- $_ := required "`teleportAuthAddress` and `teleportProxyAddress` are mutually exclusive" "" }}
 {{ end }}

@@ -64,7 +64,7 @@ should match the snapshot (simple):
           token: my-token
         outputs:
         - destination:
-            name: test-output
+            name: RELEASE-NAME-tbot-out
             type: kubernetes_secret
           type: identity
         proxy_server: test.teleport.sh:443
