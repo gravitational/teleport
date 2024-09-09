@@ -425,7 +425,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 			ctx := context.Background()
 
-			keyRing, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params, test.prompt)
+			keyRing, mfaRequired, err := clt.IssueUserCertsWithMFA(ctx, test.params, func(...mfa.PromptOpt) mfa.Prompt { return test.prompt })
 			test.assertion(t, keyRing, mfaRequired, err)
 		})
 	}

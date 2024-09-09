@@ -439,9 +439,11 @@ func (h *Handler) performMFACeremony(
 	_, newCerts, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
-		MFAPrompt:         promptMFA,
-		MFAAgainstRoot:    true,
-		MFARequiredReq:    nil, // No need to verify.
+		MFAPrompt: func(...mfa.PromptOpt) mfa.Prompt {
+			return promptMFA
+		},
+		MFAAgainstRoot: true,
+		MFARequiredReq: nil, // No need to verify.
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},

@@ -49,10 +49,8 @@ type PromptConfig struct {
 	// DeviceType is an optional device description to emphasize during the prompt.
 	DeviceType DeviceDescriptor
 	// Quiet suppresses users prompts.
-	Quiet bool
-	// SSOClientRedirectURL is a local redirect URL to route to when an SSO MFA challenge
-	// is completed.
-	SSOClientRedirectURL string
+	Quiet          bool
+	SSOMFACeremony func(ctx context.Context, requestID string, redirectURL string) (*proto.MFAAuthenticateResponse, error)
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".
@@ -96,9 +94,8 @@ func WithPromptDeviceType(deviceType DeviceDescriptor) PromptOpt {
 	}
 }
 
-// WithSSOClientRedirectURL sets the prompt's PromptReason field.
-func WithSSOClientRedirectURL(redirect string) PromptOpt {
+func WithSSOMFACeremony(f func(ctx context.Context, requestID string, redirectURL string) (*proto.MFAAuthenticateResponse, error)) PromptOpt {
 	return func(cfg *PromptConfig) {
-		cfg.SSOClientRedirectURL = redirect
+		cfg.SSOMFACeremony = f
 	}
 }

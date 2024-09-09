@@ -615,10 +615,12 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: t.userAuthClient,
 		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFAPrompt:         mfaPrompt,
-		MFAResponse:       tc.MFAResponse,
-		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
-		MFARequiredReq:    mfaRequiredReq,
+		MFAPrompt: func(...mfa.PromptOpt) mfa.Prompt {
+			return mfaPrompt
+		},
+		MFAResponse:    tc.MFAResponse,
+		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq: mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},

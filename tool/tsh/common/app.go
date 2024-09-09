@@ -104,8 +104,9 @@ func appLogin(
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
-		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name)))
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, func(opts ...mfa.PromptOpt) mfa.Prompt {
+		return tc.NewMFAPrompt(append(opts, mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name))...)
+	})
 	return keyRing, trace.Wrap(err)
 }
 

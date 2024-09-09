@@ -1640,8 +1640,6 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *webau
 	switch {
 	case sd == nil:
 		return trace.BadParameter("missing parameter sd")
-	case sd.Token == "":
-		return trace.BadParameter("missing parameter ID")
 	case sd.RequestID == "":
 		return trace.BadParameter("missing parameter RequestID")
 	case sd.ConnectorID == "":
@@ -1657,7 +1655,7 @@ func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *webau
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(ctx, backend.Item{
-		Key:     ssoMFASessionDataKey(sd.Username, sd.Token),
+		Key:     ssoMFASessionDataKey(sd.Username, sd.RequestID),
 		Value:   value,
 		Expires: s.Clock().Now().UTC().Add(defaults.WebauthnChallengeTimeout),
 	})

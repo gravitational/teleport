@@ -46,6 +46,7 @@ func (tc *TeleportClient) PerformMFACeremony(ctx context.Context, challengeReque
 	}
 
 	challengeRequest.SSOClientRedirectURL = redirector.ClientCallbackURL
+	promptOpts = append(promptOpts, mfa.WithSSOMFACeremony(redirector.SSOMFACeremony))
 
 	return mfa.PerformMFACeremony(ctx, tc, tc, challengeRequest, promptOpts...)
 }

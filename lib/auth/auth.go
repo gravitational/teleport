@@ -6534,6 +6534,14 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	userSSODev, err := a.getUserSSOMFADevice(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	} else if userSSODev != nil {
+		devs = append(devs, userSSODev)
+	}
+
 	groupedDevs := groupByDeviceType(devs, enableWebauthn)
 	challenge := &proto.MFAAuthenticateChallenge{}
 
@@ -6625,6 +6633,7 @@ func (a *Server) getUserSSOMFADevice(ctx context.Context, username string) (*typ
 		Metadata: types.Metadata{
 			Name: cb.Connector.ID,
 		},
+		Id: cb.Connector.ID,
 		Device: &types.MFADevice_Sso{
 			Sso: &types.SSOMFADevice{
 				ConnectorId:   cb.Connector.ID,
@@ -6642,6 +6651,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 			ConnectorID:       ssoMFAConnector.ConnectorId,
 			Type:              ssoMFAConnector.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
+			CheckUser:         true,
 		}, true /*forMFASession*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -6653,6 +6663,8 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 			ConnectorID:       ssoMFAConnector.ConnectorId,
 			Type:              ssoMFAConnector.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
+			Username:          user,
+			CheckUser:         true,
 		}, true /*mfa*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -6674,7 +6686,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 		return nil, trace.BadParameter("unexpected sso connector type %v", ssoMFAConnector.ConnectorType)
 	}
 
-	if err := a.CreateSSOMFASession(ctx, chal.RequestId, user, ssoMFAConnector.ConnectorId, ssoMFAConnector.ConnectorType, ext); err != nil {
+	if err := a.CreateSSOMFASession(ctx, user, chal.RequestId, ssoMFAConnector.ConnectorId, ssoMFAConnector.ConnectorType, ext); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

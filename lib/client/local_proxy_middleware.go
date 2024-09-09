@@ -206,10 +206,9 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName)))
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams, func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return c.Client.NewMFAPrompt(append(opts, mfa.WithPromptReasonSessionMFA("database", c.RouteToApp.ServiceName))...)
+		})
 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
@@ -277,7 +276,9 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 			return trace.Wrap(err)
 		}
 
-		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, c.Client.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("application", c.RouteToApp.Name)))
+		newKey, mfaRequired, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams, func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return c.Client.NewMFAPrompt(append(opts, mfa.WithPromptReasonSessionMFA("application", c.RouteToApp.Name))...)
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}

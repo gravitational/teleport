@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/services"
@@ -317,7 +318,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			MFACheck:       target.MFACheck,
 		},
 		keyRing,
-		c.tc.NewMFAPrompt(),
+		c.tc.NewMFAPrompt,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -407,8 +408,13 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 
 // performMFACeremony runs the mfa ceremony to completion.
 // If successful the returned [KeyRing] will be authorized to connect to the target.
-func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing, mfaPrompt mfa.Prompt) (*KeyRing, error) {
+func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing, mfaPrompt mfa.PromptConstructor) (*KeyRing, error) {
 	privKey, certsReq, err := rootClient.prepareUserCertsRequest(ctx, params, keyRing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rdConfig, err := c.tc.SSORedirectorConfig(ctx, "", "", "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -425,13 +431,14 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *Clus
 		CertsReq:   certsReq,
 		KeyRing:    keyRing,
 		PrivateKey: privKey,
+		rdConfig:   &rdConfig,
 	})
 	return keyRing, trace.Wrap(err)
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
-func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*KeyRing, proto.MFARequired, error) {
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.PromptConstructor) (*KeyRing, proto.MFARequired, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -559,7 +566,7 @@ type PerformMFACeremonyParams struct {
 	// certificates.
 	RootAuthClient PerformMFARootClient
 	// MFAPrompt is used to prompt the user for an MFA solution.
-	MFAPrompt   mfa.Prompt
+	MFAPrompt   mfa.PromptConstructor
 	MFAResponse *proto.MFAAuthenticateResponse
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
@@ -580,6 +587,8 @@ type PerformMFACeremonyParams struct {
 	// PrivateKey is the private key to include in any TLSCredential added to
 	// [KeyRing].
 	PrivateKey *keys.PrivateKey
+
+	rdConfig *sso.RedirectorConfig
 }
 
 // PerformMFACeremony issues single-use certificates via GenerateUserCerts,
@@ -620,6 +629,17 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			mfaRequiredReq = nil // Already checked, don't check again at root.
 		}
 
+		var ssoClientRedirectURL string
+		var promptOpts []mfa.PromptOpt
+		if params.rdConfig != nil {
+			redirector, err := sso.NewRedirector(ctx, *params.rdConfig)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+			ssoClientRedirectURL = redirector.ClientCallbackURL
+			promptOpts = append(promptOpts, mfa.WithSSOMFACeremony(redirector.SSOMFACeremony))
+		}
+
 		// Acquire MFA challenge.
 		authnChal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 			Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
@@ -629,6 +649,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 			},
+			SSOClientRedirectURL: ssoClientRedirectURL,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -647,7 +668,7 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		}
 
 		// Prompt user for solution (eg, security key touch).
-		mfaResponse, err = params.MFAPrompt.Run(ctx, authnChal)
+		mfaResponse, err = params.MFAPrompt(promptOpts...).Run(ctx, authnChal)
 		if err != nil {
 			return nil, nil, trace.Wrap(ceremonyFailedErr{err})
 		}

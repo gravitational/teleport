@@ -117,7 +117,9 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
 		},
-		c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
+		func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return c.clusterClient.NewMFAPrompt(append(opts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster))...)
+		},
 	)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

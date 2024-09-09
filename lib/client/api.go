@@ -1485,7 +1485,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, func(opts ...mfa.PromptOpt) mfa.Prompt { return tc.NewMFAPrompt(append(opts, mfaPromptOpts...)...) })
 	return keyRing, trace.Wrap(err)
 }
 

@@ -244,11 +244,13 @@ func (p *podHandler) handler(r *http.Request) error {
 	_, certs, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			// TODO
-			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}, nil, nil).Run(ctx, chal)
-			return assertion, trace.Wrap(err)
-		}),
+		MFAPrompt: func(...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
+				// TODO
+				assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}, nil, nil).Run(ctx, chal)
+				return assertion, trace.Wrap(err)
+			})
+		},
 		MFAAgainstRoot: p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},

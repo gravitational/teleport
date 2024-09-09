@@ -778,7 +778,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// MFA session data tied to the request and add a secret token to return to the user to
 	// complete the MFA check.
 	if !req.CreateWebSession && len(req.PublicKey) == 0 {
-		sessionData, err := a.GetSSOMFASession(ctx, req.StateToken, user.GetName())
+		sessionData, err := a.GetSSOMFASession(ctx, user.GetName(), req.StateToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

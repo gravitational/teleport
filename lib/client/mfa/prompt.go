@@ -52,8 +52,6 @@ type PromptConfig struct {
 	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-
-	SSOMFACeremony func(ctx context.Context, requestID string, redirectURL string) (*proto.MFAAuthenticateResponse, error)
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.

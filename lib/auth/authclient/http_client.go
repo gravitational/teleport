@@ -691,8 +691,8 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
-	// Token is a privileged token.
-	Token string `json:"token"`
+	// MFAToken is a privileged token.
+	MFAToken string `json:"mfa_token"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -713,7 +713,7 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		Cert:     rawResponse.Cert,
 		Req:      rawResponse.Req,
 		TLSCert:  rawResponse.TLSCert,
-		MFAToken: rawResponse.Token,
+		MFAToken: rawResponse.MFAToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)

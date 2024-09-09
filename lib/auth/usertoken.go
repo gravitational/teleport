@@ -456,10 +456,10 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, username, tokenKind s
 	return convertedToken, nil
 }
 
-func (a *Server) CreateSSOMFASession(ctx context.Context, requestID string, user string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
+func (a *Server) CreateSSOMFASession(ctx context.Context, user string, requestID string, connectorID string, connectorType string, ext *mfav1.ChallengeExtensions) error {
 	err := a.UpsertSSOMFASessionData(ctx, &wantypes.SSOMFASessionData{
-		RequestID:           requestID,
 		Username:            user,
+		RequestID:           requestID,
 		ConnectorID:         connectorID,
 		ConnectorType:       connectorType,
 		ChallengeExtensions: ext,
