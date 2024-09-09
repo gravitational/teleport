@@ -60,14 +60,14 @@ export function useUrlFiltering(
 
     setParams({ ...params, search: '', query: queryAfterLabelClick });
     replaceHistory(
-      encodeUrlQueryParams(
+      encodeUrlQueryParams({
         pathname,
-        queryAfterLabelClick,
-        params.sort,
-        params.kinds,
-        true /*isAdvancedSearch*/,
-        params.pinnedOnly
-      )
+        searchString: queryAfterLabelClick,
+        sort: params.sort,
+        kinds: params.kinds,
+        isAdvancedSearch: true,
+        pinnedOnly: params.pinnedOnly,
+      })
     );
   };
 
