@@ -131,8 +131,14 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		description = oktaDescription
 	}
 
+	isAWSConsole := app.IsAWSConsole()
+	isICAccount := false
 	var permissionSets []IdentityCenterPermissionSet
 	if icAcct := app.GetIdentityCenter(); icAcct != nil {
+		if len(permissionSets) > 0 {
+			isICAccount = true
+			isAWSConsole = true
+		}
 		permissionSets = make([]IdentityCenterPermissionSet, len(icAcct.PermissionSets))
 		for i, ps := range icAcct.PermissionSets {
 			permissionSets[i] = IdentityCenterPermissionSet{
@@ -144,9 +150,8 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	appName := app.GetName()
-	isICACcount := app.IsAWSConsole() && len(permissionSets) > 0
 	// assuming current aws_iam_ic_account UI struct that includes permissionSets
-	if isICACcount {
+	if isICAccount {
 		appName = app.GetAWSExternalID()
 	}
 
@@ -159,7 +164,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		Labels:          labels,
 		ClusterID:       c.AppClusterName,
 		FQDN:            fqdn,
-		AWSConsole:      app.IsAWSConsole(),
+		AWSConsole:      isAWSConsole,
 		FriendlyName:    cmp.Or(types.FriendlyName(app), app.GetName()),
 		UserGroups:      userGroupAndDescriptions,
 		SAMLApp:         false,
@@ -168,8 +173,11 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		PermissionSets:  permissionSets,
 	}
 
-	if app.IsAWSConsole() {
-		if isICACcount {
+	if isAWSConsole {
+		if isICAccount {
+			// TODO(sshah): The value for AWSRoles should come from user allowed role calculation
+			// just like the one done below in the else block rather than
+			// permission attached to accounts.
 			resultApp.AWSRoles = awsRolesFromPermSet(permissionSets, app.GetAWSExternalID())
 		} else {
 			allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]

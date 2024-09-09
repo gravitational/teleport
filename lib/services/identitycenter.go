@@ -48,6 +48,7 @@ func (a IdentityCenterAccount) CloneResource() IdentityCenterAccount {
 				Name:           a.Spec.Name,
 				Description:    a.Spec.Description,
 				PermissionSets: slices.Clone(a.Spec.PermissionSets),
+				StartUrl:       a.Spec.StartUrl,
 			},
 		},
 	}
