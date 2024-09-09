@@ -18,6 +18,7 @@
 
 export {
   type Action,
+  ActionButton,
   Alert,
   Danger,
   Info,
