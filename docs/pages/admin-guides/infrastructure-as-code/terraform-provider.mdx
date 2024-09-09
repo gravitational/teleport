@@ -102,7 +102,7 @@ authority to manage resources in the cluster. To prepare credentials using a loc
    `create_and_run_terraform_bot.sh`, open it in an editor, and paste in the
    following content:
 
-   ```shell
+   ```code
    #! /usr/bin/env bash
 
    TOKEN=$(tctl bots add terraform-test --roles=terraform --format=json | jq -r '.token_id')
@@ -130,7 +130,7 @@ authority to manage resources in the cluster. To prepare credentials using a loc
 1. Create another file called `remove_terraform_bot.sh`, open it in an editor, and
 paste in the following content:
 
-   ```shell
+   ```code
    #! /usr/bin/env bash
 
    tctl bots rm terraform-test
