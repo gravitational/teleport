@@ -174,10 +174,6 @@ func Find(cfg *Config) (*PingResponse, error) {
 
 	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
 
-	if cfg.Group != "" {
-		endpoint = fmt.Sprintf("%s?group=%s", endpoint, cfg.Group)
-	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -314,13 +310,6 @@ type PingResponse struct {
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
-
-	// AgentAutoupdate specifies whether an agent should update now (not implemented).
-	AgentAutoupdate bool `json:"agent_autoupdate"`
-	// AgentVersion contains the target agent version (not implemented).
-	AgentVersion string `json:"agent_version"`
-	// AgentUpdateJitterSeconds specifies the amount of jitter to wait before updating (not implemented).
-	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
