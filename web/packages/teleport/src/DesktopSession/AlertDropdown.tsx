@@ -88,8 +88,6 @@ export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
                 key={alert.id}
                 item={alert}
                 onRemove={() => onRemoveAlert(alert.id)}
-                Icon={Warning}
-                getColor={theme => theme.colors.warning.main}
                 isAutoRemovable={false}
               />
             ))}

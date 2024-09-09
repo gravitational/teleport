@@ -369,14 +369,14 @@ const ActionButtons = ({
 };
 
 /** Renders either a regular or a link button, depending on the action. */
-const ActionButton = ({
+export const ActionButton = ({
   action: { href, content, onClick },
   fill,
   intent,
 }: {
   action: Action;
-  fill: ButtonFill;
-  intent: ButtonIntent;
+  fill?: ButtonFill;
+  intent?: ButtonIntent;
 }) =>
   href ? (
     <Button

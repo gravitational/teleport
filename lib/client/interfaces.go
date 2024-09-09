@@ -150,12 +150,7 @@ func (k *KeyRing) generateSubjectTLSKey(ctx context.Context, tc *TeleportClient,
 		return k.PrivateKey, nil
 	}
 
-	// Ping is cached if called more than once on [tc].
-	pingResp, err := tc.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key, err := cryptosuites.GenerateKeyWithSuite(ctx, pingResp.Auth.SignatureAlgorithmSuite, purpose)
+	key, err := cryptosuites.GenerateKey(ctx, tc.GetCurrentSignatureAlgorithmSuite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
