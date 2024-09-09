@@ -334,7 +334,7 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 
 		expires := member.Spec.Expires
 		if !expires.IsZero() && !a.clock.Now().Before(expires) {
-			// avoid non-deterministic behaviour here - if user's membership is expired, then
+			// avoid non-deterministic behavior here - if user's membership is expired, then
 			// continue checking, in case their membership in a related list is still valid
 			membershipErr = trace.AccessDenied("user %s's membership has expired in the access list", identity.Username)
 			continue
@@ -395,7 +395,7 @@ func recursiveIsAccessListOwnerCheck(ctx context.Context, members AccessListsAnd
 
 		expires := member.Spec.Expires
 		if !expires.IsZero() && !time.Now().Before(expires) {
-			// avoid non-deterministic behaviour here - if user's ownership is expired, then
+			// avoid non-deterministic behavior here - if user's ownership is expired, then
 			// continue checking, in case their ownership in a related list is still valid
 			ownershipErr = trace.AccessDenied("user %s's ownership has expired in the access list", identity.Username)
 			continue
