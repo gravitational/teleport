@@ -6572,6 +6572,144 @@ func (a *ServerWithRoles) DeleteAllWindowsDesktopServices(ctx context.Context) e
 	return a.authServer.DeleteAllWindowsDesktopServices(ctx)
 }
 
+// GetDynamicWindowsDesktops returns all registered dynamic windows desktop hosts.
+func (a *ServerWithRoles) GetDynamicWindowsDesktops(ctx context.Context, filter types.DynamicWindowsDesktopFilter) ([]types.DynamicWindowsDesktop, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	hosts, err := a.authServer.GetDynamicWindowsDesktops(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	filtered, err := a.filterDynamicWindowsDesktops(hosts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return filtered, nil
+}
+
+// CreateDynamicWindowsDesktop creates a new dynamic windows desktop host.
+func (a *ServerWithRoles) CreateDynamicWindowsDesktop(ctx context.Context, s types.DynamicWindowsDesktop) error {
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.CreateDynamicWindowsDesktop(ctx, s)
+}
+
+// UpdateDynamicWindowsDesktop updates an existing dynamic windows desktop host.
+func (a *ServerWithRoles) UpdateDynamicWindowsDesktop(ctx context.Context, s types.DynamicWindowsDesktop) error {
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	existing, err := a.authServer.GetDynamicWindowsDesktops(ctx,
+		types.DynamicWindowsDesktopFilter{Name: s.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(existing) == 0 {
+		return trace.NotFound("no dynamic windows desktops with Name %s", s.GetName())
+	}
+
+	if err := a.checkAccessToDynamicWindowsDesktop(existing[0]); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.checkAccessToDynamicWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpdateDynamicWindowsDesktop(ctx, s)
+}
+
+// UpsertDynamicWindowsDesktop updates a dynamic windows desktop resource, creating it if it doesn't exist.
+func (a *ServerWithRoles) UpsertDynamicWindowsDesktop(ctx context.Context, s types.DynamicWindowsDesktop) error {
+	// Ensure caller has both Create and Update permissions.
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the desktop exists, check access,
+	// if it doesn't, continue.
+	existing, err := a.authServer.GetDynamicWindowsDesktops(ctx, types.DynamicWindowsDesktopFilter{Name: s.GetName()})
+	if err == nil && len(existing) != 0 {
+		if err := a.checkAccessToDynamicWindowsDesktop(existing[0]); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToDynamicWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertDynamicWindowsDesktop(ctx, s)
+}
+
+// DeleteDynamicWindowsDesktop removes the specified dynamic windows desktop host.
+// Note: unlike GetDynamicWindowsDesktops, this will delete at-most one desktop.
+// Passing an empty host ID will not trigger "delete all" behavior. To delete
+// all desktops, use DeleteAllDynamicWindowsDesktops.
+func (a *ServerWithRoles) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	desktop, err := a.authServer.GetDynamicWindowsDesktops(ctx, types.DynamicWindowsDesktopFilter{Name: name})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(desktop) == 0 {
+		return trace.NotFound("no dynamic windows desktops with Name %s", name)
+	}
+	if err := a.checkAccessToDynamicWindowsDesktop(desktop[0]); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDynamicWindowsDesktop(ctx, name)
+}
+
+// DeleteAllDynamicWindowsDesktops removes all registered dynamic windows desktop hosts.
+func (a *ServerWithRoles) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDynamicWindowsDesktop, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// Only delete the desktops the user has access to.
+	desktops, err := a.authServer.GetDynamicWindowsDesktops(ctx, types.DynamicWindowsDesktopFilter{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, desktop := range desktops {
+		if err := a.checkAccessToDynamicWindowsDesktop(desktop); err == nil {
+			if err := a.authServer.DeleteDynamicWindowsDesktop(ctx, desktop.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	return nil
+}
+
+func (a *ServerWithRoles) filterDynamicWindowsDesktops(desktops []types.DynamicWindowsDesktop) ([]types.DynamicWindowsDesktop, error) {
+	// For certain built-in roles allow full access
+	if a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy, types.RoleWindowsDesktop) {
+		return desktops, nil
+	}
+
+	filtered := make([]types.DynamicWindowsDesktop, 0, len(desktops))
+	for _, desktop := range desktops {
+		if err := a.checkAccessToDynamicWindowsDesktop(desktop); err == nil {
+			filtered = append(filtered, desktop)
+		}
+	}
+
+	return filtered, nil
+}
+
+func (a *ServerWithRoles) checkAccessToDynamicWindowsDesktop(w types.DynamicWindowsDesktop) error {
+	return a.context.Checker.CheckAccess(w,
+		// MFA is not required for operations on desktop resources
+		services.AccessState{MFAVerified: true},
+		// Note: we don't use the Windows login matcher here, as we won't know what OS user
+		// the user is trying to log in as until they initiate the connection.
+	)
+}
+
 // GetWindowsDesktops returns all registered windows desktop hosts.
 func (a *ServerWithRoles) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWindowsDesktop, types.VerbList, types.VerbRead); err != nil {

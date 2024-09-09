@@ -246,6 +246,14 @@ func (d *DynamicWindowsDesktopV1) IsEqual(i DynamicWindowsDesktop) bool {
 	return false
 }
 
+// Match checks if a given desktop request matches this filter.
+func (f *DynamicWindowsDesktopFilter) Match(req DynamicWindowsDesktop) bool {
+	if f.Name != "" && req.GetName() != f.Name {
+		return false
+	}
+	return true
+}
+
 // WindowsDesktop represents a Windows desktop host.
 type WindowsDesktop interface {
 	// ResourceWithLabels provides common resource methods.
@@ -464,6 +472,21 @@ type ListWindowsDesktopsResponse struct {
 // ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
 type ListWindowsDesktopsRequest struct {
 	WindowsDesktopFilter
+	Limit                         int
+	StartKey, PredicateExpression string
+	Labels                        map[string]string
+	SearchKeywords                []string
+}
+
+// ListDynamicWindowsDesktopsResponse is a response type to ListDynamicWindowsDesktops.
+type ListDynamicWindowsDesktopsResponse struct {
+	Desktops []DynamicWindowsDesktop
+	NextKey  string
+}
+
+// ListDynamicWindowsDesktopsRequest is a request type to ListDynamicWindowsDesktops.
+type ListDynamicWindowsDesktopsRequest struct {
+	DynamicWindowsDesktopFilter
 	Limit                         int
 	StartKey, PredicateExpression string
 	Labels                        map[string]string

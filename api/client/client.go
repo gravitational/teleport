@@ -3483,6 +3483,71 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return nil
 }
 
+// GetDynamicWindowsDesktops returns all registered windows desktop hosts.
+func (c *Client) GetDynamicWindowsDesktops(ctx context.Context, filter types.DynamicWindowsDesktopFilter) ([]types.DynamicWindowsDesktop, error) {
+	resp, err := c.grpc.GetDynamicWindowsDesktops(ctx, &filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	desktops := make([]types.DynamicWindowsDesktop, 0, len(resp.GetDesktops()))
+	for _, desktop := range resp.GetDesktops() {
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// CreateDynamicWindowsDesktop registers a new windows desktop host.
+func (c *Client) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.CreateDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// UpdateDynamicWindowsDesktop updates an existing windows desktop host.
+func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpdateDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// UpsertDynamicWindowsDesktop updates a windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// DeleteDynamicWindowsDesktop removes the specified windows desktop host.
+// Note: unlike GetDynamicWindowsDesktops, this will delete at-most one desktop. To delete
+// all desktops, use DeleteAllDynamicWindowsDesktops.
+func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDynamicWindowsDesktop(ctx, &proto.DeleteDynamicWindowsDesktopRequest{
+		Name: name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllDynamicWindowsDesktops removes all registered windows desktop hosts.
+func (c *Client) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDynamicWindowsDesktops(ctx, &emptypb.Empty{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP authentication.
 func (c *Client) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	resp, err := c.grpc.GenerateWindowsDesktopCert(ctx, req)
