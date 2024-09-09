@@ -27,7 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -584,23 +584,23 @@ func Test_getPolicyVersions(t *testing.T) {
 	}{
 		"PolicyFound": {
 			iamMock: &iamMock{
-				policy:         &iamTypes.Policy{},
-				policyVersions: []iamTypes.PolicyVersion{{VersionId: aws.String("v1")}},
+				policy:         &iamtypes.Policy{},
+				policyVersions: []iamtypes.PolicyVersion{{VersionId: aws.String("v1")}},
 			},
 		},
 		"PolicyMatchLabels": {
 			tags: map[string]string{"env": "prod"},
 			iamMock: &iamMock{
-				policy:         &iamTypes.Policy{Tags: []iamTypes.Tag{{Key: aws.String("env"), Value: aws.String("prod")}}},
-				policyVersions: []iamTypes.PolicyVersion{{VersionId: aws.String("v1")}},
+				policy:         &iamtypes.Policy{Tags: []iamtypes.Tag{{Key: aws.String("env"), Value: aws.String("prod")}}},
+				policyVersions: []iamtypes.PolicyVersion{{VersionId: aws.String("v1")}},
 			},
 		},
 		"PolicyNotMatchingLabels": {
 			tags:        map[string]string{"env": "prod"},
 			returnError: true,
 			iamMock: &iamMock{
-				policy:         &iamTypes.Policy{},
-				policyVersions: []iamTypes.PolicyVersion{{VersionId: aws.String("v1")}},
+				policy:         &iamtypes.Policy{},
+				policyVersions: []iamtypes.PolicyVersion{{VersionId: aws.String("v1")}},
 			},
 		},
 		"PolicyNotFound": {
@@ -622,7 +622,7 @@ func Test_getPolicyVersions(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(test.iamMock.policyVersions, versions,
-				cmp.AllowUnexported(iamTypes.PolicyVersion{}),
+				cmp.AllowUnexported(iamtypes.PolicyVersion{}),
 			))
 		})
 	}
@@ -642,24 +642,24 @@ func TestUpsertPolicy(t *testing.T) {
 		"CreateNewPolicy": {
 			expectedPolicyArn: "expected-arn",
 			iamMock: &iamMock{
-				policyCreated: &iamTypes.Policy{Arn: aws.String("expected-arn")},
+				policyCreated: &iamtypes.Policy{Arn: aws.String("expected-arn")},
 			},
 		},
 		"AddPolicyVersion": {
 			expectedPolicyArn: fmt.Sprintf("arn:aws:iam::%s:policy/", accountID),
 			iamMock: &iamMock{
-				policy: &iamTypes.Policy{Arn: aws.String("expected-arn")},
-				policyVersions: []iamTypes.PolicyVersion{
+				policy: &iamtypes.Policy{Arn: aws.String("expected-arn")},
+				policyVersions: []iamtypes.PolicyVersion{
 					{VersionId: aws.String("v1"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(time.Second))},
 				},
-				policyVersionCreated: &iamTypes.PolicyVersion{},
+				policyVersionCreated: &iamtypes.PolicyVersion{},
 			},
 		},
 		"DeleteAndAddPolicyVersion": {
 			expectedPolicyArn: fmt.Sprintf("arn:aws:iam::%s:policy/", accountID),
 			iamMock: &iamMock{
-				policy: &iamTypes.Policy{Arn: aws.String("expected-arn")},
-				policyVersions: []iamTypes.PolicyVersion{
+				policy: &iamtypes.Policy{Arn: aws.String("expected-arn")},
+				policyVersions: []iamtypes.PolicyVersion{
 					{VersionId: aws.String("v1"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(time.Second))},
 					{VersionId: aws.String("v2"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(2 * time.Second))},
 					{VersionId: aws.String("v3"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(3 * time.Second))},
@@ -667,7 +667,7 @@ func TestUpsertPolicy(t *testing.T) {
 					{VersionId: aws.String("v5"), IsDefaultVersion: true, CreateDate: aws.Time(now.Add(5 * time.Second))},
 				},
 				policyVersionDeleted: true,
-				policyVersionCreated: &iamTypes.PolicyVersion{},
+				policyVersionCreated: &iamtypes.PolicyVersion{},
 			},
 		},
 		"PolicyCreateError": {
@@ -677,8 +677,8 @@ func TestUpsertPolicy(t *testing.T) {
 		"PolicyVersionCreateError": {
 			returnError: true,
 			iamMock: &iamMock{
-				policy: &iamTypes.Policy{Arn: aws.String("expected-arn")},
-				policyVersions: []iamTypes.PolicyVersion{
+				policy: &iamtypes.Policy{Arn: aws.String("expected-arn")},
+				policyVersions: []iamtypes.PolicyVersion{
 					{VersionId: aws.String("v1"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(time.Second))},
 				},
 			},
@@ -686,15 +686,15 @@ func TestUpsertPolicy(t *testing.T) {
 		"PolicyVersionDeleteError": {
 			returnError: true,
 			iamMock: &iamMock{
-				policy: &iamTypes.Policy{Arn: aws.String("expected-arn")},
-				policyVersions: []iamTypes.PolicyVersion{
+				policy: &iamtypes.Policy{Arn: aws.String("expected-arn")},
+				policyVersions: []iamtypes.PolicyVersion{
 					{VersionId: aws.String("v1"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(time.Second))},
 					{VersionId: aws.String("v2"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(2 * time.Second))},
 					{VersionId: aws.String("v3"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(3 * time.Second))},
 					{VersionId: aws.String("v4"), IsDefaultVersion: false, CreateDate: aws.Time(now.Add(4 * time.Second))},
 					{VersionId: aws.String("v5"), IsDefaultVersion: true, CreateDate: aws.Time(now.Add(5 * time.Second))},
 				},
-				policyVersionCreated: &iamTypes.PolicyVersion{},
+				policyVersionCreated: &iamtypes.PolicyVersion{},
 			},
 		},
 	}
@@ -791,10 +791,10 @@ func unknownIdentity() Identity {
 }
 
 type iamMock struct {
-	policy               *iamTypes.Policy
-	policyVersions       []iamTypes.PolicyVersion
-	policyCreated        *iamTypes.Policy
-	policyVersionCreated *iamTypes.PolicyVersion
+	policy               *iamtypes.Policy
+	policyVersions       []iamtypes.PolicyVersion
+	policyCreated        *iamtypes.Policy
+	policyVersionCreated *iamtypes.PolicyVersion
 	policyVersionDeleted bool
 
 	attachUserPolicy bool
@@ -804,7 +804,7 @@ type iamMock struct {
 func (m *iamMock) GetPolicy(ctx context.Context, params *iam.GetPolicyInput, optFns ...func(*iam.Options)) (*iam.GetPolicyOutput, error) {
 
 	if m.policy == nil {
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: aws.String("not found"),
 		}
 	}
@@ -814,7 +814,7 @@ func (m *iamMock) GetPolicy(ctx context.Context, params *iam.GetPolicyInput, opt
 
 func (m *iamMock) ListPolicyVersions(ctx context.Context, params *iam.ListPolicyVersionsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyVersionsOutput, error) {
 	if len(m.policyVersions) == 0 {
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: aws.String("not found"),
 		}
 	}

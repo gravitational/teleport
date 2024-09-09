@@ -26,7 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/require"
@@ -202,7 +202,7 @@ type mockEC2SSMIAMConfigClient struct {
 func (m *mockEC2SSMIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
 	}

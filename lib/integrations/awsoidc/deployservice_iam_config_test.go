@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -200,7 +200,7 @@ func (m *mockDeployServiceIAMConfigClient) GetCallerIdentity(ctx context.Context
 func (m *mockDeployServiceIAMConfigClient) CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error) {
 	alreadyExistsMessage := fmt.Sprintf("Role %q already exists.", *params.RoleName)
 	if slices.Contains(m.existingRoles, *params.RoleName) {
-		return nil, &iamTypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &alreadyExistsMessage,
 		}
 	}
@@ -213,7 +213,7 @@ func (m *mockDeployServiceIAMConfigClient) CreateRole(ctx context.Context, param
 func (m *mockDeployServiceIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
 	}
