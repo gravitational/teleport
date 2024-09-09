@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Users } from './Users';
 
@@ -31,11 +32,19 @@ export const Processing = () => {
     isSuccess: false,
     message: '',
   };
-  return <Users {...sample} attempt={attempt} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
 };
 
 export const Loaded = () => {
-  return <Users {...sample} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} />
+    </MemoryRouter>
+  );
 };
 
 export const Failed = () => {
@@ -45,7 +54,11 @@ export const Failed = () => {
     isSuccess: false,
     message: 'some error message',
   };
-  return <Users {...sample} attempt={attempt} />;
+  return (
+    <MemoryRouter>
+      <Users {...sample} attempt={attempt} />
+    </MemoryRouter>
+  );
 };
 
 const users = [
