@@ -54,6 +54,15 @@ func (c *ClusterClient) ClusterName() string {
 	return c.cluster
 }
 
+// RootClusterName returns the name of the root cluster. If the
+// client is connected directly to the root cluster, then this
+// returns the same value as [ClusterClient.ClusterName]. If
+// the client is connected to a leaf cluster, this returns the
+// root cluster associated with the leaf.
+func (c *ClusterClient) RootClusterName() string {
+	return c.root
+}
+
 // CurrentCluster returns an authenticated auth server client for the local cluster.
 // The returned auth server client does not need to be closed, it will be closed
 // when the ClusterClient is closed.
@@ -194,7 +203,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	key, err = c.performMFACeremony(ctx, mfaClt,
 		ReissueParams{
-			NodeName:       nodeName(targetNode{addr: target.Addr}),
+			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},

@@ -1203,13 +1203,13 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 }
 
 // nodeName removes the port number from the hostname, if present
-func nodeName(node targetNode) string {
-	if node.hostname != "" {
-		return node.hostname
+func nodeName(node TargetNode) string {
+	if node.Hostname != "" {
+		return node.Hostname
 	}
-	n, _, err := net.SplitHostPort(node.addr)
+	n, _, err := net.SplitHostPort(node.Addr)
 	if err != nil {
-		return node.addr
+		return node.Addr
 	}
 	return n
 }
@@ -1263,7 +1263,7 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 		// it to the end of our own message:
 		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(targetNode{addr: strings.Split(address, "@")[0]}), serverErrorMsg)
+			nodeName(TargetNode{Addr: strings.Split(address, "@")[0]}), serverErrorMsg)
 	}
 	return utils.NewPipeNetConn(
 		proxyReader,
@@ -1293,7 +1293,7 @@ type NodeDetails struct {
 
 // String returns a user-friendly name
 func (n NodeDetails) String() string {
-	parts := []string{nodeName(targetNode{addr: n.Addr})}
+	parts := []string{nodeName(TargetNode{Addr: n.Addr})}
 	if n.Cluster != "" {
 		parts = append(parts, "on cluster", n.Cluster)
 	}
@@ -1413,7 +1413,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		// it to the end of our own message:
 		serverErrorMsg, _ := io.ReadAll(proxyErr)
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
-			nodeName(targetNode{addr: nodeAddress.Addr}), serverErrorMsg)
+			nodeName(TargetNode{Addr: nodeAddress.Addr}), serverErrorMsg)
 	}
 
 	pipeNetConn := utils.NewPipeNetConn(
