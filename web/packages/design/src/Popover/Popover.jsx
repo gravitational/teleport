@@ -40,10 +40,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import ReactDOM from 'react-dom';
 
+import { ownerWindow, ownerDocument } from '../utils';
 import Modal from '../Modal';
 
 import Transition from './Transition';
@@ -101,7 +103,6 @@ function getAnchorEl(anchorEl) {
 }
 
 export default class Popover extends React.Component {
-  paperRef = createRef();
   handleGetOffsetTop = getOffsetTop;
 
   handleGetOffsetLeft = getOffsetLeft;
@@ -117,7 +118,7 @@ export default class Popover extends React.Component {
           return;
         }
 
-        this.setPositioningStyles(this.paperRef.current);
+        this.setPositioningStyles(this.paperRef);
       };
     }
   }
@@ -152,7 +153,7 @@ export default class Popover extends React.Component {
   };
 
   getPositioningStyle = element => {
-    const { anchorReference, marginThreshold } = this.props;
+    const { anchorEl, anchorReference, marginThreshold } = this.props;
 
     // Check if the parent has requested anchoring on an inner content node
     const contentAnchorOffset = this.getContentAnchorOffset(element);
@@ -188,9 +189,12 @@ export default class Popover extends React.Component {
     let bottom = top + elemRect.height;
     let right = left + elemRect.width;
 
+    // Use the parent window of the anchorEl if provided
+    const containerWindow = ownerWindow(getAnchorEl(anchorEl));
+
     // Window thresholds taking required margin into account
-    const heightThreshold = window.innerHeight - marginThreshold;
-    const widthThreshold = window.innerWidth - marginThreshold;
+    const heightThreshold = containerWindow.innerHeight - marginThreshold;
+    const widthThreshold = containerWindow.innerWidth - marginThreshold;
 
     // Check if the vertical axis needs shifting
     if (top < marginThreshold) {
@@ -220,8 +224,8 @@ export default class Popover extends React.Component {
     return {
       top: `${top}px`,
       left: `${left}px`,
-      bottom: `${window.innerHeight - bottom}px`,
-      right: `${window.innerWidth - right}px`,
+      bottom: `${containerWindow.innerHeight - bottom}px`,
+      right: `${containerWindow.innerWidth - right}px`,
       transformOrigin: getTransformOriginValue(transformOrigin),
     };
   };
@@ -232,7 +236,8 @@ export default class Popover extends React.Component {
     const { anchorEl, anchorOrigin } = this.props;
 
     // If an anchor element wasn't provided, just use the parent body element of this Popover
-    const anchorElement = getAnchorEl(anchorEl) || document.body;
+    const anchorElement =
+      getAnchorEl(anchorEl) || ownerDocument(this.paperRef).body;
 
     const anchorRect = anchorElement.getBoundingClientRect();
 
@@ -296,10 +301,25 @@ export default class Popover extends React.Component {
   };
 
   render() {
-    const { children, open, popoverCss, ...other } = this.props;
+    const {
+      anchorEl,
+      children,
+      container: containerProp,
+      open,
+      popoverCss,
+      ...other
+    } = this.props;
+
+    // If the container prop is provided, use that
+    // If the anchorEl prop is provided, use its parent body element as the container
+    // If neither are provided let the Modal take care of choosing the container
+    const container =
+      containerProp ||
+      (anchorEl ? ownerDocument(getAnchorEl(anchorEl)).body : undefined);
 
     return (
       <Modal
+        container={container}
         open={open}
         BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
@@ -308,7 +328,9 @@ export default class Popover extends React.Component {
           <StyledPopover
             popoverCss={popoverCss}
             data-mui-test="Popover"
-            ref={this.paperRef}
+            ref={ref => {
+              this.paperRef = ReactDOM.findDOMNode(ref);
+            }}
           >
             {children}
           </StyledPopover>
@@ -376,6 +398,15 @@ Popover.propTypes = {
    * The content of the component.
    */
   children: PropTypes.node,
+  /**
+   * A node, component instance, or function that returns either.
+   * The `container` will passed to the Modal component.
+   * By default, it uses the body of the anchorEl's top-level document object,
+   * so it's simply `document.body` most of the time.
+   */
+  container: PropTypes.oneOfType([PropTypes.object, PropTypes.func]),
+  /**
+   */
   /**
    * This function is called in order to retrieve the content anchor element.
    * It's the opposite of the `anchorEl` property.
