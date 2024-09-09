@@ -249,7 +249,7 @@ func (a *Server) newWebSession(
 		}
 		sshKey, tlsKey = req.SSHPrivateKey.Signer, req.TLSPrivateKey.Signer
 	} else {
-		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, a)
+		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(a))
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -520,7 +520,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	}
 
 	// Create certificate for this session.
-	priv, err := cryptosuites.GenerateKey(ctx, a, cryptosuites.UserTLS)
+	priv, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.UserTLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
