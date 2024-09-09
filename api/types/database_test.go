@@ -316,7 +316,7 @@ func TestDatabaseAzureEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "valid PostgresSQL",
+			name: "valid PostgreSQL",
 			spec: DatabaseSpecV3{
 				Protocol: "postgres",
 				URI:      "example-postgres.postgres.database.azure.com:5432",
