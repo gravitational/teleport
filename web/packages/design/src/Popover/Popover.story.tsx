@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary, Box, Flex, Text } from '..';
+import { ButtonPrimary, Box, Flex, Text, H2 } from '..';
 
 import Popover, { GrowDirections, Origin } from '.';
 
@@ -47,7 +47,7 @@ type SimplePopoverState = {
   contentMultiplier: number;
 };
 
-class SimplePopover extends React.Component<{}, SimplePopoverState> {
+class SimplePopover extends React.Component<any, SimplePopoverState> {
   btnRef: Element;
   growContentTimer: ReturnType<typeof setInterval>;
 
@@ -278,3 +278,192 @@ const StyledOnHover = styled(Text)`
   background-color: white;
   color: black;
 `;
+
+type PopoverSet = {
+  anchorOrigin: Origin;
+  transformOrigin: Origin;
+  name: string;
+}[];
+
+const popoverSets: PopoverSet[] = [
+  [
+    {
+      anchorOrigin: { horizontal: 'center', vertical: 'top' },
+      transformOrigin: { horizontal: 'center', vertical: 'bottom' },
+      name: 'Top',
+    },
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 'center' },
+      transformOrigin: { horizontal: 'left', vertical: 'center' },
+      name: 'Right',
+    },
+    {
+      anchorOrigin: { horizontal: 'center', vertical: 'bottom' },
+      transformOrigin: { horizontal: 'center', vertical: 'top' },
+      name: 'Bottom',
+    },
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 'center' },
+      transformOrigin: { horizontal: 'right', vertical: 'center' },
+      name: 'Left',
+    },
+  ],
+  [
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 'top' },
+      transformOrigin: { horizontal: 'left', vertical: 'bottom' },
+      name: 'Top',
+    },
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 'top' },
+      transformOrigin: { horizontal: 'left', vertical: 'top' },
+      name: 'Right',
+    },
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 'bottom' },
+      transformOrigin: { horizontal: 'right', vertical: 'top' },
+      name: 'Bottom',
+    },
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 'bottom' },
+      transformOrigin: { horizontal: 'right', vertical: 'bottom' },
+      name: 'Left',
+    },
+  ],
+  [
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 'top' },
+      transformOrigin: { horizontal: 'right', vertical: 'bottom' },
+      name: 'Top',
+    },
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 'bottom' },
+      transformOrigin: { horizontal: 'left', vertical: 'bottom' },
+      name: 'Right',
+    },
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 'bottom' },
+      transformOrigin: { horizontal: 'left', vertical: 'top' },
+      name: 'Bottom',
+    },
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 'top' },
+      transformOrigin: { horizontal: 'right', vertical: 'top' },
+      name: 'Left',
+    },
+  ],
+  [
+    {
+      anchorOrigin: { horizontal: 20, vertical: 'top' },
+      transformOrigin: { horizontal: 30, vertical: 'bottom' },
+      name: 'Top',
+    },
+    {
+      anchorOrigin: { horizontal: 'right', vertical: 40 },
+      transformOrigin: { horizontal: 'left', vertical: 25 },
+      name: 'Right',
+    },
+    {
+      anchorOrigin: { horizontal: 80, vertical: 'bottom' },
+      transformOrigin: { horizontal: 60, vertical: 'top' },
+      name: 'Bottom',
+    },
+    {
+      anchorOrigin: { horizontal: 'left', vertical: 60 },
+      transformOrigin: { horizontal: 'right', vertical: 45 },
+      name: 'Left',
+    },
+  ],
+];
+
+export const Positioning = () => {
+  return (
+    <>
+      <H2 my={2}>Without arrows</H2>
+      <Flex flexWrap="wrap">
+        {popoverSets.map((popovers, i) => (
+          <ManyPopovers popovers={popovers} key={i} />
+        ))}
+      </Flex>
+      <H2 my={2}>With arrows</H2>
+      <Flex flexWrap="wrap">
+        {popoverSets.map((popovers, i) => (
+          <ManyPopovers popovers={popovers} key={i} arrows />
+        ))}
+        <ManyPopovers
+          arrows
+          anchorSize="200px"
+          margin="30px"
+          popovers={[
+            {
+              anchorOrigin: { horizontal: 'center', vertical: 'top' },
+              transformOrigin: { horizontal: 'center', vertical: 'top' },
+              name: 'Top',
+            },
+            {
+              anchorOrigin: { horizontal: 'right', vertical: 'center' },
+              transformOrigin: { horizontal: 'right', vertical: 'center' },
+              name: 'Right',
+            },
+            {
+              anchorOrigin: { horizontal: 'center', vertical: 'bottom' },
+              transformOrigin: { horizontal: 'center', vertical: 'bottom' },
+              name: 'Bottom',
+            },
+            {
+              anchorOrigin: { horizontal: 'left', vertical: 'center' },
+              transformOrigin: { horizontal: 'left', vertical: 'center' },
+              name: 'Left',
+            },
+          ]}
+        />
+      </Flex>
+      <H2 my={2}>With arrows and margins</H2>
+      <Flex flexWrap="wrap">
+        {popoverSets.map((popovers, i) => (
+          <ManyPopovers popovers={popovers} key={i} arrows popoverMargin={5} />
+        ))}
+      </Flex>
+    </>
+  );
+};
+
+const ManyPopovers = ({
+  popovers,
+  arrows,
+  anchorSize = '100px',
+  margin = '80px',
+  popoverMargin = 0,
+}: {
+  popovers: PopoverSet;
+  arrows?: boolean;
+  anchorSize?: string;
+  margin?: string;
+  popoverMargin?: number;
+}) => {
+  const [anchorRef, setAnchorRef] = useState(null);
+  return (
+    <Box backgroundColor="levels.deep">
+      <Box
+        ref={setAnchorRef}
+        border={2}
+        width={anchorSize}
+        height={anchorSize}
+        margin={margin}
+      />
+      {popovers.map(({ anchorOrigin, transformOrigin, name }) => (
+        <Popover
+          key={name}
+          anchorEl={anchorRef}
+          open={!!anchorRef}
+          anchorOrigin={anchorOrigin}
+          transformOrigin={transformOrigin}
+          arrow={arrows}
+          popoverMargin={popoverMargin}
+        >
+          <Box padding={3}>{name}</Box>
+        </Popover>
+      ))}
+    </Box>
+  );
+};

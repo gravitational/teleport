@@ -207,7 +207,7 @@ const colors: ThemeColors = {
   },
 
   tooltip: {
-    background: '#212B2F',
+    background: 'rgba(255, 255, 255, 0.8)',
   },
 
   progressBarColor: '#00BFA5',

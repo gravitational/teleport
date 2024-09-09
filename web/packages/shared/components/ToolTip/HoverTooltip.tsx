@@ -17,17 +17,25 @@
  */
 
 import React, { PropsWithChildren, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Popover, Flex, Text } from 'design';
 import { JustifyContentProps, FlexBasisProps } from 'design/system';
 
 import { Origin } from 'design/Popover';
+import { Position } from 'design/Popover/Popover';
+
+import { anchorOriginForPosition, transformOriginForPosition } from './shared';
 
 export const HoverTooltip: React.FC<
   PropsWithChildren<{
-    tipContent: string | undefined;
+    tipContent?: React.ReactNode;
     showOnlyOnOverflow?: boolean;
     className?: string;
+    /**
+     * Specifies the position of tooltip relative to content. Used if neither
+     * anchor or transform origins are specified.
+     */
+    position?: Position;
     anchorOrigin?: Origin;
     transformOrigin?: Origin;
     justifyContentProps?: JustifyContentProps;
@@ -38,11 +46,13 @@ export const HoverTooltip: React.FC<
   children,
   showOnlyOnOverflow = false,
   className,
-  anchorOrigin = { vertical: 'top', horizontal: 'center' },
-  transformOrigin = { vertical: 'bottom', horizontal: 'center' },
+  position = 'top',
+  anchorOrigin,
+  transformOrigin,
   justifyContentProps = {},
   flexBasisProps = {},
 }) => {
+  const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState<Element | undefined>();
   const open = Boolean(anchorEl);
 
@@ -73,6 +83,18 @@ export const HoverTooltip: React.FC<
     return <>{children}</>;
   }
 
+  if (!transformOrigin && !anchorOrigin) {
+    transformOrigin = transformOriginForPosition(position);
+    anchorOrigin = anchorOriginForPosition(position);
+  } else {
+    if (!anchorOrigin) {
+      anchorOrigin = { vertical: 'top', horizontal: 'center' };
+    }
+    if (!transformOrigin) {
+      transformOrigin = { vertical: 'bottom', horizontal: 'center' };
+    }
+  }
+
   return (
     <Flex
       aria-owns={open ? 'mouse-over-popover' : undefined}
@@ -85,22 +107,20 @@ export const HoverTooltip: React.FC<
       {children}
       <Popover
         modalCss={modalCss}
+        popoverCss={() => ({
+          background: theme.colors.tooltip.background,
+          backdropFilter: 'blur(2px)',
+        })}
         onClose={handlePopoverClose}
         open={open}
         anchorEl={anchorEl}
         anchorOrigin={anchorOrigin}
         transformOrigin={transformOrigin}
+        arrow
+        popoverMargin={4}
         disableRestoreFocus
       >
-        <StyledOnHover
-          px={2}
-          py={1}
-          fontWeight="regular"
-          typography="body2"
-          css={`
-            word-wrap: break-word;
-          `}
-        >
+        <StyledOnHover px={3} py={2}>
           {tipContent}
         </StyledOnHover>
       </Popover>
@@ -113,7 +133,7 @@ const modalCss = () => `
 `;
 
 const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
+  color: ${props => props.theme.colors.text.primaryInverse};
   max-width: 350px;
+  word-wrap: break-word;
 `;

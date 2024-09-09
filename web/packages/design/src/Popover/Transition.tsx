@@ -16,22 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import ReactDOM from 'react-dom';
+import React, { useLayoutEffect } from 'react';
 
-class Transition extends React.Component {
-  componentDidMount() {
-    const node = ReactDOM.findDOMNode(this);
-    this.props.onEntering(node);
-  }
-
-  render() {
-    const { children, ...childProps } = this.props;
-    delete childProps.onEntering;
-
-    const child = React.Children.only(children);
-    return React.cloneElement(child, childProps);
-  }
+export function Transition({
+  onEntering,
+  children,
+}: {
+  children: React.ReactNode;
+  onEntering: () => void;
+}) {
+  // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
+  // It's especially noticeable on Safari.
+  useLayoutEffect(() => {
+    onEntering();
+  }, []);
+  return children;
 }
-
-export default Transition;

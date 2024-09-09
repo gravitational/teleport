@@ -40,28 +40,34 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-import React, { createRef, MutableRefObject } from 'react';
-import styled, { CSSProp, StyleFunction } from 'styled-components';
+import React, { createRef } from 'react';
+import styled, { CSSProp } from 'styled-components';
+
+import Flex from 'design/Flex';
 
 import Modal, { BackdropProps, Props as ModalProps } from '../Modal';
 
+import { Transition } from './Transition';
+
+type Offset = { top: number; left: number };
 type Dimensions = { width: number; height: number };
 
 export type Origin = {
-  horizontal: HorizontalAnchor;
-  vertical: VerticalAnchor;
+  horizontal: HorizontalOrigin;
+  vertical: VerticalOrigin;
 };
 
-export type HorizontalAnchor = 'left' | 'center' | 'right' | number;
-export type VerticalAnchor = 'top' | 'center' | 'bottom' | number;
+export type HorizontalOrigin = 'left' | 'center' | 'right' | number;
+export type VerticalOrigin = 'top' | 'center' | 'bottom' | number;
 export type GrowDirections = 'top-left' | 'bottom-right';
+export type Position = 'top' | 'right' | 'bottom' | 'left';
 
 type NumericOrigin = {
   horizontal: number;
   vertical: number;
 };
 
-function getOffsetTop(rect: Dimensions, vertical: VerticalAnchor): number {
+function getOffsetTop(rect: Dimensions, vertical: VerticalOrigin): number {
   let offset = 0;
 
   if (typeof vertical === 'number') {
@@ -75,7 +81,7 @@ function getOffsetTop(rect: Dimensions, vertical: VerticalAnchor): number {
   return offset;
 }
 
-function getOffsetLeft(rect: Dimensions, horizontal: HorizontalAnchor): number {
+function getOffsetLeft(rect: Dimensions, horizontal: HorizontalOrigin): number {
   let offset = 0;
 
   if (typeof horizontal === 'number') {
@@ -87,6 +93,79 @@ function getOffsetLeft(rect: Dimensions, horizontal: HorizontalAnchor): number {
   }
 
   return offset;
+}
+
+/**
+ * Returns popover position, relative to the anchor. If unambiguously defined by
+ * the transform origin, returns this one. The ambiguous cases (transform origin
+ * on one of the popover corners) are resolved by looking into the anchor
+ * origin. If still ambiguous (corner touching a corner), prefers a vertical
+ * position.
+ */
+function getPopoverPosition(
+  anchorOrigin: Origin,
+  transformOrigin: Origin
+): Position | null {
+  const allowedByTransformOrigin = getAllowedPopoverPositions(transformOrigin);
+  switch (allowedByTransformOrigin.length) {
+    case 0:
+      return null;
+    case 1:
+      return allowedByTransformOrigin[0];
+
+    default: {
+      const preferredByAnchorOrigin =
+        getPreferredPopoverPositions(anchorOrigin);
+      const resolved = allowedByTransformOrigin.filter(d =>
+        preferredByAnchorOrigin.includes(d)
+      );
+      if (resolved.length === 0) return null;
+      return resolved[0];
+    }
+  }
+}
+
+/** Returns popover positions allowed by the transform origin. */
+function getAllowedPopoverPositions(transformOrigin: Origin) {
+  const allowed: Position[] = [];
+  // Note: order matters here. The first one will be preferred when no
+  // unambiguous decision is reached, so we arbitrarily prefer vertical over
+  // horizontal arrows.
+  if (transformOrigin.vertical === 'top') allowed.push('bottom');
+  if (transformOrigin.vertical === 'bottom') allowed.push('top');
+  if (transformOrigin.horizontal === 'left') allowed.push('right');
+  if (transformOrigin.horizontal === 'right') allowed.push('left');
+  return allowed;
+}
+
+/** Returns popover positions preferred by the anchor origin. */
+function getPreferredPopoverPositions(anchorOrigin: Origin) {
+  const preferred: Position[] = [];
+  if (anchorOrigin.vertical === 'top') preferred.push('top');
+  if (anchorOrigin.vertical === 'bottom') preferred.push('bottom');
+  if (anchorOrigin.horizontal === 'left') preferred.push('left');
+  if (anchorOrigin.horizontal === 'right') preferred.push('right');
+  return preferred;
+}
+
+/** Returns vertical position adjustment resulting from the popover margin. */
+function getPopoverMarginTop(
+  popoverPos: Position | null,
+  popoverMargin: number
+): number {
+  if (popoverPos === 'top') return popoverMargin;
+  if (popoverPos === 'bottom') return -popoverMargin;
+  return 0;
+}
+
+/** Returns horizontal position adjustment resulting from the popover margin. */
+function getPopoverMarginLeft(
+  popoverPos: Position | null,
+  popoverMargin: number
+): number {
+  if (popoverPos === 'left') return popoverMargin;
+  if (popoverPos === 'right') return -popoverMargin;
+  return 0;
 }
 
 function getTransformOriginValue(transformOrigin: Origin): string {
@@ -113,8 +192,252 @@ function getAnchorEl(anchorEl: Element | (() => Element)): Element {
   return typeof anchorEl === 'function' ? anchorEl() : anchorEl;
 }
 
-export default class Popover extends React.Component<Props> {
-  paperRef: MutableRefObject<HTMLDivElement> = createRef();
+/** Distance in pixels from the base to the tip of the arrow. */
+const arrowLength = 8;
+/** Distance in pixels between the arrow arms at the arrow base. */
+const arrowWidth = 2 * arrowLength;
+const borderRadius = 4;
+
+// Attention: advanced CSS magic below.
+//
+// We need to support transparency, blur filters, round corners, arrow tooltips.
+// The only technique that allows us to meet these criteria and make sure that
+// the arrow doesn't look like a broken glass shard when displayed on a
+// non-uniform background, is to use mask images.
+//
+// The following code implements and extends the technique described in
+// https://css-tricks.com/perfect-tooltips-with-css-clipping-and-masking/#aa-more-complex-shapes.
+// If you want to modify it, always observe these rules:
+//
+// 1. Keep the same number of elements in all of mask-image, mask-size, and
+//    mask-position declarations.
+// 2. Pay close attention to the syntax, particularly to the commas separating
+//    the elements.
+// 3. Make changes incrementally and test them live.
+//
+// The last rule is particularly important, since the style parser is
+// unforgiving and won't tell you what's wrong with your declaration, so the
+// best way to find where your mistake is is to only do one thing at a time.
+//
+// The following functions return an image mask that draws a tooltip shape using
+// following elements:
+//
+// 1. Four circles that render the round corners. Note that since browsers don't
+//    use anti-aliasing on gradients, we are making a 0.5px transition layer
+//    between transparent and opaque region. It's enough to force anti-aliasing
+//    on a regular density display. On a retina display, 1px would make the
+//    corners blurry.
+// 2. Two rectangles that fill the spaces between the round corners, first one
+//    horizontally, the second one vertically.
+// 3. A simple, three-point polygon that draws an arrow shape. Note that due to
+//    a quirk that prevents us from using the mask-position attribute with SVG
+//    documents, we can't just render it and refer to it by ID; the polygon
+//    needs to be literally embedded in the style definition.
+
+/**
+ * Returns a mask-image declaration that includes arrow polygon points. It's
+ * variable, since we can't rotate it, so each arrow direction gets its own
+ * polygon.
+ */
+function getMaskImage(arrowPolygonPoints: string) {
+  return `
+    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
+    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
+    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
+    radial-gradient(#fff ${borderRadius - 0.5}px, #fff0 ${borderRadius}px),
+
+    linear-gradient(#fff, #fff),
+    linear-gradient(#fff, #fff),
+
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><polygon points="${arrowPolygonPoints}"/></svg>')
+    `;
+}
+
+/**
+ * Returns four constant sizes for the corner masks and adds a variable portion
+ * for the space between corners and the arrow.
+ */
+function getMaskSize(variableSizes: string) {
+  return `
+    ${2 * borderRadius}px ${2 * borderRadius}px,
+    ${2 * borderRadius}px ${2 * borderRadius}px,
+    ${2 * borderRadius}px ${2 * borderRadius}px,
+    ${2 * borderRadius}px ${2 * borderRadius}px,
+    ${variableSizes}
+  `;
+}
+
+/**
+ * A set of `mask-image` and related styles to be applied to the popover element
+ * in order to "carve out" a shape of tooltip with an arrow.
+ */
+type MaskStyles = {
+  maskImage?: string;
+  maskPosition?: string;
+  maskSize?: string;
+};
+
+const noMaskStyles = {
+  maskImage: undefined,
+  maskPosition: undefined,
+  maskSize: undefined,
+};
+
+/**
+ * Returns mask styles to be applied to element with a given popover relative
+ * position and arrow coordinates.
+ * @param arrow Determines whether an arrow should be shown at all; if it's not
+ *   necessary, we don't need any mask at all.
+ * @param popoverPos Determines the direction of popover in relation to the
+ *   anchor.
+ * @param arrowLeft Horizontal position of the arrow, ignored if the arrow is
+ *   horizontal.
+ * @param arrowTop Vertical position of the arrow, ignored if the arrow is
+ *   vertical.
+ */
+function getMaskStyles(
+  arrow: boolean,
+  popoverPos: Position,
+  arrowLeft: number,
+  arrowTop: number
+): MaskStyles {
+  if (!arrow) {
+    return noMaskStyles;
+  }
+
+  switch (popoverPos) {
+    case 'top':
+      return {
+        // Mask image with specific arrow polygon points, corresponding to the
+        // arrow direction.
+        maskImage: getMaskImage(
+          `0 0, ${arrowWidth / 2} ${arrowLength}, ${arrowWidth} 0`
+        ),
+        // Circles in four corners, then rectangles pinned to the left and top
+        // edges of the tooltip, respectively. Last but not least, the arrow tip
+        // position.
+        maskPosition: `
+          0 0,
+          100% 0,
+          100% calc(100% - ${arrowLength}px),
+          0 calc(100% - ${arrowLength}px),
+
+          0 ${borderRadius}px,
+          ${borderRadius}px 0,
+
+          ${arrowLeft}px 100%
+        `,
+        // Constant sizes for the circles (see getMaskSize), and then rectangles
+        // sized according to the size of the tooltip. Arrow dimensions depend
+        // only on its orientation.
+        maskSize: getMaskSize(`
+          100% calc(100% - ${arrowLength + 2 * borderRadius}px),
+          calc(100% - ${2 * borderRadius}px) calc(100% - ${arrowLength}px),
+
+          ${arrowWidth}px ${arrowLength}px
+        `),
+      };
+    case 'right':
+      return {
+        maskImage: getMaskImage(
+          `${arrowLength} 0, 0 ${arrowWidth / 2}, ${arrowLength} ${arrowWidth}`
+        ),
+        maskPosition: `
+          ${arrowLength}px 0,
+          100% 0,
+          100% 100%,
+          ${arrowLength}px 100%,
+
+          ${arrowLength}px ${borderRadius}px,
+          ${arrowLength + borderRadius}px 0,
+
+          0 ${arrowTop}px
+        `,
+        maskSize: getMaskSize(`
+          calc(100% - ${arrowLength}px) calc(100% - ${2 * borderRadius}px),
+          calc(100% - ${arrowLength + 2 * borderRadius}px) 100%,
+
+          ${arrowLength}px ${arrowWidth}px
+        `),
+      };
+    case 'bottom':
+      return {
+        maskImage: getMaskImage(
+          `0 ${arrowLength}, ${arrowWidth / 2} 0, ${arrowWidth} ${arrowLength}`
+        ),
+        maskPosition: `
+          0 ${arrowLength}px,
+          100% ${arrowLength}px,
+          100% 100%,
+          0 100%,
+
+          0 ${arrowLength + borderRadius}px,
+          ${borderRadius}px ${arrowLength}px,
+
+          ${arrowLeft}px 0
+        `,
+        maskSize: getMaskSize(`
+          100% calc(100% - ${arrowLength + 2 * borderRadius}px),
+          calc(100% - ${2 * borderRadius}px) calc(100% - ${arrowLength}px),
+
+          ${arrowWidth}px ${arrowLength}px
+        `),
+      };
+    case 'left':
+      return {
+        maskImage: getMaskImage(
+          `0 0, ${arrowLength} ${arrowWidth / 2}, 0 ${arrowWidth}`
+        ),
+        maskPosition: `
+          0 0,
+          calc(100% - ${arrowLength}px) 0,
+          calc(100% - ${arrowLength}px) 100%,
+          0 100%,
+
+          0 ${borderRadius}px,
+          ${borderRadius}px 0,
+
+          100% ${arrowTop}px
+        `,
+        maskSize: getMaskSize(`
+          calc(100% - ${arrowLength}px) calc(100% - ${2 * borderRadius}px),
+          calc(100% - ${arrowLength + 2 * borderRadius}px) 100%,
+
+          ${arrowLength}px ${arrowWidth}px
+        `),
+      };
+    default:
+      return noMaskStyles;
+  }
+}
+
+/**
+ * Returns a CSS prop name that will receive additional padding related to the
+ * arrow position. This padding is necessary, since we manually draw the
+ * tooltip shape with an arrow. The tooltip element covers the entire area
+ * along with the arrow, and we push its content so that it doesn't enter the
+ * area reserved for the arrow.
+ */
+function getArrowPaddingProp(popoverPos: Position | null) {
+  switch (popoverPos) {
+    case null:
+      return null;
+    case 'top':
+      return 'paddingBottom';
+    case 'right':
+      return 'paddingLeft';
+    case 'bottom':
+      return 'paddingTop';
+    case 'left':
+      return 'paddingRight';
+    default:
+      popoverPos satisfies never;
+  }
+}
+
+export class Popover extends React.Component<Props> {
+  paperRef = createRef<HTMLDivElement>();
+  arrowRef = createRef<HTMLDivElement>();
   handleResize: () => void;
 
   static defaultProps = {
@@ -129,6 +452,9 @@ export default class Popover extends React.Component<Props> {
       horizontal: 'left',
     },
     growDirections: 'bottom-right',
+    arrow: false,
+    popoverMargin: 0,
+    arrowMargin: 4,
   };
 
   constructor(props: Props) {
@@ -142,7 +468,7 @@ export default class Popover extends React.Component<Props> {
           return;
         }
 
-        this.setPositioningStyles(this.paperRef.current);
+        this.setPositioningStyles();
       };
     }
   }
@@ -155,36 +481,66 @@ export default class Popover extends React.Component<Props> {
     }
   }
 
-  setPositioningStyles = (element: HTMLElement) => {
-    const positioning = this.getPositioningStyle(element);
+  setPositioningStyles = () => {
+    const paper = this.paperRef.current;
+
+    const popoverPos = getPopoverPosition(
+      this.props.anchorOrigin,
+      this.props.transformOrigin
+    );
+
+    const arrowPaddingProp = getArrowPaddingProp(popoverPos);
+    if (arrowPaddingProp && this.props.arrow) {
+      this.paperRef.current.style[arrowPaddingProp] = `${arrowLength}px`;
+    } else {
+      this.paperRef.current.style.padding = '0';
+    }
+
+    const {
+      top,
+      left,
+      bottom,
+      right,
+      transformOrigin,
+      maskImage,
+      maskPosition,
+      maskSize,
+    } = this.getPositioningStyle();
 
     if (this.props.growDirections === 'bottom-right') {
-      if (positioning.top !== null) {
-        element.style.top = positioning.top;
+      if (top !== null) {
+        paper.style.top = top;
       }
-      if (positioning.left !== null) {
-        element.style.left = positioning.left;
+      if (left !== null) {
+        paper.style.left = left;
       }
     } else {
-      if (positioning.bottom !== null) {
-        element.style.bottom = positioning.bottom;
+      if (bottom !== null) {
+        paper.style.bottom = bottom;
       }
-      if (positioning.right !== null) {
-        element.style.right = positioning.right;
+      if (right !== null) {
+        paper.style.right = right;
       }
     }
-    element.style.transformOrigin = positioning.transformOrigin;
+    paper.style.transformOrigin = transformOrigin;
+    paper.style.maskImage = maskImage;
+    paper.style.maskPosition = maskPosition;
+    paper.style.maskSize = maskSize;
   };
 
-  getPositioningStyle = (element: HTMLElement) => {
-    const { anchorReference, marginThreshold } = this.props;
+  getPositioningStyle = (): {
+    top?: string;
+    left?: string;
+    bottom?: string;
+    right?: string;
+    transformOrigin: string;
+  } & MaskStyles => {
+    const element = this.paperRef.current;
+    const { anchorReference, marginThreshold, arrowMargin } = this.props;
 
     // Check if the parent has requested anchoring on an inner content node
     const contentAnchorOffset = this.getContentAnchorOffset(element);
-    const elemRect = {
-      width: element.offsetWidth,
-      height: element.offsetHeight,
-    };
+    const elemRect = element.getBoundingClientRect();
 
     // Get the transform origin point on the element itself
     const transformOrigin = this.getTransformOrigin(
@@ -242,18 +598,52 @@ export default class Popover extends React.Component<Props> {
     bottom = top + elemRect.height;
     right = left + elemRect.width;
 
+    const popoverPos = getPopoverPosition(
+      this.props.anchorOrigin,
+      this.props.transformOrigin
+    );
+
+    // Calculate the arrow position.
+    let arrowLeft = 0;
+    let arrowTop = 0;
+    switch (popoverPos) {
+      case 'left':
+      case 'right':
+        arrowTop = transformOrigin.vertical - arrowWidth / 2;
+        if (arrowTop < arrowMargin) {
+          arrowTop = arrowMargin;
+        }
+        if (arrowTop > elemRect.height - arrowWidth - arrowMargin) {
+          arrowTop = elemRect.height - arrowWidth - arrowMargin;
+        }
+        break;
+      case 'top':
+      case 'bottom':
+        arrowLeft = transformOrigin.horizontal - arrowWidth / 2;
+        if (arrowLeft < arrowMargin) {
+          arrowLeft = arrowMargin;
+        }
+        if (arrowLeft > elemRect.width - arrowWidth - arrowMargin) {
+          arrowLeft = elemRect.width - arrowWidth - arrowMargin;
+        }
+        break;
+      default:
+        popoverPos satisfies never;
+    }
+
     return {
       top: `${top}px`,
       left: `${left}px`,
       bottom: `${window.innerHeight - bottom}px`,
       right: `${window.innerWidth - right}px`,
       transformOrigin: getTransformOriginValue(transformOrigin),
+      ...getMaskStyles(this.props.arrow, popoverPos, arrowLeft, arrowTop),
     };
   };
 
   // Returns the top/left offset of the position
   // to attach to on the anchor element (or body if none is provided)
-  getAnchorOffset(contentAnchorOffset: number): { top: number; left: number } {
+  getAnchorOffset(contentAnchorOffset: number): Offset {
     const { anchorEl, anchorOrigin } = this.props;
 
     // If an anchor element wasn't provided, just use the parent body element of this Popover
@@ -299,10 +689,19 @@ export default class Popover extends React.Component<Props> {
   ): NumericOrigin {
     const { transformOrigin } = this.props;
 
-    const vertical =
-      getOffsetTop(elemRect, transformOrigin.vertical) + contentAnchorOffset;
+    const popoverPos = getPopoverPosition(
+      this.props.anchorOrigin,
+      this.props.transformOrigin
+    );
 
-    const horizontal = getOffsetLeft(elemRect, transformOrigin.horizontal);
+    const vertical =
+      getOffsetTop(elemRect, transformOrigin.vertical) +
+      getPopoverMarginTop(popoverPos, this.props.popoverMargin) +
+      contentAnchorOffset;
+
+    const horizontal =
+      getOffsetLeft(elemRect, transformOrigin.horizontal) +
+      getPopoverMarginLeft(popoverPos, this.props.popoverMargin);
 
     return {
       vertical,
@@ -310,24 +709,16 @@ export default class Popover extends React.Component<Props> {
     };
   }
 
-  handleEntering = (element: HTMLElement) => {
+  handleEntering = () => {
     if (this.props.onEntering) {
-      this.props.onEntering(element);
+      this.props.onEntering(this.paperRef.current);
     }
 
-    this.setPositioningStyles(element);
-  };
-
-  setPaperRef = (el: HTMLDivElement) => {
-    if (el && !this.paperRef.current) {
-      this.handleEntering(el);
-    }
-    this.paperRef.current = el;
+    this.setPositioningStyles();
   };
 
   render() {
     const { children, open, popoverCss, ...other } = this.props;
-    console.log(other);
 
     return (
       <Modal
@@ -335,17 +726,25 @@ export default class Popover extends React.Component<Props> {
         BackdropProps={{ invisible: true, ...this.props.backdropProps }}
         {...other}
       >
-        <StyledPopover
-          popoverCss={popoverCss}
-          data-mui-test="Popover"
-          ref={this.setPaperRef}
-        >
-          {children}
-        </StyledPopover>
+        <Transition onEntering={this.handleEntering}>
+          <StyledPopover
+            shadow={true}
+            popoverCss={popoverCss}
+            data-mui-test="Popover"
+            ref={this.paperRef}
+            style={{
+              maskRepeat: 'no-repeat',
+            }}
+          >
+            {children}
+          </StyledPopover>
+        </Transition>
       </Modal>
     );
   }
 }
+
+export default Popover;
 
 interface Props extends Omit<ModalProps, 'children' | 'open'> {
   /**
@@ -436,11 +835,30 @@ interface Props extends Omit<ModalProps, 'children' | 'open'> {
 
   /** Properties applied to the backdrop element. */
   backdropProps?: BackdropProps;
+
+  /** `true` indicates an arrow will be displayed pointing at the anchor. */
+  arrow?: boolean;
+
+  /** Distance between anchor and the popover. */
+  popoverMargin?: number;
+
+  /**
+   * Minimum distance between an arrow and the edge of the popover. Important
+   * for proper rendering of rounded corners which should not interfere with
+   * arrow tips.
+   */
+  arrowMargin?: number;
 }
 
-export const StyledPopover = styled.div<{ popoverCss?: () => CSSProp }>`
-  box-shadow: ${props => props.theme.boxShadow[1]};
-  border-radius: 4px;
+export const StyledPopover = styled(Flex)<{
+  shadow: boolean;
+  popoverCss?: () => CSSProp;
+}>`
+  /* Ignored if we apply the mask. */
+  box-shadow: ${props => (props.shadow ? props.theme.boxShadow[1] : 'none')};
+  border-radius: ${borderRadius}px;
+
+  background-color: ${props => props.theme.colors.levels.elevated};
   max-width: calc(100% - 32px);
   max-height: calc(100% - 32px);
   min-height: 16px;
