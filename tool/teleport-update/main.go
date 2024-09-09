@@ -39,7 +39,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -143,8 +142,7 @@ func Run(args []string) error {
 		return trace.Errorf("setting up logger")
 	}
 
-	err = validateCLIConfig(&ccfg)
-	if err != nil {
+	if err := ccfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -282,168 +280,12 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
-	var (
-		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updatesYAML = filepath.Join(versionsDir, updatesFileName)
-	)
-
-	// Ensure enable can't run concurrently.
-	unlock, err := lock(filepath.Join(versionsDir, lockFileName))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer unlock()
-
-	// Read configuration from updates.yaml and override any new values passed as flags.
-	cfg, err := readUpdatesConfig(updatesYAML)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if ccfg.ProxyServer != "" {
-		cfg.Spec.Proxy = ccfg.ProxyServer
-	}
-	if ccfg.Group != "" {
-		cfg.Spec.Group = ccfg.Group
-	}
-	if ccfg.Template != "" {
-		cfg.Spec.URLTemplate = ccfg.Template
-	}
-	cfg.Spec.Enabled = true
-	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Lookup target version from the proxy.
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
-	if err != nil {
-		return trace.Errorf("failed to parse proxy server address: %w", err)
-	}
-	resp, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: addr.Addr,
-		Timeout:   30 * time.Second,
-		Group:     cfg.Spec.Group,
-		Pool:      certPool,
-	})
-	if err != nil {
-		return trace.Errorf("failed to request version from proxy: %w", err)
-	}
-	resp.AgentVersion = "16.2.0" // FIXME: for testing
-
-	// If the active version and target don't match, kick off upgrade.
-	if cfg.Spec.ActiveVersion != resp.AgentVersion {
-		client, err := newClient(&downloadConfig{
-			Pool: certPool,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer client.CloseIdleConnections()
-		tv := TeleportVersion{
-			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
-			DownloadClient: client,
-		}
-		template := cfg.Spec.URLTemplate
-		if template == "" {
-			template = cdnURITemplate
-		}
-		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
-		err = tv.Create(ctx, template, resp.AgentVersion)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Spec.ActiveVersion = resp.AgentVersion
-	}
-
-	// Always write the configuration file if enable succeeds.
-	if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.NotImplemented("TODO")
 }
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
-	var (
-		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updatesYAML = filepath.Join(versionsDir, updatesFileName)
-	)
-
-	// Ensure updates can't run concurrently on the same system.
-	unlock, err := lock(filepath.Join(versionsDir, lockFileName))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer unlock()
-
-	// Read and validate configuration from updates.yaml
-	cfg, err := readUpdatesConfig(updatesYAML)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
-		return trace.Wrap(err)
-	}
-	if !cfg.Spec.Enabled {
-		return trace.Errorf("updates disabled")
-	}
-
-	// Lookup target Teleport version from cluster
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
-	if err != nil {
-		return trace.Errorf("failed to parse proxy server address: %w", err)
-	}
-	resp, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: addr.Addr,
-		Timeout:   30 * time.Second,
-		Group:     cfg.Spec.Group,
-		Pool:      certPool,
-	})
-	if err != nil {
-		return trace.Errorf("failed to request version from proxy: %w", err)
-	}
-
-	resp.AgentVersion = "16.2.0" // FIXME: for testing
-	if cfg.Spec.ActiveVersion != resp.AgentVersion {
-		time.Sleep(time.Duration(resp.AgentUpdateJitterSeconds) * time.Second)
-
-		client, err := newClient(&downloadConfig{
-			Pool: certPool,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer client.CloseIdleConnections()
-		tv := TeleportVersion{
-			VersionsDir:    versionsDir,
-			DownloadClient: client,
-		}
-		template := cfg.Spec.URLTemplate
-		if template == "" {
-			template = cdnURITemplate
-		}
-		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
-		err = tv.Create(ctx, template, resp.AgentVersion)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Spec.ActiveVersion = resp.AgentVersion
-
-		// Only write updates.yaml if the version has changed.
-		if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	return trace.NotImplemented("TODO")
 }
 
 func lock(lockFile string) (func(), error) {
@@ -496,16 +338,9 @@ func newClient(cfg *downloadConfig) (*http.Client, error) {
 	}, nil
 }
 
-func validateCLIConfig(cfg *cliConfig) error {
-	if cfg.DataDir == "" {
-		cfg.DataDir = libdefaults.DataDir
-	}
-	return nil
-}
-
-func validateUpdatesSpec(spec *UpdatesSpec) error {
-	if spec.Proxy == "" {
-		return trace.Errorf("proxy URL must be specified with --proxy or present in updates.yaml")
+func (c *cliConfig) CheckAndSetDefaults() error {
+	if c.DataDir == "" {
+		c.DataDir = libdefaults.DataDir
 	}
 	return nil
 }
