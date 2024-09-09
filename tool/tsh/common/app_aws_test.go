@@ -273,7 +273,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 		t.Run(cluster, func(t *testing.T) {
 			commandOutput := new(bytes.Buffer)
 			// Don't provide the `--aws-role`. We expect a failure since there
-			// are mulitple ARN roles.
+			// are multiple ARN roles.
 			err := Run(
 				context.Background(),
 				[]string{"app", "login", "--insecure", "--cluster", cluster, "awsconsole"},
@@ -309,36 +309,4 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 
 	alice.SetRoles([]string{"access", awsRole.GetName()})
 	return alice, awsRole
-}
-
-// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
-func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
-	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-
-	proxyAddr, err := proxy.ProxyWebAddr()
-	require.NoError(t, err)
-
-	cfg.SetAuthServerAddress(*proxyAddr)
-
-	token, err := proxy.Config.Token()
-	require.NoError(t, err)
-
-	cfg.SetToken(token)
-	cfg.SSH.Enabled = false
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
-	cfg.Apps.Enabled = true
-	cfg.Apps.Apps = apps
-	cfg.Log = utils.NewLoggerForTests()
-	// Disabling debug service for tests so that it doesn't break if the data
-	// directory path is too long.
-	cfg.DebugService.Enabled = false
-
-	return runTeleport(t, cfg)
 }
