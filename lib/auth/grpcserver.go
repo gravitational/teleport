@@ -4826,6 +4826,14 @@ func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *em
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
 }
 
+func (g *GRPCServer) DeleteAllIdentityCenterAccount(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllIdentityCenterAccount(ctx))
+}
+
 // ListUserGroups returns a paginated list of user group resources.
 func (g *GRPCServer) ListUserGroups(ctx context.Context, req *authpb.ListUserGroupsRequest) (*authpb.ListUserGroupsResponse, error) {
 	auth, err := g.authenticate(ctx)

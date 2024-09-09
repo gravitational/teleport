@@ -3561,4 +3561,7 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // DeleteAllIdentityCenterAccount deletes all identity center accounts.
+  rpc DeleteAllIdentityCenterAccount(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

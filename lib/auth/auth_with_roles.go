@@ -7246,6 +7246,12 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 	return trace.Wrap(err)
 }
 
+func (a *ServerWithRoles) DeleteAllIdentityCenterAccount(ctx context.Context) (err error) {
+
+	err = a.authServer.IdentityCenter.DeleteAllIdentityCenterAccounts(ctx)
+	return trace.Wrap(err)
+}
+
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
 // Returns without deleting any resource if user role denies access to any one of the listed resource.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
