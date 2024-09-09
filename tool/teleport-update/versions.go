@@ -103,7 +103,7 @@ func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) 
 		}
 	}()
 
-	// Avoid gzip bomb by validating checksum before any decompression
+	// Check integrity before decompression
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
 	}
