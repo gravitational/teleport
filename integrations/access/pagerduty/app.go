@@ -81,6 +81,7 @@ func NewApp(conf Config) (*App, error) {
 	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
 		Client:     conf.Client,
 		PluginType: types.PluginTypePagerDuty,
+		PluginName: pluginName,
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
 			return &common.Recipient{
 				Name: name,
