@@ -238,6 +238,7 @@ type configureDatabaseAWSPrintFlags struct {
 	// policyOnly if "true" will only prints the policy JSON.
 	policyOnly bool
 	// boundaryOnly if "true" will only prints the policy boundary JSON.
+	// TODO(gavin): DELETE IN 18.0.0
 	boundaryOnly bool
 }
 
@@ -315,8 +316,7 @@ func onConfigureDatabasesAWSPrint(flags configureDatabaseAWSPrintFlags) error {
 	}
 
 	if flags.boundaryOnly {
-		// Policy boundary is present at the details of the second instruction.
-		fmt.Println(actions[1].Details())
+		fmt.Println("The --boundary flag is deprecated. The IAM permissions model that Teleport uses no longer requires a boundary policy.")
 		return nil
 	}
 

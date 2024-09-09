@@ -177,7 +177,7 @@ You may encounter the following error when the admin user or the roles assigned
 to the auto-provisioned user do not have permission to connect to the target
 database:
 
-```shell
+```code
 $ tsh db connect --db-name <database> example
 ...
 FATAL: permission denied for database "<database>"
@@ -194,7 +194,7 @@ GRANT CONNECT ON DATABASE <database> to "reader";
 
 You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -208,7 +208,7 @@ endpoints. Please use auto-user provisioning on the primary endpoints.
 
 You may encounter the following error when connecting if the admin user does
 not have `USAGE` permission on the schema:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -225,7 +225,7 @@ GRANT CREATE ON SCHEMA public TO "teleport-admin";
 ### Permission denied to grant role "rds_iam"
 
 You may encounter the following error when connecting to an RDS database:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...

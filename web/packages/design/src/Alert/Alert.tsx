@@ -24,7 +24,7 @@ import { space, SpaceProps, width, WidthProps } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
 import * as Icon from 'design/Icon';
 import Flex from 'design/Flex';
-import { Text, Button, Box, ButtonText, ButtonIcon } from 'design';
+import { Text, Button, Box, ButtonIcon } from 'design';
 import { IconProps } from 'design/Icon/Icon';
 import { ButtonFill, ButtonIntent } from 'design/Button';
 
@@ -124,10 +124,16 @@ interface Props<K> {
   onDismiss?: () => void;
 }
 
-/** Specifies parameters of an action button. */
-interface Action {
+/**
+ * Specifies parameters of an action button. If no `href` is specified, the
+ * button is rendered as a regular button; otherwise, a link (with a button
+ * appearance) is used instead, and `href` is used as a link target. A link
+ * button can still have an `onClick` handler, too.
+ */
+export interface Action {
   content: React.ReactNode;
-  onClick: () => void;
+  href?: string;
+  onClick?: () => void;
 }
 
 export interface AlertProps
@@ -344,14 +350,14 @@ const ActionButtons = ({
   return (
     <Flex ml={5} gap={2}>
       {primaryAction && (
-        <Button {...primaryButtonProps(kind)} onClick={primaryAction.onClick}>
-          {primaryAction.content}
-        </Button>
+        <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}
       {secondaryAction && (
-        <ButtonText onClick={secondaryAction.onClick}>
-          {secondaryAction.content}
-        </ButtonText>
+        <ActionButton
+          fill="minimal"
+          intent="neutral"
+          action={secondaryAction}
+        />
       )}
       {dismissible && !dismissed && (
         <ButtonIcon aria-label="Dismiss" onClick={onDismiss}>
@@ -361,6 +367,33 @@ const ActionButtons = ({
     </Flex>
   );
 };
+
+/** Renders either a regular or a link button, depending on the action. */
+export const ActionButton = ({
+  action: { href, content, onClick },
+  fill,
+  intent,
+}: {
+  action: Action;
+  fill?: ButtonFill;
+  intent?: ButtonIntent;
+}) =>
+  href ? (
+    <Button
+      as="a"
+      href={href}
+      target="_blank"
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+    >
+      {content}
+    </Button>
+  ) : (
+    <Button fill={fill} intent={intent} onClick={onClick}>
+      {content}
+    </Button>
+  );
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;
