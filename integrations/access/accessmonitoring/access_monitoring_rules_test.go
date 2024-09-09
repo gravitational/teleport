@@ -97,7 +97,7 @@ func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
 		Type:     types.OpPut,
 		Resource: types.Resource153ToLegacy(rule1),
 	})
-	require.Len(t, amrh.getAccessMonitoringRules(), 0)
+	require.Empty(t, amrh.getAccessMonitoringRules())
 
 	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
 		Subjects:  []string{types.KindAccessRequest},
