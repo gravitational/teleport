@@ -91,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 const (
