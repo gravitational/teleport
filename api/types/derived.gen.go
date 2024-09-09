@@ -174,7 +174,8 @@ func deriveTeleportEqual(this, that *AppSpecV3) bool {
 			deriveTeleportEqual_19(this.AWS, that.AWS) &&
 			this.Cloud == that.Cloud &&
 			deriveTeleportEqual_20(this.UserGroups, that.UserGroups) &&
-			this.Integration == that.Integration
+			this.Integration == that.Integration &&
+			deriveTeleportEqual_20(this.RequiredAppNames, that.RequiredAppNames)
 }
 
 // deriveTeleportEqual_ returns whether this and that are equal.
