@@ -401,10 +401,11 @@ type policies struct {
 	// accountID current AWS account ID.
 	accountID string
 	// iamClient is an already initialized IAM client.
-	iamClient iamClient
+	iamClient IAMClient
 }
 
-type iamClient interface {
+// IAMClient describes the methods required to manage AWS IAM policies.
+type IAMClient interface {
 	AttachRolePolicy(ctx context.Context, params *iam.AttachRolePolicyInput, optFns ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error)
 	AttachUserPolicy(ctx context.Context, params *iam.AttachUserPolicyInput, optFns ...func(*iam.Options)) (*iam.AttachUserPolicyOutput, error)
 	CreatePolicy(ctx context.Context, params *iam.CreatePolicyInput, optFns ...func(*iam.Options)) (*iam.CreatePolicyOutput, error)
@@ -414,9 +415,11 @@ type iamClient interface {
 	ListPolicyVersions(ctx context.Context, params *iam.ListPolicyVersionsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyVersionsOutput, error)
 }
 
+var _ IAMClient = (*iam.Client)(nil)
+
 // NewPolicies creates new instance of Policies using the provided
 // identity, partitionID and IAM client.
-func NewPolicies(partitionID string, accountID string, iamClient iamClient) *policies {
+func NewPolicies(partitionID string, accountID string, iamClient IAMClient) *policies {
 	return &policies{
 		partitionID: partitionID,
 		accountID:   accountID,
