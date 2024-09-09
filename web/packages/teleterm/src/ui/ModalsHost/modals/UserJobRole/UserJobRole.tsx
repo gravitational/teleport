@@ -101,6 +101,7 @@ export function UserJobRole(props: UserJobRoleProps) {
             options={[...JOB_OPTIONS, OTHER_JOB_ROLE]}
             value={jobRole}
             onChange={handleRadioGroupChange}
+            mb={3}
           />
           <StyledInput
             ref={inputRef}

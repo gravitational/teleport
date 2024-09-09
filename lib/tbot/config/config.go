@@ -59,6 +59,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
+	string(types.JoinMethodTerraformCloud),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -219,6 +220,14 @@ type AzureOnboardingConfig struct {
 	ClientID string `yaml:"client_id,omitempty"`
 }
 
+// TerraformOnboardingConfig contains parameters for the "terraform" join method
+type TerraformOnboardingConfig struct {
+	// TokenTag is the name of the tag configured via the environment variable
+	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
+	// variant is used.
+	AudienceTag string `yaml:"audience_tag,omitempty"`
+}
+
 // OnboardingConfig contains values relevant to how the bot authenticates with
 // the Teleport cluster.
 type OnboardingConfig struct {
@@ -242,18 +251,15 @@ type OnboardingConfig struct {
 
 	// Azure holds configuration relevant to the azure joining method.
 	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
+
+	// Terraform holds configuration relevant to the `terraform` join method.
+	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
 // in the config
 func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
-}
-
-// RenewableJoinMethod indicates that certificate renewal should be used with
-// this join method rather than rejoining each time.
-func (conf *OnboardingConfig) RenewableJoinMethod() bool {
-	return conf.JoinMethod == types.JoinMethodToken
 }
 
 // SetToken stores the value for --token or auth_token in the config
@@ -445,6 +451,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		)
 	}
 
+	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			"requested_ttl", conf.CertificateTTL,
+			"maximum_ttl", defaults.MaxRenewableCertTTL,
+		)
+	}
+
 	return nil
 }
 
@@ -631,6 +646,27 @@ func destinationFromURI(uriString string) (bot.Destination, error) {
 			)
 		}
 		return &DestinationMemory{}, nil
+	case "kubernetes-secret":
+		if uri.Host != "" {
+			return nil, trace.BadParameter(
+				"kubernetes-secret scheme should not be specified with host",
+			)
+		}
+		if uri.Path == "" {
+			return nil, trace.BadParameter(
+				"kubernetes-secret scheme should have a path specified",
+			)
+		}
+		// kubernetes-secret:///my-secret
+		// TODO(noah): Eventually we'll support namespace in the host part of
+		// the URI. For now, we'll default to the namespace tbot is running in.
+
+		// Path will be prefixed with '/' so we'll strip it off.
+		secretName := strings.TrimPrefix(uri.Path, "/")
+
+		return &DestinationKubernetesSecret{
+			Name: secretName,
+		}, nil
 	default:
 		return nil, trace.BadParameter(
 			"unrecognized data storage scheme",

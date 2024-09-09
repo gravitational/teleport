@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"sync"
 	"time"
 
@@ -212,8 +213,8 @@ func push(
 }
 
 // NewAccessGraphClient returns a new access graph service client.
-func newAccessGraphClient(ctx context.Context, certs []tls.Certificate, config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-	opt, err := grpcCredentials(config, certs)
+func newAccessGraphClient(ctx context.Context, getCert func() (*tls.Certificate, error), config AccessGraphConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	opt, err := grpcCredentials(config, getCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -271,7 +272,6 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 					SemaphoreKind: types.KindAccessGraph,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
-					Expires:       s.clock.Now().Add(semaphoreExpiration),
 					Holder:        s.Config.ServerID,
 				},
 				Expiry: semaphoreExpiration,
@@ -308,7 +308,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 
 	accessGraphConn, err := newAccessGraphClient(
 		ctx,
-		s.ServerCredentials.Certificates,
+		s.GetClientCert,
 		config,
 		grpc.WithDefaultServiceConfig(serviceConfig),
 	)
@@ -359,7 +359,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 			// no fetchers, no need to continue.
 			// we will wait for the config to change and re-evaluate the fetchers
 			// before starting the sync.
-			return nil
+			_, err := stream.CloseAndRecv() /* signal the end of the stream  and wait for the response */
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+			return trace.Wrap(err)
 		}
 		select {
 		case <-ctx.Done():
@@ -371,7 +375,7 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 }
 
 // grpcCredentials returns a grpc.DialOption configured with TLS credentials.
-func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.DialOption, error) {
+func grpcCredentials(config AccessGraphConfig, getCert func() (*tls.Certificate, error)) (grpc.DialOption, error) {
 	var pool *x509.CertPool
 	if len(config.CA) > 0 {
 		pool = x509.NewCertPool()
@@ -380,8 +384,15 @@ func grpcCredentials(config AccessGraphConfig, certs []tls.Certificate) (grpc.Di
 		}
 	}
 
+	// TODO(espadolini): this doesn't honor the process' configured ciphersuites
 	tlsConfig := &tls.Config{
-		Certificates:       certs,
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			tlsCert, err := getCert()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return tlsCert, nil
+		},
 		MinVersion:         tls.VersionTLS13,
 		InsecureSkipVerify: config.Insecure,
 		RootCAs:            pool,

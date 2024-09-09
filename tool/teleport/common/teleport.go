@@ -105,8 +105,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command(teleport.SFTPSubCommand, "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
-	forward := app.Command(teleport.LocalForwardSubCommand, "Used internally by Teleport to re-exec itself to port forward.").Hidden()
-	remoteForward := app.Command(teleport.RemoteForwardSubCommand, "Used internally by Teleport to re-exec itself to remote port forward.").Hidden()
+	networking := app.Command(teleport.NetworkingSubCommand, "Used internally by Teleport to re-exec itself to handle networking requests.").Hidden()
 	checkHomeDir := app.Command(teleport.CheckHomeDirSubCommand, "Used internally by Teleport to re-exec itself to check access to a directory.").Hidden()
 	park := app.Command(teleport.ParkSubCommand, "Used internally by Teleport to re-exec itself to do nothing.").Hidden()
 	app.HelpFlag.Short('h')
@@ -196,6 +195,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("db-aws-region",
 		"AWS region AWS hosted database instance is running in.").Hidden().
 		StringVar(&ccf.DatabaseAWSRegion)
+	start.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -219,6 +219,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	appStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	appStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	appStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
+	appStartCmd.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
 	appStartCmd.Alias(appUsageExamples) // We're using "alias" section to display usage examples.
 
 	// "teleport db" command and its subcommands
@@ -255,6 +256,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("diag-addr", "Start diagnostic prometheus and healthz endpoint.").StringVar(&ccf.DiagnosticAddr)
 	dbStartCmd.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	dbStartCmd.Flag("skip-version-check", "Skip version checking between server and client.").Default("false").BoolVar(&ccf.SkipVersionCheck)
+	dbStartCmd.Flag("no-debug-service", "Disables debug service.").BoolVar(&ccf.DisableDebugService)
 	dbStartCmd.Alias(dbUsageExamples) // We're using "alias" section to display usage examples.
 
 	dbConfigure := dbCmd.Command("configure", "Bootstraps database service configuration and cloud permissions.")
@@ -299,7 +301,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("gcp-instance-id", "(Only for Cloud SQL) GCP Cloud SQL instance identifier.").StringVar(&dbConfigCreateFlags.DatabaseGCPInstanceID)
 	dbConfigureCreate.Flag("ca-cert-file", "Database CA certificate path.").StringVar(&dbConfigCreateFlags.DatabaseCACertFile)
 	dbConfigureCreate.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
 	dbConfigureCreate.Flag("dynamic-resources-labels", "Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching.").StringsVar(&dbConfigCreateFlags.DynamicResourcesRawLabels)
 	dbConfigureCreate.Flag("trust-system-cert-pool", "Allows Teleport to trust certificate authorities available on the host system for self-hosted databases.").BoolVar(&dbConfigCreateFlags.DatabaseTrustSystemCertPool)
@@ -325,7 +327,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSPrintIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSPrintFlags.role)
 	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
 	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
-	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
+	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").Hidden().BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
 	dbConfigureAWSPrintIAM.Flag("assumes-roles",
 		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
 		StringVar(&configureDatabaseAWSPrintFlags.assumesRoles)
@@ -367,7 +369,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(config.SystemdDefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
 	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", config.SystemdDefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
 	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
-	systemdInstall.Flag("output", "Write to stdout with -o=stdout or custom path with -o=file:///path").Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
+	systemdInstall.Flag("output", `Write to stdout with "--output=stdout" or custom path with --output=file:///path`).Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
 
 	// This command is hidden because it is only meant to be used by the AutoDiscover script.
@@ -395,7 +397,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dump.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
 	dump.Flag("acme",
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
@@ -423,7 +425,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dumpNodeConfigure.Flag("output",
-		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
+		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dumpFlags.output)
 	dumpNodeConfigure.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dumpNodeConfigure.Flag("public-addr", "The hostport that the node advertises for the SSH endpoint.").StringVar(&dumpFlags.PublicAddr)
@@ -484,6 +486,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfEC2SSMCmd.Flag("ssm-document-name", "The AWS SSM Document name to create that will be used to install teleport.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.SSMDocumentName)
 	integrationConfEC2SSMCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").StringVar(&ccf.
 		IntegrationConfEC2SSMIAMArguments.ProxyPublicURL)
+	integrationConfEC2SSMCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.ClusterName)
+	integrationConfEC2SSMCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfEC2SSMIAMArguments.IntegrationName)
 
 	integrationConfAWSAppAccessCmd := integrationConfigureCmd.Command("aws-app-access-iam", "Adds required IAM permissions to connect to AWS using App Access.")
 	integrationConfAWSAppAccessCmd.Flag("role", "The AWS Role name used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfAWSAppAccessIAMArguments.RoleName)
@@ -503,13 +507,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Name)
 	integrationConfAWSOIDCIdPCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.Role)
-	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").StringVar(&ccf.
+	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
 	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
-	integrationConfAWSOIDCIdPCmd.Flag("s3-bucket-uri", "The S3 URI(format: s3://<bucket>/<prefix>) used to store the OpenID configuration and public keys. ").StringVar(&ccf.
-		IntegrationConfAWSOIDCIdPArguments.S3BucketURI)
-	integrationConfAWSOIDCIdPCmd.Flag("s3-jwks-base64", `The JWKS base 64 encoded. Required when using the S3 Bucket as the Issuer URL. Format: base64({"keys":[{"kty":"RSA","alg":"RS256","n":"<value of n>","e":"<value of e>","use":"sig","kid":""}]}).`).StringVar(&ccf.
-		IntegrationConfAWSOIDCIdPArguments.S3JWKSContentsB64)
 
 	integrationConfListDatabasesCmd := integrationConfigureCmd.Command("listdatabases-iam", "Adds required IAM permissions to List RDS Databases (Instances and Clusters).")
 	integrationConfListDatabasesCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfListDatabasesIAMArguments.Region)
@@ -530,7 +530,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	integrationConfExternalAuditCmd.Flag("glue-table", "The name of the Glue table used.").Required().StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.GlueTable)
 	integrationConfExternalAuditCmd.Flag("aws-partition", "AWS partition (default: aws).").Default("aws").StringVar(&ccf.IntegrationConfExternalAuditStorageArguments.Partition)
 
-	integrationConfAzureOIDCCmd := integrationConfigureCmd.Command("azure-oidc", "Configures Azure / Entra ID OIDC integration")
+	integrationConfAzureOIDCCmd := integrationConfigureCmd.Command("azure-oidc", "Configures Azure / Entra ID OIDC integration.")
 	integrationConfAzureOIDCCmd.Flag("proxy-public-addr", "The public address of Teleport Proxy Service").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.ProxyPublicAddr)
 	integrationConfAzureOIDCCmd.Flag("auth-connector-name", "The name of Entra ID SAML Auth connector in Teleport.").Required().StringVar(&ccf.IntegrationConfAzureOIDCArguments.AuthConnectorName)
 	integrationConfAzureOIDCCmd.Flag("access-graph", "Enable Access Graph integration.").BoolVar(&ccf.IntegrationConfAzureOIDCArguments.AccessGraphEnabled)
@@ -647,10 +647,8 @@ Examples:
 		err = onConfigDump(dumpFlags)
 	case exec.FullCommand():
 		srv.RunAndExit(teleport.ExecSubCommand)
-	case forward.FullCommand():
-		srv.RunAndExit(teleport.LocalForwardSubCommand)
-	case remoteForward.FullCommand():
-		srv.RunAndExit(teleport.RemoteForwardSubCommand)
+	case networking.FullCommand():
+		srv.RunAndExit(teleport.NetworkingSubCommand)
 	case checkHomeDir.FullCommand():
 		srv.RunAndExit(teleport.CheckHomeDirSubCommand)
 	case park.FullCommand():
@@ -919,7 +917,7 @@ func onConfigDump(flags dumpFlags) error {
 				fmt.Fprintf(flags.stdout, "- The Teleport configuration is located at %q.\n", configPath)
 			}
 			if !canWriteToDataDir {
-				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, run \"teleport configure\" with the \"--data-dir\" flag.\n", flags.DataDir)
+				fmt.Fprintf(flags.stdout, "- Teleport will be storing data at %q. To change that, edit the \"data_dir\" field in %q.", flags.DataDir, configPath)
 			}
 			fmt.Fprintf(flags.stdout, "\n")
 		} else {

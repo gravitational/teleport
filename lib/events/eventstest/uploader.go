@@ -55,6 +55,8 @@ type MemoryUploader struct {
 	objects map[session.ID][]byte
 	eventsC chan events.UploadEvent
 
+	// Clock is an optional [clockwork.Clock] to determine the time to associate
+	// with uploads and parts.
 	Clock clockwork.Clock
 }
 
@@ -63,7 +65,7 @@ type MemoryUpload struct {
 	// id is the upload ID
 	id string
 	// parts is the upload parts
-	parts map[int64][]byte
+	parts map[int64]part
 	// sessionID is the session ID associated with the upload
 	sessionID session.ID
 	//completed specifies upload as completed
@@ -71,6 +73,11 @@ type MemoryUpload struct {
 	// Initiated contains the timestamp of when the upload
 	// was initiated, not always initialized
 	Initiated time.Time
+}
+
+type part struct {
+	data         []byte
+	lastModified time.Time
 }
 
 func (m *MemoryUploader) trySendEvent(event events.UploadEvent) {
@@ -98,6 +105,7 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 	upload := &events.StreamUpload{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
+		Initiated: time.Now(),
 	}
 	if m.Clock != nil {
 		upload.Initiated = m.Clock.Now()
@@ -105,7 +113,7 @@ func (m *MemoryUploader) CreateUpload(ctx context.Context, sessionID session.ID)
 	m.uploads[upload.ID] = &MemoryUpload{
 		id:        upload.ID,
 		sessionID: sessionID,
-		parts:     make(map[int64][]byte),
+		parts:     make(map[int64]part),
 		Initiated: upload.Initiated,
 	}
 	return upload, nil
@@ -127,11 +135,11 @@ func (m *MemoryUploader) CompleteUpload(ctx context.Context, upload events.Strea
 	partsSet := make(map[int64]bool, len(parts))
 	for _, part := range parts {
 		partsSet[part.Number] = true
-		data, ok := up.parts[part.Number]
+		upPart, ok := up.parts[part.Number]
 		if !ok {
 			return trace.NotFound("part %v has not been uploaded", part.Number)
 		}
-		result = append(result, data...)
+		result = append(result, upPart.data...)
 	}
 	// exclude parts that are not requested to be completed
 	for number := range up.parts {
@@ -157,8 +165,15 @@ func (m *MemoryUploader) UploadPart(ctx context.Context, upload events.StreamUpl
 	if !ok {
 		return nil, trace.NotFound("upload %q is not found", upload.ID)
 	}
-	up.parts[partNumber] = data
-	return &events.StreamPart{Number: partNumber}, nil
+	lastModified := time.Now()
+	if m.Clock != nil {
+		lastModified = m.Clock.Now()
+	}
+	up.parts[partNumber] = part{
+		data:         data,
+		lastModified: lastModified,
+	}
+	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
 }
 
 // ListUploads lists uploads that have been initiated but not completed with
@@ -199,7 +214,7 @@ func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
 		return partNumbers[i] < partNumbers[j]
 	})
 	for _, partNumber := range partNumbers {
-		sortedParts = append(sortedParts, up.parts[partNumber])
+		sortedParts = append(sortedParts, up.parts[partNumber].data)
 	}
 	return sortedParts, nil
 }
@@ -290,8 +305,8 @@ type MockUploader struct {
 
 	CreateUploadError      error
 	ReserveUploadPartError error
-	ListPartsError         error
 
+	MockListParts      func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error)
 	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
 	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
 }
@@ -311,9 +326,9 @@ func (m *MockUploader) ReserveUploadPart(_ context.Context, _ events.StreamUploa
 	return m.ReserveUploadPartError
 }
 
-func (m *MockUploader) ListParts(_ context.Context, _ events.StreamUpload) ([]events.StreamPart, error) {
-	if m.ListPartsError != nil {
-		return nil, m.ListPartsError
+func (m *MockUploader) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	if m.MockListParts != nil {
+		return m.MockListParts(ctx, upload)
 	}
 
 	return []events.StreamPart{}, nil

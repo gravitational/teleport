@@ -181,6 +181,15 @@ launch the daemon with the following error:
 
 After resetting the db and restarting the device, everything seemed to be working again.
 
+In theory, it's possible to list all app bundles with a certain bundle identifier by running the
+following command:
+
+```
+mdfind kMDItemCFBundleIdentifier = "com.goteleport.tshdev"
+```
+
+In practice, getting rid of all but one bundle didn't appear to solve the problem.
+
 ### Daemon does not start
 
 List all jobs loaded into launchd. The second column is the status which you can then inspect.

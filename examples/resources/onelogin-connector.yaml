@@ -23,4 +23,15 @@ spec:
   issuer: ""
   service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
   sso: ""
+  client_redirect_settings:
+    # a list of hostnames allowed for HTTPS client redirect URLs
+    # can be a regex pattern
+    allowed_https_hostnames:
+      - remote.machine
+      - '*.app.github.dev'
+      - '^\d+-[a-zA-Z0-9]+\.foo.internal$'
+    # a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+    insecure_allowed_cidr_ranges:
+      - '192.168.1.0/24'
+      - '2001:db8::/96'
 version: v2

@@ -1031,6 +1031,9 @@ type AuthenticationConfig struct {
 	// HardwareKey holds settings related to hardware key support.
 	// Requires Teleport Enterprise.
 	HardwareKey *HardwareKey `yaml:"hardware_key,omitempty"`
+
+	// SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `yaml:"signature_algorithm_suite"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1078,20 +1081,21 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:              a.Type,
-		SecondFactor:      a.SecondFactor,
-		ConnectorName:     a.ConnectorName,
-		U2F:               u,
-		Webauthn:          w,
-		RequireMFAType:    a.RequireMFAType,
-		LockingMode:       a.LockingMode,
-		AllowLocalAuth:    a.LocalAuth,
-		AllowPasswordless: a.Passwordless,
-		AllowHeadless:     a.Headless,
-		DeviceTrust:       dt,
-		DefaultSessionTTL: a.DefaultSessionTTL,
-		PIVSlot:           string(a.PIVSlot),
-		HardwareKey:       h,
+		Type:                    a.Type,
+		SecondFactor:            a.SecondFactor,
+		ConnectorName:           a.ConnectorName,
+		U2F:                     u,
+		Webauthn:                w,
+		RequireMFAType:          a.RequireMFAType,
+		LockingMode:             a.LockingMode,
+		AllowLocalAuth:          a.LocalAuth,
+		AllowPasswordless:       a.Passwordless,
+		AllowHeadless:           a.Headless,
+		DeviceTrust:             dt,
+		DefaultSessionTTL:       a.DefaultSessionTTL,
+		PIVSlot:                 string(a.PIVSlot),
+		HardwareKey:             h,
+		SignatureAlgorithmSuite: a.SignatureAlgorithmSuite,
 	})
 }
 
@@ -1996,6 +2000,10 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -2316,6 +2324,12 @@ type WindowsDesktopService struct {
 	// but Teleport is used to provide access to users and computers in a child
 	// domain.
 	PKIDomain string `yaml:"pki_domain"`
+	// KDCAddress optionally configures the address of the Kerberos Key Distribution Center,
+	// which is used to support RDP Network Level Authentication (NLA).
+	// If empty, the LDAP address will be used instead.
+	// Note: NLA is only supported in Active Directory environments - this field has
+	// no effect when connecting to desktops as local Windows users.
+	KDCAddress string `yaml:"kdc_address"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
 	// ADHosts is a list of static, AD-connected Windows hosts. This gives users
@@ -2578,16 +2592,6 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		return nil, trace.BadParameter("jamf listen_addr not supported")
 	}
 
-	// Read secrets.
-	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Assemble spec.
 	inventory := make([]*types.JamfInventoryEntry, len(j.Inventory))
 	for i, e := range j.Inventory {
@@ -2600,15 +2604,11 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 		}
 	}
 	spec := &types.JamfSpecV1{
-		Enabled:      j.Enabled(),
-		Name:         j.Name,
-		SyncDelay:    types.Duration(j.SyncDelay),
-		ApiEndpoint:  j.APIEndpoint,
-		Username:     j.Username,
-		Password:     password,
-		Inventory:    inventory,
-		ClientId:     j.ClientID,
-		ClientSecret: clientSecret,
+		Enabled:     j.Enabled(),
+		Name:        j.Name,
+		SyncDelay:   types.Duration(j.SyncDelay),
+		ApiEndpoint: j.APIEndpoint,
+		Inventory:   inventory,
 	}
 
 	// Validate.
@@ -2617,6 +2617,31 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	return spec, nil
+}
+
+func (j *JamfService) readJamfCredentials() (*servicecfg.JamfCredentials, error) {
+	password, err := readJamfPasswordFile(j.PasswordFile, "password_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret, err := readJamfPasswordFile(j.ClientSecretFile, "client_secret_file")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	creds := &servicecfg.JamfCredentials{
+		Username:     j.Username,
+		Password:     password,
+		ClientID:     j.ClientID,
+		ClientSecret: clientSecret,
+	}
+
+	// Validate.
+	if err := servicecfg.ValidateJamfCredentials(creds); err != nil {
+		return nil, trace.BadParameter("jamf_service %v", err)
+	}
+
+	return creds, nil
 }
 
 func readJamfPasswordFile(path, key string) (string, error) {

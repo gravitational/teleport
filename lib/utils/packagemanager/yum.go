@@ -17,6 +17,7 @@
 package packagemanager
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -29,6 +30,15 @@ import (
 )
 
 const yumRepoEndpoint = "https://yum.releases.teleport.dev/"
+
+var (
+	// yumDistroMap maps distro IDs that teleport doesn't officially support but are known to work.
+	// The key is the not-officially-supported distro ID and the value is the most similar distro.
+	yumDistroMap = map[string]string{
+		"rocky":     "rhel",
+		"almalinux": "rhel",
+	}
+)
 
 // YUM is a wrapper for yum package manager.
 // This package manager is used in RedHat/AmazonLinux/Fedora/CentOS and othe distros.
@@ -72,6 +82,8 @@ func NewYUM(cfg *YUMConfig) (*YUM, error) {
 
 // AddTeleportRepository adds the Teleport repository to the current system.
 func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRelease, repoChannel string) error {
+	distroID := cmp.Or(yumDistroMap[linuxInfo.ID], linuxInfo.ID)
+
 	// Teleport repo only targets the major version of the target distros.
 	versionID := strings.Split(linuxInfo.VersionID, ".")[0]
 
@@ -84,7 +96,7 @@ func (pm *YUM) AddTeleportRepository(ctx context.Context, linuxInfo *linux.OSRel
 
 	// Repo location looks like this:
 	// https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo
-	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", yumRepoEndpoint, linuxInfo.ID, versionID, repoChannel)
+	repoLocation := fmt.Sprintf("%s%s/%s/Teleport/%%{_arch}/%s/teleport.repo", yumRepoEndpoint, distroID, versionID, repoChannel)
 	pm.logger.InfoContext(ctx, "Building rpm metadata for Teleport repo", "command", "rpm --eval "+repoLocation)
 	rpmEvalTeleportRepoCMD := exec.CommandContext(ctx, pm.bins.Rpm, "--eval", repoLocation)
 	rpmEvalTeleportRepoCMDOutput, err := rpmEvalTeleportRepoCMD.CombinedOutput()

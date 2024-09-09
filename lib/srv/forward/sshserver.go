@@ -627,7 +627,7 @@ func (s *Server) Serve() {
 
 	// Connect and authenticate to the remote node.
 	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
-	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
+	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User(), netConfig)
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
 		// close the connection.
@@ -744,7 +744,7 @@ func (s *Server) Close() error {
 
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
-func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
+func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
 	// the proxy will use the agentless signer as the auth method when
 	// connecting to the remote host if it is available, otherwise the
 	// forwarded agent is used
@@ -766,7 +766,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 			authMethod,
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
-		Timeout:         apidefaults.DefaultIOTimeout,
+		Timeout:         netConfig.GetSSHDialTimeout(),
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
@@ -1286,7 +1286,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.handleEnvs(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
-	case sshutils.X11ForwardRequest:
+	case x11.ForwardRequest:
 		return s.handleX11Forward(ctx, ch, req, scx)
 	case sshutils.AgentForwardRequest:
 		// to maintain interoperability with OpenSSH, agent forwarding requests
@@ -1361,7 +1361,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	defer sch.Close()
 
 	// setup outbound X11 channel to client
-	cch, cin, err := s.sconn.OpenChannel(sshutils.X11ChannelRequest, nch.ExtraData())
+	cch, cin, err := s.sconn.OpenChannel(x11.ChannelRequest, nch.ExtraData())
 	if err != nil {
 		s.log.Errorf("X11 channel fwd failed: %v", err)
 		return
@@ -1386,7 +1386,7 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 		}
 	}()
 
-	if err := x11.Forward(ctx, cch, sch); err != nil {
+	if err := utils.ProxyConn(ctx, cch, sch); err != nil {
 		s.log.WithError(err).Debug("Encountered error during x11 forwarding")
 	}
 }

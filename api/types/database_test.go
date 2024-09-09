@@ -316,7 +316,7 @@ func TestDatabaseAzureEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "valid PostgresSQL",
+			name: "valid PostgreSQL",
 			spec: DatabaseSpecV3{
 				Protocol: "postgres",
 				URI:      "example-postgres.postgres.database.azure.com:5432",
@@ -1117,6 +1117,60 @@ func TestDatabaseGCPCloudSQL(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestGetAdminUser(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc      string
+		specAdmin *DatabaseAdminUser
+		labels    map[string]string
+		want      DatabaseAdminUser
+	}{
+		{
+			desc: "no admin",
+			want: DatabaseAdminUser{},
+		},
+		{
+			desc:      "gets admin from spec",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			want:      DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc: "gets admin from labels",
+			labels: map[string]string{
+				DatabaseAdminLabel:                "llama",
+				DatabaseAdminDefaultDatabaseLabel: "hill",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+		{
+			desc:      "gets admin from spec ignoring labels",
+			specAdmin: &DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+			labels: map[string]string{
+				DatabaseAdminLabel:                "horse",
+				DatabaseAdminDefaultDatabaseLabel: "pasture",
+			},
+			want: DatabaseAdminUser{Name: "llama", DefaultDatabase: "hill"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			meta := Metadata{
+				Name:   "example",
+				Labels: test.labels,
+			}
+			spec := DatabaseSpecV3{
+				Protocol:  "postgres",
+				URI:       "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+				AdminUser: test.specAdmin,
+			}
+			d, err := NewDatabaseV3(meta, spec)
+			require.NoError(t, err)
+			require.Equal(t, test.want, d.GetAdminUser())
 		})
 	}
 }

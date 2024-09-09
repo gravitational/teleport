@@ -20,7 +20,6 @@
 package etcdbk
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -651,7 +650,7 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 }
 
 // GetRange returns query range
-func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -797,7 +796,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -878,7 +877,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 }
 
 // Get returns a single item or not found error
-func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *EtcdBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
@@ -899,7 +898,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 }
 
 // Delete deletes item by key
-func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
+func (b *EtcdBackend) Delete(ctx context.Context, key backend.Key) error {
 	start := b.clock.Now()
 	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
@@ -915,7 +914,7 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 }
 
 // ConditionalDelete deletes the item if it hasn't been modified.
-func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev string) error {
+func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix backend.Key, rev string) error {
 	r, err := fromBackendRevision(rev)
 	if err != nil {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -940,7 +939,7 @@ func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev 
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -1107,10 +1106,10 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	}
 }
 
-func (b *EtcdBackend) trimPrefix(in []byte) []byte {
-	return bytes.TrimPrefix(in, []byte(b.cfg.Key))
+func (b *EtcdBackend) trimPrefix(in backend.Key) backend.Key {
+	return in.TrimPrefix(backend.Key(b.cfg.Key))
 }
 
-func (b *EtcdBackend) prependPrefix(in []byte) string {
+func (b *EtcdBackend) prependPrefix(in backend.Key) string {
 	return b.cfg.Key + string(in)
 }

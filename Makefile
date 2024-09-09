@@ -6,6 +6,8 @@
 #  clean  : removes all build artifacts
 #  test   : runs tests
 
+.DEFAULT_GOAL := all
+
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
 #   Stable releases:   "1.0.0"
@@ -60,6 +62,13 @@ ARCH ?= $(GO_ENV_ARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# If we're building inside the cross-compiling buildbox, include the
+# cross compilation definitions so we select the correct compilers and
+# libraries.
+ifeq ($(BUILDBOX_MODE),cross)
+include build.assets/buildbox/cross-compile.mk
+endif
+
 # Include common makefile shared between OSS and Ent.
 include common.mk
 
@@ -69,6 +78,18 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
+GOEXPERIMENT = boringcrypto
+OPENSSL_FIPS = 1
+export GOEXPERIMENT OPENSSL_FIPS
+ifeq ($(BUILDBOX_MODE),cross)
+# We need to set CGO_ENABLED=0 when building rdpclient as the build of
+# boring-sys builds and runs a Go program as part of its integrity testing.
+# (https://github.com/google/boringssl/blob/master/crypto/fipsmodule/FIPS.md#integrity-testing)
+# If CGO_ENABLED=1, this fails for odd reasons (it tries to use the cross
+# assembler to build ASM for the host).
+# It also needs to know the cross-compiler sysroot to properly cross-compile.
+RDPCLIENT_ENV = CGO_ENABLED=0 BORING_BSSL_FIPS_SYSROOT=$(CROSSTOOLNG_SYSROOT)
+endif
 endif
 
 # Look for the PAM header "security/pam_appl.h" to determine if we should
@@ -254,17 +275,20 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-# True if $ARCH == amd64 || $ARCH == arm64
 ifeq ("$(ARCH)","arm64")
-	ifeq (,$(IS_NATIVE_BUILD))
-		CGOFLAG += CC=aarch64-linux-gnu-gcc
-	endif
+ifneq ($(BUILDBOX_MODE),cross)
+ifeq (,$(IS_NATIVE_BUILD))
+CGOFLAG += CC=aarch64-linux-gnu-gcc
+endif
+endif
 else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
+ifneq ($(BUILDBOX_MODE),cross)
 ifeq (,$(IS_NATIVE_BUILD))
 CC=arm-linux-gnueabihf-gcc
+endif
 endif
 
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
@@ -394,6 +418,24 @@ $(BUILDDIR)/fdpass-teleport:
 	cd tool/fdpass-teleport && cargo build --release --locked $(CARGO_TARGET)
 	install tool/fdpass-teleport/target/$(RUST_TARGET_ARCH)/release/fdpass-teleport $(BUILDDIR)/
 
+.PHONY: tsh-app
+tsh-app: TSH_APP_BUNDLE = $(BUILDDIR)/tsh.app
+tsh-app: TSH_APP_ENTITLEMENTS = build.assets/macos/$(TSH_SKELETON)/$(TSH_SKELETON).entitlements
+tsh-app:
+	cp -rf "build.assets/macos/$(TSH_SKELETON)/tsh.app/" "$(TSH_APP_BUNDLE)/"
+	mkdir -p "$(TSH_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(BUILDDIR)/tsh" "$(TSH_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TSH_APP)
+
+.PHONY: tctl-app
+tctl-app: TCTL_APP_BUNDLE = $(BUILDDIR)/tctl.app
+tctl-app: TCTL_APP_ENTITLEMENTS = build.assets/macos/$(TCTL_SKELETON)/$(TCTL_SKELETON).entitlements
+tctl-app:
+	cp -rf "build.assets/macos/$(TCTL_SKELETON)/tctl.app/" "$(TCTL_APP_BUNDLE)/"
+	mkdir -p "$(TCTL_APP_BUNDLE)/Contents/MacOS/"
+	cp "$(BUILDDIR)/tctl" "$(TCTL_APP_BUNDLE)/Contents/MacOS/."
+	$(NOTARIZE_TCTL_APP)
+
 #
 # BPF support (IF ENABLED)
 # Requires a recent version of clang and libbpf installed.
@@ -426,7 +468,8 @@ endif
 .PHONY: rdpclient
 rdpclient:
 ifeq ("$(with_rdpclient)", "yes")
-	cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
+	$(RDPCLIENT_ENV) \
+		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
 
 # Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
@@ -496,8 +539,7 @@ $(RELEASE_DIR):
 #
 # make release - Produces a binary release tarball.
 #
-.PHONY:
-export
+.PHONY: release
 release:
 	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
@@ -506,6 +548,12 @@ else ifeq ("$(OS)", "darwin")
 	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
+endif
+
+.PHONY: release-ent
+release-ent:
+ifneq (,$(wildcard e/Makefile))
+	$(MAKE) -C e release
 endif
 
 # These are aliases used to make build commands uniform.
@@ -529,12 +577,17 @@ release-arm64:
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
+ifeq ("$(OS)","darwin")
+build-archive: INSTALL_SCRIPT=build.assets/macos/install
+else
+build-archive: INSTALL_SCRIPT=build.assets/install
+endif
 build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BINARIES) \
 		examples \
-		build.assets/install\
+		"$(INSTALL_SCRIPT)" \
 		README.md \
 		CHANGELOG.md \
 		teleport/
@@ -569,11 +622,15 @@ include darwin-signing.mk
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: full build-archive
 
+SIGNED_BINARIES := $(BINARIES:%tsh=%tsh.app)
+SIGNED_BINARIES := $(SIGNED_BINARIES:%tctl=%tctl.app)
+
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
-	$(MAKE) build-archive
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 else
 
@@ -590,16 +647,26 @@ else
 # Ensure you have the rust toolchains for these installed by running
 #   make ARCH=arm64 rustup-install-target-toolchain
 #   make ARCH=amd64 rustup-install-target-toolchain
+release-darwin: TARBINS := $(TARBINS:%tsh=%tsh.app)
+release-darwin: TARBINS := $(TARBINS:%tctl=%tctl.app)
 release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
 	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
 	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+
 	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
-	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
-	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
 	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
 	lipo -create -output $(BUILDDIR)/fdpass-teleport $(BUILDDIR_arm64)/fdpass-teleport $(BUILDDIR_amd64)/fdpass-teleport
-	$(MAKE) ARCH=universal build-archive
+	lipo -create -output $(BUILDDIR)/tsh \
+		$(BUILDDIR_arm64)/tsh.app/Contents/MacOS/tsh \
+		$(BUILDDIR_amd64)/tsh.app/Contents/MacOS/tsh
+	lipo -create -output $(BUILDDIR)/tctl \
+		$(BUILDDIR_arm64)/tctl.app/Contents/MacOS/tctl \
+		$(BUILDDIR_amd64)/tctl.app/Contents/MacOS/tctl
+
+	$(NOTARIZE_BINARIES)
+	$(MAKE) tsh-app tctl-app
+	$(MAKE) ARCH=universal build-archive BINARIES="$(SIGNED_BINARIES)"
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 endif
 
@@ -756,6 +823,13 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
 $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
+#
+# Downloads and builds changelog from source.
+# PHONY is set so that we rely on Go's mod cache and not Make's cache.
+#
+CHANGELOG := $(TOOLINGDIR)/bin/changelog
+$(CHANGELOG):
+	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -860,6 +934,25 @@ ifneq ("$(TOUCHID_TAG)", "")
 		| tee $(TEST_LOG_DIR)/unit.json \
 		| gotestsum --raw-command -- cat
 endif
+
+# Runs benchmarks once to make sure they pass.
+# This is intended to run in CI during unit testing to make sure benchmarks don't break.
+# To limit noise and improve speed this will only run on packages that have benchmarks.
+# Race detection is not enabled because it significantly slows down benchmarks.
+# todo: Use gotestsum when it is compatible with benchmark output. Currently will consider all benchmarks failed.
+.PHONY: test-go-bench
+test-go-bench: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr testing.B .  | xargs dirname | xargs go list | sort -u)
+test-go-bench: BENCHMARK_SKIP_PATTERN = "^BenchmarkRoot"
+test-go-bench: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench . -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
+
+test-go-bench-root: PACKAGES = $(shell grep --exclude-dir api --include "*_test.go" -lr BenchmarkRoot .  | xargs dirname | xargs go list | sort -u)
+test-go-bench-root: BENCHMARK_PATTERN = "^BenchmarkRoot"
+test-go-bench-root: BENCHMARK_SKIP_PATTERN = ""
+test-go-bench-root: | $(TEST_LOG_DIR)
+	go test -run ^$$ -bench $(BENCHMARK_PATTERN) -skip $(BENCHMARK_SKIP_PATTERN) -benchtime 1x $(PACKAGES) \
+		| tee $(TEST_LOG_DIR)/bench.txt
 
 # Make sure untagged vnetdaemon code build/tests.
 .PHONY: test-go-vnet-daemon
@@ -1076,11 +1169,10 @@ e2e-aws: $(TEST_LOG_DIR) ensure-gotestsum
 lint: lint-api lint-go lint-kube-agent-updater lint-tools lint-protos lint-no-actions
 
 #
-# Lints everything but Go sources.
-# Similar to lint.
+# Runs linters without dedicated GitHub Actions.
 #
 .PHONY: lint-no-actions
-lint-no-actions: lint-sh lint-helm lint-license
+lint-no-actions: lint-sh lint-license
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -1516,6 +1608,12 @@ crds-up-to-date: must-start-clean/host
 		git diff; \
 		exit 1; \
 	fi
+	$(MAKE) -C integrations/operator crd-docs
+	@if ! git diff --quiet; then \
+		echo 'Please run make -C integrations/operator crd-docs.'; \
+		git diff; \
+		exit 1; \
+	fi
 
 # tfdocs-up-to-date checks if the generated Terraform types and documentation from the protobuf stubs are up to date.
 .PHONY: terraform-resources-up-to-date
@@ -1570,24 +1668,34 @@ ifneq ("$(OSS_TARBALL_PATH)", "")
 endif
 
 # build .pkg
+# builds two package files: tsh-$VERSION.pkg and teleport-bin-$VERSION.pkg
+# combines the two package files into one teleport-$VERSION.pkg
 .PHONY: pkg
+pkg: TELEPORT_PKG_UNSIGNED = $(BUILDDIR)/teleport-$(VERSION).unsigned.pkg
+pkg: TELEPORT_PKG_SIGNED = $(RELEASE_DIR)/teleport-$(VERSION).pkg
 pkg: | $(RELEASE_DIR)
 	mkdir -p $(BUILDDIR)/
+
+	@echo Building tsh-$(VERSION).pkg
+	./build.assets/build-pkg-app.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tsh*.pkg* $(BUILDDIR)/
+
+	@echo Building tctl-$(VERSION).pkg
+	./build.assets/build-pkg-app.sh -p tctl -t oss -v $(VERSION) -b $(TCTL_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
+	mv tctl*.pkg* $(BUILDDIR)/
+
+	@echo Building teleport-bin-$(VERSION).pkg
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# runtime is currently ignored on OS X
 	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
-	cp $(BUILDDIR)/teleport-*.pkg $(RELEASE_DIR)
-	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
-# build tsh client-only .pkg
-.PHONY: pkg-tsh
-pkg-tsh: | $(RELEASE_DIR)
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
-	mkdir -p $(BUILDDIR)/
-	mv tsh*.pkg* $(BUILDDIR)/
-	cp $(BUILDDIR)/tsh-*.pkg $(RELEASE_DIR)
+	@echo Combining teleport-bin-$(VERSION).pkg and tsh-$(VERSION).pkg into teleport-$(VERSION).pkg
+	productbuild --package $(BUILDDIR)/tsh*.pkg --package $(BUILDDIR)/tctl*.pkg --package $(BUILDDIR)/teleport-bin*.pkg $(TELEPORT_PKG_UNSIGNED)
+	$(NOTARIZE_TELEPORT_PKG)
+
+	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build .rpm
 .PHONY: rpm
@@ -1697,15 +1805,14 @@ rustup-install-target-toolchain: rustup-set-version
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
 #
-# usage: make changelog
-# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+# usage: make -s changelog
+# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
-# See ./build.assets/changelog.sh
 .PHONY: changelog
-changelog:
-	@BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG) ./build.assets/changelog.sh
+changelog: $(CHANGELOG)
+	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
@@ -1720,8 +1827,9 @@ changelog:
 # For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
 .PHONY: create-github-release
 create-github-release: LATEST = false
+create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release: $(RELEASE_NOTES_GEN)
-	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \

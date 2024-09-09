@@ -19,7 +19,7 @@
 import React from 'react';
 
 import { setupServer } from 'msw/node';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from '@testing-library/react';
@@ -45,12 +45,10 @@ function ThemeName() {
 
 describe('user context - success state', () => {
   const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(
-        ctx.json({
-          theme: Theme.LIGHT,
-        })
-      );
+    http.get(cfg.api.userPreferencesPath, () => {
+      return HttpResponse.json({
+        theme: Theme.LIGHT,
+      });
     })
   );
 
@@ -76,8 +74,8 @@ describe('user context - success state', () => {
 
 describe('user context - error state', () => {
   const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(ctx.status(500));
+    http.get(cfg.api.userPreferencesPath, () => {
+      return HttpResponse.json(null, { status: 500 });
     })
   );
 

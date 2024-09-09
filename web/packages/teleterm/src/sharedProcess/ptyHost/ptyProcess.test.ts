@@ -38,6 +38,7 @@ describe('PtyProcess', () => {
         args: [],
         env: { PATH: '/foo/bar' },
         ptyId: '1234',
+        useConpty: true,
       });
 
       const startErrorCb = jest.fn();

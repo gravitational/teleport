@@ -64,7 +64,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -117,6 +116,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -148,15 +148,16 @@ const (
 	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
 		"Reach out for unlimited desktops with Teleport Enterprise."
 
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
+	OSSDesktopsAlertLink     = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsAlertLinkText = "Contact Sales"
+	OSSDesktopsLimit         = 5
 )
 
 const (
 	dynamicLabelCheckPeriod  = time.Hour
 	dynamicLabelAlertID      = "dynamic-labels-in-deny-rules"
 	dynamicLabelAlertMessage = "One or more roles has deny rules that include dynamic/ labels. " +
-		"This is not recommended due to the volatitily of dynamic/ labels and is not allowed for new roles. " +
+		"This is not recommended due to the volatility of dynamic/ labels and is not allowed for new roles. " +
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
@@ -342,6 +343,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.SPIFFEFederations == nil {
+		cfg.SPIFFEFederations, err = local.NewSPIFFEFederationService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -390,6 +397,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -428,6 +442,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AccessMonitoringRules:     cfg.AccessMonitoringRules,
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
+		SPIFFEFederations:         cfg.SPIFFEFederations,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -557,6 +573,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		)
 	}
 
+	if as.terraformIDTokenValidator == nil {
+		as.terraformIDTokenValidator = terraformcloud.NewIDTokenValidator(terraformcloud.IDTokenValidatorConfig{
+			Clock: as.clock,
+		})
+	}
+
 	// Add in a login hook for generating state during user login.
 	as.ulsGenerator, err = userloginstate.NewGenerator(userloginstate.GeneratorConfig{
 		Log:         log,
@@ -578,6 +600,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	return &as, nil
 }
 
+// Services is a collection of services that are used by the auth server.
+// Avoid using this type as a dependency and instead depend on the actual
+// methods/services you need. It should really only be necessary to directly
+// reference this type on auth.Server itself and on code that manages
+// the lifecycle of the auth server.
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
@@ -619,11 +646,8 @@ type Services struct {
 	services.BotInstance
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
-}
-
-// SecReportsClient returns the security reports client.
-func (r *Services) SecReportsClient() *secreport.Client {
-	return nil
+	services.SPIFFEFederations
+	services.StaticHostUser
 }
 
 // GetWebSession returns existing web session described by req.
@@ -641,64 +665,6 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (r *Services) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
 	return r.IntegrationsTokenGenerator.GenerateAWSOIDCToken(ctx, integration)
-}
-
-// OktaClient returns the okta client.
-func (r *Services) OktaClient() services.Okta {
-	return r
-}
-
-// SCIMClient returns a client for the SCIM service. Note that in an OSS
-// Teleport cluster, or an Enterprise cluster with IGS disabled, the SCIM
-// service on the other end will return "NotImplemented" for every call.
-func (r *Services) SCIMClient() services.SCIM {
-	return r.SCIM
-}
-
-// AccessListClient returns the access list client.
-func (r *Services) AccessListClient() services.AccessLists {
-	return r
-}
-
-// AccessMonitoringRuleClient returns the access monitoring rules client.
-func (r *Services) AccessMonitoringRuleClient() services.AccessMonitoringRules {
-	return r
-}
-
-// DiscoveryConfigClient returns the DiscoveryConfig client.
-func (r *Services) DiscoveryConfigClient() services.DiscoveryConfigs {
-	return r
-}
-
-// CrownJewelClient returns the CrownJewels client.
-func (r *Services) CrownJewelClient() services.CrownJewels {
-	return r
-}
-
-// UserLoginStateClient returns the user login state client.
-func (r *Services) UserLoginStateClient() services.UserLoginStates {
-	return r
-}
-
-// KubernetesWaitingContainerClient returns the Kubernetes waiting
-// container client.
-func (r *Services) KubernetesWaitingContainerClient() services.KubeWaitingContainer {
-	return r
-}
-
-// DatabaseObjectsClient returns the database objects client.
-func (r *Services) DatabaseObjectsClient() services.DatabaseObjects {
-	return r
-}
-
-// GetAccessGraphSecretsGetter returns the AccessGraph secrets service.
-func (r *Services) GetAccessGraphSecretsGetter() services.AccessGraphSecretsGetter {
-	return r.AccessGraphSecretsGetter
-}
-
-// GetDevicesGetter returns the trusted devices service.
-func (r *Services) GetDevicesGetter() services.DevicesGetter {
-	return r.DevicesGetter
 }
 
 var (
@@ -997,6 +963,11 @@ type Server struct {
 	// server. It can be overridden for the purpose of tests.
 	gcpIDTokenValidator gcpIDTokenValidator
 
+	// terraformIDTokenValidator allows JWTs from Terraform Cloud to be
+	// validated by the auth server using a known JWKS. It can be overridden for
+	// the purpose of tests.
+	terraformIDTokenValidator terraformCloudIDTokenValidator
+
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -1038,6 +1009,10 @@ type Server struct {
 	// directly by [Server].
 	// Used for testing.
 	bcryptCostOverride *int
+
+	// GithubUserAndTeamsOverride overrides the user and teams that would
+	// normally be fetched from the GitHub API. Used for testing.
+	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -2042,6 +2017,8 @@ type certRequest struct {
 	appClusterName string
 	// appName is the name of the application to generate cert for.
 	appName string
+	// appURI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+	appURI string
 	// awsRoleARN is the role ARN to generate certificate for.
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
@@ -2437,9 +2414,15 @@ type DeviceExtensions tlsca.DeviceExtensions
 type AugmentUserCertificateOpts struct {
 	// SSHAuthorizedKey is an SSH certificate, in the authorized key format, to
 	// augment with opts.
-	// The SSH certificate must be issued for the current authenticated user and
-	// must match their TLS certificate.
+	// The SSH certificate must be issued for the current authenticated user,
+	// and either:
+	// - the public key must match their TLS certificate, or
+	// - SSHKeySatisfiedChallenge must be true.
 	SSHAuthorizedKey []byte
+	// SSHKeySatisfiedChallenge will be true if the user has already
+	// proven that they own the private key associated with SSHAuthorizedKey by
+	// satisfying a signature challenge.
+	SSHKeySatisfiedChallenge bool
 	// DeviceExtensions are the device-aware extensions to add to the certificates
 	// being augmented.
 	DeviceExtensions *DeviceExtensions
@@ -2479,6 +2462,7 @@ func (a *Server) AugmentContextUserCertificates(
 		x509Cert:         x509Cert,
 		x509Identity:     &identity,
 		sshAuthorizedKey: opts.SSHAuthorizedKey,
+		sshKeyVerified:   opts.SSHKeySatisfiedChallenge,
 		deviceExtensions: opts.DeviceExtensions,
 	})
 }
@@ -2554,12 +2538,18 @@ func (a *Server) AugmentWebSessionCertificates(ctx context.Context, opts *Augmen
 		return trace.Wrap(err)
 	}
 
+	// We consider this SSH key to be verified because we take it directly from
+	// the web session. The user doesn't need to verify they own it because the
+	// don't: we own it.
+	const sshKeyVerified = true
+
 	// Augment certificates.
 	newCerts, err := a.augmentUserCertificates(ctx, augmentUserCertificatesOpts{
 		checker:          checker,
 		x509Cert:         x509Cert,
 		x509Identity:     x509Identity,
 		sshAuthorizedKey: session.GetPub(),
+		sshKeyVerified:   sshKeyVerified,
 		deviceExtensions: opts.DeviceExtensions,
 	})
 	if err != nil {
@@ -2578,6 +2568,11 @@ type augmentUserCertificatesOpts struct {
 	x509Cert         *x509.Certificate
 	x509Identity     *tlsca.Identity
 	sshAuthorizedKey []byte
+	// sshKeyVerified means that either the user has proven that they control
+	// the private key associated with sshAuthorizedKey (by signing a
+	// challenge), or it comes from a web session where we know that the cluster
+	// controls the key.
+	sshKeyVerified   bool
 	deviceExtensions *DeviceExtensions
 }
 
@@ -2658,8 +2653,8 @@ func (a *Server) augmentUserCertificates(
 			return nil, trace.BadParameter("identity and SSH user mismatch")
 		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(x509Identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
-		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
-			return nil, trace.BadParameter("x509 and SSH public key mismatch")
+		case !opts.sshKeyVerified && !apisshutils.KeysEqual(sshCert.Key, xPubKey):
+			return nil, trace.BadParameter("x509 and SSH public key mismatch and SSH challenge unsatisfied")
 		// Do not reissue if device extensions are already present.
 		case sshCert.Extensions[teleport.CertExtensionDeviceID] != "",
 			sshCert.Extensions[teleport.CertExtensionDeviceAssetTag] != "",
@@ -3116,6 +3111,7 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:         req.appSessionID,
+			URI:               req.appURI,
 			PublicAddr:        req.appPublicAddr,
 			ClusterName:       req.appClusterName,
 			Name:              req.appName,
@@ -4250,7 +4246,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 	}
 
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
-	sess, err := a.newWebSession(ctx, NewWebSessionRequest{
+	sess, _, err := a.newWebSession(ctx, NewWebSessionRequest{
 		User:                 req.User,
 		LoginIP:              identity.LoginIP,
 		Roles:                roles,
@@ -5071,7 +5067,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if req.GetDryRun() {
 		_, promotions := a.generateAccessRequestPromotions(ctx, req)
 		// update the request with additional reviewers if possible.
-		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessListClient(), promotions)
+		updateAccessRequestWithAdditionalReviewers(ctx, req, a.AccessLists, promotions)
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
 		return req, nil
@@ -5696,7 +5692,8 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopsAlertLink),
+		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
 		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)

@@ -85,7 +85,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -198,7 +197,7 @@ func SetClock(clock clockwork.Clock) HandlerOption {
 	}
 }
 
-type proxySettingsGetter interface {
+type ProxySettingsGetter interface {
 	GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error)
 }
 
@@ -227,8 +226,8 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
-	// GetProxyClientTLSConfig returns the client TLS config of the proxy
-	GetProxyClientTLSConfig func(ciphersuites []uint16) (*tls.Config, error)
+	// GetProxyClientCertificate returns the proxy client certificate.
+	GetProxyClientCertificate func() (*tls.Certificate, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -261,7 +260,7 @@ type Config struct {
 	ClusterFeatures proto.Features
 
 	// ProxySettings allows fetching the current proxy settings.
-	ProxySettings proxySettingsGetter
+	ProxySettings ProxySettingsGetter
 
 	// MinimalReverseTunnelRoutesOnly mode handles only the endpoints required for
 	// a reverse tunnel agent to establish a connection.
@@ -771,8 +770,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// join token handlers
-	h.PUT("/webapi/token/yaml", h.WithAuth(h.upsertTokenContent))
-	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
+	h.PUT("/webapi/tokens/yaml", h.WithAuth(h.updateTokenYAML))
+	// used for creating a new token
+	h.POST("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for updating a token
+	h.PUT("/webapi/tokens", h.WithAuth(h.upsertTokenHandle))
+	// used for creating tokens used during guided discover flows
+	h.POST("/webapi/token", h.WithAuth(h.createTokenForDiscoveryHandle))
 	h.GET("/webapi/tokens", h.WithAuth(h.getTokens))
 	h.DELETE("/webapi/tokens", h.WithAuth(h.deleteToken))
 
@@ -787,12 +791,14 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+	// Deprecated: Use `/webapi/sites/:site/resources` instead.
+	// TODO(kiosion): DELETE in 18.0
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
 
 	// Database access handlers.
 	h.GET("/webapi/sites/:site/databases", h.WithClusterAuth(h.clusterDatabasesGet))
-	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreate))
-	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
+	h.POST("/webapi/sites/:site/databases", h.WithClusterAuth(h.handleDatabaseCreateOrOverwrite))
+	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabasePartialUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
 	h.GET("/webapi/scripts/databases/configure/sqlserver/:token/configure-ad.ps1", httplib.MakeHandler(h.sqlServerConfigureADScriptHandle))
@@ -854,8 +860,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
-	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
-	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppFQDN))
+	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppDetails))
+	h.GET("/webapi/apps/:fqdnHint/:clusterName/:publicAddr", h.WithAuth(h.getAppDetails))
 
 	h.POST("/webapi/yaml/parse/:kind", h.WithAuth(h.yamlParse))
 	h.POST("/webapi/yaml/stringify/:kind", h.WithAuth(h.yamlStringify))
@@ -884,6 +890,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration Actions
 	h.GET("/webapi/scripts/integrations/configure/awsoidc-idp.sh", h.WithLimiter(h.awsOIDCConfigureIdP))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ping", h.WithClusterAuth(h.awsOIDCPing))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.GET("/webapi/scripts/integrations/configure/listdatabases-iam.sh", h.WithLimiter(h.awsOIDCConfigureListDatabasesIAM))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
@@ -895,6 +902,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/ec2ice", h.WithClusterAuth(h.awsOIDCListEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployec2ice", h.WithClusterAuth(h.awsOIDCDeployEC2ICE))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/securitygroups", h.WithClusterAuth(h.awsOIDCListSecurityGroups))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databasevpcs", h.WithClusterAuth(h.awsOIDCListDatabaseVPCs))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/subnets", h.WithClusterAuth(h.awsOIDCListSubnets))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/requireddatabasesvpcs", h.WithClusterAuth(h.awsOIDCRequiredDatabasesVPCS))
 	h.GET("/webapi/scripts/integrations/configure/eice-iam.sh", h.WithLimiter(h.awsOIDCConfigureEICEIAM))
@@ -919,6 +927,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
+
+	// SPIFFE Federation Trust Bundle
+	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
 
 	// DiscoveryConfig CRUD
 	h.GET("/webapi/sites/:site/discoveryconfig", h.WithClusterAuth(h.discoveryconfigList))
@@ -986,13 +997,16 @@ func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
-// GetProxyClientTLSConfig returns the client TLS config of the proxy
-func (h *Handler) GetProxyClientTLSConfig(ciphersuites []uint16) (*tls.Config, error) {
-	if h.cfg.GetProxyClientTLSConfig == nil {
-		return nil, trace.BadParameter("GetProxyClientTLSConfig function is not set")
+// GetProxyClientCertificate returns the proxy client certificate.
+func (h *Handler) GetProxyClientCertificate() (*tls.Certificate, error) {
+	if h.cfg.GetProxyClientCertificate == nil {
+		return nil, trace.BadParameter("GetProxyClientCertificate is not set")
 	}
-	tlsConfig, err := h.cfg.GetProxyClientTLSConfig(ciphersuites)
-	return tlsConfig, trace.Wrap(err)
+	tlsCert, err := h.cfg.GetProxyClientCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }
 
 // GetAccessPoint returns the caching access point.
@@ -1006,12 +1020,14 @@ func (h *Handler) Close() error {
 }
 
 type userStatusResponse struct {
-	HasDeviceExtensions bool   `json:"hasDeviceExtensions,omitempty"`
-	Message             string `json:"message"` // Always set to "ok"
+	RequiresDeviceTrust types.TrustedDeviceRequirement `json:"requiresDeviceTrust,omitempty"`
+	HasDeviceExtensions bool                           `json:"hasDeviceExtensions,omitempty"`
+	Message             string                         `json:"message"` // Always set to "ok"
 }
 
 func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
 	return userStatusResponse{
+		RequiresDeviceTrust: c.cfg.Session.GetTrustedDeviceRequirement(),
 		HasDeviceExtensions: c.cfg.Session.GetHasDeviceExtensions(),
 		Message:             "ok",
 	}, nil
@@ -1326,6 +1342,7 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
+	as.SignatureAlgorithmSuite = authPreference.GetSignatureAlgorithmSuite()
 
 	return as, nil
 }
@@ -1460,9 +1477,10 @@ func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p ht
 		return nil, trace.Wrap(err)
 	}
 	response := &webclient.PingResponse{
-		Proxy:         *proxyConfig,
-		ServerVersion: teleport.Version,
-		ClusterName:   h.auth.clusterName,
+		Proxy:            *proxyConfig,
+		ServerVersion:    teleport.Version,
+		MinClientVersion: teleport.MinClientVersion,
+		ClusterName:      h.auth.clusterName,
 	}
 
 	hasMessageOfTheDay := cap.GetMessageOfTheDay() != ""
@@ -1655,6 +1673,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		RecoveryCodesEnabled:           clusterFeatures.GetRecoveryCodes(),
 		UI:                             h.getUIConfig(r.Context()),
 		IsDashboard:                    services.IsDashboard(clusterFeatures),
+		IsTeam:                         false,
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
@@ -1662,28 +1681,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
-		Entitlements:                   GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
-
-		// Set legacy fields
-		// TODO(mcbattirola): remove isTeam when it is no longer used
-		IsTeam:                   clusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_TEAM,
-		AccessRequests:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Enabled,
-		ExternalAuditStorage:     modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled,
-		HideInaccessibleFeatures: modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled,
-		IsIGSEnabled:             modules.GetProtoEntitlement(&clusterFeatures, entitlements.Identity).Enabled,
-		IsPolicyEnabled:          modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled,
-		JoinActiveSessions:       modules.GetProtoEntitlement(&clusterFeatures, entitlements.JoinActiveSessions).Enabled,
-		MobileDeviceManagement:   modules.GetProtoEntitlement(&clusterFeatures, entitlements.MobileDeviceManagement).Enabled,
-		OIDC:                     modules.GetProtoEntitlement(&clusterFeatures, entitlements.OIDC).Enabled,
-		SAML:                     modules.GetProtoEntitlement(&clusterFeatures, entitlements.SAML).Enabled,
-		TrustedDevices:           modules.GetProtoEntitlement(&clusterFeatures, entitlements.DeviceTrust).Enabled,
-		FeatureLimits: webclient.FeatureLimits{
-			AccessListCreateLimit:               int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessLists).Limit),
-			AccessMonitoringMaxReportRangeLimit: int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessMonitoring).Limit),
-			AccessRequestMonthlyRequestLimit:    int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Limit),
-		},
+		// Entitlements are reset/overridden in setEntitlementsWithLegacyLogic until setEntitlementsWithLegacyLogic is removed in v18
+		Entitlements: GetWebCfgEntitlements(clusterFeatures.GetEntitlements()),
 	}
+
+	// Set entitlements with backwards field compatibility
+	setEntitlementsWithLegacyLogic(&webCfg, clusterFeatures)
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
 	if err != nil {
@@ -1699,6 +1703,84 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
+}
+
+// setEntitlementsWithLegacyLogic ensures entitlements on webCfg are backwards compatible
+// If Entitlements are present, will set the legacy fields equal to the equivalent entitlement value
+// i.e. webCfg.IsIGSEnabled = clusterFeatures.Entitlements[entitlements.Identity].Enabled
+// && webCfg.Entitlements[entitlements.Identity] = clusterFeatures.Entitlements[entitlements.Identity].Enabled
+// If Entitlements are not present, will set the legacy fields AND the entitlement equal to the legacy feature
+// i.e. webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
+// && webCfg.Entitlements[entitlements.Identity] = clusterFeatures.GetIdentityGovernance()
+// todo (michellescripts) remove in v18; & inline entitlement logic above
+func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures proto.Features) {
+	// if Entitlements are not present, GetWebCfgEntitlements will return a map of entitlement to {enabled:false}
+	// if Entitlements are present, GetWebCfgEntitlements will populate the fields appropriately
+	webCfg.Entitlements = GetWebCfgEntitlements(clusterFeatures.GetEntitlements())
+
+	if ent := clusterFeatures.GetEntitlements(); len(ent) > 0 {
+		// webCfg.Entitlements: No update as they are set above
+		// webCfg.<legacy fields>: set equal to entitlement value
+		webCfg.AccessRequests = modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Enabled
+		webCfg.ExternalAuditStorage = modules.GetProtoEntitlement(&clusterFeatures, entitlements.ExternalAuditStorage).Enabled
+		webCfg.HideInaccessibleFeatures = modules.GetProtoEntitlement(&clusterFeatures, entitlements.FeatureHiding).Enabled
+		webCfg.IsIGSEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Identity).Enabled
+		webCfg.IsPolicyEnabled = modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy).Enabled
+		webCfg.JoinActiveSessions = modules.GetProtoEntitlement(&clusterFeatures, entitlements.JoinActiveSessions).Enabled
+		webCfg.MobileDeviceManagement = modules.GetProtoEntitlement(&clusterFeatures, entitlements.MobileDeviceManagement).Enabled
+		webCfg.OIDC = modules.GetProtoEntitlement(&clusterFeatures, entitlements.OIDC).Enabled
+		webCfg.SAML = modules.GetProtoEntitlement(&clusterFeatures, entitlements.SAML).Enabled
+		webCfg.TrustedDevices = modules.GetProtoEntitlement(&clusterFeatures, entitlements.DeviceTrust).Enabled
+		webCfg.FeatureLimits = webclient.FeatureLimits{
+			AccessListCreateLimit:               int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessLists).Limit),
+			AccessMonitoringMaxReportRangeLimit: int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessMonitoring).Limit),
+			AccessRequestMonthlyRequestLimit:    int(modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessRequests).Limit),
+		}
+
+	} else {
+		// webCfg.Entitlements: All records are {enabled: false}; update to equal legacy feature value
+		webCfg.Entitlements[string(entitlements.ExternalAuditStorage)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetExternalAuditStorage()}
+		webCfg.Entitlements[string(entitlements.FeatureHiding)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetFeatureHiding()}
+		webCfg.Entitlements[string(entitlements.Identity)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetIdentityGovernance()}
+		webCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetJoinActiveSessions()}
+		webCfg.Entitlements[string(entitlements.MobileDeviceManagement)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetMobileDeviceManagement()}
+		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
+		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
+		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
+
+		// set default Identity fields to legacy feature value
+		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
+		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
+		webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0, Limit: clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()}
+		webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetDeviceTrust().GetEnabled(), Limit: clusterFeatures.GetDeviceTrust().GetDevicesUsageLimit()}
+		// override Identity Package features if Identity is enabled: set true and clear limit
+		if clusterFeatures.GetIdentityGovernance() {
+			webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.AccessRequests)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.OktaSCIM)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.OktaUserSync)] = webclient.EntitlementInfo{Enabled: true}
+			webCfg.Entitlements[string(entitlements.SessionLocks)] = webclient.EntitlementInfo{Enabled: true}
+		}
+
+		// webCfg.<legacy fields>: set equal to legacy feature value
+		webCfg.AccessRequests = clusterFeatures.GetAccessRequests().MonthlyRequestLimit > 0
+		webCfg.ExternalAuditStorage = clusterFeatures.GetExternalAuditStorage()
+		webCfg.HideInaccessibleFeatures = clusterFeatures.GetFeatureHiding()
+		webCfg.IsIGSEnabled = clusterFeatures.GetIdentityGovernance()
+		webCfg.IsPolicyEnabled = clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled
+		webCfg.JoinActiveSessions = clusterFeatures.GetJoinActiveSessions()
+		webCfg.MobileDeviceManagement = clusterFeatures.GetMobileDeviceManagement()
+		webCfg.OIDC = clusterFeatures.GetOIDC()
+		webCfg.SAML = clusterFeatures.GetSAML()
+		webCfg.TrustedDevices = clusterFeatures.GetDeviceTrust().GetEnabled()
+		webCfg.FeatureLimits = webclient.FeatureLimits{
+			AccessListCreateLimit:               int(clusterFeatures.GetAccessList().GetCreateLimit()),
+			AccessMonitoringMaxReportRangeLimit: int(clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()),
+			AccessRequestMonthlyRequestLimit:    int(clusterFeatures.GetAccessRequests().GetMonthlyRequestLimit()),
+		}
+	}
 }
 
 // GetWebCfgEntitlements takes a cloud entitlement set and returns a modules Entitlement set
@@ -1776,6 +1858,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
 		ClientLoginIP:     remoteAddr,
+		ClientUserAgent:   r.UserAgent(),
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1808,15 +1891,17 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:          req.ConnectorID,
-		PublicKey:            req.PublicKey,
-		CertTTL:              req.CertTTL,
-		ClientRedirectURL:    req.RedirectURL,
-		Compatibility:        req.Compatibility,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement.ToProto(),
-		ClientLoginIP:        remoteAddr,
+		ConnectorID:             req.ConnectorID,
+		SshPublicKey:            req.SSHPubKey,
+		TlsPublicKey:            req.TLSPubKey,
+		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
+		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
+		CertTTL:                 req.CertTTL,
+		ClientRedirectURL:       req.RedirectURL,
+		Compatibility:           req.Compatibility,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		ClientLoginIP:           remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
@@ -1873,11 +1958,19 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			return client.LoginFailedRedirectURL
 		}
 
+		if dwt := response.Session.GetDeviceWebToken(); dwt != nil {
+			logger.Debug("GitHub WebSession created with device web token")
+			// if a device web token is present, we must send the user to the device authorize page
+			// to upgrade the session.
+			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
+			// session with device trust. Once it does, append a redirect_url here as a query parameter
+			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+		}
 		return res.ClientRedirectURL
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
-	if len(response.Req.PublicKey) == 0 {
+	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
 		logger.Error("Not a web or console login request.")
 		return client.LoginFailedRedirectURL
 	}
@@ -2069,7 +2162,7 @@ type CreateSessionResponse struct {
 	DeviceWebToken *types.DeviceWebToken `json:"deviceWebToken,omitempty"`
 	// TrustedDeviceRequirement calculated for the web session.
 	// Follows [types.TrustedDeviceRequirement].
-	TrustedDeviceRequirement int32 `json:"trusted_device_requirement,omitempty"`
+	TrustedDeviceRequirement int32 `json:"trustedDeviceRequirement,omitempty"`
 }
 
 func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
@@ -2182,18 +2275,6 @@ func clientMetaFromReq(r *http.Request) *authclient.ForwardedClientMetadata {
 //
 // {"message": "ok"}
 func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	// samlSessionCookie will not be set for users who are not authenticated with SAML IdP.
-	samlSessionCookie, err := r.Cookie(samlidp.SAMLSessionCookieName)
-	if err == nil && samlSessionCookie != nil && samlSessionCookie.Value != "" {
-		// TODO(sshah): Websession is not updated with SAML session details after SAML auth so
-		// it begs to check for a nil value below and then set a session with session ID
-		// retrieved from samlSessionCookie. We can skip this step below once we have a
-		// mechanism to update Websession with SAML session value.
-		if ctx.cfg.Session.GetSAMLSession() == nil {
-			ctx.cfg.Session.SetSAMLSession(&types.SAMLSessionData{ID: samlSessionCookie.Value})
-		}
-	}
-
 	clt, err := ctx.GetClient()
 	if err != nil {
 		h.log.
@@ -2212,8 +2293,7 @@ func (h *Handler) deleteWebSession(w http.ResponseWriter, r *http.Request, _ htt
 		}
 	}
 
-	err = h.logout(r.Context(), w, ctx)
-	if err != nil {
+	if err := h.logout(r.Context(), w, ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2251,8 +2331,6 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 func clearSessionCookies(w http.ResponseWriter) {
 	// Clear Web UI session cookie
 	websession.ClearCookie(w)
-	// Clear SAML IdP session cookie
-	samlidp.ClearCookie(w)
 }
 
 type renewSessionRequest struct {
@@ -2520,6 +2598,9 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	clientMeta := clientMetaFromReq(r)
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
@@ -2664,6 +2745,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindNode,
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
+			types.KindSAMLIdPServiceProvider,
 		}
 	}
 
@@ -2739,6 +2821,21 @@ func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels,
 	}
 
 	logins, err := loginGetter.GetAllowedLoginsForResource(r)
+	return logins, trace.Wrap(err)
+}
+
+// calculateAppLogins determines the app logins allowed for the provided
+// resource.
+//
+// TODO(gabrielcorado): DELETE IN V18.0.0
+// This is here for backward compatibility in case the auth server
+// does not support enriched resources yet.
+func calculateAppLogins(loginGetter loginGetter, r types.AppServer, allowedLogins []string) ([]string, error) {
+	if len(allowedLogins) > 0 {
+		return allowedLogins, nil
+	}
+
+	logins, err := loginGetter.GetAllowedLoginsForResource(r.GetApp())
 	return logins, trace.Wrap(err)
 }
 
@@ -2825,7 +2922,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetApp())
+			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -3299,23 +3396,25 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	keepAliveInterval := req.KeepAliveInterval
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.Debugf("Unable to get auth access point: %v", err)
+		return nil, trace.Wrap(err)
+	}
+
+	dialTimeout := apidefaults.DefaultIOTimeout
+	keepAliveInterval := apidefaults.KeepAliveInterval()
+	if netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx); err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+	} else {
+		dialTimeout = netConfig.GetSSHDialTimeout()
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	}
+
 	// Try to use the keep alive interval from the request.
 	// When it's not set or below a second, use the cluster's keep alive interval.
-	if keepAliveInterval < time.Second {
-		authAccessPoint, err := site.CachingAccessPoint()
-		if err != nil {
-			h.log.Debugf("Unable to get auth access point: %v", err)
-			return nil, trace.Wrap(err)
-		}
-
-		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-		if err != nil {
-			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-			return nil, trace.Wrap(err)
-		}
-
-		keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if req.KeepAliveInterval >= time.Second {
+		keepAliveInterval = req.KeepAliveInterval
 	}
 
 	nw, err := site.NodeWatcher()
@@ -3341,6 +3440,7 @@ func (h *Handler) siteNodeConnect(
 		Tracker:            tracker,
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
+		SSHDialTimeout:     dialTimeout,
 		HostNameResolver: func(serverID string) (string, error) {
 			matches := nw.GetNodes(r.Context(), func(n services.Node) bool {
 				return n.GetName() == serverID
@@ -4032,6 +4132,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	authClient := h.cfg.ProxyClient
 
@@ -4043,14 +4146,16 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
-			PublicKey:      req.PubKey,
+			SSHPublicKey:   req.SSHPubKey,
+			TLSPublicKey:   req.TLSPubKey,
 			ClientMetadata: clientMetaFromReq(r),
 		},
-		CompatibilityMode:    req.Compatibility,
-		TTL:                  req.TTL,
-		RouteToCluster:       req.RouteToCluster,
-		KubernetesCluster:    req.KubernetesCluster,
-		AttestationStatement: req.AttestationStatement,
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		SSHAttestationStatement: req.SSHAttestationStatement,
+		TLSAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	if req.HeadlessAuthenticationID != "" {

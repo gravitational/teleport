@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import { StyledTable, StyledPanel } from './StyledTable';
@@ -56,6 +56,7 @@ export function Table<T>({
   style,
   serversideProps,
   customSort,
+  row,
 }: State<T>) {
   const renderHeaders = () => {
     const headers = columns.flatMap(column => {
@@ -126,7 +127,15 @@ export function Table<T>({
           </React.Fragment>
         );
       });
-      rows.push(<tr key={rowIdx}>{cells}</tr>);
+      rows.push(
+        <tr
+          key={rowIdx}
+          onClick={() => row?.onClick?.(item)}
+          style={row?.getStyle?.(item)}
+        >
+          {cells}
+        </tr>
+      );
     });
 
     if (rows.length) {
@@ -392,16 +401,7 @@ const EmptyIndicator = ({
             </Text>
           </Flex>
 
-          {emptyHint && (
-            <Text
-              textAlign="center"
-              typography="paragraph"
-              m="0"
-              color="text.main"
-            >
-              {emptyHint}
-            </Text>
-          )}
+          {emptyHint && <P1 textAlign="center">{emptyHint}</P1>}
 
           {emptyButton}
         </Flex>

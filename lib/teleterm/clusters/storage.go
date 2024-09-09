@@ -252,7 +252,7 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	_, err := clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)

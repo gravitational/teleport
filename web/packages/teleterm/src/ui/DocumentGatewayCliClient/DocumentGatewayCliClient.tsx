@@ -155,6 +155,6 @@ export const WaitingForGatewayContent = ({
 );
 
 const StyledText = styled(Text).attrs({
-  typography: 'h5',
+  typography: 'body1',
   textAlign: 'center',
 })``;

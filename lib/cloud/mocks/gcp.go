@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var _ gcp.SQLAdminClient = (*GCPSQLAdminClientMock)(nil)
@@ -60,7 +59,7 @@ func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db type
 	return g.DatabaseInstance, nil
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
 }
 

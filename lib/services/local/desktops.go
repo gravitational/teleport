@@ -76,7 +76,7 @@ func (s *WindowsDesktopService) CreateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:     backend.NewKey(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:   value,
 		Expires: desktop.Expiry(),
 	}
@@ -102,7 +102,7 @@ func (s *WindowsDesktopService) UpdateWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:      backend.NewKey(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
 		Revision: rev,
@@ -129,7 +129,7 @@ func (s *WindowsDesktopService) UpsertWindowsDesktop(ctx context.Context, deskto
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
+		Key:      backend.NewKey(windowsDesktopsPrefix, desktop.GetHostID(), desktop.GetName()),
 		Value:    value,
 		Expires:  desktop.Expiry(),
 		Revision: rev,
@@ -147,7 +147,7 @@ func (s *WindowsDesktopService) DeleteWindowsDesktop(ctx context.Context, hostID
 		return trace.Errorf("name must not be empty")
 	}
 
-	key := backend.Key(windowsDesktopsPrefix, hostID, name)
+	key := backend.NewKey(windowsDesktopsPrefix, hostID, name)
 
 	err := s.Delete(ctx, key)
 	if err != nil {
@@ -176,7 +176,7 @@ func (s *WindowsDesktopService) ListWindowsDesktops(ctx context.Context, req typ
 		return nil, trace.BadParameter("nonpositive parameter limit")
 	}
 
-	rangeStart := backend.Key(windowsDesktopsPrefix, req.StartKey)
+	rangeStart := backend.NewKey(windowsDesktopsPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopsPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:   types.KindWindowsDesktop,
@@ -248,7 +248,7 @@ func (s *WindowsDesktopService) ListWindowsDesktopServices(ctx context.Context, 
 		return nil, trace.BadParameter("nonpositive parameter limit")
 	}
 
-	rangeStart := backend.Key(windowsDesktopServicesPrefix, req.StartKey)
+	rangeStart := backend.NewKey(windowsDesktopServicesPrefix, req.StartKey)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(windowsDesktopServicesPrefix))
 	filter := services.MatchResourceFilter{
 		ResourceKind:   types.KindWindowsDesktopService,

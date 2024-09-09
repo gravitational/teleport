@@ -135,7 +135,12 @@ func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorCon
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		callbackURL.Scheme = "https"
+		// Default to HTTPS if no scheme is specified.
+		// This will allow users to specify an insecure HTTP URL but
+		// the backend will verify if the callback URL is allowed.
+		if callbackURL.Scheme == "" {
+			callbackURL.Scheme = "https"
+		}
 		callbackAddr = callbackURL.String()
 	}
 
@@ -207,14 +212,17 @@ func (rd *Redirector) Start() error {
 	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
 
 	req := SSOLoginConsoleReq{
-		RedirectURL:          u.String(),
-		PublicKey:            rd.PubKey,
-		CertTTL:              rd.TTL,
-		ConnectorID:          rd.ConnectorID,
-		Compatibility:        rd.Compatibility,
-		RouteToCluster:       rd.RouteToCluster,
-		KubernetesCluster:    rd.KubernetesCluster,
-		AttestationStatement: rd.AttestationStatement,
+		RedirectURL: u.String(),
+		SSOUserPublicKeys: SSOUserPublicKeys{
+			// TODO(nklaassen): split keys on client side.
+			PublicKey:            rd.PubKey,
+			AttestationStatement: rd.AttestationStatement,
+		},
+		CertTTL:           rd.TTL,
+		ConnectorID:       rd.ConnectorID,
+		Compatibility:     rd.Compatibility,
+		RouteToCluster:    rd.RouteToCluster,
+		KubernetesCluster: rd.KubernetesCluster,
 	}
 
 	response, err := rd.SSOLoginConsoleRequestFn(req)

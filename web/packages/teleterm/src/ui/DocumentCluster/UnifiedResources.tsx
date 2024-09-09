@@ -189,6 +189,10 @@ export function UnifiedResources(props: {
 
   const requestStarted = accessRequestsService.getAddedItemsCount() > 0;
 
+  const getAddedItemsCount = useCallback(() => {
+    return accessRequestsService.getAddedItemsCount();
+  }, [accessRequestsService]);
+
   const getAccessRequestButton = useCallback(
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
@@ -219,6 +223,13 @@ export function UnifiedResources(props: {
     ]
   );
 
+  const bulkAddResources = useCallback(
+    (resources: UnifiedResourceResponse[]) => {
+      accessRequestsService.addOrRemoveResources(resources);
+    },
+    [accessRequestsService]
+  );
+
   return (
     <Resources
       getAccessRequestButton={getAccessRequestButton}
@@ -232,6 +243,8 @@ export function UnifiedResources(props: {
       canUseConnectMyComputer={canUseConnectMyComputer}
       openConnectMyComputerDocument={openConnectMyComputerDocument}
       onResourcesRefreshRequest={onResourcesRefreshRequest}
+      bulkAddResources={bulkAddResources}
+      getAddedItemsCount={getAddedItemsCount}
       discoverUrl={discoverUrl}
       integratedAccessRequests={integratedAccessRequests}
       // Reset the component state when query params object change.
@@ -254,12 +267,14 @@ const Resources = memo(
     openConnectMyComputerDocument(): void;
     onResourcesRefreshRequest: ResourcesContext['onResourcesRefreshRequest'];
     discoverUrl: string;
-    getAccessRequestButton?: (resource: UnifiedResourceResponse) => JSX.Element;
+    getAccessRequestButton: (resource: UnifiedResourceResponse) => JSX.Element;
+    getAddedItemsCount: () => number;
+    bulkAddResources: (resources: UnifiedResourceResponse[]) => void;
     integratedAccessRequests: IntegratedAccessRequests;
   }) => {
     const appContext = useAppContext();
 
-    const { fetch, resources, attempt, clear } = useUnifiedResourcesFetch({
+    const { fetch, resources, attempt } = useUnifiedResourcesFetch({
       fetchFunc: useCallback(
         async (paginationParams, signal) => {
           // Block the call if we don't know yet what resources to show.
@@ -316,11 +331,48 @@ const Resources = memo(
     const { onResourcesRefreshRequest } = props;
     useEffect(() => {
       const { cleanup } = onResourcesRefreshRequest(() => {
-        clear();
-        fetch({ force: true });
+        fetch({ clear: true });
       });
       return cleanup;
-    }, [onResourcesRefreshRequest, fetch, clear]);
+    }, [onResourcesRefreshRequest, fetch]);
+
+    const { getAccessRequestButton } = props;
+    // The action callback in the requestAccess action has access to
+    // `SharedUnifiedResource['resource']`, but `props.bulkAddResources` accepts
+    // `UnifiedResourceResponse`. Because of that, we need to to have the
+    // getUnifiedResourceFromSharedResource function.
+    const { sharedResources, getUnifiedResourceFromSharedResource } =
+      useMemo(() => {
+        const sharedResources: SharedUnifiedResource[] = [];
+        const sharedResourceToUnifiedResource = new Map<
+          SharedUnifiedResource['resource'],
+          UnifiedResourceResponse
+        >();
+
+        resources.forEach(resource => {
+          let sharedResource = mapToSharedResource(resource);
+          const accessRequestButton = getAccessRequestButton(resource);
+          if (accessRequestButton) {
+            sharedResource.ui.ActionButton = accessRequestButton;
+          }
+
+          sharedResources.push(sharedResource);
+          sharedResourceToUnifiedResource.set(
+            sharedResource.resource,
+            resource
+          );
+        });
+
+        const getUnifiedResourceFromSharedResource =
+          sharedResourceToUnifiedResource.get.bind(
+            sharedResourceToUnifiedResource
+          );
+
+        return {
+          sharedResources,
+          getUnifiedResourceFromSharedResource,
+        };
+      }, [resources, getAccessRequestButton]);
 
     const resourceIds =
       props.userPreferences.clusterPreferences?.pinnedResources?.resourceIds;
@@ -341,6 +393,29 @@ const Resources = memo(
         params={props.queryParams}
         setParams={props.onParamsChange}
         unifiedResourcePreferencesAttempt={props.userPreferencesAttempt}
+        bulkActions={
+          props.integratedAccessRequests.supported === 'yes'
+            ? [
+                {
+                  key: 'requestAccess',
+                  Icon: icons.AddCircle,
+                  text:
+                    props.getAddedItemsCount() > 0
+                      ? 'Add/Remove to Request'
+                      : 'Request Access',
+                  disabled: false,
+                  action: selectedResources =>
+                    props.bulkAddResources(
+                      selectedResources.map(sharedResource =>
+                        getUnifiedResourceFromSharedResource(
+                          sharedResource.resource
+                        )
+                      )
+                    ),
+                },
+              ]
+            : []
+        }
         unifiedResourcePreferences={
           props.userPreferences.unifiedResourcePreferences
         }
@@ -353,15 +428,7 @@ const Resources = memo(
             ? props.integratedAccessRequests.availabilityFilter
             : undefined
         }
-        resources={resources.map(r => {
-          const { resource, ui } = mapToSharedResource(r);
-          return {
-            resource,
-            ui: {
-              ActionButton: props.getAccessRequestButton(r) || ui.ActionButton,
-            },
-          };
-        })}
+        resources={sharedResources}
         resourcesFetchAttempt={attempt}
         fetchResources={fetch}
         availableKinds={[

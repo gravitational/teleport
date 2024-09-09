@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import api, { MFA_HEADER, defaultRequestOptions, getAuthHeaders } from './api';
+import api, {
+  MFA_HEADER,
+  defaultRequestOptions,
+  getAuthHeaders,
+  isRoleNotFoundError,
+} from './api';
 
 describe('api.fetch', () => {
   const mockedFetch = jest.spyOn(global, 'fetch').mockResolvedValue({} as any); // we don't care about response
@@ -120,6 +125,31 @@ describe('api.fetch', () => {
       },
     });
   });
+
+  const customContentType = {
+    ...customOpts,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'multipart/form-data',
+    },
+  };
+
+  test('with customOptions including custom content-type', async () => {
+    await api.fetch('/something', customContentType, null);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    const firstCall = mockedFetch.mock.calls[0];
+    const [, actualRequestOptions] = firstCall;
+
+    expect(actualRequestOptions).toStrictEqual({
+      ...defaultRequestOptions,
+      ...customOpts,
+      headers: {
+        ...customContentType.headers,
+        ...getAuthHeaders(),
+      },
+    });
+  });
 });
 
 // The code below should guard us from changes to api.fetchJson which would cause it to lose type
@@ -149,4 +179,15 @@ test('fetchJson does not return any', () => {
   };
 
   expect(true).toBe(true);
+});
+
+test('isRoleNotFoundError correctly identifies role not found errors', () => {
+  const errorMessage1 = 'role admin is not found';
+  expect(isRoleNotFoundError(errorMessage1)).toBe(true);
+
+  const errorMessage2 = '    role test-role is not found ';
+  expect(isRoleNotFoundError(errorMessage2)).toBe(true);
+
+  const errorMessage3 = 'failed to list access lists';
+  expect(isRoleNotFoundError(errorMessage3)).toBe(false);
 });

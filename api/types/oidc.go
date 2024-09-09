@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"net/netip"
 	"net/url"
 	"slices"
 	"time"
@@ -35,6 +36,11 @@ type OIDCConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
 	ResourceWithOrigin
+	// Validate will preform checks not found in CheckAndSetDefaults
+	// that should only be preformed when the OIDC connector resource
+	// itself is being created or updated, not when a OIDCConnector
+	// object is being created or updated.
+	Validate() error
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -449,6 +455,23 @@ func (o *OIDCConnectorV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Validate will preform checks not found in CheckAndSetDefaults
+// that should only be preformed when the OIDC connector resource
+// itself is being created or updated, not when a OIDCConnector
+// object is being created or updated.
+func (o *OIDCConnectorV3) Validate() error {
+	if o.Spec.ClientRedirectSettings != nil {
+		for _, cidrStr := range o.Spec.ClientRedirectSettings.InsecureAllowedCidrRanges {
+			_, err := netip.ParsePrefix(cidrStr)
+			if err != nil {
+				return trace.BadParameter("bad CIDR range in insecure_allowed_cidr_ranges '%s': %v", cidrStr, err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetAllowUnverifiedEmail returns true if unverified emails should be allowed in received users.
 func (o *OIDCConnectorV3) GetAllowUnverifiedEmail() bool {
 	return o.Spec.AllowUnverifiedEmail
@@ -474,31 +497,39 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *OIDCAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *OIDCAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.StateToken == "" {
+	case r.StateToken == "":
 		return trace.BadParameter("StateToken: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
 }

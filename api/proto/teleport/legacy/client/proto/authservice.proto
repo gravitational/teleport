@@ -336,6 +336,8 @@ message RouteToApp {
   string AzureIdentity = 6 [(gogoproto.jsontag) = "azure_identity,omitempty"];
   // GCPServiceAccount is the GCP service account to assume when accessing GCP API.
   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -832,6 +834,12 @@ message CreateAppSessionRequest {
   // An optional field, that when provided, the response will be validated and
   // the ID of the validated MFA device will be stored in session's certificate.
   MFAAuthenticateResponse MFAResponse = 8 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+  // AppName is the name of the application.
+  string AppName = 9 [(gogoproto.jsontag) = "app_name"];
+  // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
+  string URI = 10 [(gogoproto.jsontag) = "uri"];
+  // ClientAddr is a client (user's) address.
+  string ClientAddr = 11 [(gogoproto.jsontag) = "client_addr,omitempty"];
 }
 
 // CreateAppSessionResponse contains the requested application web session.
@@ -2925,17 +2933,29 @@ service AuthService {
   rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // CreateSAMLIdPSession creates web session with sub kind saml_idp used by the SAML IdP.
-  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse);
+  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // GetSAMLIdPSession returns a SAML IdP session with sub kind saml_idp.
-  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse);
+  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // ListSAMLIdPSessions gets all SAML IdP sessions.
-  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse);
+  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse) {
+    option deprecated = true;
+  }
   // DeleteSAMLIdPSession removes a SAML IdP session.
-  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty);
+  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
-  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty);
+  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);

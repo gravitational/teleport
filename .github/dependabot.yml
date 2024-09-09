@@ -237,17 +237,22 @@ updates:
       - "ui"
       - "no-changelog"
     groups:
+      electron:
+        patterns:
+        - "electron*"
       ui:
         update-types:
           - "minor"
           - "patch"
+        exclude-patterns:
+          - "electron*"
     open-pull-requests-limit: 20
     reviewers:
       - avatus
       - kimlisa
       - rudream
       - bl-nero
-      - gzdnunek
+      - gzdunek
       - ravicious
       - ryanclark
   - package-ecosystem: github-actions

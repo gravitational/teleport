@@ -151,17 +151,21 @@ pnpm tdd
 
 ### Interactive Testing
 
-We use [storybook](https://storybook.js.org/) for our interactive testing.
+We use [Storybook](https://storybook.js.org/) for our interactive testing.
 It allows us to browse our component library, view the different states of
 each component, and interactively develop and test components.
 
-To start a storybook:
+> [!IMPORTANT]
+> In order to start Storybook, you need to have certs in `web/certs`.
+> See [Local HTTPS](#local-https) for how to set them up.
+
+To start Storybook:
 
 ```
 pnpm storybook
 ```
 
-This command will open a new browser window with storybook in it. There
+This command will open a new browser window with Storybook in it. There
 you will see components from all packages so it makes it faster to work
 and iterate on shared functionality.
 

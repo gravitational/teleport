@@ -131,16 +131,16 @@ export class PtyEventsStreamHandler {
 
   private handleStreamError(error: Error): void {
     this.logger.error(`stream has ended with error`, error);
-    this.cleanResources();
+    void this.cleanResources();
   }
 
   private handleStreamEnd(): void {
     this.logger.info(`stream has ended`);
-    this.cleanResources();
+    void this.cleanResources();
   }
 
-  private cleanResources(): void {
-    this.ptyProcess.dispose();
+  private async cleanResources(): Promise<void> {
+    await this.ptyProcess.dispose();
     if (this.ptyId) {
       this.ptyProcesses.delete(this.ptyId);
     }
