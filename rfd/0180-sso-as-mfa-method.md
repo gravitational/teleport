@@ -479,19 +479,6 @@ backend. Instead, it is retrieved by checking the user's `CreatedBy` field,
 fetching the corresponding auth connector, checking if it has MFA enabled, and
 then filling out an SSO MFA device from the auth connector's details.
 
-#### SSO MFA flow
-
-We will introduce a new SSO login flow that allows clients to get a new privilege
-token instead of the standard login credentials. Authenticated clients can create
-an sso auth request with `rpc CreateSAMLAuthRequest`, `rpc CreateOIDCAuthRequest`
-or `rpc CreateGithubAuthRequest` and set `CreateMFASession=true` to use this
-new flow. Once the client authenticates through the IdP, the client will be given
-a privilege token generated for the user.
-
-Note: As is the case with normal SSO login, the login response is encrypted
-using a secret key owned by the client so that the token can not be intercepted
-in a man in the middle attack.
-
 ### Proto
 
 **CreateAuthenticateChallengeRequest**
@@ -701,16 +688,27 @@ message GithubConnectorSpecV3 {
 
 ### Backward Compatibility
 
-The SSO MFA flow is completely separate from the SSO login flow, meaning a new
-client cannot start an SSO login flow thinking it is doing an MFA login, or
-vice versa.
+The SSO MFA flow is mostly backwards compatible; If SSO MFA is not supported,
+both the client and server will fallback to classic MFA methods.
 
-For the SSO MFA flow to begin, both the client and server must pull a lever:
-1. Client (tsh, Teleport Connect, WebUI) must provide client callback URL
-2. Server be aware of the client callback URL field to return an SSO challenge
+In the case that the client expects SSO MFA, but the Auth server doesn't return
+an SSO MFA challenge, the client will return an error indicating that SSO MFA
+is not supported for the user. This would occur if the client supplies
+`--mfa-mode=sso` despite SSO MFA not being supported for them, whether its
+because the Auth connector have MFA enabled or the Auth server is simply out
+of date and doesn't support SSO MFA
 
-As a result, there is no compatibility concerns around client/server version
-differences.
+In the case that the SSO MFA is required for a user, but the client doesn't
+provide a sso client callback URL in an authenticate challenge request, the
+server will return an error indicating that SSO MFA is required and the client
+must provide a client callback URL. Since this will only happen in out of date
+client, the error message will indicate that the user must upgrade to v17+.
+
+If the Proxy server is out of date, the MFA token will be lost at the end of
+the flow due to the SSO callback endpoints not knowing about the MFA token
+field. The client will catch when the MFA token field is missing and return an
+error indicating that the proxy server does not support SSO MFA, and to contact
+cluster administrators to update to v17+ if this is unexpected.
 
 ### Audit Events
 
