@@ -1,7 +1,7 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import styled, { useTheme } from 'styled-components';
 
-import Portal from 'design/Modal/Portal';
 import {
   Notification,
   NotificationItem as InnerNotificationItem,
@@ -26,7 +26,7 @@ export type NotificationEntry = Omit<NotificationItem, 'id'>;
 /**
  * A container element for the notifications widget that is anchored to the
  * bottom right of the page. It must be rendered on the document's root, usually
- * via a Portal.
+ * via a portal.
  */
 const Container = styled.div`
   position: absolute;
@@ -63,7 +63,7 @@ function dismissAfterProps(item: NotificationItem): dismissProps {
 
 /**
  * Creates a notifications widget. This widget can be placed anywhere and will
- * use a Portal element to render to the document root so notifications can be
+ * use a portal to render to the document root so notifications can be
  * properly anchored to the bottom right of the page.
  */
 export function Notifications({
@@ -102,22 +102,20 @@ export function Notifications({
     };
   }
 
-  return (
-    // Note: Empty <Portal> will refer to the document root.
-    <Portal>
-      <Container>
-        {items.map(item => (
-          <Notification
-            css={getStyle(item)}
-            key={`${prefix}${item.id}`}
-            item={item}
-            onRemove={() => dismiss(item.id)}
-            Icon={Empty}
-            getColor={getColor}
-            {...dismissAfterProps(item)}
-          />
-        ))}
-      </Container>
-    </Portal>
+  return createPortal(
+    <Container>
+      {items.map(item => (
+        <Notification
+          css={getStyle(item)}
+          key={`${prefix}${item.id}`}
+          item={item}
+          onRemove={() => dismiss(item.id)}
+          Icon={Empty}
+          getColor={getColor}
+          {...dismissAfterProps(item)}
+        />
+      ))}
+    </Container>,
+    document.body
   );
 }
