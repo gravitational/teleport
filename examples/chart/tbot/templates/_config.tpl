@@ -40,7 +40,7 @@ outputs:
   - type: identity
     destination:
       type: kubernetes_secret
-      name: {{ .Values.defaultOutput.secretName }}
+      name: {{ include "tbot.defaultOutputName" . }}
 {{- end }}
 {{- if .Values.outputs }}
 {{- toYaml .Values.outputs | nindent 6}}

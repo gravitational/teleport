@@ -50,3 +50,7 @@ This is done to avoid naming conflicts when including the chart in other charts.
   {{- .Chart.Version -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "tbot.defaultOutputName" -}}
+{{- include "tbot.fullname" . }}-out
+{{- end -}}
