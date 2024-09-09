@@ -17,8 +17,6 @@ limitations under the License.
 package memory
 
 import (
-	"bytes"
-
 	"github.com/google/btree"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -37,7 +35,7 @@ type btreeItem struct {
 func (i *btreeItem) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
 	case *btreeItem:
-		return bytes.Compare(i.Key, other.Key) < 0
+		return i.Key.Compare(other.Key) < 0
 	case *prefixItem:
 		return !iother.Less(i)
 	default:
@@ -48,11 +46,11 @@ func (i *btreeItem) Less(iother btree.Item) bool {
 // prefixItem is used for prefix matches on a B-Tree
 type prefixItem struct {
 	// prefix is a prefix to match
-	prefix []byte
+	prefix backend.Key
 }
 
 // Less is used for Btree operations
 func (p *prefixItem) Less(iother btree.Item) bool {
 	other := iother.(*btreeItem)
-	return !bytes.HasPrefix(other.Key, p.prefix)
+	return !other.Key.HasPrefix(p.prefix)
 }

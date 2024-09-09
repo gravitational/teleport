@@ -169,23 +169,13 @@ const getDocUrls = (version = '', isEnterprise: boolean) => {
   const withUTM = (url = '', anchorHash = '') =>
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
-  let docVer = '';
-  if (version && version.length > 0) {
-    const major = version.split('.')[0];
-    docVer = `/ver/${major}.x`;
-  }
-
   return {
-    getStarted: withUTM(`https://goteleport.com/docs${docVer}/getting-started`),
-    tshGuide: withUTM(
-      `https://goteleport.com/docs${docVer}/server-access/guides/tsh`
-    ),
-    adminGuide: withUTM(
-      `https://goteleport.com/docs${docVer}/management/admin/`
-    ),
-    faq: withUTM(`https://goteleport.com/docs${docVer}/faq`),
+    getStarted: withUTM(`https://goteleport.com/docs/get-started/`),
+    tshGuide: withUTM(`https://goteleport.com/docs/connect-your-client/tsh/`),
+    adminGuide: withUTM(`https://goteleport.com/docs/management/admin/`),
+    faq: withUTM(`https://goteleport.com/docs/faq`),
     troubleshooting: withUTM(
-      `https://goteleport.com/docs${docVer}/management/admin/troubleshooting/`
+      `https://goteleport.com/docs/management/admin/troubleshooting/`
     ),
 
     // there isn't a version-specific changelog page

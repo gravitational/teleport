@@ -142,11 +142,11 @@ func (n *nopBackend) GetName() string {
 	return "nop"
 }
 
-func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {
+func (n *nopBackend) Get(_ context.Context, _ Key) (*Item, error) {
 	return &Item{}, nil
 }
 
-func (n *nopBackend) GetRange(_ context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (n *nopBackend) GetRange(_ context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	return &GetResult{Items: []Item{
 		{Key: []byte("foo"), Value: []byte("bar")},
 	}}, nil
@@ -168,11 +168,11 @@ func (n *nopBackend) CompareAndSwap(_ context.Context, _ Item, _ Item) (*Lease, 
 	return &Lease{}, nil
 }
 
-func (n *nopBackend) Delete(_ context.Context, _ []byte) error {
+func (n *nopBackend) Delete(_ context.Context, _ Key) error {
 	return nil
 }
 
-func (n *nopBackend) DeleteRange(_ context.Context, _ []byte, _ []byte) error {
+func (n *nopBackend) DeleteRange(_ context.Context, _ Key, _ Key) error {
 	return nil
 }
 

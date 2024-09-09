@@ -17,7 +17,6 @@ limitations under the License.
 package local
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"sort"
@@ -77,7 +76,7 @@ func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	}
 	out := make([]types.Namespace, 0, len(result.Items))
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		ns, err := services.UnmarshalNamespace(
@@ -227,7 +226,7 @@ func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) err
 	return nil
 }
 
-func serverInfoKey(subkind, name string) []byte {
+func serverInfoKey(subkind, name string) backend.Key {
 	switch subkind {
 	case types.SubKindCloudInfo:
 		return backend.NewKey(serverInfoPrefix, cloudLabelsPrefix, name)
@@ -868,7 +867,7 @@ Acquire:
 
 // initSemaphore attempts to initialize/acquire a semaphore which does not yet exist.
 // Returns AlreadyExistsError if the semaphore is concurrently created.
-func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+func (s *PresenceService) initSemaphore(ctx context.Context, key backend.Key, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	// create a new empty semaphore resource configured to specifically match
 	// this acquire request.
 	sem, err := req.ConfigureSemaphore()
@@ -899,7 +898,7 @@ func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID
 
 // acquireSemaphore attempts to acquire an existing semaphore.  Returns NotFoundError if no semaphore exists,
 // and CompareFailed if the semaphore was concurrently updated.
-func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+func (s *PresenceService) acquireSemaphore(ctx context.Context, key backend.Key, leaseID string, req types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	item, err := s.Get(ctx, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1070,7 +1069,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter types.Semaph
 		}
 		items = append(items, *item)
 	} else {
-		var startKey []byte
+		var startKey backend.Key
 		if filter.SemaphoreKind != "" {
 			startKey = backend.ExactKey(semaphoresPrefix, filter.SemaphoreKind)
 		} else {
@@ -1374,7 +1373,7 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	}
 
 	// Update the prefix off the type information in the keep alive.
-	var key []byte
+	var key backend.Key
 	switch h.GetType() {
 	case constants.KeepAliveNode:
 		key = backend.NewKey(nodesPrefix, h.Namespace, h.Name)

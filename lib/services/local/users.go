@@ -99,7 +99,7 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]types.User, error) {
 	}
 	var out []types.User
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		u, err := services.UnmarshalUser(
@@ -375,8 +375,8 @@ func (s *IdentityService) getUserWithSecrets(ctx context.Context, user string) (
 
 	var items userItems
 	for _, item := range result.Items {
-		suffix := bytes.TrimPrefix(item.Key, startKey)
-		items.Set(string(suffix), item) // Result of Set i
+		suffix := item.Key.TrimPrefix(startKey)
+		items.Set(suffix.String(), item) // Result of Set i
 	}
 
 	u, err := userFromUserItems(user, items)
@@ -701,11 +701,11 @@ func (s *IdentityService) GetTeleportUserByWebauthnID(ctx context.Context, webID
 	return user.TeleportUser, nil
 }
 
-func webauthnLocalAuthKey(user string) []byte {
+func webauthnLocalAuthKey(user string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnLocalAuthPrefix)
 }
 
-func webauthnUserKey(id []byte) []byte {
+func webauthnUserKey(id []byte) backend.Key {
 	key := base64.RawURLEncoding.EncodeToString(id)
 	return backend.NewKey(webauthnPrefix, usersPrefix, key)
 }
@@ -759,7 +759,7 @@ func (s *IdentityService) DeleteWebauthnSessionData(ctx context.Context, user, s
 	return trace.Wrap(s.Delete(ctx, sessionDataKey(user, sessionID)))
 }
 
-func sessionDataKey(user, sessionID string) []byte {
+func sessionDataKey(user, sessionID string) backend.Key {
 	return backend.NewKey(webPrefix, usersPrefix, user, webauthnSessionData, sessionID)
 }
 
@@ -870,7 +870,7 @@ func (s *IdentityService) DeleteGlobalWebauthnSessionData(ctx context.Context, s
 	return nil
 }
 
-func globalSessionDataKey(scope, id string) []byte {
+func globalSessionDataKey(scope, id string) backend.Key {
 	return backend.NewKey(webauthnPrefix, webauthnGlobalSessionData, scope, id)
 }
 

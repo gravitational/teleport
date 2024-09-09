@@ -169,7 +169,7 @@ func (w *ClusterExternalAuditWatcher) watch(ctx context.Context) error {
 func (w *ClusterExternalAuditWatcher) newWatcher(ctx context.Context) (backend.Watcher, error) {
 	watcher, err := w.backend.NewWatcher(ctx, backend.Watch{
 		Name:     types.KindExternalAuditStorage,
-		Prefixes: [][]byte{clusterExternalAuditStorageBackendKey},
+		Prefixes: []backend.Key{clusterExternalAuditStorageBackendKey},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

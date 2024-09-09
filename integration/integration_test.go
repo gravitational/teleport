@@ -492,7 +492,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site authclient.ClientI) (types.SessionTracker, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeout, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
 				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
@@ -520,7 +520,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-endC:
 				require.NoError(t, err)
-			case <-time.After(10 * time.Second):
+			case <-time.After(15 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
 
@@ -1251,7 +1251,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 					return
 				}
 				sessionID = trackers[0].GetSessionID()
-			}, time.Second*5, time.Millisecond*100)
+			}, time.Second*15, time.Millisecond*100)
 
 			// Send stuff to the session.
 			term.Type("echo Hello\n\r")
@@ -1265,7 +1265,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			// Wait for the session to terminate without error.
 			term.Type("exit\n\r")
-			require.NoError(t, waitForError(errCh, 5*time.Second))
+			require.NoError(t, waitForError(errCh, 15*time.Second))
 
 			// Wait for the session recording to be uploaded and available
 			var uploaded bool
@@ -1285,7 +1285,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				events, err := authSrv.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, events)
-			}, 5*time.Second, 200*time.Millisecond)
+			}, 15*time.Second, 200*time.Millisecond)
 		})
 	}
 }
@@ -2032,7 +2032,7 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-sshErr:
 				require.NoError(t, err)
-			case <-time.After(5 * time.Second):
+			case <-time.After(15 * time.Second):
 				require.FailNow(t, "failed to shutdown ssh session")
 			}
 
@@ -8898,7 +8898,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				select {
 				case err := <-errChan:
 					require.NoError(t, err)
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 				require.Contains(t, term.AllOutput(), "hi")
@@ -8930,7 +8930,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 					if !authRunning {
 						require.Empty(t, term.AllOutput())
 					}
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 			},

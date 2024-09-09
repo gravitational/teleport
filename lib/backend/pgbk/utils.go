@@ -50,6 +50,15 @@ func idFromRevision(revision uuid.UUID) int64 {
 	return int64(u)
 }
 
+// nonNilKey replaces an empty key with a non-nil one.
+func nonNilKey(b backend.Key) []byte {
+	if b == nil {
+		return []byte{}
+	}
+
+	return []byte(b.String())
+}
+
 // nonNil replaces a nil slice with an empty, non-nil one.
 func nonNil(b []byte) []byte {
 	if b == nil {

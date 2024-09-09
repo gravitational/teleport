@@ -17,7 +17,6 @@ limitations under the License.
 package local
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -110,7 +109,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -356,13 +355,13 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				ID:       lock.GetResourceID(),
 				Revision: rev,
 			}
-			newRemoteLocksToStore[string(item.Key)] = item
+			newRemoteLocksToStore[item.Key.String()] = item
 		}
 
 		for _, origLockItem := range origRemoteLocks.Items {
 			// If one of the new remote locks to store is already known,
 			// perform a CompareAndSwap.
-			key := string(origLockItem.Key)
+			key := origLockItem.Key.String()
 			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
 				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
 					return trace.Wrap(err)

@@ -405,7 +405,7 @@ extraLabels:
   deployment: {}
   # Labels to set on the post-delete Job created by the chart.
   job: {}
-  # Labels for each Pod in the Deployment/StatefulSet
+  # Labels for each Pod in the Deployment, StatefulSet,  or Job
   pod: {}
   # Labels for the Pod Disruption Budget (ignored when disabled)
   podDisruptionBudget: {}

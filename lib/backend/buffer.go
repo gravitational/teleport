@@ -217,7 +217,7 @@ func (c *CircularBuffer) fanOutEvent(r Event) {
 	}
 }
 
-func removeRedundantPrefixes(prefixes [][]byte) [][]byte {
+func removeRedundantPrefixes(prefixes []Key) []Key {
 	if len(prefixes) == 0 {
 		return prefixes
 	}
@@ -319,7 +319,7 @@ type BufferWatcher struct {
 // String returns user-friendly representation
 // of the buffer watcher
 func (w *BufferWatcher) String() string {
-	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))), w.capacity, len(w.eventsC))
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v, capacity=%v, size=%v)", w.Name, w.Prefixes, w.capacity, len(w.eventsC))
 }
 
 // Events returns events channel.  This method performs internal work and should be re-called after each event

@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.3.28
+VERSION=14.3.31
 
 DOCKER_IMAGE ?= teleport
 
@@ -1615,8 +1615,9 @@ changelog: $(CHANGELOG)
 # For more information on release notes generation see ./build.assets/tooling/cmd/release-notes
 .PHONY: create-github-release
 create-github-release: LATEST = false
+create-github-release: GITHUB_RELEASE_LABELS = ""
 create-github-release: $(RELEASE_NOTES_GEN)
-	@NOTES=$$($(RELEASE_NOTES_GEN) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
+	@NOTES=$$($(RELEASE_NOTES_GEN) --labels=$(GITHUB_RELEASE_LABELS) $(VERSION) CHANGELOG.md) && gh release create v$(VERSION) \
 	-t "Teleport $(VERSION)" \
 	--latest=$(LATEST) \
 	--verify-tag \

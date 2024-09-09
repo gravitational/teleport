@@ -15,7 +15,6 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"sync"
@@ -136,7 +135,7 @@ func (c *UnifiedResourceCache) put(ctx context.Context, resource resource) error
 		// from those trees before adding a new one. This can happen
 		// when a node's hostname changes
 		oldSortKey := makeResourceSortKey(oldResource)
-		if string(oldSortKey.byName) != string(sortKey.byName) {
+		if oldSortKey.byName.Compare(sortKey.byName) != 0 {
 			c.deleteSortKey(oldSortKey)
 		}
 	}
@@ -160,10 +159,10 @@ func putResources[T resource](cache *UnifiedResourceCache, resources []T) {
 
 func (c *UnifiedResourceCache) deleteSortKey(sortKey resourceSortKey) error {
 	if _, ok := c.nameTree.Delete(&item{Key: sortKey.byName}); !ok {
-		return trace.NotFound("key %q is not found in unified cache name sort tree", string(sortKey.byName))
+		return trace.NotFound("key %q is not found in unified cache name sort tree", sortKey.byName.String())
 	}
 	if _, ok := c.typeTree.Delete(&item{Key: sortKey.byType}); !ok {
-		return trace.NotFound("key %q is not found in unified cache type sort tree", string(sortKey.byType))
+		return trace.NotFound("key %q is not found in unified cache type sort tree", sortKey.byType.String())
 	}
 	return nil
 }
@@ -202,7 +201,7 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 
 }
 
-func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
 	if len(startKey) == 0 {
 		return nil, "", trace.BadParameter("missing parameter startKey")
 	}
@@ -218,7 +217,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			return trace.Wrap(err, "getting sort tree")
 		}
 		var iterateRange func(lessOrEqual, greaterThan *item, iterator btree.ItemIteratorG[*item])
-		var endKey []byte
+		var endKey backend.Key
 		if req.SortBy.IsDesc {
 			iterateRange = tree.DescendRange
 			endKey = backend.NewKey(prefix)
@@ -250,7 +249,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 			// do we have all we need? set nextKey and stop iterating
 			// we do this after the matchFn to make sure they have access to the "next" node
 			if req.Limit > 0 && len(res) >= int(req.Limit) {
-				nextKey = string(item.Key)
+				nextKey = item.Key.String()
 				return false
 			}
 			res = append(res, resourceFromMap)
@@ -269,10 +268,10 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey []byte, ma
 	return res, nextKey, nil
 }
 
-func getStartKey(req *proto.ListUnifiedResourcesRequest) []byte {
+func getStartKey(req *proto.ListUnifiedResourcesRequest) backend.Key {
 	// if startkey exists, return it
 	if req.StartKey != "" {
-		return []byte(req.StartKey)
+		return backend.Key(req.StartKey)
 	}
 	// if startkey doesnt exist, we check the the sort direction.
 	// If sort is descending, startkey is end of the list
@@ -372,8 +371,8 @@ func resourceKey(resource types.Resource) string {
 }
 
 type resourceSortKey struct {
-	byName []byte
-	byType []byte
+	byName backend.Key
+	byType backend.Key
 }
 
 // resourceSortKey will generate a key to be used in the sort trees
@@ -693,7 +692,7 @@ func (c *UnifiedResourceCache) defineCollectorAsInitialized() {
 func (i *item) Less(iother btree.Item) bool {
 	switch other := iother.(type) {
 	case *item:
-		return bytes.Compare(i.Key, other.Key) < 0
+		return i.Key.Compare(other.Key) < 0
 	case *prefixItem:
 		return !iother.Less(i)
 	default:
@@ -704,13 +703,13 @@ func (i *item) Less(iother btree.Item) bool {
 // prefixItem is used for prefix matches on a B-Tree
 type prefixItem struct {
 	// prefix is a prefix to match
-	prefix []byte
+	prefix backend.Key
 }
 
 // Less is used for Btree operations
 func (p *prefixItem) Less(iother btree.Item) bool {
 	other := iother.(*item)
-	return !bytes.HasPrefix(other.Key, p.prefix)
+	return !other.Key.HasPrefix(p.prefix)
 }
 
 type resource interface {
@@ -721,7 +720,7 @@ type resource interface {
 type item struct {
 	// Key is a key of the key value item. This will be different based on which sorting tree
 	// the item is in
-	Key []byte
+	Key backend.Key
 	// Value will be the resourceKey used in the resources map to get the resource
 	Value string
 }

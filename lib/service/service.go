@@ -2732,7 +2732,11 @@ func (process *TeleportProcess) initSSH() error {
 		// return a NOP struct that can be used to discard BPF data.
 		ebpf, err := bpf.New(cfg.SSH.BPF, cfg.SSH.RestrictedSession)
 		if err != nil {
-			return trace.Wrap(err)
+			// Check kernel version if the host can run BPF programs.
+			return trace.NewAggregate(
+				trace.Wrap(bpf.IsHostCompatible()),
+				trace.Wrap(err),
+			)
 		}
 		defer func() { warnOnErr(ebpf.Close(restartingOnGracefulShutdown), log) }()
 
@@ -6134,7 +6138,7 @@ type kubernetesBackend interface {
 	// exists, updates it otherwise)
 	Put(ctx context.Context, i backend.Item) (*backend.Lease, error)
 	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*backend.Item, error)
+	Get(ctx context.Context, key backend.Key) (*backend.Item, error)
 }
 
 // readHostIDFromStorages tries to read the `host_uuid` value from different storages,

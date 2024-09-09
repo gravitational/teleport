@@ -415,7 +415,7 @@ func (l *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	now := l.clock.Now().UTC()
@@ -682,7 +682,7 @@ func (l *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 }
 
 // Get returns a single item or not found error
-func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (l *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -697,7 +697,7 @@ func (l *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 }
 
 // getInTransaction returns an item, works in transaction
-func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, item *backend.Item) error {
+func (l *Backend) getInTransaction(ctx context.Context, key backend.Key, tx *sql.Tx, item *backend.Item) error {
 	// When in mirror mode, don't set the current time so the SELECT query
 	// returns expired items.
 	var now time.Time
@@ -725,7 +725,7 @@ func (l *Backend) getInTransaction(ctx context.Context, key []byte, tx *sql.Tx, 
 }
 
 // GetRange returns query range
-func (l *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -823,7 +823,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	})
 }
 
-func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.Tx) error {
+func (l *Backend) deleteInTransaction(ctx context.Context, key backend.Key, tx *sql.Tx) error {
 	stmt, err := tx.PrepareContext(ctx, "DELETE FROM kv WHERE key = ?")
 	if err != nil {
 		return trace.Wrap(err)
@@ -858,7 +858,7 @@ func (l *Backend) deleteInTransaction(ctx context.Context, key []byte, tx *sql.T
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (l *Backend) Delete(ctx context.Context, key []byte) error {
+func (l *Backend) Delete(ctx context.Context, key backend.Key) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -869,7 +869,7 @@ func (l *Backend) Delete(ctx context.Context, key []byte) error {
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 // Note that elements deleted by range do not produce any events
-func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -889,7 +889,7 @@ func (l *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 			return trace.Wrap(err)
 		}
 		defer rows.Close()
-		var keys [][]byte
+		var keys []backend.Key
 		for rows.Next() {
 			var key []byte
 			if err := rows.Scan(&key); err != nil {

@@ -774,7 +774,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
 
 	case azureutils.IsDatabaseEndpoint(d.Spec.URI):
-		// For Azure MySQL and PostgresSQL.
+		// For Azure MySQL and PostgreSQL.
 		name, err := azureutils.ParseDatabaseEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
