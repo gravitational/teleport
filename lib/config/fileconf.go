@@ -2381,7 +2381,8 @@ type WindowsDesktopService struct {
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
-	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+	HostLabels       []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+	ResourceMatchers []ResourceMatcher      `yaml:"resources,omitempty"`
 }
 
 // Check checks whether the WindowsDesktopService is valid or not
