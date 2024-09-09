@@ -294,6 +294,8 @@ type ConfiguratorConfig struct {
 	// Identity is the current AWS credentials chain identity.
 	Identity awslib.Identity
 
+	// awsCfg is the configuration used for AWS service clients.
+	awsCfg *aws.Config
 	// stsClient is an AWS STS client.
 	stsClient stsClient
 	// iamClient is an AWS IAM client.
@@ -333,18 +335,21 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 	if !c.Flags.Manual {
 		var err error
 
-		awsConfig, err := config.LoadDefaultConfig(ctx,
-			config.WithUseFIPSEndpoint(useFIPSEndpoint),
-		)
-		if err != nil {
-			return trace.Wrap(err)
+		if c.awsCfg == nil {
+			cfg, err := config.LoadDefaultConfig(ctx,
+				config.WithUseFIPSEndpoint(useFIPSEndpoint),
+			)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			c.awsCfg = &cfg
 		}
 
 		if c.stsClient == nil {
-			c.stsClient = sts.NewFromConfig(awsConfig)
+			c.stsClient = sts.NewFromConfig(*c.awsCfg)
 		}
 		if c.iamClient == nil {
-			c.iamClient = iam.NewFromConfig(awsConfig)
+			c.iamClient = iam.NewFromConfig(*c.awsCfg)
 		}
 		if c.Identity == nil {
 			c.Identity, err = awslib.GetIdentityWithClientV2(context.Background(), c.stsClient)
@@ -367,7 +372,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					withRegion := func(o *ssm.Options) {
 						o.Region = region
 					}
-					c.ssmClients[region] = ssm.NewFromConfig(awsConfig, withRegion)
+					c.ssmClients[region] = ssm.NewFromConfig(*c.awsCfg, withRegion)
 				}
 			}
 
@@ -376,7 +381,7 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 		if c.Policies == nil {
 			partition := c.Identity.GetPartition()
 			accountID := c.Identity.GetAccountID()
-			iamClient := iam.NewFromConfig(awsConfig)
+			iamClient := iam.NewFromConfig(*c.awsCfg)
 			c.Policies = awslib.NewPolicies(partition, accountID, iamClient)
 		}
 	}

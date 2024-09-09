@@ -1385,6 +1385,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	require.NoError(t, config.ApplyFileConfig(fileConfig, serviceConfig))
 
 	config := ConfiguratorConfig{
+		awsCfg:    &aws.Config{},
 		iamClient: &iamMock{},
 		stsClient: &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
 		ssmClients: map[string]ssmClient{
@@ -1425,6 +1426,7 @@ func TestAWSConfigurator(t *testing.T) {
 	ctx := context.Background()
 
 	config := ConfiguratorConfig{
+		awsCfg:        &aws.Config{},
 		iamClient:     &iamMock{},
 		stsClient:     &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
 		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
