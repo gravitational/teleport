@@ -322,6 +322,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.POST("/enterprise/pluginconfig/okta/groups", h.WithAuth(p.getOktaGroups))
 	h.POST("/enterprise/pluginconfig/okta/apps", h.WithAuth(p.getOktaApps))
 
+	// get status info for a given plugin. The schema of the resulting object
+	// may vary with the given plugin
+	h.GET("/enterprise/plugin/:name", h.WithAuth(p.getPluginStatus))
+
 	// Security reports API
 	h.GET("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.getSecurityReport))
 	h.DELETE("/webapi/sites/:site/audit/reports/:name", h.WithClusterAuth(p.deleteSecurityReport))

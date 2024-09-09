@@ -662,7 +662,9 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 					Enabled: config.SCIMEnabled,
 				},
 				AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
-					Enabled: config.AccessListSyncEnabled,
+					Enabled:      config.AccessListSyncEnabled,
+					GroupFilters: config.AccessListSyncGroupFilters,
+					AppFilters:   config.AccessListSyncAppFilters,
 				},
 			},
 		},

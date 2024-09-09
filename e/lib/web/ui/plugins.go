@@ -16,39 +16,6 @@ type PluginSpec interface {
 	PluginSpecType() types.PluginType
 }
 
-// OktaPluginSpec holds information about the Okta plugin.
-type OktaPluginSpec struct {
-	// SCIMBearerToken is the plain text of the bearer token that Okta will use
-	// to authenticate SCIM requests
-	SCIMBearerToken string `json:"scimBearerToken,omitempty"`
-
-	// OktaAppID is the Okta ID of the SAML App created during the Okta plugin
-	// installation
-	OktaAppID string `json:"oktaAppId,omitempty"`
-
-	// OktaAppLabel is the human readable name of the Okta SAML app created
-	// during the Okta plugin installation
-	OktaAppLabel string `json:"oktaAppLabel,omitempty"`
-
-	// OktaAppName is the unique app name of the Okta SAML app created during
-	// the plugin installation
-	OktaAppName string `json:"oktaAppName,omitempty"`
-
-	// TeleportSSOConnector is the name of the Teleport SAML SSO connector
-	// created by the plugin during installation
-	TeleportSSOConnector string `json:"teleportSsoConnector,omitempty"`
-
-	// Error contains a description of any failures during plugin installation
-	// that were deemed not serious enough to fail the plugin installation, but
-	// may effect the operation of advanced features like User Sync or SCIM.
-	Error string `json:"error,omitempty"`
-}
-
-// PluginSpecType implements PluginSpec for OktaPluginSpec
-func (*OktaPluginSpec) PluginSpecType() types.PluginType {
-	return types.PluginTypeOkta
-}
-
 type SlackPluginSpec struct {
 	FallbackChannel string `json:"fallbackChannel,omitempty"`
 }
@@ -117,6 +84,9 @@ type PluginStatusV1 struct {
 type PluginDetails struct {
 	// Gitlab is the status of the Gitlab plugin
 	Gitlab *PluginGitlabDetails `json:"gitlab,omitempty"`
+
+	// Okta is the status of the Okta plugin
+	Okta *types.PluginOktaStatusV1 `json:"okta,omitempty"`
 }
 
 // PluginGitlabDetails holds information about the Gitlab plugin
@@ -156,7 +126,7 @@ func (p *Plugin) UnmarshalJSON(data []byte) error {
 }
 
 // NewPlugin constructs a new UI plugin from types.Plugin
-func NewPlugin(p types.Plugin) (*Plugin, error) {
+func NewPlugin(p *types.PluginV1) (*Plugin, error) {
 	if p == nil {
 		return nil, trace.BadParameter("p must be set")
 	}
@@ -185,6 +155,14 @@ func NewPlugin(p types.Plugin) (*Plugin, error) {
 				ImportedProjects: gitlabStatus.ImportedProjects,
 			},
 		}
+
+	case status.GetOkta() != nil:
+		details, err := makeOktaDetails(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiP.Status.Details = details
 	}
 
 	return uiP, nil
@@ -264,6 +242,15 @@ func pluginSpec(p types.Plugin) PluginSpec {
 	case *types.PluginSpecV1_Opsgenie:
 		return &OpsgeniePluginSpec{
 			DefaultSchedules: settings.Opsgenie.DefaultSchedules,
+		}
+
+	case *types.PluginSpecV1_Okta:
+		return &OktaPluginSpec{
+			OktaOrgURL:           settings.Okta.OrgUrl,
+			OktaAppID:            settings.Okta.SyncSettings.AppId,
+			OktaAppName:          settings.Okta.SyncSettings.AppName,
+			TeleportSSOConnector: settings.Okta.SyncSettings.SsoConnectorId,
+			DefaultOwners:        settings.Okta.SyncSettings.DefaultOwners,
 		}
 
 	default:

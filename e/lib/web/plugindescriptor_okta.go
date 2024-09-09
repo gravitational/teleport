@@ -181,6 +181,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 						SyncSettings: &types.PluginOktaSyncSettings{
 							SsoConnectorId:  oktaSSOConnectorName,
 							AppId:           connInfo.OktaAppID,
+							AppName:         connInfo.OktaAppName,
 							SyncUsers:       true,
 							GroupFilters:    params.groupFilters,
 							AppFilters:      params.appFilters,

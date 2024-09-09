@@ -696,3 +696,127 @@ func TestFetchAppUsers(t *testing.T) {
 
 	require.NotContains(t, users, "missing-credentials@example.org")
 }
+
+func TestSynchronizeUsers(t *testing.T) {
+	const (
+		samlConnectorName = "upstream-okta"
+		oktaSAMLAppID     = "some-saml-app"
+	)
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	now := time.Now()
+	userNames := []string{"alpha", "beta", "gamma"}
+
+	setupTest := func(subtestT *testing.T) (*Service, *testOktaClient) {
+		ap := newTestAccessPoint(t, clockwork.NewFakeClockAt(now))
+
+		connector, err := types.NewSAMLConnector(
+			samlConnectorName,
+			types.SAMLConnectorSpecV2{
+				AssertionConsumerService: "https://example.com",
+				EntityDescriptor:         entityDescriptor,
+				AttributesToRoles: []types.AttributeMapping{
+					{
+						Name:  "groups",
+						Value: "*",
+						Roles: []string{"okta-requester"},
+					},
+				},
+			},
+		)
+		require.NoError(subtestT, err, "creating SAML connector")
+
+		_, err = ap.CreateSAMLConnector(ctx, connector)
+		require.NoError(subtestT, err, "registering SAML connector")
+
+		svc, client, _ := newTestService(subtestT, ap,
+			withUserSyncEnabled,
+			withOktaAppID(oktaSAMLAppID),
+			withSSOConnector(samlConnectorName),
+			withClock(ap.Clock()),
+		)
+		subtestT.Cleanup(svc.stopAllHeartbeats)
+
+		for i, name := range userNames {
+			client.oktaAppUsers = append(client.oktaAppUsers,
+				&okta.AppUser{
+					Id:         fmt.Sprintf("%08d", i+1),
+					ExternalId: name + "@example.org",
+					Profile: map[string]any{
+						"firstName": name,
+					},
+					Status: userStatusProvisioned,
+					Credentials: &okta.AppUserCredentials{
+						UserName: name + "@example.org",
+					},
+				})
+		}
+
+		return svc, client
+	}
+
+	t.Run("Status updated on success", func(t *testing.T) {
+
+		// GIVEN
+		//  - a test Teleport cluster,
+		//  - a configured Okta integration service, and
+		//  - a mock Okta organization populated with users
+		serviceUnderTest, _ := setupTest(t)
+
+		// WHEN I attempt to sync the Teleport user DB with the upstream Okta
+		// organization...
+		err := serviceUnderTest.syncUsers(ctx)
+
+		// EXPECT the sync to succeed
+		require.NoError(t, err)
+
+		// EXPECT that the status information has been updated
+		userSyncStatus := serviceUnderTest.serviceStatus.details.UsersSyncDetails
+		require.True(t, userSyncStatus.LastSuccessful.Equal(now),
+			"Expected last success timestamp %s, got %s", now, userSyncStatus.LastSuccessful)
+		require.Equal(t, len(userNames), int(userSyncStatus.NumUsersSynced))
+
+		// EXPECT that the failure  information is untouched
+		require.Nil(t, userSyncStatus.LastFailed)
+		require.Empty(t, userSyncStatus.Error)
+	})
+
+	t.Run("Status updated on Okta User listing failure", func(t *testing.T) {
+		const errorText = "invalid token"
+
+		// GIVEN
+		//  - a test Teleport cluster,
+		//  - a configured Okta integration service, and
+		//  - a mock Okta organization populated with users
+		serviceUnderTest, client := setupTest(t)
+
+		// ALSO GIVEN an Okta client rigged to simulate an access denied error
+		// while enumerating Okta users...
+		client.monkeyPatch.iterateAppUsers =
+			func(context.Context, oktaAppID, func(*okta.AppUser) error) error {
+				return trace.AccessDenied(errorText)
+			}
+
+		// WHEN I try to sync the Teleport user DB with Okta
+		err := serviceUnderTest.syncUsers(ctx)
+
+		// EXPECT the operation to fail
+		require.Error(t, err)
+
+		// EXPECT that the failure & error status info has been updated
+		userSyncStatus := serviceUnderTest.serviceStatus.details.UsersSyncDetails
+		require.True(t, userSyncStatus.LastFailed.Equal(now),
+			"Expected last failure timestamp %s, got %s", now, userSyncStatus.LastFailed)
+		require.Contains(t, userSyncStatus.Error, errorText)
+
+		// EXPECT that the success case info has not been touched
+		require.Nil(t, userSyncStatus.LastSuccessful)
+		require.Zero(t, userSyncStatus.NumUsersSynced)
+	})
+
+	// TODO(tcsc): figure out how to force a reconciliation failure to assert
+	// that the status is updated in that case
+}

@@ -3,12 +3,15 @@ package web
 import (
 	"bytes"
 	"compress/flate"
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/crewjam/saml"
 	"github.com/jonboulle/clockwork"
@@ -18,6 +21,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
+	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -244,4 +249,193 @@ func makeAuthnMessage(t *testing.T, authnRequest saml.AuthnRequest, httpMethod s
 		samlidp.SAMLRequest.String(): []string{encodedRequest},
 		samlidp.RelayState.String():  []string{"test_relay_state"},
 	}
+}
+
+func testContext(t *testing.T) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	return ctx
+}
+
+func box[T any](v T) *T {
+	result := new(T)
+	*result = v
+	return result
+}
+
+func TestPluginOktaStatusDetails(t *testing.T) {
+	const (
+		oktaOrg     = "https://example.okta.org"
+		oktaAppID   = "00abc123abc123"
+		oktaAppName = "test_app_unique_name"
+	)
+
+	t0 := time.Now()
+
+	// GIVEN a cluster containing an Okta plugin with attached details in its
+	// state...
+	ctx := testContext(t)
+	s := newWebSuite(t)
+	webPack := s.newAuthWebPack(t, "foo")
+
+	testPlugin := &types.PluginV1{
+		SubKind: types.PluginSubkindAccess,
+		Metadata: types.Metadata{
+			Labels: map[string]string{
+				plugins.HostedPluginLabel: "true",
+			},
+			Name: types.PluginTypeOkta,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: oktaOrg,
+					SyncSettings: &types.PluginOktaSyncSettings{
+						SsoConnectorId:  oktaSSOConnectorName,
+						AppId:           oktaAppID,
+						AppName:         oktaAppName,
+						SyncUsers:       true,
+						GroupFilters:    []string{"^Group.*"},
+						AppFilters:      []string{"^App.*"},
+						DefaultOwners:   []string{"^admin"},
+						SyncAccessLists: true,
+					},
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"plugin": "okta",
+					},
+				},
+			},
+		},
+		Status: types.PluginStatusV1{
+			Code: types.PluginStatusCode_RUNNING,
+			Details: &types.PluginStatusV1_Okta{
+				Okta: &types.PluginOktaStatusV1{
+					UsersSyncDetails: &types.PluginOktaStatusDetailsUsersSync{
+						Enabled:        true,
+						StatusCode:     types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS,
+						LastFailed:     box(t0.Add(-2 * time.Hour)),
+						LastSuccessful: box(t0.Add(-1 * time.Hour)),
+						NumUsersSynced: 42,
+					},
+					AccessListsSyncDetails: &types.PluginOktaStatusDetailsAccessListsSync{
+						Enabled:         true,
+						StatusCode:      types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS,
+						GroupFilters:    []string{"^Group.*"},
+						AppFilters:      []string{"^App.*"},
+						LastFailed:      box(t0.Add(-3 * time.Hour)),
+						LastSuccessful:  box(t0.Add(-4 * time.Hour)),
+						NumAppsSynced:   84,
+						NumGroupsSynced: 168,
+					},
+					AppGroupSyncDetails: &types.PluginOktaStatusDetailsAppGroupSync{
+						StatusCode:      types.OktaPluginSyncStatusCode_OKTA_PLUGIN_SYNC_STATUS_CODE_SUCCESS,
+						LastFailed:      box(t0.Add(-5 * time.Hour)),
+						LastSuccessful:  box(t0.Add(-6 * time.Hour)),
+						NumAppsSynced:   336,
+						NumGroupsSynced: 672,
+					},
+					ScimDetails: &types.PluginOktaStatusDetailsSCIM{
+						Enabled: true,
+					},
+					SsoDetails: &types.PluginOktaStatusDetailsSSO{
+						Enabled: true,
+						AppId:   oktaAppID,
+						AppName: oktaAppName,
+					},
+				},
+			},
+		},
+	}
+
+	t.Log("Installing plugin")
+	require.NoError(t, s.authPlugin.PluginsService().CreatePlugin(ctx, testPlugin))
+
+	// WHEN I query for the plugin status
+	statusURL := webPack.clt.Endpoint("enterprise", "plugin", "okta")
+	resp, err := webPack.clt.Get(ctx, statusURL, url.Values{})
+
+	// EXPECT the query to succeed
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	// EXPECT the body to be valid JSON, describing the current status of an
+	// Okta plugin
+	var actual ui.Plugin
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &actual))
+
+	expected := ui.Plugin{
+		Name:    types.PluginTypeOkta,
+		Type:    types.PluginTypeOkta,
+		Details: "Okta applications and groups will be synced to Teleport",
+		Spec: &ui.OktaPluginSpec{
+			OktaOrgURL:           oktaOrg,
+			OktaAppID:            oktaAppID,
+			OktaAppName:          oktaAppName,
+			DefaultOwners:        []string{"^admin"},
+			TeleportSSOConnector: oktaSSOConnectorName,
+		},
+		StatusCode: types.PluginStatusCode_RUNNING,
+		Status: &ui.PluginStatusV1{
+			Code:    types.PluginStatusCode_RUNNING,
+			Details: &ui.PluginDetails{},
+		},
+	}
+
+	// perform some basic coherence checks
+	require.NotNil(t, actual.Spec)
+	require.IsType(t, (*ui.OktaPluginSpec)(nil), actual.Spec)
+	require.NotNil(t, actual.Status.Details.Okta)
+
+	// time values round-tripped through JSON aren't directly comparable with
+	// `require.Equal()` their source values thanks to differences in timezone
+	// data, so we'll cut out the problematic details block and test it separately.
+	expectedDetails := testPlugin.GetStatus().GetOkta()
+	actualDetails := actual.Status.Details.Okta
+	actual.Status.Details.Okta = nil
+
+	// EXPECT that the overall structure, SsoDetails and ScimDetails are as
+	// we want them to be
+	require.Equal(t, expected, actual)
+	require.Equal(t, expectedDetails.SsoDetails, actualDetails.SsoDetails)
+	require.Equal(t, expectedDetails.ScimDetails, actualDetails.ScimDetails)
+
+	// EXPECT that the Access List Sync details are as expected, including the
+	// problematic-to-compare timestamps
+	expectedACL := expectedDetails.AccessListsSyncDetails
+	actualACL := actualDetails.AccessListsSyncDetails
+	require.True(t, actualACL.Enabled)
+	require.Equal(t, expectedACL.GroupFilters, actualACL.GroupFilters)
+	require.Equal(t, expectedACL.AppFilters, actualACL.AppFilters)
+	require.Equal(t, expectedACL.StatusCode, actualACL.StatusCode)
+	require.True(t, expectedACL.LastFailed.Equal(*actualACL.LastFailed))
+	require.True(t, expectedACL.LastSuccessful.Equal(*actualACL.LastSuccessful))
+	require.Equal(t, expectedACL.NumGroupsSynced, actualACL.NumGroupsSynced)
+	require.Equal(t, expectedACL.NumAppsSynced, actualACL.NumAppsSynced)
+
+	// EXPECT that the User Sync details are as expected, including the
+	// problematic-to-compare timestamps
+	expectedUsers := expectedDetails.UsersSyncDetails
+	actualUsers := actualDetails.UsersSyncDetails
+	require.True(t, actualUsers.Enabled)
+	require.Equal(t, expectedUsers.StatusCode, actualUsers.StatusCode)
+	require.True(t, expectedUsers.LastFailed.Equal(*actualUsers.LastFailed))
+	require.True(t, expectedUsers.LastSuccessful.Equal(*actualUsers.LastSuccessful))
+	require.Equal(t, expectedUsers.NumUsersSynced, actualUsers.NumUsersSynced)
+
+	// EXPECT that the Ap & Group Sync details are as expected, including the
+	// problematic-to-compare timestamps
+	expectedAppGroups := expectedDetails.AppGroupSyncDetails
+	actualAppGroups := actualDetails.AppGroupSyncDetails
+	require.False(t, actualAppGroups.Enabled)
+	require.Equal(t, expectedAppGroups.StatusCode, actualAppGroups.StatusCode)
+	require.True(t, expectedAppGroups.LastFailed.Equal(*actualAppGroups.LastFailed))
+	require.True(t, expectedAppGroups.LastSuccessful.Equal(*actualAppGroups.LastSuccessful))
+	require.Equal(t, expectedAppGroups.NumAppsSynced, actualAppGroups.NumAppsSynced)
+	require.Equal(t, expectedAppGroups.NumGroupsSynced, actualAppGroups.NumGroupsSynced)
 }

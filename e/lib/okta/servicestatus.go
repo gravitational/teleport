@@ -30,8 +30,10 @@ func (s *serviceStatus) SetCode(ctx context.Context, code types.PluginStatusCode
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.code = code
-	reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+	if s.code != code {
+		s.code = code
+		reportPluginStatus(ctx, s.log, s.sink, s.code, s.details)
+	}
 }
 
 func (s *serviceStatus) UpdateUserSync(ctx context.Context, now time.Time, nUsers int, err error) {

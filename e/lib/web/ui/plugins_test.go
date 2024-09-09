@@ -42,6 +42,7 @@ func TestPluginSerialization(t *testing.T) {
 					OktaAppName:          "dev-78836936_teleportauth_4",
 					OktaAppLabel:         "Teleport platform.teleport.sh",
 					SCIMBearerToken:      "some-great-big-random-string",
+					DefaultOwners:        []string{"admin"},
 				},
 			},
 			expected: map[string]any{
@@ -55,6 +56,7 @@ func TestPluginSerialization(t *testing.T) {
 					"oktaAppName":          "dev-78836936_teleportauth_4",
 					"oktaAppLabel":         "Teleport platform.teleport.sh",
 					"scimBearerToken":      "some-great-big-random-string",
+					"defaultOwners":        []any{"admin"},
 				},
 			},
 		}, {

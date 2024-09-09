@@ -177,6 +177,9 @@ func (s *Service) synchronize(ctx context.Context) error {
 		}
 	}
 
+	// If we get to here, the plugin is definitely running
+	s.serviceStatus.SetCode(ctx, types.PluginStatusCode_RUNNING)
+
 	return nil
 }
 
@@ -580,14 +583,21 @@ func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventC
 	}
 }
 
-func (s *Service) syncUsers(ctx context.Context) error {
+func (s *Service) syncUsers(ctx context.Context) (err error) {
+	defer func() {
+		// Always update the failure state if we exit with a non-nil error
+		if err != nil {
+			s.log.Error("Setting error flag")
+			s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), 0, err)
+		}
+	}()
+
 	if s.userReconciler == nil {
 		s.log.Debug("User synchronization is disabled. Skipping.")
 		return nil
 	}
 
 	var oktaUsers map[string]types.User
-	var err error
 	if s.oktaSAMLAppID != "" {
 		s.log.Debug("APP ID is set. Fetching app users.")
 		convertUser := func(oktaUser *okta.AppUser) (types.User, error) {
@@ -621,8 +631,11 @@ func (s *Service) syncUsers(ctx context.Context) error {
 	s.log.Infof("Reconciling %d Okta and %d Teleport Accounts",
 		len(oktaUsers), len(teleportUsers))
 	stats, err := s.userReconciler.reconcileUsers(ctx, oktaUsers, teleportUsers)
-	s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), stats.total(), err)
-	return trace.Wrap(err, "reconciling teleport users")
+	if err != nil {
+		return trace.Wrap(err, "reconciling teleport users")
+	}
+	s.serviceStatus.UpdateUserSync(ctx, s.clock.Now(), stats.total(), nil)
+	return nil
 }
 
 func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnector, user types.User) error {

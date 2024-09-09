@@ -324,6 +324,30 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	return nil, nil
 }
 
+func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	pluginsClt, err := getPluginClientFromSessionContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &pluginspb.GetPluginRequest{
+		Name:        params.ByName("name"),
+		WithSecrets: false,
+	}
+
+	plugin, err := pluginsClt.GetPlugin(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out, err := ui.NewPlugin(plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
 func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	orgURL := r.FormValue("orgURL")
 	apiToken := r.FormValue("apiToken")

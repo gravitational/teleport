@@ -162,8 +162,32 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 	return testProxyIDs
 }
 
+type testServiceOpt func(*Config)
+
+func withUserSyncEnabled(cfg *Config) {
+	cfg.UserSyncEnabled = true
+}
+
+func withOktaAppID(appID string) testServiceOpt {
+	return func(cfg *Config) {
+		cfg.OktaSAMLAppID = appID
+	}
+}
+
+func withClock(clock clockwork.Clock) testServiceOpt {
+	return func(cfg *Config) {
+		cfg.Clock = clock
+	}
+}
+
+func withSSOConnector(c string) testServiceOpt {
+	return func(cfg *Config) {
+		cfg.SSOConnectorID = c
+	}
+}
+
 // newTestService creates a new test Okta service.
-func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -178,7 +202,7 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 	})
 	require.NoError(t, err)
 
-	svc, err := newWithClientCreator(ctx, Config{
+	serviceConfig := Config{
 		Leader:           &mockIsLeader{true},
 		TLSConfig:        generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:       authorizer,
@@ -195,7 +219,12 @@ func newTestService(t *testing.T, ap *testAccessPoint) (*Service, *testOktaClien
 		OktaAPIEndpoint:  "dummy",
 		OktaAPIToken:     "dummy",
 		ConnectorService: ap,
-	}, creatorFromTestClient(client))
+	}
+	for _, opt := range options {
+		opt(&serviceConfig)
+	}
+
+	svc, err := newWithClientCreator(ctx, serviceConfig, creatorFromTestClient(client))
 	require.NoError(t, err)
 
 	// Skip client cert verification for tests.
@@ -248,6 +277,7 @@ type testOktaClient struct {
 	monkeyPatch struct {
 		createApp                func(context.Context, okta.App) (okta.App, error)
 		assignGroupToApplication func(context.Context, oktaGroupID, oktaAppID) error
+		iterateAppUsers          func(context.Context, oktaAppID, func(*okta.AppUser) error) error
 		getAppAssignments        func(context.Context, oktaAppID) ([]appAssignment, error)
 		getAppGroups             func(context.Context, oktaAppID) ([]oktaGroupID, error)
 		getGroupAssignments      func(context.Context, oktaGroupID) ([]oktaUserID, error)
@@ -298,7 +328,11 @@ func (t *testOktaClient) iterateUsers(_ context.Context, fn func(*okta.User) err
 }
 
 // iterateAppUsers will iterate over the list of all Okta users in a given app.
-func (t *testOktaClient) iterateAppUsers(_ context.Context, _ oktaAppID, fn func(*okta.AppUser) error) error {
+func (t *testOktaClient) iterateAppUsers(ctx context.Context, appID oktaAppID, fn func(*okta.AppUser) error) error {
+	if t.monkeyPatch.iterateAppUsers != nil {
+		return t.monkeyPatch.iterateAppUsers(ctx, appID, fn)
+	}
+
 	for _, oktaAppUser := range t.oktaAppUsers {
 		if err := fn(oktaAppUser); err != nil {
 			if errors.Is(err, errStopIteration) {
