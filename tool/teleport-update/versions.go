@@ -125,7 +125,7 @@ func (tv *TeleportVersion) Create(ctx context.Context, uriTmpl, version string) 
 	}
 	// Bail if there's not enough free disk space at the target
 	if d := free - n; d < 0 {
-		return trace.Errorf("%q needs %d additional bytes of disk space for download", versionPath, -d)
+		return trace.Errorf("%q needs %d additional bytes of disk space for decompression", versionPath, -d)
 	}
 	err = untar(tgz, versionPath)
 	if err != nil {
