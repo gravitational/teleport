@@ -3403,7 +3403,6 @@ func (g *GRPCServer) StreamSessionEvents(req *authpb.StreamSessionEventsRequest,
 	}
 
 	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionID), int64(req.StartIndex))
-
 	for {
 		select {
 		case event, more := <-c:
@@ -5524,6 +5523,48 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 		Items:   unstructuredEvents,
 		LastKey: lastkey,
 	}, nil
+}
+
+// ExportUnstructuredEvents returns all events that occurred within a coarse time range in an undefined order. May be
+// more performant for bulk event exports for certain implementations.
+func (g *GRPCServer) ExportUnstructuredEvents(req *auditlogpb.ExportUnstructuredEventsRequest, stream auditlogpb.AuditLogService_ExportUnstructuredEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	events := auth.ServerWithRoles.ExportUnstructuredEvents(stream.Context(), req)
+
+	for events.Next() {
+		if err := stream.Send(events.Item()); err != nil {
+			events.Done()
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(events.Done())
+}
+
+// GetEventExportChunks returns a stream of chunks to be exported via ExportUnstructuredEvents for a given
+// date. The returned list isn't necessarily in time order. Subsequent calls may return a different order with additional
+// chunks in it if events for the target date are still being uploaded. The stream does not block waiting for
+// new chunks to become available, and polling for new chunks requires re-consuming the entire stream.
+func (g *GRPCServer) GetEventExportChunks(req *auditlogpb.GetEventExportChunksRequest, stream auditlogpb.AuditLogService_GetEventExportChunksServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	chunks := auth.ServerWithRoles.GetEventExportChunks(stream.Context(), req)
+
+	for chunks.Next() {
+		if err := stream.Send(chunks.Item()); err != nil {
+			chunks.Done()
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(chunks.Done())
 }
 
 // StreamUnstructuredSessionEvents streams all events from a given session recording as an unstructured format.

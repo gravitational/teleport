@@ -27,6 +27,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -1087,6 +1089,16 @@ type AuditLogger interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error)
+
+	// ExportUnstructuredEvents returns all events that occurred within a coarse time range in an undefined order. May be
+	// more performant for bulk event exports for certain implementations.
+	ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured]
+
+	// GetEventExportChunks returns a stream of chunks to be exported via ExportUnstructuredEvents for a given
+	// date. The returned list isn't necessarily in time order. Subsequent calls may return a different order with additional
+	// chunks in it if events for the target date are still being uploaded. The stream does not block waiting for
+	// new chunks to become available, and polling for new chunks requires re-consuming the entire stream.
+	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
 }
 
 // EventFields instance is attached to every logged event
