@@ -365,7 +365,6 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 					continue
 				}
 				for _, region := range matcher.Regions {
-					region := region
 					if _, ok := c.ssmClients[region]; ok {
 						continue
 					}
