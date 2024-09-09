@@ -26,7 +26,7 @@ import path from 'node:path';
 
 import tsconfigPaths from 'vite-tsconfig-paths';
 
-const rootDirectory = path.resolve(import.meta.dirname, '../../../..');
+const rootDirectory = path.resolve(new URL('../../../..', import.meta.url).pathname);
 
 export function tsconfigPathsPlugin() {
   return tsconfigPaths({
