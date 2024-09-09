@@ -3634,6 +3634,28 @@ export const events = [
     name: 'integration',
     updated_by: 'joe',
   },
+  {
+    code: 'SHU001I',
+    event: 'static_host_user.create',
+    time: '2023-05-09T19:21:36.144Z',
+    name: 'test-user',
+    user: 'bob',
+  },
+  {
+    code: 'SHU002I',
+    event: 'static_host_user.update',
+    time: '2023-05-09T19:21:37.144Z',
+    name: 'test-user',
+    user: 'bob',
+  },
+  {
+    code: 'SHU003I',
+    updated_by: 'joe',
+    event: 'static_host_user.delete',
+    time: '2023-05-09T19:21:38.144Z',
+    name: 'test-user',
+    user: 'bob',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.
