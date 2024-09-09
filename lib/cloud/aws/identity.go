@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
-	stsV2 "github.com/aws/aws-sdk-go-v2/service/sts"
+	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
+	stsv2 "github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -109,7 +109,7 @@ func (i identityBase) String() string {
 }
 
 type callerIdentityGetter interface {
-	GetCallerIdentity(ctx context.Context, params *stsV2.GetCallerIdentityInput, optFns ...func(*stsV2.Options)) (*stsV2.GetCallerIdentityOutput, error)
+	GetCallerIdentity(ctx context.Context, params *stsv2.GetCallerIdentityInput, optFns ...func(*stsv2.Options)) (*stsv2.GetCallerIdentityOutput, error)
 }
 
 // GetIdentityWithClient determines AWS identity of this Teleport process
@@ -132,7 +132,7 @@ func GetIdentityWithClientV2(ctx context.Context, clt callerIdentityGetter) (Ide
 	}
 	var callerARN string
 	if out != nil {
-		callerARN = awsV2.ToString(out.Arn)
+		callerARN = awsv2.ToString(out.Arn)
 	}
 	return IdentityFromArn(callerARN)
 }

@@ -27,9 +27,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1392,8 +1392,8 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 				t: t,
 				expectedInput: &ssm.CreateDocumentInput{
 					Content:        aws.String(awslib.EC2DiscoverySSMDocument("https://proxy.example.org:443")),
-					DocumentType:   ssmTypes.DocumentTypeCommand,
-					DocumentFormat: ssmTypes.DocumentFormatYaml,
+					DocumentType:   ssmtypes.DocumentTypeCommand,
+					DocumentFormat: ssmtypes.DocumentFormatYaml,
 					Name:           aws.String("document"),
 				}},
 		},
@@ -1914,5 +1914,5 @@ func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns .
 		path = "/"
 	}
 	arn := fmt.Sprintf("arn:%s:iam::%s:role%s%s", m.partition, m.account, path, roleName)
-	return &iam.GetRoleOutput{Role: &iamTypes.Role{Arn: &arn}}, nil
+	return &iam.GetRoleOutput{Role: &iamtypes.Role{Arn: &arn}}, nil
 }

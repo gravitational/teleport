@@ -30,7 +30,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
@@ -1085,12 +1085,12 @@ func (a *awsSSMDocumentCreator) Execute(ctx context.Context, actionCtx *configur
 	_, err := a.ssm.CreateDocument(ctx, &ssm.CreateDocumentInput{
 		Content:        aws.String(a.Contents),
 		Name:           aws.String(a.Name),
-		DocumentType:   ssmTypes.DocumentTypeCommand,
-		DocumentFormat: ssmTypes.DocumentFormatYaml,
+		DocumentType:   ssmtypes.DocumentTypeCommand,
+		DocumentFormat: ssmtypes.DocumentFormatYaml,
 	})
 
 	if err != nil {
-		var docAlreadyExistsError *ssmTypes.DocumentAlreadyExists
+		var docAlreadyExistsError *ssmtypes.DocumentAlreadyExists
 		if errors.As(err, &docAlreadyExistsError) {
 			fmt.Printf("⚠️ Warning: SSM document %s already exists. Not overwriting.\n", a.Name)
 			return nil

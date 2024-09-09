@@ -27,7 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -520,7 +520,7 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 }
 
 // matchTag checks if tag name and value are present on the policy tags list.
-func matchTag(policyTags []iamTypes.Tag, name, value string) bool {
+func matchTag(policyTags []iamtypes.Tag, name, value string) bool {
 	for _, policyTag := range policyTags {
 		if aws.ToString(policyTag.Key) == name && aws.ToString(policyTag.Value) == value {
 			return true
@@ -545,9 +545,9 @@ const (
 // CreatePolicy creates an IAM policy in AWS.
 func (p *policies) createPolicy(ctx context.Context, policy *Policy, docJSON []byte) (string, error) {
 	// Convert tags into IAM policy tags.
-	policyTags := make([]iamTypes.Tag, 0, len(policy.Tags))
+	policyTags := make([]iamtypes.Tag, 0, len(policy.Tags))
 	for key, value := range policy.Tags {
-		policyTags = append(policyTags, iamTypes.Tag{
+		policyTags = append(policyTags, iamtypes.Tag{
 			Key: aws.String(key), Value: aws.String(value),
 		})
 	}
@@ -592,7 +592,7 @@ func (p *policies) createPolicyVersion(ctx context.Context, policyARN string, do
 // Requires the following AWS permissions to be performed:
 // * `iam:GetPolicy`: wildcard ("*") or the policy to be retrieved;
 // * `iam.ListPolicyVersions`: wildcard ("*") or the policy to be retrieved;
-func (p *policies) getPolicyVersions(ctx context.Context, policyARN string, tags map[string]string) ([]iamTypes.PolicyVersion, error) {
+func (p *policies) getPolicyVersions(ctx context.Context, policyARN string, tags map[string]string) ([]iamtypes.PolicyVersion, error) {
 	getPolicyResp, err := p.iamClient.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyARN})
 	if err != nil {
 		return nil, trace.Wrap(ConvertIAMv2Error(err))
