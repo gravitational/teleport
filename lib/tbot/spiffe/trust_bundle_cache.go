@@ -473,6 +473,11 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
+			log.DebugContext(
+				ctx,
+				"Processing update for local trust bundle",
+				"trusted_tls_key_pairs", len(ca.GetTrustedTLSKeyPairs()),
+			)
 
 			bundle, err := convertSPIFFECAToBundle(ca)
 			if err != nil {
@@ -494,7 +499,11 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
-			log.InfoContext(ctx, "Processed update for local trust bundle")
+			log.InfoContext(
+				ctx,
+				"Processed update for local trust bundle",
+				"x509_authorities", len(bundle.X509Authorities()),
+			)
 			bundleSet.Local = bundle
 			m.setAndBroadcastBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
@@ -516,6 +525,11 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				)
 				return
 			}
+			log.DebugContext(
+				ctx,
+				"Processing update for federated trust bundle",
+			)
+
 			bundle, err := convertSPIFFEFederationToBundle(federation)
 			if err != nil {
 				// TODO: Should we match the behavior for the local trust
@@ -538,7 +552,9 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				return
 			}
 			log.InfoContext(
-				ctx, "Processed update for federated trust bundle",
+				ctx,
+				"Processed update for federated trust bundle",
+				"x509_authorities", len(bundle.X509Authorities()),
 			)
 			bundleSet.Federated[federation.Metadata.Name] = bundle
 			m.setAndBroadcastBundleSet(bundleSet)
