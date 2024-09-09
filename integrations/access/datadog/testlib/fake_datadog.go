@@ -47,14 +47,14 @@ type FakeDatadog struct {
 	incidentNoteIDCounter uint64
 }
 
-func NewFakeDatadog() *FakeDatadog {
+func NewFakeDatadog(concurrency int) *FakeDatadog {
 	router := httprouter.New()
 	mock := &FakeDatadog{
 		srv: httptest.NewServer(router),
 
-		newIncidents:     make(chan datadog.IncidentsBody, 3),
-		incidentUpdates:  make(chan datadog.IncidentsBody, 3),
-		newIncidentNotes: make(chan datadog.TimelineBody, 3),
+		newIncidents:     make(chan datadog.IncidentsBody, concurrency),
+		incidentUpdates:  make(chan datadog.IncidentsBody, concurrency),
+		newIncidentNotes: make(chan datadog.TimelineBody, concurrency*3),
 	}
 
 	router.GET("/permissions", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {

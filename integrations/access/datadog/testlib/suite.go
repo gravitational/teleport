@@ -62,7 +62,7 @@ func (s *DatadogBaseSuite) SetupTest() {
 	require.NoError(t, err)
 
 	s.raceNumber = runtime.GOMAXPROCS(0)
-	s.fakeDatadog = NewFakeDatadog()
+	s.fakeDatadog = NewFakeDatadog(s.raceNumber)
 	t.Cleanup(s.fakeDatadog.Close)
 
 	s.appConfig = &datadog.Config{
