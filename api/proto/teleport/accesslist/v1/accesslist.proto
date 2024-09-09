@@ -86,7 +86,7 @@ message AccessListOwner {
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 3;
 
-  // membership_kind is the type of owner, either a user or from a dynamic list,
+  // membership_kind is the type of owner, either a user or an access list.
   MembershipKind membership_kind = 4;
 }
 
@@ -201,7 +201,7 @@ message MemberSpec {
   // and if not, describes how they're lacking eligibility.
   IneligibleStatus ineligible_status = 7;
 
-  // membership_kind is the kind of the member, either "user", or "list"
+  // membership_kind is the type of member, either a user or an access list.
   MembershipKind membership_kind = 9;
 }
 

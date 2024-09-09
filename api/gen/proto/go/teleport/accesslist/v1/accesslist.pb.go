@@ -464,7 +464,7 @@ type AccessListOwner struct {
 	// ineligible_status describes if this owner is eligible or not
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,3,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
-	// membership_kind is the type of owner, either a user or from a dynamic list,
+	// membership_kind is the type of owner, either a user or an access list.
 	MembershipKind MembershipKind `protobuf:"varint,4,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 }
 
@@ -893,7 +893,7 @@ type MemberSpec struct {
 	// ineligible_status describes if this member is eligible or not
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,7,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
-	// membership_kind is the kind of the member, either "user", or "list"
+	// membership_kind is the type of member, either a user or an access list.
 	MembershipKind MembershipKind `protobuf:"varint,9,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 }
 

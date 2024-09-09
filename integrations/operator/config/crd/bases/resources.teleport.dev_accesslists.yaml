@@ -76,40 +76,6 @@ spec:
                 description: description is an optional plaintext description of the
                   access list.
                 type: string
-              dynamic_members:
-                description: member_access_lists is a list of access lists that user
-                  membership should be fetched from. Members included are pulled from
-                  the members of the referenced nested access lists. If a cycle between
-                  access lists is introduced it will result in an error. In order
-                  for a member of a nested access list to be included in the access
-                  list referencing it, they must pass the membership requirements
-                  of the list including it.
-                nullable: true
-                properties:
-                  access_lists:
-                    description: name is the id of the parent access list
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                type: object
-              dynamic_owners:
-                description: owner_access_lists is a list of access lists that owner
-                  membership should be fetched from. Owners included are pulled from
-                  the members of the referenced access lists. If a cycle between access
-                  lists is introduced it will result in an error. In order for an
-                  owner of a nested access list to be included in the access list
-                  referencing it, they must pass the ownership requirements of the
-                  list including it.
-                nullable: true
-                properties:
-                  access_lists:
-                    description: name is the id of the parent access list
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                type: object
               grants:
                 description: grants describes the access granted by membership to
                   this access list.
@@ -186,6 +152,10 @@ spec:
                     ineligible_status:
                       description: ineligible_status describes if this owner is eligible
                         or not and if not, describes how they're lacking eligibility.
+                      x-kubernetes-int-or-string: true
+                    membership_kind:
+                      description: membership_kind is the type of owner, either a
+                        user or an access list.
                       x-kubernetes-int-or-string: true
                     name:
                       description: name is the username of the owner.

@@ -146,7 +146,7 @@ export interface AccessListOwner {
      */
     ineligibleStatus: IneligibleStatus;
     /**
-     * membership_kind is the type of owner, either a user or from a dynamic list,
+     * membership_kind is the type of owner, either a user or an access list.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 4;
      */
@@ -326,7 +326,7 @@ export interface MemberSpec {
      */
     ineligibleStatus: IneligibleStatus;
     /**
-     * membership_kind is the kind of the member, either "user", or "list"
+     * membership_kind is the type of member, either a user or an access list.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 9;
      */
