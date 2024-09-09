@@ -41,7 +41,6 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
-	PluginTypeDatadog,
 }
 
 const (
@@ -325,21 +324,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-	case *PluginSpecV1_Datadog:
-		if settings.Datadog == nil {
-			return trace.BadParameter("missing Datadog settings")
-		}
-		if err := settings.Datadog.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
-		}
-		if len(staticCreds.Labels) == 0 {
-			return trace.BadParameter("labels must be specified")
-		}
 	default:
 		return nil
 	}
@@ -502,8 +486,6 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-	case *PluginSpecV1_Datadog:
-		return PluginTypeDatadog
 
 	default:
 		return PluginTypeUnknown
@@ -676,14 +658,6 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 
 	if c.SamlConnectorName == "" {
 		return trace.BadParameter("saml_connector_name must be set")
-	}
-
-	return nil
-}
-
-func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
-	if c.FallbackRecipient == "" {
-		return trace.BadParameter("fallback_recipient must be set")
 	}
 
 	return nil
