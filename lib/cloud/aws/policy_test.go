@@ -574,7 +574,7 @@ func TestPolicyEnsureStatements(t *testing.T) {
 	}, policy)
 }
 
-func Test_getPolicyVersions(t *testing.T) {
+func TestGetPolicyVersions(t *testing.T) {
 	ctx := context.Background()
 
 	tests := map[string]struct {
