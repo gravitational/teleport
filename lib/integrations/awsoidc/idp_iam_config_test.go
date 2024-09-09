@@ -29,7 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -208,7 +208,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
+				tags: []iamtypes.Tag{
 					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
 					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
@@ -230,7 +230,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
+				tags: []iamtypes.Tag{
 					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
 					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
@@ -255,7 +255,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamTypes.Tag{
+				tags: []iamtypes.Tag{
 					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
 					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
 					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
@@ -294,7 +294,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 
 type mockRole struct {
 	assumeRolePolicyDoc *string
-	tags                []iamTypes.Tag
+	tags                []iamtypes.Tag
 }
 
 type mockIdPIAMConfigClient struct {
@@ -315,7 +315,7 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	alreadyExistsMessage := fmt.Sprintf("Role %q already exists.", *params.RoleName)
 	_, found := m.existingRoles[aws.ToString(params.RoleName)]
 	if found {
-		return nil, &iamTypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &alreadyExistsMessage,
 		}
 	}
@@ -325,7 +325,7 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	}
 
 	return &iam.CreateRoleOutput{
-		Role: &iamTypes.Role{
+		Role: &iamtypes.Role{
 			Arn: aws.String("arn:something"),
 		},
 	}, nil
@@ -335,7 +335,7 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 func (m *mockIdPIAMConfigClient) CreateOpenIDConnectProvider(ctx context.Context, params *iam.CreateOpenIDConnectProviderInput, optFns ...func(*iam.Options)) (*iam.CreateOpenIDConnectProviderOutput, error) {
 	alreadyExistsMessage := fmt.Sprintf("IdP with URL %q already exists.", *params.Url)
 	if slices.Contains(m.existingIDPUrl, *params.Url) {
-		return nil, &iamTypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &alreadyExistsMessage,
 		}
 	}
@@ -353,7 +353,7 @@ func (m *mockIdPIAMConfigClient) GetRole(ctx context.Context, params *iam.GetRol
 		return nil, trace.NotFound("role not found")
 	}
 	return &iam.GetRoleOutput{
-		Role: &iamTypes.Role{
+		Role: &iamtypes.Role{
 			Tags:                     role.tags,
 			AssumeRolePolicyDocument: role.assumeRolePolicyDoc,
 		},
