@@ -386,10 +386,9 @@ const ReviewedNotifciationItem = ({
         content: {
           title: `Submitted review for "${reviewedAccessList.title}"`,
           description: `Next review date is ${reviewedAccessList.audit.nextDate}`,
+          icon: ShieldCheck,
         },
       }}
-      Icon={ShieldCheck}
-      getColor={theme => theme.colors.info}
       onRemove={onRemove}
       isAutoRemovable={true}
     />

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import {
   Notification,
@@ -35,14 +35,6 @@ const Container = styled.div`
   z-index: 10000;
 `;
 
-/**
- * An empty element that renders nothing in place of an icon.
- */
-const Empty = () => {
-  // eslint-disable-next-line react/jsx-no-useless-fragment
-  return <></>;
-};
-
 type dismissProps = {
   isAutoRemovable: boolean;
   autoRemoveDurationMs?: number;
@@ -71,47 +63,13 @@ export function Notifications({
   dismiss,
   prefix = 'notification-',
 }: NotificationsProps) {
-  const theme = useTheme();
-
-  // dummy getColor since we use a dummy Empty icon
-  const getColor = () => '#000000';
-
-  function getStyle(item: NotificationItem) {
-    let background = theme.colors.levels.elevated;
-    let color = theme.colors.text.main;
-
-    switch (item.severity) {
-      case 'info':
-        background = theme.colors.success.main;
-        color = theme.colors.levels.sunken;
-        break;
-      case 'warn':
-        background = theme.colors.warning.main;
-        color = theme.colors.levels.sunken;
-        break;
-      case 'error':
-        background = theme.colors.error.main;
-        color = theme.colors.levels.sunken;
-        break;
-    }
-
-    return {
-      background,
-      color,
-      marginTop: theme.space[3],
-    };
-  }
-
   return createPortal(
     <Container>
       {items.map(item => (
         <Notification
-          css={getStyle(item)}
           key={`${prefix}${item.id}`}
           item={item}
           onRemove={() => dismiss(item.id)}
-          Icon={Empty}
-          getColor={getColor}
           {...dismissAfterProps(item)}
         />
       ))}

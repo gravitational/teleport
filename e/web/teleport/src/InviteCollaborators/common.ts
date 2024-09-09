@@ -23,7 +23,7 @@ export function createSuccessNotification(
 
   return {
     content,
-    severity: 'info',
+    severity: 'success',
     dismissAfterMs: 5000,
   };
 }
