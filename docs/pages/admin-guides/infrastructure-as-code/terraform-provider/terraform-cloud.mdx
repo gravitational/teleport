@@ -3,12 +3,22 @@ title: Run the Teleport Terraform Provider on Terraform Cloud
 description: How to manage dynamic resources using the Teleport Terraform provider on HCP Terraform, Terraform Cloud, and Terraform Enterprise.
 ---
 
-## Introduction
+This guide demonstrates how to use the Terraform provider for Teleport using
+HCP Terraform or Terraform Enterprise.
+
+This guide does not cover running the Terraform provider locally, in other CI/CD
+environments, or in short-lived cloud VMs. In any of these cases, refer to a
+dedicated guide:
+
+- [Run the Terraform Provider in CI or cloud VMs](./ci-or-cloud.mdx)
+- [Run the Terraform Provider locally](./local.mdx)
+
+## How it works
 
 <Admonition type="warning" title="Enterprise">
   Terraform Cloud joining with self-hosted Terraform Enterprise requires
   Teleport Enterprise. Terraform Cloud joining with public HCP Terraform
-  (https://app.terraform.io) is supported in Teleport OSS.
+  (https://app.terraform.io) is supported in Teleport Community Edition.
 </Admonition>
 
 When running the Teleport Terraform provider on Terraform Cloud, you can use its
@@ -79,7 +89,7 @@ with this content, depending on whether you are using Terraform Cloud or
 self-hosted Terraform Enterprise:
 
 <Tabs>
-<TabItem label="Terraform Cloud">
+<TabItem label="HCP Terraform">
   ```yaml
   kind: token
   version: v2
@@ -164,8 +174,8 @@ To do so:
 1. Under "Workspace Variables", click the "Add variable" button
 1. Select the "Environment variable" ("env") category
 1. For the key, enter: `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT`
-1. For the value, enter your Teleport cluster name. If using Teleport Cloud,
-   this would look like `example.teleport.sh`.
+1. For the value, enter your Teleport cluster name. If using Teleport Enterprise
+   Cloud, this would look like `example.teleport.sh`.
 1. If desired, enter a description. For example, "Workload identity token
    request for Teleport"
 
