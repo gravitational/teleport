@@ -200,7 +200,7 @@ provider "teleport" {
 }
 ```
 
-Critically, these parameters should be set:
+These parameters must be set:
 - `addr` should match the public hostname and port of your Teleport cluster
 - `join_method` should be `terraform_cloud`. Note that Terraform Enterprise also
   uses the same join method, with a hostname as configured in Step 1.
