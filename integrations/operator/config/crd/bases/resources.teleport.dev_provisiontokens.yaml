@@ -377,6 +377,14 @@ spec:
                       is set to match the cluster name, it does not need to be set
                       here.
                     type: string
+                  hostname:
+                    description: Hostname is the hostname of the Terraform Enterprise
+                      instance expected to issue JWTs allowed by this token. This
+                      may be unset for regular Terraform Cloud use, in which case
+                      it will be assumed to be `app.terraform.io`. Otherwise, it must
+                      both match the `iss` (issuer) field included in JWTs, and provide
+                      standard JWKS endpoints.
+                    type: string
                 type: object
               tpm:
                 description: TPM allows the configuration of options specific to the

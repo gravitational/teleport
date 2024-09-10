@@ -1625,6 +1625,13 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Terraform Cloud, this value should be `foo`. If the variable is set to
   // match the cluster name, it does not need to be set here.
   string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // Hostname is the hostname of the Terraform Enterprise instance expected to
+  // issue JWTs allowed by this token. This may be unset for regular Terraform
+  // Cloud use, in which case it will be assumed to be `app.terraform.io`.
+  // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
+  // and provide standard JWKS endpoints.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

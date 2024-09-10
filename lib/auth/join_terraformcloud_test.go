@@ -38,10 +38,16 @@ type mockTerraformTokenValidator struct {
 }
 
 func (m *mockTerraformTokenValidator) Validate(
-	_ context.Context, audience string, token string,
+	_ context.Context, audience, hostname, token string,
 ) (*terraformcloud.IDTokenClaims, error) {
 	if audience != "test.localhost" {
 		return nil, fmt.Errorf("bad audience: %s", audience)
+	}
+
+	// Hostname override always fails, but that's okay: we're just making sure
+	// the value gets plumbed through to here.
+	if hostname != "" {
+		return nil, fmt.Errorf("bad issuer: %s", hostname)
 	}
 
 	claims, ok := m.tokens[token]
@@ -361,6 +367,27 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 			request: newRequest(validIDToken),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad audience")
+			},
+		},
+		{
+			name:          "overridden hostname is honored",
+			setEnterprise: true,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodTerraformCloud,
+				Roles:      []types.SystemRole{types.RoleNode},
+				TerraformCloud: &types.ProvisionTokenSpecV2TerraformCloud{
+					Allow: []*types.ProvisionTokenSpecV2TerraformCloud_Rule{
+						{
+							OrganizationID: "example-organization-id",
+							WorkspaceID:    "example-workspace-id",
+						},
+					},
+					Hostname: "example.com",
+				},
+			},
+			request: newRequest(validIDToken),
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "bad issuer: example.com")
 			},
 		},
 	}
