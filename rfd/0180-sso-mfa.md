@@ -58,8 +58,8 @@ registered. This way, users can view their true MFA options.
 > tsh mfa ls
 Name     Type     Added at Last used                     
 -------- -------- -------- ---------
-yubi     WebAuthn ...      ...
-okta     SAML     ...      ...
+yubi     WebAuthn <date>   <date>
+okta     SAML     -        -
 ```
 
 Note: Teleport does not actually store a MFA device backend resource for each
@@ -685,6 +685,8 @@ message GithubConnectorSpecV3 {
 + GithubConnectorMFASettings MFASettings = 10 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
 }
 ```
+
+**SSOAuthRequest**
 
 ### Backward Compatibility
 
