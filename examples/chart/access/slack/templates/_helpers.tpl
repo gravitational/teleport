@@ -65,11 +65,7 @@ Create the name of the service account to use
 {{- if .Values.teleport.identitySecretName -}}
 {{- .Values.teleport.identitySecretName -}}
 {{- else if .Values.tbot.enabled -}}
-  {{- if .Values.tbot.defaultOutput.secretName }}
-    {{- .Values.tbot.defaultOutput.secretName -}}
-  {{- else -}}
-    {{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}-out
-  {{- end }}
+  {{- .Release.Name }}-{{ default .Values.tbot.nameOverride "tbot" }}-out
 {{- end }}
 {{- end -}}
 
