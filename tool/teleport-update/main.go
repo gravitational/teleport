@@ -139,7 +139,7 @@ func Run(args []string) error {
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
 	if err := setupLogger(ccfg.Debug, ccfg.LogFormat); err != nil {
-		return trace.Errorf("setting up logger")
+		return trace.Errorf("failed to set up logger")
 	}
 
 	if err := ccfg.CheckAndSetDefaults(); err != nil {
@@ -219,18 +219,18 @@ func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 		}, nil
 	}
 	if err != nil {
-		return nil, trace.Errorf("failed to open updates.yaml: %w", err)
+		return nil, trace.Errorf("failed to open: %w", err)
 	}
 	defer f.Close()
 	var cfg UpdatesConfig
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		return nil, trace.Errorf("failed to parse updates.yaml: %w", err)
+		return nil, trace.Errorf("failed to parse: %w", err)
 	}
 	if k := cfg.Kind; k != updatesKind {
-		return nil, trace.Errorf("updates.yaml contains invalid kind %q", k)
+		return nil, trace.Errorf("invalid kind %q", k)
 	}
 	if v := cfg.Version; v != updatesVersion {
-		return nil, trace.Errorf("updates.yaml contains invalid version %q", v)
+		return nil, trace.Errorf("invalid version %q", v)
 	}
 	return &cfg, nil
 }
@@ -266,14 +266,15 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	defer unlock()
 	cfg, err := readUpdatesConfig(updatesYAML)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to read updates.yaml: %w", err)
 	}
 	if !cfg.Spec.Enabled {
+		plog.InfoContext(ctx, "Automatic updates already disabled")
 		return nil
 	}
 	cfg.Spec.Enabled = false
 	if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
-		return trace.Wrap(err)
+		return trace.Errorf("failed to write updates.yaml: %w", err)
 	}
 	return nil
 }
