@@ -55,16 +55,18 @@ Integration" page. Alice selects a "guided" GitHub integration experience:
 
 1. Alice inputs the GitHub organization "my-org", and the UI defaults (but
    editable) to the integration name to "github-my-org".
-![Select](assets/0178-enroll-select.png)
-![Step 1](assets/0178-enroll-step1.png)
+
+<img src="./assets/0178-enroll-select.png" width="400" /> <img src="./assets/0178-enroll-step1.png" width="400" />
 
 2. On the next page, the SSH CA and fingerprint are displayed with a link to
    the organization's security setting page and instructions to add the CA to
    GitHub.
-![Step 2](assets/0178-enroll-step2.png)
+
+<img src="./assets/0178-enroll-step2.png" width="600" />
 
 3. Next step, to setup access, Alice inputs her GitHub username.
-![Step 3](assets/0178-enroll-step3.png)
+
+<img src="./assets/0178-enroll-step3.png" width="600" />
 
 4. Lastly, Alice is presented instructions on how to use `tsh` to setup the Git
    repos:
@@ -75,7 +77,8 @@ Integration" page. Alice selects a "guided" GitHub integration experience:
 After the enrollment is completed, Alice can see the organization in the list
 of integrations. In addition, the Git proxy server can be found in the unified
 resources view:
-![Unified Resource](assets/0178-unified-resource-git.png).
+
+<img src="./assets/0178-unified-resource-git.png" width="400)" />
 
 Clicking on "Connect" will open a dialog that provides the same instructions to
 on how to use the feature with `tsh`.
@@ -219,7 +222,8 @@ for MFA. The `git` command proceeds as usual once MFA challenge is succeeded.
 #### Charlie wants to audit GitHub access
 
 Charlie is an auditor and is able to see the audit events from Web UI:
-![Audit Event](assets/0178-audit-event.png).
+
+<img src="./assets/0178-audit-event.png" width="600)" />
 
 He wants to generate a report that lists every user that has accessed the repos
 of their organization and their IP addresses on a monthly basis.
