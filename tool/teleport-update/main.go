@@ -301,18 +301,34 @@ func lock(lockFile string, nonblock bool) (func(), error) {
 	if nonblock {
 		how |= syscall.LOCK_NB
 	}
-	if err := syscall.Flock(int(lf.Fd()), how); err != nil {
+
+	if err := fdSyscall(lf, func(fd uintptr) error {
+		return syscall.Flock(int(fd), how)
+	}); err != nil {
+		_ = lf.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	return func() {
-		if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_UN); err != nil {
-			plog.Debug("Failed to unlock lock file", "file", lockFile, "error", err)
-		}
 		if err := lf.Close(); err != nil {
 			plog.Debug("Failed to close lock file", "file", lockFile, "error", err)
 		}
 	}, nil
+}
+
+// fdSyscall should be used instead of f.Fd() when performing syscalls on fds.
+// Context: https://github.com/golang/go/issues/24331
+func fdSyscall(f *os.File, fn func(uintptr) error) error {
+	rc, err := f.SyscallConn()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if cErr := rc.Control(func(fd uintptr) {
+		err = fn(fd)
+	}); cErr != nil {
+		return trace.Wrap(cErr)
+	}
+	return trace.Wrap(err)
 }
 
 type downloadConfig struct {
