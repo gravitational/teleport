@@ -295,8 +295,6 @@ type PingResponse struct {
 	Proxy ProxySettings `json:"proxy"`
 	// ServerVersion is the version of Teleport that is running.
 	ServerVersion string `json:"server_version"`
-	// ServerVersion is the version of Teleport that is running.
-	ServerEdition string `json:"server_edition"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
 	// AutoUpdateSettings contains the auto update settings.
