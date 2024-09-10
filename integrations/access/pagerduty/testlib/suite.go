@@ -461,7 +461,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 		// Validate the incident has been created in Pagerduty and its ID is stored
 		// in the plugin_data.
-		pluginData := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
+		hasIncidentID := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
 			return data.IncidentID != ""
 		})
 
