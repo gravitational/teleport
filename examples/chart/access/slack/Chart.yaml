@@ -10,5 +10,5 @@ appVersion: *version
 dependencies:
   - name: tbot
     version: *version
-    repository: "file:///Users/shaka/go/src/github.com/gravitational/teleport-backport/examples/chart/tbot"
+    repository: "file://../../tbot"
     condition: tbot.enabled
