@@ -67,7 +67,7 @@ Whether the Teleport updater querying the endpoint is instructed to upgrade (via
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
 Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
 
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/updates.yaml` file, which is written via `teleport-update enable`:
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/update.yaml` file, which is written via `teleport-update enable`:
 ```shell
 $ teleport-update enable --proxy teleport.example.com --group staging
 ```
@@ -200,7 +200,7 @@ Notes:
 - Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
 - The host UUID is read from `/var/lib/teleport/host_uuid` by the updater.
-- The group name is read from `/var/lib/teleport/versions/updates.yaml` by the updater.
+- The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
 
 ### Teleport Resources
 
@@ -427,7 +427,7 @@ $ tree /var/lib/teleport
    │  └── etc
    │     └── systemd
    │        └── teleport.service
-   └── updates.yaml
+   └── update.yaml
 $ ls -l /usr/local/bin/tsh
 /usr/local/bin/tsh -> /var/lib/teleport/versions/15.0.0/bin/tsh
 $ ls -l /usr/local/bin/tbot
@@ -440,7 +440,7 @@ $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
 ```
 
-#### updates.yaml
+#### update.yaml
 
 This file stores configuration for `teleport-update`.
 
@@ -452,8 +452,11 @@ spec:
   proxy: mytenant.teleport.sh
   # group specifies the update group
   group: staging
+  # url_template specifies a custom URL template for downloading Teleport.
+  # url_template: ""
   # enabled specifies whether auto-updates are enabled, i.e., whether teleport-update update is allowed to update the agent.
   enabled: true
+status:
   # active_version specifies the active (symlinked) deployment of the telepport agent.
   active_version: 15.1.1
 ```
@@ -505,18 +508,18 @@ The `enable` subcommand will:
 8. Replace any existing binaries or symlinks with symlinks to the current version.
 9. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 10. Restart the agent if the systemd service is already enabled.
-11. Set `active_version` in `updates.yaml` if successful or not enabled.
+11. Set `active_version` in `update.yaml` if successful or not enabled.
 12. Replace the symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
 13. Remove and purge any `teleport` package if installed.
 14. Verify the symlinks to the active version still exists.
 15. Remove all stored versions of the agent except the current version and last working version.
-16. Configure `updates.yaml` with the current proxy address and group, and set `enabled` to true.
+16. Configure `update.yaml` with the current proxy address and group, and set `enabled` to true.
 
 The `disable` subcommand will:
-1. Configure `updates.yaml` to set `enabled` to false.
+1. Configure `update.yaml` to set `enabled` to false.
 
 When `update` subcommand is otherwise executed, it will:
-1. Check `updates.yaml`, and quit (exit 0) if `enabled` is false, or quit (exit 1) if `enabled` is true and no proxy address is set.
+1. Check `update.yaml`, and quit (exit 0) if `enabled` is false, or quit (exit 1) if `enabled` is true and no proxy address is set.
 2. Query the `/v1/webapi/find` endpoint.
 3. Check that `agent_autoupdates` is true, quit otherwise.
 4. If the current version of Teleport is the latest, quit.
@@ -528,7 +531,7 @@ When `update` subcommand is otherwise executed, it will:
 10. Update symlinks to point at the new version.
 11. Backup `/var/lib/teleport/proc/sqlite.db` into `/var/lib/teleport/versions/OLD-VERSION/backup/sqlite.db` and create `backup.yaml`.
 12. Restart the agent if the systemd service is already enabled.
-13. Set `active_version` in `updates.yaml` if successful or not enabled.
+13. Set `active_version` in `update.yaml` if successful or not enabled.
 14. Replace the old symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
 15. Remove all stored versions of the agent except the current version and last working version.
 
