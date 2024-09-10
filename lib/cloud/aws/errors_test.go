@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
@@ -101,7 +101,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		},
 		{
 			name: "resource already exists",
-			inErr: &iamTypes.EntityAlreadyExistsException{
+			inErr: &iamtypes.EntityAlreadyExistsException{
 				Message: aws.String("resource exists"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
@@ -110,7 +110,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		},
 		{
 			name: "resource already exists",
-			inErr: &iamTypes.NoSuchEntityException{
+			inErr: &iamtypes.NoSuchEntityException{
 				Message: aws.String("resource not found"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
@@ -119,7 +119,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		},
 		{
 			name: "invalid policy document",
-			inErr: &iamTypes.MalformedPolicyDocumentException{
+			inErr: &iamtypes.MalformedPolicyDocumentException{
 				Message: aws.String("malformed document"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
