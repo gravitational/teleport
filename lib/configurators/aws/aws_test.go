@@ -25,15 +25,12 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	"github.com/aws/aws-sdk-go/service/ssm"
-	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -463,7 +460,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						{
 							Name:     "redshift-serverless-1",
 							Protocol: "postgres",
-							URI:      fmt.Sprintf("%s:5439", aws.StringValue(mocks.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
+							URI:      fmt.Sprintf("%s:5439", aws.ToString(mocks.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
 						},
 					},
 				},
@@ -1219,7 +1216,7 @@ func TestAWSPoliciesTarget(t *testing.T) {
 		targetAccountID   string
 		targetPartitionID string
 		targetString      string
-		iamClient         iamiface.IAMAPI
+		iamClient         iamClient
 		wantErrContains   string
 	}{
 		"UserNameFromFlags": {
@@ -1388,16 +1385,16 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 	require.NoError(t, config.ApplyFileConfig(fileConfig, serviceConfig))
 
 	config := ConfiguratorConfig{
-		AWSSession:   &awssession.Session{},
-		AWSIAMClient: &iamMock{},
-		AWSSTSClient: &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
-		AWSSSMClients: map[string]ssmiface.SSMAPI{
-			"eu-central-1": &SSMMock{
+		awsCfg:    &aws.Config{},
+		iamClient: &iamMock{},
+		stsClient: &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		ssmClients: map[string]ssmClient{
+			"eu-central-1": &ssmMock{
 				t: t,
 				expectedInput: &ssm.CreateDocumentInput{
 					Content:        aws.String(awslib.EC2DiscoverySSMDocument("https://proxy.example.org:443")),
-					DocumentType:   aws.String("Command"),
-					DocumentFormat: aws.String("YAML"),
+					DocumentType:   ssmtypes.DocumentTypeCommand,
+					DocumentFormat: ssmtypes.DocumentFormatYaml,
 					Name:           aws.String("document"),
 				}},
 		},
@@ -1429,10 +1426,10 @@ func TestAWSConfigurator(t *testing.T) {
 	ctx := context.Background()
 
 	config := ConfiguratorConfig{
-		AWSSession:    &awssession.Session{},
-		AWSIAMClient:  &iamMock{},
-		AWSSTSClient:  &STSMock{ARN: "arn:aws:iam::1234567:role/example-role"},
-		AWSSSMClients: map[string]ssmiface.SSMAPI{"eu-central-1": &SSMMock{}},
+		awsCfg:        &aws.Config{},
+		iamClient:     &iamMock{},
+		stsClient:     &stsMock{ARN: "arn:aws:iam::1234567:role/example-role"},
+		ssmClients:    map[string]ssmClient{"eu-central-1": &ssmMock{}},
 		ServiceConfig: &servicecfg.Config{},
 		Flags: configurators.BootstrapFlags{
 			AttachToUser:        "some-user",
@@ -1865,27 +1862,23 @@ func (p *policiesMock) Attach(context.Context, string, awslib.Identity) error {
 	return p.attachError
 }
 
-type STSMock struct {
-	stsiface.STSAPI
+type stsMock struct {
 	ARN               string
 	callerIdentityErr error
 }
 
-func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+func (m *stsMock) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(m.ARN),
 	}, m.callerIdentityErr
 }
 
-type SSMMock struct {
-	ssmiface.SSMAPI
-
+type ssmMock struct {
 	t             *testing.T
 	expectedInput *ssm.CreateDocumentInput
 }
 
-func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDocumentInput, opts ...request.Option) (*ssm.CreateDocumentOutput, error) {
-
+func (m *ssmMock) CreateDocument(ctx context.Context, input *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error) {
 	m.t.Helper()
 
 	// UUID's are unpredictable, so we remove them from the content
@@ -1906,22 +1899,22 @@ func (m *SSMMock) CreateDocumentWithContext(ctx aws.Context, input *ssm.CreateDo
 }
 
 type iamMock struct {
-	iamiface.IAMAPI
 	unauthorized bool
 	partition    string
 	account      string
 	addPath      string
 }
 
-func (m *iamMock) GetRole(input *iam.GetRoleInput) (*iam.GetRoleOutput, error) {
+func (m *iamMock) GetRole(ctx context.Context, input *iam.GetRoleInput, optFns ...func(*iam.Options)) (*iam.GetRoleOutput, error) {
+
 	if m.unauthorized {
 		return nil, trace.AccessDenied("unauthorized")
 	}
-	roleName := aws.StringValue(input.RoleName)
+	roleName := aws.ToString(input.RoleName)
 	path := m.addPath
 	if path == "" {
 		path = "/"
 	}
 	arn := fmt.Sprintf("arn:%s:iam::%s:role%s%s", m.partition, m.account, path, roleName)
-	return &iam.GetRoleOutput{Role: &iam.Role{Arn: &arn}}, nil
+	return &iam.GetRoleOutput{Role: &iamtypes.Role{Arn: &arn}}, nil
 }

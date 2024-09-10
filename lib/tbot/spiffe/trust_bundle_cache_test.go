@@ -250,6 +250,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.True(t, gotFederatedBundle.Equal(preInitFed))
 
 	// Update the local bundle with a new additional cert
+	ca = ca.Clone()
 	additionalCAKey, additionalCACertPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, []string{}, time.Hour)
 	require.NoError(t, err)
 	additionalCACert, err := tlsca.ParseCertificatePEM(additionalCACertPEM)

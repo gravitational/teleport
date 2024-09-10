@@ -275,14 +275,16 @@ export function ClusterResources({
           setParams(newParams);
           const isAdvancedSearch = !!newParams.query;
           replaceHistory(
-            encodeUrlQueryParams(
+            encodeUrlQueryParams({
               pathname,
-              isAdvancedSearch ? newParams.query : newParams.search,
-              newParams.sort,
-              newParams.kinds,
+              searchString: isAdvancedSearch
+                ? newParams.query
+                : newParams.search,
+              sort: newParams.sort,
+              kinds: newParams.kinds,
               isAdvancedSearch,
-              newParams.pinnedOnly
-            )
+              pinnedOnly: newParams.pinnedOnly,
+            })
           );
         }}
         Header={
