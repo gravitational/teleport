@@ -69,8 +69,8 @@ const (
 const (
 	// versionsDirName specifies the name of the subdirectory inside of the Teleport data dir for storing Teleport versions.
 	versionsDirName = "versions"
-	// updatesFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
-	updatesFileName = "updates.yaml"
+	// configFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
+	configFileName = "update.yaml"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
 )
@@ -193,24 +193,24 @@ func setupLogger(debug bool, format string) error {
 }
 
 const (
-	updatesVersion = "v1"
-	updatesKind    = "updates"
+	updateConfigVersion = "v1"
+	updateConfigKind    = "update_config"
 )
 
-// UpdatesConfig describes the updates.yaml file schema.
-type UpdatesConfig struct {
+// UpdateConfig describes the update.yaml file schema.
+type UpdateConfig struct {
 	// Version of the configuration file
 	Version string `yaml:"version"`
-	// Kind of configuration file (always "updates")
+	// Kind of configuration file (always "update_config")
 	Kind string `yaml:"kind"`
 	// Spec contains user-specified configuration.
-	Spec UpdatesSpec `yaml:"spec"`
+	Spec UpdateSpec `yaml:"spec"`
 	// Status contains state configuration.
-	Status UpdatesStatus `yaml:"status"`
+	Status UpdateStatus `yaml:"status"`
 }
 
-// UpdatesSpec describes the spec field in updates.yaml.
-type UpdatesSpec struct {
+// UpdateSpec describes the spec field in update.yaml.
+type UpdateSpec struct {
 	// Proxy address
 	Proxy string `yaml:"proxy"`
 	// Group update identifier
@@ -221,40 +221,40 @@ type UpdatesSpec struct {
 	Enabled bool `yaml:"enabled"`
 }
 
-// UpdatesStatus describes the status field in updates.yaml.
-type UpdatesStatus struct {
+// UpdateStatus describes the status field in update.yaml.
+type UpdateStatus struct {
 	// ActiveVersion is the currently active Teleport version.
 	ActiveVersion string `yaml:"active_version"`
 }
 
-// readUpdatesConfig reads updates.yaml
-func readUpdatesConfig(path string) (*UpdatesConfig, error) {
+// readUpdatesConfig reads update.yaml
+func readUpdatesConfig(path string) (*UpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return &UpdatesConfig{
-			Version: updatesVersion,
-			Kind:    updatesKind,
+		return &UpdateConfig{
+			Version: updateConfigVersion,
+			Kind:    updateConfigKind,
 		}, nil
 	}
 	if err != nil {
 		return nil, trace.Errorf("failed to open: %w", err)
 	}
 	defer f.Close()
-	var cfg UpdatesConfig
+	var cfg UpdateConfig
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return nil, trace.Errorf("failed to parse: %w", err)
 	}
-	if k := cfg.Kind; k != updatesKind {
+	if k := cfg.Kind; k != updateConfigKind {
 		return nil, trace.Errorf("invalid kind %q", k)
 	}
-	if v := cfg.Version; v != updatesVersion {
+	if v := cfg.Version; v != updateConfigVersion {
 		return nil, trace.Errorf("invalid version %q", v)
 	}
 	return &cfg, nil
 }
 
-// writeUpdatesConfig writes updates.yaml atomically, ensuring the file cannot be corrupted.
-func writeUpdatesConfig(filename string, cfg *UpdatesConfig) error {
+// writeUpdatesConfig writes update.yaml atomically, ensuring the file cannot be corrupted.
+func writeUpdatesConfig(filename string, cfg *UpdateConfig) error {
 	opts := []renameio.Option{
 		renameio.WithPermissions(0755),
 		renameio.WithExistingPermissions(),
@@ -275,7 +275,7 @@ func writeUpdatesConfig(filename string, cfg *UpdatesConfig) error {
 func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	var (
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
-		updatesYAML = filepath.Join(versionsDir, updatesFileName)
+		updateYAML  = filepath.Join(versionsDir, configFileName)
 	)
 	unlock, err := lock(filepath.Join(versionsDir, lockFileName), false)
 	if err != nil {
@@ -286,7 +286,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
 		}
 	}()
-	cfg, err := readUpdatesConfig(updatesYAML)
+	cfg, err := readUpdatesConfig(updateYAML)
 	if err != nil {
 		return trace.Errorf("failed to read updates.yaml: %w", err)
 	}
@@ -295,7 +295,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		return nil
 	}
 	cfg.Spec.Enabled = false
-	if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
+	if err := writeUpdatesConfig(updateYAML, cfg); err != nil {
 		return trace.Errorf("failed to write updates.yaml: %w", err)
 	}
 	return nil
