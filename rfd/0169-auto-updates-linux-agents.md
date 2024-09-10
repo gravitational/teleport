@@ -15,7 +15,9 @@ state: draft
 
 This RFD proposes a new mechanism for scheduled, automatic updates of Teleport agents.
 
-Users of Teleport will be able to use the tctl CLI to specify desired versions and update schedules.
+Users of Teleport will be able to use the tctl CLI to specify desired versions, update schedules, and rollout speed.
+
+Agents will be updated by a new `teleport-update` binary, built from `tools/teleport-update` in the Teleport repository.
 
 All agent installations are in-scope for this proposal, including agents installed on Linux servers and Kubernetes.
 
@@ -24,6 +26,7 @@ The following anti-goals are out-of-scope for this proposal, but will be address
 - Teleport Cloud APIs for updating agents
 - Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD
 - Support for progressive rollouts to different groups of ephemeral or auto-scaling agents (see: Version Promotion)
+- Support for progressive rollouts of tbot, when not installed on the same system as a Teleport agent
 
 This RFD proposes a specific implementation of several sections in https://github.com/gravitational/teleport/pull/39217.
 
@@ -36,7 +39,7 @@ The existing mechanism for automatic agent updates does not provide a hands-off 
 1. The use of system package management leads to interactions with `apt upgrade`, `yum upgrade`, etc. that can result in unintentional upgrades.
 2. The use of system package management requires logic that varies significantly by target distribution.
 3. The installation mechanism requires 4-5 commands, includes manually installing multiple packages, and varies depending on your version and edition of Teleport.
-4. The use of bash to implement the updater makes changes difficult and prone to error.
+4. The use of bash to implement the updater makes long-term maintenance difficult.
 5. The existing auto-updater has limited automated testing.
 6. The use of GPG keys in system package managers has key management implications that we would prefer to solve with TUF in the future.
 7. The desired agent version cannot be set via Teleport's operator-targeted CLI (tctl).
@@ -437,10 +440,13 @@ $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
 ```
 
-updates.yaml:
+#### updates.yaml
+
+This file stores configuration for `teleport-update`.
+
 ```
 version: v1
-kind: agent_versions
+kind: updates
 spec:
   # proxy specifies the Teleport proxy address to retrieve the agent version and update configuration from.
   proxy: mytenant.teleport.sh
@@ -452,7 +458,10 @@ spec:
   active_version: 15.1.1
 ```
 
-backup.yaml:
+#### backup.yaml
+
+This file stores metadata about an individual backup of the Teleport agent's sqlite DB.
+
 ```
 version: v1
 kind: db_backup
@@ -919,6 +928,30 @@ message AgentRolloutPlanHost {
   string host_id = 1;
 }
 ```
+
+## Alternatives
+
+### `teleport update` Subcommand
+
+`teleport-update` is intended to be a minimal binary, with few dependencies, that is used to bootstrap initial Teleport agent installations.
+It may be baked into AMIs or containers.
+
+If the entirely `teleport` binary were used instead, security scanners would match vulnerabilities all Teleport dependencies, so customers would have to handle rebuilding artifacts (e.g., AMIs) more often.
+Deploying these updates is often more disruptive than a soft restart of the agent triggered by the auto-updater.
+
+`teleport-update` will also handle `tbot` updates in the future, and it would be undesirable to distribute `teleport` with `tbot` just to enable automated updates.
+
+Finally, `teleport-update`'s API contract with the cluster must remain stable to ensure that outdated agent installations can always be recovered.
+The first version of `teleport-update` will need to work with Teleport v14 and all future versions of Teleport.
+This contract may be easier to manage with a separate artifact.
+
+### Mutually-Authenticated RPC for Update Boolean
+
+Agents will not always have a mutually-authenticated connection to auth to receive update instructions.
+For example, the agent may be in a failed state due to a botched upgrade, may be temporarily stopped, or may be newly installed.
+In the future, `tbot`-only installations may have expired certificates.
+
+Making the update boolean instruction available via the `/webapi/find` TLS endpoint reduces complexity as well as the risk of unrecoverable outages.
 
 ## Execution Plan
 
