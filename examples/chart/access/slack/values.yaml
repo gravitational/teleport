@@ -135,13 +135,10 @@ tbot:
   token: ""
 
   # Don't touch the tbot values below, this will break the chart.
-
   # This ensures that tbot.fullname is not shortened if the release name contains "tbot"
   nameOverride: tbot
   defaultOutput:
     enabled: true
-    # This value MUST be empty for the secret name to be generated properly
-    secretName: ""
 
 secretVolumeName: "password-file"
 
