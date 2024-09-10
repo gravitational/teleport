@@ -6158,13 +6158,19 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return proto.PingResponse{}, nil
+	}
+
 	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  features,
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LoadAllCAs:      a.loadAllCAs,
+		ClusterName:             cn.GetClusterName(),
+		ServerVersion:           teleport.Version,
+		ServerFeatures:          features,
+		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		IsBoring:                modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:              a.loadAllCAs,
+		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 	}, nil
 }
 
