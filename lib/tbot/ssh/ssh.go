@@ -82,7 +82,7 @@ func GenerateKnownHosts(
 		var perClusterSB strings.Builder
 		fmt.Fprintf(
 			&perClusterSB,
-			"# Cluster-specific known_hosts for %s\n",
+			"# Cluster specific known_hosts generated for cluster '%s'\n",
 			auth.ClusterName,
 		)
 		for _, pubKey := range pubKeys {
