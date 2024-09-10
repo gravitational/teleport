@@ -349,7 +349,7 @@ func fdSyscall(f *os.File, fn func(uintptr) error) error {
 	return trace.Wrap(err)
 }
 
-//nolint:unused
+//nolint:unused // scaffolding used in upcoming PR
 type downloadConfig struct {
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
@@ -360,7 +360,7 @@ type downloadConfig struct {
 	Timeout time.Duration
 }
 
-//nolint:unused
+//nolint:unused // scaffolding used in upcoming PR
 func newClient(cfg *downloadConfig) (*http.Client, error) {
 	rt := apiutils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
