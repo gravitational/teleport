@@ -199,13 +199,16 @@ func (o *OIDCConnectorV3) SetRevision(rev string) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (o *OIDCConnectorV3) WithoutSecrets() Resource {
-	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" {
+	if o.GetClientSecret() == "" && o.GetGoogleServiceAccount() == "" && o.GetMFASettings().ClientSecret == "" {
 		return o
 	}
 	o2 := *o
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
+	if o2.GetMFASettings().ClientSecret != "" {
+		o2.Spec.MFASettings.ClientSecret = ""
+	}
 
 	return &o2
 }
