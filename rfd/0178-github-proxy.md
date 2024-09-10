@@ -50,22 +50,41 @@ existing feature and should replace it.
 Alice is a system administrator and she would like to setup the GitHub SSH CA
 integration with Teleport.
 
-Alice logs into Teleport via Web UI, and searches "github" on the
-"Enroll New Resource" page. Alice selects a "guided" GitHub integration
-experience:
+Alice logs into Teleport via Web UI, and searches "github" on the "Enroll New
+Integration" page. Alice selects a "guided" GitHub integration experience:
+
 1. Alice inputs the GitHub organization "my-org", and the UI defaults (but
    editable) to the integration name to "github-my-org".
+![Select](assets/0178-enroll-select.png)
+![Step 1](assets/0178-enroll-step1.png)
+
 2. On the next page, the SSH CA and fingerprint are displayed with a link to
    the organization's security setting page and instructions to add the CA to
    GitHub.
+![Step 2](assets/0178-enroll-step2.png)
+
 3. Next step, to setup access, Alice inputs her GitHub username.
+![Step 3](assets/0178-enroll-step3.png)
+
 4. Lastly, Alice is presented instructions on how to use `tsh` to setup the Git
-   repos.
+   repos:
+   - Use `tsh git clone` for cloning a new repository
+   - Use `tsh git config update` for configuring an existing repository
+   - Use `git` as normal once the repository is cloned/configured
+
+After the enrollment is completed, Alice can see the organization in the list
+of integrations. In addition, the Git proxy server can be found in the unified
+resources view:
+![Unified Resource](assets/0178-unified-resource-git.png).
+
+Clicking on "Connect" will open a dialog that provides the same instructions to
+on how to use the feature with `tsh`.
 
 #### Alice configures GitHub proxy via CLI
 
 Alice is a system administrator and she would like to setup the GitHub SSH CA
-integration with CLI.
+integration with CLI. An official guide is provided on
+`https://goteleport.com/docs/` to set this up with the following steps.
 
 First, she creates a GitHub integration using `tctl create`:
 ```yaml
@@ -82,23 +101,26 @@ spec:
 Then she exports the SSH CA and imports it to her GitHub organization:
 ```shell
 $ tctl auth export --integration github-my-org --type github
-ssh-rsa ...
+ssh-rsa <cert-pem...>
+
+Go to https://github.com/organizations/my-org/settings/security and click "New
+CA" in the "SSH certificate authorities" section.
+
+Copy-paste the above certificate there and click "Add CA". The CA should have
+the following sha256 fingerprint:
+<fingerprint...>
 ```
 
 Next, she creates a GitHub proxy server for Teleport users to access, using
 `tctl create`:
 ```yaml
-kind: node
-sub_kind: openssh-github
-version: v2
-metadata:
-  labels:
-    "github-organization": "my-org"
+kind: git_server
+sub_kind: github
 spec:
-  hostname: github-my-org
   github:
     integration: github-my-org
     organization: my-org
+version: v2
 ```
 
 To provide access to this server, Alice creates a role using `tctl create`:
@@ -108,22 +130,38 @@ metadata:
   name: github-my-org-access
 spec:
   allow:
-    logins:
-    - {{external.github_usernames}}
-    node_labels:
-      "github-organization": "my-org"
-  deny: {}
+    github_permissions:
+    - orgs:
+      - my-org
 version: v7
 ```
 
-Last but not least, Alice verifies the external trait is mapped to the user and
-has the right GitHub username.
+Last but not least, Alice verifies the external trait `github_username` is
+mapped to the users with the right GitHub usernames. For local users, Alice
+can set the GitHub username with:
+```shell
+tctl users update alice --set-github-username my-git-username
+```
 
 #### Bob clones a new Git repository
 
-Bob, a Teleport user that's granted access to the GitHub proxy, wants to clone
-a repo. He first goes on github.com and finds the clone url. Then he logins
-`tsh` and uses `tsh git clone` command and pastes the url:
+Bob, a Teleport user that's granted access to the GitHub organization, wants to
+clone a repo.
+
+He logins the `tsh`, and run `tsh git ls` to see what access he has:
+```shell
+$ tsh git ls
+Type   Organization Username        URL                                     
+------ ------------ --------------- -------------------------
+GitHub my-org       my-git-username https://github.com/my-org
+
+hint: use 'tsh git clone <git-clone-ssh-url>' to clone a new repository
+      use 'tsh git config update' to configure an existing repository to use Teleport
+      once the repository is cloned or configured, use 'git' as normal
+```
+
+He goes on `github.com` and finds the SSH clone url for the repository he wants
+to clone. Then he runs the `tsh git clone` command with copied url:
 ```shell
 $ tsh git clone git@github.com:my-org/my-repo.git
 ```
@@ -134,6 +172,26 @@ Once the repo is cloned, Bob can `cd` into the directory and perform regular
 On the second day (as the `tsh` session expiress), when Bob tries to `git
 fetch` from the repo, the command prompts to login into Teleport. The command
 proceeds as usual once Teleport login is successful.
+
+#### Bob configures an existing Git repository
+
+Bob, a Teleport user that's granted access to the GitHub organization, wants to
+use Teleport for an existing repo he has cloned before:
+```shell
+$ cd my-repo
+$ tsh git config update
+The current git dir is now configured with Teleport for GitHub organization "my-org".
+
+Your GitHub username is "my-git-username".
+
+You can use `git` commands as normal.
+```
+
+If one day Bob needs to revert Teleport settings in the Git repo:
+```shell
+$ tsh git config reset
+The Teleport configuration for the current git dir is removed.
+```
 
 #### Alice wants to require Bob to use MFA for every `git` command.
 
@@ -148,11 +206,9 @@ metadata:
   name: github-my-org-access
 spec:
   allow:
-    logins:
-    - {{external.github_usernames}}
-    node_labels:
-      "github-organization": "my-org"
-  options:
+    github_permissions:
+    - orgs:
+      - my-org
 +   require_session_mfa: true
 version: v7
 ```
@@ -160,25 +216,13 @@ version: v7
 Now, when Bob (a Teleport user) runs `git` commands, the command also prompt
 for MFA. The `git` command proceeds as usual once MFA challenge is succeeded.
 
-#### Bob configures an existing Git repository
+#### Charlie wants to audit GitHub access
 
-Bob, a Teleport user that's granted access to the GitHub proxy, wants to use
-Teleport for an existing repo he has cloned before:
-```shell
-$ cd my-repo
-$ tsh git config --update
-```
+Charlie is an auditor and is able to see the audit events from Web UI:
+![Audit Event](assets/0178-audit-event.png).
 
-If one day Bob needs to revert Teleport settings in the Git repo:
-```shell
-$ tsh git config --remove
-```
-
-#### Charlie wants to generate a report on GitHub access
-
-Charlie is an auditor and wants to generate a report that lists every user that
-has accessed the repos of their organization and their IP addresses on a
-monthly basis.
+He wants to generate a report that lists every user that has accessed the repos
+of their organization and their IP addresses on a monthly basis.
 
 Charlie can use SQL queres to search GitHub events using [Access
 Monitoring](https://goteleport.com/docs/admin-guides/access-controls/access-monitoring):
@@ -188,7 +232,7 @@ SELECT
     remote_ip,
     COUNT(*) AS event_count
 FROM
-    github_command,
+    git_command,
 WHERE
     date_format(event_time, '%Y-%m') = '2024-07'
 GROUP BY
@@ -219,6 +263,11 @@ proxy is unavailable:
   self-signed CA on the spot and import it to the Organization settings
   temporarily.
 
+In addition, trusted GitHub environments like GitHub actions are not affected
+by the option to disallow personal access tokens. GitHub allows these services
+to continue use existing authentication methods so these services do not need
+to go through Teleport.
+
 ### Implementation
 
 #### Overview
@@ -238,6 +287,12 @@ sequenceDiagram
     git ->>GitHub: packet protocol
     GitHub ->>git: packet protocol
 ```
+
+#### Licensing
+
+The proxy functionality is available for OSS. For Enterprise license feature
+flag, it will share the same as the [GitHub IAM
+integration](https://github.com/gravitational/teleport.e/blob/master/rfd/0021e-github-iam-integration.md).
 
 #### GitHub Integration resource
 
@@ -263,90 +318,91 @@ spec:
         private_key: <private_key> 
 ```
 
-When the resource is created by Auth service, Auth generates the SSH key pair
-and stores it in `cert_authority`.
+
+`cert_authority`, which contains the SSH key pairs for CA, is populated by Auth
+when creating the resource.
 
 #### GitHub proxy server resource
 
-`github.com:22` is technically an OpenSSH server. A GitHub proxy server
-resource represents `github.com:22` but on a per organization basis. The server
-is a subkind (`openssh-github`) of a SSH node (which is a `types.Server`):
+A new resource kind `git_server` is introduced. On the backend, it uses
+`gitServers` as prefix and `types.ServerV2` as the object definition:
 ```yaml
-kind: node
-sub_kind: openssh-github
+kind: git_server
+sub_kind: github
 version: v2
 metadata:
   labels:
-    "github-organization": "my-org"
+    teleport.hidden/github_organization: my-org
+  name: <uuid>
+  revision: <rev-id>
 spec:
-  addr: github.com:22
-  hostname: github-my-org
   github:
     integration: github-my-org
     organization: my-org
+  hostname: my-org.github-organization
+version: v2
 ```
 
-The `addr` is hard-coded to `github.com:22`. The hostname can technically be
-anything but by default should match the integration name for readibility.
+Some notable details on the `git_server` object:
+- The hostname will always be hardcoded to `<org>.github-organization` for
+  routing purpose (explained in the section below).
+- The corresponding `integration` must present in the spec.
+- A hidden label referencing the `<org>` is automatically added for access
+  check purpose.
 
-Most importantly, the resource contains the name of the associated GitHub
-integration.
+Corresponding CRUD operations on `git_server` will be added similar to other
+presence types like nodes, app servers, etc.
 
-#### `tsh git ssh` command
+Even though GitHub proxy servers could be singletons (per organization) that
+are only served by Proxies, the keepalive capability for `git_server` is
+reserved for future expansions like GitLab where an agent may be necessary for
+network access.
 
-To forward SSH traffic from `git` to Teleport, the Git repo will be configured
-with
-[`core.sshCommand`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresshCommand)
-set to `tsh git ssh --username <username> --node <github-server>`. The
-`core.sshCommand` makes `git` to call this command instead of `ssh`.
+#### RBAC on GitHub proxy server
 
-`tsh git ssh` is a hidden command that internally just calls `tsh ssh
-<username>@<github-server> <git-upload-or-receive-pack-command>`, discarding
-the original `git@github.com` target that `git` uses.
+Access to GitHub organizations are granted through `github_permissions.orgs`:
 
-#### `tsh git clone` and `tsh git config` commands
-
-In addition, `tsh` provides two helper commands to automatically configures
-`core.sshCommand`.
-
-`tsh git clone <git-url>` calls `git clone -c core.sshcommand=... <git-url>` to
-make a clone. Before cloning, the GitHub organization is parsed from the
-`<git-url>`, and a GitHub proxy server with its logins is retrieved matching
-the GitHub organization. If more than one GitHub logins are available, users
-can expliclitly specify one using `--username` when running `tsh git clone`.
-
-`tsh git config` checks Teleport-related configurations in the current Git dir
-by running `git config --local --list` and prints out relavent status:
-```shell
-$ tsh git config
-Your Git repository is configured to use Teleport as a proxy.
-
-GitHub username: <my-git-username>
-GitHub organization: <my-org>
-GitHub proxy server: <github-my-org>
-```
-Or when fails:
-```shell
-$ tsh git config
-Your Git repository is not configured to use Teleport. To setup, run:
-  tsh git config --update
+```yaml
+kind: role
+metadata:
+  name: github-my-org-access
+spec:
+  allow:
+    github_permissions:
+    - orgs:
+      - my-org
+version: v7
 ```
 
-`tsh git config --update` performs `git config --local --replace-all ...` in
-the current dir to update `core.sshCommand`. Before updating, the GitHub
-organization is retrieved from `git remote -v` and used to find a GitHub proxy
-server.
+Wildcard `*` can be used for `orgs` by admins and certain built-in roles.
 
-`tsh git config --remove` restores the Git config in the current dir by
-removing `core.sshCommand`, when the user wish to bypass Teleport.
+Note that the role spec for GitHub does not follow the
+common-resources-label-matching approach like `app_labels`, but shares the same
+format for the GitHub IAM integration.
+
+Internally, the access checker converts the `orgs` to labels that can be
+matched against the hidden label from the `git_server` resources.
 
 #### SSH transport
 
-To forward SSH traffic from Teleport Proxy, existing SSH transport is used,
-since the GitHub proxy server is basically a SSH node.
+Existing [SSH
+transprt](https://github.com/gravitational/teleport/blob/master/rfd/0100-proxy-ssh-grpc.md)
+is used for proxying Git commands. 
 
-The GitHub proxy server is considered as an OpenSSH node so Proxy will forward
-the traffic directly to `github.com:22`.
+No change is necessary on the client side or on the GRPC protocol to support
+`git_server`.
+
+Routing is achieved by parsing hostnames in format of
+`<my-org>.github-organization` when Proxy receives the dial request. If
+multiple `git_server` exist for the same organization, a random server is
+selected.
+
+Then the request is forwarded directly to GitHub without going through an
+agent, similar to existing OpenSSH node flows. The differences being:
+- The target address is **always** `github.com:22`
+- The login is **always** retrieved from user's trait `github_username`
+- The user cert is generated by an Auth call. (And the user cert is cached by
+  Proxy for a short period for better performance.)
 
 #### Authentication with GitHub
 
@@ -388,33 +444,89 @@ spec](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-
 - `ValidBefore` with a short TTL (10 minutes).
 - Teleport username as key identity.
 
-#### Recordings and events
+#### `tsh git ls` command
 
-Regular SSH recordings for the GitHub proxy server will be disabled. "Git
-Command" events will replace the "Command Executation" events:
+The `tsh git ls` provides general information for what organizations an user
+can access and provides some instructions on the usage:
+```shell
+$ tsh git ls
+Type   Organization Username        URL                                     
+------ ------------ --------------- -------------------------
+GitHub my-org       my-git-username https://github.com/my-org
+
+hint: use 'tsh git clone <git-clone-ssh-url>' to clone a new repository
+      use 'tsh git config update' to configure an existing repository to use Teleport
+      once the repository is cloned or configured, use 'git' as normal
+```
+
+#### `tsh git ssh` command
+
+To forward SSH traffic from `git` to Teleport, the Git repo will be configured
+with
+[`core.sshCommand`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-coresshCommand)
+set to `tsh git ssh --githb-org <my-org>`. The `core.sshCommand` makes `git` to
+call this command instead of `ssh`.
+
+`tsh git ssh` is a hidden command that basically does `tsh ssh
+<my-git-username>@<my-org>.github_organization
+<git-upload-or-receive-pack-command>`, discarding the original `git@github.com`
+target that `git` uses.
+
+#### `tsh git clone` and `tsh git config` commands
+
+In addition, `tsh` provides two helper commands to automatically configures
+`core.sshCommand`.
+
+`tsh git clone <git-url>` calls `git clone -c core.sshcommand=... <git-url>` to
+make a clone. Before cloning, the GitHub organization is parsed from the
+`<git-url>`, and a GitHub proxy server with its logins is retrieved matching
+the GitHub organization. If more than one GitHub logins are available, users
+can expliclitly specify one using `--username` when running `tsh git clone`.
+
+`tsh git config` checks Teleport-related configurations in the current Git dir
+by running `git config --local --default "" --get core.sshCommand`.
+
+`tsh git config update` performs `git config --local --replace-all
+core.sshCommand ...` in the current dir to update `core.sshCommand`. Before
+updating, the GitHub organization is retrieved from `git ls-remote --get-url`.
+
+`tsh git config reset` restores the Git config in the current dir by removing
+`core.sshCommand` with command `git config --local --unset-all core.sshCommand`.
+
+#### Recordings and audit events
+
+Regular SSH recordings and session events for the GitHub proxy server will be
+disabled. "Git Command" events will be emitted instead:
+
 ```protobuf
-
 // GitCommand is emitted when a user performance a Git fetch or push command.
 message GitCommand {
-    // Metadata is a common event metadata
-    Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
-    // User is a common user event metadata
-    UserMetadata `protobuf:"bytes,2,opt,name=User,proto3,embedded=User" json:""`
-    // ConnectionMetadata holds information about the connection
-    ConnectionMetadata `protobuf:"bytes,3,opt,name=Connection,proto3,embedded=Connection" json:""`
-    // SessionMetadata is a common event session metadata
-    SessionMetadata `protobuf:"bytes,4,opt,name=Session,proto3,embedded=Session" json:""`
-    // ServerMetadata is a common server metadata
-    ServerMetadata `protobuf:"bytes,5,opt,name=Server,proto3,embedded=Server" json:""`
-    // CommandMetadata is a common command metadata. The command can be used to
-    determine a fetch vs a push.
-    CommandMetadata `protobuf:"bytes,6,opt,name=Command,proto3,embedded=Command" json:""`
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // Path is the Git repo path, usually <org>/<repo>.
-    string path = 7 [(gogoproto.jsontag) = "path"];
+  // User is a common user event metadata
+  UserMetadata User = 2 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // Actions defines details for a Git push.
-    repeated GitCommandAction actions = 8 [(gogoproto.jsontag) = "commands,omitempty"];
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 3 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 4 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 5 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+  // CommandMetadata is a common command metadata
+  CommandMetadata Command = 6 [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+  // CommandServiceType is the type of the git request like git-upload-pack or
+  // git-receive-pack.
+  string command_service_type = 8 [(gogoproto.jsontag) = "command_service_type"];
+  // Path is the Git repo path, usually <org>/<repo>.
+  string path = 9 [(gogoproto.jsontag) = "path"];
+
+  // Actions defines details for a Git push.
+  repeated GitCommandAction actions = 10 [(gogoproto.jsontag) = "actions,omitempty"];
 }
 
 // GitCommandAction defines details for a Git push.
@@ -427,37 +539,24 @@ message GitCommandAction {
   string Old = 3 [(gogoproto.jsontag) = "old,omitempty"];
   // New is the new hash.
   string New = 4 [(gogoproto.jsontag) = "new,omitempty"];
-}
 ```
 
-Web UI can summarize push details based on `CommandMetadata` and
-`GitCommandAction`.
+#### Usage reporting
 
-In addition, a new view `git_command` should be added to Access Monitoring.
+There is no heartbeats for `git_server` with subkind `github`.
 
-#### Other UX considerations
-
-Users created by [GitHub
-Connector](https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/)
-will have the `github_usernames` trait populated automatically with their names.
-
-SSH node "Connect" functions on Teleport Web UI or Teleport Connected will be
-disabled for GitHub proxy server. Instead, clicking on the "Connect" button
-will open a dialog that shows instructions to use `tsh git clone` and `tsh git
-config`.
-
-Once the SSH CA is imported to GitHub, you cannot view it again. Only
-fingerprints are listed in the GitHub settings. Teleport should provide
-convenient ways to show the fingerprint while exporting the CA.
-
+Exising `SessionStartEvent` will be expanded to include git metadata with
+`session_type` of `git`:
+```grpc
+// SessionStartGitMetadata contains additional information about git commands.         
+message SessionStartGitMetadata {                                                                  
+  // git server subkind ("github").
+  string git_type = 1;             
+  // command service type ("git-upload-pack" or "git-receive-pack").
+  string command_service_type = 2;                                                        
+}
+```
 ### Security
-
-#### RBAC on GitHub proxy server
-
-Existing RBAC for a SSH node is used. Teleport users that require the GitHub
-proxy should be granted through existing `node_labels` (or
-`node_labels_expression`) that match the GitHub proxy server. And GitHub
-usernames are specified in existing `logins`.
 
 #### Client <-> Proxy transport
 
@@ -489,10 +588,10 @@ CA. Details on the key types for each suite can be found in [rfd
 #### RBAC on integration resources
 
 By default, private keys are not retrieved when listing or getting the
-integration type. A `--with-secrets` flag (for `tctl` commands) will be used to
+integration type. A `--with-secrets` flag (for `tctl` commands) must be used to
 retrive the private keys.
 
-Besides admin users that can get the private keys, only Auth service is allowed
+Besides admin users that can see the private keys, only Auth service is allowed
 to get the private keys.
 
 ## Future work
@@ -503,13 +602,10 @@ There is no built-in CA rotation functionality for the MVP. A `tctl auth rotate
 --integration` or `tctl integration rotate` command can be implemented in the
 future.
 
-One can still perform a graceful CA rotation with the MVP with these **manual**
-steps:
+One can still perform a CA rotation with the MVP with these **manual** steps:
 1. Create a new integration for the same organization and import the CA to GitHub.
-2. Test through a new GitHub proxy server that everything works.
-3. Either switch the old GitHub proxy server to the new integration, or copy
-   the new CA to the old integration.
-4. Clean up.
+2. Point the GitHub proxy server to the new integration.
+3. Clean up.
 
 ### Git protocol v2
 
@@ -519,23 +615,22 @@ investigate to support this in the future for performance improvement.
 
 ### `git` with OpenSSH
 
-An alternative to using `core.sshCommand` is to let `git` use OpenSSH where
-the OpenSSH config is updated with the output from `tsh config`. Then the git
-repo can be configured using
+An alternative to using `core.sshCommand` is to let `git` use OpenSSH where the
+OpenSSH config uses `tsh git ssh` as proxy commands. Then the git repo can be
+potentially configured using
 [`url.<base>.insteadOf`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-urlltbasegtinsteadOf):
 ```
-[url "ssh://<my-git-username>@<git-proxy-server>.<proxy-address>/<my-org>/"]
+[url "ssh://<my-git-username>@<my-org>.github-organization.<proxy-address>/<my-org>/"]
   insteadOf = <original-login>@github.com:<my-org>/
 ``` 
+
+This is out of scope of the initial MVP but can be potentially implemented with
+an `--openssh` flag for `tsh git clone/config` commands.
 
 Benefits of using OpenSSH on the client side includes ControlMaster support,
 Git Protocol V2, etc. However, `tsh proxy ssh` (called by OpenSSH) currently
 does not support per-session MFA. Technically, using OpenSSH is also an extra
 dependency but we do expect clients already have it installed.
-
-One can still manually configure their git repo and OpenSSH config to achieve
-the above. A `--openssh` flag can be added to `tsh git clone` and `tsh git
-config` in the future.
 
 ### HSM support
 
@@ -546,3 +641,18 @@ keys.
 
 One can still achieve HSM support **manually** with the MVP by creating a new
 integration on each Auth service and combines all the keys.
+
+### Machine ID
+
+Support for Git servers should be implemented similar to how SSH is supported
+today for Machine ID.
+
+As mentinoned earlier, since services like GitHub actions are not affected by
+this feature (by not using Teleport), Machine ID supported can be added after
+the MVP.
+
+### Access Request
+
+Git proxy servers will NOT support access requests the same way as SSH servers.
+The access request/access list controls will be implemented for GitHub IAM
+integration instead.
