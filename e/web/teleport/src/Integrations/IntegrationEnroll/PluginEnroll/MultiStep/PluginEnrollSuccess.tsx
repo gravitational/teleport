@@ -16,6 +16,7 @@ export function PluginEnrollSuccess() {
     eventId,
     successPrimaryButtonUrl,
     successPrimaryButtonText,
+    installedPlugin,
   } = usePlugin();
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export function PluginEnrollSuccess() {
   return (
     <Component
       plugin={selectedPlugin}
+      installedPluginName={installedPlugin.name}
       primaryButtonUrl={successPrimaryButtonUrl}
       primaryButtonText={successPrimaryButtonText}
     />

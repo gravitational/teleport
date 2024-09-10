@@ -10,7 +10,25 @@ import { OAuthPluginRegistered } from './PluginEnroll';
 import type { CloudHostablePlugin } from 'e-teleport/services/plugins';
 
 export function PluginEnrollSuccess(props: State) {
-  const { oauthSuccessData, plugin } = props;
+  const { oauthSuccessData, plugin, installedPluginName } = props;
+
+  let primaryButtonUrl = cfg.oss.routes.integrations;
+  let primaryButtonText = 'Go to Integration List';
+
+  if (props.primaryButtonUrl) {
+    primaryButtonUrl = props.primaryButtonUrl;
+  } else if (plugin.type === 'okta') {
+    primaryButtonUrl = cfg.oss.getIntegrationStatusRoute(
+      plugin.type,
+      installedPluginName
+    );
+  }
+
+  if (props.primaryButtonText) {
+    primaryButtonText = props.primaryButtonText;
+  } else if (plugin.type === 'okta') {
+    primaryButtonText = 'Go to Okta Status Page';
+  }
 
   return (
     <Flex flexDirection="column" alignItems="center" mt="6">
@@ -23,10 +41,8 @@ export function PluginEnrollSuccess(props: State) {
       </Box>
 
       <Flex gap="2" my="3">
-        <Link to={props.primaryButtonUrl || cfg.oss.routes.integrations}>
-          <ButtonPrimary>
-            {props.primaryButtonText || 'Go to Integration List'}
-          </ButtonPrimary>
+        <Link to={primaryButtonUrl}>
+          <ButtonPrimary>{primaryButtonText}</ButtonPrimary>
         </Link>
         <Link to={cfg.oss.getIntegrationEnrollRoute(null)}>
           <ButtonSecondary>Add Another Integration</ButtonSecondary>
@@ -38,6 +54,7 @@ export function PluginEnrollSuccess(props: State) {
 
 type State = {
   plugin: CloudHostablePlugin;
+  installedPluginName: string;
   oauthSuccessData?: OAuthPluginRegistered;
   primaryButtonText?: string | null;
   primaryButtonUrl?: string | null;

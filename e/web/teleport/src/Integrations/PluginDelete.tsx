@@ -7,6 +7,7 @@ import Dialog, {
   DialogFooter,
 } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { PluginKind } from 'teleport/services/integrations';
 
 export function PluginDelete(props: Props) {
   const { onClose, onDelete } = props;
@@ -24,7 +25,7 @@ export function PluginDelete(props: Props) {
       </DialogHeader>
       <DialogContent width="450px">
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-        <P1>Are you sure you want to delete this plugin?</P1>
+        <P1>Are you sure you want to delete the {props.pluginKind} plugin?</P1>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>
@@ -41,4 +42,5 @@ export function PluginDelete(props: Props) {
 type Props = {
   onClose(): void;
   onDelete(): Promise<void>;
+  pluginKind: PluginKind;
 };

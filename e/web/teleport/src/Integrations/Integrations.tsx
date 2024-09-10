@@ -77,6 +77,7 @@ export function Integrations(props: State) {
         <PluginDelete
           onClose={pluginOps.onCancelDelete}
           onDelete={() => pluginOps.onDelete(pluginOps.item as Plugin)}
+          pluginKind={(pluginOps.item as Plugin).kind}
         />
       )}
       {externalAuditStorageOps.type === 'delete' && (

@@ -91,6 +91,7 @@ const cfg = {
     pluginValidatePath: '/v1/enterprise/plugins/validate',
     pluginNeedsCleanupPath: '/v1/enterprise/plugins/needscleanup/:kind',
     pluginCleanupPath: '/v1/enterprise/plugins/cleanup/:kind',
+    pluginStatusPath: '/v1/enterprise/plugins/status/:name',
 
     okta: {
       groups: '/v1/enterprise/pluginconfig/okta/groups',
@@ -244,6 +245,10 @@ const cfg = {
 
   getPluginValidateUrl() {
     return generatePath(cfg.api.pluginValidatePath);
+  },
+
+  getPluginStatusUrl(name: string) {
+    return generatePath(cfg.api.pluginStatusPath, { name });
   },
 
   getAccessMonitoringReportRoute(name: string, days: number) {

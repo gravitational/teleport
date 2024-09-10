@@ -1,12 +1,17 @@
 import api from 'teleport/services/api';
 import { CtaEvent } from 'teleport/services/userEvent';
 import auth from 'teleport/services/auth/auth';
+import { PluginStatusOkta } from 'teleport/services/integrations/oktaStatusTypes';
 
 import cfg from 'e-teleport/config';
 
 import { PluginConfigOktaGroup, PluginConfigOktaApp } from './types';
 
-import type { Plugin, PluginKind } from 'teleport/services/integrations';
+import type {
+  Plugin,
+  PluginKind,
+  PluginStatus,
+} from 'teleport/services/integrations';
 
 export const pluginsService = {
   fetchAvailableTypes(): Promise<PluginKind[]> {
@@ -56,6 +61,10 @@ export const pluginsService = {
       .postFormData(cfg.api.okta.apps, formData)
       .then(resp => resp || []);
   },
+
+  fetchPlugin(name: string): Promise<Plugin> {
+    return api.get(cfg.getPluginUrl(name)).then(makePlugin);
+  },
 };
 
 export function makePlugins(json: any): Plugin[] {
@@ -65,7 +74,23 @@ export function makePlugins(json: any): Plugin[] {
 
 function makePlugin(json: any): Plugin {
   json = json || {};
-  const { name, details, statusCode, type, spec } = json;
+  const { name, details, statusCode, type, spec, status } = json;
+
+  let madeStatus: PluginStatus;
+  if (status) {
+    madeStatus = {
+      code: status.code,
+      lastRun: new Date(status.lastRun),
+      errorMessage: status.errorMessage,
+    };
+
+    if (status.details) {
+      if (type === 'okta' && status.details?.okta) {
+        madeStatus.details = makeOktaPluginStatus(status.details.okta);
+      }
+    }
+  }
+
   return {
     resourceType: 'plugin',
     name,
@@ -73,7 +98,101 @@ function makePlugin(json: any): Plugin {
     spec,
     kind: type,
     statusCode,
+    status: madeStatus,
   };
+}
+
+function makeOktaPluginStatus(rawOktaDetails): PluginStatusOkta {
+  const {
+    sso_details,
+    app_group_sync_details,
+    users_sync_details,
+    scim_details,
+    access_lists_sync_details,
+  } = rawOktaDetails;
+
+  let status: PluginStatusOkta = {};
+
+  if (sso_details) {
+    const { enabled, app_id, app_name } = sso_details;
+    status.ssoDetails = {
+      enabled: enabled,
+      appId: app_id || '',
+      appName: app_name || '',
+    };
+  }
+
+  if (app_group_sync_details) {
+    const {
+      enabled,
+      status_code,
+      last_successful,
+      last_failed,
+      num_apps_synced,
+      num_groups_synced,
+      error,
+    } = app_group_sync_details;
+    status.appGroupSyncDetails = {
+      enabled,
+      statusCode: status_code,
+      lastSuccess: new Date(last_successful),
+      lastFailed: new Date(last_failed),
+      numApps: num_apps_synced || 0,
+      numGroups: num_groups_synced || 0,
+      error,
+    };
+  }
+
+  if (users_sync_details) {
+    const {
+      enabled,
+      status_code,
+      last_successful,
+      last_failed,
+      num_users_synced,
+      error,
+    } = users_sync_details;
+
+    status.usersSyncDetails = {
+      enabled,
+      statusCode: status_code,
+      lastSuccess: new Date(last_successful),
+      lastFailed: new Date(last_failed),
+      numUsers: num_users_synced || 0,
+      error,
+    };
+  }
+
+  if (scim_details) {
+    status.scimDetails = { enabled: scim_details.enabled };
+  }
+
+  if (access_lists_sync_details) {
+    const {
+      enabled,
+      status_code,
+      last_successful,
+      last_failed,
+      app_filters,
+      num_apps_synced,
+      group_filters,
+      num_groups_synced,
+      error,
+    } = access_lists_sync_details;
+    status.accessListsSyncDetails = {
+      enabled,
+      statusCode: status_code,
+      lastFailed: new Date(last_failed),
+      lastSuccess: new Date(last_successful),
+      appFilters: app_filters || [],
+      numApps: num_apps_synced || 0,
+      groupFilters: group_filters || [],
+      numGroups: num_groups_synced || 0,
+      error,
+    };
+  }
+
+  return status;
 }
 
 export function getCTAForPlugin(plugin: PluginKind) {

@@ -280,6 +280,8 @@ const MockInstalledPlugin: React.FC<PropsWithChildren> = ({ children }) => {
         oktaAppName: 'okta-app-name',
         teleportSsoConnector: 'teleport-sso-connector',
         error: '',
+        orgUrl: '',
+        defaultOwners: [],
       },
     });
 

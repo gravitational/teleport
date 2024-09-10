@@ -37,6 +37,7 @@ import { Discover as DiscoverE } from 'e-teleport/Discover';
 import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
+import { IntegrationStatus } from 'e-teleport/Integrations/IntegrationStatus';
 
 import type {
   FeatureFlags,
@@ -331,6 +332,22 @@ class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   }
 }
 
+class FeatureIntegrationStatus implements TeleportFeature {
+  category = NavigationCategory.Management;
+
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Status',
+    path: cfg.oss.routes.integrationStatus,
+    component: IntegrationStatus,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.plugins;
+  }
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -423,6 +440,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
+    new FeatureIntegrationStatus(),
 
     // - Permissions
     new OSS.FeatureRoles(),

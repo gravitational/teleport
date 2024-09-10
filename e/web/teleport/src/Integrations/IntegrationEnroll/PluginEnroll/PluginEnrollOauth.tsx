@@ -107,6 +107,7 @@ export function PluginEnrollOAuth({ plugin }: { plugin: CloudHostablePlugin }) {
       <PluginEnrollSuccess
         plugin={plugin}
         oauthSuccessData={enrollResponse.success}
+        installedPluginName={enrollResponse.success.name}
       />
     );
   }

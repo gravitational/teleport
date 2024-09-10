@@ -62,6 +62,7 @@ export function PluginEnrollSingleStep({
         plugin={plugin}
         primaryButtonUrl={successPrimaryButtonUrl}
         primaryButtonText={successPrimaryButtonText}
+        installedPluginName={enrollResponse.name}
       />
     );
   }

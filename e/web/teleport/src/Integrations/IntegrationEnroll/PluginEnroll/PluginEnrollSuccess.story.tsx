@@ -19,6 +19,7 @@ export const SuccessfullyEnrolledOkta = () => {
       <Route path={cfg.routes.integrationEnroll}>
         <PluginEnrollSuccess
           plugin={pluginMap['okta'] as CloudHostablePlugin}
+          installedPluginName="okta"
         />
         ;
       </Route>
@@ -33,6 +34,7 @@ export const SuccessfullyEnrolledEntraId = () => {
       <Route path={cfg.routes.integrationEnroll}>
         <PluginEnrollSuccess
           plugin={pluginMap['entra-id'] as CloudHostablePlugin}
+          installedPluginName="entra"
         />
         ;
       </Route>

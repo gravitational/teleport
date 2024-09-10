@@ -18,5 +18,11 @@ export function DeleteExternalAuditStorage() {
 }
 
 export function DeletePlugin() {
-  return <PluginDelete onClose={() => {}} onDelete={async () => {}} />;
+  return (
+    <PluginDelete
+      onClose={() => {}}
+      onDelete={async () => {}}
+      pluginKind="okta"
+    />
+  );
 }
