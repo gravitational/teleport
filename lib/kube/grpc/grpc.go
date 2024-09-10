@@ -35,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -69,9 +70,9 @@ func New(cfg Config) (*Server, error) {
 type Config struct {
 	// Signer is a auth server client to sign Kubernetes Certificates.
 	Signer CertificateSigner
-	// AccessPoint is caching access point to retrieve search and preview roles
-	// from the backend.
-	AccessPoint services.RoleGetter
+	// AccessPoint is caching access point to retrieve roles and the cluster
+	// auth preference.
+	AccessPoint AccessPoint
 	// Authz authenticates user.
 	Authz authz.Authorizer
 	// Log is the logger function.
@@ -91,6 +92,13 @@ type CertificateSigner interface {
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.
 	ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error)
+}
+
+// AccessPoint is caching access point to retrieve roles and the cluster
+// auth preference.
+type AccessPoint interface {
+	services.RoleGetter
+	cryptosuites.AuthPreferenceGetter
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -272,7 +280,7 @@ func (s *Server) iterateKubernetesResources(
 	respectLimit bool,
 	fn func(*types.KubernetesResourceV1, string) (int, error),
 ) error {
-	kubeClient, err := s.newKubernetesClient(s.cfg.ClusterName, identity)
+	kubeClient, err := s.newKubernetesClient(ctx, s.cfg.ClusterName, identity)
 	if err != nil {
 		s.cfg.Log.WithError(err).Warnf("unable to create a Kubernetes client for user %q", identity.Username)
 		// Hide the root cause of the error from the client.
