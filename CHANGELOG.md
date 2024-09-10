@@ -1,5 +1,14 @@
 # Changelog
 
+## 16.2.2 (09/10/24)
+
+* Fixed an issue that prevented the Firestore backend from reading existing data. [#46433](https://github.com/gravitational/teleport/issues/46433)
+* The `teleport-kube-agent` chart now correctly propagates configured annotations when deploying a StatefulSet. [#46421](https://github.com/gravitational/teleport/issues/46421)
+* Fixed regression with Slack notification rules matching on plugin name instead of type. [#46391](https://github.com/gravitational/teleport/issues/46391)
+* Update `tsh puttyconfig` to respect any defined proxy templates. [#46384](https://github.com/gravitational/teleport/issues/46384)
+* Ensure that additional pod labels are carried over to post-upgrade and post-delete hook job pods when using the `teleport-kube-agent` Helm chart. [#46232](https://github.com/gravitational/teleport/issues/46232)
+* Fix bug that renders WebUI unusable if a role is deleted while it is still being in use by the logged in user. [#45774](https://github.com/gravitational/teleport/issues/45774)
+
 ## 16.2.1 (09/05/24)
 
 * Fixed debug service not being turned off by configuration; Connect My Computer in Teleport Connect should no longer fail with "bind: invalid argument". [#46293](https://github.com/gravitational/teleport/issues/46293)
