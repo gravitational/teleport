@@ -2354,12 +2354,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return nil
 	})
 	process.RegisterFunc("auth.heartbeat.broadcast", func() error {
-		// Heart beat auth server presence, this is not the best place for this
-		// logic, consolidate it into auth package later
-		connector, err := process.connectToAuthService(types.RoleAdmin)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		// External integrations rely on this event:
 		process.BroadcastEvent(Event{Name: AuthIdentityEvent, Payload: connector})
 		process.OnExit("auth.broadcast", func(payload interface{}) {
