@@ -45,7 +45,8 @@ metadata:
   # name is a unique identifier for the Bot in the cluster.
   name: example
 spec:
-  # we specify the role that we just created to grant it to the Bot
+  # The terraform-provider is a default role shipped in Teleport granting access
+  # to every resource supported by the terraform provider.
   roles:
     - terraform-provider
 ```
