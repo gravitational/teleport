@@ -23,7 +23,7 @@ via the web UI. Their roles and traits can be modified directly in Teleport.
 
 Internal users can authenticate using credentials managed within Teleport, such as:
     - Username and password
-    - Second-factor authentication (2FA), such as TOTP (time-based one-time passwords) or U2F (universal second factor).
+    - Multi-factor authentication (2FA), such as TOTP (time-based one-time passwords) or U2F (universal second factor).
 
   Internal users are assigned roles that define what resources they can access and what actions they can perform within the Teleport cluster.
   They are typically used for small to mid-size deployments where user management is handled directly in Teleport without relying on external identity providers.
@@ -33,7 +33,7 @@ Internal users can authenticate using credentials managed within Teleport, such 
 External users are authenticated via third-party identity providers, such as Single Sign-On (SSO) platforms, through protocols like SAML or OAuth (OIDC). These are often referred to as SSO users.
 
 External users authenticate using external Identity Providers (IdP) like:
-    - Okta, Google, GitHub, Microsoft Azure Active Directory, or other SAML/OIDC providers.
+    - Okta, Google, GitHub, Microsoft Entra ID, or other SAML/OIDC providers.
     - These users do not manage their passwords or credentials within Teleport itself. Instead, they authenticate using their external SSO credentials.
 
   Instead of manually assigning roles in Teleport, external users’ roles are mapped based on attributes from the identity provider (e.g., groups in Okta or teams in GitHub). 
@@ -61,9 +61,9 @@ Admins create and assign roles to manage who can access which parts of the infra
 
     Some examples of roles include:
 
-        access: Grants basic access to resources.
-        editor: Allows users to modify configuration settings.
-        auditor: Allows viewing logs and auditing activities.
+      - access: Grants basic access to resources.
+      - editor: Allows users to modify configuration settings.
+      - auditor: Allows users to view logs and auditing activities.
 
 Roles enforce Role-Based Access Control (RBAC), ensuring that users only have the permissions needed for their specific tasks. 
 See [Teleport Access Controls Reference](../../reference/access-controls/roles.mdx) for in-depth information about types of roles, options, and usage.
