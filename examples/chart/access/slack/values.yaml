@@ -92,10 +92,10 @@ log:
   # will still go to `stderr` for resilience.
   output: stdout
 
-# tbot -- control the optional tbot deployment that obtains and renews
+# tbot -- controls the optional tbot deployment that obtains and renews
 # credentials for the plugin to connect to Teleport.
 # Only default and mandatory values are described here, see the tbot chart reference
-# for the list of supported values.
+# for the full list of supported values.
 tbot:
   # tbot.enabled(bool) -- controls if tbot should be deployed with the slack plugin.
   enabled: false
