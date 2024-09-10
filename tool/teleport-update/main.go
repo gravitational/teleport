@@ -67,11 +67,6 @@ const (
 )
 
 const (
-	// cdnURITemplate is the default template for the Teleport tgz download.
-	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
-)
-
-const (
 	// versionsDirName specifies the name of the subdirectory inside of the Teleport data dir for storing Teleport versions.
 	versionsDirName = "versions"
 	// updatesFileName specifies the name of the file inside versionsDirName containing configuration for the teleport update
@@ -93,17 +88,29 @@ type cliConfig struct {
 	Debug bool
 	// DataDir for Teleport (usually /var/lib/teleport)
 	DataDir string
-
-	// ProxyServer address, scheme and port optional
-	ProxyServer string
-	// Group identifier for updates (e.g., staging)
-	Group string
-	// Template for the Teleport tgz download URL
-	Template string
-
 	// LogFormat controls the format of logging. Can be either `json` or `text`.
 	// By default, this is `text`.
 	LogFormat string
+
+	// ProxyServer address, scheme and port optional.
+	// Overrides existing value if specified.
+	ProxyServer string
+	// Group identifier for updates (e.g., staging)
+	// Overrides existing value if specified.
+	Group string
+	// Template for the Teleport tgz download URL
+	// Overrides existing value if specified.
+	Template string
+}
+
+func (c *cliConfig) CheckAndSetDefaults() error {
+	if c.DataDir == "" {
+		c.DataDir = libdefaults.DataDir
+	}
+	if c.LogFormat == "" {
+		c.LogFormat = libutils.LogFormatText
+	}
+	return nil
 }
 
 func Run(args []string) error {
@@ -242,10 +249,10 @@ func readUpdatesConfig(path string) (*UpdatesConfig, error) {
 
 // writeUpdatesConfig writes updates.yaml atomically, ensuring the file cannot be corrupted.
 func writeUpdatesConfig(filename string, cfg *UpdatesConfig) error {
-	opts := append([]renameio.Option{
+	opts := []renameio.Option{
 		renameio.WithPermissions(0755),
 		renameio.WithExistingPermissions(),
-	})
+	}
 	t, err := renameio.NewPendingFile(filename, opts...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -268,7 +275,11 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer unlock()
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
 	cfg, err := readUpdatesConfig(updatesYAML)
 	if err != nil {
 		return trace.Errorf("failed to read updates.yaml: %w", err)
@@ -294,7 +305,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return trace.NotImplemented("TODO")
 }
 
-func lock(lockFile string, nonblock bool) (func(), error) {
+func lock(lockFile string, nonblock bool) (func() error, error) {
 	if err := os.MkdirAll(filepath.Dir(lockFile), 0755); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,11 +325,7 @@ func lock(lockFile string, nonblock bool) (func(), error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return func() {
-		if err := lf.Close(); err != nil {
-			plog.Debug("Failed to close lock file", "file", lockFile, "error", err)
-		}
-	}, nil
+	return lf.Close, nil
 }
 
 // fdSyscall should be used instead of f.Fd() when performing syscalls on fds.
@@ -336,6 +343,7 @@ func fdSyscall(f *os.File, fn func(uintptr) error) error {
 	return trace.Wrap(err)
 }
 
+//nolint:unused
 type downloadConfig struct {
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
@@ -346,6 +354,7 @@ type downloadConfig struct {
 	Timeout time.Duration
 }
 
+//nolint:unused
 func newClient(cfg *downloadConfig) (*http.Client, error) {
 	rt := apiutils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
@@ -362,14 +371,4 @@ func newClient(cfg *downloadConfig) (*http.Client, error) {
 		Transport: tracehttp.NewTransport(rt),
 		Timeout:   cfg.Timeout,
 	}, nil
-}
-
-func (c *cliConfig) CheckAndSetDefaults() error {
-	if c.DataDir == "" {
-		c.DataDir = libdefaults.DataDir
-	}
-	if c.LogFormat == "" {
-		c.LogFormat = libutils.LogFormatText
-	}
-	return nil
 }
