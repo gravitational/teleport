@@ -127,13 +127,13 @@ type Backend struct {
 }
 
 type record struct {
-	Key        backend.Key `firestore:"key,omitempty"`
-	Timestamp  int64       `firestore:"timestamp,omitempty"`
-	Expires    int64       `firestore:"expires,omitempty"`
-	ID         int64       `firestore:"id,omitempty"`
-	Value      []byte      `firestore:"value,omitempty"`
-	RevisionV2 string      `firestore:"revision,omitempty"`
-	RevisionV1 string      `firestore:"-"`
+	Key        []byte `firestore:"key,omitempty"`
+	Timestamp  int64  `firestore:"timestamp,omitempty"`
+	Expires    int64  `firestore:"expires,omitempty"`
+	ID         int64  `firestore:"id,omitempty"`
+	Value      []byte `firestore:"value,omitempty"`
+	RevisionV2 string `firestore:"revision,omitempty"`
+	RevisionV1 string `firestore:"-"`
 }
 
 func (r *record) updates() []firestore.Update {
@@ -163,9 +163,21 @@ type legacyRecord struct {
 	Value     string `firestore:"value,omitempty"`
 }
 
+// brokenRecord is an incorrect version of record used to marshal backend.Items.
+// The Key type was inadvertently changed from a []byte to backend.Key which
+// causes problems reading existing data prior to the conversion.
+type brokenRecord struct {
+	Key        backend.Key `firestore:"key,omitempty"`
+	Timestamp  int64       `firestore:"timestamp,omitempty"`
+	Expires    int64       `firestore:"expires,omitempty"`
+	Value      []byte      `firestore:"value,omitempty"`
+	ID         int64       `firestore:"id,omitempty"`
+	RevisionV2 string      `firestore:"revision,omitempty"`
+}
+
 func newRecord(from backend.Item, clock clockwork.Clock) record {
 	r := record{
-		Key:       from.Key,
+		Key:       []byte(from.Key.String()),
 		Value:     from.Value,
 		Timestamp: clock.Now().UTC().Unix(),
 		ID:        id(clock.Now()),
@@ -184,23 +196,48 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 }
 
 func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
+	k, err := doc.DataAt(keyDocProperty)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var r record
-	if err := doc.DataTo(&r); err != nil {
-		// If unmarshal failed, try using the old format of records, where
-		// Value was a string. This document could've been written by an older
-		// version of our code.
-		var rl legacyRecord
-		if doc.DataTo(&rl) != nil {
+	switch k.(type) {
+	case []any:
+		// If the key is a slice of any, then the key was mistakenly persisted
+		// as a backend.Key directly.
+		var br brokenRecord
+		if doc.DataTo(&br) != nil {
 			return nil, ConvertGRPCError(err)
 		}
+
 		r = record{
-			Key:       backend.Key(rl.Key),
-			Value:     []byte(rl.Value),
-			Timestamp: rl.Timestamp,
-			Expires:   rl.Expires,
-			ID:        rl.ID,
+			Key:        br.Key,
+			Value:      br.Value,
+			Timestamp:  br.Timestamp,
+			Expires:    br.Expires,
+			RevisionV2: br.RevisionV2,
+			ID:         br.ID,
+		}
+	default:
+		if err := doc.DataTo(&r); err != nil {
+			// If unmarshal failed, try using the old format of records, where
+			// Value was a string. This document could've been written by an older
+			// version of our code.
+			var rl legacyRecord
+			if doc.DataTo(&rl) != nil {
+				return nil, ConvertGRPCError(err)
+			}
+			r = record{
+				Key:       backend.Key(rl.Key),
+				Value:     []byte(rl.Value),
+				Timestamp: rl.Timestamp,
+				Expires:   rl.Expires,
+				ID:        rl.ID,
+			}
 		}
 	}
+
 	if r.RevisionV2 == "" {
 		r.RevisionV1 = toRevisionV1(doc.UpdateTime)
 	}
@@ -218,7 +255,7 @@ func (r *record) isExpired(now time.Time) bool {
 
 func (r *record) backendItem() backend.Item {
 	bi := backend.Item{
-		Key:   r.Key,
+		Key:   backend.Key(r.Key),
 		Value: r.Value,
 		ID:    r.ID,
 	}
@@ -444,6 +481,22 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 		limit = backend.DefaultRangeLimit
 	}
 	docs, err := b.svc.Collection(b.CollectionName).
+		Where(keyDocProperty, ">=", []byte(startKey.String())).
+		Where(keyDocProperty, "<=", []byte(endKey.String())).
+		Limit(limit).
+		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	legacyDocs, err := b.svc.Collection(b.CollectionName).
+		Where(keyDocProperty, ">=", startKey.String()).
+		Where(keyDocProperty, "<=", endKey.String()).
+		Limit(limit).
+		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	brokenDocs, err := b.svc.Collection(b.CollectionName).
 		Where(keyDocProperty, ">=", startKey).
 		Where(keyDocProperty, "<=", endKey).
 		Limit(limit).
@@ -451,16 +504,8 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	legacyDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", string(startKey)).
-		Where(keyDocProperty, "<=", string(endKey)).
-		Limit(limit).
-		Documents(ctx).GetAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	allDocs := append(docs, legacyDocs...)
+	allDocs := append(append(docs, legacyDocs...), brokenDocs...)
 	if len(allDocs) >= backend.DefaultRangeLimit {
 		b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
