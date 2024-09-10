@@ -200,7 +200,19 @@ Usually, a new SSO user without a registered MFA device can add their first
 device without an additional authentication check. With SSO MFA, we can include
 an MFA check even for the first device.
 
-TODO:: show tsh add and delete
+```console
+> tsh mfa add
+Choose device type [TOTP, WEBAUTHN]: WEBAUTHN
+Enter device name: yubi
+Allow passwordless logins [YES, NO]: NO
+Complete an auth check in your local web browser:
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:53129/65ddd8d8-0616-4b61-b442-595871838247
+
+### complete registration
+Tap your *new* security key
+...
+```
 
 #### Existing SSO user with registered MFA method
 
