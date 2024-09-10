@@ -416,22 +416,25 @@ sequenceDiagram
     Note over Client: Prepare SSO client callback URL
     par mfa challenge request
         Client ->> Teleport: rpc CreateAuthenticateRequest<br/>w/ client callback url
-        Teleport ->> Teleport: create SSO MFA session
-        Teleport ->> Client: SSOChallenge{ redirect URL, request ID }
+        Teleport ->> Teleport: create SSO Auth request
+        Teleport ->> Teleport: SSO MFA session for { request_id, username }
+        Teleport ->> Client: SSOChallenge{ redirect_url, request_id }
     end    
     Note over Client: Prompt user to complete SSO MFA check
     par mfa challenge response
         Client ->> Identity Provider: browse to redirect URL
         Identity Provider ->> Identity Provider: login and pass configured MFA check
         Identity Provider ->> Teleport: send successful IdP auth response
-        Teleport ->> Teleport: save MFA token in SSO MFA session
-        Teleport ->> Identity Provider: return client callback URL<br/>w/ encode encrypted MFA token in query params
+        Teleport ->> Teleport: verify IdP username matches the SSO Auth request username
+        Teleport ->> Teleport: retrieve SSO MFA session for { request_id, username }<br/>and add an mfa_token
+        Teleport ->> Identity Provider: return client callback URL<br/>w/ encode encrypted mfa_token in query params
         Identity Provider -> Client: redirect
     end
-    Note over Client: Decode and decrypt MFA token<br/>from redirect query params
+    Note over Client: Decode and decrypt mfa_token<br/>from redirect query params
     par mfa response validation
-        Client ->> Teleport: rpc GenerateUserSingleUseCerts<br/>w/ SSO MFA token
-        Teleport ->> Teleport: check MFA token against SSO MFA session
+        Client ->> Teleport: rpc GenerateUserSingleUseCerts<br/>w/ SSOChallengeResponse{ request_id, mfa_token }
+        Teleport ->> Teleport: retrieve SSO MFA session for { request_id, username }
+        Teleport ->> Teleport: check mfa_token against SSO MFA session
         Teleport ->> Client: issue MFA verified certs
     end
     Client ->> Node: connect w/ MFA verified certs
@@ -506,20 +509,20 @@ message SSOChallenge {
 ```
 
 ```diff
-message MFAAuthenticateResponse {
-  oneof Response {
-    TOTPResponse TOTP = 2;
-    webauthn.CredentialAssertionResponse Webauthn = 3;
-+   SSOResponse SSO = 4;
-  }
+message MFAAuthenticateChallenge {
+  ...
++ // SSO Challenge is an sso MFA challenge. If set, the client can go to the
++ // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA
++ // token. This token and sso request pair can then be used as MFA verification.
++ SSOChallenge SSOChallenge = 5;
 }
 ```
 
-**SSOResponse**
+**SSOChallengeResponse**
 
 ```proto
-// SSOResponse is a response to SSOChallenge.
-message SSOResponse {
+// SSOChallengeResponse is a response to SSOChallenge.
+message SSOChallengeResponse {
   // RequestId is the ID of an SSO auth request.
   string request_id = 1;
   // MFAToken is a secret token used to verify the user's SSO MFA session.
@@ -528,12 +531,12 @@ message SSOResponse {
 ```
 
 ```diff
-message MFAAuthenticateChallenge {
-  ...
-+ // SSO Challenge is an sso MFA challenge. If set, the client can go to the
-+ // IdP redirect URL to perform an MFA check in the IdP and obtain an MFA
-+ // token. This token and sso request pair can then be used as MFA verification.
-+ SSOChallenge SSOChallenge = 5;
+message MFAAuthenticateResponse {
+  oneof Response {
+    TOTPResponse TOTP = 2;
+    webauthn.CredentialAssertionResponse Webauthn = 3;
++   SSOChallengeResponse SSO = 4;
+  }
 }
 ```
 
@@ -686,7 +689,27 @@ message GithubConnectorSpecV3 {
 }
 ```
 
-**SSOAuthRequest**
+**SSOAuthRequests**
+
+```diff
+message SAMLAuthRequest {
+  ...
++ // Username is the Teleport username for the auth request. This must be set for MFA requests.
++ string Username = 19 [(gogoproto.jsontag) = "username,omitempty"];
+}
+
+message OIDCAuthRequest {
+  ...
++ // Username is the Teleport username for the auth request. This must be set for MFA requests.
++ string Username = 20 [(gogoproto.jsontag) = "username,omitempty"];
+}
+
+message GithubAuthRequest {
+  ...
++ // Username is the Teleport username for the auth request. This must be set for MFA requests.
++ string Username = 19 [(gogoproto.jsontag) = "username,omitempty"];
+}
+```
 
 ### Backward Compatibility
 
