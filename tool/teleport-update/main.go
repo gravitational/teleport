@@ -203,8 +203,10 @@ type UpdatesConfig struct {
 	Version string `yaml:"version"`
 	// Kind of configuration file (always "updates")
 	Kind string `yaml:"kind"`
-	// Spec contains configuration.
+	// Spec contains user-specified configuration.
 	Spec UpdatesSpec `yaml:"spec"`
+	// Status contains state configuration.
+	Status UpdatesStatus `yaml:"status"`
 }
 
 // UpdatesSpec describes the spec field in updates.yaml.
@@ -217,6 +219,10 @@ type UpdatesSpec struct {
 	URLTemplate string `yaml:"url_template"`
 	// Enabled controls whether auto-updates are enabled.
 	Enabled bool `yaml:"enabled"`
+}
+
+// UpdatesStatus describes the status field in updates.yaml.
+type UpdatesStatus struct {
 	// ActiveVersion is the currently active Teleport version.
 	ActiveVersion string `yaml:"active_version"`
 }
