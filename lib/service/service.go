@@ -959,7 +959,7 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	return trace.Wrap(RunWithSignalChannel(ctx, cfg, newTeleport, sigC))
 }
 
-// RunWithSystemSignals starts the Teleport process and waits for signals to
+// RunWithSignalChannel starts the Teleport process and waits for signals to
 // terminate it or trigger a fork. It will also close the process if a critical
 // service exits with an error. The process will be closed when the context is
 // done.
