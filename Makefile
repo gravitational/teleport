@@ -1803,10 +1803,8 @@ rustup-install-target-toolchain: rustup-set-version
 #	make -s changelog
 #
 # For more advanced usage you can set the BASE_BRANCH and/or BASE_TAG variables:
-# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make -s changelog
-#
-# BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
+# 	make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# 	BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make -s changelog
 .PHONY: changelog
 changelog: CHANGELOG_VERSION = v1.0.2
 changelog: $(CHANGELOG)
