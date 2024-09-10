@@ -10,5 +10,4 @@ appVersion: *version
 dependencies:
   - name: tbot
     version: *version
-    repository: "file://../../tbot"
     condition: tbot.enabled
