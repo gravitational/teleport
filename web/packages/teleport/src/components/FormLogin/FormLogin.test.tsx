@@ -20,7 +20,14 @@ import React from 'react';
 
 import { render, fireEvent, screen } from 'design/utils/testing';
 
+import history from 'teleport/services/history';
+
 import FormLogin, { Props } from './FormLogin';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+});
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();
