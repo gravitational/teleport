@@ -87,6 +87,11 @@ type Supervisor interface {
 	// value immediately. The broadcasting will stop when the context is done.
 	ListenForEvents(ctx context.Context, name string, eventC chan<- Event)
 
+	// ListenForNewEvent returns a channel that will receive the next event with
+	// the specified name. The returned [context.CancelFunc] should be called
+	// when the event is no longer needed. The channel will be closed after
+	// receiving the next event, after calling the returned cancel function or
+	// if the process is closed before the specified event is emitted.
 	ListenForNewEvent(name string) (<-chan Event, context.CancelFunc)
 
 	// RegisterEventMapping registers event mapping -
@@ -507,6 +512,7 @@ func (s *LocalSupervisor) ListenForNewEvent(name string) (<-chan Event, context.
 	outputC := make(chan Event, 1)
 	go func() {
 		defer close(outputC)
+		defer cancel()
 		select {
 		case <-ctx.Done():
 		case e := <-waiterC:
