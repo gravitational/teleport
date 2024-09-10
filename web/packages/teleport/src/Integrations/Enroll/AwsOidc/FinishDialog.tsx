@@ -95,12 +95,8 @@ function FooterButton({
 
   return (
     <Flex gap="3">
-      <ButtonPrimary
-        as={Link}
-        to={cfg.getIntegrationStatusRoute('okta', integration.name)}
-        size="large"
-      >
-        Go to Okta Status Page
+      <ButtonPrimary as={Link} to={cfg.routes.integrations} size="large">
+        Go to Integration List
       </ButtonPrimary>
       <ButtonSecondary
         as={Link}
