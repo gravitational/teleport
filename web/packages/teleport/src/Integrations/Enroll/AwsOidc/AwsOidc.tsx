@@ -46,10 +46,18 @@ import cfg from 'teleport/config';
 
 import { FinishDialog } from './FinishDialog';
 
-export function AwsOidc() {
-  const [integrationName, setIntegrationName] = useState('');
-  const [roleArn, setRoleArn] = useState('');
-  const [roleName, setRoleName] = useState('');
+type integrationConfig = {
+  name: string;
+  roleArn: string;
+};
+
+export function useAwsOidcIntegration() {
+  const [integrationConfig, setIntegrationConfig] = useState<integrationConfig>(
+    {
+      name: '',
+      roleArn: '',
+    }
+  );
   const [scriptUrl, setScriptUrl] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
@@ -73,6 +81,13 @@ export function AwsOidc() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function emitEvent(event: IntegrationEnrollEvent) {
+    userEventService.captureIntegrationEnrollEvent({
+      event,
+      eventData,
+    });
+  }
+
   function handleOnCreate(validator: Validator) {
     if (!validator.validate()) {
       return;
@@ -81,12 +96,13 @@ export function AwsOidc() {
     run(() =>
       integrationService
         .createIntegration({
-          name: integrationName,
+          name: integrationConfig.name,
           subKind: IntegrationKind.AwsOidc,
           awsoidc: {
-            roleArn,
+            roleArn: integrationConfig.roleArn,
           },
         })
+        // .createIntegration(integrationRequest)
         .then(res => {
           setCreatedIntegration(res);
 
@@ -98,13 +114,6 @@ export function AwsOidc() {
     );
   }
 
-  function emitEvent(event: IntegrationEnrollEvent) {
-    userEventService.captureIntegrationEnrollEvent({
-      event,
-      eventData,
-    });
-  }
-
   function generateAwsOidcConfigIdpScript(validator: Validator) {
     if (!validator.validate()) {
       return;
@@ -113,65 +122,57 @@ export function AwsOidc() {
     validator.reset();
 
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
-      integrationName,
-      roleName,
+      integrationName: integrationConfig.name,
+      roleName: integrationConfig.name,
     });
 
     setScriptUrl(newScriptUrl);
   }
 
+  return {
+    integrationConfig,
+    setIntegrationConfig,
+    scriptUrl,
+    setScriptUrl,
+    createdIntegration,
+    handleOnCreate,
+    generateAwsOidcConfigIdpScript,
+    attempt,
+  };
+}
+
+export function AwsOidcIntegrationScriptGenerator({
+  createIntegration = true,
+}: {
+  createIntegration?: boolean;
+}) {
+  const {
+    integrationConfig,
+    setIntegrationConfig,
+    scriptUrl,
+    setScriptUrl,
+    createdIntegration,
+    handleOnCreate,
+    attempt,
+    generateAwsOidcConfigIdpScript,
+  } = useAwsOidcIntegration();
+
   return (
-    <Box pt={3}>
-      <Header>Set up your AWS account</Header>
-
-      <Box width="800px" mb={4}>
-        Instead of storing long-lived static credentials, Teleport will become a
-        trusted OIDC provider with AWS to be able to request short lived
-        credentials when performing operations automatically such as when
-        connecting{' '}
-        <RouteLink
-          to={{
-            pathname: `${cfg.routes.root}/discover`,
-            state: { searchKeywords: 'ec2' },
-          }}
-        >
-          AWS EC2
-        </RouteLink>{' '}
-        or{' '}
-        <RouteLink
-          to={{
-            pathname: `${cfg.routes.root}/discover`,
-            state: { searchKeywords: 'rds' },
-          }}
-        >
-          AWS RDS
-        </RouteLink>{' '}
-        instances during resource enrollment.
-      </Box>
-
+    <Box>
       <Validation>
         {({ validator }) => (
           <>
             <Container mb={5}>
-              <Text bold>Step 1</Text>
-              <Box width="600px">
-                <FieldInput
-                  autoFocus={true}
-                  value={integrationName}
-                  label="Give this AWS integration a name"
-                  placeholder="Integration Name"
-                  onChange={e => setIntegrationName(e.target.value)}
-                  disabled={!!scriptUrl}
-                />
-                <FieldInput
-                  rule={requiredIamRoleName}
-                  value={roleName}
-                  placeholder="IAM Role Name"
-                  label="IAM Role Name"
-                  onChange={e => setRoleName(e.target.value)}
-                  disabled={!!scriptUrl}
-                />
-              </Box>
+              <Text bold>Step 1: Configure AWS OIDC integraiton name</Text>
+              <Text>
+                The name will be used to as integraiton name and AWS IAM role
+                name.{' '}
+              </Text>
+              <AwdOidcConfigureName
+                integrationConfig={integrationConfig}
+                setIntegrationConfig={setIntegrationConfig}
+                disabled={!!scriptUrl}
+              />
               {scriptUrl ? (
                 <ButtonSecondary
                   mb={3}
@@ -194,47 +195,14 @@ export function AwsOidc() {
               <>
                 <Container mb={5}>
                   <Text bold>Step 2</Text>
-                  <Text mb={2}>
-                    Open{' '}
-                    <Link
-                      href="https://console.aws.amazon.com/cloudshell/home"
-                      target="_blank"
-                    >
-                      AWS CloudShell
-                    </Link>{' '}
-                    and copy and paste the command that configures the
-                    permissions for you:
-                  </Text>
-                  <Box mb={2}>
-                    <TextSelectCopyMulti
-                      lines={[
-                        {
-                          text: `bash -c "$(curl '${scriptUrl}')"`,
-                        },
-                      ]}
-                    />
-                  </Box>
+                  <AwsOidcShowCommand scriptUrl={scriptUrl} />
                 </Container>
                 <Container mb={5}>
                   <Text bold>Step 3</Text>
-                  After configuring is finished, go to your{' '}
-                  <Link
-                    target="_blank"
-                    href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${roleName}`}
-                  >
-                    IAM Role dashboard
-                  </Link>{' '}
-                  and copy and paste the ARN below.
-                  <FieldInput
-                    mt={2}
-                    rule={requiredRoleArn(roleName)}
-                    value={roleArn}
-                    label="Role ARN (Amazon Resource Name)"
-                    placeholder={`arn:aws:iam::123456789012:role/${roleName}`}
-                    width="430px"
-                    onChange={e => setRoleArn(e.target.value)}
+                  <AwsOidcConfigureRoleArn
+                    integrationConfig={integrationConfig}
+                    setIntegrationConfig={setIntegrationConfig}
                     disabled={attempt.status === 'processing'}
-                    toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
                   />
                 </Container>
               </>
@@ -245,27 +213,192 @@ export function AwsOidc() {
                 <Text color="error.main">Error: {attempt.statusText}</Text>
               </Flex>
             )}
-            <Box mt={6}>
-              <ButtonPrimary
-                onClick={() => handleOnCreate(validator)}
-                disabled={
-                  !scriptUrl || attempt.status === 'processing' || !roleArn
-                }
-              >
-                Create Integration
-              </ButtonPrimary>
-              <ButtonSecondary
-                ml={3}
-                as={InternalRouteLink}
-                to={cfg.getIntegrationEnrollRoute(null)}
-              >
-                Back
-              </ButtonSecondary>
-            </Box>
+            {createIntegration && (
+              <Box mt={6}>
+                <ButtonPrimary
+                  onClick={() => handleOnCreate(validator)}
+                  disabled={
+                    !scriptUrl ||
+                    attempt.status === 'processing' ||
+                    !integrationConfig.roleArn
+                  }
+                >
+                  Create Integration
+                </ButtonPrimary>
+                <ButtonSecondary
+                  ml={3}
+                  as={InternalRouteLink}
+                  to={cfg.getIntegrationEnrollRoute(null)}
+                >
+                  Back
+                </ButtonSecondary>
+              </Box>
+            )}
           </>
         )}
       </Validation>
       {createdIntegration && <FinishDialog integration={createdIntegration} />}
+    </Box>
+  );
+}
+
+export function AwdOidcConfigureName({
+  integrationConfig,
+  setIntegrationConfig,
+  disabled,
+}: {
+  integrationConfig: integrationConfig;
+  setIntegrationConfig: (ic: integrationConfig) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Box width="500px" mt={2}>
+      <FieldInput
+        rule={requiredIamRoleName}
+        autoFocus={true}
+        value={integrationConfig.name}
+        label="Give this AWS integration a name"
+        placeholder="Integration Name"
+        onChange={e =>
+          setIntegrationConfig({
+            ...integrationConfig,
+            name: e.target.value,
+          })
+        }
+        width="500px"
+        disabled={disabled}
+      />
+      {/* {showRoleNameInput && <FieldInput
+      rule={requiredIamRoleName}
+      value={integrationConfig.roleArn}
+      placeholder="IAM Role Name"
+      label="Give a name to an IAM role that this AWS integration will create"
+      onChange={e => setIntegrationRequest({...integrationRequest, awsoidc:{ roleArn: e.target.value}})}
+      disabled={!!scriptUrl}
+    />} */}
+    </Box>
+  );
+}
+
+export function AwsOidcShowCommand({
+  scriptUrl,
+  description,
+}: {
+  scriptUrl: string;
+  description?: React.ReactNode;
+}) {
+  return (
+    <Box>
+      {description || (
+        <Text>
+          Open{' '}
+          <Link
+            href="https://console.aws.amazon.com/cloudshell/home"
+            target="_blank"
+          >
+            AWS CloudShell
+          </Link>{' '}
+          and copy and paste the command that configures the permissions for you
+        </Text>
+      )}
+      <Box mb={2} mt={3}>
+        <TextSelectCopyMulti
+          lines={[
+            {
+              text: `bash -c "$(curl '${scriptUrl}')"`,
+            },
+          ]}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+export function AwsOidcConfigureRoleArn({
+  description,
+  integrationConfig,
+  setIntegrationConfig,
+  disabled,
+}: {
+  description?: React.ReactNode;
+  integrationConfig: integrationConfig;
+  setIntegrationConfig: (ic: integrationConfig) => void;
+  disabled: boolean;
+}) {
+  return (
+    <Box>
+      {description || (
+        <Text>
+          After configuring is finished, go to your{' '}
+          <Link
+            target="_blank"
+            href={`https://console.aws.amazon.com/iamv2/home#/roles/details/${integrationConfig.name}`}
+          >
+            IAM Role dashboard
+          </Link>{' '}
+          and copy and paste the ARN below.
+        </Text>
+      )}
+      <FieldInput
+        mt={3}
+        rule={requiredRoleArn(integrationConfig.name)}
+        value={integrationConfig.roleArn}
+        label="Role ARN (Amazon Resource Name)"
+        placeholder={`arn:aws:iam::123456789012:role/${integrationConfig.name}`}
+        width="500px"
+        onChange={e =>
+          setIntegrationConfig({
+            ...integrationConfig,
+            roleArn: e.target.value,
+          })
+        }
+        // onChange={e => setRoleArn(e.target.value)}
+        disabled={disabled}
+        toolTipContent={`Unique AWS resource identifier and uses the format: arn:aws:iam::<ACCOUNT_ID>:role/<IAM_ROLE_NAME>`}
+      />
+    </Box>
+  );
+}
+
+export function AwsOidc({
+  header,
+  subHeader,
+}: {
+  header?: string;
+  subHeader?: React.ReactNode;
+}) {
+  return (
+    <Box pt={3}>
+      <Header>{header || 'Set up your AWS account'}</Header>
+
+      {subHeader || (
+        <Box width="800px" mb={4}>
+          Instead of storing long-lived static credentials, Teleport will become
+          a trusted OIDC provider with AWS to be able to request short lived
+          credentials when performing operations automatically such as when
+          connecting{' '}
+          <RouteLink
+            to={{
+              pathname: `${cfg.routes.root}/discover`,
+              state: { searchKeywords: 'ec2' },
+            }}
+          >
+            AWS EC2
+          </RouteLink>{' '}
+          or{' '}
+          <RouteLink
+            to={{
+              pathname: `${cfg.routes.root}/discover`,
+              state: { searchKeywords: 'rds' },
+            }}
+          >
+            AWS RDS
+          </RouteLink>{' '}
+          instances during resource enrollment.
+        </Box>
+      )}
+
+      <AwsOidcIntegrationScriptGenerator />
     </Box>
   );
 }
