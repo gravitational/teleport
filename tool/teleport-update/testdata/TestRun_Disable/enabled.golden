@@ -1,5 +1,5 @@
 version: v1
-kind: updates
+kind: update_config
 spec:
     proxy: ""
     group: ""

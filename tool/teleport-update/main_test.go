@@ -36,16 +36,16 @@ func TestRun_Disable(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     []string
-		cfg      *UpdatesConfig // nil -> file not present
+		cfg      *UpdateConfig // nil -> file not present
 		errMatch string
 	}{
 		{
 			name: "enabled",
 			args: []string{"disable"},
-			cfg: &UpdatesConfig{
-				Version: updatesVersion,
-				Kind:    updatesKind,
-				Spec: UpdatesSpec{
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
 					Enabled: true,
 				},
 			},
@@ -53,10 +53,10 @@ func TestRun_Disable(t *testing.T) {
 		{
 			name: "already disabled",
 			args: []string{"disable"},
-			cfg: &UpdatesConfig{
-				Version: updatesVersion,
-				Kind:    updatesKind,
-				Spec: UpdatesSpec{
+			cfg: &UpdateConfig{
+				Version: updateConfigVersion,
+				Kind:    updateConfigKind,
+				Spec: UpdateSpec{
 					Enabled: false,
 				},
 			},
@@ -68,8 +68,8 @@ func TestRun_Disable(t *testing.T) {
 		{
 			name: "invalid metadata",
 			args: []string{"disable"},
-			cfg: &UpdatesConfig{
-				Spec: UpdatesSpec{
+			cfg: &UpdateConfig{
+				Spec: UpdateSpec{
 					Enabled: true,
 				},
 			},
@@ -81,7 +81,7 @@ func TestRun_Disable(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := filepath.Join(dir, versionsDirName, updatesFileName)
+			path := filepath.Join(dir, versionsDirName, configFileName)
 
 			// Create config file only if provided in test case
 			if tt.cfg != nil {
