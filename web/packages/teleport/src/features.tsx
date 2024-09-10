@@ -427,7 +427,7 @@ export class FeatureIntegrations implements TeleportFeature {
   navigationItem = {
     title: NavTitle.Integrations,
     icon: IntegrationsIcon,
-    exact: false,
+    exact: true,
     getLink() {
       return cfg.routes.integrations;
     },
