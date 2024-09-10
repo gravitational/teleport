@@ -498,7 +498,6 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
-	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {

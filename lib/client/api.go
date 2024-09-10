@@ -94,8 +94,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 )
 
-const SessionControlsInfo = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)\r\n"
-
 const (
 	AddKeysToAgentAuto = "auto"
 	AddKeysToAgentNo   = "no"
@@ -2161,9 +2159,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 			}
 		}
 	}
-
-	fmt.Printf("Joining session with participant mode: %v. \n", mode)
-	fmt.Printf(SessionControlsInfo)
 
 	// running shell with a given session means "join" it:
 	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
