@@ -74,11 +74,17 @@ const service = {
     }));
   },
 
-  getAppFqdn(params: UrlAppParams) {
-    return api.get(cfg.getAppFqdnUrl(params)).then(json => ({
-      fqdn: json.fqdn as string,
+  getAppDetails(params: UrlAppParams): Promise<AppDetails> {
+    return api.get(cfg.getAppDetailsUrl(params)).then(json => ({
+      fqdn: json.fqdn,
+      requiredAppFQDNs: json.requiredAppFQDNs,
     }));
   },
+};
+
+type AppDetails = {
+  fqdn: string;
+  requiredAppFQDNs?: string[];
 };
 
 export default service;

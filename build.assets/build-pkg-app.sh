@@ -7,9 +7,10 @@ TELEPORT_VERSION=''  # -v, version, without leading 'v'
 TARBALL_DIRECTORY='' # -s
 BUNDLEID="${TSH_BUNDLEID}"
 PACKAGE_ARCH=amd64   # -a, default to amd64 for backward-compatibilty.
+PACKAGE_NAME=tsh     # -p, name of app, defaulted to tsh
 
 usage() {
-  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
+  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n] [-p tsh|tctl]"
 }
 
 # make_non_relocatable_plist changes the default component plist of the $root
@@ -36,7 +37,7 @@ main() {
   . "$buildassets/build-common.sh"
 
   local opt=''
-  while getopts "t:v:s:b:a:n" opt; do
+  while getopts "t:v:s:b:a:p:n" opt; do
     case "$opt" in
       t)
         if [[ "$OPTARG" != "oss" && "$OPTARG" != "ent" ]]; then
@@ -61,6 +62,14 @@ main() {
         ;;
       a)
         PACKAGE_ARCH="$OPTARG"
+        ;;
+      p)
+        if [[ "$OPTARG" != "tsh" && "$OPTARG" != "tctl" ]]; then
+          log "$0: invalid value for -$opt, want 'tsh' or 'tctl'"
+          usage
+          exit 1
+        fi
+        PACKAGE_NAME="$OPTARG"
         ;;
       n)
         DRY_RUN_PREFIX='echo + '  # declared by build-common.sh
@@ -152,15 +161,20 @@ or name of the key to sign packages"
   tar xzf "$tarname" -C "$tmp"
 
   # Prepare app shell.
-  local target="$tmp/root/tsh.app"
-  cp -r "$tmp/teleport/tsh.app" "$target"
+  local target="$tmp/root/$PACKAGE_NAME.app"
+  cp -r "$tmp/teleport/$PACKAGE_NAME.app" "$target"
+
+  local entitlements="$buildassets/macos/$TSH_SKELETON/$TSH_SKELETON.entitlements"
+  if [[ "$PACKAGE_NAME" == "tctl" ]]; then
+    entitlements="$buildassets/macos/$TCTL_SKELETON/$TCTL_SKELETON.entitlements"
+  fi
 
   # Sign app.
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
     -i "$BUNDLEID" \
-    --entitlements "$buildassets"/macos/$TSH_SKELETON/tsh*.entitlements \
+    --entitlements "$entitlements" \
     --timestamp \
     "$target"
 
@@ -171,10 +185,10 @@ or name of the key to sign packages"
   if [[ "$PACKAGE_ARCH" != "universal" ]]; then
     arch_tag="-$PACKAGE_ARCH"
   fi
-  target="$tmp/tsh-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
+  target="$tmp/$PACKAGE_NAME-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
-  local pkg_component_plist="$tmp/tsh-component.plist"
-  local pkg_scripts="$buildassets/macos/scripts"
+  local pkg_component_plist="$tmp/$PACKAGE_NAME-component.plist"
+  local pkg_scripts="$buildassets/macos/scripts/$PACKAGE_NAME"
   make_non_relocatable_plist "$pkg_root" "$pkg_component_plist"
   pkgbuild \
     --root "$pkg_root" \

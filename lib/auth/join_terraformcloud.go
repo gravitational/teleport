@@ -32,7 +32,7 @@ import (
 
 type terraformCloudIDTokenValidator interface {
 	Validate(
-		ctx context.Context, audience string, token string,
+		ctx context.Context, audience, hostname, token string,
 	) (*terraformcloud.IDTokenClaims, error)
 }
 
@@ -68,7 +68,7 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 	}
 
 	claims, err := a.terraformIDTokenValidator.Validate(
-		ctx, aud, req.IDToken,
+		ctx, aud, token.Spec.TerraformCloud.Hostname, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

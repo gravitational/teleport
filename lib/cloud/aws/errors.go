@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -94,17 +94,17 @@ func ConvertIAMv2Error(err error) error {
 		return nil
 	}
 
-	var entityExistsError *iamTypes.EntityAlreadyExistsException
+	var entityExistsError *iamtypes.EntityAlreadyExistsException
 	if errors.As(err, &entityExistsError) {
 		return trace.AlreadyExists(*entityExistsError.Message)
 	}
 
-	var entityNotFound *iamTypes.NoSuchEntityException
+	var entityNotFound *iamtypes.NoSuchEntityException
 	if errors.As(err, &entityNotFound) {
 		return trace.NotFound(*entityNotFound.Message)
 	}
 
-	var malformedPolicyDocument *iamTypes.MalformedPolicyDocumentException
+	var malformedPolicyDocument *iamtypes.MalformedPolicyDocumentException
 	if errors.As(err, &malformedPolicyDocument) {
 		return trace.BadParameter(*malformedPolicyDocument.Message)
 	}

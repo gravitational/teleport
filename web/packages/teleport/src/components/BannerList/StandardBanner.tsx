@@ -18,7 +18,9 @@
 
 import React from 'react';
 
-import { Banner, Link } from 'design';
+import { Banner } from 'design';
+
+import { Action } from 'design/Alert';
 
 import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
@@ -30,6 +32,7 @@ type Props = {
   severity: Severity;
   id: string;
   link?: string;
+  linkText?: string;
   onDismiss: () => void;
 };
 
@@ -38,36 +41,47 @@ export function StandardBanner({
   message = '',
   severity = 'info',
   link = '',
+  linkText = '',
   onDismiss,
 }: Props) {
-  const isValidTeleportLink = (link: string) => {
-    try {
-      const url = new URL(link);
-      return url.hostname === 'goteleport.com';
-    } catch {
-      return false;
-    }
-  };
+  let primaryAction: Action | undefined;
+  let invalidLinkFallback: string | undefined;
+
+  // We want to only use the provided link if it's valid (that is, when it
+  // doesn't parse or it's from outside Teleport domain). Otherwise, we display
+  // it as plain text.
+  if (isValidTeleportLink(link)) {
+    primaryAction = {
+      content: linkText || 'Learn More',
+      href: link,
+      onClick: () =>
+        userEventService.captureUserEvent({
+          event: CaptureEvent.BannerClickEvent,
+          alert: id,
+        }),
+    };
+  } else {
+    invalidLinkFallback = linkText ? `${linkText}: ${link}` : link;
+  }
 
   return (
-    <Banner kind={severity} onDismiss={onDismiss} dismissible>
-      {isValidTeleportLink(link) ? (
-        <Link
-          href={link}
-          target="_blank"
-          css={{ fontWeight: 'inherit' }}
-          onClick={() =>
-            userEventService.captureUserEvent({
-              event: CaptureEvent.BannerClickEvent,
-              alert: id,
-            })
-          }
-        >
-          {message}
-        </Link>
-      ) : (
-        message
-      )}
+    <Banner
+      kind={severity}
+      details={invalidLinkFallback}
+      primaryAction={primaryAction}
+      onDismiss={onDismiss}
+      dismissible
+    >
+      {message}
     </Banner>
   );
 }
+
+const isValidTeleportLink = (link: string) => {
+  try {
+    const url = new URL(link);
+    return url.hostname === 'goteleport.com';
+  } catch {
+    return false;
+  }
+};

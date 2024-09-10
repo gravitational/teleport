@@ -126,7 +126,7 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
-	github.com/fatih/color v1.16.0 // indirect
+	github.com/fatih/color v1.17.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
@@ -278,7 +278,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8 // indirect
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.22.0 // indirect
@@ -293,6 +293,7 @@ require (
 	google.golang.org/grpc v1.66.0 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -302,12 +303,12 @@ require (
 	k8s.io/apiextensions-apiserver v0.31.0 // indirect
 	k8s.io/apimachinery v0.31.0 // indirect
 	k8s.io/apiserver v0.31.0 // indirect
-	k8s.io/cli-runtime v0.30.4 // indirect
+	k8s.io/cli-runtime v0.31.0 // indirect
 	k8s.io/client-go v0.31.0 // indirect
 	k8s.io/component-base v0.31.0 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
-	k8s.io/kubectl v0.30.4 // indirect
+	k8s.io/kubectl v0.31.0 // indirect
 	k8s.io/utils v0.0.0-20240902221715-702e33fdd3c3 // indirect
 	mvdan.cc/sh/v3 v3.7.0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
