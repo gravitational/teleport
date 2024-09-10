@@ -1,6 +1,0 @@
-dependencies:
-- name: tbot
-  repository: file:///Users/shaka/go/src/github.com/gravitational/teleport-backport/examples/chart/tbot
-  version: 17.0.0-dev
-digest: sha256:9843b029b398fb19364dab2601caf64e88c8da29939221fefbff5c6a9d1d347e
-generated: "2024-09-05T14:27:33.033128-04:00"
