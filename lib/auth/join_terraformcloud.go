@@ -50,11 +50,14 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 		return nil, trace.BadParameter("terraform_cloud join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
-		return nil, fmt.Errorf(
-			"terraform_cloud joining: %w",
-			ErrRequiresEnterprise,
-		)
+	hostnameOverride := token.Spec.TerraformCloud.Hostname
+	if hostnameOverride != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, fmt.Errorf(
+				"terraform_cloud joining for Terraform Enterprise: %w",
+				ErrRequiresEnterprise,
+			)
+		}
 	}
 
 	aud := token.Spec.TerraformCloud.Audience
@@ -68,7 +71,7 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 	}
 
 	claims, err := a.terraformIDTokenValidator.Validate(
-		ctx, aud, token.Spec.TerraformCloud.Hostname, req.IDToken,
+		ctx, aud, hostnameOverride, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
