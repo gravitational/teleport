@@ -112,19 +112,24 @@ func Run(args []string) error {
 	ctx, _ = signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 
 	app := libutils.InitCLIParser("teleport-updater", appHelp).Interspersed(false)
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&ccfg.Debug)
-	app.Flag("data-dir", "Directory to store teleport versions. Access to this directory should be limited.").StringVar(&ccfg.DataDir)
-	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").Default(libutils.LogFormatText).
-		EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
+	app.Flag("debug", "Verbose logging to stdout.").
+		Short('d').BoolVar(&ccfg.Debug)
+	app.Flag("data-dir", "Teleport data directory. Access to this directory should be limited.").
+		Default(libdefaults.DataDir).StringVar(&ccfg.DataDir)
+	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
+		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 
 	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", "Print the version of your teleport-updater binary.")
 
 	enableCmd := app.Command("enable", "Enable agent auto-updates and perform initial updates.")
-	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').Envar(proxyServerEnvVar).StringVar(&ccfg.ProxyServer)
-	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
-	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").Short('t').Envar(templateEnvVar).StringVar(&ccfg.Template)
+	enableCmd.Flag("proxy", "Address of the Teleport Proxy.").Short('p').
+		Envar(proxyServerEnvVar).StringVar(&ccfg.ProxyServer)
+	enableCmd.Flag("group", "Update group, for staged updates.").Short('g').
+		Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
+	enableCmd.Flag("template", "Go template to override Teleport tgz download URL.").
+		Short('t').Envar(templateEnvVar).StringVar(&ccfg.Template)
 
 	disableCmd := app.Command("disable", "Disable agent auto-updates.")
 
@@ -362,6 +367,9 @@ func newClient(cfg *downloadConfig) (*http.Client, error) {
 func (c *cliConfig) CheckAndSetDefaults() error {
 	if c.DataDir == "" {
 		c.DataDir = libdefaults.DataDir
+	}
+	if c.LogFormat == "" {
+		c.LogFormat = libutils.LogFormatText
 	}
 	return nil
 }
