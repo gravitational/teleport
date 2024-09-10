@@ -9,10 +9,19 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date               |
 |---------|--------------------|
-| 16.3.0  | September 16, 2024 |
+| 16.3.0  | September 13, 2024 |
+| 16.4.0  | September 18, 2024 |
 | 17.0.0  | October 31, 2024   |
 
 ### 16.3.0
+
+#### Out-of-band user creation
+
+Cluster administrators will be able to configure Teleport's `ssh_service` to
+ensure that certain host users exist on the machine without the need to start
+an SSH session.
+
+### 16.4.0
 
 #### Machine ID for Terraform Cloud
 
@@ -33,12 +42,6 @@ versa.
 Teleport will support web application access where one application depends on
 another. For example, you may have a web application that depends on a backend
 API service, of which are separate apps protected by Teleport.
-
-#### Out-of-band user creation
-
-Cluster administrators will be able to configure Teleport's `ssh_service` to
-ensure that certain host users exist on the machine without the need to start
-an SSH session.
 
 ### 17.0.0
 
@@ -103,8 +106,11 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                    |
 |--------------------|----------------------------------------------------------------|
+| September 9, 2024  | Teleport Policy 1.24.0 will begin rollout on Cloud.            |
 | September 16, 2024 | Teleport 16.3 will begin rollout on Cloud.                     |
 | September 16, 2024 | Teleport 16.3 agents will begin rollout to eligible tenants.   |
+| September 30, 2024 | Teleport 16.4 will begin rollout on Cloud.                     |
+| September 30, 2024 | Teleport 16.4 agents will begin rollout to eligible tenants.   |
 | December 2, 2024   | Teleport 17.1 will begin rollout on Cloud.                     |
 | December 2, 2024   | Teleport 17.1 agents will begin rollout to eligible tenants.   |
 

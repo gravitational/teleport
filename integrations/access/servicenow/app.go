@@ -82,6 +82,7 @@ func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 	serviceNowApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
 		Client:     teleClient,
 		PluginType: string(conf.PluginType),
+		PluginName: pluginName,
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
 			return &common.Recipient{
 				Name: name,

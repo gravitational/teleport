@@ -12,7 +12,7 @@ There are two options available for revoking access: CA rotations and Teleport l
 ## CA rotations
 
 To generate a new certificate authority and invalidate user certificates issued
-by the current CA, run `tctl auth rotate --type-user`. This process will require
+by the current CA, run `tctl auth rotate --type=user`. This process will require
 that the newly generated CA certificate is uploaded to your entire fleet of
 OpenSSH servers. This can be a disruptive change, especially in environments
 that lack automation, so proceed with caution.

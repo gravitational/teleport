@@ -30,26 +30,6 @@ import (
 var wildcard = "*"
 var allResources = []string{wildcard}
 
-// StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
-// of the resources.
-func StatementForIAMEditRolePolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
-		Resources: resources,
-	}
-}
-
-// StatementForIAMEditUserPolicy returns a IAM Policy Statement which allows editting User Policy
-// of the resources.
-func StatementForIAMEditUserPolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"},
-		Resources: resources,
-	}
-}
-
 // StatementForECSManageService returns the statement that allows managing the ECS Service deployed
 // by DeployService (AWS OIDC Integration).
 func StatementForECSManageService() *Statement {
