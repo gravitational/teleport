@@ -1,0 +1,8 @@
+version: v1
+kind: updates
+spec:
+    proxy: ""
+    group: ""
+    url_template: ""
+    enabled: false
+    active_version: ""
