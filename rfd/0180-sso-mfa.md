@@ -68,85 +68,70 @@ result in a readable error message. If we want to support `tsh mfa add/rm`, we
 can implement the functionality behind the scenes with a new user preferences
 field, e.g. `use_sso_mfa`. I'm leaving this out of scope for now.
 
-#### Modes
+#### Preferred MFA Method
 
-Auth connectors with MFA enabled will be configured with one of the following
-modes:
-- `optional`: SSO MFA is available to the user, but WebAuthn is preferred when
-  applicable.
-- `preferred`: SSO MFA is preferred over WebAuthn, but Webauthn is still
-  available to the user.
-- `required`: SSO MFA is the only available MFA method.
+The MFA method preference order (descending) will be:
 
-Each mode has UX implications that will be explored in more detail below.
+1. Webauthn
+2. SSO
+3. OTP
 
-Note: Like WebAuthn, SSO will always be preferred over OTP, unless OTP is
-requested with `tsh --mfa-mode=otp`.
+This means that when given the option between 2 or 3 possible MFA methods,
+Teleport clients will default to the most preferred option. Additional MFA
+options should be displayed as well to give users a path to use them instead.
+
+Note: The only time we prompt with two MFA options is during login for users
+with Webauthn and OTP devices available. This will be unchanged.
 
 #### `tsh`
 
-When SSO MFA is enabled, there are three possible MFA prompts. The prompt depends
-on whether SSO MFA is optional, preferred, or required, and whether the user has
-any Webauthn devices registered *and* available.
+When a user is prompted for MFA, they will automatically be prompted for the
+preferred MFA method available to that user. The user will also be notified
+of the preferred MFA method with instructions on how to use a different
+available method.
 
-1. SSO is the only available MFA method, is required, or user passed the
-`--mfa-mode=sso` flag.
 ```console
-Complete an auth check in your local web browser:
+### If more than one MFA method is available to the user, 
+### let them know and given them a path to use any method.
+Available MFA methods (WebAuthn, SSO, OTP). Continuing with WebAuthn.
+If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
+
+Tap any security key to continue
+```
+
+When SSO MFA is the preferred MFA method, the user will be prompted to complete
+the SSO MFA flow instead of tapping a security key:
+
+```console
+Available MFA methods (SSO, OTP). Continuing with SSO.
+If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
+
+To continue, complete an auth check in your local web browser:
 If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
 ```
 
-2. SSO is available, but Webauthn is preferred.
-```console
-Complete an auth check in your local web browser. Open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+SSO MFA is the preferred method when:
 
-Or tap any security key
-```
+1. `--mfa-mode=sso` flag is provided
+2. User has no WebAuthn device registered or connected
 
-3. Webauthn is available, but SSO is preferred.
-```console
-Complete an auth check in your local web browser:
-If browser window does not open automatically, open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
-
-Or tap any security key
-```
-
-Here's the same information in chart form:
-
-| Mode      | WebAuthn available | Type | Browser   | Prompt |
-|-----------|--------------------|------|-----------|--------|
-| *         | no                 | SSO  | Launch    | 1      |
-| optional  | yes                | Both | Clickable | 2      |
-| preferred | yes                | Both | Launch    | 3      |
-| required  | yes                | SSO  | Launch    | 1      |
-
-Note: It should be simple to detect whether the user has an MFA device plugged
-in using the `libfido2` or touchID libraries for MacOS and Linux. Window's
-`webauthn.dll` should support the same functionality, but that is TBD during
-the implementation. Worst case we will fall back to prompting for both.
+Note: On MacOS, Linux, and Window's we can detect whether the user has an MFA
+device plugged in using the `libfido2` or touchID libraries.
 
 See [User Stories](#user-stories) for more specific examples.
 
-#### Teleport Connect
+#### WebUI and Teleport Connect
 
-The Teleport connect flow will be identical to `tsh`.
+We will add a `SSO` button the existing MFA modal when SSO MFA is enabled.
+It will either be gray, colored (default), or removed depending on whether
+WebAuthn is also available:
 
-TODO: POC THIS
-
-#### WebUI
-
-In the WebUI, we will add a `SSO` button the existing MFA modal when SSO MFA is
-enabled.
-
-The UI will change depending on the [SSO MFA Mode](#sso-mfa-modes):
-| Mode      | WebAuthn button   | SSO button        |
-|-----------|-------------------|-------------------|
-| optional  | colored, selected | gray              |
-| preferred | gray              | colored, selected |
-| required  | removed           | colored, selected |
+| Webauthn | SSO | WebAuthn button | SSO button |
+|----------|-----|-----------------|------------|
+| yes      | yes | colored         | gray       |
+| yes      | no  | colored         | removed    |
+| no       | yes | removed         | colored    |
 
 When the user clicks the SSO button, the SSO redirect URL will be opened in a
 new browser window. Once the SSO authentication is complete, the window will
@@ -154,9 +139,9 @@ close, and the WebUI will proceed with the resulting MFA response.
 
 TODO: POC THIS
 
-Note: If possible, it would be best to open the SSO redirect URL in a pop up
-window rather than opening a new tab. I'm leaving this as an implementation
-decision.
+Note: If possible, for the WebUI, it would be best to open the SSO redirect URL
+in a pop up window rather than opening a new tab. I'm leaving this as an
+implementation decision.
 
 ### User stories
 
@@ -189,7 +174,8 @@ re-authenticate through their SSO provider for a more seamless experience.
 ```console
 > tsh ssh server01
 MFA is required to access Node "server01"
-Complete an auth check in your local web browser:
+
+To continue, complete an auth check in your local web browser:
 If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
 ```
@@ -205,7 +191,8 @@ an MFA check even for the first device.
 Choose device type [TOTP, WEBAUTHN]: WEBAUTHN
 Enter device name: yubi
 Allow passwordless logins [YES, NO]: NO
-Complete an auth check in your local web browser:
+
+To continue, complete an auth check in your local web browser:
 If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:53129/65ddd8d8-0616-4b61-b442-595871838247
 
@@ -217,36 +204,79 @@ Tap your *new* security key
 #### Existing SSO user with registered MFA method
 
 > I have logged into this cluster before with SSO
-> I have registered one or more MFA devices
+> I have registered one or more WebAuthn devices
 > I want to connect to a resource protected by per-session MFA
 
 ##### SSO MFA prompt
 
 The user will be given the option to pass MFA checks with a registered device
-or with SSO, depending on the MFA mode of the user's auth connector.
+or with SSO, depending on the what methods are available..
 
 ```console
+### WebAuthn and SSO available
 > tsh ssh server01
 MFA is required to access Node "server01"
-Complete an auth check in your local web browser. Open it by clicking on the link:
- http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
- 
-Or tap any security key
+Available MFA methods (WebAuthn, SSO). Continuing with WebAuthn.
+If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
+
+Tap any security key to continue
 ```
 
-Note that the exact prompt may differ depending on which [config scenario](#tsh)
-we are in.
+```console
+### Only SSO available
+> tsh ssh server01
+MFA is required to access Node "server01"
+
+To continue, complete an auth check in your local web browser:
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:60433/f5858c78-75e1-4f3f-b2c5-69e8e76c0ff9
+```
 
 ##### Deleting last MFA device
 
 Similar to how we can add an SSO MFA check for a [user adding their first device](#adding-first-mfa-device),
-we can use an SSO MFA check for users removing their last device, which is
-usually forbidden. This may be useful if the user wants to makes SSO their
-default MFA method for UX purposes.
+we can use an SSO MFA check for users removing their last device, including
+passwordless devices, which is usually forbidden. This may be useful if the
+user wants to makes SSO their default MFA method for UX purposes.
 
 ### Configuration
 
-#### Enable SSO connector as MFA method.
+SSO MFA requires both Cluster Auth Preference and Auth Connector configuration
+to function.
+
+#### Cluster Auth Preference
+
+SSO MFA can be enabled through the cluster auth preference. It can be paired
+with `second_factor: optional | on | webauthn | otp`.
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: oidc
+  connector_name: auth0
+  require_session_mfa: yes
+  second_factor: on
+  sso:
+    enabled: yes
+```
+
+Whether SSO MFA can be used for a given user depends on whether that user is an
+SSO user and whether that user's Auth Connector is configured for MFA (below).
+Therefore, it does not make sense to add `second_factor: sso` and require SSO
+MFA for every user in the cluster. Instead, `sso.enabled: yes` can be paired
+with any `second_factor` option except `off`, and SSO MFA will only be used
+when it is the [preferred method](#preferred-mfa-method) for the user.
+
+Note: There may be a use case for disabling non-SSO MFA methods for SSO users
+without affecting non-SSO users. In this case, we should a `sso.required` field
+which will only apply to SSO users that have an auth connector where SSO MFA is
+enabled. Since we currently prefer WebAuthn in all cases, I am leaving this out
+of scope for now.
+
+#### Auth Connector
 
 Auth connectors will have a new `mfa` settings field that can be set to allow
 an auth connector to handle MFA checks in addition to login requests. These
@@ -268,13 +298,9 @@ spec:
   mfa:
     # enabled specifies whether this auth connector supports MFA checks.
     enabled: yes
-    # mode can be set to determine how Teleport decides to prioritize SSO MFA
-    # over other MFA options for users tied to this auth connector. Supported
-    # values are optional (default), preferred, and required.
-    mode: optional
     # set entity_descriptor_url or entity_descriptor to use a different IdP configured
     # app to handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. Defaults to the entity_descriptor_url and entity_descriptor above.
+    # tied to a separate app. required.
     entity_descriptor_url: XXX
     entity_descriptor: YYY
     # force_reauth determines whether existing login sessions are accepted or if
@@ -297,13 +323,9 @@ spec:
   mfa:
     # enabled specifies whether this auth connector supports MFA checks.
     enabled: yes
-    # mode can be set to determine how Teleport decides to prioritize SSO MFA
-    # over other MFA options for users tied to this auth connector. Supported
-    # values are optional (default), preferred, and required.
-    mode: optional
     # set client_id and client_secret to use a different IdP configured app to
     # handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. Defaults to the client_id and client_secret above.
+    # tied to a separate app. required.
     client_id: XXX
     client_secret: YYY
     # prompt can be set to request a specific prompt flow from the IdP. Supported
@@ -331,13 +353,9 @@ spec:
     # enabled specifies whether users originating from this auth connector
     # can use the auth connector for MFA flows.
     enabled: yes
-    # mode can be set to determine how Teleport decides to prioritize SSO MFA
-    # over other MFA options for users tied to this auth connector. Supported
-    # values are optional (default), preferred, and required.
-    mode: optional
     # set client_id and client_secret to use a different IdP configured app to
     # handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. Defaults to the client_id and client_secret above.
+    # tied to a separate app. required.
     client_id: XXX
     client_secret: YYY
     # max_age determines when an existing IdP session should be considered
@@ -347,10 +365,6 @@ spec:
 
 Most of the MFA setting options are inherited from the parent auth connector,
 but let's cover some of the new ones in more detail.
-
-##### `mfa.mode`
-
-See [SSO MFA Modes](#sso-mfa-modes).
 
 ##### `mfa.force_reauth` (saml)
 
@@ -576,41 +590,23 @@ message MFADevice {
 }
 ```
 
-**AuthConnectorMFAMode**
-
-```proto
-// AuthConnectorMFAMode specified the MFA mode of an Auth Connector.
-enum AuthConnectorMFAMode {
-  // UNSPECIFIED is treated as OPTIONAL.
-  AUTH_CONNECTOR_MFA_MODE_UNSPECIFIED = 0;
-  // OPTIONAL mfa through this auth connector is optional and other MFA methods are preferred.
-  AUTH_CONNECTOR_MFA_MODE_OPTIONAL = 1;
-  // PREFERRED mfa through this auth connector is preferred and other MFA methods are optional.
-  AUTH_CONNECTOR_MFA_MODE_PREFERRED = 2;
-  // REQUIRED mfa through this auth connector is required and other MFA methods are disabled.
-  AUTH_CONNECTOR_MFA_MODE_REQUIRED = 3;
-}
-```
-
 **SAMLConnectorMFASettings**
 
 ```proto
 message SAMLConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
   bool enabled = 1;
-  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode mfa_mode = 2;
   // EntityDescriptor is XML with descriptor. It can be used to supply configuration
   // parameters in one XML file rather than supplying them in the individual elements.
   // If unset, the parent SAML connector's EntityDescriptor will be used.
-  string entity_descriptor = 3;
+  string entity_descriptor = 2;
   // EntityDescriptorUrl is a URL that supplies a configuration XML. If unset, 
   // the parent SAML connector's EntityDescriptor will be used.
-  string entity_descriptor_url = 4;
+  string entity_descriptor_url = 3;
   // ForceReauth specified whether re-authentication should be forced for MFA checks. UNSPECIFIED is 
 + // treated as YES. to always re-authentication for MFA checks. This should only be set to YES if the
   // IdP is setup to perform MFA checks on top of active user sessions. 
-  SAMLForceReauth ForceReauth = 5;
+  SAMLForceReauth ForceReauth = 4;
 }
 
 // SAMLForceReauth specified whether existing SAML sessions should be accepted or re-authentication
@@ -642,25 +638,23 @@ message SAMLConnectorSpecV2 {
 message OIDCConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
   bool enabled = 1;
-  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode mfa_mode = 2;
   // ClientID is the id of the authentication client (Teleport Auth server). If unset, 
   // the parent OIDC connector's ClientID will be used.
-  string client_id = 3;
+  string client_id = 2;
   // ClientSecret is used to authenticate the client. If unset, the parent OIDC connector's
   // ClientSecret will be used.
-  string client_secret = 4;
+  string client_secret = 3;
   // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
   // value is context-specific and varies for identity providers. Some identity providers
   // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
-  string acr_values = 5;
+  string acr_values = 4;
   // Prompt is an optional OIDC prompt. An empty string omits prompt.
   // If not specified, it defaults to select_account for backwards compatibility.
-  string prompt = 6;
+  string prompt = 5;
   // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
   // force re-authentication for MFA checks. This should only be set to a non-zero value if
   // the IdP is setup to perform MFA checks on top of active user sessions.
-  google.protobuf.Duration max_age = 67;
+  google.protobuf.Duration max_age = 6;
 }
 ```
 
@@ -678,18 +672,16 @@ message OIDCConnectorSpecV3 {
 message GithubConnectorMFASettings {
   // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
   bool enabled = 1;
-  // MFAMode specifies what MFA mode this auth connector will operate with. Defaults to "optional".
-  AuthConnectorMFAMode mfa_mode = 2;
   // ClientID is the id of the authentication client (Teleport Auth server). If unset, the parent 
   // Github connector's ClientID will be used.
-  string client_id = 3;
+  string client_id = 2;
   // ClientSecret is used to authenticate the client. If unset, the parent Github connector's
   // ClientSecret will be used.
-  string client_secret = 4;
+  string client_secret = 3;
   // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
   // force re-authentication for MFA checks. This should only be set to a non-zero value if
   // the IdP is setup to perform MFA checks on top of active user sessions.
-  google.protobuf.Duration max_age = 5;
+  google.protobuf.Duration max_age = 4;
 }
 ```
 
@@ -816,3 +808,28 @@ an Auth Connector misconfiguration for MFA update/delete the auth connector.
 Note: The SSO MFA flow has an auth connector check built into both sides of the
 challenge/response cycle, so a change to the auth connector configuration to
 disable MFA would act the same as a lock on the SSO MFA device directly.
+
+#### Modes
+
+In one of the initial designs, I introduce the idea of SSO MFA modes, which
+would provide more UX options and the ability to enforce SSO MFA over other
+options.
+
+Auth connectors with MFA enabled will be configured with one of the following
+modes:
+- `optional`: SSO MFA is available to the user, but WebAuthn is preferred when
+  applicable.
+- `preferred`: SSO MFA is preferred over WebAuthn, but Webauthn is still
+  available to the user.
+- `required`: SSO MFA is the only available MFA method.
+
+With these modes, the user would be prompted for WebAuthn, SSO, or both. The
+browser would only automatically open in some cases. The resulting UX was okay,
+but its configuration was confusing.
+
+Additionally, Webauthn is currently the best UX experience and provides great
+great security, so it would be better to always treat webauthn as preferred
+over SSO, as it is with OTP.
+
+If in the future we have a reason to require SSO MFA over Webauthn, we can
+introduce these modes or `second_factor: sso`.
