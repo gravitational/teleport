@@ -823,13 +823,6 @@ $(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
 RELEASE_NOTES_GEN := $(TOOLINGDIR)/bin/release-notes
 $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/release-notes
-#
-# Downloads and builds changelog from source.
-# PHONY is set so that we rely on Go's mod cache and not Make's cache.
-#
-CHANGELOG := $(TOOLINGDIR)/bin/changelog
-$(CHANGELOG):
-	GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.0
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
@@ -1804,15 +1797,20 @@ rustup-install-target-toolchain: rustup-set-version
 
 # changelog generates PR changelog between the provided base tag and the tip of
 # the specified branch.
+# 
+# For basic usage just switch to a release branch and run it with no variables:
+#	git switch branch/v16 && git pull
+#	make -s changelog
 #
-# usage: make -s changelog
-# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make -s changelog
+# For more advanced usage you can set the BASE_BRANCH and/or BASE_TAG variables:
+# usage: make -s changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make -s changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
 .PHONY: changelog
+changelog: CHANGELOG_VERSION = v1.0.2
 changelog: $(CHANGELOG)
-	$(CHANGELOG) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
+	@go run github.com/gravitational/shared-workflows/tools/changelog@$(CHANGELOG_VERSION) --base-branch="$(BASE_BRANCH)" --base-tag="$(BASE_TAG)" ./
 
 # create-github-release will generate release notes from the CHANGELOG.md and will
 # create release notes from them.
