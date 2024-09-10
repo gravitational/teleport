@@ -160,18 +160,11 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	}
 
 	if len(line) > l.MaxScanTokenSize {
-		switch {
-		case canReduceMessageSize(event):
-			line, err = l.trimSizeAndMarshal(event)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			MetricStoredTrimmedEvents.Inc()
-		default:
-			fields := log.Fields{"event_type": event.GetType(), "event_size": len(line)}
-			l.WithFields(fields).Warnf("Got a event that exceeded max allowed size.")
-			return trace.BadParameter("event size %v exceeds max entry size %v", len(line), l.MaxScanTokenSize)
+		line, err = l.trimSizeAndMarshal(event)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+		MetricStoredTrimmedEvents.Inc()
 	}
 
 	// log it to the main log file:
@@ -179,17 +172,8 @@ func (l *FileLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent
 	return trace.ConvertSystemError(err)
 }
 
-func canReduceMessageSize(event apievents.AuditEvent) bool {
-	_, ok := event.(messageSizeTrimmer)
-	return ok
-}
-
 func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error) {
-	s, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, trace.BadParameter("invalid event type %T", event)
-	}
-	sEvent := s.TrimToMaxSize(l.MaxScanTokenSize)
+	sEvent := event.TrimToMaxSize(l.MaxScanTokenSize)
 	line, err := utils.FastMarshal(sEvent)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -198,10 +182,6 @@ func (l *FileLog) trimSizeAndMarshal(event apievents.AuditEvent) ([]byte, error)
 		return nil, trace.BadParameter("event %T reached max FileLog entry size limit, current size %v", event, len(line))
 	}
 	return line, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 // SearchEvents is a flexible way to find events.
