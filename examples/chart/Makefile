@@ -1,7 +1,7 @@
 # TODO(hugoShaka): uncomment the additional targets as we start sync-ing
 # the reference and the values.yaml
 .PHONY: render-chart-ref
-render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-access-slack # render-chart-ref-teleport-cluster
+render-chart-ref: render-chart-ref-example render-chart-ref-teleport-operator render-chart-ref-teleport-kube-agent render-chart-ref-tbot  render-chart-ref-access-slack # render-chart-ref-teleport-cluster
 
 .PHONY: render-chart-ref-example
 render-chart-ref-example:
@@ -24,13 +24,18 @@ render-chart-ref-teleport-operator:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/teleport-cluster/charts/teleport-operator -output ../../docs/pages/includes/helm-reference/zz_generated.teleport-operator.mdx
 
+.PHONY: render-chart-ref-tbot
+render-chart-ref-tbot:
+	cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx
+
 .PHONY: render-chart-ref-access-slack
 render-chart-ref-access-slack:
 	cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/slack -output ../../docs/pages/includes/helm-reference/zz_generated.access-slack.mdx
 
 .PHONY: check-chart-ref
-check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-access-slack #check-chart-ref-teleport-cluster
+check-chart-ref: check-chart-ref-example check-chart-ref-teleport-operator check-chart-ref-teleport-kube-agent check-chart-ref-access-slack check-chart-ref-tbot  #check-chart-ref-teleport-cluster
 
 .PHONY: check-chart-ref-example
 check-chart-ref-example:
@@ -65,4 +70,11 @@ check-chart-ref-access-slack:
 	@echo "Checking access/slack reference"
 	@cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/slack -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.access-slack.mdx - || \
-	( echo "Chart values.yaml and reference differ, please run 'make -C examples/chart render-chart-ref'" && exit 1 )
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
+
+.PHONY: check-chart-ref-tbot
+check-chart-ref-tbot:
+	@echo "Checking tbot reference"
+	@ cd ../../build.assets/tooling && \
+	go run ./cmd/render-helm-ref -chart ../../examples/chart/tbot -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.tbot.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
