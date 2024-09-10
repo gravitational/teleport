@@ -788,3 +788,19 @@ connector resource to support it in certain configurations.
 Note: When using ADFS or JumpCloud as a SAML IdP, Teleport requires password
 auth by setting `PasswordProtectedTransport` as a minimum `RequestedAuthnContext`.
 This minimum will be skipped when the SAML connector is enabled for MFA only.
+
+#### SSO MFA device locking
+
+SSO MFA device locking will be left out of scope.
+
+Since we do not create a [SSO MFA device](#mfa-device) for each user in the
+backend, there is no simple way to lock an SSO MFA method for a specific user
+with the current MFA device locking implementation. 
+
+Additionally it is unclear to me under what circumstance an admin would want to
+lock a user's SSO MFA device and not their entire SSO user. Or in the case of
+an Auth Connector misconfiguration for MFA update/delete the auth connector.
+
+Note: The SSO MFA flow has an auth connector check built into both sides of the
+challenge/response cycle, so a change to the auth connector configuration to
+disable MFA would act the same as a lock on the SSO MFA device directly.
