@@ -132,9 +132,11 @@ func TestRun_Lock(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unavailable")
 
-	unlock()
+	err = unlock()
+	require.NoError(t, err)
 
 	unlock2, err := lock(lockfile, true)
 	require.NoError(t, err)
-	unlock2()
+	err = unlock2()
+	require.NoError(t, err)
 }
