@@ -11,7 +11,10 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { ApiError } from 'teleport/services/api/parseError';
-import { decodeUrlQueryParam } from 'teleport/components/hooks/useUrlFiltering';
+import {
+  decodeUrlQueryParam,
+  encodeUrlQueryParams,
+} from 'teleport/components/hooks/useUrlFiltering';
 import { compareByString } from 'teleport/lib/util';
 import { ShieldCheck } from 'design/Icon';
 
@@ -183,13 +186,6 @@ export function AccessLists() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const encodeUrlQueryParams = (search: string) => {
-    const searchParams = new URLSearchParams({ search }).toString();
-    return searchParams
-      ? `${location.pathname}?${searchParams}`
-      : location.pathname;
-  };
-
   // filterAccessLists currently only searchs through access lists
   // "title" and "description".
   function filterAccessLists() {
@@ -227,7 +223,10 @@ export function AccessLists() {
 
   function handleOnClickViewAccessList(accessListId: string) {
     history.push(cfg.getAccessListManagementRoute(accessListId), {
-      previousPath: encodeUrlQueryParams(searchValue),
+      previousPath: encodeUrlQueryParams({
+        pathname: location.pathname,
+        searchString: searchValue,
+      }),
     });
   }
 
@@ -237,7 +236,12 @@ export function AccessLists() {
     };
 
     e.preventDefault(); // prevent form default
-    history.replace(encodeUrlQueryParams(searchValue.value));
+    history.replace(
+      encodeUrlQueryParams({
+        pathname: location.pathname,
+        searchString: searchValue.value,
+      })
+    );
     setSearchValue(searchValue.value);
   }
 

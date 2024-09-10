@@ -73,8 +73,8 @@ export function RequestList({
     assumeRole(request);
   }
 
-  function onSubmitSearch(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function onSubmitSearch(newSearchString: string) {
+    setSearchString(newSearchString);
     clear();
   }
 
@@ -97,10 +97,10 @@ export function RequestList({
           />
         ))}
       </Flex>
-      <Flex as="form" onSubmit={onSubmitSearch} mb={3}>
+      <Flex mb={3}>
         <InputSearch
           searchValue={searchString}
-          setSearchValue={setSearchString}
+          setSearchValue={onSubmitSearch}
         />
       </Flex>
       <Table

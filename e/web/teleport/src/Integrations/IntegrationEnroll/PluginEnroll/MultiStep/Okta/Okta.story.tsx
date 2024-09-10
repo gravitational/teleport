@@ -90,11 +90,13 @@ export const EnrollOktaWithEntitlements = () => {
 
 export const SetUpScim = () => {
   return (
-    <PluginProvider selectedPlugin={oktaPlugin}>
-      <MockInstalledPlugin>
-        <SetUpScimComponent />
-      </MockInstalledPlugin>
-    </PluginProvider>
+    <MemoryRouter>
+      <PluginProvider selectedPlugin={oktaPlugin}>
+        <MockInstalledPlugin>
+          <SetUpScimComponent />
+        </MockInstalledPlugin>
+      </PluginProvider>
+    </MemoryRouter>
   );
 };
 
@@ -102,13 +104,15 @@ export const ImportInitLoading = () => {
   const ctx = createTeleportContext();
 
   return (
-    <ContextProvider ctx={ctx}>
-      <PluginProvider selectedPlugin={oktaPlugin}>
-        <MockInstalledPlugin>
-          <ImportComponent />
-        </MockInstalledPlugin>
-      </PluginProvider>
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={oktaPlugin}>
+          <MockInstalledPlugin>
+            <ImportComponent />
+          </MockInstalledPlugin>
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
 ImportInitLoading.parameters = {
@@ -130,13 +134,15 @@ export const ImportInitError = () => {
   const ctx = createTeleportContext();
 
   return (
-    <ContextProvider ctx={ctx}>
-      <PluginProvider selectedPlugin={oktaPlugin}>
-        <MockInstalledPlugin>
-          <ImportComponent />
-        </MockInstalledPlugin>
-      </PluginProvider>
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={oktaPlugin}>
+          <MockInstalledPlugin>
+            <ImportComponent />
+          </MockInstalledPlugin>
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
 ImportInitError.parameters = {
@@ -162,16 +168,18 @@ export const Import = () => {
   const ctx = createTeleportContext();
 
   return (
-    <ContextProvider ctx={ctx}>
-      <PluginProvider selectedPlugin={oktaPlugin}>
-        <MockInstalledPlugin>
-          <Info>
-            Devs, to test filter use values: `test-err` and `test-query`
-          </Info>
-          <ImportComponent />
-        </MockInstalledPlugin>
-      </PluginProvider>
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <PluginProvider selectedPlugin={oktaPlugin}>
+          <MockInstalledPlugin>
+            <Info>
+              Devs, to test filter use values: `test-err` and `test-query`
+            </Info>
+            <ImportComponent />
+          </MockInstalledPlugin>
+        </PluginProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 };
 Import.parameters = {

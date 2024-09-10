@@ -46,16 +46,12 @@ export function Finished() {
               size="large"
               onClick={() =>
                 history.push(
-                  encodeUrlQueryParams(
-                    generatePath(cfg.routes.unifiedResources, {
+                  encodeUrlQueryParams({
+                    pathname: generatePath(cfg.routes.unifiedResources, {
                       clusterId: cfg.proxyCluster,
                     }),
-                    '' /* searchString */,
-                    null /* sort */,
-                    ['app'] /* kind */,
-                    false /* isAdvancedSearch */,
-                    false /* pinnedOnly */
-                  ),
+                    kinds: ['app'],
+                  }),
                   true
                 )
               }

@@ -17,7 +17,6 @@ import {
 } from 'design/Icon';
 
 import { NavTitle } from 'teleport/types';
-import { Users } from 'teleport/Users';
 import { PassthroughPage } from 'shared/components/AuthorizeDeviceWeb/AuthorizeDeviceWeb';
 import { storageService } from 'teleport/services/storageService';
 
@@ -28,6 +27,7 @@ import { Downloads } from 'e-teleport/Downloads';
 import { AuthConnectors } from 'e-teleport/AuthConnectors';
 import { Account as AccountE } from 'e-teleport/Account';
 import Integrations from 'e-teleport/Integrations';
+import { Users } from 'e-teleport/Users';
 import { IntegrationEnroll } from 'e-teleport/Integrations/IntegrationEnroll';
 import SupportE from 'e-teleport/Support';
 import { NewLock } from 'e-teleport/NewLockV2';
@@ -36,8 +36,6 @@ import UsageSummary from 'e-teleport/UsageSummary';
 import { Discover as DiscoverE } from 'e-teleport/Discover';
 import { AccessListManagement as AccessListManagement } from 'e-teleport/AccessListManagement';
 import { AccessMonitoring } from 'e-teleport/AccessMonitoring';
-import { InviteCollaboratorsDialog } from 'e-teleport/InviteCollaborators';
-import EmailPasswordResetDialog from 'e-teleport/InviteCollaborators/EmailPasswordResetDialog';
 import { UnifiedResourcesE } from 'e-teleport/UnifiedResources';
 
 import type {
@@ -371,12 +369,7 @@ class FeatureHelpAndSupport extends OSS.FeatureHelpAndSupport {
 class FeatureUsersE extends OSS.FeatureUsers {
   route = {
     ...super.getRoute(),
-    component: () => (
-      <Users
-        InviteCollaborators={cfg.oss.isCloud ? InviteCollaboratorsDialog : null}
-        EmailPasswordReset={cfg.oss.isCloud ? EmailPasswordResetDialog : null}
-      />
-    ),
+    component: Users,
   };
 }
 

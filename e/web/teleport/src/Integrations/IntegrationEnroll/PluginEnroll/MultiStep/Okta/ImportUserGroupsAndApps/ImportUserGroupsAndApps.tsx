@@ -8,6 +8,7 @@ import {
   Text,
   Toggle,
   Alert,
+  H2,
 } from 'design';
 import styled from 'styled-components';
 import { PluginOktaSpec } from 'teleport/services/integrations';
@@ -20,8 +21,6 @@ import { requiredField } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
 import { ApiError } from 'teleport/services/api/parseError';
 import { assertUnreachable } from 'shared/utils/assertUnreachable';
-
-import { H2 } from 'design';
 
 import { pluginsService } from 'e-teleport/services/plugins';
 import {
