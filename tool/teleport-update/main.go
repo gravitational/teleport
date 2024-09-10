@@ -259,7 +259,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
 		updatesYAML = filepath.Join(versionsDir, updatesFileName)
 	)
-	unlock, err := lock(filepath.Join(versionsDir, lockFileName))
+	unlock, err := lock(filepath.Join(versionsDir, lockFileName), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -289,7 +289,7 @@ func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return trace.NotImplemented("TODO")
 }
 
-func lock(lockFile string) (func(), error) {
+func lock(lockFile string, nonblock bool) (func(), error) {
 	if err := os.MkdirAll(filepath.Dir(lockFile), 0755); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,7 +297,11 @@ func lock(lockFile string) (func(), error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
+	how := syscall.LOCK_EX
+	if nonblock {
+		how |= syscall.LOCK_NB
+	}
+	if err := syscall.Flock(int(lf.Fd()), how); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
