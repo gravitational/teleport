@@ -95,7 +95,7 @@ func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
 }
 
-// SSHPublicKey returns the public key marshaled to SSH authorized_keys format.
+// MarshalSSHPublicKey returns the public key marshaled to SSH authorized_keys format.
 func (k *PrivateKey) MarshalSSHPublicKey() []byte {
 	return ssh.MarshalAuthorizedKey(k.sshPub)
 }
