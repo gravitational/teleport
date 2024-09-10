@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1278,7 +1279,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1927,6 +1927,21 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.parties[p.id] = p
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
+
+	// Display participant mode and available controls to additional participants
+	if len(s.parties) > 1 {
+		var modeCtrl bytes.Buffer
+		modeCtrl.WriteString(fmt.Sprintf("Teleport > Joining session with participant mode: %s\r\n", string(mode)))
+		modeCtrl.WriteString("Teleport > Controls\r\n")
+		modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+		if p.mode == types.SessionModeratorMode {
+			modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+		}
+		_, err := p.Write(modeCtrl.Bytes())
+		if err != nil {
+			s.log.Errorf("Could not write bytes: %v", err)
+		}
+	}
 
 	// Write last chunk (so the newly joined parties won't stare at a blank
 	// screen).
