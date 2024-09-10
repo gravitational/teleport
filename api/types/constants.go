@@ -1363,3 +1363,13 @@ const (
 	// interacting with a plugin via SCIM. Useful for diagnostic display.
 	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
 )
+
+const (
+	// DeprecatedLabel is the label indicating that the resource is deprecated.
+	// The label value is ignored.
+	DeprecatedLabel = TeleportInternalLabelPrefix + "deprecated"
+
+	// RemovalVersion is a label indicating the version of Teleport that the
+	// tagged resource will be deleted in. Value should be a semver string.
+	RemovalVersionLabel = TeleportInternalLabelPrefix + "remove-in"
+)
