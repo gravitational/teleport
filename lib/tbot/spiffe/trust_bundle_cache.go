@@ -50,6 +50,13 @@ type BundleSet struct {
 	// (the name of the SPIFFEFederation resource) and excludes the spiffe://
 	// prefix.
 	Federated map[string]*spiffebundle.Bundle
+	stale     chan struct{}
+}
+
+// Stale returns a channel that will be closed when the BundleSet is stale
+// and a new BundleSet is available.
+func (b *BundleSet) Stale() <-chan struct{} {
+	return b.stale
 }
 
 // Clone returns a deep copy of the BundleSet.
@@ -57,6 +64,7 @@ func (b *BundleSet) Clone() *BundleSet {
 	clone := &BundleSet{
 		Local:     b.Local.Clone(),
 		Federated: make(map[string]*spiffebundle.Bundle),
+		stale:     b.stale,
 	}
 	for k, v := range b.Federated {
 		clone.Federated[k] = v.Clone()
@@ -129,9 +137,10 @@ type TrustBundleCache struct {
 
 	logger *slog.Logger
 
-	mu          sync.RWMutex
-	bundleSet   *BundleSet
-	subscribers map[chan<- struct{}]struct{}
+	mu        sync.RWMutex
+	bundleSet *BundleSet
+	// initialized will close when the cache is fully initialized.
+	initialized chan struct{}
 }
 
 // String returns a string representation of the TrustBundleCache. Implements
@@ -169,7 +178,7 @@ func NewTrustBundleCache(cfg TrustBundleCacheConfig) (*TrustBundleCache, error) 
 		eventsClient:     cfg.EventsClient,
 		clusterName:      cfg.ClusterName,
 		logger:           cfg.Logger,
-		subscribers:      map[chan<- struct{}]struct{}{},
+		initialized:      make(chan struct{}),
 	}, nil
 }
 
@@ -291,7 +300,7 @@ func (m *TrustBundleCache) watch(ctx context.Context) error {
 	}
 
 	// The initial state of the bundleSet is now complete, we can set it.
-	m.setAndBroadcastBundleSet(bundleSet)
+	m.setBundleSet(bundleSet)
 
 	m.logger.InfoContext(ctx, "Successfully initialized trust bundle cache")
 	for {
@@ -313,70 +322,41 @@ func (m *TrustBundleCache) getBundleSet() *BundleSet {
 		return nil
 	}
 	// Clone so a receiver cannot mutate the current state without calling
-	// setAndBroadcastBundleSet.
+	// setBundleSet.
 	return m.bundleSet.Clone()
 }
 
-func (m *TrustBundleCache) setAndBroadcastBundleSet(bundleSet *BundleSet) {
+func (m *TrustBundleCache) setBundleSet(bundleSet *BundleSet) {
 	m.mu.Lock()
-	// Clone the bundle set to avoid the caller mutating the state after it has
-	// been set.
+	old := m.bundleSet
+
 	m.bundleSet = bundleSet.Clone()
-	for sub := range m.subscribers {
-		select {
-		case sub <- struct{}{}:
-		default:
-		}
+	m.bundleSet.stale = make(chan struct{})
+
+	if old == nil {
+		// Indicate that the first bundle set is now available.
+		close(m.initialized)
+	} else {
+		// Indicate that a new bundle set is available.
+		close(old.stale)
 	}
 	m.mu.Unlock()
 }
 
-// Subscribe returns a channel which will receive the latest state of the
-// bundle set. If the cache is initialized, the current state will be sent
-// immediately.
-//
-// The implementation here is a little "odd":
-//   - We didn't want to block the broadcaster if a consumer was slow.
-//   - We don't care if a consumer misses an intermediate state, just that they
-//     know the state has changed and that they receive the latest state.
-func (m *TrustBundleCache) Subscribe() (<-chan *BundleSet, func()) {
-	stopCh := make(chan struct{})
-	notifyCh := make(chan struct{}, 1)
-	m.mu.Lock()
-	m.subscribers[notifyCh] = struct{}{}
-	m.mu.Unlock()
-	outCh := make(chan *BundleSet)
-	go func() {
-		unsent := m.getBundleSet() // can be nil i.e not yet initialized
-		for {
-			// We only want to try and send to outCh if we have a value to send.
-			var maybeOutCh chan *BundleSet
-			if unsent != nil {
-				maybeOutCh = outCh
-			}
-			select {
-			case maybeOutCh <- unsent:
-				// If we have a value to send, and, another goroutine
-				// (the consumer) is ready to receive, send it, and then clear
-				// unsent to indicate that the consumer has received the latest
-				// state.
-				// It's worth highlighting that outCh is unbuffered!
-				unsent = nil
-			case <-notifyCh:
-				// The broadcaster has flagged that new state is available, so
-				// we grab a local copy for our "unsent" value.
-				unsent = m.getBundleSet()
-			case <-stopCh:
-				// The consumer has indicated they no longer want to receive
-				// updates, we can exit.
-				return
-			}
-		}
-	}()
-	return outCh, func() {
-		m.mu.Lock()
-		delete(m.subscribers, notifyCh)
-		m.mu.Unlock()
+// GetBundleSet returns the current BundleSet. If the cache is not yet
+// initialized, it will block until it is.
+func (m *TrustBundleCache) GetBundleSet(
+	ctx context.Context,
+) (*BundleSet, error) {
+	bundleSet := m.getBundleSet()
+	if bundleSet != nil {
+		return bundleSet, nil
+	}
+	select {
+	case <-m.initialized:
+		return m.getBundleSet(), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
@@ -416,7 +396,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				ctx, "Processed deletion for federated trust bundle",
 			)
 			delete(bundleSet.Federated, event.Resource.GetName())
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		}
 	case types.OpPut:
 		switch event.Resource.GetKind() {
@@ -480,7 +460,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
 			bundleSet.Local = bundle
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		case types.KindSPIFFEFederation:
 			r153, ok := event.Resource.(types.Resource153Unwrapper)
 			if !ok {
@@ -532,7 +512,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
 			bundleSet.Federated[federation.Metadata.Name] = bundle
-			m.setAndBroadcastBundleSet(bundleSet)
+			m.setBundleSet(bundleSet)
 		}
 	default:
 		log.WarnContext(ctx, "Ignoring unexpected event type")

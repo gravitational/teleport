@@ -86,16 +86,9 @@ func (s *SPIFFESVIDOutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
-	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
-	defer stopBundleSetCh()
-
-	var bundleSet *spiffe.BundleSet
-	select {
-	case <-ctx.Done():
-		return nil
-	case bundleSet = <-bundleSetCh:
-	case <-time.After(10 * time.Second):
-		return trace.BadParameter("timed out waiting for trust bundle")
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting trust bundle set")
 	}
 
 	jitter := retryutils.NewJitter()
@@ -125,7 +118,11 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 			return nil
 		case <-retryAfter:
 			s.log.InfoContext(ctx, "Retrying")
-		case newBundleSet := <-bundleSetCh:
+		case <-bundleSet.Stale():
+			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting trust bundle set")
+			}
 			s.log.InfoContext(ctx, "Trust bundle set has been updated")
 			if !newBundleSet.Local.Equal(bundleSet.Local) {
 				// If the local trust domain CA has changed, we need to reissue
