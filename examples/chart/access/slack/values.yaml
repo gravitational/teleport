@@ -105,7 +105,7 @@ tbot:
   # tbot.teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
   # This must contain the port number, usually 443 or 3080 for Proxy Service.
   # Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
-  # This is mandatory to connect to Teleport Cloud.
+  # This is mandatory to connect to Teleport Enterprise (Cloud).
   #
   # This setting is mutually exclusive with `teleportAuthAddress`.
   #
