@@ -70,6 +70,7 @@ check-chart-ref-access-slack:
 	@echo "Checking access/slack reference"
 	@cd ../../build.assets/tooling && \
 	go run ./cmd/render-helm-ref -chart ../../examples/chart/access/slack -output - | diff ../../docs/pages/includes/helm-reference/zz_generated.access-slack.mdx - || \
+	( echo "Chart values.yaml and reference differ, please run 'make render-chart-ref'" && exit 1 )
 
 .PHONY: check-chart-ref-tbot
 check-chart-ref-tbot:
