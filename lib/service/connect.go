@@ -1074,6 +1074,10 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// the current clientState and the new connState are equivalent, but
+			// by overwriting it we're going to only have one connector state
+			// around in memory
+			conn.clientState.Store(connState)
 			conn.serverState.Store(connState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationPhaseRollback:
