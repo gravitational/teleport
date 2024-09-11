@@ -39,6 +39,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -64,6 +65,8 @@ const (
 	proxyServerEnvVar = "TELEPORT_PROXY"
 	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
+	// updateVersionEnvVar forces the version to specified value.
+	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 )
 
 const (
@@ -73,6 +76,11 @@ const (
 	configFileName = "update.yaml"
 	// lockFileName specifies the name of the file inside versionsDirName containing the flock lock preventing concurrent updater execution.
 	lockFileName = ".lock"
+)
+
+const (
+	// cdnURITemplate is the default template for the Teleport tgz download.
+	cdnURITemplate = "https://cdn.teleport.dev/teleport-v{{.Version}}-{{.OS}}-{{.Arch}}-bin.tar.gz"
 )
 
 var plog = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentUpdater)
@@ -303,7 +311,98 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 
 // cmdEnable enables updates and triggers an initial update.
 func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
-	return trace.NotImplemented("TODO")
+	var (
+		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
+		updatesYAML = filepath.Join(versionsDir, configFileName)
+	)
+
+	// Ensure enable can't run concurrently.
+	unlock, err := lock(filepath.Join(versionsDir, lockFileName), false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			plog.DebugContext(ctx, "Failed to close lock file", "error", err)
+		}
+	}()
+
+	// Read configuration from updates.yaml and override any new values passed as flags.
+	cfg, err := readUpdatesConfig(updatesYAML)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ccfg.ProxyServer != "" {
+		cfg.Spec.Proxy = ccfg.ProxyServer
+	}
+	if ccfg.Group != "" {
+		cfg.Spec.Group = ccfg.Group
+	}
+	if ccfg.Template != "" {
+		cfg.Spec.URLTemplate = ccfg.Template
+	}
+	cfg.Spec.Enabled = true
+	if err := validateUpdatesSpec(&cfg.Spec); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Lookup target version from the proxy.
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	addr, err := libutils.ParseAddr(cfg.Spec.Proxy)
+	if err != nil {
+		return trace.Errorf("failed to parse proxy server address: %w", err)
+	}
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: addr.Addr,
+		Timeout:   30 * time.Second,
+		Group:     cfg.Spec.Group,
+		Pool:      certPool,
+	})
+	if err != nil {
+		return trace.Errorf("failed to request version from proxy: %w", err)
+	}
+
+	desiredVersion, _ := "", resp // field not implemented in API yet
+	//desiredVersion := resp.AgentVersion
+
+	if v := os.Getenv(updateVersionEnvVar); v != "" {
+		desiredVersion = v
+	}
+	// If the active version and target don't match, kick off upgrade.
+	if cfg.Status.ActiveVersion != desiredVersion {
+		client, err := newClient(&downloadConfig{
+			Pool: certPool,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer client.CloseIdleConnections()
+		template := cfg.Spec.URLTemplate
+		if template == "" {
+			template = cdnURITemplate
+		}
+		tv := TeleportVersion{
+			VersionsDir:    filepath.Join(ccfg.DataDir, "versions"),
+			URLTemplate:    template,
+			DownloadClient: client,
+		}
+		// Create /var/lib/teleport/versions/X.Y.Z if it does not exist.
+		err = tv.Create(ctx, desiredVersion)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Status.ActiveVersion = desiredVersion
+	}
+
+	// Always write the configuration file if enable succeeds.
+	if err := writeUpdatesConfig(updatesYAML, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
@@ -349,7 +448,13 @@ func fdSyscall(f *os.File, fn func(uintptr) error) error {
 	return trace.Wrap(err)
 }
 
-//nolint:unused // scaffolding used in upcoming PR
+func validateUpdatesSpec(spec *UpdateSpec) error {
+	if spec.Proxy == "" {
+		return trace.Errorf("proxy URL must be specified with --proxy or present in updates.yaml")
+	}
+	return nil
+}
+
 type downloadConfig struct {
 	// Insecure turns off TLS certificate verification when enabled.
 	Insecure bool
@@ -360,7 +465,6 @@ type downloadConfig struct {
 	Timeout time.Duration
 }
 
-//nolint:unused // scaffolding used in upcoming PR
 func newClient(cfg *downloadConfig) (*http.Client, error) {
 	rt := apiutils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
