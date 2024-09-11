@@ -1217,6 +1217,37 @@ message TAGExecuteQueryEvent {
   bool is_success = 4;
 }
 
+// AccessGraphSecretsScanAuthorizedKeysEvent is emitted when the Access Graph
+// SSH authorized keys scan is performed.
+message AccessGraphSecretsScanAuthorizedKeysEvent {
+  // anonymized
+  string host_id = 1;
+  // total_keys is the total amount of keys found in the authorized keys file.
+  uint64 total_keys = 2;
+}
+
+// AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when the Access Graph
+// SSH private keys scan is performed.
+message AccessGraphSecretsScanSSHPrivateKeysEvent {
+  // anonymized
+  string device_id = 1;
+  // total_keys is the total amount of keys found in the private keys file.
+  uint64 total_keys = 2;
+  // device OS type
+  string device_os_type = 3;
+}
+
+// AccessGraphGitlabScanEvent is emitted when the Access Graph
+// Gitlab scan is enabled.
+message AccessGraphGitlabScanEvent {
+  // total_projects is the total amount of projects found in the Gitlab scan.
+  uint64 total_projects = 1;
+  // total_users is the total amount of users found in the Gitlab scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the Gitlab scan.
+  uint64 total_groups = 3;
+}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1450,6 +1481,12 @@ message SubmitEventRequest {
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
 
     UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85;
+
+    AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86;
+
+    AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
+
+    AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
