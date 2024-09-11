@@ -47,22 +47,51 @@ type NotificationsService struct {
 
 // NewNotificationsService returns a new instance of the NotificationService.
 func NewNotificationsService(backend backend.Backend, clock clockwork.Clock) (*NotificationsService, error) {
-	userNotificationService, err := generic.NewServiceWrapper[*notificationsv1.Notification](backend, types.KindNotification, notificationsUserSpecificPrefix, services.MarshalNotification, services.UnmarshalNotification)
+	userNotificationService, err := generic.NewServiceWrapper[*notificationsv1.Notification](
+		generic.ServiceWrapperConfig[*notificationsv1.Notification]{
+			Backend:       backend,
+			ResourceKind:  types.KindNotification,
+			BackendPrefix: notificationsUserSpecificPrefix,
+			MarshalFunc:   services.MarshalNotification,
+			UnmarshalFunc: services.UnmarshalNotification,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	globalNotificationService, err := generic.NewServiceWrapper[*notificationsv1.GlobalNotification](backend, types.KindGlobalNotification, notificationsGlobalPrefix, services.MarshalGlobalNotification, services.UnmarshalGlobalNotification)
+	globalNotificationService, err := generic.NewServiceWrapper[*notificationsv1.GlobalNotification](
+		generic.ServiceWrapperConfig[*notificationsv1.GlobalNotification]{
+			Backend:       backend,
+			ResourceKind:  types.KindGlobalNotification,
+			BackendPrefix: notificationsGlobalPrefix,
+			MarshalFunc:   services.MarshalGlobalNotification,
+			UnmarshalFunc: services.UnmarshalGlobalNotification,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userNotificationStateService, err := generic.NewServiceWrapper[*notificationsv1.UserNotificationState](backend, types.KindUserNotificationState, notificationsStatePrefix, services.MarshalUserNotificationState, services.UnmarshalUserNotificationState)
+	userNotificationStateService, err := generic.NewServiceWrapper[*notificationsv1.UserNotificationState](
+		generic.ServiceWrapperConfig[*notificationsv1.UserNotificationState]{
+			Backend:       backend,
+			ResourceKind:  types.KindUserNotificationState,
+			BackendPrefix: notificationsStatePrefix,
+			MarshalFunc:   services.MarshalUserNotificationState,
+			UnmarshalFunc: services.UnmarshalUserNotificationState,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	userLastSeenNotificationService, err := generic.NewServiceWrapper[*notificationsv1.UserLastSeenNotification](backend, types.KindUserLastSeenNotification, notificationsUserLastSeenPrefix, services.MarshalUserLastSeenNotification, services.UnmarshalUserLastSeenNotification)
+	userLastSeenNotificationService, err := generic.NewServiceWrapper[*notificationsv1.UserLastSeenNotification](
+		generic.ServiceWrapperConfig[*notificationsv1.UserLastSeenNotification]{
+			Backend:       backend,
+			ResourceKind:  types.KindUserLastSeenNotification,
+			BackendPrefix: notificationsUserLastSeenPrefix,
+			MarshalFunc:   services.MarshalUserLastSeenNotification,
+			UnmarshalFunc: services.UnmarshalUserLastSeenNotification,
+			ValidateFunc:  services.ValidateUserLastSeenNotification,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
