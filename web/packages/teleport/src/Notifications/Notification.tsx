@@ -103,6 +103,8 @@ export function Notification({
         clicked={notification.clicked}
         onClick={onNotificationClick}
         className="notification"
+        tabIndex={0}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
+import { useState, useRef } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
@@ -39,17 +39,21 @@ import {
   STARTING_TRANSITION_DELAY,
   INCREMENT_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
+import { focusOutsideTarget } from 'teleport/lib/util';
 
 interface UserMenuNavProps {
   username: string;
 }
+
+const USER_MENU_DROPDOWN_ID = 'tb-user-menu';
 
 const Container = styled.div`
   position: relative;
   align-self: center;
   padding-left: ${props => props.theme.space[3]}px;
   padding-right: ${props => props.theme.space[3]}px;
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
   height: 100%;
@@ -63,6 +67,7 @@ const UserInfo = styled.div`
   cursor: pointer;
   user-select: none;
   position: relative;
+  outline: none;
 `;
 
 const Username = styled(Text)`
@@ -117,7 +122,8 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
 
   const { preferences, updatePreferences } = useUser();
 
-  const ref = useRefClickOutside<HTMLDivElement>({ open, setOpen });
+  const outsideClickRef = useRefClickOutside<HTMLDivElement>({ open, setOpen });
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
@@ -143,10 +149,16 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   let transitionDelay = STARTING_TRANSITION_DELAY;
   for (const [index, item] of topMenuItems.entries()) {
     items.push(
-      <DropdownItem open={open} key={index} $transitionDelay={transitionDelay}>
+      <DropdownItem
+        open={open}
+        key={index}
+        $transitionDelay={transitionDelay}
+        role="menuitem"
+      >
         <DropdownItemLink
           to={item.topMenuItem.getLink(clusterId)}
           onClick={() => setOpen(false)}
+          onKeyUp={e => (e.key === 'Enter' || e.key === ' ') && setOpen(false)}
         >
           <DropdownItemIcon>{<item.topMenuItem.icon />}</DropdownItemIcon>
           {item.topMenuItem.title}
@@ -158,8 +170,32 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   }
 
   return (
-    <Container ref={ref}>
-      <UserInfo onClick={() => setOpen(!open)} open={open}>
+    <Container ref={outsideClickRef}>
+      <UserInfo
+        open={open}
+        onClick={() => setOpen(!open)}
+        onKeyUp={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            setOpen(!open);
+            return;
+          }
+          if (e.key === 'Tab' && open) {
+            // move to first focusable item in dropdown
+            dropdownRef.current
+              ?.querySelector<HTMLElement>('a, div[role="button"]')
+              ?.focus();
+          }
+        }}
+        onBlur={e =>
+          focusOutsideTarget(e, dropdownRef.current) && setOpen(false)
+        }
+        tabIndex={0}
+        role="button"
+        aria-label="User Menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={USER_MENU_DROPDOWN_ID}
+      >
         <StyledAvatar>{initial}</StyledAvatar>
 
         <Username>{username}</Username>
@@ -169,15 +205,34 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         </Arrow>
       </UserInfo>
 
-      <Dropdown open={open}>
+      <Dropdown
+        open={open}
+        ref={dropdownRef}
+        role="menu"
+        id={USER_MENU_DROPDOWN_ID}
+        onBlur={e =>
+          !e.currentTarget.contains(e.relatedTarget as Node) && setOpen(false)
+        }
+      >
+        <DeviceTrustStatus />
         {items}
 
         <DropdownDivider />
 
         {/* Hide ability to switch themes if the theme is a custom theme */}
         {!theme.isCustomTheme && (
-          <DropdownItem open={open} $transitionDelay={transitionDelay}>
-            <DropdownItemButton onClick={onThemeChange}>
+          <DropdownItem
+            open={open}
+            $transitionDelay={transitionDelay}
+            role="menuitem"
+          >
+            <DropdownItemButton
+              onClick={onThemeChange}
+              onKeyUp={e =>
+                (e.key === 'Enter' || e.key === ' ') && onThemeChange()
+              }
+              tabIndex={0}
+            >
               <DropdownItemIcon>
                 {preferences.theme === Theme.DARK ? <Sun /> : <Moon />}
               </DropdownItemIcon>
@@ -187,8 +242,18 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
           </DropdownItem>
         )}
 
-        <DropdownItem open={open} $transitionDelay={transitionDelay}>
-          <DropdownItemButton onClick={() => session.logout()}>
+        <DropdownItem
+          open={open}
+          $transitionDelay={transitionDelay}
+          role="menuitem"
+        >
+          <DropdownItemButton
+            onClick={() => session.logout()}
+            onKeyUp={e =>
+              (e.key === 'Enter' || e.key === ' ') && session.logout()
+            }
+            tabIndex={0}
+          >
             <DropdownItemIcon>
               <LogoutIcon />
             </DropdownItemIcon>

@@ -41,6 +41,8 @@ import { Notification } from './Notification';
 const PAGE_SIZE = 15;
 const START_KEY_SEPARATOR = ' ';
 
+const NOTIFICATION_DROPDOWN_ID = 'tb-note-dropdown';
+
 export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
   const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
@@ -122,8 +124,17 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
       >
         <ButtonIconContainer
           onClick={() => setOpen(!open)}
+          onKeyUp={e =>
+            (e.key === 'Enter' || e.key === ' ') && setOpen(!open)
+          }
           data-testid="tb-note-button"
           open={open}
+          role="button"
+          tabIndex={0}
+          aria-label="Notifications"
+          aria-haspopup="menu"
+          aria-controls={NOTIFICATION_DROPDOWN_ID}
+          aria-expanded={open}
         >
           {unseenNotifsCount > 0 && (
             <UnseenBadge>
@@ -137,7 +148,12 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
         </ButtonIconContainer>
       </HoverTooltip>
 
-      <NotificationsDropdown open={open} data-testid="tb-note-dropdown">
+      <NotificationsDropdown
+        open={open}
+        id={NOTIFICATION_DROPDOWN_ID}
+        data-testid={NOTIFICATION_DROPDOWN_ID}
+        role="menu"
+      >
         <Header view={view} setView={setView} />
         {attempt.status === 'failed' && (
           <Box px={3}>

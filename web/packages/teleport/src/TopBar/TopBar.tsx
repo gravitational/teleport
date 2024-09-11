@@ -284,7 +284,8 @@ const TeleportLogo = ({ CustomLogo }: TopBarProps) => {
           cursor: pointer;
           display: flex;
           transition: background-color 0.1s linear;
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${p =>
               p.theme.colors.interactive.tonal.primary[0]};
           }
@@ -363,12 +364,14 @@ const NavigationButton = ({
           }
           border-bottom: ${selected ? selectedBorder : 'none'};
           background-color: ${selected ? selectedBackground : 'inherit'};
-          &:hover {
+          &:hover,
+          &:focus-visible {
             background-color: ${selected
               ? selectedBackground
               : theme.colors.buttons.secondary.default};
           }
         `}
+        aria-label={title || undefined}
         {...props}
       >
         <Flex
