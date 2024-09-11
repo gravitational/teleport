@@ -136,6 +136,8 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 	}
 }
 
+// waitingForNewEvent starts listening for the named event, runs the given
+// closure, then waits for the event to be emitted.
 func (t *teleportService) waitingForNewEvent(ctx context.Context, name string, fn func() error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -179,6 +181,16 @@ func (s teleportServices) forEach(f func(t *teleportService) error) error {
 }
 
 func (s teleportServices) waitingForNewEvent(ctx context.Context, name string, fn func() error) error {
+	// assuming two services (which is all we ever use this for anyway), the
+	// following loop results in this, which is exactly what we'd write to wait
+	// for the same event in two services ([teleportService.waitingForNewEvent]
+	// wraps a closure and we want to call it once, so we can't just use
+	// [teleportServices.forEach])
+	//
+	//	svc1.waitingForNewEvent(ctx, name, func() error {
+	//		return svc2.waitingForNewEvent(ctx, name, fn)
+	//	})
+
 	for _, svc := range s {
 		oldFn := fn
 		fn = func() error {
