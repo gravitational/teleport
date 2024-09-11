@@ -149,9 +149,9 @@ the `tsh proxy db` command you ran earlier:
 
 |Field|Path|
 |---|---|
+|Certificate Authority|`ca_file`|
 |Client Certificate|`cert_file`|
 |Client Private Key|`key_file`|
-|Certificate Authority|`ca_file`|
 
 Click on the "Connect" button.
 
@@ -206,8 +206,8 @@ proxy db` command you ran earlier:
 
 |Field|Path|
 |---|---|
-|SSL CERT File|`cert_file`|
 |SSL Key File|`key_file`|
+|SSL CERT File|`cert_file`|
 |SSL CA File|`ca_file`|
 
 Optionally, click "Test Connection" to verify connectivity:
@@ -344,16 +344,16 @@ Provide your Redis username as `Username` and password as `Password`.
 
 ![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
 
-Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the files at
-the paths returned by the `tsh proxy db` command you ran earlier and paste them
-into their corresponding fields. See the table below for the Redis Insight
-fields that correspond to each path:
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the contents
+of the files at the paths returned by the `tsh proxy db` command you ran earlier
+and paste them into their corresponding fields. See the table below for the
+Redis Insight fields that correspond to each path:
 
 |Field|Path|
 |---|---|
+|CA Certificate|`ca_file`|
 |Client Certificate|`cert_file`|
 |Private Key|`key_file`|
-|CA Certificate|`ca_file`|
 
 Click `Add Redis Database`.
 
