@@ -90,7 +90,6 @@ test.each([
 test("mouse right click opens context menu when 'terminal.rightClick: menu' is configured", async () => {
   const appContext = new MockAppContext();
   const user = userEvent.setup();
-  jest.spyOn(appContext.mainProcessClient, 'openTerminalContextMenu');
   appContext.configService.set('terminal.rightClick', 'menu');
   const openContextMenu = jest.fn();
 
