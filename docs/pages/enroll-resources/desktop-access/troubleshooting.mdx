@@ -369,6 +369,40 @@ Teleport's smartcard certificates are only valid for a short period of time
 target Windows host disagree about the current time, the system may reject the
 authentication attempt.
 
+### Expired TLS certificate
+
+This error will be displayed in the Web UI before a remote session is opened to your desktop of choice:
+
+```text
+Remote error tls expired certificate
+```
+
+**Solution:** Check the system clock on the Teleport auth server
+
+Related to [Expired smartcard certificate](./troubleshooting.mdx#expired-smartcard-certificate), this error
+most likely stems from time drift on the auth server. On Linux systems running systemd, this can be
+checked with the following command:
+
+```code
+$ timedatectl
+```
+
+Which should produce the following output:
+
+```
+               Local time: Wed 2024-09-11 13:45:17 UTC
+           Universal time: Wed 2024-09-11 13:45:17 UTC
+                 RTC time: Wed 2024-09-11 13:45:17
+                Time zone: Etc/UTC (UTC, +0000)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+```
+
+If `System clock synchronized` is `no`, this would need to be resolved.
+This should also be checked on your Teleport proxies and Teleport agents to get ahead of other issues
+stemming from problems which relate to time desynchronization.
+
 ### Enhanced RDP security with CredSSP required
 
 Attempts to connect to a desktop fail, and the logs show an error similar to:
