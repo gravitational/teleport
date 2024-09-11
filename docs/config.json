@@ -241,7 +241,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -1091,7 +1091,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -2632,6 +2632,11 @@
     {
       "source": "/choose-an-edition/teleport-enterprise/introduction/",
       "destination": "/admin-guides/deploy-a-cluster/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     }
   ]
