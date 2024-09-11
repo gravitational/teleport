@@ -36,7 +36,7 @@ import (
 )
 
 // TestAutoUpdateServiceConfigCRUD verifies get/create/update/upsert/delete methods of the backend service
-// for autoupdate config resource.
+// for auto update config resource.
 func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -92,7 +92,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 }
 
 // TestAutoUpdateServiceVersionCRUD verifies get/create/update/upsert/delete methods of the backend service
-// for autoupdate version resource.
+// for auto update version resource.
 func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	t.Parallel()
 

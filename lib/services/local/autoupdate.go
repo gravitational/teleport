@@ -45,22 +45,32 @@ type AutoupdateService struct {
 // NewAutoupdateService returns a new AutoupdateService.
 func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 	config, err := generic.NewServiceWrapper(
-		backend,
-		types.KindAutoUpdateConfig,
-		autoUpdateConfigPrefix,
-		services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
-		services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
-	)
+		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateConfig]{
+			Backend:       backend,
+			ResourceKind:  types.KindAutoUpdateConfig,
+			BackendPrefix: autoUpdateConfigPrefix,
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
+			ValidateFunc:  update.ValidateAutoUpdateConfig,
+			KeyFunc: func(*autoupdate.AutoUpdateConfig) string {
+				return types.MetaNameAutoUpdateConfig
+			},
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	version, err := generic.NewServiceWrapper(
-		backend,
-		types.KindAutoUpdateVersion,
-		autoUpdateVersionPrefix,
-		services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
-		services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
-	)
+		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateVersion]{
+			Backend:       backend,
+			ResourceKind:  types.KindAutoUpdateVersion,
+			BackendPrefix: autoUpdateVersionPrefix,
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
+			ValidateFunc:  update.ValidateAutoUpdateVersion,
+			KeyFunc: func(version *autoupdate.AutoUpdateVersion) string {
+				return types.MetaNameAutoUpdateVersion
+			},
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -76,9 +86,6 @@ func (s *AutoupdateService) CreateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := update.ValidateAutoUpdateConfig(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	config, err := s.config.CreateResource(ctx, c)
 	return config, trace.Wrap(err)
 }
@@ -88,9 +95,6 @@ func (s *AutoupdateService) UpdateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := update.ValidateAutoUpdateConfig(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	config, err := s.config.UpdateResource(ctx, c)
 	return config, trace.Wrap(err)
 }
@@ -100,9 +104,6 @@ func (s *AutoupdateService) UpsertAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := update.ValidateAutoUpdateConfig(c); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	config, err := s.config.UpsertResource(ctx, c)
 	return config, trace.Wrap(err)
 }
@@ -123,9 +124,6 @@ func (s *AutoupdateService) CreateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
-	if err := update.ValidateAutoUpdateVersion(v); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	version, err := s.version.CreateResource(ctx, v)
 	return version, trace.Wrap(err)
 }
@@ -135,9 +133,6 @@ func (s *AutoupdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
-	if err := update.ValidateAutoUpdateVersion(v); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	version, err := s.version.UpdateResource(ctx, v)
 	return version, trace.Wrap(err)
 }
@@ -147,9 +142,6 @@ func (s *AutoupdateService) UpsertAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
-	if err := update.ValidateAutoUpdateVersion(v); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	version, err := s.version.UpsertResource(ctx, v)
 	return version, trace.Wrap(err)
 }
