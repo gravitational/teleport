@@ -111,6 +111,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Origin:            u.Desktop.Origin,
 			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
 			AllowUserCreation: u.Desktop.AllowUserCreation,
+			Nla:               u.Desktop.Nla,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -944,6 +945,55 @@ func (e *TagExecuteQueryEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 				TotalEdges: e.TotalEdges,
 				TotalNodes: e.TotalNodes,
 				IsSuccess:  e.IsSuccess,
+			},
+		},
+	}
+}
+
+// AccessGraphGitlabScanEvent is emitted when a user scans a GitLab repository
+type AccessGraphGitlabScanEvent prehogv1a.AccessGraphGitlabScanEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphGitlabScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphGitlabScan{
+			AccessGraphGitlabScan: &prehogv1a.AccessGraphGitlabScanEvent{
+				TotalProjects: e.TotalProjects,
+				TotalUsers:    e.TotalUsers,
+				TotalGroups:   e.TotalGroups,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanAuthorizedKeysEvent is emitted when hosts report authorized keys.
+// This event is used to track the number of authorized keys reported by hosts. Keys are
+// refreshed periodically.
+type AccessGraphSecretsScanAuthorizedKeysEvent prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanAuthorizedKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanAuthorizedKeys{
+			AccessGraphSecretsScanAuthorizedKeys: &prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent{
+				HostId:    a.AnonymizeString(e.HostId),
+				TotalKeys: e.TotalKeys,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when devices report private keys.
+type AccessGraphSecretsScanSSHPrivateKeysEvent prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanSSHPrivateKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanSshPrivateKeys{
+			AccessGraphSecretsScanSshPrivateKeys: &prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent{
+				DeviceId:     a.AnonymizeString(e.DeviceId),
+				TotalKeys:    e.TotalKeys,
+				DeviceOsType: e.DeviceOsType,
 			},
 		},
 	}
