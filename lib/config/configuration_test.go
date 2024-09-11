@@ -341,6 +341,7 @@ func TestConfigReading(t *testing.T) {
 			WebIdleTimeout:        types.Duration(19 * time.Second),
 			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 			ProxyPingInterval:     types.Duration(10 * time.Second),
+			SSHDialTimeout:        types.Duration(45 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -1495,6 +1496,7 @@ func makeConfigFixture() string {
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 	conf.Auth.ProxyPingInterval = types.NewDuration(10 * time.Second)
+	conf.Auth.SSHDialTimeout = types.NewDuration(45 * time.Second)
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
