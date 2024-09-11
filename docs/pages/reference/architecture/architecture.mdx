@@ -9,15 +9,10 @@ page, which describes the components of a Teleport cluster.
 
 ## Teleport control plane
 
-Teleport consists of a **control plane** that runs the Teleport Auth Service and
-Teleport Proxy Service, and a **data plane** that consists of Teleport Agents,
-Machine ID Bots, and Auth Service API clients like the Event Handler and Access
-Request plugins. The data plane communicates with both your infrastructure and
-the control plane. Your infrastructure communicates only with the data plane.
-
-On Teleport Enterprise (Cloud), the control plane is fully managed on Teleport
-infrastructure. Read about [Teleport Enterprise (Cloud)
-Architecture](teleport-cloud-architecture.mdx).
+The Teleport **control plane** consists of the Teleport Auth Service and
+Teleport Proxy Service. On Teleport Enterprise (Cloud), the control plane is
+fully managed on Teleport infrastructure. Read about [Teleport Enterprise
+(Cloud) Architecture](teleport-cloud-architecture.mdx).
 
 ### Teleport Auth Service
 
@@ -40,7 +35,7 @@ For more information about the Teleport Auth Service, read the following guides:
 
 ### Teleport Proxy Service
 
-The Teleport Proxy Service enables components in the Teleport data plane to
+The Teleport Proxy Service enables components in a Teleport cluster to
 communicate securely with the Teleport Auth Service. With the Proxy Service,
 users can use the public internet to access infrastructure in private networks.
 
@@ -77,7 +72,7 @@ infrastructure resources with a Teleport cluster:
 ### Teleport Agents
 
 Teleport Agents proxy traffic from users to resources in your infrastructure.
-Agents are instances of the `teleport` binary configured to run data plane
+Agents are instances of the `teleport` binary configured to run certain
 services, e.g., the Teleport SSH Service and Teleport Kubernetes Service, and
 administrators deploy Agents on their own infrastructure.
 
@@ -88,17 +83,16 @@ deny access to a resource.
 
 Agents must establish trust with the Teleport Auth Service when first joining a
 cluster, and there is are [variety of
-methods](../enroll-resources/agents/join-services-to-your-cluster.mdx) that
+methods](../../enroll-resources/agents/join-services-to-your-cluster.mdx) that
 Agents use for this.
 
-Read more about [Teleport Agent Architecture](agents.mdx). You can also read
-about the architecture of Teleport Agent features:
+Read about the architecture of Teleport Agent features:
 
 - [Automatic Agent updates](agent-update-management.mdx): How a
   Teleport cluster ensures that Agents run the most up-to-date version of the
   `teleport` binary.
 - [Automatically discovering Kubernetes
-  applications](docs/pages/reference/architecture//kubernetes-applications-architecture.mdx):
+  applications](../../reference/architecture//kubernetes-applications-architecture.mdx):
   The Teleport Discovery Service queries your Kubernetes cluster and registers
   applications with the Teleport Auth Service.
 - [Session recordings](session-recording.mdx): Teleport Agents record user
@@ -113,9 +107,9 @@ assigned Teleport roles.
 
 Instances of the `tbot` binary communicate with the Teleport Auth Service to
 continuously refresh credentials. As with Agents, administrators must deploy
-`tbot` on their own infrastructure, including on CI/CD platforms such as GitHub
-Actions. The [join methods](../enroll-resources/machine-id/deployment.mdx) for
-`tbot` differ from those for Agents.
+`tbot` instances on their own infrastructure, including on CI/CD platforms such
+as GitHub Actions, and [join
+them](../../enroll-resources/machine-id/deployment.mdx) to a cluster.
 
 Read more about [Machine ID Architecture](machine-id-architecture.mdx).
 
