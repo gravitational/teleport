@@ -450,6 +450,26 @@ var (
 		TerraformResourceType:  "teleport_installer",
 		HasCheckAndSetDefaults: true,
 	}
+
+	accessMonitoringRule = payload{
+		Name:                  "AccessMonitoringRule",
+		TypeName:              "AccessMonitoringRule",
+		VarName:               "accessMonitoringRule",
+		GetMethod:             "AccessMonitoringRulesClient().GetAccessMonitoringRule",
+		CreateMethod:          "AccessMonitoringRulesClient().CreateAccessMonitoringRule",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "AccessMonitoringRulesClient().UpdateAccessMonitoringRule",
+		DeleteMethod:          "AccessMonitoringRulesClient().DeleteAccessMonitoringRule",
+		ID:                    "accessMonitoringRule.Metadata.Name",
+		Kind:                  "access_monitoring_rule",
+		HasStaticID:           false,
+		ProtoPackage:          "accessmonitoringrulesv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/accessmonitoringrules/v1",
+		IsPlainStruct:         true,
+		TerraformResourceType: "teleport_access_monitoring_rule",
+	}
 )
 
 func main() {
@@ -495,6 +515,8 @@ func genTFSchema() {
 	generateDataSource(server, pluralDataSource)
 	generateResource(installer, pluralResource)
 	generateDataSource(installer, pluralDataSource)
+	generateResource(accessMonitoringRule, pluralResource)
+	generateDataSource(accessMonitoringRule, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
