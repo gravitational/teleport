@@ -129,6 +129,26 @@ func NewAppServerHeartbeat(cfg HeartbeatV2Config[*types.AppServerV3]) (*Heartbea
 	}), nil
 }
 
+// NewDatabaseServerHeartbeat creates a [HeartbeatV2] that can be used to update
+// the presence of [types.DatabaseServerV3].
+func NewDatabaseServerHeartbeat(cfg HeartbeatV2Config[*types.DatabaseServerV3]) (*HeartbeatV2, error) {
+	if err := cfg.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	inner := &dbServerHeartbeatV2{
+		getServer: func(ctx context.Context) *types.DatabaseServerV3 { return cfg.GetResource() },
+		announcer: cfg.Announcer,
+	}
+
+	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
+		onHeartbeatInner:           cfg.OnHeartbeat,
+		announceInterval:           cfg.AnnounceInterval,
+		disruptionAnnounceInterval: cfg.DisruptionAnnounceInterval,
+		pollInterval:               cfg.PollInterval,
+	}), nil
+}
+
 // hbv2TestEvent is a basic event type used to monitor/await
 // specific events within the HeartbeatV2 type's operations
 // during tests.
@@ -450,25 +470,6 @@ func (h *HeartbeatV2) Close() error {
 	return nil
 }
 
-// ForceSend is used in tests to trigger an announce and block
-// until it one successfully completes or the provided timeout is reached.
-func (h *HeartbeatV2) ForceSend(timeout time.Duration) error {
-	timeoutC := time.After(timeout)
-	waiter := make(chan struct{})
-	select {
-	case <-timeoutC:
-		return trace.Errorf("timeout waiting to trigger announce")
-	case h.testAnnounce <- waiter:
-	}
-
-	select {
-	case <-timeoutC:
-		return trace.Errorf("timeout waiting for announce success")
-	case <-waiter:
-		return nil
-	}
-}
-
 func (h *HeartbeatV2) onHeartbeat(err error) {
 	if err != nil {
 		h.testEvent(hbv2OnHeartbeatErr)
@@ -600,6 +601,64 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: h.getServer(ctx)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
+		}
+		return false
+	}
+
+	h.prev = server
+	return true
+}
+
+// dbServerHeartbeatV2 is the heartbeatV2 implementation for db servers.
+type dbServerHeartbeatV2 struct {
+	getServer func(ctx context.Context) *types.DatabaseServerV3
+	announcer authclient.Announcer
+	prev      *types.DatabaseServerV3
+}
+
+func (h *dbServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
+	if h.prev == nil {
+		return true
+	}
+	return services.CompareServers(h.getServer(ctx), h.prev) == services.Different
+}
+
+func (h *dbServerHeartbeatV2) SupportsFallback() bool {
+	return h.announcer != nil
+}
+
+func (h *dbServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
+	if h.announcer == nil {
+		return false
+	}
+	server := h.getServer(ctx)
+	_, err := h.announcer.UpsertDatabaseServer(ctx, server)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			log.Warnf("Failed to perform fallback heartbeat for database server: %v", err)
+		}
+		return false
+	}
+	h.prev = server
+	return true
+}
+
+func (h *dbServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
+	// DatabaseServer heartbeats via inventory control stream were not introduced in a major version,
+	// so there is a chance that the Auth server is unable to process the request via the inventory
+	// control stream. If the Auth server capabilities indicate as such, then use the fallback mechanism.
+	hello := sender.Hello()
+	switch {
+	case hello.Capabilities == nil:
+		return h.FallbackAnnounce(ctx)
+	case hello.Capabilities != nil && !hello.Capabilities.DatabaseHeartbeats:
+		return h.FallbackAnnounce(ctx)
+	}
+
+	server := h.getServer(ctx)
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{DatabaseServer: h.getServer(ctx)}); err != nil {
+		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
+			log.Warnf("Failed to perform inventory heartbeat for database server: %v", err)
 		}
 		return false
 	}
