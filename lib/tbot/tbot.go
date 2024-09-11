@@ -434,7 +434,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
 				executablePath:    os.Executable,
-				getEnv:            os.Getenv,
 				alpnUpgradeCache:  alpnUpgradeCache,
 				proxyPingCache:    proxyPingCache,
 			}
