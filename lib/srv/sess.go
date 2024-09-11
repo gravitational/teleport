@@ -236,11 +236,15 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-// TryWriteSudoersFile tries to write the needed sudoers entry to the sudoers
+// WriteSudoersFile tries to write the needed sudoers entry to the sudoers
 // file, if any. If the returned closer is not nil, it must be called at the
 // end of the session to cleanup the sudoers file.
-func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
-	// Pulling sudoers directly from the Srv so TryWriteSudoersFile always
+func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return nil, nil
+	}
+
+	// Pulling sudoers directly from the Srv so WriteSudoersFile always
 	// respects the invariant that we shouldn't write sudoers on proxy servers.
 	// This might invalidate the cached sudoers field on SessionRegistry, so
 	// we may be able to remove that in a future PR
@@ -266,42 +270,51 @@ func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (
 	return &sudoersCloser{
 		username:     identityContext.Login,
 		userSessions: s.sessionsByUser,
-		cleanup:      s.sudoers.RemoveSudoers,
+		cleanup:      sudoWriter.RemoveSudoers,
 	}, nil
 }
 
-// TryCreateHostUser attempts to create a local user on the host if needed.
-// If the returned closer is not nil, it must be called at the end of the
-// session to clean up the local user.
-func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (created bool, closer io.Closer, err error) {
+// UpsertHostUser attempts to create or update a local user on the host if needed.
+// If the returned closer is not nil, it must be called at the end of the session to
+// clean up the local user.
+func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return false, nil, nil
+	}
+
 	if !s.Srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			log.Warnf("Unable to create host users: %v", err)
-			return false, nil, nil
+	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
+	if trace.IsAccessDenied(accessErr) {
+		existsErr := s.users.UserExists(identityContext.Login)
+		if existsErr != nil {
+			if trace.IsNotFound(existsErr) {
+				return false, nil, trace.WrapWithMessage(accessErr, "insufficient permissions for host user creation")
+			}
+
+			return false, nil, trace.Wrap(existsErr)
 		}
-		log.Debug("Error while checking host users creation permission: ", err)
-		return false, nil, trace.Wrap(err)
 	}
 
-	existsErr := s.users.UserExists(identityContext.Login)
-	if trace.IsAccessDenied(err) && existsErr != nil {
-		return false, nil, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+	if accessErr != nil {
+		return false, nil, trace.Wrap(accessErr)
 	}
 
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
-	if err != nil && !trace.IsAlreadyExists(err) && !errors.Is(err, unmanagedUserErr) {
+	if err != nil {
 		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
-		return false, nil, trace.Wrap(err)
-	}
 
-	if errors.Is(err, unmanagedUserErr) {
-		log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+		if errors.Is(err, unmanagedUserErr) {
+			log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+			return false, nil, nil
+		}
+
+		if !trace.IsAlreadyExists(err) {
+			return false, nil, trace.Wrap(err)
+		}
 	}
 
 	return true, userCloser, nil
