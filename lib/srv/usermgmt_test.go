@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 type testHostUserBackend struct {
@@ -135,22 +136,22 @@ func (tm *testHostUserBackend) CreateGroup(group, gid string) error {
 	return nil
 }
 
-func (tm *testHostUserBackend) CreateUser(user string, groups []string, home, uid, gid string) error {
+func (tm *testHostUserBackend) CreateUser(user string, groups []string, opts host.UserOpts) error {
 	_, ok := tm.users[user]
 	if ok {
 		return trace.AlreadyExists("Group %q, already exists", user)
 	}
-	if uid == "" {
-		uid = fmt.Sprint(len(tm.users) + 1)
+	if opts.UID == "" {
+		opts.UID = fmt.Sprint(len(tm.users) + 1)
 	}
-	if gid == "" {
-		gid = fmt.Sprint(len(tm.groups) + 1)
+	if opts.GID == "" {
+		opts.GID = fmt.Sprint(len(tm.groups) + 1)
 	}
 	// Ensure that the user has a primary group. It's OK if it already exists.
-	_ = tm.CreateGroup(user, gid)
+	_ = tm.CreateGroup(user, opts.GID)
 	tm.users[user] = groups
-	tm.userUID[user] = uid
-	tm.userGID[user] = gid
+	tm.userUID[user] = opts.UID
+	tm.userGID[user] = opts.GID
 	return nil
 }
 
@@ -234,7 +235,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	require.NotContains(t, backend.users, "bob")
 
 	backend.CreateGroup("testgroup", "")
-	backend.CreateUser("simon", []string{}, "", "", "")
+	backend.CreateUser("simon", []string{}, host.UserOpts{})
 
 	// an existing, unmanaged user should not be changed
 	closer, err = users.UpsertUser("simon", userinfo)
@@ -280,7 +281,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
-		backend.CreateUser("testuser", nil, "", "", "")
+		backend.CreateUser("testuser", nil, host.UserOpts{})
 		_, err := users.UpsertUser("testuser", services.HostUsersInfo{
 			Mode: services.HostUserModeDrop,
 		})
@@ -330,7 +331,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 				Mode:   services.HostUserModeDrop,
 			})
 		} else {
-			mgmt.CreateUser(user.user, user.groups, "", "", "")
+			mgmt.CreateUser(user.user, user.groups, host.UserOpts{})
 		}
 	}
 	require.NoError(t, users.DeleteAllUsers())
@@ -562,7 +563,7 @@ func Test_DontManageExistingUser(t *testing.T) {
 	allGroups := []string{"foo", "bar", "baz", "quux"}
 	users, backend := initBackend(t, allGroups)
 
-	assert.NoError(t, backend.CreateUser("alice", allGroups, "", "", ""))
+	assert.NoError(t, backend.CreateUser("alice", allGroups, host.UserOpts{}))
 
 	userinfo := services.HostUsersInfo{
 		Groups: allGroups[:2],
@@ -599,7 +600,7 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 	allGroups := []string{"foo", "bar", "baz", "quux"}
 	users, backend := initBackend(t, allGroups)
 
-	assert.NoError(t, backend.CreateUser("alice", allGroups[2:], "", "", ""))
+	assert.NoError(t, backend.CreateUser("alice", allGroups[2:], host.UserOpts{}))
 	tests := []struct {
 		name     string
 		userinfo services.HostUsersInfo
@@ -645,8 +646,8 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	allGroups := []string{"foo", types.TeleportKeepGroup, types.TeleportDropGroup}
 	users, backend := initBackend(t, allGroups)
 
-	assert.NoError(t, backend.CreateUser("alice-keep", []string{}, "", "", ""))
-	assert.NoError(t, backend.CreateUser("alice-drop", []string{}, "", "", ""))
+	assert.NoError(t, backend.CreateUser("alice-keep", []string{}, host.UserOpts{}))
+	assert.NoError(t, backend.CreateUser("alice-drop", []string{}, host.UserOpts{}))
 	userinfo := services.HostUsersInfo{
 		Groups: slices.Clone(allGroups),
 		Mode:   services.HostUserModeKeep,
