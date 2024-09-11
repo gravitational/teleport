@@ -25,7 +25,7 @@ import (
 {{- end }}
 	"fmt"
 {{- range $i, $a := .ExtraImports }}
-	"{{$a}}"
+	{{$a}}
 {{- end }}
 {{ if .UUIDMetadataName }}
 	"github.com/google/uuid"

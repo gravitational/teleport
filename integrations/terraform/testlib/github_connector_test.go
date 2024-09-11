@@ -55,7 +55,7 @@ func (s *TerraformSuiteOSS) TestGithubConnector() {
 					resource.TestCheckResourceAttr(name, "spec.client_id", "Iv1.3386eee92ff932a4"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.organization", "evilmartians"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.team", "devs"),
-					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.logins.0", "terraform"),
+					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.logins.0", "terraform-provider"),
 				),
 			},
 			{
@@ -70,7 +70,7 @@ func (s *TerraformSuiteOSS) TestGithubConnector() {
 					resource.TestCheckResourceAttr(name, "spec.client_id", "Iv1.3386eee92ff932a4"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.organization", "octocat"),
 					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.team", "devs"),
-					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.logins.0", "terraform"),
+					resource.TestCheckResourceAttr(name, "spec.teams_to_logins.0.logins.0", "terraform-provider"),
 				),
 			},
 			{
@@ -100,7 +100,7 @@ func (s *TerraformSuiteOSS) TestImportGithubConnector() {
 				{
 					Organization: "evilmartians",
 					Team:         "devs",
-					Logins:       []string{"terraform"},
+					Logins:       []string{"terraform-provider"},
 				},
 			},
 		},
@@ -125,7 +125,7 @@ func (s *TerraformSuiteOSS) TestImportGithubConnector() {
 					require.Equal(s.T(), "Iv1.3386eee92ff932a4", state[0].Attributes["spec.client_id"])
 					require.Equal(s.T(), "evilmartians", state[0].Attributes["spec.teams_to_logins.0.organization"])
 					require.Equal(s.T(), "devs", state[0].Attributes["spec.teams_to_logins.0.team"])
-					require.Equal(s.T(), "terraform", state[0].Attributes["spec.teams_to_logins.0.logins.0"])
+					require.Equal(s.T(), "terraform-provider", state[0].Attributes["spec.teams_to_logins.0.logins.0"])
 
 					return nil
 				},

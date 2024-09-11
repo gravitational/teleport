@@ -20,6 +20,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	apitypes "github.com/gravitational/teleport/api/types"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	
@@ -78,6 +79,7 @@ func (r resourceTeleportAccessMonitoringRule) Create(ctx context.Context, req tf
 	
 	accessMonitoringRuleResource := accessMonitoringRule
 
+	accessMonitoringRuleResource.Kind = apitypes.KindAccessMonitoringRule
 
 	id := accessMonitoringRuleResource.Metadata.Name
 

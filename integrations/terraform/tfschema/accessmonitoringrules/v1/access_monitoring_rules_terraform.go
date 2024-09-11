@@ -50,9 +50,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"kind": {
-			Description: "kind is a resource kind",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "kind is a resource kind",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -119,12 +121,12 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				},
 				"subjects": {
 					Description: "subjects the rule operates on, can be a resource kind or a particular resource property.",
-					Optional:    true,
+					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 			}),
 			Description: "Spec is an AccessMonitoringRule specification",
-			Optional:    true,
+			Required:    true,
 		},
 		"sub_kind": {
 			Description: "sub_kind is an optional resource sub kind, used in some resources",

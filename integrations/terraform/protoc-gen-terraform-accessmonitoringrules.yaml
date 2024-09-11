@@ -37,14 +37,14 @@ exclude_fields:
 computed_fields:
     # Metadata
     - "AccessMonitoringRule.metadata.namespace"
+    - "AccessMonitoringRule.kind"
 
 # These fields will be marked as Required: true
 required_fields:
     - "AccessMonitoringRule.metadata.name"
     - "AccessMonitoringRule.version"
-    - "AccessList.spec.subject"
-    - "AccessList.spec.states"
-    - "AccessList.spec.condition"
+    - "AccessMonitoringRule.spec"
+    - "AccessMonitoringRule.spec.subjects"
 
 plan_modifiers:
     # Force to recreate resource if it's name changes
