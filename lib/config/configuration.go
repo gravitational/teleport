@@ -995,6 +995,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			ProxyPingInterval:             fc.Auth.ProxyPingInterval,
 			AssistCommandExecutionWorkers: assistCommandExecutionWorkers,
 			CaseInsensitiveRouting:        fc.Auth.CaseInsensitiveRouting,
+			SSHDialTimeout:                fc.Auth.SSHDialTimeout,
 		})
 		if err != nil {
 			return trace.Wrap(err)

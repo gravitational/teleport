@@ -804,6 +804,9 @@ type Auth struct {
 	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
 	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout types.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -858,7 +861,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
 		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
+		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0) ||
+		a.SSHDialTimeout != empty.SSHDialTimeout
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
