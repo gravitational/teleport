@@ -493,6 +493,11 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"hostname": {
+							Description: "Hostname is the hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 					}),
 					Description: "TerraformCloud allows the configuration of options specific to the \"terraform_cloud\" join method.",
 					Optional:    true,
@@ -2342,6 +2347,23 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 													t = string(v.Value)
 												}
 												obj.Audience = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["hostname"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Hostname"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Hostname", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Hostname = t
 											}
 										}
 									}
@@ -5136,6 +5158,28 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 											v.Value = string(obj.Audience)
 											v.Unknown = false
 											tf.Attrs["audience"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["hostname"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Spec.TerraformCloud.Hostname"})
+										} else {
+											v, ok := tf.Attrs["hostname"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Spec.TerraformCloud.Hostname", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Spec.TerraformCloud.Hostname", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Hostname) == ""
+											}
+											v.Value = string(obj.Hostname)
+											v.Unknown = false
+											tf.Attrs["hostname"] = v
 										}
 									}
 								}

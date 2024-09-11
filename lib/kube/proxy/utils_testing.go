@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -53,8 +54,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -535,10 +536,13 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	require.NoError(t, err)
 
-	privPEM, _, err := testauthority.New().GenerateKeyPair()
+	priv, err := cryptosuites.GenerateKey(context.Background(),
+		cryptosuites.GetCurrentSuiteFromAuthPreference(authServer),
+		cryptosuites.UserTLS)
 	require.NoError(t, err)
-
-	priv, err := keys.ParsePrivateKey(privPEM)
+	// Sanity check we generated an ECDSA key.
+	require.IsType(t, &ecdsa.PrivateKey{}, priv)
+	privPEM, err := keys.MarshalPrivateKey(priv)
 	require.NoError(t, err)
 
 	id := tlsca.Identity{

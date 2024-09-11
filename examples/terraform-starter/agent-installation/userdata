@@ -1,0 +1,27 @@
+#!/bin/bash
+
+curl https://cdn.teleport.dev/install-v${teleport_version}.sh | bash -s ${teleport_version} ${teleport_edition}
+
+echo ${token} > /var/lib/teleport/token
+cat<<EOF >/etc/teleport.yaml
+version: v3
+teleport:
+  auth_token: /var/lib/teleport/token
+  proxy_server: ${proxy_service_address}
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: true
+  labels:
+    role: agent-pool
+    ${extra_labels}
+EOF
+
+systemctl restart teleport;
+
+# Disable OpenSSH and any longstanding authorized keys.
+systemctl disable --now ssh.service
+find / -wholename "*/.ssh/authorized_keys" -delete
+

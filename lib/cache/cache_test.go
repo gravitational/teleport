@@ -48,8 +48,9 @@ import (
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
@@ -3823,8 +3824,17 @@ func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonito
 func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHostUser {
 	t.Helper()
 	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
-		Login:  "foo",
-		Groups: []string{"bar", "baz"},
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
+				},
+				Groups: []string{"foo", "bar"},
+			},
+		},
 	})
 }
 

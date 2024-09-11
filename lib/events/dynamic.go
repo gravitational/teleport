@@ -183,6 +183,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionCommandResultEvent:
+		e = &events.DatabaseSessionCommandResult{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPermissionsUpdateEvent:
@@ -270,6 +272,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
@@ -420,6 +424,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.PluginUpdate{}
 	case PluginDeleteEvent:
 		e = &events.PluginDelete{}
+
+	case StaticHostUserCreateEvent:
+		e = &events.StaticHostUserCreate{}
+	case StaticHostUserUpdateEvent:
+		e = &events.StaticHostUserUpdate{}
+	case StaticHostUserDeleteEvent:
+		e = &events.StaticHostUserDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

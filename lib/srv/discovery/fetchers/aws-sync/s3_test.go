@@ -162,6 +162,7 @@ func TestPollAWSS3(t *testing.T) {
 					Regions:      regions,
 					Integration:  accountID,
 				},
+				lastResult: &Resources{},
 			}
 			result := &Resources{}
 			execFunc := a.pollAWSS3Buckets(context.Background(), result, collectErr)
@@ -180,6 +181,7 @@ func TestPollAWSS3(t *testing.T) {
 						return a.Key < b.Key
 					},
 				),
+				protocmp.IgnoreFields(&accessgraphv1alpha.AWSS3BucketV1{}, "last_sync_time"),
 			),
 			)
 

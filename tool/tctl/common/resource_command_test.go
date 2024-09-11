@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -1405,6 +1406,10 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindAppServer,
 			create: testCreateAppServer,
 		},
+		{
+			kind:   types.KindStaticHostUser,
+			create: testCreateStaticHostUser,
+		},
 	}
 
 	for _, test := range tests {
@@ -2202,6 +2207,72 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err))
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", connectorYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateStaticHostUser(t *testing.T, clt *authclient.Client) {
+	// Ensure that our test user does not exist
+	resourceName := "alice"
+	resourceKey := types.KindStaticHostUser + "/" + resourceName
+	_, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "unexpected error: %v", err)
+
+	const userYAML = `kind: static_host_user
+version: v2
+metadata:
+  name: alice
+spec:
+  matchers:
+    - node_labels:
+      - name: foo
+        values: ["bar"]
+      groups:
+        - foo
+        - bar
+      uid: 1234
+      gid: 5678
+    - node_labels_expression: 'labels["foo"] == labels["bar"]'
+      groups:
+        - baz
+        - quux
+      sudoers: ["abc1234"]
+`
+
+	// Create the host user
+	userYAMLPath := filepath.Join(t.TempDir(), "host_user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.NoError(t, err)
+	hostUsers := mustDecodeJSON[[]*userprovisioningpb.StaticHostUser](t, buf)
+	require.Len(t, hostUsers, 1)
+
+	var expected userprovisioningpb.StaticHostUser
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*userprovisioningpb.StaticHostUser{&expected},
+		hostUsers,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.GetMetadata().Revision = uuid.NewString()
+	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err), "unexpected error: %v", err)
+
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
 	require.NoError(t, err)
 }
 
