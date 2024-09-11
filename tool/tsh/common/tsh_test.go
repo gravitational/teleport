@@ -2100,50 +2100,82 @@ func TestSSHCommands(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		cmd       []string
+		args      []string
 		expected  string
 		shouldErr bool
 	}{
 		{
 			// Test that a simple echo works.
-			name:      "ssh simple command",
-			expected:  "this is a test message",
-			cmd:       []string{"echo", "this is a test message"},
+			name:     "ssh simple command",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo",
+				"this is a test message",
+			},
 			shouldErr: false,
 		},
 		{
 			// Test that commands can be prefixed with a double dash.
-			name:      "ssh command with double dash",
-			expected:  "this is a test message",
-			cmd:       []string{"--", "echo", "this is a test message"},
+			name:     "ssh command with double dash",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"--",
+				"echo",
+				"this is a test message",
+			},
 			shouldErr: false,
 		},
 		{
 			// Test that a double dash is not removed from the middle of a command.
-			name:      "ssh command with double dash in the middle",
-			expected:  "-- this is a test message",
-			cmd:       []string{"echo", "--", "this is a test message"},
+			name:     "ssh command with double dash in the middle",
+			expected: "-- this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo",
+				"--",
+				"this is a test message",
+			},
 			shouldErr: false,
 		},
 		{
 			// Test that quoted commands work (e.g. `tsh ssh 'echo test'`)
-			name:      "ssh command literal",
-			expected:  "this is a test message",
-			cmd:       []string{"echo this is a test message"},
+			name:     "ssh command literal",
+			expected: "this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo this is a test message",
+			},
 			shouldErr: false,
 		},
 		{
 			// Test that a double dash is passed as-is in a quoted command (which should fail).
-			name:      "ssh command literal with double dash err",
-			expected:  "",
-			cmd:       []string{"-- echo this is a test message"},
+			name:     "ssh command literal with double dash err",
+			expected: "",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"-- echo this is a test message",
+			},
 			shouldErr: true,
 		},
 		{
 			// Test that a double dash is not removed from the middle of a quoted command.
-			name:      "ssh command literal with double dash in the middle",
-			expected:  "-- this is a test message",
-			cmd:       []string{"echo -- this is a test message"},
+			name:     "ssh command literal with double dash in the middle",
+			expected: "-- this is a test message",
+			args: []string{
+				fmt.Sprintf("%s@%s", user.Username, sshHostname),
+				"echo", "-- this is a test message",
+			},
+			shouldErr: false,
+		},
+		{
+			// Test tsh ssh -- hostname command
+			name:     "delimiter before host and command",
+			expected: "this is a test message",
+			args: []string{
+				"--", sshHostname, "echo", "this is a test message",
+			},
 			shouldErr: false,
 		},
 	}
@@ -2156,13 +2188,15 @@ func TestSSHCommands(t *testing.T) {
 
 			stdout := &output{buf: bytes.Buffer{}}
 			stderr := &output{buf: bytes.Buffer{}}
-			args := []string{
-				"ssh",
-				"--insecure",
-				"--proxy", rootProxyAddr.String(),
-				fmt.Sprintf("%s@%s", user.Username, sshHostname),
-			}
-			args = append(args, test.cmd...)
+			args := append(
+				[]string{
+					"ssh",
+					"--insecure",
+					"--proxy", rootProxyAddr.String(),
+				},
+				test.args...,
+			)
+
 			err := Run(ctx, args, setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
 					conf.overrideStdin = &bytes.Buffer{}
