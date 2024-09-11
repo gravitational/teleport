@@ -18,6 +18,18 @@
 
 import { AuthType } from 'teleport/services/user';
 
+import type { FocusEvent } from 'react';
+
+/**
+ * Checks if a focus event occured outside target element
+ */
+export const focusOutsideTarget = (
+  event: FocusEvent<Element>,
+  targetElement: Element
+) =>
+  !event.currentTarget.contains(event.relatedTarget as Node) &&
+  !targetElement.contains(event.relatedTarget as Node);
+
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');
   element.setAttribute('href', `${url}`);
