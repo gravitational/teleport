@@ -8166,7 +8166,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] was denied access to Windows desktop [Administrator@desktop-name] on [desktopaccess.com]
+          User [joe] was denied access to Windows desktop [Administrator@desktop-name] with domain [desktopaccess.com]
         </td>
         <td
           style="min-width: 120px;"
@@ -8214,7 +8214,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          Session for Windows desktop [Administrator@desktop-name] on [desktopaccess.com] has ended for user [joe]
+          Session b7f734d8-bdc2-4996-8959-0b42a11708e7 for Windows desktop [Administrator@desktop-name] with domain [desktopaccess.com] has ended for user [joe]
         </td>
         <td
           style="min-width: 120px;"
@@ -8262,7 +8262,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [joe] has connected to Windows desktop [Administrator@desktop-name] on [desktopaccess.com]
+          User [joe] started session b7f734d8-bdc2-4996-8959-0b42a11708e7 on Windows desktop [Administrator@desktop-name] with domain [desktopaccess.com]
         </td>
         <td
           style="min-width: 120px;"
