@@ -78,10 +78,10 @@ test.each([
 
   render(<ConfiguredTerminal appContext={appContext} />);
 
-  await userEvent.keyboard('some-command ');
+  await userEvent.keyboard('some-command');
   const terminalContent = await screen.findByText('some-command');
 
-  await navigator.clipboard.writeText('--flag=test');
+  await navigator.clipboard.writeText(' --flag=test');
   await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
 
   await waitFor(() => {
@@ -102,10 +102,9 @@ test("mouse right click opens context menu when 'terminal.rightClick: menu' is c
     />
   );
 
-  await userEvent.keyboard('some-command ');
+  await userEvent.keyboard('some-command');
   const terminalContent = await screen.findByText('some-command');
 
-  await navigator.clipboard.writeText('--flag=test');
   await userEvent.pointer({ keys: '[MouseRight]', target: terminalContent });
 
   await waitFor(() => {
