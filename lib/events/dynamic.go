@@ -265,6 +265,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
