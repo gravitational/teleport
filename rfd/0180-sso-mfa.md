@@ -93,7 +93,7 @@ available method.
 ```console
 ### If more than one MFA method is available to the user, 
 ### let them know and given them a path to use any method.
-Available MFA methods (WebAuthn, SSO, OTP). Continuing with WebAuthn.
+Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN.
 If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
 
 Tap any security key to continue
@@ -103,7 +103,7 @@ When SSO MFA is the preferred MFA method, the user will be prompted to complete
 the SSO MFA flow instead of tapping a security key:
 
 ```console
-Available MFA methods (SSO, OTP). Continuing with SSO.
+Available MFA methods [SSO, OTP]. Continuing with SSO.
 If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
 
 To continue, complete an auth check in your local web browser:
@@ -233,7 +233,7 @@ or with SSO, depending on the what methods are available..
 ### WebAuthn and SSO available
 > tsh ssh server01
 MFA is required to access Node "server01"
-Available MFA methods (WebAuthn, SSO). Continuing with WebAuthn.
+Available MFA methods [WEBAUTHN, SSO]. Continuing with WEBAUTHN.
 If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
 
 Tap any security key to continue
@@ -252,9 +252,23 @@ If browser window does not open automatically, open it by clicking on the link:
 ##### Deleting last MFA device
 
 Similar to how we can add an SSO MFA check for a [user adding their first device](#adding-first-mfa-device),
-we can use an SSO MFA check for users removing their last device, including
-passwordless devices, which is usually forbidden. This may be useful if the
-user wants to makes SSO their default MFA method for UX purposes.
+we can use an SSO MFA check for users removing their last device, which is
+usually forbidden. This may be useful if the user wants to makes SSO their
+default MFA method for UX purposes.
+
+Note: SSO users do not rely on their MFA methods to login, meaning they will
+not be locked out when they have no second factors, even if second factor is
+set to required in the cluster auth preference. SSO users are just required to
+register an MFA device before using any features that require MFA.
+
+Note: Passwordless devices are treated separately from MFA devices. Usually we
+prevent users from deleting passwordless devices to prevent them from being
+locked out, but SSO users without a passwordless device can still perform SSO
+login. Since the SSO MFA device is not a passwordless device, the change above
+will not apply to deleting your last passwordless device. Instead we should
+provide a special case to SSO users to delete their last passwordless device if
+they have any other MFA device. This change is not in direct scope of this RFD,
+but will likely be done beside it.
 
 ### Configuration
 
@@ -263,8 +277,34 @@ to function.
 
 #### Cluster Auth Preference
 
-SSO MFA can be enabled through the cluster auth preference. It can be paired
-with `second_factor: optional | on | webauthn | otp`.
+Whether SSO MFA can be used for a given user depends on whether that user is an
+SSO user and whether that user's Auth Connector is configured for MFA (below).
+Therefore, it does not make sense to add `second_factor: sso` and require SSO
+MFA for every user in the cluster.
+
+| second_factor | otp | webauthn       | sso | mfa mode |
+|---------------|-----|----------------|-----|----------|
+| off           | no  | no             | ?   | off      |
+| optional      | yes | yes (if set)   | ?   | optional |
+| on            | yes | yes (if set)   | ?   | required |
+| otp           | yes | no             | ?   | required |
+| webauthn      | no  | yes (must set) | ?   | required |
+| sso           | ?   | ?              | yes | required |
+
+Instead, we will change the way `second_factor` is configured from a single
+value to multiple permitted `second_factors`. This way, admins have more
+control and less ambiguity over which second factors are permitted.
+
+| second_factors | description                                                         |
+|----------------|---------------------------------------------------------------------|
+| otp            | otp MFA is enabled                                                  |
+| webauthn       | webauthn is enabled, `webauthn` settings must be set                |
+| sso            | sso MFA is enabled for sso-users with an MFA-enabled auth connector |
+
+In order to maintain the ability to set the MFA mode to `off`, `optional`,
+or `required`, we will add a new explicit `mfa_mode` field.
+
+Example config:
 
 ```yaml
 kind: cluster_auth_preference
@@ -275,23 +315,18 @@ spec:
   type: oidc
   connector_name: auth0
   require_session_mfa: yes
-  second_factor: on
-  sso:
-    enabled: yes
+  mfa_mode: required
+  second_factors: [ sso, webauthn ]
 ```
 
-Whether SSO MFA can be used for a given user depends on whether that user is an
-SSO user and whether that user's Auth Connector is configured for MFA (below).
-Therefore, it does not make sense to add `second_factor: sso` and require SSO
-MFA for every user in the cluster. Instead, `sso.enabled: yes` can be paired
-with any `second_factor` option except `off`, and SSO MFA will only be used
-when it is the [preferred method](#preferred-mfa-method) for the user.
+The old `second_factor` field will be deprecated. During the deprecation cycle,
+`second_factors` and `mfa_mode` will be filled in from `second_factor` based on
+the tables above.
 
-Note: There may be a use case for disabling non-SSO MFA methods for SSO users
-without affecting non-SSO users. In this case, we should a `sso.required` field
-which will only apply to SSO users that have an auth connector where SSO MFA is
-enabled. Since we currently prefer WebAuthn in all cases, I am leaving this out
-of scope for now.
+Note: currently we are choosing to prefer WebAuthn > SSO > OTP in all cases. If
+we wish to give admins the ability to set the preference order, we could treat
+`second_factors` as an ordered list. For now, this additional complexity does
+not seem warranted as we expect this order to provide the best UX anyways.
 
 #### Auth Connector
 
@@ -513,10 +548,6 @@ sequenceDiagram
     Proxy <<->> Auth: complete Per-session MFA ceremony with mfa_token
     Proxy ->> Node: connect w/ MFA verified certs
 ```
-
-Caveat: this flow will be slightly different for the WebUI, where we use a CSRF
-token instead of a secret key, and save the MFA token as a web cookie to avoid
-redirecting the user in the browser.
 
 #### SSO MFA session
 
@@ -853,6 +884,9 @@ Additionally it is unclear to me under what circumstance an admin would want to
 lock a user's SSO MFA device and not their entire SSO user. Or in the case of
 an Auth Connector misconfiguration for MFA update/delete the auth connector.
 
+An IdP admin could also remove the user from the IdP service app configured for
+SSO MFA to lock out specific users from using SSO MFA.
+
 Note: The SSO MFA flow has an auth connector check built into both sides of the
 challenge/response cycle, so a change to the auth connector configuration to
 disable MFA would act the same as a lock on the SSO MFA device directly.
@@ -881,3 +915,11 @@ over SSO, as it is with OTP.
 
 If in the future we have a reason to require SSO MFA over Webauthn, we can
 introduce these modes or `second_factor: sso`.
+
+#### `tctl sso configure`
+
+We could update `tctl sso configure` to walk users through setting up an Auth
+connector for MFA checks in addition to login. This seems to me like a large
+undertaking, and would be best if we implemented different simplified flow for
+different IdPs. I am going to leave this out of scope, though it would be a
+welcome improvement.
