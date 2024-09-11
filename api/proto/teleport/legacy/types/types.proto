@@ -2924,6 +2924,9 @@ message RoleOptions {
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
+
+  // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
+  string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
 }
 
 message RecordSession {
