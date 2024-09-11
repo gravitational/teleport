@@ -87,7 +87,7 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 
 	return ui.AWSOIDCListDatabasesResponse{
 		NextToken: listDatabasesResp.NextToken,
-		Databases: ui.MakeDatabases(listDatabasesResp.Databases, nil, nil),
+		Databases: ui.MakeDatabases(listDatabasesResp.Databases, nil, nil, nil),
 	}, nil
 }
 

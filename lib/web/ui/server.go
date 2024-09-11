@@ -338,6 +338,12 @@ type Database struct {
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// DatabaseRoles is the list of allowed database roles that the user can
+	// select.
+	DatabaseRoles []string `json:"database_roles"`
+	// SupportsWebUISession is a flag to indicate the database supports Web UI
+	// sessions.
+	SupportsWebUISession bool `json:"support_webui_session"`
 }
 
 // AWS contains AWS specific fields.
@@ -355,21 +361,23 @@ const (
 )
 
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
+func MakeDatabase(database types.Database, dbUsers, dbRoles, dbNames []string, requiresRequest bool) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                 database.GetKind(),
+		Name:                 database.GetName(),
+		Desc:                 database.GetDescription(),
+		Protocol:             database.GetProtocol(),
+		Type:                 database.GetType(),
+		Labels:               uiLabels,
+		DatabaseUsers:        dbUsers,
+		DatabaseNames:        dbNames,
+		DatabaseRoles:        dbRoles,
+		Hostname:             stripProtocolAndPort(database.GetURI()),
+		URI:                  database.GetURI(),
+		RequiresRequest:      requiresRequest,
+		SupportsWebUISession: database.GetProtocol() == types.DatabaseProtocolPostgreSQL,
 	}
 
 	if database.IsAWSHosted() {
@@ -387,10 +395,17 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string, accessChecker services.AccessChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		var dbRoles []string
+		if accessChecker != nil {
+			// We ignore the error since we're only interested in the database roles
+			// user can use. We're not actually checking their access to it.
+			dbRoles, _ = accessChecker.CheckDatabaseRoles(database, nil)
+		}
+
+		db := MakeDatabase(database, dbUsers, dbRoles, dbNames, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 

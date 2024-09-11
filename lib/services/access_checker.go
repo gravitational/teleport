@@ -549,6 +549,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database, userRequeste
 	}
 
 	switch {
+	// TODO: check if auto provisioning is enabled on the database.
 	case !result.createDatabaseUserMode().IsEnabled():
 		return []string{}, nil
 

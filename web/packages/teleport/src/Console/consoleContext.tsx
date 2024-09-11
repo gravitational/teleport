@@ -23,7 +23,7 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
-import cfg, { UrlKubeExecParams, UrlSshParams } from 'teleport/config';
+import cfg, { UrlKubeExecParams, UrlSshParams, UrlDBConnectParams } from 'teleport/config';
 import { getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
 import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
@@ -42,6 +42,7 @@ import {
   StoreDocs,
   DocumentSsh,
   DocumentKubeExec,
+  DocumentDb,
   Document,
 } from './stores';
 
@@ -96,6 +97,10 @@ export default class ConsoleContext {
   }
 
   updateKubeExecDocument(id: number, partial: Partial<DocumentKubeExec>) {
+    this.storeDocs.update(id, partial);
+  }
+
+  updateDbDocument(id: number, partial: Partial<DocumentDb>) {
     this.storeDocs.update(id, partial);
   }
 
@@ -155,6 +160,25 @@ export default class ConsoleContext {
     });
   }
 
+  addDbDocument(params: UrlDBConnectParams) {
+    const title =`${params.dbUser}@${params.name}`;
+    const url = this.getDbConnectUrl(params);
+
+    return this.storeDocs.add({
+      kind: 'db',
+      status: 'disconnected',
+      clusterId: params.clusterId,
+      title,
+      url,
+      created: new Date(),
+
+      name: params.name,
+      dbName: params.dbName,
+      dbRoles: params.dbRoles,
+      dbUser: params.dbUser,
+    });
+  }
+
   getDocuments() {
     return this.storeDocs.state.items;
   }
@@ -171,6 +195,10 @@ export default class ConsoleContext {
 
   getKubeExecDocumentUrl(kubeExecParams: UrlKubeExecParams) {
     return cfg.getKubeExecConnectRoute(kubeExecParams);
+  }
+
+  getDbConnectUrl(dbConnectParams: UrlDBConnectParams) {
+    return cfg.getDBConnectUrl(dbConnectParams);
   }
 
   refreshParties() {
@@ -221,12 +249,11 @@ export default class ConsoleContext {
     const ctx = context.active();
 
     propagator.inject(ctx, carrier, defaultTextMapSetter);
-    const baseUrl =
-      session.kind === 'k8s' ? cfg.api.ttyKubeExecWsAddr : cfg.api.ttyWsAddr;
-
+    let baseUrl = "";
     let ttyParams = {};
     switch (session.kind) {
       case 'ssh':
+        baseUrl = cfg.api.ttyWsAddr
         ttyParams = {
           login,
           sid,
@@ -235,6 +262,10 @@ export default class ConsoleContext {
         };
         break;
       case 'k8s':
+        baseUrl = cfg.api.ttyKubeExecWsAddr
+        break
+      case 'db':
+        baseUrl = cfg.api.ttyDbWsAddr
         break;
     }
 

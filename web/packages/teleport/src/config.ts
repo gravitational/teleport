@@ -167,6 +167,8 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:name/:dbName/:dbUser/:dbRoles?',
+    dbExec: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
@@ -243,6 +245,7 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
+    ttyDbWsAddr: 'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws',
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
 
     // TODO(zmb3): remove this when Assist is no longer using it
@@ -1131,6 +1134,14 @@ const cfg = {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
   },
 
+  getDBConnectUrl(params: UrlDBConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
+  },
+
+  getDBExecUrl({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.dbExec, { clusterId, sid });
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -1268,6 +1279,14 @@ export interface UrlNotificationParams {
   clusterId: string;
   limit?: number;
   startKey?: string;
+}
+
+export interface UrlDBConnectParams {
+  clusterId: string;
+  name: string;
+  dbUser: string;
+  dbRoles?: string;
+  dbName: string;
 }
 
 export default cfg;

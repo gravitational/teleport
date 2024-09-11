@@ -45,9 +45,11 @@ export interface Database {
   labels: ResourceLabel[];
   names?: string[];
   users?: string[];
+  roles?: string[];
   hostname: string;
   aws?: Aws;
   requiresRequest?: boolean;
+  supportsInteractive?: boolean;
 }
 
 export type DatabasesResponse = {

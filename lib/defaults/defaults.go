@@ -725,6 +725,10 @@ const (
 
 	// WebsocketKubeExec provides latency information for a session.
 	WebsocketKubeExec = "k"
+
+	// WebsocketDatabaseSessionRequest is received when a new database session
+	// is requested.
+	WebsocketDatabaseSessionRequest = "d"
 )
 
 // The following are cryptographic primitives Teleport does not support in

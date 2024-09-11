@@ -119,6 +119,12 @@ class Tty extends EventEmitterWebAuthnSender {
     this._sendFileTransferRequest(message);
   }
 
+  sendDbConnectData(data: DbConnectData) {
+    const encoded = this._proto.encodeDbConnectData(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   approveFileTransferRequest(requestId: string, approved: boolean) {
     const message = JSON.stringify({
       event: EventType.FILE_TRANSFER_DECISION,
@@ -274,6 +280,13 @@ export type KubeExecData = {
   container: string;
   command: string;
   isInteractive: boolean;
+};
+
+export type DbConnectData = {
+  serviceName: string;
+  dbName: string;
+  dbUser: string;
+  dbRoles: string;
 };
 
 export default Tty;

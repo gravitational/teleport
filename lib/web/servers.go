@@ -115,7 +115,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(databases, dbUsers, dbNames),
+		Items:      ui.MakeDatabases(databases, dbUsers, dbNames, accessChecker),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -148,7 +148,12 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */), nil
+	dbRoles, err := getDatabaseRolesNames(accessChecker, database)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbRoles, dbNames, false /* requiresRequest */), nil
 }
 
 // clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
@@ -344,6 +349,18 @@ func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []s
 	}
 
 	return dbNames, dbUsers, nil
+}
+
+func getDatabaseRolesNames(accessChecker services.AccessChecker, database types.Database) ([]string, error) {
+	if database == nil {
+		return []string{}, nil
+	}
+
+	dbRoles, err := accessChecker.CheckDatabaseRoles(database, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return dbRoles, nil
 }
 
 type desktopIsActive struct {

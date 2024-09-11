@@ -255,6 +255,8 @@ type RouteToDatabase struct {
 	// specified, Database Service will use all allowed database roles for this
 	// database.
 	Roles []string
+	// SessionID TODO
+	SessionID string
 }
 
 // String returns string representation of the database routing struct.
@@ -269,6 +271,7 @@ func (r RouteToDatabase) Empty() bool {
 		r.Protocol == "" &&
 		r.Username == "" &&
 		r.Database == "" &&
+		r.SessionID == "" &&
 		len(r.Roles) == 0
 }
 
@@ -318,6 +321,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 			Username:    id.RouteToDatabase.Username,
 			Database:    id.RouteToDatabase.Database,
 			Roles:       id.RouteToDatabase.Roles,
+			// TODO add session
 		}
 	}
 
@@ -538,6 +542,10 @@ var (
 	// BotInstanceASN1ExtensionOID is an extension that encodes a unique bot
 	// instance identifier into a certificate.
 	BotInstanceASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 20}
+
+	// DatabaseProtocolASN1ExtensionOID is an extension ID used when encoding/decoding
+	// database protocol into certificates.
+	DatabaseSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 21}
 )
 
 // Device Trust OIDs.
@@ -758,6 +766,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  RequestedDatabaseRolesExtensionOID,
 				Value: id.RouteToDatabase.Roles[i],
+			})
+	}
+	if id.RouteToDatabase.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseSessionIDASN1ExtensionOID,
+				Value: id.RouteToDatabase.SessionID,
 			})
 	}
 
@@ -1026,6 +1041,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToDatabase.Roles = append(id.RouteToDatabase.Roles, val)
+			}
+		case attr.Type.Equal(DatabaseSessionIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.SessionID = val
 			}
 		case attr.Type.Equal(DatabaseNamesASN1ExtensionOID):
 			val, ok := attr.Value.(string)

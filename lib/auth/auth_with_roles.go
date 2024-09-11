@@ -3345,6 +3345,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	switch req.Usage {
 	case proto.UserCertsRequest_Database:
+		// TODO: validate if session id is empty
 		certReq.usage = []string{teleport.UsageDatabaseOnly}
 	case proto.UserCertsRequest_App:
 		certReq.usage = []string{teleport.UsageAppsOnly}

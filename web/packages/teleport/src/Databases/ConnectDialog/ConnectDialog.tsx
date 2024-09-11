@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, Box, ButtonSecondary, Link } from 'design';
+import React, { useState } from 'react';
+import { Text, Box, Flex, ButtonPrimary, ButtonSecondary, Link } from 'design';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -26,19 +26,124 @@ import Dialog, {
 } from 'design/Dialog';
 import { DbProtocol } from 'shared/services/databases';
 
+import cfg from 'teleport/config';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 import { AuthType } from 'teleport/services/user';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import { generateTshLoginCommand } from 'teleport/lib/util';
+import { openNewTab, generateTshLoginCommand } from 'teleport/lib/util';
 
-export default function ConnectDialog({
-  username,
-  clusterId,
-  dbName,
-  onClose,
-  authType,
-  accessRequestId,
-  dbProtocol,
-}: Props) {
+// import { Tabs } from 'teleport/components/Tabs';
+import Validation from 'shared/components/Validation';
+import { Option } from 'shared/components/Select';
+import { FieldSelect } from 'shared/components/FieldSelect';
+
+// {!props.isInteractive ? <ConnectTSH {...props} /> : (
+//   <Tabs
+//     tabs={[
+//       {
+//         title: `Web UI`,
+//         content: <ConnectInteractive {...props} />,
+//       },
+//       {
+//         title: `CLI`,
+//         content: <ConnectTSH {...props} />,
+//       }
+//     ]}
+//     />
+// )}
+
+export default function ConnectDialog(props: Props) {
+  return (
+    <Dialog
+      dialogCss={() => ({
+        maxWidth: '600px',
+        width: '100%',
+      })}
+      disableEscapeKeyDown={false}
+      onClose={props.onClose}
+      open={true}
+    >
+      <DialogHeader mb={4}>
+        <DialogTitle>Connect To Database</DialogTitle>
+      </DialogHeader>
+      {!props.supportsInteractive ? <ConnectTSH {...props} /> : <ConnectInteractive {...props} />}
+    </Dialog>
+  );
+}
+
+const ConnectInteractive = function({ dbName, dbUsers, dbNames, dbRoles, onClose }: Props) {
+  const { clusterId } = useStickyClusterId();
+  const dbUserOpts = dbUsers.map(user => ({value: user, label: user}));
+  const dbNamesOpts = dbNames.map(name => ({value: name, label: name}));
+  const dbRolesOpts = dbRoles.map(role => ({value: role, label: role}));
+
+  const [selectedUser, setSelectedUser] = useState<Option>(dbUserOpts[0]);
+  const [selectedRoles, setSelectedRoles] = useState<readonly Option[]>(dbRolesOpts);
+  const [selectedName, setSelectedName] = useState<Option>(dbNamesOpts[0]);
+
+  const onConnect = () => {
+    // TODO: do this better
+    let urlRoles = null
+    if (selectedRoles.length > 0) urlRoles = selectedRoles.map(({ value }) => value).join(',')
+
+    const url = cfg.getDBConnectUrl({
+      clusterId,
+      name: dbName,
+      dbUser: selectedUser.value,
+      dbRoles: urlRoles,
+      dbName: selectedName.value,
+    });
+    console.log("====> CONNECT URL", url, selectedUser, selectedRoles, selectedName)
+
+    openNewTab(url)
+    onClose()
+  }
+
+  return <>
+    <DialogContent minHeight="240px" flex="0 0 auto">
+      <Validation>
+        {({ validator }) => {
+          validator.validate();
+
+          return <>
+            <FieldSelect
+              label="Database user"
+              menuPosition="fixed"
+              onChange={option => setSelectedUser(option as Option)}
+              value={selectedUser}
+              options={dbUserOpts}
+              isDisabled={dbUserOpts.length == 1}
+            />
+            {dbRoles.length > 0 && <FieldSelect
+              label="Database roles"
+              menuPosition="fixed"
+              isMulti={true}
+              onChange={setSelectedRoles}
+              value={selectedRoles}
+              options={dbRolesOpts}
+            /> }
+            <FieldSelect
+              label="Database name"
+              menuPosition="fixed"
+              onChange={option => setSelectedName(option as Option)}
+              value={selectedName}
+              options={dbNamesOpts}
+              isDisabled={dbNamesOpts.length == 1}
+            />
+          </>
+        }}
+      </Validation>
+    </DialogContent>
+    <DialogFooter>
+      <Flex alignItems="center" justifyContent="space-between">
+        <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
+        <ButtonPrimary onClick={onConnect}>Connect</ButtonPrimary>
+      </Flex>
+    </DialogFooter>
+  </>
+}
+
+const ConnectTSH = function({ username, clusterId, dbName, onClose, authType, accessRequestId, dbProtocol }: Props) {
   // For dynamodb and clickhouse-http protocols, the command is `tsh proxy db --tunnel` instead of `tsh db connect`.
   let connectCommand =
     dbProtocol == 'dynamodb' || dbProtocol == 'clickhouse-http'
@@ -72,72 +177,59 @@ export default function ConnectDialog({
       dbNameFlag = ' [--db-name=<name>]';
   }
 
-  return (
-    <Dialog
-      dialogCss={() => ({
-        maxWidth: '600px',
-        width: '100%',
-      })}
-      disableEscapeKeyDown={false}
-      onClose={onClose}
-      open={true}
-    >
-      <DialogHeader mb={4}>
-        <DialogTitle>Connect To Database</DialogTitle>
-      </DialogHeader>
-      <DialogContent minHeight="240px" flex="0 0 auto">
+  return <>
+    <DialogContent minHeight="240px" flex="0 0 auto">
+      <Box mb={4}>
+        <Text bold as="span">
+          Step 1
+        </Text>
+        {' - Login to Teleport'}
+        <TextSelectCopy
+          mt="2"
+          text={generateTshLoginCommand({
+            authType,
+            clusterId,
+            username,
+            accessRequestId,
+          })}
+        />
+      </Box>
+      <Box mb={4}>
+        <Text bold as="span">
+          Step 2
+        </Text>
+        {' - Connect to the database'}
+        <TextSelectCopy
+          mt="2"
+          text={`tsh ${connectCommand} ${dbName} --db-user=<user>${dbNameFlag}`}
+        />
+      </Box>
+      {accessRequestId && (
         <Box mb={4}>
           <Text bold as="span">
-            Step 1
+            Step 3 (Optional)
           </Text>
-          {' - Login to Teleport'}
-          <TextSelectCopy
-            mt="2"
-            text={generateTshLoginCommand({
-              authType,
-              clusterId,
-              username,
-              accessRequestId,
-            })}
-          />
+          {' - When finished, drop the assumed role'}
+          <TextSelectCopy mt="2" text={`tsh request drop`} />
         </Box>
-        <Box mb={4}>
-          <Text bold as="span">
-            Step 2
-          </Text>
-          {' - Connect to the database'}
-          <TextSelectCopy
-            mt="2"
-            text={`tsh ${connectCommand} ${dbName} --db-user=<user>${dbNameFlag}`}
-          />
-        </Box>
-        {accessRequestId && (
-          <Box mb={4}>
-            <Text bold as="span">
-              Step 3 (Optional)
-            </Text>
-            {' - When finished, drop the assumed role'}
-            <TextSelectCopy mt="2" text={`tsh request drop`} />
-          </Box>
-        )}
-        <Box>
-          {`* Note: To connect with a GUI database client, see our `}
-          <Link
-            href={
-              'https://goteleport.com/docs/database-access/guides/gui-clients/'
-            }
-            target="_blank"
-          >
-            documentation
-          </Link>
-          {` for instructions.`}
-        </Box>
-      </DialogContent>
-      <DialogFooter>
-        <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
-      </DialogFooter>
-    </Dialog>
-  );
+      )}
+      <Box>
+        {`* Note: To connect with a GUI database client, see our `}
+        <Link
+          href={
+            'https://goteleport.com/docs/database-access/guides/gui-clients/'
+          }
+          target="_blank"
+        >
+          documentation
+        </Link>
+        {` for instructions.`}
+      </Box>
+    </DialogContent>
+    <DialogFooter>
+      <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>
+    </DialogFooter>
+  </>
 }
 
 export type Props = {
@@ -148,4 +240,8 @@ export type Props = {
   clusterId: string;
   authType: AuthType;
   accessRequestId?: string;
+  supportsInteractive?: boolean;
+  dbNames?: string[];
+  dbUsers?: string[];
+  dbRoles?: string[];
 };

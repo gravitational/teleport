@@ -32,6 +32,7 @@ export const ConnectDbNameFlagRequired = () => (
     clusterId="im-a-cluster"
     onClose={() => null}
     authType="local"
+    supportsInteractive={true}
   />
 );
 
