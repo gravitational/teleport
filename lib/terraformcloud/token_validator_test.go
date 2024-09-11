@@ -171,6 +171,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		assertError require.ErrorAssertionFunc
 		want        *IDTokenClaims
 		token       string
+		hostname    string
 	}{
 		{
 			name:        "success",
@@ -253,6 +254,27 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				time.Now().Add(5*time.Minute),
 			),
 		},
+		{
+			// A bit weird since we won't be able to test a successful case. We
+			// can't specify a port (only hostname), so won't be able to point
+			// the validator at our fake idp. However, we can make sure the
+			// overridden issuer value is honored by making sure that a request
+			// that would otherwise succeed, fails.
+			name:        "invalid issuer, hostname override",
+			assertError: require.Error,
+			hostname:    "invalid",
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example-organization",
+				"example-project",
+				"example-workspace",
+				"organization:example-organization:project:example-project:workspace:example-workspace:run_phase:apply",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+		},
 	}
 
 	for _, tt := range tests {
@@ -261,15 +283,23 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 
 			issuerAddr := idp.server.Listener.Addr().String()
 
+			// If no hostname is configured, assume we want to validate against
+			// our fake idp
+			hostnameOverride := ""
+			if tt.hostname == "" {
+				hostnameOverride = issuerAddr
+			}
+
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
 				Clock:                  clockwork.NewRealClock(),
 				insecure:               true,
-				issuerHostnameOverride: issuerAddr,
+				issuerHostnameOverride: hostnameOverride,
 			})
 
 			claims, err := v.Validate(
 				ctx,
 				"test-audience",
+				tt.hostname,
 				tt.token,
 			)
 			tt.assertError(t, err)

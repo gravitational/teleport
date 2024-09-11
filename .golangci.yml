@@ -227,6 +227,6 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.22'
+  go: '1.23'
   build-tags: []
   timeout: 15m
