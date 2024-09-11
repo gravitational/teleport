@@ -2144,6 +2144,78 @@ export interface TAGExecuteQueryEvent {
     isSuccess: boolean;
 }
 /**
+ * AccessGraphSecretsScanAuthorizedKeysEvent is emitted when the Access Graph
+ * SSH authorized keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export interface AccessGraphSecretsScanAuthorizedKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string host_id = 1;
+     */
+    hostId: string;
+    /**
+     * total_keys is the total amount of keys found in the authorized keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+}
+/**
+ * AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when the Access Graph
+ * SSH private keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export interface AccessGraphSecretsScanSSHPrivateKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string device_id = 1;
+     */
+    deviceId: string;
+    /**
+     * total_keys is the total amount of keys found in the private keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+    /**
+     * device OS type
+     *
+     * @generated from protobuf field: string device_os_type = 3;
+     */
+    deviceOsType: string;
+}
+/**
+ * AccessGraphGitlabScanEvent is emitted when the Access Graph
+ * Gitlab scan is enabled.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export interface AccessGraphGitlabScanEvent {
+    /**
+     * total_projects is the total amount of projects found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_projects = 1;
+     */
+    totalProjects: bigint;
+    /**
+     * total_users is the total amount of users found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_users = 2;
+     */
+    totalUsers: bigint;
+    /**
+     * total_groups is the total amount of groups found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_groups = 3;
+     */
+    totalGroups: bigint;
+}
+/**
  * ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
  * Storage feature authenticates to the customer AWS account via OIDC connector.
  * The purpose is to have a regularly emitted event indicating that the External
@@ -2858,6 +2930,24 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85;
          */
         uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent;
+    } | {
+        oneofKind: "accessGraphGitlabScan";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86;
+         */
+        accessGraphGitlabScan: AccessGraphGitlabScanEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanAuthorizedKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
+         */
+        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanSshPrivateKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
+         */
+        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent;
     } | {
         oneofKind: undefined;
     };
@@ -8511,6 +8601,187 @@ class TAGExecuteQueryEvent$Type extends MessageType<TAGExecuteQueryEvent> {
  */
 export const TAGExecuteQueryEvent = new TAGExecuteQueryEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanAuthorizedKeysEvent$Type extends MessageType<AccessGraphSecretsScanAuthorizedKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent", [
+            { no: 1, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanAuthorizedKeysEvent>): AccessGraphSecretsScanAuthorizedKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.hostId = "";
+        message.totalKeys = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanAuthorizedKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanAuthorizedKeysEvent): AccessGraphSecretsScanAuthorizedKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string host_id */ 1:
+                    message.hostId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanAuthorizedKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string host_id = 1; */
+        if (message.hostId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.hostId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export const AccessGraphSecretsScanAuthorizedKeysEvent = new AccessGraphSecretsScanAuthorizedKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanSSHPrivateKeysEvent$Type extends MessageType<AccessGraphSecretsScanSSHPrivateKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent", [
+            { no: 1, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "device_os_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanSSHPrivateKeysEvent>): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.deviceId = "";
+        message.totalKeys = 0n;
+        message.deviceOsType = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanSSHPrivateKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanSSHPrivateKeysEvent): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string device_id */ 1:
+                    message.deviceId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                case /* string device_os_type */ 3:
+                    message.deviceOsType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanSSHPrivateKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string device_id = 1; */
+        if (message.deviceId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.deviceId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        /* string device_os_type = 3; */
+        if (message.deviceOsType !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.deviceOsType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export const AccessGraphSecretsScanSSHPrivateKeysEvent = new AccessGraphSecretsScanSSHPrivateKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphGitlabScanEvent$Type extends MessageType<AccessGraphGitlabScanEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphGitlabScanEvent", [
+            { no: 1, name: "total_projects", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 2, name: "total_users", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_groups", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphGitlabScanEvent>): AccessGraphGitlabScanEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.totalProjects = 0n;
+        message.totalUsers = 0n;
+        message.totalGroups = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphGitlabScanEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphGitlabScanEvent): AccessGraphGitlabScanEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint64 total_projects */ 1:
+                    message.totalProjects = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_users */ 2:
+                    message.totalUsers = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_groups */ 3:
+                    message.totalGroups = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphGitlabScanEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint64 total_projects = 1; */
+        if (message.totalProjects !== 0n)
+            writer.tag(1, WireType.Varint).uint64(message.totalProjects);
+        /* uint64 total_users = 2; */
+        if (message.totalUsers !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalUsers);
+        /* uint64 total_groups = 3; */
+        if (message.totalGroups !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalGroups);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export const AccessGraphGitlabScanEvent = new AccessGraphGitlabScanEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ExternalAuditStorageAuthenticateEvent$Type extends MessageType<ExternalAuditStorageAuthenticateEvent> {
     constructor() {
         super("prehog.v1alpha.ExternalAuditStorageAuthenticateEvent", []);
@@ -9030,7 +9301,10 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
             { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent },
             { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent },
-            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent }
+            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent },
+            { no: 86, name: "access_graph_gitlab_scan", kind: "message", oneof: "event", T: () => AccessGraphGitlabScanEvent },
+            { no: 87, name: "access_graph_secrets_scan_authorized_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanAuthorizedKeysEvent },
+            { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9544,6 +9818,24 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateAppServerEvent)
                     };
                     break;
+                case /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan */ 86:
+                    message.event = {
+                        oneofKind: "accessGraphGitlabScan",
+                        accessGraphGitlabScan: AccessGraphGitlabScanEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphGitlabScan)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys */ 87:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanAuthorizedKeys",
+                        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanAuthorizedKeys)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys */ 88:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanSshPrivateKeys",
+                        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanSshPrivateKeys)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9808,6 +10100,15 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85; */
         if (message.event.oneofKind === "uiDiscoverCreateAppServerEvent")
             UIDiscoverCreateAppServerEvent.internalBinaryWrite(message.event.uiDiscoverCreateAppServerEvent, writer.tag(85, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86; */
+        if (message.event.oneofKind === "accessGraphGitlabScan")
+            AccessGraphGitlabScanEvent.internalBinaryWrite(message.event.accessGraphGitlabScan, writer.tag(86, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87; */
+        if (message.event.oneofKind === "accessGraphSecretsScanAuthorizedKeys")
+            AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanAuthorizedKeys, writer.tag(87, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88; */
+        if (message.event.oneofKind === "accessGraphSecretsScanSshPrivateKeys")
+            AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanSshPrivateKeys, writer.tag(88, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
