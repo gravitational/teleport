@@ -468,9 +468,9 @@ var (
 		SchemaPackage:         "schemav1",
 		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/accessmonitoringrules/v1",
 		TerraformResourceType: "teleport_access_monitoring_rule",
-		// Resource 153 are plain struct
+		// 153 resources are plain structs
 		IsPlainStruct: true,
-		// As Resource153 doesn't have CheckAndSetDefaults, we must set the Kind manually.
+		// As 153 resources don't have CheckAndSetDefaults, we must set the Kind manually.
 		// We import the package containing kinds, then use ForceSetKind.
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindAccessMonitoringRule",
