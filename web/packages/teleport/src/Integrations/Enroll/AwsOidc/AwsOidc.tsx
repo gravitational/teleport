@@ -27,6 +27,8 @@ import { requiredIamRoleName } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { useAsync } from 'shared/hooks/useAsync';
+
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollEventData,
@@ -39,6 +41,7 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import {
   Integration,
+  IntegrationCreateRequest,
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
@@ -60,7 +63,7 @@ export function useAwsOidcIntegration() {
   );
   const [scriptUrl, setScriptUrl] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
-  const { attempt, run } = useAttempt('');
+  // const { attempt, run } = useAttempt('');
 
   const location = useLocation<DiscoverUrlLocationState>();
 
@@ -88,30 +91,36 @@ export function useAwsOidcIntegration() {
     });
   }
 
-  function handleOnCreate(validator: Validator) {
+  const [createIntegrationAttempt, runCreateIntegration] = useAsync(
+    async (req: IntegrationCreateRequest) => {
+      const resp = await integrationService.createIntegration(req);
+      setCreatedIntegration(resp);
+      return resp;
+    }
+  );
+
+  async function handleOnCreate(validator: Validator) {
+    console.log('inside handleOnCreate: ');
     if (!validator.validate()) {
+      console.log('invalid input');
       return;
     }
 
-    run(() =>
-      integrationService
-        .createIntegration({
-          name: integrationConfig.name,
-          subKind: IntegrationKind.AwsOidc,
-          awsoidc: {
-            roleArn: integrationConfig.roleArn,
-          },
-        })
-        // .createIntegration(integrationRequest)
-        .then(res => {
-          setCreatedIntegration(res);
+    const [, err] = await runCreateIntegration({
+      name: integrationConfig.name,
+      subKind: IntegrationKind.AwsOidc,
+      awsoidc: {
+        roleArn: integrationConfig.roleArn,
+      },
+    });
+    if (err) {
+      return;
+    }
 
-          if (location.state?.discover) {
-            return;
-          }
-          emitEvent(IntegrationEnrollEvent.Complete);
-        })
-    );
+    if (location.state?.discover) {
+      return;
+    }
+    emitEvent(IntegrationEnrollEvent.Complete);
   }
 
   function generateAwsOidcConfigIdpScript(validator: Validator) {
@@ -136,8 +145,9 @@ export function useAwsOidcIntegration() {
     setScriptUrl,
     createdIntegration,
     handleOnCreate,
+    runCreateIntegration,
     generateAwsOidcConfigIdpScript,
-    attempt,
+    attempt: createIntegrationAttempt,
   };
 }
 
@@ -207,7 +217,7 @@ export function AwsOidcIntegrationScriptGenerator({
                 </Container>
               </>
             )}
-            {attempt.status === 'failed' && (
+            {attempt.status === 'error' && (
               <Flex>
                 <Icons.Warning mr={2} color="error.main" size="small" />
                 <Text color="error.main">Error: {attempt.statusText}</Text>
