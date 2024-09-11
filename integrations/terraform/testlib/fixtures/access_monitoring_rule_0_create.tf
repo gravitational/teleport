@@ -4,10 +4,10 @@ resource "teleport_access_monitoring_rule" "test" {
     name = "test"
   }
   spec = {
-    subjects = ["access_request"]
+    subjects  = ["access_request"]
     condition = "access_request.spec.roles.contains(\"your_role_name\")"
     notification = {
-      name = "slack"
+      name       = "slack"
       recipients = ["your-slack-channel"]
     }
   }
