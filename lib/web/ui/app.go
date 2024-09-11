@@ -135,10 +135,7 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	isICAccount := false
 	var permissionSets []IdentityCenterPermissionSet
 	if icAcct := app.GetIdentityCenter(); icAcct != nil {
-		if len(permissionSets) > 0 {
-			isICAccount = true
-			isAWSConsole = true
-		}
+
 		permissionSets = make([]IdentityCenterPermissionSet, len(icAcct.PermissionSets))
 		for i, ps := range icAcct.PermissionSets {
 			permissionSets[i] = IdentityCenterPermissionSet{
@@ -146,6 +143,10 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 				ARN:             ps.ARN,
 				RequiresRequest: ps.RequireRequest,
 			}
+		}
+		if len(permissionSets) > 0 {
+			isICAccount = true
+			isAWSConsole = true
 		}
 	}
 

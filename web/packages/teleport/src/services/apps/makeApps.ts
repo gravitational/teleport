@@ -41,7 +41,7 @@ export default function makeApp(json: any): App {
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
-  const launchUrl = canCreateUrl
+  let launchUrl = canCreateUrl
     ? cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
     : '';
   const id = `${clusterId}-${name}-${publicAddr || uri}`;
@@ -61,6 +61,11 @@ export default function makeApp(json: any): App {
     } else {
       addrWithProtocol = `https://${publicAddr}`;
     }
+  }
+
+  // TODO(sshah): this is temp. We should add isICAccount field in app type
+  if (awsConsole && awsRoles.length > 0 && permission_sets) {
+    addrWithProtocol = publicAddr;
   }
 
   let samlAppSsoUrl = '';
