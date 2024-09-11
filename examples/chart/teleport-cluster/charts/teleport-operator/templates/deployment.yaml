@@ -52,6 +52,9 @@ spec:
             - -ca-pin
             - '{{ join "," .Values.caPins }}'
   {{- end }}
+  {{- if .Values.extraArgs }}
+            {{- toYaml .Values.extraArgs | nindent 12 }}
+  {{- end }}
   {{- if or (.Values.tls.existingCASecretName) (.Values.teleportClusterName) }}
           env:
     {{- if .Values.tls.existingCASecretName }}

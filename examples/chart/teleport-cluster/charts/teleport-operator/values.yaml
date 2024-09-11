@@ -33,6 +33,10 @@ teleportAddress: ""
 # (port `443` or `3080`).
 caPins: []
 
+# extraArgs to pass to '/teleport-operator' startup command
+# command options can be viewed by running '/teleport-operator --help'
+extraArgs: []
+
 # joinMethod(string) -- describes how the Teleport Kubernetes Operator joins the Teleport cluster.
 # The operator does not store its Teleport-issued identity, it must be able to join the
 # cluster again on each pod restart. To achieve this, it needs to use a delegated join
