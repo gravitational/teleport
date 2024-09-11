@@ -137,11 +137,28 @@ When the user clicks the SSO button, the SSO redirect URL will be opened in a
 new browser window. Once the SSO authentication is complete, the window will
 close, and the WebUI will proceed with the resulting MFA response.
 
-TODO: POC THIS
-
 Note: If possible, for the WebUI, it would be best to open the SSO redirect URL
 in a pop up window rather than opening a new tab. I'm leaving this as an
 implementation decision.
+
+#### Teleport Connect
+
+In some cases, Teleport Connect uses the WebUI or `tsh` implementation to
+handle MFA prompts (Per-session MFA for Server and App access).
+
+In other cases Teleport Connect's `tshd` prompts webauthn (blinking key) and
+displays a modal to notify the user that WebAuthn must be provided to continue.
+
+`tshd`'s MFA prompt will be updated to decide whether WebAuthn or SSO is
+preferred for the user in the same way `tsh` does. If SSO is preferred, a new
+SSO modal will be shown with a clickable SSO link instead of the WebAuthn
+modal.
+
+Note: Due to the way MFA is currently implemented in Teleport Connect, it isn't
+currently possible to display a unified MFA modal with an SSO and WebAuthn
+like we do in the WebUI. It may be possible to update the `tshd` mfa event
+lifecycle to not prompt WebAuthn until after the user clicks a button, but I'm
+leaving this as an implementation detail for now.
 
 ### User stories
 
