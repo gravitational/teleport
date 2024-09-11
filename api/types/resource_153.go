@@ -212,3 +212,12 @@ func (r *resource153ToLegacyAdapter) SetRevision(rev string) {
 func (r *resource153ToLegacyAdapter) SetSubKind(subKind string) {
 	panic("interface Resource153 does not implement SetSubKind")
 }
+
+func (r *resource153ToLegacyAdapter) GetLabel(key string) (string, bool) {
+	value, present := r.inner.GetMetadata().Labels[key]
+	return value, present
+}
+
+func (r *resource153ToLegacyAdapter) GetAllLabels() map[string]string {
+	return r.inner.GetMetadata().Labels
+}

@@ -185,6 +185,14 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindStaticHostUser},
+		{Kind: types.KindProvisioningState},
+		// KindIdentityCenterAccount
+		// is missing cache machinery to upsert resource into
+		// in-memory database from the stateful backend. Removing them
+		// from this watchKind forces presence service to lookup
+		// in stateful-database instead of in-memory which is the default.
+		{Kind: types.KindIdentityCenterAccount},
+		{Kind: types.KindIdentityCenterPrincipalAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -525,6 +533,8 @@ type Cache struct {
 	accessMontoringRuleCache     services.AccessMonitoringRules
 	spiffeFederationCache        spiffeFederationCacher
 	staticHostUsersCache         *local.StaticHostUserService
+	provisioningStatesCache      services.ProvisioningStates
+	identityCenterCache          *local.IdentityCenterService
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -746,6 +756,11 @@ type Config struct {
 	// EnableRelativeExpiry turns on purging expired items from the cache even
 	// if delete events have not been received from the backend.
 	EnableRelativeExpiry bool
+
+	// IdentityCenter POC additions below
+
+	ProvisioningStates services.ProvisioningStates
+	IdentityCenter     services.IdentityCenter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -865,6 +880,24 @@ func New(config Config) (*Cache, error) {
 	}
 
 	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	provisioningStatesCache, err := local.NewProvisioningStateService(
+		config.Backend,
+		local.ProvisioningStateServiceModeRelaxed)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	identityCenterCache, err := local.NewIdentityCenterService(
+		local.IdentityCenterServiceConfig{
+			Backend: config.Backend,
+			Mode:    local.IdentityCenterServiceModeRelaxed,
+		})
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -990,6 +1023,8 @@ func New(config Config) (*Cache, error) {
 		kubeWaitingContsCache:        kubeWaitingContsCache,
 		spiffeFederationCache:        spiffeFederationCache,
 		staticHostUsersCache:         staticHostUserCache,
+		provisioningStatesCache:      provisioningStatesCache,
+		identityCenterCache:          identityCenterCache,
 		Logger: log.WithFields(log.Fields{
 			teleport.ComponentKey: config.Component,
 		}),
@@ -1155,7 +1190,7 @@ func (c *Cache) update(ctx context.Context, retry retryutils.Retry) {
 			return
 		}
 		if err != nil {
-			c.Logger.Warnf("Re-init the cache on error: %v", err)
+			c.Logger.WithError(err).Warnf("Re-init the cache on error: %v", err)
 		}
 
 		// events cache should be closed as well

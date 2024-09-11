@@ -22,6 +22,11 @@ import { ResourceLabel } from 'teleport/services/agents';
 
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+type PermissionSet = {
+  name : string; 
+  arn: string;
+}
+
 export interface App {
   kind: 'app';
   id: string;
@@ -51,6 +56,8 @@ export interface App {
   // Integration is the integration name that must be used to access this Application.
   // Only applicable to AWS App Access.
   integration?: string;
+
+  permission_sets?: PermissionSet[];
 }
 
 export type UserGroupAndDescription = {

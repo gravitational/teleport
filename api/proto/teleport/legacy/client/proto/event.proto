@@ -23,11 +23,13 @@ import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
+import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
+import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -184,5 +186,9 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
     // StaticHostUserV2 is a resource for static host users.
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
+
+    teleport.provisioning.v1.PrincipalState PrincipalState = 99;
+    teleport.identitycenter.v1.Account IdentityCenterAccount = 100;
+    teleport.identitycenter.v1.PrincipalAssignment PrincipalAssignment = 101;
   }
 }

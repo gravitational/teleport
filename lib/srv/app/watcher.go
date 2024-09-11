@@ -33,7 +33,7 @@ import (
 // startReconciler starts reconciler that registers/unregisters proxied
 // apps according to the up-to-date list of application resources.
 func (s *Server) startReconciler(ctx context.Context) error {
-	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[string, types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredApps.get,

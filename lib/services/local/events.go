@@ -33,6 +33,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -227,6 +228,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSPIFFEFederationParser()
 		case types.KindStaticHostUser:
 			parser = newStaticHostUserParser()
+		case types.KindProvisioningState:
+			parser = newProvisioningStateParser()
+		case types.KindIdentityCenterAccount:
+			parser = newIdentityCenterAccountParser()
+		case types.KindIdentityCenterPrincipalAssignment:
+			parser = newIdentityCenterPrincipalAssignmentParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -297,6 +304,7 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
+				w.Logger.Errorf("Failed parsing resource: %s", err)
 				errs = append(errs, trace.Wrap(err))
 				continue
 			}
@@ -314,6 +322,7 @@ func (w *watcher) forwardEvents() {
 	for {
 		select {
 		case <-w.backendWatcher.Done():
+			w.Logger.Info("Backend watcher closed")
 			return
 		case event := <-w.backendWatcher.Events():
 			converted, errs := w.parseEvent(event)
@@ -330,6 +339,7 @@ func (w *watcher) forwardEvents() {
 				select {
 				case w.eventsC <- c:
 				case <-w.backendWatcher.Done():
+					w.Logger.Info("Backend watcher closed while sending")
 					return
 				}
 			}
@@ -1667,6 +1677,35 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newProvisioningStateParser() *provisioningStateParser {
+	return &provisioningStateParser{
+		baseParser: newBaseParser(backend.NewKey(provisioningStatePrefix)),
+	}
+}
+
+type provisioningStateParser struct {
+	baseParser
+}
+
+func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindProvisioningState, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalProtoResource[*provisioningv1.PrincipalState](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

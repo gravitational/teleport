@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -33,10 +34,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/pagination"
 )
 
 // UnifiedResourceKinds is a list of all kinds that are stored in the unified resource cache.
@@ -47,6 +50,7 @@ var UnifiedResourceKinds []string = []string{
 	types.KindAppServer,
 	types.KindWindowsDesktop,
 	types.KindSAMLIdPServiceProvider,
+	types.KindIdentityCenterAccount,
 }
 
 // UnifiedResourceCacheConfig is used to configure a UnifiedResourceCache
@@ -350,6 +354,7 @@ type ResourceGetter interface {
 	WindowsDesktopGetter
 	KubernetesServerGetter
 	SAMLIdpServiceProviderGetter
+	IdentityCenterAccountGetter
 }
 
 // newWatcher starts and returns a new resource watcher for unified resources.
@@ -422,7 +427,7 @@ func makeResourceSortKey(resource types.Resource) resourceSortKey {
 	}
 }
 
-func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (c *UnifiedResourceCache) GetResourcesAndUpdateCurrent(ctx context.Context) error {
 	newNodes, err := c.getNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -453,6 +458,11 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 		return trace.Wrap(err)
 	}
 
+	newICAccounts, err := c.getIdentityCenterAccounts(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	// empty the trees
@@ -468,6 +478,7 @@ func (c *UnifiedResourceCache) getResourcesAndUpdateCurrent(ctx context.Context)
 	putResources[types.KubeServer](c, newKubes)
 	putResources[types.SAMLIdPServiceProvider](c, newSAMLApps)
 	putResources[types.WindowsDesktop](c, newDesktops)
+	putResources[Resource153Adapter[IdentityCenterAccount]](c, newICAccounts)
 	c.stale = false
 	c.defineCollectorAsInitialized()
 	return nil
@@ -579,6 +590,26 @@ func (c *UnifiedResourceCache) getSAMLApps(ctx context.Context) ([]types.SAMLIdP
 	return newSAMLApps, nil
 }
 
+func (c *UnifiedResourceCache) getIdentityCenterAccounts(ctx context.Context) ([]Resource153Adapter[IdentityCenterAccount], error) {
+	var accounts []Resource153Adapter[IdentityCenterAccount]
+	var pageRequest pagination.PageRequestToken
+	for {
+		resultsPage, nextPage, err := c.ListIdentityCenterAccounts(ctx, pageRequest)
+		if err != nil {
+			return nil, trace.Wrap(err, "getting AWS Identity Center accounts for resource watcher")
+		}
+		for _, a := range resultsPage {
+			accounts = append(accounts, Resource153Adapter[IdentityCenterAccount]{Inner: a})
+		}
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		pageRequest = pagination.PageRequestToken(nextPage)
+	}
+	return accounts, nil
+}
+
 // read applies the supplied closure to either the primary tree or the ttl-based fallback tree depending on
 // wether or not the cache is currently healthy.  locking is handled internally and the passed-in tree should
 // not be accessed after the closure completes.
@@ -605,7 +636,7 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 			ResourceGetter:  c.ResourceGetter,
 			initializationC: make(chan struct{}),
 		}
-		if err := fallbackCache.getResourcesAndUpdateCurrent(ctx); err != nil {
+		if err := fallbackCache.GetResourcesAndUpdateCurrent(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return fallbackCache, nil
@@ -629,13 +660,13 @@ func (c *UnifiedResourceCache) read(ctx context.Context, fn func(cache *UnifiedR
 	return err
 }
 
-func (c *UnifiedResourceCache) notifyStale() {
+func (c *UnifiedResourceCache) NotifyStale() {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.stale = true
 }
 
-func (c *UnifiedResourceCache) initializationChan() <-chan struct{} {
+func (c *UnifiedResourceCache) InitializationChan() <-chan struct{} {
 	return c.initializationC
 }
 
@@ -650,7 +681,7 @@ func (c *UnifiedResourceCache) IsInitialized() bool {
 	}
 }
 
-func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
+func (c *UnifiedResourceCache) ProcessEventsAndUpdateCurrent(ctx context.Context, events []types.Event) {
 	c.rw.Lock()
 	defer c.rw.Unlock()
 
@@ -668,7 +699,20 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			c.deleteLocked(event.Resource)
 		case types.OpPut:
-			c.putLocked(event.Resource.(resource))
+			r := event.Resource
+			if u, ok := r.(types.Resource153Unwrapper); ok {
+				switch unwrapped := u.Unwrap().(type) {
+				case *identitycenterv1.Account:
+					wrappedAccount := IdentityCenterAccount{Account: unwrapped}
+					r = Resource153Adapter[IdentityCenterAccount]{Inner: wrappedAccount}
+				default:
+					c.log.
+						WithField("type", reflect.TypeOf(unwrapped)).
+						Warn("unsupported resource type.")
+					continue
+				}
+			}
+			c.putLocked(r.(resource))
 		default:
 			c.log.Warnf("unsupported event type %s.", event.Type)
 			continue
@@ -676,8 +720,8 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 	}
 }
 
-// resourceKinds returns a list of resources to be watched.
-func (c *UnifiedResourceCache) resourceKinds() []types.WatchKind {
+// ResourceKinds returns a list of resources to be watched.
+func (c *UnifiedResourceCache) ResourceKinds() []types.WatchKind {
 	watchKinds := make([]types.WatchKind, 0, len(UnifiedResourceKinds))
 	for _, kind := range UnifiedResourceKinds {
 		watchKinds = append(watchKinds, types.WatchKind{Kind: kind})
@@ -877,6 +921,53 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 				RequiresRequest: requiresRequest,
 			}
 		}
+	case types.KindIdentityCenterAccount:
+		unwrapper, ok := resource.(Resource153Adapter[IdentityCenterAccount])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		acct := unwrapper.Unwrap().Account
+
+		pss := make([]*types.IdentityCenterPermissionSet, len(acct.Spec.PermissionSets))
+		for i, ps := range acct.Spec.PermissionSets {
+			pss[i] = &types.IdentityCenterPermissionSet{
+				ARN:  ps.Arn,
+				Name: ps.Name,
+			}
+		}
+
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_AppServer{
+				AppServer: &types.AppServerV3{
+					Kind:     types.KindAppServer,
+					Version:  types.V3,
+					Metadata: resource.GetMetadata(),
+					Spec: types.AppServerSpecV3{
+						App: &types.AppV3{
+							Kind:    types.KindApp,
+							SubKind: "SubKindIdentityCenterAccount",
+							Version: types.V3,
+							Metadata: types.Metadata{
+								Name:        acct.Spec.Name,
+								Description: acct.Spec.Description,
+								Labels:      acct.Metadata.Labels,
+							},
+							Spec: types.AppSpecV3{
+								URI: "https://console.aws.amazon.com/#start",
+								AWS: &types.AppAWS{
+									ExternalID: acct.Spec.Id,
+								},
+								IdentityCenter: &types.AppIdentityCenter{
+									PermissionSets: pss,
+								},
+							},
+						},
+					},
+				},
+			},
+			RequiresRequest: requiresRequest,
+		}
+
 	default:
 		return nil, trace.NotImplemented("resource type %s doesn't support pagination", resource.GetKind())
 	}

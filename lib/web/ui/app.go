@@ -65,6 +65,9 @@ type App struct {
 	// Integration is the integration name that must be used to access this Application.
 	// Only applicable to AWS App Access.
 	Integration string `json:"integration,omitempty"`
+
+	// PermissionSets holds the permission sets that this app grants access to
+	PermissionSets []IdentityCenterPermissionSet `json:"permission_sets,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
@@ -128,30 +131,67 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 		description = oktaDescription
 	}
 
+	var permissionSets []IdentityCenterPermissionSet
+	if icAcct := app.GetIdentityCenter(); icAcct != nil {
+		permissionSets = make([]IdentityCenterPermissionSet, len(icAcct.PermissionSets))
+		for i, ps := range icAcct.PermissionSets {
+			permissionSets[i] = IdentityCenterPermissionSet{
+				Name:            ps.Name,
+				ARN:             ps.ARN,
+				RequiresRequest: ps.RequireRequest,
+			}
+		}
+	}
+
+	appName := app.GetName()
+	isICACcount := app.IsAWSConsole() && len(permissionSets) > 0
+	// assuming current aws_iam_ic_account UI struct that includes permissionSets
+	if isICACcount {
+		appName = app.GetAWSExternalID()
+	}
+
 	resultApp := App{
 		Kind:            types.KindApp,
-		Name:            app.GetName(),
+		Name:            appName,
 		Description:     description,
 		URI:             app.GetURI(),
-		PublicAddr:      app.GetPublicAddr(),
+		PublicAddr:      cmp.Or(app.GetPublicAddr(), app.GetURI()),
 		Labels:          labels,
 		ClusterID:       c.AppClusterName,
 		FQDN:            fqdn,
 		AWSConsole:      app.IsAWSConsole(),
-		FriendlyName:    types.FriendlyName(app),
+		FriendlyName:    cmp.Or(types.FriendlyName(app), app.GetName()),
 		UserGroups:      userGroupAndDescriptions,
 		SAMLApp:         false,
 		RequiresRequest: c.RequiresRequest,
 		Integration:     app.GetIntegration(),
+		PermissionSets:  permissionSets,
 	}
 
 	if app.IsAWSConsole() {
-		allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
-		resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
-			app.GetAWSAccountID())
+		if isICACcount {
+			resultApp.AWSRoles = awsRolesFromPermSet(permissionSets, app.GetAWSExternalID())
+		} else {
+			allowedAWSRoles := c.AllowedAWSRolesLookup[app.GetName()]
+			resultApp.AWSRoles = aws.FilterAWSRoles(allowedAWSRoles,
+				app.GetAWSAccountID())
+		}
+
 	}
 
 	return resultApp
+}
+
+func awsRolesFromPermSet(ps []IdentityCenterPermissionSet, accID string) aws.Roles {
+	var awsRoles aws.Roles
+	for _, v := range ps {
+		awsRoles = append(awsRoles, aws.Role{
+			Name:      v.Name,
+			ARN:       v.ARN,
+			AccountID: accID,
+		})
+	}
+	return awsRoles
 }
 
 // MakeAppTypeFromSAMLApp creates App type from SAMLIdPServiceProvider type for the WebUI.
@@ -174,6 +214,12 @@ func MakeAppTypeFromSAMLApp(app types.SAMLIdPServiceProvider, c MakeAppsConfig) 
 	}
 
 	return resultApp
+}
+
+type IdentityCenterPermissionSet struct {
+	Name            string `json:"name"`
+	ARN             string `json:"arn"`
+	RequiresRequest bool   `json:"requiresRequest,omitempty"`
 }
 
 // MakeApps creates application objects (either Application Servers or SAML IdP Service Provider) for the WebUI.

@@ -58,6 +58,8 @@ const (
 	// via a SCIM service
 	OriginSCIM = "scim"
 
+	OriginAWSIdentityCenter = "aws_iam_ic"
+
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = "integration_awsoidc"
@@ -73,13 +75,14 @@ const (
 
 // OriginValues lists all possible origin values.
 var OriginValues = []string{
-	OriginDefaults,
-	OriginConfigFile,
-	OriginDynamic,
+	OriginAWSIdentityCenter,
 	OriginCloud,
+	OriginConfigFile,
+	OriginDefaults,
+	OriginDiscoveryKubernetes,
+	OriginDynamic,
+	OriginEntraID,
 	OriginKubernetes,
 	OriginOkta,
 	OriginSCIM,
-	OriginDiscoveryKubernetes,
-	OriginEntraID,
 }

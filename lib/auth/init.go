@@ -313,6 +313,9 @@ type InitConfig struct {
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
+
+	ProvisioningStates services.ProvisioningStates
+	IdentityCenter     services.IdentityCenter
 }
 
 // Init instantiates and configures an instance of AuthServer

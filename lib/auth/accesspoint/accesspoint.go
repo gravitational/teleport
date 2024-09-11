@@ -103,6 +103,8 @@ type Config struct {
 	WebSession              types.WebSessionInterface
 	WebToken                types.WebTokenInterface
 	WindowsDesktops         services.WindowsDesktops
+	ProvisioningStates      services.ProvisioningStates
+	IdentityCenter          services.IdentityCenter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -195,6 +197,8 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebSession:              cfg.WebSession,
 		WebToken:                cfg.WebToken,
 		WindowsDesktops:         cfg.WindowsDesktops,
+		ProvisioningStates:      cfg.ProvisioningStates,
+		IdentityCenter:          cfg.IdentityCenter,
 	}
 
 	return cache.New(cfg.Setup(*cacheCfg))

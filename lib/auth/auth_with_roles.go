@@ -1278,9 +1278,16 @@ type resourceAccess struct {
 }
 
 func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
+	log := log.WithFields(logrus.Fields{
+		"resource_name": resource.GetName(),
+		"resource_kind": resource.GetKind(),
+	})
+
 	resourceKind := resource.GetKind()
 
 	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
+		log.WithField("error", canAccessErr).Debug("Access denied by access map")
+
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
 		// of resources they have access to
@@ -1293,11 +1300,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// Filter first and only check RBAC if there is a match to improve perf.
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
 	if err != nil {
-		log.WithFields(logrus.Fields{
-			"resource_name": resource.GetName(),
-			"resource_kind": resourceKind,
-			"error":         err,
-		}).
+		log.WithField("error", err).
 			Warn("Unable to determine access to resource, matching with filter failed")
 		return false, nil
 	}
@@ -1306,9 +1309,10 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
-	// check access normally if base checker doesnt exist
+	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
+			log.WithField("error", err).Debug("Access denied by access checker")
 			if trace.IsAccessDenied(err) {
 				return false, nil
 			}
@@ -1322,6 +1326,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// so we know if a resource is being matched because they have access to it currently, or only to be added
 	// to an access request
 	if err := c.baseAuthChecker.CanAccess(resource); err != nil {
+		log.WithField("error", err).Debug("Access denied by base access checker")
 		if !trace.IsAccessDenied(err) {
 			return false, trace.Wrap(err)
 		}
@@ -1329,11 +1334,14 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		// user does not have access with their base context
 		// check if they would have access with the extended context
 		if err := c.accessChecker.CanAccess(resource); err != nil {
+			log.WithField("error", err).Debug("Access denied be extended access checker")
 			if trace.IsAccessDenied(err) {
 				return false, nil
 			}
 			return false, trace.Wrap(err)
 		}
+
+		log.Debug("Adding to requestable set")
 		c.requestableMap[resource.GetName()] = struct{}{}
 	}
 
@@ -1349,6 +1357,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.PredicateExpression != "" {
+		fmt.Printf("Parsing predicate expression: [%s]\n", req.PredicateExpression)
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1380,6 +1389,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
+	fmt.Printf("---- kindAccessMap %#v\n", resourceAccess.kindAccessMap)
+
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
@@ -1394,7 +1405,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
+	fmt.Printf("---- RBAC ERRORS: %#v\n", rbacErrors)
+
 	if rbacErrors == len(requested) {
+		fmt.Printf("---- No access, baling out\n")
 		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 
@@ -1430,6 +1444,8 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}()
 	}
 
+	fmt.Printf("---- Creating Access Checker\n")
+
 	checker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1442,14 +1458,22 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		nextKey          string
 	)
 	if req.PinnedOnly {
+		fmt.Printf("---- Requesting Pinned Resources\n")
+
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
+			fmt.Printf("---- failed getting user prefs\n")
 			return nil, trace.Wrap(err, "getting user preferences")
 		}
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
+		resIDs := prefs.ClusterPreferences.PinnedResources.GetResourceIds()
+
+		fmt.Printf("---- Resource IDs: %#v\n", resIDs)
+
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, resIDs, func(resource types.ResourceWithLabels) (bool, error) {
+			fmt.Printf("---- Checking Resource %s/%s\n", resource.GetKind(), resource.GetName())
 			match, err := resourceAccess.checkAccess(resource, filter)
 			return match, trace.Wrap(err)
 		})
@@ -1464,8 +1488,12 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	} else {
+		fmt.Printf("---- Searching Unified Resources\n")
+
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
+			fmt.Printf("---- Filtering Resource %s/%s\n", resource.GetKind(), resource.GetName())
 			match, err := resourceAccess.checkAccess(resource, filter)
+			fmt.Printf("---- Access result %v %v\n", match, err)
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -1847,9 +1875,12 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
+
+	case services.AccessCheckable:
+		return r.CheckAccess(rr, state)
 	}
 
-	return trace.BadParameter("could not check access to resource type %T", r)
+	return trace.BadParameter("could not check access to resource type %T", resource)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type

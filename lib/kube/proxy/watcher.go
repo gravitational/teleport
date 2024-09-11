@@ -38,7 +38,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil
 	}
-	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
+	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[string, types.KubeCluster]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
 		GetNewResources:     s.monitoredKubeClusters.get,

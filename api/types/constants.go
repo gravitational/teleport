@@ -531,6 +531,8 @@ const (
 	// a managed device.
 	KindAccessGraphSecretPrivateKey = "access_graph_private_key"
 
+	KindProvisioningState = "provisioning_state"
+
 	// KindVnetConfig is a resource which holds cluster-wide configuration for VNet.
 	KindVnetConfig = "vnet_config"
 
@@ -539,6 +541,12 @@ const (
 
 	// KindStaticHostUser is a host user to be created on matching SSH nodes.
 	KindStaticHostUser = "static_host_user"
+
+	KindIdentityCenterAccount = "aws_iam_ic_account"
+
+	KindIdentityCenterPermissionSet = "aws_iam_ic_permission_set"
+
+	KindIdentityCenterPrincipalAssignment = "aws_iam_ic_principal_assignment"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
@@ -657,6 +665,8 @@ const (
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
+
+	OriginAWSIdentityCenter = common.OriginAWSIdentityCenter
 
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
@@ -1216,6 +1226,7 @@ var RequestableResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
 	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

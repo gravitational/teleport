@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.23.1
+go 1.23
 
 require (
 	cloud.google.com/go/cloudsqlconn v1.12.0
@@ -543,6 +543,12 @@ require (
 	sigs.k8s.io/kustomize/kustomize/v5 v5.4.2 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
+)
+
+require (
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.24.1
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.27.8
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.27.1
 )
 
 // Update also `ignore` in .github/dependabot.yml.

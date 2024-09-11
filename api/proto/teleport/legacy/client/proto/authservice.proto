@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
+//import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/types/events/events.proto";
@@ -1903,6 +1904,32 @@ message CreateRegisterChallengeRequest {
   DeviceUsage DeviceUsage = 3 [(gogoproto.jsontag) = "device_usage,omitempty"];
 }
 
+// message IdentityCenterPermissionSet {
+//   string Name = 1;
+//   string ARN = 2;
+//   bool RequiresRequest = 3;
+// }
+
+// message IdentityCenterAccount {
+//   // Kind is the database server resource kind.
+//   string Kind = 1 [(gogoproto.jsontag) = "kind"];
+//   // SubKind is an optional resource subkind.
+//   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+//   // Version is the resource version.
+//   string Version = 3 [(gogoproto.jsontag) = "version"];
+//   // Metadata is the account metadata.
+//   types.Metadata Metadata = 4 [
+//     (gogoproto.nullable) = false,
+//     (gogoproto.jsontag) = "metadata"
+//   ];
+
+//   string ID = 5;
+//   string ARN = 6;
+//   string AccountName = 7;
+//   string Description = 8;
+//   repeated IdentityCenterPermissionSet PermissionSets = 9;
+// }
+
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
   // Resource is the resource itself.
@@ -1931,6 +1958,9 @@ message PaginatedResource {
     types.AppServerOrSAMLIdPServiceProviderV1 AppServerOrSAMLIdPServiceProvider = 11 [deprecated = true];
     // SAMLIdPServiceProvider represents a SAML IdP service provider resource.
     types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 12 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+
+    // IdentityCenterAccount
+    //IdentityCenterAccount IdentityCenterAccount = 99 [(gogoproto.jsontag) = "identity_center_account,omitempty"];
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.

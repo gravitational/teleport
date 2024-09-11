@@ -23,8 +23,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/compare"
@@ -50,6 +52,12 @@ func CompareResources[T any](resA, resB T) int {
 			cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "IneligibleStatus"),
 			cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
 
+			cmpopts.IgnoreUnexported(
+				timestamppb.Timestamp{},
+				provisioningv1.PrincipalState{},
+				provisioningv1.PrincipalStateSpec{},
+				provisioningv1.PrincipalStateStatus{}),
+
 			cmpopts.EquateEmpty(),
 		)
 	}
@@ -57,6 +65,10 @@ func CompareResources[T any](resA, resB T) int {
 		return Equal
 	}
 	return Different
+}
+
+func IgnoreProtoXXXFields() cmp.Option {
+	return ignoreProtoXXXFields()
 }
 
 // ignoreProtoXXXFields is a cmp.Option that ignores XXX_* fields from proto

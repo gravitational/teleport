@@ -325,6 +325,26 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.ProvisioningStates == nil {
+		cfg.ProvisioningStates, err = local.NewProvisioningStateService(
+			cfg.Backend,
+			local.ProvisioningStateServiceModeStrict)
+		if err != nil {
+			return nil, trace.Wrap(err, "Creating provisioning state service")
+		}
+	}
+
+	if cfg.IdentityCenter == nil {
+		svcCfg := local.IdentityCenterServiceConfig{
+			Backend: cfg.Backend,
+			Mode:    local.IdentityCenterServiceModeStrict,
+		}
+		cfg.IdentityCenter, err = local.NewIdentityCenterService(svcCfg)
+		if err != nil {
+			return nil, trace.Wrap(err, "Creating identity center service")
+		}
+	}
+
 	if cfg.CloudClients == nil {
 		cfg.CloudClients, err = cloud.NewClients()
 		if err != nil {
@@ -443,6 +463,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
+		ProvisioningStates:        cfg.ProvisioningStates,
+		IdentityCenter:            cfg.IdentityCenter,
 		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
@@ -647,6 +669,8 @@ type Services struct {
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
 	services.SPIFFEFederations
+	services.ProvisioningStates
+	services.IdentityCenter
 	services.StaticHostUser
 }
 
@@ -7215,6 +7239,7 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		types.RoleDatabase,
 		types.RoleWindowsDesktop,
 		types.RoleOkta,
+		types.RoleAWSIdentityCenter,
 	) {
 		return []string{
 			"*." + constants.APIDomain,

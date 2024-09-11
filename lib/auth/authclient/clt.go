@@ -628,6 +628,14 @@ func (c *Client) SCIMClient() services.SCIM {
 	return c.APIClient.SCIMClient()
 }
 
+func (c *Client) ProvisioningStatesClient() services.ProvisioningStates {
+	return nil
+}
+
+func (c *Client) IdentityCenterClient() services.IdentityCenter {
+	return nil
+}
+
 // SecReportsClient returns a client for security reports.
 func (c *Client) SecReportsClient() *secreport.Client {
 	return c.APIClient.SecReportsClient()
@@ -1858,6 +1866,10 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
+
+	ProvisioningStatesClient() services.ProvisioningStates
+
+	IdentityCenterClient() services.IdentityCenter
 }
 
 type CreateAppSessionForV15Client interface {

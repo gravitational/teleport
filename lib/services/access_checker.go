@@ -795,6 +795,14 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			}
 
 			loginGetter = role.GetAWSRoleARNs
+		case types.KindIdentityCenterAccount:
+			loginGetter = func(c types.RoleConditionType) []string {
+				if c == types.Allow {
+					return []string{"Permission Set A", "Permission Set B"}
+				}
+				return nil
+			}
+
 		default:
 			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 		}

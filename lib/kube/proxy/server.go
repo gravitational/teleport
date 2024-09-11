@@ -168,7 +168,7 @@ type TLSServer struct {
 	// kubeClusterWatcher monitors changes to kube cluster resources.
 	kubeClusterWatcher *services.KubeClusterWatcher
 	// reconciler reconciles proxied kube clusters with kube_clusters resources.
-	reconciler *services.Reconciler[types.KubeCluster]
+	reconciler *services.Reconciler[string, types.KubeCluster]
 	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are
 	// reconciled against.
 	monitoredKubeClusters monitoredKubeClusters

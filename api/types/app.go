@@ -86,6 +86,8 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
+
+	GetIdentityCenter() *AppIdentityCenter
 }
 
 // NewAppV3 creates a new app resource.
@@ -411,6 +413,10 @@ func (a *AppV3) IsEqual(i Application) bool {
 		return deriveTeleportEqualAppV3(a, other)
 	}
 	return false
+}
+
+func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
+	return a.Spec.IdentityCenter
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

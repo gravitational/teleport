@@ -32,9 +32,11 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -90,104 +92,6 @@ type executor[T any, R any] interface {
 // noReader is returned by getReader for resources which aren't directly used by the cache, and therefore have no associated reader.
 type noReader struct{}
 
-// genericCollection is a generic collection implementation for resource type T with collection-specific logic
-// encapsulated in executor type E. Type R provides getter methods related to the collection, e.g. GetNodes(),
-// GetRoles().
-type genericCollection[T any, R any, E executor[T, R]] struct {
-	cache *Cache
-	watch types.WatchKind
-	exec  E
-}
-
-// fetch implements collection
-func (g *genericCollection[T, R, _]) fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error) {
-	// Singleton objects will only get deleted or updated, not both
-	deleteSingleton := false
-
-	var resources []T
-	if cacheOK {
-		resources, err = g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-			deleteSingleton = true
-		}
-	}
-
-	return func(ctx context.Context) error {
-		// Always perform the delete if this is not a singleton, otherwise
-		// only perform the delete if the singleton wasn't found
-		// or the resource kind isn't cached in the current generation.
-		if !g.exec.isSingleton() || deleteSingleton || !cacheOK {
-			if err := g.exec.deleteAll(ctx, g.cache); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		}
-		// If this is a singleton and we performed a deletion, return here
-		// because we only want to update or delete a singleton, not both.
-		// Also don't continue if the resource kind isn't cached in the current generation.
-		if g.exec.isSingleton() && deleteSingleton || !cacheOK {
-			return nil
-		}
-		for _, resource := range resources {
-			if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		return nil
-	}, nil
-}
-
-// processEvent implements collection
-func (g *genericCollection[T, R, _]) processEvent(ctx context.Context, event types.Event) error {
-	switch event.Type {
-	case types.OpDelete:
-		if err := g.exec.delete(ctx, g.cache, event.Resource); err != nil {
-			if !trace.IsNotFound(err) {
-				g.cache.Logger.WithError(err).Warn("Failed to delete resource.")
-				return trace.Wrap(err)
-			}
-		}
-	case types.OpPut:
-		var resource T
-		var ok bool
-		switch r := event.Resource.(type) {
-		case types.Resource153Unwrapper:
-			resource, ok = r.Unwrap().(T)
-		default:
-			resource, ok = event.Resource.(T)
-		}
-		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
-		}
-
-		if err := g.exec.upsert(ctx, g.cache, resource); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		g.cache.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
-	}
-	return nil
-}
-
-// watchKind implements collection
-func (g *genericCollection[T, R, _]) watchKind() types.WatchKind {
-	return g.watch
-}
-
-var _ collection = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
-
-// genericCollection obtains the reader object from the executor based on the provided health status of the cache.
-// Note that cacheOK set to true means that cache is overall healthy and the collection was confirmed as supported.
-func (c *genericCollection[T, R, _]) getReader(cacheOK bool) R {
-	return c.exec.getReader(c.cache, cacheOK)
-}
-
-var _ collectionReader[any] = (*genericCollection[types.Resource, any, executor[types.Resource, any]])(nil)
-
 type crownjewelsGetter interface {
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
 	GetCrownJewel(ctx context.Context, name string) (*crownjewelv1.CrownJewel, error)
@@ -232,6 +136,7 @@ type cacheCollections struct {
 	oktaAssignments          collectionReader[oktaAssignmentGetter]
 	oktaImportRules          collectionReader[oktaImportRuleGetter]
 	proxies                  collectionReader[services.ProxyGetter]
+	provisioningStates       collectionReader[provisioningStateGetter]
 	remoteClusters           collectionReader[remoteClusterGetter]
 	reverseTunnels           collectionReader[reverseTunnelGetter]
 	roles                    collectionReader[roleGetter]
@@ -254,6 +159,8 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	identityCenterAccounts   collectionReader[identityCenterAccountGetter]
+	principalAssignments     collectionReader[principalAssignmentGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -764,6 +671,41 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindProvisioningState:
+			if c.ProvisioningStates == nil {
+				return nil, trace.BadParameter("missing parameter ProvisioningStates")
+			}
+			collections.provisioningStates = &genericCollection[*provisioningv1.PrincipalState, provisioningStateGetter, provisioningStateExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.provisioningStates
+
+		case types.KindIdentityCenterAccount:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.identityCenterAccounts = &mappedCollection[services.IdentityCenterAccount, *identitycenterv1.Account, identityCenterAccountGetter, identityCenterAccountExecutor]{
+				inner: genericCollection[services.IdentityCenterAccount, identityCenterAccountGetter, identityCenterAccountExecutor]{
+					cache: c,
+					watch: watch,
+				},
+				mapper: func(acct *identitycenterv1.Account) services.IdentityCenterAccount {
+					return services.IdentityCenterAccount{Account: acct}
+				},
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccounts
+
+		case types.KindIdentityCenterPrincipalAssignment:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.principalAssignments = &genericCollection[*identitycenterv1.PrincipalAssignment, principalAssignmentGetter, principalAssignmentExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.principalAssignments
+
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
