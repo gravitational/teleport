@@ -5768,13 +5768,13 @@ func TestLogout(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
 			store := client.NewFSClientStore(tmpHomePath)
-			err = store.AddKeyRing(clientKeyRing)
+			err := store.AddKeyRing(clientKeyRing)
 			require.NoError(t, err)
 			store.SaveProfile(profile, true)
 
 			tt.modifyKeyDir(t, tmpHomePath)
 
-			_, err := os.Lstat(tmpHomePath)
+			_, err = os.Lstat(tmpHomePath)
 			require.NoError(t, err)
 
 			err = Run(context.Background(), []string{"logout"}, setHomePath(tmpHomePath))
