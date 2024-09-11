@@ -1081,7 +1081,7 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 }
 
 func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	err := retryutils.RetryStaticFor(5*time.Second, 50*time.Millisecond, func() error {
 		now := time.Now()
 		ctx := context.Background()
 		es, _, err := s.root.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
@@ -1089,16 +1089,18 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 			To:    now.Add(time.Hour),
 			Order: types.EventOrderDescending,
 		})
-		assert.NoError(t, err)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		for _, e := range es {
-			if e.GetCode() == events.AuthAttemptFailureCode {
-				assert.Equal(t, e.(*apievents.AuthAttempt).Login, nodeLogin)
-				return
+			if e.GetCode() == events.AuthAttemptFailureCode && e.(*apievents.AuthAttempt).Login == nodeLogin {
+				return nil
 			}
 		}
-		t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
-	}, 5*time.Second, 500*time.Millisecond)
+		return fmt.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(es))
+	})
+	require.NoError(t, err)
 }
 
 func TestFormatCommand(t *testing.T) {
