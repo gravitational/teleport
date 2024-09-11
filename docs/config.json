@@ -241,7 +241,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
