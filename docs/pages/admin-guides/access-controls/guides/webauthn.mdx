@@ -179,18 +179,16 @@ when starting new:
   to improve security.
 </Notice>
 
-### Step 1/2. Enforce MFA checks
-
 To enforce MFA checks for all roles, edit your cluster authentication
 configuration:
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-Ensure that `cap.yaml` contains the following content:
+Ensure that the resource contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -201,32 +199,8 @@ spec:
 version: v2
 ```
 
-```code
-$ tctl create -f cap.yaml
-```
+Save and close the file in your editor to apply your changes.
 
-Obtain your existing `cluster_auth_preference` resource:
-
-```code
-$ tctl get cap > cap.yaml
-```
-
-Ensure that `cap.yaml` contains the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  require_session_mfa: true
-version: v2
-```
-
-### Step 2/2. Create the resource
-
-```code
-$ tctl create -f cap.yaml
-```
 
 ### Per role
 
