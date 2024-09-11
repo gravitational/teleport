@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -62,12 +63,14 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -1531,19 +1534,22 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// TODO(nklaassen): get away from RSA here.
-	keyRing, err := client.GenerateRSAKeyRing()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
+	privateKey, err := keys.NewSoftwarePrivateKey(key)
+	require.NoError(t, err)
+	// Identity files only support a single key for SSH/TLS
+	keyRing := client.NewKeyRing(privateKey, privateKey)
 	keyRing.ClusterName = clusterName
 
 	// generate user certs with a RouteToApp. note that unlike certs generated
 	// with `tsh app login`, this is intended to match Machine ID-type certs
 	// which are not usage restricted to apps only; this is required for tsh to
 	// make other auth API calls beyond just accessing the app.
-	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	tlsPub, err := privateKey.MarshalTLSPublicKey()
 	require.NoError(t, err)
 	sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		SSHPubKey:      privateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       userName,
 		TTL:            time.Hour,
@@ -1570,26 +1576,20 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	require.NoError(t, err)
 
 	port := ports.Pop()
-
-	cancelCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	errC := make(chan error)
-	go func() {
-		var tshArgs []string
-		if testing.Verbose() {
-			tshArgs = append(tshArgs, "--debug")
-		}
-
-		errC <- Run(cancelCtx, append(tshArgs,
-			"--debug",
-			"--insecure",
-			"--identity", idPath,
-			"--proxy", process.Config.Proxy.WebAddr.Addr,
-			"proxy", "app", appName,
-			"--port", port,
-		))
-	}()
+	tshArgs := []string{
+		"--debug",
+		"--insecure",
+		"--identity", idPath,
+		"--proxy", process.Config.Proxy.WebAddr.Addr,
+		"proxy", "app", appName,
+		"--port", port,
+	}
+	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+		Name: "tsh proxy app",
+		Task: func(ctx context.Context) error {
+			return Run(ctx, tshArgs)
+		},
+	})
 
 	require.Eventually(t, func() bool {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
@@ -1601,7 +1601,4 @@ func TestProxyAppWithIdentity(t *testing.T) {
 
 		return r.StatusCode == 200
 	}, time.Second*5, time.Millisecond*250, "a proxied app request must eventually succeed")
-
-	cancel()
-	require.NoError(t, <-errC)
 }
