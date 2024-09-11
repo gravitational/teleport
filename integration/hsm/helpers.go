@@ -137,11 +137,15 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 }
 
 func (t *teleportService) waitingForNewEvent(ctx context.Context, name string, fn func() error) error {
-	evC, cancel := t.process.ListenForNewEvent(name)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	evC := make(chan service.Event, 1)
+	t.process.ListenForNewEvents(ctx, name, evC)
+
 	if err := fn(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	select {
 	case <-evC:
 		return nil
