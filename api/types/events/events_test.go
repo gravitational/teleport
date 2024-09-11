@@ -139,7 +139,7 @@ func TestTrimToMaxSize(t *testing.T) {
 	}
 }
 
-func TestTrimN(t *testing.T) {
+func TestTrimStr(t *testing.T) {
 	tests := []struct {
 		have string
 		want string
@@ -153,6 +153,6 @@ func TestTrimN(t *testing.T) {
 
 	const maxLen = 20
 	for _, test := range tests {
-		require.Equal(t, trimN(test.have, maxLen), test.want)
+		require.Equal(t, test.want, trimStr(test.have, maxLen))
 	}
 }
