@@ -457,14 +457,14 @@ sequenceDiagram
 
     Note over Client: `tsh ssh node`
     Note over Client: Prepare SSO client callback URL
-    par mfa challenge request
+    par initiate SSO MFA ceremony
         Client ->> Teleport: rpc CreateAuthenticateRequest<br/>w/ client callback url
         Teleport ->> Teleport: create SSO Auth request
         Teleport ->> Teleport: SSO MFA session for { request_id, username }
         Teleport ->> Client: SSOChallenge{ redirect_url, request_id }
     end    
     Note over Client: Prompt user to complete SSO MFA check
-    par mfa challenge response
+    par complete SSO MFA ceremony
         Client ->> Identity Provider: browse to redirect URL
         Identity Provider ->> Identity Provider: login and pass configured MFA check
         Identity Provider ->> Teleport: send successful IdP auth response
@@ -474,13 +474,44 @@ sequenceDiagram
         Identity Provider -> Client: redirect
     end
     Note over Client: Decode and decrypt mfa_token<br/>from redirect query params
-    par mfa response validation
+    par per-session MFA ceremony
         Client ->> Teleport: rpc GenerateUserSingleUseCerts<br/>w/ SSOChallengeResponse{ request_id, mfa_token }
         Teleport ->> Teleport: retrieve SSO MFA session for { request_id, username }
         Teleport ->> Teleport: check mfa_token against SSO MFA session
         Teleport ->> Client: issue MFA verified certs
     end
     Client ->> Node: connect w/ MFA verified certs
+```
+
+The WebUI flow is a little different, as we use a CSRF token instead of a
+secret key, and set the SSO MFA token as a web cookie instead of handling it
+directly on the WebUI client.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WebUI
+    participant Proxy
+    participant Auth
+    participant IdP
+    participant Node
+
+    User ->> WebUI: launch new node session
+    WebUI ->> Proxy: /web/cluster/<cluster>/console/node/<node-id>/<login>
+    Proxy <<-->> WebUI: Open WebSocket
+    Proxy ->> Auth: initiate SSO MFA ceremony (see diagram above)
+    Auth ->> Proxy: SSOChallenge{ redirect_url, request_id }
+    Proxy -->> WebUI: send SSOChallenge over websocket
+    WebUI ->> User: prompt user with MFA modal<br/>Buttons [ Webauthn, SSO, Cancel ]
+    User ->> WebUI: click SSO
+    WebUI ->> IdP: open a pop-up window at IdP redirect_url
+    IdP ->> Proxy: complete SSO MFA ceremony<br/>set mfa_token as web cookie
+    Proxy ->> IdP: return client callback url - /web/msg/info/login_success
+    IdP ->> WebUI: redirect to /web/msg/info/login_success
+    Note over WebUI: catch redirect to success screen, close pop-up window
+    WebUI -->> Proxy: signal over websocket that mfa_token web cookie is set
+    Proxy <<->> Auth: complete Per-session MFA ceremony with mfa_token
+    Proxy ->> Node: connect w/ MFA verified certs
 ```
 
 Caveat: this flow will be slightly different for the WebUI, where we use a CSRF
