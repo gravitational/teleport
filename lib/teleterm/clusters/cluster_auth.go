@@ -279,6 +279,7 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
 			RedirectorConfig: sso.RedirectorConfig{
+				ProxyAddr:   c.clusterClient.WebProxyAddr,
 				ConnectorID: providerName,
 				Protocol:    providerType,
 				BindAddr:    c.clusterClient.BindAddr,
