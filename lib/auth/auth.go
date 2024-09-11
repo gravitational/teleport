@@ -6651,6 +6651,7 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, ssoMFACo
 			ConnectorID:       ssoMFAConnector.ConnectorId,
 			Type:              ssoMFAConnector.ConnectorType,
 			ClientRedirectURL: ssoClientRedirectURL,
+			Username:          user,
 			CheckUser:         true,
 		}, true /*forMFASession*/)
 		if err != nil {

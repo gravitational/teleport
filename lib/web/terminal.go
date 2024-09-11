@@ -350,9 +350,9 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	websession.ClearMFACookie(w)
-
 	t.handler(ws, r)
+
+	websession.ClearMFACookie(w)
 }
 
 func (t *TerminalHandler) writeSessionData() error {
@@ -625,6 +625,8 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: certsReq,
+		// redirect back to new session page with mfa cookie set by the SSO flow.
+		SSOClientCallbackURL: fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -648,8 +650,7 @@ func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec, cert
 		// Convert from proto to JSON types.
 		switch {
 		case chal.GetSSOChallenge() != nil:
-			// TODO add clientREdirectURL to chall
-			// clientRedirectURL := fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin)
+			// TODO add clientRedirectURL to chall
 			envelopeType = defaults.WebsocketIdPChallenge
 			challenge = &client.MFAAuthenticateChallenge{
 				IdPChallenge: client.IdPChallenge{

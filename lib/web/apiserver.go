@@ -1917,6 +1917,8 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.log.WithField("auth", "github")
 	logger.Debugf("Callback start: %v.", r.URL.Query())
 
+	requestID := r.URL.Query().Get("state")
+
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.WithError(err).Error("Error while processing callback.")
@@ -1925,7 +1927,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		// if found, use it to terminate the flow.
 		//
 		// this improves the UX by terminating the failed SSO flow immediately, rather than hoping for a timeout.
-		if requestID := r.URL.Query().Get("state"); requestID != "" {
+		if requestID != "" {
 			if request, errGet := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), requestID); errGet == nil && !request.CreateWebSession {
 				if redURL, errEnc := RedirectURLWithError(request.ClientRedirectURL, err); errEnc == nil {
 					return redURL.String()
@@ -1939,11 +1941,18 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		return sso.LoginFailedBadCallbackRedirectURL
 	}
 
-	// if we created web session, set session cookie and redirect to original url
-	if response.Req.CreateWebSession {
+	u, err := url.Parse(response.Req.ClientRedirectURL)
+	if err != nil {
+		logger.WithError(err).Error("Error parsing client redirect url")
+		return sso.LoginFailedRedirectURL
+	}
+
+	// if we created web session or mfa token for web session, set session cookie and redirect to original url
+	if response.Req.CreateWebSession || u.Query().Get("secret_key") == "" {
 		logger.Infof("Redirecting to web browser.")
 
 		res := &SSOCallbackResponse{
+			RequestID:         requestID,
 			CSRFToken:         response.Req.CSRFToken,
 			Username:          response.Username,
 			SessionName:       response.Session.GetName(),

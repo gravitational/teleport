@@ -588,7 +588,8 @@ type PerformMFACeremonyParams struct {
 	// [KeyRing].
 	PrivateKey *keys.PrivateKey
 
-	rdConfig *sso.RedirectorConfig
+	rdConfig             *sso.RedirectorConfig
+	SSOClientCallbackURL string
 }
 
 // PerformMFACeremony issues single-use certificates via GenerateUserCerts,
@@ -638,6 +639,8 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 			}
 			ssoClientRedirectURL = redirector.ClientCallbackURL
 			promptOpts = append(promptOpts, mfa.WithSSOMFACeremony(redirector.SSOMFACeremony))
+		} else {
+			ssoClientRedirectURL = params.SSOClientCallbackURL
 		}
 
 		// Acquire MFA challenge.

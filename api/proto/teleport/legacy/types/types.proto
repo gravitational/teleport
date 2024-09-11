@@ -4668,7 +4668,7 @@ message SAMLConnectorSpecV2 {
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
-  SAMLConnectorMFASettings MFASettings = 17;
+  SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
   // ForceReauth specified whether re-authentication should be forced on login. UNSPECIFIED
   // is treated as NO.
   SAMLForceReauth ForceReauth = 18 [(gogoproto.jsontag) = "force_reauth,omitempty"];
@@ -4767,6 +4767,8 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  string Username = 19 [(gogoproto.jsontag) = "username,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
