@@ -36,18 +36,32 @@ func MigrateIncorrectKeyTypes(ctx context.Context, b backend.Backend) error {
 	if !ok {
 		return trace.BadParameter("expected firestore backend")
 	}
-	if err := migrateKeyType[backend.Key](ctx, firestore); err != nil {
+
+	// backend.Key is converted to array of ints when sending to the db.
+	toArray := func(key []byte) []any {
+		arrKey := make([]any, len(key))
+		for i, b := range key {
+			arrKey[i] = int(b)
+		}
+		return arrKey
+	}
+
+	if err := migrateKeyType[[]any](ctx, firestore, toArray); err != nil {
 		return trace.Wrap(err, "failed to migrate backend key")
 	}
-	if err := migrateKeyType[string](ctx, firestore); err != nil {
+
+	stringKey := func(key []byte) string {
+		return string(key)
+	}
+	if err := migrateKeyType[string](ctx, firestore, stringKey); err != nil {
 		return trace.Wrap(err, "failed to migrate legacy key")
 	}
 	return nil
 }
 
-func migrateKeyType[T ~string | ~[]byte](ctx context.Context, b *Backend) error {
+func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) T) error {
 	limit := 500
-	startKey := T("/")
+	startKey := newKey([]byte("/"))
 
 	for {
 		docs, err := b.svc.Collection(b.CollectionName).
@@ -76,7 +90,7 @@ func migrateKeyType[T ~string | ~[]byte](ctx context.Context, b *Backend) error 
 				return trace.Wrap(err, "failed to upsert document")
 			}
 
-			startKey = T(newDoc.Key) // update start key
+			startKey = newKey(newDoc.Key) // update start key
 		}
 
 		if len(docs) < limit {
