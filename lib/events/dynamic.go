@@ -420,6 +420,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.PluginUpdate{}
 	case PluginDeleteEvent:
 		e = &events.PluginDelete{}
+
+	case StaticHostUserCreateEvent:
+		e = &events.StaticHostUserCreate{}
+	case StaticHostUserUpdateEvent:
+		e = &events.StaticHostUserUpdate{}
+	case StaticHostUserDeleteEvent:
+		e = &events.StaticHostUserDelete{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

@@ -680,6 +680,11 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }
 
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
+}
+
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -1712,6 +1717,11 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
+
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
