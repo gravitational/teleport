@@ -1591,14 +1591,16 @@ func TestProxyAppWithIdentity(t *testing.T) {
 		},
 	})
 
-	require.Eventually(t, func() bool {
+	err = retryutils.RetryStaticFor(5*time.Second, 50*time.Millisecond, func() error {
 		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
 		if err != nil {
-			return false
+			return err
 		}
-
 		defer r.Body.Close()
-
-		return r.StatusCode == 200
-	}, time.Second*5, time.Millisecond*250, "a proxied app request must eventually succeed")
+		if r.StatusCode != 200 {
+			return trace.ReadError(r.StatusCode, nil)
+		}
+		return nil
+	})
+	require.NoError(t, err, "no proxied app request succeeded")
 }

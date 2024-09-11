@@ -404,6 +404,7 @@ func TestAlias(t *testing.T) {
 }
 
 func TestFailedLogin(t *testing.T) {
+	t.Parallel()
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -2522,11 +2523,13 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func TestKubeCredentialsLock(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	const kubeClusterName = "kube-cluster"
 
 	t.Run("failed client creation doesn't create lockfile", func(t *testing.T) {
+		t.Parallel()
 		tmpHomePath := t.TempDir()
 
 		firstErr := Run(ctx, []string{
@@ -2541,6 +2544,7 @@ func TestKubeCredentialsLock(t *testing.T) {
 	})
 
 	t.Run("kube credentials called multiple times, SSO login called only once", func(t *testing.T) {
+		t.Parallel()
 		tmpHomePath := t.TempDir()
 		connector := mockConnector(t)
 		alice, err := types.NewUser("alice@example.com")
@@ -3831,6 +3835,7 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Auth.ListenAddr = authAddr
+	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
@@ -5690,11 +5695,13 @@ func TestBenchmarkMySQL(t *testing.T) {
 }
 
 func TestLogout(t *testing.T) {
-	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
+	t.Parallel()
+
+	ctx := context.Background()
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
 	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
-	require.NoError(t, err)
-	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
@@ -5757,6 +5764,7 @@ func TestLogout(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpHomePath := t.TempDir()
 
 			store := client.NewFSClientStore(tmpHomePath)

@@ -96,11 +96,10 @@ func TestHardwareKeyLogin(t *testing.T) {
 	t.Run("cap", func(t *testing.T) {
 		setRequireMFAType := func(t *testing.T, requireMFAType types.RequireMFAType) {
 			// Set require MFA type in the cluster auth preference.
-			_, err := authServer.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					RequireMFAType: requireMFAType,
-				},
-			})
+			authPref, err := authServer.GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetRequireMFAType(requireMFAType)
+			_, err = authServer.UpsertAuthPreference(ctx, authPref)
 			require.NoError(t, err)
 		}
 
@@ -349,6 +348,7 @@ func TestHardwareKeyApp(t *testing.T) {
 			Webauthn: &types.Webauthn{
 				RPID: "127.0.0.1",
 			},
+			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 		},
 	})
 	require.NoError(t, err)
