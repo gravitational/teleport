@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, waitFor } from 'design/utils/testing';
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -57,7 +56,7 @@ describe('cycle', () => {
         )
       ).toBeVisible();
     });
-    await userEvent.unhover;
+    await userEvent.unhover(mauIcon);
 
     const tpr = screen.getByTestId(/Teleport Protected Resources/i);
     const tprIcon = within(tpr).getByRole('icon');
@@ -69,7 +68,7 @@ describe('cycle', () => {
         )
       ).toBeVisible();
     });
-    await userEvent.unhover;
+    await userEvent.unhover(tprIcon);
 
     const updated = screen.getByTestId('updated-at-display');
     const updatedIcon = within(updated).getByRole('icon');
@@ -77,7 +76,7 @@ describe('cycle', () => {
     await waitFor(() => {
       expect(screen.getByText('Updated every 12 hours.')).not.toBe(0);
     });
-    await userEvent.unhover;
+    await userEvent.unhover(updatedIcon);
   });
 
   test('renders usage', () => {
