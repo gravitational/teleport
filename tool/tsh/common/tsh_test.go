@@ -5701,6 +5701,7 @@ func TestLogout(t *testing.T) {
 	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
 	})
+	require.NoError(t, err)
 	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
 	require.NoError(t, err)
 	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
