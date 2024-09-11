@@ -1344,7 +1344,6 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	// GetClusterCAs:         func(context.Context) (*x509.CertPool, error) { return getClusterCAs() },
 	clt, err := authclient.NewClient(apiclient.Config{
 		Context: process.ExitContext(),
 		Dialer:  dialer,
