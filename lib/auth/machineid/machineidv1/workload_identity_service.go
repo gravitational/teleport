@@ -32,13 +32,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,7 +47,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const spiffeScheme = "spiffe"
+const (
+	spiffeScheme       = "spiffe"
+	jtiLength          = 16
+	maxSVIDTTL         = 24 * time.Hour
+	defaultX509SVIDTTL = 1 * time.Hour
+	defaultJWTSVIDTTL  = 5 * time.Minute
+)
 
 // WorkloadIdentityServiceConfig holds configuration options for
 // the WorkloadIdentity gRPC service.
@@ -223,7 +229,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	// Setup audit log event, we will emit these even on failure to catch any
 	// authz denials
 	var serialNumber *big.Int
-	var spiffeID *url.URL
+	var spiffeID spiffeid.ID
 	defer func() {
 		evt := &apievents.SPIFFESVIDIssued{
 			Metadata: apievents.Metadata{
@@ -243,7 +249,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 		if serialNumber != nil {
 			evt.SerialNumber = serialString(serialNumber)
 		}
-		if spiffeID != nil {
+		if !spiffeID.IsZero() {
 			evt.SPIFFEID = spiffeID.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
@@ -262,11 +268,16 @@ func (wis *WorkloadIdentityService) signX509SVID(
 	case len(req.PublicKey) == 0:
 		return nil, trace.BadParameter("publicKey: must be non-empty")
 	}
-	spiffeID = &url.URL{
+
+	spiffeID, err = spiffeid.FromURI(&url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
 	}
+
 	ipSans := []net.IP{}
 	for i, stringIP := range req.IpSans {
 		ip := net.ParseIP(stringIP)
@@ -280,12 +291,12 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	// Default TTL is 1 hour - maximum is 24 hours. If TTL is greater than max,
 	// we will use the max.
-	ttl := defaults.DefaultRenewableCertTTL
+	ttl := defaultX509SVIDTTL
 	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
 		ttl = reqTTL
 	}
-	if ttl > defaults.MaxRenewableCertTTL {
-		ttl = defaults.MaxRenewableCertTTL
+	if ttl > maxSVIDTTL {
+		ttl = maxSVIDTTL
 	}
 	notAfter := wis.clock.Now().Add(ttl)
 	// NotBefore is one minute in the past to prevent "Not yet valid" errors on
@@ -304,7 +315,7 @@ func (wis *WorkloadIdentityService) signX509SVID(
 
 	var pemBytes []byte
 	pemBytes, serialNumber, err = signx509SVID(
-		notBefore, notAfter, ca, req.PublicKey, spiffeID, req.DnsSans, ipSans,
+		notBefore, notAfter, ca, req.PublicKey, spiffeID.URL(), req.DnsSans, ipSans,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,8 +373,6 @@ func (wis *WorkloadIdentityService) SignX509SVIDs(ctx context.Context, req *pb.S
 	return res, nil
 }
 
-const jtiLength = 16
-
 func (wis *WorkloadIdentityService) signJWTSVID(
 	ctx context.Context,
 	authCtx *authz.Context,
@@ -372,7 +381,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	req *pb.JWTSVIDRequest,
 ) (res *pb.JWTSVIDResponse, err error) {
 	var jti string
-	var spiffeID *url.URL
+	var spiffeID spiffeid.ID
 	defer func() {
 		evt := &apievents.SPIFFESVIDIssued{
 			Metadata: apievents.Metadata{
@@ -388,7 +397,7 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		if err != nil {
 			evt.Code = events.SPIFFESVIDIssuedFailureCode
 		}
-		if spiffeID != nil {
+		if !spiffeID.IsZero() {
 			evt.SPIFFEID = spiffeID.String()
 		}
 		if jti != "" {
@@ -410,7 +419,15 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		return nil, trace.BadParameter("audiences: must be non-empty")
 	}
 
-	// TODO: Authz
+	// Perform authz checks. They must be allowed to issue the SPIFFE ID. Since
+	// this is a JWT SVID, there are no SANs to check.
+	if err := authCtx.Checker.CheckSPIFFESVID(
+		req.SpiffeIdPath,
+		[]string{},
+		[]net.IP{},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Create a JTI to uniquely identify this JWT for audit logging purposes
 	jti, err = utils.CryptoRandomHex(jtiLength)
@@ -418,13 +435,40 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 		return nil, trace.Wrap(err, "generating JTI")
 	}
 
-	spiffeID = &url.URL{
+	spiffeID, err = spiffeid.FromURI(&url.URL{
 		Scheme: spiffeScheme,
 		Host:   clusterName,
 		Path:   req.SpiffeIdPath,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating SPIFFE ID")
 	}
 
-	return nil, trace.NotImplemented("pls returrn something")
+	ttl := defaultJWTSVIDTTL
+	if reqTTL := req.Ttl.AsDuration(); reqTTL > 0 {
+		ttl = reqTTL
+	}
+	if ttl > maxSVIDTTL {
+		ttl = maxSVIDTTL
+	}
+
+	signed, err := key.SignJWTSVID(jwt.SignParamsJWTSVID{
+		Audiences: req.Audiences,
+		SPIFFEID:  spiffeID,
+		TTL:       ttl,
+		JTI:       jti,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "signing jwt")
+	}
+
+	return &pb.JWTSVIDResponse{
+		Audience: req.Audiences,
+		Jwt:      signed,
+		SpiffeId: spiffeID.String(),
+		Jti:      jti,
+		Hint:     req.Hint,
+	}, nil
 }
 
 // SignJWTSVIDs signs and returns the requested JWT SVIDs.
