@@ -190,6 +190,7 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 	return r
 }
 
+// TODO(tigrato|rosstimothy): Simplify this function by removing the brokenRecord and legacyRecord struct
 func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 	k, err := doc.DataAt(keyDocProperty)
 	if err != nil {
@@ -478,28 +479,11 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	legacyDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", startKey.String()).
-		Where(keyDocProperty, "<=", endKey.String()).
-		Limit(limit).
-		Documents(ctx).GetAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	brokenDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", startKey).
-		Where(keyDocProperty, "<=", endKey).
-		Limit(limit).
-		Documents(ctx).GetAll()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	allDocs := append(append(docs, legacyDocs...), brokenDocs...)
-	if len(allDocs) >= backend.DefaultRangeLimit {
+	if len(docs) >= backend.DefaultRangeLimit {
 		b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
-	return allDocs, nil
+	return docs, nil
 }
 
 // GetRange returns range of elements
