@@ -74,6 +74,8 @@ Integration" page. Alice selects a "guided" GitHub integration experience:
    - Use `tsh git config update` for configuring an existing repository
    - Use `git` as normal once the repository is cloned/configured
 
+<img src="./assets/0178-enroll-step4.png" width="600" />
+
 After the enrollment is completed, Alice can see the organization in the list
 of integrations. In addition, the Git proxy server can be found in the unified
 resources view:
@@ -126,7 +128,8 @@ spec:
 version: v2
 ```
 
-To provide access to this server, Alice creates a role using `tctl create`:
+To provide access, Alice needs to set some user traits referenced by the
+default `access` role:
 ```yaml
 kind: role
 metadata:
@@ -135,15 +138,14 @@ spec:
   allow:
     github_permissions:
     - orgs:
-      - my-org
+      - '{{internal.github_orgs}}'
+ ...
 version: v7
 ```
 
-Last but not least, Alice verifies the external trait `github_username` is
-mapped to the users with the right GitHub usernames. For local users, Alice
-can set the GitHub username with:
+To set `github_orgs` and `github_username` for local users, Alice runs:
 ```shell
-tctl users update alice --set-github-username my-git-username
+tctl users update alice --set-github-orgs my-org --set-github-username my-git-username
 ```
 
 #### Bob clones a new Git repository
