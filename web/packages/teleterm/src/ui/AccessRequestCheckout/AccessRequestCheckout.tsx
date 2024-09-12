@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Transition } from 'react-transition-group';
 
 import {
@@ -105,6 +105,7 @@ export function AccessRequestCheckout() {
   } = useAccessRequestCheckout();
 
   const isRoleRequest = data[0]?.kind === 'role';
+  const transitionRef = useRef<HTMLDivElement>();
 
   function closeCheckout() {
     setShowCheckout(false);
@@ -217,6 +218,7 @@ export function AccessRequestCheckout() {
       ))}
       <Transition
         in={showCheckout}
+        nodeRef={transitionRef}
         onEntered={() => setHasExited(false)}
         onExited={() => setHasExited(true)}
         timeout={300}
@@ -225,6 +227,7 @@ export function AccessRequestCheckout() {
       >
         {transitionState => (
           <RequestCheckoutWithSlider
+            ref={transitionRef}
             toggleResource={toggleResource}
             onClose={closeCheckout}
             transitionState={transitionState}
