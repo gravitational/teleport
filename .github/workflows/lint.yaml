@@ -2,8 +2,9 @@ name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:
-
   merge_group:
+env:
+  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
