@@ -330,6 +330,8 @@ func (m *TrustBundleCache) setBundleSet(bundleSet *BundleSet) {
 	m.mu.Lock()
 	old := m.bundleSet
 
+	// Clone the bundle set to avoid the caller mutating the state after it has
+	// been set.
 	m.bundleSet = bundleSet.Clone()
 	m.bundleSet.stale = make(chan struct{})
 
@@ -348,10 +350,6 @@ func (m *TrustBundleCache) setBundleSet(bundleSet *BundleSet) {
 func (m *TrustBundleCache) GetBundleSet(
 	ctx context.Context,
 ) (*BundleSet, error) {
-	bundleSet := m.getBundleSet()
-	if bundleSet != nil {
-		return bundleSet, nil
-	}
 	select {
 	case <-m.initialized:
 		return m.getBundleSet(), nil
