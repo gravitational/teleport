@@ -302,11 +302,6 @@ func (a *LocalKeyAgent) GetKeyRing(clusterName string, opts ...CertOption) (*Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedCerts, err := a.clientStore.GetTrustedCerts(idx.ProxyHost)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyRing.TrustedCerts = trustedCerts
 	return keyRing, nil
 }
 
