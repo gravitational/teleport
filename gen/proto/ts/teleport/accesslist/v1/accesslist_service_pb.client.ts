@@ -21,6 +21,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { AccessListService } from "./accesslist_service_pb";
+import type { GetInheritedGrantsResponse } from "./accesslist_service_pb";
+import type { GetInheritedGrantsRequest } from "./accesslist_service_pb";
 import type { GetSuggestedAccessListsResponse } from "./accesslist_service_pb";
 import type { GetSuggestedAccessListsRequest } from "./accesslist_service_pb";
 import type { AccessRequestPromoteResponse } from "./accesslist_service_pb";
@@ -224,6 +226,12 @@ export interface IAccessListServiceClient {
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, options?: RpcOptions): UnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>;
+    /**
+     * GetInheritedGrants returns the inherited grants for an access list.
+     *
+     * @generated from protobuf rpc: GetInheritedGrants(teleport.accesslist.v1.GetInheritedGrantsRequest) returns (teleport.accesslist.v1.GetInheritedGrantsResponse);
+     */
+    getInheritedGrants(input: GetInheritedGrantsRequest, options?: RpcOptions): UnaryCall<GetInheritedGrantsRequest, GetInheritedGrantsResponse>;
 }
 /**
  * AccessListService provides CRUD methods for Access List resources.
@@ -462,5 +470,14 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
     getSuggestedAccessLists(input: GetSuggestedAccessListsRequest, options?: RpcOptions): UnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse> {
         const method = this.methods[23], opt = this._transport.mergeOptions(options);
         return stackIntercept<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * GetInheritedGrants returns the inherited grants for an access list.
+     *
+     * @generated from protobuf rpc: GetInheritedGrants(teleport.accesslist.v1.GetInheritedGrantsRequest) returns (teleport.accesslist.v1.GetInheritedGrantsResponse);
+     */
+    getInheritedGrants(input: GetInheritedGrantsRequest, options?: RpcOptions): UnaryCall<GetInheritedGrantsRequest, GetInheritedGrantsResponse> {
+        const method = this.methods[24], opt = this._transport.mergeOptions(options);
+        return stackIntercept<GetInheritedGrantsRequest, GetInheritedGrantsResponse>("unary", this._transport, method, opt, input);
     }
 }

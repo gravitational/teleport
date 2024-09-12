@@ -33,6 +33,7 @@ import { AccessRequestV3 } from "../../legacy/types/types_pb";
 import { Timestamp } from "../../../google/protobuf/timestamp_pb";
 import { Review } from "./accesslist_pb";
 import { Member } from "./accesslist_pb";
+import { AccessListGrants } from "./accesslist_pb";
 import { AccessList } from "./accesslist_pb";
 /**
  * GetAccessListsRequest is the request for getting all access lists.
@@ -91,6 +92,32 @@ export interface ListAccessListsResponse {
      * @generated from protobuf field: string next_token = 2;
      */
     nextToken: string;
+}
+/**
+ * GetInheritedGrantsRequest is the request for getting inherited grants.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.GetInheritedGrantsRequest
+ */
+export interface GetInheritedGrantsRequest {
+    /**
+     * access_list_id is the ID of the access list to retrieve.
+     *
+     * @generated from protobuf field: string access_list_id = 1;
+     */
+    accessListId: string;
+}
+/**
+ * GetInheritedGrantsResponse is the response for getting inherited grants.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.GetInheritedGrantsResponse
+ */
+export interface GetInheritedGrantsResponse {
+    /**
+     * grants is the list of inherited grants.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants grants = 1;
+     */
+    grants?: AccessListGrants;
 }
 /**
  * GetAccessListRequest is the request for retrieving an access list.
@@ -811,6 +838,99 @@ class ListAccessListsResponse$Type extends MessageType<ListAccessListsResponse> 
  * @generated MessageType for protobuf message teleport.accesslist.v1.ListAccessListsResponse
  */
 export const ListAccessListsResponse = new ListAccessListsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetInheritedGrantsRequest$Type extends MessageType<GetInheritedGrantsRequest> {
+    constructor() {
+        super("teleport.accesslist.v1.GetInheritedGrantsRequest", [
+            { no: 1, name: "access_list_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetInheritedGrantsRequest>): GetInheritedGrantsRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.accessListId = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetInheritedGrantsRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetInheritedGrantsRequest): GetInheritedGrantsRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string access_list_id */ 1:
+                    message.accessListId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetInheritedGrantsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string access_list_id = 1; */
+        if (message.accessListId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.accessListId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.GetInheritedGrantsRequest
+ */
+export const GetInheritedGrantsRequest = new GetInheritedGrantsRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetInheritedGrantsResponse$Type extends MessageType<GetInheritedGrantsResponse> {
+    constructor() {
+        super("teleport.accesslist.v1.GetInheritedGrantsResponse", [
+            { no: 1, name: "grants", kind: "message", T: () => AccessListGrants }
+        ]);
+    }
+    create(value?: PartialMessage<GetInheritedGrantsResponse>): GetInheritedGrantsResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<GetInheritedGrantsResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetInheritedGrantsResponse): GetInheritedGrantsResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.accesslist.v1.AccessListGrants grants */ 1:
+                    message.grants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.grants);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetInheritedGrantsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.accesslist.v1.AccessListGrants grants = 1; */
+        if (message.grants)
+            AccessListGrants.internalBinaryWrite(message.grants, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.GetInheritedGrantsResponse
+ */
+export const GetInheritedGrantsResponse = new GetInheritedGrantsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAccessListRequest$Type extends MessageType<GetAccessListRequest> {
     constructor() {
@@ -2419,5 +2539,6 @@ export const AccessListService = new ServiceType("teleport.accesslist.v1.AccessL
     { name: "CreateAccessListReview", options: {}, I: CreateAccessListReviewRequest, O: CreateAccessListReviewResponse },
     { name: "DeleteAccessListReview", options: {}, I: DeleteAccessListReviewRequest, O: Empty },
     { name: "AccessRequestPromote", options: {}, I: AccessRequestPromoteRequest, O: AccessRequestPromoteResponse },
-    { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse }
+    { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse },
+    { name: "GetInheritedGrants", options: {}, I: GetInheritedGrantsRequest, O: GetInheritedGrantsResponse }
 ]);

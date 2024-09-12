@@ -58,6 +58,7 @@ const (
 	AccessListService_DeleteAccessListReview_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListReview"
 	AccessListService_AccessRequestPromote_FullMethodName                    = "/teleport.accesslist.v1.AccessListService/AccessRequestPromote"
 	AccessListService_GetSuggestedAccessLists_FullMethodName                 = "/teleport.accesslist.v1.AccessListService/GetSuggestedAccessLists"
+	AccessListService_GetInheritedGrants_FullMethodName                      = "/teleport.accesslist.v1.AccessListService/GetInheritedGrants"
 )
 
 // AccessListServiceClient is the client API for AccessListService service.
@@ -125,6 +126,8 @@ type AccessListServiceClient interface {
 	// GetSuggestedAccessLists returns suggested access lists for an access
 	// request.
 	GetSuggestedAccessLists(ctx context.Context, in *GetSuggestedAccessListsRequest, opts ...grpc.CallOption) (*GetSuggestedAccessListsResponse, error)
+	// GetInheritedGrants returns the inherited grants for an access list.
+	GetInheritedGrants(ctx context.Context, in *GetInheritedGrantsRequest, opts ...grpc.CallOption) (*GetInheritedGrantsResponse, error)
 }
 
 type accessListServiceClient struct {
@@ -375,6 +378,16 @@ func (c *accessListServiceClient) GetSuggestedAccessLists(ctx context.Context, i
 	return out, nil
 }
 
+func (c *accessListServiceClient) GetInheritedGrants(ctx context.Context, in *GetInheritedGrantsRequest, opts ...grpc.CallOption) (*GetInheritedGrantsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetInheritedGrantsResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetInheritedGrants_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccessListServiceServer is the server API for AccessListService service.
 // All implementations must embed UnimplementedAccessListServiceServer
 // for forward compatibility.
@@ -440,6 +453,8 @@ type AccessListServiceServer interface {
 	// GetSuggestedAccessLists returns suggested access lists for an access
 	// request.
 	GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error)
+	// GetInheritedGrants returns the inherited grants for an access list.
+	GetInheritedGrants(context.Context, *GetInheritedGrantsRequest) (*GetInheritedGrantsResponse, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
 
@@ -521,6 +536,9 @@ func (UnimplementedAccessListServiceServer) AccessRequestPromote(context.Context
 }
 func (UnimplementedAccessListServiceServer) GetSuggestedAccessLists(context.Context, *GetSuggestedAccessListsRequest) (*GetSuggestedAccessListsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSuggestedAccessLists not implemented")
+}
+func (UnimplementedAccessListServiceServer) GetInheritedGrants(context.Context, *GetInheritedGrantsRequest) (*GetInheritedGrantsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetInheritedGrants not implemented")
 }
 func (UnimplementedAccessListServiceServer) mustEmbedUnimplementedAccessListServiceServer() {}
 func (UnimplementedAccessListServiceServer) testEmbeddedByValue()                           {}
@@ -975,6 +993,24 @@ func _AccessListService_GetSuggestedAccessLists_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccessListService_GetInheritedGrants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetInheritedGrantsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccessListServiceServer).GetInheritedGrants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccessListService_GetInheritedGrants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccessListServiceServer).GetInheritedGrants(ctx, req.(*GetInheritedGrantsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccessListService_ServiceDesc is the grpc.ServiceDesc for AccessListService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1077,6 +1113,10 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSuggestedAccessLists",
 			Handler:    _AccessListService_GetSuggestedAccessLists_Handler,
+		},
+		{
+			MethodName: "GetInheritedGrants",
+			Handler:    _AccessListService_GetInheritedGrants_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -18,6 +18,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+import { GetInheritedGrantsResponse } from "./accesslist_service_pb";
+import { GetInheritedGrantsRequest } from "./accesslist_service_pb";
 import { GetSuggestedAccessListsResponse } from "./accesslist_service_pb";
 import { GetSuggestedAccessListsRequest } from "./accesslist_service_pb";
 import { AccessRequestPromoteResponse } from "./accesslist_service_pb";
@@ -219,6 +221,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetSuggestedAccessLists(teleport.accesslist.v1.GetSuggestedAccessListsRequest) returns (teleport.accesslist.v1.GetSuggestedAccessListsResponse);
      */
     getSuggestedAccessLists: grpc.handleUnaryCall<GetSuggestedAccessListsRequest, GetSuggestedAccessListsResponse>;
+    /**
+     * GetInheritedGrants returns the inherited grants for an access list.
+     *
+     * @generated from protobuf rpc: GetInheritedGrants(teleport.accesslist.v1.GetInheritedGrantsRequest) returns (teleport.accesslist.v1.GetInheritedGrantsResponse);
+     */
+    getInheritedGrants: grpc.handleUnaryCall<GetInheritedGrantsRequest, GetInheritedGrantsResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.accesslist.v1.AccessListService.
@@ -471,5 +479,15 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => GetSuggestedAccessListsRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(GetSuggestedAccessListsResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(GetSuggestedAccessListsRequest.toBinary(value))
+    },
+    getInheritedGrants: {
+        path: "/teleport.accesslist.v1.AccessListService/GetInheritedGrants",
+        originalName: "GetInheritedGrants",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetInheritedGrantsResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetInheritedGrantsRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetInheritedGrantsResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetInheritedGrantsRequest.toBinary(value))
     }
 };

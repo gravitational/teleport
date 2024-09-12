@@ -138,6 +138,11 @@ func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.A
 	return accessLists, trace.Wrap(err)
 }
 
+// GetInheritedGrants returns grants inherited from parent access lists. This is not implemented in the local service.
+func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
+	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
+}
+
 // ListAccessLists returns a paginated list of access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	return a.service.ListResources(ctx, pageSize, nextToken)

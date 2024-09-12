@@ -48,6 +48,8 @@ type AccessListsGetter interface {
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
+	// GetInheritedGrants returns grants inherited from parent access lists.
+	GetInheritedGrants(context.Context, string) (*accesslist.Grants, error)
 }
 
 // AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
