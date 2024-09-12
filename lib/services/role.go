@@ -2511,7 +2511,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2734,10 +2734,10 @@ func checkRoleLabelsMatch(
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+	return CheckLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
 }
 
-// checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
+// CheckLabelsMatch checks if the [labelMatchers] match the labels of [resource]
 // for [condition].
 // It considers both [labelMatchers.Labels] and [labelMatchers.Expression].
 //
@@ -2750,7 +2750,7 @@ func checkRoleLabelsMatch(
 // match it's not considered a match.
 //
 // If neither is set, it's not a match in either case.
-func checkLabelsMatch(
+func CheckLabelsMatch(
 	condition types.RoleConditionType,
 	labelMatchers types.LabelMatchers,
 	userTraits wrappers.Traits,

@@ -29,9 +29,13 @@
               "slug": "/upgrading/overview/"
             },
             {
-                "title": "Set up Automatic Agent Updates",
-                "slug": "/upgrading/automatic-agent-updates/"
-            }
+              "title": "Set up Automatic Agent Updates",
+              "slug": "/upgrading/automatic-agent-updates/"
+            },
+            {
+              "title": "Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
+	    }
           ]
         },
         {
@@ -1043,7 +1047,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -2568,12 +2572,22 @@
     },
     {
       "source": "/upgrading/reference/",
-      "destination": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
       "permanent": true
     },
     {
       "source": "/choose-an-edition/teleport-enterprise/introduction/",
       "destination": "/admin-guides/deploy-a-cluster/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     }
   ]
