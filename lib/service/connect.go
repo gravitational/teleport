@@ -67,6 +67,8 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
+
 // reconnectToAuthService continuously attempts to reconnect to the auth
 // service until succeeds or process gets shut down
 func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*Connector, error) {
@@ -266,7 +268,17 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			// while servers should use old credentials to answer auth requests.
 			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+				newIdentity = identity
+				// the only legitimate reason to not have a replacement identity
+				// during update_clients is if the agent joined during
+				// update_clients and then restarted
+				process.logger.WarnContext(
+					process.ExitContext(),
+					updateClientsJoinWarning,
+				)
 			}
 			if role == types.RoleAdmin || role == types.RoleAuth {
 				return newConnector(newIdentity, identity)
@@ -276,14 +288,10 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
 			// identity is still set up to trust the old certificate authority certificates.
-			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			if role == types.RoleAdmin || role == types.RoleAuth {
-				return newConnector(newIdentity, newIdentity)
+				return newConnector(identity, identity)
 			}
-			connector, err := process.getConnector(newIdentity, newIdentity)
+			connector, err := process.getConnector(identity, identity)
 			return connector, trace.Wrap(err)
 		case types.RotationPhaseRollback:
 			// In rollback phase, clients and servers should switch back
@@ -537,6 +545,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	}, false)
 	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
+	}
+
+	if ca.GetRotation().Phase == types.RotationPhaseUpdateClients {
+		process.logger.WarnContext(
+			process.ExitContext(),
+			updateClientsJoinWarning,
+		)
 	}
 
 	if err := process.storage.WriteIdentity(state.IdentityCurrent, *identity); err != nil {
@@ -1061,24 +1076,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if local.Phase != types.RotationPhaseUpdateClients && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			// Write the replacement identity as a current identity and reload the server.
-			replacement, err := storage.ReadIdentity(state.IdentityReplacement, id.Role)
+			clientState := conn.clientState.Load()
+			err = writeStateAndIdentity(state.IdentityCurrent, clientState.identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			connState, err := newConnectorState(replacement)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			err = writeStateAndIdentity(state.IdentityCurrent, replacement)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// the current clientState and the new connState are equivalent, but
-			// by overwriting it we're going to only have one connector state
-			// around in memory
-			conn.clientState.Store(connState)
-			conn.serverState.Store(connState)
+			conn.serverState.Store(clientState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationPhaseRollback:
 			// Allow transition to this phase from any other local phase
