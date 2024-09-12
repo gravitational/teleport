@@ -22,65 +22,12 @@ available in Teleport Enterprise.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Create the requester role
+## Step 1/6. Grant roles to users
 
-<Admonition type="note">
-As of version 13.1.2, Teleport comes with built-in `reviewer` and `requester` roles that
-are defined similarly to the ones presented here. If you are looking to quickly try out
-Access Requests, you can skip to step 3 and use these built-in roles. However, if you are
-using an earlier version of Teleport or you are looking to get general guidance for creating
-roles for Access Requests, steps 1 and 2 are still useful.
-</Admonition>
-
-This role allows the requester to search for resources accessible by the
-`access` role (all resources by default) and request access to them.
-
-```yaml
-# requester.yaml
-kind: role
-version: v5
-metadata:
-  name: requester
-spec:
-  allow:
-    request:
-      search_as_roles:
-        - access
-```
-
-```code
-$ tctl create requester.yaml
-```
-
-## Step 2/8. Create the reviewer role
-
-This role allows the reviewer to approve all requests for the `access` role.
-
-```yaml
-# reviewer.yaml
-kind: role
-version: v5
-metadata:
-  name: reviewer
-spec:
-  allow:
-    review_requests:
-      roles:
-        - access
-      preview_as_roles:
-        - access
-```
-
-```code
-$ tctl create reviewer.yaml
-```
-
-## Step 3/8. Grant the roles to users
-
-Grant the `requester` and `reviewer` roles to existing users, or create new
-users to test this feature.
-Make sure the requester has a valid `login` so that they can view and access SSH
-nodes.
+The built-in `requester` and `reviewer` roles have permissions to, respectively,
+open and review Access Requests.  Grant the `requester` and `reviewer` roles to
+existing users, or create new users to test this feature.  Make sure the
+requester has a valid `login` so that they can view and access SSH nodes.
 
 ```code
 $ tctl users add alice --roles requester --logins alice
@@ -91,7 +38,15 @@ For the rest of the guide we will assume that the `requester` role has been
 granted to a user named `alice` and the `reviewer` role has been granted to a
 user named `bob`.
 
-## Step 4/8. Search for resources
+<Notice type="tip">
+
+Consider defining custom roles to limit the scope of a requester or reviewer's
+permissions. Read the [Access Request
+Configuration](./access-request-configuration.mdx) guide for available options.
+
+</Notice>
+
+## Step 2/6. Search for resources
 
 First, log in as `alice`.
 
@@ -180,7 +135,7 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-## Step 5/8. Request access to a resource
+## Step 3/6. Request access to a resource
 
 Copy the command output by `tsh request search` in the previous step, optionally filling in a request reason.
 
@@ -204,7 +159,7 @@ Waiting for request approval...
 
 The command will automatically wait until the request is approved.
 
-## Step 6/8. Approve the Access Request
+## Step 4/6. Approve the Access Request
 
 First, log in as `bob`.
 
@@ -244,7 +199,7 @@ Check out our
 to notify the right people about new Access Requests.
 </Notice>
 
-## Step 7/8. Access the requested resource
+## Step 5/6. Access the requested resource
 
 `alice`'s `tsh request create` command should resolve now that the request has been approved.
 
@@ -290,7 +245,7 @@ $ tsh ssh alice@iot
 iot:~ alice$
 ```
 
-## Step 8/8. Resume regular access
+## Step 6/6. Resume regular access
 
 While logged in with a Resource Access Request, users will be blocked from access to any other resources.
 This is necessary because their certificate now contains an elevated role,
