@@ -94,13 +94,14 @@ For this guide, we will use the preset `require-trusted-device` role to update c
   </Details>
 </Admonition>
 
-First, let's fetch the user profile locally so we can update it with the preset `require-trusted-device` role.
+Open the user resource in your editor so we can update it with the preset `require-trusted-device` role.
 
 ```code
-$ tctl get users/(=clusterDefaults.username=) > (=clusterDefaults.username=).yaml
+$ tctl edit users/(=clusterDefaults.username=)
 ```
 
 Edit the profile:
+
 ```diff
 kind: user
 metadata:
@@ -120,11 +121,7 @@ spec:
   ...
 ```
 
-Save and update user:
-
-```code
-$ tctl create -f (=clusterDefaults.username=).yaml
-```
+Update the user by saving and closing the file in your editor.
 
 Now that the user profile is updated to enforce Device Trust, try to access the test server
 again.
