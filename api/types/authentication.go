@@ -74,6 +74,10 @@ type AuthPreference interface {
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
 	SetSecondFactor(constants.SecondFactorType)
+	// GetSecondFactors gets a list of supported second factors.
+	GetSecondFactors() []SecondFactorType
+	// SetSecondFactors sets the list of supported second factors.
+	SetSecondFactors([]SecondFactorType)
 	// GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
 	// method when various options are available.
 	// It is empty if there is nothing to suggest.
@@ -320,6 +324,16 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 // SetSecondFactor sets the type of second factor.
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
+}
+
+// GetSecondFactors gets a list of supported second factors.
+func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
+	return c.Spec.SecondFactors
+}
+
+// SetSecondFactors sets the list of supported second factors.
+func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
+	c.Spec.SecondFactors = s
 }
 
 func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
