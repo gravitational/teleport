@@ -1179,3 +1179,110 @@ func (r *RequireMFAType) setFromEnum(val int32) error {
 	*r = RequireMFAType(val)
 	return nil
 }
+
+// MarshalJSON marshals SecondFactorType to boolean or string.
+func (s *SecondFactorType) MarshalYAML() (interface{}, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing SecondFactorType from boolean or alias.
+func (s *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalJSON marshals SecondFactorType to boolean or string.
+func (s *SecondFactorType) MarshalJSON() ([]byte, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing SecondFactorType from boolean or alias.
+func (s *SecondFactorType) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.decode(val)
+	return trace.Wrap(err)
+}
+
+const (
+	// SecondFactorTypeOTPString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_OTP
+	SecondFactorTypeOTPString = "otp"
+	// SecondFactorTypeWebauthnString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN
+	SecondFactorTypeWebauthnString = "webauthn"
+	// SecondFactorTypeSSOString is the string representation of SecondFactorType_SECOND_FACTOR_TYPE_SSO
+	SecondFactorTypeSSOString = "sso"
+)
+
+func (s *SecondFactorType) encode() (interface{}, error) {
+	switch *s {
+	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
+		return nil, nil
+	case SecondFactorType_SECOND_FACTOR_TYPE_OTP:
+		return SecondFactorTypeOTPString, nil
+	case SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN:
+		return SecondFactorTypeWebauthnString, nil
+	case SecondFactorType_SECOND_FACTOR_TYPE_SSO:
+		return SecondFactorTypeSSOString, nil
+	default:
+		return nil, trace.BadParameter("SecondFactorType invalid value %v", *s)
+	}
+}
+
+func (s *SecondFactorType) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		switch v {
+		case SecondFactorTypeOTPString:
+			*s = SecondFactorType_SECOND_FACTOR_TYPE_OTP
+		case SecondFactorTypeWebauthnString:
+			*s = SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN
+		case SecondFactorTypeSSOString:
+			*s = SecondFactorType_SECOND_FACTOR_TYPE_SSO
+		case "":
+			*s = SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED
+		default:
+			return trace.BadParameter("SecondFactorType invalid value %v", val)
+		}
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("RequireMFAType invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (r *SecondFactorType) setFromEnum(val int32) error {
+	if _, ok := SecondFactorType_name[val]; !ok {
+		return trace.BadParameter("invalid SecondFactorType mode %v", val)
+	}
+	*r = SecondFactorType(val)
+	return nil
+}
