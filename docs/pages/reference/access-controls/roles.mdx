@@ -73,6 +73,58 @@ user:
 | `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `keep`, `insecure-drop`), it will evaluate to the option specified by all of the roles. If some roles specify both `insecure-drop` or `keep` it will evaluate to `keep`|
 | `create_db_user_mode` | Allow [database user auto provisioning](../../enroll-resources/database-access/auto-user-provisioning.mdx). Options: `off` (disable database user auto-provisioning), `keep` (disables the user at session end, removing the roles and locking it), and `best_effort_drop` (try to drop the user at session end, if it doesn't succeed, fallback to disabling it). | Logical "OR" i.e. if any role allows database user auto-provisioning, it's allowed |
 
+
+### Key details about `client_idle_timeout`
+
+The `client_idle_timeout` in Teleport is a configurable setting that helps improve security by terminating inactive sessions after a specified period. It can be applied globally or per role, allowing for flexibility based on your organization's security policies. 
+This feature helps ensure that unattended sessions don’t pose a security risk, and can prevent unauthorized access in case a user leaves their session open and unattended. 
+It enforces session timeouts when no activity is detected from the user.
+
+#### Purpose
+   - The `client_idle_timeout` configuration ensures that any SSH session, application session, or database connection that remains inactive for a certain period of time is automatically terminated.
+   - This helps to mitigate risks associated with unattended sessions, such as unauthorized access.
+
+#### How it works
+   - Teleport monitors user activity within sessions (like key presses or mouse movement).
+   - If there is no detected activity for the duration defined by `client_idle_timeout`, the session is terminated, forcing the user to reconnect.
+   
+#### Configuration
+   The `client_idle_timeout` can be configured globally or per role, giving administrators flexibility in how they apply idle timeout rules.
+
+   - Global configuration (applies to all users):
+ 	You can set the `client_idle_timeout` globally in the Teleport cluster configuration (`teleport.yaml`) under the `auth_service` section:
+ 	```yaml
+ 	auth_service:
+   	client_idle_timeout: 30m
+ 	```
+ 	This example configures a global idle timeout of **30 minutes**. After 30 minutes of inactivity, the session will be terminated.
+
+   - Per-role configuration (applies to specific users or groups):
+ 	You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
+ 	```yaml
+ 	kind: role
+ 	version: v3
+ 	metadata:
+   	name: example-role
+ 	spec:
+   	options:
+     	client_idle_timeout: 15m
+ 	```
+ 	In this example, the `example-role` has an idle timeout of **15 minutes**.
+
+#### Default behavior
+   - If the `client_idle_timeout` is not set, sessions will not automatically close due to inactivity unless other timeout policies (like `disconnect_expired_cert`) are applied.
+   
+#### Use cases
+   - Security compliance: Many organizations require idle timeout enforcement as part of their security policies, ensuring that inactive sessions are not left open.
+   - Mitigating risk: If users forget to disconnect from a session, an idle timeout ensures that they are logged out automatically after a set period of inactivity, reducing the risk of unauthorized access.
+
+#### Example command to apply role-based timeout
+   If you're updating an existing role to include a `client_idle_timeout`, you would modify the role configuration like this:
+   ```bash
+   tctl create -f example-role.yaml
+   ```
+
 ## Preset roles
 
 Teleport provides several preset roles:
