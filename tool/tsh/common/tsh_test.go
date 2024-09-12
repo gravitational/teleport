@@ -1830,50 +1830,56 @@ func TestNoRelogin(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authProcess.GetAuthServer(), alice, connector.GetName()))
 	require.NoError(t, err)
 
-	var loginAttempts atomic.Int32
+	reloginErr := errors.New("relogin failed")
 	trackingLoginFunc := func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
-		loginAttempts.Add(1)
-		return mockSSOLogin(authServer, alice)(ctx, connectorID, keyRing, protocol)
+		return nil, reloginErr
 	}
 
-	// should try to relogin due to bad parameter without passing --relogin
-	err = Run(context.Background(), []string{
-		"ssh",
-		"--insecure",
-		"--user", "alice",
-		"--proxy", proxyAddr.String(),
-		"12.12.12.12:8080",
-		"uptime",
-	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
-	require.Error(t, err)
-	require.Equal(t, int32(1), loginAttempts.Load())
-
-	// should try to relogin due to bad parameter when passing --relogin
-	err = Run(context.Background(), []string{
-		"ssh",
-		"--insecure",
-		"--relogin",
-		"--user", "alice",
-		"--proxy", proxyAddr.String(),
-		"12.12.12.12:8080",
-		"uptime",
-	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
-	require.Error(t, err)
-	require.Equal(t, int32(2), loginAttempts.Load())
-
-	// should skip relogin and fail instantly when passing --no-relogin
-	err = Run(context.Background(), []string{
-		"ssh",
-		"--no-relogin",
-		"--insecure",
-		"--user", "alice",
-		"--proxy", proxyAddr.String(),
-		"12.12.12.12:8080",
-		"uptime",
-	}, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
-	require.Error(t, err)
-	// login not called a third time
-	require.Equal(t, int32(2), loginAttempts.Load())
+	for _, tc := range []struct {
+		desc           string
+		extraArgs      []string
+		errorAssertion func(*testing.T, error)
+	}{
+		{
+			// Should try to relogin due to bad parameter without passing --relogin.
+			desc: "default",
+			errorAssertion: func(t *testing.T, err error) {
+				require.ErrorIs(t, err, reloginErr)
+			},
+		},
+		{
+			// Should try to relogin due to bad parameter when passing --relogin.
+			desc:      "relogin",
+			extraArgs: []string{"--relogin"},
+			errorAssertion: func(t *testing.T, err error) {
+				require.ErrorIs(t, err, reloginErr)
+			},
+		},
+		{
+			// Should skip relogin and fail instantly when passing --no-relogin.
+			desc:      "no relogin",
+			extraArgs: []string{"--no-relogin"},
+			errorAssertion: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.False(t, errors.Is(err, reloginErr), "did not expect to get reloginErr")
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			tshArgs := []string{"ssh"}
+			tshArgs = append(tshArgs, tc.extraArgs...)
+			tshArgs = append(tshArgs,
+				"--insecure",
+				"--user", "alice",
+				"--proxy", proxyAddr.String(),
+				"12.12.12.12:8080",
+				"uptime",
+			)
+			err := Run(context.Background(), tshArgs, setHomePath(tmpHomePath), setMockSSOLoginCustom(trackingLoginFunc, connector.GetName()))
+			tc.errorAssertion(t, err)
+		})
+	}
 }
 
 // TestSSHAccessRequest tests that a user can automatically request access to a
