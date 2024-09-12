@@ -517,6 +517,9 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 	}
 }
 
+// FetchInitialBundleSet fetches a BundleSet of trust bundles from the Auth
+// Server. If fetchFederatedBundles is true, then federated trust bundles will
+// also be included as well as the trust bundle for the local trust domain.
 func FetchInitialBundleSet(
 	ctx context.Context,
 	log *slog.Logger,

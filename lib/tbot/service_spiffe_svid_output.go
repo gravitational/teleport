@@ -48,7 +48,9 @@ const (
 	pemCertificate = "CERTIFICATE"
 )
 
-// SPIFFESVIDOutputService
+// SPIFFESVIDOutputService is a service that generates and writes X509 SPIFFE
+// SVIDs to a destination. It produces an output compatible with the
+// `spiffe-helper` tool.
 type SPIFFESVIDOutputService struct {
 	botAuthClient  *authclient.Client
 	botCfg         *config.BotConfig
