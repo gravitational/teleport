@@ -95,6 +95,22 @@ func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostI
 	return nil
 }
 
+func (a *fakeAuth) UpsertDatabaseServer(_ context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
+	return nil
+}
+
 func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -290,7 +306,7 @@ func TestSSHServerBasics(t *testing.T) {
 	require.Zero(t, unexpectedAddrs)
 }
 
-// TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// TestAppServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an app service.
 func TestAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
@@ -481,6 +497,219 @@ func TestAppServerBasics(t *testing.T) {
 	awaitEvents(t, events,
 		expect(appUpsertErr, appUpsertRetryErr, handlerClose),
 		deny(appUpsertOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify that hb counter has been decremented (counter is decremented concurrently, but
+	// always *before* closure is propagated to downstream handle, hence being safe to load
+	// here).
+	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+}
+
+// TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// a database server.
+func TestDatabaseServerBasics(t *testing.T) {
+	const serverID = "test-server"
+	const dbCount = 3
+
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleDatabase},
+	})
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake db server heartbeat
+	for i := 0; i < dbCount; i++ {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("db-%d", i),
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk),
+		deny(dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce some failures, but not enough to cause the control
+	// stream to be closed.
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.failKeepAlives = 2
+	auth.mu.Unlock()
+
+	// keepalive should fail twice, but since the upsert is already known
+	// to have succeeded, we should not see an upsert failure yet.
+	awaitEvents(t, events,
+		expect(dbKeepAliveErr, dbKeepAliveErr),
+		deny(dbUpsertErr, handlerClose),
+	)
+
+	for i := 0; i < dbCount; i++ {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("db-%d", i),
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// we should now see an upsert failure, but no additional
+	// keepalive failures, and the upsert should succeed on retry.
+	awaitEvents(t, events,
+		expect(dbKeepAliveOk, dbKeepAliveOk, dbKeepAliveOk, dbUpsertErr, dbUpsertRetryOk),
+		deny(dbKeepAliveErr, handlerClose),
+	)
+
+	// launch goroutine to respond to a single ping
+	go func() {
+		select {
+		case msg := <-downstream.Recv():
+			downstream.Send(ctx, proto.UpstreamInventoryPong{
+				ID: msg.(proto.DownstreamInventoryPing).ID,
+			})
+		case <-downstream.Done():
+		case <-ctx.Done():
+		}
+	}()
+
+	// limit time of ping call
+	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	// execute ping
+	_, err := handle.Ping(pingCtx, 1)
+	require.NoError(t, err)
+
+	// ensure that local db keepalive states have reset to healthy by waiting
+	// on a full cycle+ worth of keepalives without errors.
+	awaitEvents(t, events,
+		expect(keepAliveTick, keepAliveTick),
+		deny(dbKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive keepalive errors to cause removal
+	// of server-side keepalive state.
+	auth.mu.Lock()
+	auth.failKeepAlives = 3 * dbCount
+	auth.mu.Unlock()
+
+	// expect that all db keepalives fail, then the db is removed.
+	var expectedEvents []testEvent
+	for i := 0; i < dbCount; i++ {
+		expectedEvents = append(expectedEvents, []testEvent{dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveDel}...)
+	}
+
+	// wait for failed keepalives to trigger removal
+	awaitEvents(t, events,
+		expect(expectedEvents...),
+		deny(handlerClose),
+	)
+
+	// verify that further keepalive ticks to not result in attempts to keepalive
+	// dbs (successful or not).
+	awaitEvents(t, events,
+		expect(keepAliveTick, keepAliveTick, keepAliveTick),
+		deny(dbKeepAliveOk, dbKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive errors to cause stream closure
+	auth.mu.Lock()
+	auth.failUpserts = 5
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+		DatabaseServer: &types.DatabaseServerV3{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.DatabaseServerSpecV3{
+				HostID: serverID,
+				Database: &types.DatabaseV3{
+					Kind:     types.KindDatabase,
+					Version:  types.V3,
+					Metadata: types.Metadata{},
+					Spec:     types.DatabaseSpecV3{},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// both the initial upsert and the retry should fail, then the handle should
+	// close.
+	awaitEvents(t, events,
+		expect(dbUpsertErr, dbUpsertRetryErr, handlerClose),
+		deny(dbUpsertOk),
 	)
 
 	// verify that closure propagates to server and client side interfaces

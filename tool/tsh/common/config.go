@@ -19,11 +19,9 @@
 package common
 
 import (
-	"fmt"
+	"io"
 	"net"
-	"strings"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
@@ -33,9 +31,8 @@ import (
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params *openssh.SSHConfigParameters, getSSHVersion func() (*semver.Version, error)) error {
-	sshConf := openssh.NewSSHConfig(getSSHVersion, log)
-	if err := sshConf.GetSSHConfig(sb, params); err != nil {
+func writeSSHConfig(w io.Writer, params *openssh.SSHConfigParameters) error {
+	if err := openssh.WriteSSHConfig(w, params); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -87,8 +84,7 @@ func onConfig(cf *CLIConf) error {
 		leafClustersNames = append(leafClustersNames, leafCluster.GetName())
 	}
 
-	var sb strings.Builder
-	if err := writeSSHConfig(&sb, &openssh.SSHConfigParameters{
+	if err := writeSSHConfig(cf.Stdout(), &openssh.SSHConfigParameters{
 		AppName:             openssh.TshApp,
 		ClusterNames:        append([]string{clusterClient.RootClusterName()}, leafClustersNames...),
 		KnownHostsPath:      knownHostsPath,
@@ -99,11 +95,9 @@ func onConfig(cf *CLIConf) error {
 		ExecutablePath:      cf.executablePath,
 		Username:            cf.NodeLogin,
 		Port:                int(cf.NodePort),
-	}, nil); err != nil {
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	stdout := cf.Stdout()
-	fmt.Fprint(stdout, sb.String())
 	return nil
 }

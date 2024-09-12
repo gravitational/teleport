@@ -5,7 +5,6 @@ Host *.tele.blackmesa.gov tele.blackmesa.gov
     UserKnownHostsFile "/test/dir/known_hosts"
     IdentityFile "/test/dir/key"
     CertificateFile "/test/dir/key-cert.pub"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
 
 # Flags for all tele.blackmesa.gov hosts except the proxy
 Host *.tele.blackmesa.gov !tele.blackmesa.gov
@@ -16,7 +15,6 @@ Host *.tele.aperture.labs tele.blackmesa.gov
     UserKnownHostsFile "/test/dir/known_hosts"
     IdentityFile "/test/dir/key"
     CertificateFile "/test/dir/key-cert.pub"
-    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
 
 # Flags for all tele.aperture.labs hosts except the proxy
 Host *.tele.aperture.labs !tele.blackmesa.gov
