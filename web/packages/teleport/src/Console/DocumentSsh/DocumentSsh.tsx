@@ -59,6 +59,14 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   } = useFileTransfer(tty, session, doc, mfa.addMfaToScpUrls);
   const theme = useTheme();
 
+  useEffect(() => {
+    mfa.registerMfaCallback('session_mfa', () => window.location.reload());
+
+    return () => {
+      mfa.unregisterMfaCallback('session_mfa');
+    };
+  }, []);
+
   function handleCloseFileTransfer() {
     terminalRef.current?.focus();
   }

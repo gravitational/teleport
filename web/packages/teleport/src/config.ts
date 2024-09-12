@@ -143,6 +143,7 @@ const cfg = {
     deviceTrust: `/web/devices`,
     deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
     sso: '/web/sso',
+    ssoConfirm: '/web/sso_confirm',
     cluster: '/web/cluster/:clusterId/',
     clusters: '/web/clusters',
     trustedClusters: '/web/trust',

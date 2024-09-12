@@ -39,6 +39,12 @@ import useTeleport from 'teleport/useTeleport';
 
 import cfg from 'teleport/config';
 
+type MessageData = {
+  mything: string;
+  otherprop: number;
+};
+type BroadcastEvent = MessageEvent<MessageData>;
+
 export function Bots() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
@@ -49,6 +55,7 @@ export function Bots() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
   const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
+  const [bc, setBc] = useState(new BroadcastChannel('test_channel'));
 
   useEffect(() => {
     const signal = new AbortController();
@@ -67,6 +74,21 @@ export function Bots() {
       signal.abort();
     };
   }, [ctx, fetchRun]);
+
+  useEffect(() => {
+    if (!bc) {
+      return;
+    }
+    function testingThing(e: BroadcastEvent) {
+      console.log('received message: ', { data: e.data });
+    }
+
+    bc.addEventListener('message', testingThing);
+
+    return () => {
+      bc.removeEventListener('message', testingThing);
+    };
+  }, [bc]);
 
   async function fetchRoleNames(search: string): Promise<string[]> {
     const flags = ctx.getFeatureFlags();
@@ -107,10 +129,20 @@ export function Bots() {
     setSelectedRoles(null);
   }
 
+  function testButton() {
+    const message: MessageData = {
+      mything: 'hihihi',
+      otherprop: 12,
+    };
+    // TODO type this eventually
+    bc.postMessage(message);
+  }
+
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Bots</FeatureHeaderTitle>
+        <Button onClick={testButton}>TESTING</Button>
         <Box ml="auto">
           <HoverTooltip
             tipContent={

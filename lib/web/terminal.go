@@ -350,9 +350,8 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.handler(ws, r)
-
 	websession.ClearMFACookie(w)
+	t.handler(ws, r)
 }
 
 func (t *TerminalHandler) writeSessionData() error {
@@ -626,7 +625,10 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		},
 		CertsReq: certsReq,
 		// redirect back to new session page with mfa cookie set by the SSO flow.
-		SSOClientCallbackURL: fmt.Sprintf("/web/cluster/%v/console/node/%v/%v", certsReq.RouteToCluster, certsReq.NodeName, certsReq.SSHLogin),
+		// could pass any related data like status codes or whatever as query params.
+		// nothing secret tho, and preferablly not the message itself but a code to point to some message in the frontend
+		// that way we don't risk any kind of XSS
+		SSOClientCallbackURL: "/web/sso_confirm",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

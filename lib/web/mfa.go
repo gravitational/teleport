@@ -175,6 +175,11 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
 		},
+		// redirect back to new session page with mfa cookie set by the SSO flow.
+		// could pass any related data like status codes or whatever as query params.
+		// nothing secret tho, and preferablly not the message itself but a code to point to some message in the frontend
+		// that way we don't risk any kind of XSS
+		SSOClientRedirectURL: "/web/sso_confirm",
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
