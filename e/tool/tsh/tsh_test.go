@@ -23,7 +23,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	authe "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -412,12 +411,15 @@ func setMockSSOLogin(t *testing.T, authServer *auth.Server, user, connectorName 
 }
 
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user string) client.SSOLoginFunc {
-	return func(ctx context.Context, _ string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, _ string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			Key:            priv.MarshalSSHPublicKey(),
+			SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:      tlsPub,
 			Username:       user,
 			TTL:            time.Hour,
 			Compatibility:  constants.CertificateFormatStandard,
@@ -454,12 +456,15 @@ func setMockHeadlessLogin(t *testing.T, authServer *auth.Server, user, proxy str
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			Key:            priv.MarshalSSHPublicKey(),
+			SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:      tlsPub,
 			Username:       user,
 			TTL:            time.Hour,
 			Compatibility:  constants.CertificateFormatStandard,
