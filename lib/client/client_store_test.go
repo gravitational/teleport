@@ -196,12 +196,12 @@ func TestClientStore(t *testing.T) {
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.TrustedCerts = nil
-		require.Equal(t, expectKeyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 		// Getting the key from the client store should fill in the trusted certs.
 		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
 		require.NoError(t, err)
-		require.Equal(t, keyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, keyRing, retrievedKeyRing)
 
 		var profileDir string
 		if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {

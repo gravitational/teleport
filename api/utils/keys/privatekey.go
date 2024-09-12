@@ -251,6 +251,12 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		if !ok {
 			return nil, trace.BadParameter("ssh.ParseRawPrivateKey returned an invalid private key of type %T", priv)
 		}
+		// For some reason ssh.ParseRawPrivateKey returns a *ed25519.PrivateKey
+		// instead of the plain ed25519.PrivateKey which is used everywhere
+		// else. This breaks comparisons and type switches, so explicitly convert it.
+		if pEdwards, ok := cryptoSigner.(*ed25519.PrivateKey); ok {
+			cryptoSigner = *pEdwards
+		}
 		return NewPrivateKey(cryptoSigner, keyPEM)
 	case pivYubiKeyPrivateKeyType:
 		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
