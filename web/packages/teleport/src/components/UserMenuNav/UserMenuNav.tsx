@@ -25,6 +25,8 @@ import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
+import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
+
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
@@ -39,7 +41,6 @@ import {
   STARTING_TRANSITION_DELAY,
   INCREMENT_TRANSITION_DELAY,
 } from 'teleport/components/Dropdown';
-import { focusOutsideTarget } from 'teleport/lib/util';
 
 interface UserMenuNavProps {
   username: string;

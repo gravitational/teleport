@@ -16,19 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AuthType } from 'teleport/services/user';
-
-import type { FocusEvent } from 'react';
-
-/**
- * Checks if a focus event occured outside target element
- */
-export const focusOutsideTarget = (
-  event: FocusEvent<Element>,
-  targetElement: Element
-) =>
-  !event.currentTarget.contains(event.relatedTarget as Node) &&
-  !targetElement.contains(event.relatedTarget as Node);
+import type { AuthType } from 'teleport/services/user';
 
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');
