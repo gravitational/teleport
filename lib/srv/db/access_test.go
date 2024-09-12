@@ -52,6 +52,7 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -66,6 +67,7 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -2417,7 +2419,7 @@ type agentParams struct {
 	// ResourceMatchers are optional database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
-	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
+	GetServerInfoFn func(database types.Database) func() *types.DatabaseServerV3
 	// OnReconcile sets database resource reconciliation callback.
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
@@ -2542,6 +2544,18 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		p.Recorder = libevents.NewDiscardRecorder()
 	}
 
+	// Auth client for this database server identity.
+	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
+		ServerID: p.HostID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleDatabase},
+		Hostname: "test",
+	})
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
@@ -2579,13 +2593,25 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
+		InventoryHandle:          inventoryHandle,
 		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-		require.NoError(t, server.ForceHeartbeat())
+
+		// Explicitly send a heartbeat for any statically defined dbs.
+		for _, db := range p.Databases {
+			select {
+			case sender := <-inventoryHandle.Sender():
+				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
+					DatabaseServer: server.getServerInfo(db),
+				}))
+			case <-time.After(20 * time.Second):
+				t.Fatal("timed out waiting for inventory handle sender")
+			}
+		}
 	}
 
 	return server

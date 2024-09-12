@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -375,8 +374,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else {
-		native.PrecomputeKeys()
 	}
 	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
@@ -1372,7 +1369,7 @@ func (a *Server) runPeriodicOperations() {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities(ctx)
+			err := a.AutoRotateCertAuthorities(ctx)
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -1926,7 +1923,6 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-
 	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4595,9 +4591,11 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats: true,
-			AppHeartbeats:  true,
-			AppCleanup:     true,
+			NodeHeartbeats:     true,
+			AppHeartbeats:      true,
+			AppCleanup:         true,
+			DatabaseHeartbeats: true,
+			DatabaseCleanup:    true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -5421,7 +5419,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
 			},
-			Expires: timestamppb.New(req.Expiry())},
+			Expires: timestamppb.New(req.Expiry()),
+		},
 	}
 }
 
@@ -6693,7 +6692,6 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 

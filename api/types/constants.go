@@ -320,6 +320,18 @@ const (
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
 
+	// KindAutoUpdateConfig is the resource with autoupdate configuration.
+	KindAutoUpdateConfig = "autoupdate_config"
+
+	// KindAutoUpdateVersion is the resource with autoupdate versions.
+	KindAutoUpdateVersion = "autoupdate_version"
+
+	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoUpdateConfig = "autoupdate-config"
+
+	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoUpdateVersion = "autoupdate-version"
+
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
 
@@ -1301,6 +1313,9 @@ const (
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
 	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (
