@@ -2199,16 +2199,18 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key                  []byte
-	Username             string
-	TTL                  time.Duration
-	Compatibility        string
-	RouteToCluster       string
-	PinnedIP             string
-	MFAVerified          string
-	AttestationStatement *keys.AttestationStatement
-	AppName              string
-	AppSessionID         string
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	Username                string
+	TTL                     time.Duration
+	Compatibility           string
+	RouteToCluster          string
+	PinnedIP                string
+	MFAVerified             string
+	SSHAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *keys.AttestationStatement
+	AppName                 string
+	AppSessionID            string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2228,31 +2230,20 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.Key
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.Key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKey:                     req.SSHPubKey,
+		tlsPublicKey:                     req.TLSPubKey,
 		routeToCluster:                   req.RouteToCluster,
 		checker:                          checker,
 		traits:                           userState.GetTraits(),
 		loginIP:                          req.PinnedIP,
 		pinIP:                            req.PinnedIP != "",
 		mfaVerified:                      req.MFAVerified,
-		sshPublicKeyAttestationStatement: req.AttestationStatement,
-		tlsPublicKeyAttestationStatement: req.AttestationStatement,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
 	})

@@ -177,7 +177,8 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	require.NoError(s.T(), err)
 	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
 	require.NoError(s.T(), err)
-	keyRing := libclient.NewKeyRing(privateKey)
+	// Identity files only support a single private key for SSH and TLS.
+	keyRing := libclient.NewKeyRing(privateKey, privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: publicKeyPEM,
