@@ -1118,59 +1118,15 @@ func (r *RequireMFAType) encode() (interface{}, error) {
 // decode RequireMFAType from a string or boolean. This is necessary for
 // backwards compatibility with the json/yaml tag "require_session_mfa",
 // which used to be a boolean.
-func (r *RequireMFAType) decode(val interface{}) error {
-	switch v := val.(type) {
-	case string:
-		switch v {
-		case RequireMFATypeHardwareKeyString:
-			*r = RequireMFAType_SESSION_AND_HARDWARE_KEY
-		case RequireMFATypeHardwareKeyTouchString:
-			*r = RequireMFAType_HARDWARE_KEY_TOUCH
-		case RequireMFATypeHardwareKeyPINString:
-			*r = RequireMFAType_HARDWARE_KEY_PIN
-		case RequireMFATypeHardwareKeyTouchAndPINString:
-			*r = RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN
-		case "":
-			// default to off
-			*r = RequireMFAType_OFF
-		default:
-			// try parsing as a boolean
-			switch strings.ToLower(v) {
-			case "yes", "yeah", "y", "true", "1", "on":
-				*r = RequireMFAType_SESSION
-			case "no", "nope", "n", "false", "0", "off":
-				*r = RequireMFAType_OFF
-			default:
-				return trace.BadParameter("RequireMFAType invalid value %v", val)
-			}
-		}
-	case bool:
-		if v {
-			*r = RequireMFAType_SESSION
-		} else {
-			*r = RequireMFAType_OFF
-		}
-	case int32:
-		return trace.Wrap(r.setFromEnum(v))
-	case int64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case int:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case float64:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	case float32:
-		return trace.Wrap(r.setFromEnum(int32(v)))
-	default:
-		return trace.BadParameter("RequireMFAType invalid type %T", val)
-	}
-	return nil
-}
-
-// setFromEnum sets the value from enum value as int32.
-func (r *RequireMFAType) setFromEnum(val int32) error {
-	if _, ok := RequireMFAType_name[val]; !ok {
-		return trace.BadParameter("invalid required mfa mode %v", val)
-	}
-	*r = RequireMFAType(val)
-	return nil
+func (r *RequireMFAType) decode(val any) error {
+	err := decodeEnum(r, val, map[any]RequireMFAType{
+		"":                                   RequireMFAType_OFF, // default to off
+		false:                                RequireMFAType_OFF,
+		true:                                 RequireMFAType_SESSION,
+		RequireMFATypeHardwareKeyString:      RequireMFAType_SESSION_AND_HARDWARE_KEY,
+		RequireMFATypeHardwareKeyTouchString: RequireMFAType_HARDWARE_KEY_TOUCH,
+		RequireMFATypeHardwareKeyPINString:   RequireMFAType_HARDWARE_KEY_PIN,
+		RequireMFATypeHardwareKeyTouchAndPINString: RequireMFAType_HARDWARE_KEY_TOUCH_AND_PIN,
+	}, RequireMFAType_name)
+	return trace.Wrap(err, "failed to decode require mfa type")
 }
