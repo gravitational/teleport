@@ -62,7 +62,7 @@ var AllEntitlements = []EntitlementKind{
 // BackfillFeatures ensures entitlements are backwards compatible.
 // If Entitlements are present, there are no changes.
 // If Entitlements are not present, it sets the entitlements based on legacy field values.
-// TODO(michellescripts) remove in v18
+// TODO(michellescripts) DELETE IN 18.0.0
 func BackfillFeatures(features *proto.Features) {
 	if len(features.Entitlements) > 0 {
 		return
