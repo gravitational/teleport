@@ -60,10 +60,8 @@ provider in these environments.
 ## Step 1/4: Configure Terraform Cloud joining in Teleport
 
 To start, the Teleport Auth Service needs to be configured to accept join
-requests from Terraform Cloud runs. We'll do this by creating
-[a bot](../../../reference/architecture/machine-id-architecture.mdx#what-is-a-bot)
-named `terraform` which the Teleport Terraform provider will use in a later
-step.
+requests from Terraform Cloud runs. We'll do this by creating a bot named
+`terraform` which the Teleport Terraform provider will use in a later step.
 
 ```yaml
 kind: bot
