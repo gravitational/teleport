@@ -38,6 +38,7 @@ const (
 	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
 	PKCS8PrivateKeyType      = "PRIVATE KEY"
 	ECPrivateKeyType         = "EC PRIVATE KEY"
+	OpenSSHPrivateKeyType    = "OPENSSH PRIVATE KEY"
 	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
 )
 
@@ -93,6 +94,28 @@ func NewSoftwarePrivateKey(signer crypto.Signer) (*PrivateKey, error) {
 // SSHPublicKey returns the ssh.PublicKey representation of the public key.
 func (k *PrivateKey) SSHPublicKey() ssh.PublicKey {
 	return k.sshPub
+}
+
+// MarshalSSHPrivateKey returns the private key marshaled to:
+// - PEM-encoded OpenSSH format for Ed25519 or ECDSA keys
+// - PEM-encoded PKCS#1 for RSA keys
+// - a custom PEM-encoded format for PIV keys
+func (k *PrivateKey) MarshalSSHPrivateKey() ([]byte, error) {
+	switch k.Signer.(type) {
+	case ed25519.PrivateKey, *ecdsa.PrivateKey:
+		// OpenSSH largely does not support PKCS8 private keys, write these in
+		// OpenSSH format.
+		const comment = ""
+		pemBlock, err := ssh.MarshalPrivateKey(k.Signer, comment)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pem.EncodeToMemory(pemBlock), nil
+	}
+	// Otherwise we are dealing with either a hardware key which has a custom
+	// format, or an RSA key which would already be in PKCS#1, which OpenSSH can
+	// handle.
+	return k.keyPEM, nil
 }
 
 // MarshalSSHPublicKey returns the public key marshaled to SSH authorized_keys format.
@@ -217,6 +240,16 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		cryptoSigner, ok := priv.(crypto.Signer)
 		if !ok {
 			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
+		}
+		return NewPrivateKey(cryptoSigner, keyPEM)
+	case OpenSSHPrivateKeyType:
+		priv, err := ssh.ParseRawPrivateKey(keyPEM)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cryptoSigner, ok := priv.(crypto.Signer)
+		if !ok {
+			return nil, trace.BadParameter("ssh.ParseRawPrivateKey returned an invalid private key of type %T", priv)
 		}
 		return NewPrivateKey(cryptoSigner, keyPEM)
 	case pivYubiKeyPrivateKeyType:

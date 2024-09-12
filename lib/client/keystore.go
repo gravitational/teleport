@@ -189,7 +189,11 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	}
 
 	// Store SSH private and public key.
-	if err := fs.writeBytes(keyRing.SSHPrivateKey.PrivateKeyPEM(), fs.userSSHKeyPath(keyRing.KeyRingIndex)); err != nil {
+	sshPrivateKeyPEM, err := keyRing.SSHPrivateKey.MarshalSSHPrivateKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := fs.writeBytes(sshPrivateKeyPEM, fs.userSSHKeyPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := fs.writeBytes(keyRing.SSHPrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {

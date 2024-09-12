@@ -286,7 +286,11 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.KeyRing.SSHPrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		sshPrivateKeyPEM, err := cfg.KeyRing.SSHPrivateKey.MarshalSSHPrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = writer.WriteFile(keyPath, sshPrivateKeyPEM, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

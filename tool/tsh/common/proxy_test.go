@@ -462,13 +462,15 @@ func TestWithRsync(t *testing.T) {
 			t.Cleanup(cancel)
 
 			cmd := tt.createCmd(ctx, testDir, srcPath, dstPath)
-			err := cmd.Run()
+			var stderr bytes.Buffer
+			cmd.Stderr = &stderr
+			err = cmd.Run()
 			var msg string
 			var exitErr *exec.ExitError
 			if errors.As(err, &exitErr) {
-				msg = fmt.Sprintf("exit code: %d", exitErr.ExitCode())
-				msg += fmt.Sprintf("stderr: %s", exitErr.Stderr)
+				msg += fmt.Sprintf("exit code: %d\n", exitErr.ExitCode())
 			}
+			msg += fmt.Sprintf("stderr: %s", string(stderr.Bytes()))
 			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
@@ -1013,7 +1015,7 @@ func mustLogin(t *testing.T, s *suite, args ...string) (tshHome, kubeConfig stri
 		setHomePath(tshHome),
 		setKubeConfigPath(kubeConfig),
 	)
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 	return
 }
 
