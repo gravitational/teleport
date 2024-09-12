@@ -16,8 +16,6 @@ describe('cloudService', () => {
   test('fetchBillingSummaryInformation', async () => {
     const expected: BillingSummaryInformation = {
       usageBasedBilling: false,
-      stripePublicKey: 'some-stripePublicKey',
-      stripeCustomerId: 'some-stripeCustomerId',
       stripeCurrentUsage: {
         invoiceId: 'some-invoiceId',
         status: 'some-status',
@@ -26,13 +24,7 @@ describe('cloudService', () => {
         usageMau: 0,
         usagePr: 2,
       },
-      stripeTrial: true,
-      stripeTrialEnd: 1684773766,
-      stripeMissingPaymentMethod: false,
       productName: 'some-productName',
-      stripeSubscriptionStatus: 'some-stripeSubscriptionStatus',
-      stripeSubscriptionCancelAt: 1684773766,
-      stripeSubscriptionCanceledAt: 1684773766,
       usageUpdatedAt: 0,
     };
     jest.spyOn(api, 'get').mockResolvedValue(expected);

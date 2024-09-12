@@ -14,8 +14,6 @@ import { UsageBar } from './UsageBar';
 export interface CycleProps {
   currentUsage: StripeUsage;
   productName: string;
-  stripeMissingPaymentMethod: boolean;
-  stripeTrialEnd: number;
   usageUpdatedAt: number;
   usageQuota: UsageQuota;
 }

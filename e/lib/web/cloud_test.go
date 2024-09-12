@@ -20,6 +20,7 @@ import (
 
 type testClient struct {
 	cloud.MockedClient
+
 	_ sync.Mutex
 	_ func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)
 }
@@ -36,19 +37,11 @@ func TestPlugin_getBillingSummaryInformationHandle(t *testing.T) {
 	wCtx := &web.SessionContext{}
 
 	pass := &cloudapi.GetBillingSummaryInformationResponse{
-		UsageBasedBilling:            false,
-		StripePublicKey:              "",
-		StripeCustomerId:             "",
-		StripeCurrentUsage:           nil,
-		StripeTrial:                  false,
-		StripeTrialEnd:               0,
-		StripeMissingPaymentMethod:   false,
-		ProductName:                  "",
-		StripeSubscriptionStatus:     "",
-		StripeSubscriptionCancelAt:   0,
-		StripeSubscriptionCanceledAt: 0,
-		UsageUpdatedAt:               0,
-		UsageQuota:                   nil,
+		UsageBasedBilling:  false,
+		StripeCurrentUsage: nil,
+		ProductName:        "",
+		UsageUpdatedAt:     0,
+		UsageQuota:         nil,
 	}
 
 	client := &testClient{
@@ -73,21 +66,11 @@ func TestPlugin_getBillingInformationHandle(t *testing.T) {
 	wCtx := &web.SessionContext{}
 
 	pass := &cloudapi.GetBillingInformationResponse{
-		DefaultPaymentMethodId:       "",
-		Cards:                        nil,
-		StripePublicKey:              "some-public-key",
-		ProductName:                  "some-product-name",
-		Trial:                        false,
-		SelfEnrolled:                 false,
-		UpsellAlert:                  false,
-		UsageBasedBilling:            true,
-		StripeTrial:                  false,
-		StripeTrialEnd:               0,
-		StripeMissingPaymentMethod:   true,
-		StripeCustomerId:             "",
-		StripeSubscriptionStatus:     "active",
-		StripeSubscriptionCancelAt:   0,
-		StripeSubscriptionCanceledAt: 0,
+		ProductName:       "some-product-name",
+		Trial:             false,
+		SelfEnrolled:      false,
+		UpsellAlert:       false,
+		UsageBasedBilling: true,
 	}
 
 	client := &testClient{

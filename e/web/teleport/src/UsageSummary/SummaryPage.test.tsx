@@ -22,16 +22,8 @@ describe('summaryPage', () => {
     props = {
       data: {
         usageBasedBilling: true,
-        stripePublicKey: 'some-stripePublicKey',
-        stripeCustomerId: 'some-stripeCustomerId',
-        stripeTrial: false,
-        stripeTrialEnd: 1682989632,
-        stripeMissingPaymentMethod: false,
         productName: 'some-productName',
-        stripeSubscriptionStatus: null,
         stripeCurrentUsage: defaultUsage,
-        stripeSubscriptionCancelAt: 0,
-        stripeSubscriptionCanceledAt: 0,
         usageUpdatedAt: 0,
         usageQuota: {
           mauMax: 2,

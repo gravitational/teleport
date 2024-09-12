@@ -18,8 +18,6 @@ describe('cycle', () => {
         usagePr: 0,
       },
       productName: 'some-product',
-      stripeMissingPaymentMethod: false,
-      stripeTrialEnd: 0,
       usageUpdatedAt: 0,
       usageQuota: {
         mauMax: 2,

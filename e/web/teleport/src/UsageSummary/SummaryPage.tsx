@@ -13,22 +13,13 @@ export interface SummaryProps {
 }
 
 export const SummaryPage = ({
-  data: {
-    productName,
-    stripeCurrentUsage,
-    stripeMissingPaymentMethod,
-    stripeTrialEnd,
-    usageUpdatedAt,
-    usageQuota,
-  },
+  data: { productName, stripeCurrentUsage, usageUpdatedAt, usageQuota },
 }: SummaryProps) => (
   <>
     {stripeCurrentUsage ? (
       <Cycle
         currentUsage={stripeCurrentUsage}
         productName={productName}
-        stripeMissingPaymentMethod={stripeMissingPaymentMethod}
-        stripeTrialEnd={stripeTrialEnd}
         usageUpdatedAt={usageUpdatedAt}
         usageQuota={usageQuota}
       />

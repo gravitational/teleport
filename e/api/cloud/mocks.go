@@ -11,6 +11,8 @@ import (
 
 // MockedClient mocks cloud client APIs
 type MockedClient struct {
+	v1.TenantsServiceClient
+
 	// MockSubmitUsageReports reports usage
 	MockSubmitUsageReports func(in *v1.SubmitUsageReportsRequest) (*v1.EmptyResponse, error)
 	// MockGetBillingInformation returns customer billing information
@@ -143,35 +145,4 @@ func (m *MockedClient) ClusterAlertInfo(ctx context.Context, in *v1.EmptyRequest
 	}
 
 	return nil, trace.NotImplemented("ClusterAlertInfo is not implemented")
-}
-
-func (m *MockedClient) CreateSetupIntent(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.CreateSetupIntentResponse, error) {
-	return nil, trace.NotImplemented("CreateSetupIntent is not implemented")
-}
-func (m *MockedClient) AddCard(_ context.Context, _ *v1.AddCardRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("AddCard is not implemented")
-}
-func (m *MockedClient) RemoveCard(_ context.Context, _ *v1.RemoveCardRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("RemoveCard is not implemented")
-}
-func (m *MockedClient) UpdateCard(_ context.Context, _ *v1.UpdateCardRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("UpdateCard is not implemented")
-}
-func (m *MockedClient) GetInvoiceSettingsInformation(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetInvoiceSettingsInformationResponse, error) {
-	return nil, trace.NotImplemented("GetInvoiceSettingsInformation is not implemented")
-}
-func (m *MockedClient) GetPaymentsInvoicesInformation(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetPaymentsInvoicesInformationResponse, error) {
-	return nil, trace.NotImplemented("GetPaymentsInvoicesInformation is not implemented")
-}
-func (m *MockedClient) CancelSubscription(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("CancelSubscription is not implemented")
-}
-func (m *MockedClient) UpdateStripeAddress(_ context.Context, _ *v1.StripeBillingAddressRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("UpdateStripeAddress is not implemented")
-}
-func (m *MockedClient) UpdateEmail(_ context.Context, _ *v1.UpdateEmailRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("UpdateEmail is not implemented")
-}
-func (m *MockedClient) UpdatePurchaseOrderPrefix(_ context.Context, _ *v1.UpdatePurchaseOrderPrefixRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("UpdatePurchaseOrderPrefix is not implemented")
 }

@@ -26,14 +26,6 @@ type TenantsServiceClient interface {
 	SubmitUsageReports(ctx context.Context, in *SubmitUsageReportsRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetBillingInformation returns customer billing information
 	GetBillingInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingInformationResponse, error)
-	// CreateSetupIntent creates an intent in stripe and returns the client secret
-	CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error)
-	// AddCard adds a new credit card to customer account
-	AddCard(ctx context.Context, in *AddCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// RemoveCardRequest removes a credit card from tenant account
-	RemoveCard(ctx context.Context, in *RemoveCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// UpdateCard updates tenant credit card
-	UpdateCard(ctx context.Context, in *UpdateCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetAccountUpgradeWindowStartHour returns tenant account upgrade window start
 	GetAccountUpgradeWindowStartHour(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetAccountUpgradeWindowStartHourResponse, error)
 	// UpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
@@ -48,18 +40,6 @@ type TenantsServiceClient interface {
 	GetFeatures(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetFeaturesResponse, error)
 	// GetBillingSummaryInformation returns the users Billing Summary Information
 	GetBillingSummaryInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingSummaryInformationResponse, error)
-	// GetPaymentsInvoicesInformation returns users the Payments Invoices Information
-	GetPaymentsInvoicesInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetPaymentsInvoicesInformationResponse, error)
-	// GetInvoiceSettingsInformation returns the users Invoice Settings Information
-	GetInvoiceSettingsInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetInvoiceSettingsInformationResponse, error)
-	// UpdateStripeAddress updates customer address information in Stripe
-	UpdateStripeAddress(ctx context.Context, in *StripeBillingAddressRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// UpdateEmail updates customer email address
-	UpdateEmail(ctx context.Context, in *UpdateEmailRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// UpdatePurchaseOrderPrefix updates customer PO number
-	UpdatePurchaseOrderPrefix(ctx context.Context, in *UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
-	CancelSubscription(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error)
@@ -70,6 +50,36 @@ type TenantsServiceClient interface {
 	// ClusterAlertInfo returns information about a cluster that will determine if the Teleport usage reporter should
 	// generate a cluster alert; e/lib/cloud/usagereporter/reporter.go.
 	ClusterAlertInfo(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*ClusterAlertInfoResponse, error)
+	// Deprecated: Do not use.
+	// CreateSetupIntent creates an intent in stripe and returns the client secret
+	CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error)
+	// Deprecated: Do not use.
+	// AddCard adds a new credit card to customer account
+	AddCard(ctx context.Context, in *AddCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// RemoveCardRequest removes a credit card from tenant account
+	RemoveCard(ctx context.Context, in *RemoveCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdateCard updates tenant credit card
+	UpdateCard(ctx context.Context, in *UpdateCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// GetPaymentsInvoicesInformation returns users the Payments Invoices Information
+	GetPaymentsInvoicesInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetPaymentsInvoicesInformationResponse, error)
+	// Deprecated: Do not use.
+	// GetInvoiceSettingsInformation returns the users Invoice Settings Information
+	GetInvoiceSettingsInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetInvoiceSettingsInformationResponse, error)
+	// Deprecated: Do not use.
+	// UpdateStripeAddress updates customer address information in Stripe
+	UpdateStripeAddress(ctx context.Context, in *StripeBillingAddressRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdateEmail updates customer email address
+	UpdateEmail(ctx context.Context, in *UpdateEmailRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdatePurchaseOrderPrefix updates customer PO number
+	UpdatePurchaseOrderPrefix(ctx context.Context, in *UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
+	CancelSubscription(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 }
 
 type tenantsServiceClient struct {
@@ -92,42 +102,6 @@ func (c *tenantsServiceClient) SubmitUsageReports(ctx context.Context, in *Submi
 func (c *tenantsServiceClient) GetBillingInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetBillingInformationResponse, error) {
 	out := new(GetBillingInformationResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetBillingInformation", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error) {
-	out := new(CreateSetupIntentResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CreateSetupIntent", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) AddCard(ctx context.Context, in *AddCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/AddCard", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) RemoveCard(ctx context.Context, in *RemoveCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/RemoveCard", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) UpdateCard(ctx context.Context, in *UpdateCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateCard", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -197,60 +171,6 @@ func (c *tenantsServiceClient) GetBillingSummaryInformation(ctx context.Context,
 	return out, nil
 }
 
-func (c *tenantsServiceClient) GetPaymentsInvoicesInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetPaymentsInvoicesInformationResponse, error) {
-	out := new(GetPaymentsInvoicesInformationResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetPaymentsInvoicesInformation", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) GetInvoiceSettingsInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetInvoiceSettingsInformationResponse, error) {
-	out := new(GetInvoiceSettingsInformationResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetInvoiceSettingsInformation", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) UpdateStripeAddress(ctx context.Context, in *StripeBillingAddressRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateStripeAddress", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) UpdateEmail(ctx context.Context, in *UpdateEmailRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateEmail", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) UpdatePurchaseOrderPrefix(ctx context.Context, in *UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdatePurchaseOrderPrefix", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *tenantsServiceClient) CancelSubscription(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CancelSubscription", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *tenantsServiceClient) GetSurveyCompany(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*SurveyCompanyResponse, error) {
 	out := new(SurveyCompanyResponse)
 	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetSurveyCompany", in, out, opts...)
@@ -287,6 +207,106 @@ func (c *tenantsServiceClient) ClusterAlertInfo(ctx context.Context, in *EmptyRe
 	return out, nil
 }
 
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) CreateSetupIntent(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*CreateSetupIntentResponse, error) {
+	out := new(CreateSetupIntentResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CreateSetupIntent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) AddCard(ctx context.Context, in *AddCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/AddCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) RemoveCard(ctx context.Context, in *RemoveCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/RemoveCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) UpdateCard(ctx context.Context, in *UpdateCardRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateCard", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) GetPaymentsInvoicesInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetPaymentsInvoicesInformationResponse, error) {
+	out := new(GetPaymentsInvoicesInformationResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetPaymentsInvoicesInformation", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) GetInvoiceSettingsInformation(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*GetInvoiceSettingsInformationResponse, error) {
+	out := new(GetInvoiceSettingsInformationResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/GetInvoiceSettingsInformation", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) UpdateStripeAddress(ctx context.Context, in *StripeBillingAddressRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateStripeAddress", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) UpdateEmail(ctx context.Context, in *UpdateEmailRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdateEmail", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) UpdatePurchaseOrderPrefix(ctx context.Context, in *UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/UpdatePurchaseOrderPrefix", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Deprecated: Do not use.
+func (c *tenantsServiceClient) CancelSubscription(ctx context.Context, in *EmptyRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
+	out := new(EmptyResponse)
+	err := c.cc.Invoke(ctx, "/gravitational.cloud.tenants.v1.TenantsService/CancelSubscription", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TenantsServiceServer is the server API for TenantsService service.
 // All implementations must embed UnimplementedTenantsServiceServer
 // for forward compatibility
@@ -295,14 +315,6 @@ type TenantsServiceServer interface {
 	SubmitUsageReports(context.Context, *SubmitUsageReportsRequest) (*EmptyResponse, error)
 	// GetBillingInformation returns customer billing information
 	GetBillingInformation(context.Context, *EmptyRequest) (*GetBillingInformationResponse, error)
-	// CreateSetupIntent creates an intent in stripe and returns the client secret
-	CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error)
-	// AddCard adds a new credit card to customer account
-	AddCard(context.Context, *AddCardRequest) (*EmptyResponse, error)
-	// RemoveCardRequest removes a credit card from tenant account
-	RemoveCard(context.Context, *RemoveCardRequest) (*EmptyResponse, error)
-	// UpdateCard updates tenant credit card
-	UpdateCard(context.Context, *UpdateCardRequest) (*EmptyResponse, error)
 	// GetAccountUpgradeWindowStartHour returns tenant account upgrade window start
 	GetAccountUpgradeWindowStartHour(context.Context, *EmptyRequest) (*GetAccountUpgradeWindowStartHourResponse, error)
 	// UpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
@@ -317,18 +329,6 @@ type TenantsServiceServer interface {
 	GetFeatures(context.Context, *EmptyRequest) (*GetFeaturesResponse, error)
 	// GetBillingSummaryInformation returns the users Billing Summary Information
 	GetBillingSummaryInformation(context.Context, *EmptyRequest) (*GetBillingSummaryInformationResponse, error)
-	// GetPaymentsInvoicesInformation returns users the Payments Invoices Information
-	GetPaymentsInvoicesInformation(context.Context, *EmptyRequest) (*GetPaymentsInvoicesInformationResponse, error)
-	// GetInvoiceSettingsInformation returns the users Invoice Settings Information
-	GetInvoiceSettingsInformation(context.Context, *EmptyRequest) (*GetInvoiceSettingsInformationResponse, error)
-	// UpdateStripeAddress updates customer address information in Stripe
-	UpdateStripeAddress(context.Context, *StripeBillingAddressRequest) (*EmptyResponse, error)
-	// UpdateEmail updates customer email address
-	UpdateEmail(context.Context, *UpdateEmailRequest) (*EmptyResponse, error)
-	// UpdatePurchaseOrderPrefix updates customer PO number
-	UpdatePurchaseOrderPrefix(context.Context, *UpdatePurchaseOrderPrefixRequest) (*EmptyResponse, error)
-	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
-	CancelSubscription(context.Context, *EmptyRequest) (*EmptyResponse, error)
 	// GetSurveyCompany returns the company survey responses for the account associated with the current user.
 	// These are answered by only the first user who completes the survey
 	GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error)
@@ -339,6 +339,36 @@ type TenantsServiceServer interface {
 	// ClusterAlertInfo returns information about a cluster that will determine if the Teleport usage reporter should
 	// generate a cluster alert; e/lib/cloud/usagereporter/reporter.go.
 	ClusterAlertInfo(context.Context, *EmptyRequest) (*ClusterAlertInfoResponse, error)
+	// Deprecated: Do not use.
+	// CreateSetupIntent creates an intent in stripe and returns the client secret
+	CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error)
+	// Deprecated: Do not use.
+	// AddCard adds a new credit card to customer account
+	AddCard(context.Context, *AddCardRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// RemoveCardRequest removes a credit card from tenant account
+	RemoveCard(context.Context, *RemoveCardRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdateCard updates tenant credit card
+	UpdateCard(context.Context, *UpdateCardRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// GetPaymentsInvoicesInformation returns users the Payments Invoices Information
+	GetPaymentsInvoicesInformation(context.Context, *EmptyRequest) (*GetPaymentsInvoicesInformationResponse, error)
+	// Deprecated: Do not use.
+	// GetInvoiceSettingsInformation returns the users Invoice Settings Information
+	GetInvoiceSettingsInformation(context.Context, *EmptyRequest) (*GetInvoiceSettingsInformationResponse, error)
+	// Deprecated: Do not use.
+	// UpdateStripeAddress updates customer address information in Stripe
+	UpdateStripeAddress(context.Context, *StripeBillingAddressRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdateEmail updates customer email address
+	UpdateEmail(context.Context, *UpdateEmailRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// UpdatePurchaseOrderPrefix updates customer PO number
+	UpdatePurchaseOrderPrefix(context.Context, *UpdatePurchaseOrderPrefixRequest) (*EmptyResponse, error)
+	// Deprecated: Do not use.
+	// CancelSubscription marks a users Stripe account for cancellation at the end of the current billing cycle
+	CancelSubscription(context.Context, *EmptyRequest) (*EmptyResponse, error)
 	mustEmbedUnimplementedTenantsServiceServer()
 }
 
@@ -351,18 +381,6 @@ func (UnimplementedTenantsServiceServer) SubmitUsageReports(context.Context, *Su
 }
 func (UnimplementedTenantsServiceServer) GetBillingInformation(context.Context, *EmptyRequest) (*GetBillingInformationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBillingInformation not implemented")
-}
-func (UnimplementedTenantsServiceServer) CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateSetupIntent not implemented")
-}
-func (UnimplementedTenantsServiceServer) AddCard(context.Context, *AddCardRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddCard not implemented")
-}
-func (UnimplementedTenantsServiceServer) RemoveCard(context.Context, *RemoveCardRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RemoveCard not implemented")
-}
-func (UnimplementedTenantsServiceServer) UpdateCard(context.Context, *UpdateCardRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateCard not implemented")
 }
 func (UnimplementedTenantsServiceServer) GetAccountUpgradeWindowStartHour(context.Context, *EmptyRequest) (*GetAccountUpgradeWindowStartHourResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccountUpgradeWindowStartHour not implemented")
@@ -385,6 +403,30 @@ func (UnimplementedTenantsServiceServer) GetFeatures(context.Context, *EmptyRequ
 func (UnimplementedTenantsServiceServer) GetBillingSummaryInformation(context.Context, *EmptyRequest) (*GetBillingSummaryInformationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBillingSummaryInformation not implemented")
 }
+func (UnimplementedTenantsServiceServer) GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSurveyCompany not implemented")
+}
+func (UnimplementedTenantsServiceServer) SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetSurveyResults not implemented")
+}
+func (UnimplementedTenantsServiceServer) SendTeleportInvite(context.Context, *SendTeleportInviteRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendTeleportInvite not implemented")
+}
+func (UnimplementedTenantsServiceServer) ClusterAlertInfo(context.Context, *EmptyRequest) (*ClusterAlertInfoResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClusterAlertInfo not implemented")
+}
+func (UnimplementedTenantsServiceServer) CreateSetupIntent(context.Context, *EmptyRequest) (*CreateSetupIntentResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSetupIntent not implemented")
+}
+func (UnimplementedTenantsServiceServer) AddCard(context.Context, *AddCardRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddCard not implemented")
+}
+func (UnimplementedTenantsServiceServer) RemoveCard(context.Context, *RemoveCardRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveCard not implemented")
+}
+func (UnimplementedTenantsServiceServer) UpdateCard(context.Context, *UpdateCardRequest) (*EmptyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateCard not implemented")
+}
 func (UnimplementedTenantsServiceServer) GetPaymentsInvoicesInformation(context.Context, *EmptyRequest) (*GetPaymentsInvoicesInformationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPaymentsInvoicesInformation not implemented")
 }
@@ -402,18 +444,6 @@ func (UnimplementedTenantsServiceServer) UpdatePurchaseOrderPrefix(context.Conte
 }
 func (UnimplementedTenantsServiceServer) CancelSubscription(context.Context, *EmptyRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CancelSubscription not implemented")
-}
-func (UnimplementedTenantsServiceServer) GetSurveyCompany(context.Context, *EmptyRequest) (*SurveyCompanyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSurveyCompany not implemented")
-}
-func (UnimplementedTenantsServiceServer) SetSurveyResults(context.Context, *SetSurveyResultsRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetSurveyResults not implemented")
-}
-func (UnimplementedTenantsServiceServer) SendTeleportInvite(context.Context, *SendTeleportInviteRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendTeleportInvite not implemented")
-}
-func (UnimplementedTenantsServiceServer) ClusterAlertInfo(context.Context, *EmptyRequest) (*ClusterAlertInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ClusterAlertInfo not implemented")
 }
 func (UnimplementedTenantsServiceServer) mustEmbedUnimplementedTenantsServiceServer() {}
 
@@ -460,78 +490,6 @@ func _TenantsService_GetBillingInformation_Handler(srv interface{}, ctx context.
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TenantsServiceServer).GetBillingInformation(ctx, req.(*EmptyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_CreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EmptyRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).CreateSetupIntent(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/CreateSetupIntent",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).CreateSetupIntent(ctx, req.(*EmptyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_AddCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddCardRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).AddCard(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/AddCard",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).AddCard(ctx, req.(*AddCardRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_RemoveCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RemoveCardRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).RemoveCard(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/RemoveCard",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).RemoveCard(ctx, req.(*RemoveCardRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_UpdateCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateCardRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).UpdateCard(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpdateCard",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).UpdateCard(ctx, req.(*UpdateCardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -662,6 +620,150 @@ func _TenantsService_GetBillingSummaryInformation_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TenantsService_GetSurveyCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmptyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).GetSurveyCompany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetSurveyCompany",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).GetSurveyCompany(ctx, req.(*EmptyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_SetSurveyResults_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSurveyResultsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).SetSurveyResults(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SetSurveyResults",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).SetSurveyResults(ctx, req.(*SetSurveyResultsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_SendTeleportInvite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendTeleportInviteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).SendTeleportInvite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SendTeleportInvite",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).SendTeleportInvite(ctx, req.(*SendTeleportInviteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_ClusterAlertInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmptyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).ClusterAlertInfo(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/ClusterAlertInfo",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).ClusterAlertInfo(ctx, req.(*EmptyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_CreateSetupIntent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EmptyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).CreateSetupIntent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/CreateSetupIntent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).CreateSetupIntent(ctx, req.(*EmptyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_AddCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).AddCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/AddCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).AddCard(ctx, req.(*AddCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_RemoveCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).RemoveCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/RemoveCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).RemoveCard(ctx, req.(*RemoveCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TenantsService_UpdateCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateCardRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TenantsServiceServer).UpdateCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/UpdateCard",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TenantsServiceServer).UpdateCard(ctx, req.(*UpdateCardRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TenantsService_GetPaymentsInvoicesInformation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(EmptyRequest)
 	if err := dec(in); err != nil {
@@ -770,78 +872,6 @@ func _TenantsService_CancelSubscription_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TenantsService_GetSurveyCompany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EmptyRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).GetSurveyCompany(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/GetSurveyCompany",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).GetSurveyCompany(ctx, req.(*EmptyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_SetSurveyResults_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SetSurveyResultsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).SetSurveyResults(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SetSurveyResults",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).SetSurveyResults(ctx, req.(*SetSurveyResultsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_SendTeleportInvite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendTeleportInviteRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).SendTeleportInvite(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/SendTeleportInvite",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).SendTeleportInvite(ctx, req.(*SendTeleportInviteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TenantsService_ClusterAlertInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(EmptyRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TenantsServiceServer).ClusterAlertInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gravitational.cloud.tenants.v1.TenantsService/ClusterAlertInfo",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TenantsServiceServer).ClusterAlertInfo(ctx, req.(*EmptyRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // TenantsService_ServiceDesc is the grpc.ServiceDesc for TenantsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -856,22 +886,6 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetBillingInformation",
 			Handler:    _TenantsService_GetBillingInformation_Handler,
-		},
-		{
-			MethodName: "CreateSetupIntent",
-			Handler:    _TenantsService_CreateSetupIntent_Handler,
-		},
-		{
-			MethodName: "AddCard",
-			Handler:    _TenantsService_AddCard_Handler,
-		},
-		{
-			MethodName: "RemoveCard",
-			Handler:    _TenantsService_RemoveCard_Handler,
-		},
-		{
-			MethodName: "UpdateCard",
-			Handler:    _TenantsService_UpdateCard_Handler,
 		},
 		{
 			MethodName: "GetAccountUpgradeWindowStartHour",
@@ -902,6 +916,38 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TenantsService_GetBillingSummaryInformation_Handler,
 		},
 		{
+			MethodName: "GetSurveyCompany",
+			Handler:    _TenantsService_GetSurveyCompany_Handler,
+		},
+		{
+			MethodName: "SetSurveyResults",
+			Handler:    _TenantsService_SetSurveyResults_Handler,
+		},
+		{
+			MethodName: "SendTeleportInvite",
+			Handler:    _TenantsService_SendTeleportInvite_Handler,
+		},
+		{
+			MethodName: "ClusterAlertInfo",
+			Handler:    _TenantsService_ClusterAlertInfo_Handler,
+		},
+		{
+			MethodName: "CreateSetupIntent",
+			Handler:    _TenantsService_CreateSetupIntent_Handler,
+		},
+		{
+			MethodName: "AddCard",
+			Handler:    _TenantsService_AddCard_Handler,
+		},
+		{
+			MethodName: "RemoveCard",
+			Handler:    _TenantsService_RemoveCard_Handler,
+		},
+		{
+			MethodName: "UpdateCard",
+			Handler:    _TenantsService_UpdateCard_Handler,
+		},
+		{
 			MethodName: "GetPaymentsInvoicesInformation",
 			Handler:    _TenantsService_GetPaymentsInvoicesInformation_Handler,
 		},
@@ -924,22 +970,6 @@ var TenantsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelSubscription",
 			Handler:    _TenantsService_CancelSubscription_Handler,
-		},
-		{
-			MethodName: "GetSurveyCompany",
-			Handler:    _TenantsService_GetSurveyCompany_Handler,
-		},
-		{
-			MethodName: "SetSurveyResults",
-			Handler:    _TenantsService_SetSurveyResults_Handler,
-		},
-		{
-			MethodName: "SendTeleportInvite",
-			Handler:    _TenantsService_SendTeleportInvite_Handler,
-		},
-		{
-			MethodName: "ClusterAlertInfo",
-			Handler:    _TenantsService_ClusterAlertInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -25,6 +25,7 @@ import (
 
 type testClient struct {
 	cloud.MockedClient
+
 	mu              sync.Mutex
 	mockGetFeatures func(ctx context.Context, r *cloudapi.EmptyRequest) (*cloudapi.GetFeaturesResponse, error)
 }
@@ -49,7 +50,7 @@ func (t *testClient) setMockGetFeatures(f func(ctx context.Context, r *cloudapi.
 func (t *testClient) Close() error { return nil }
 
 func TestNewService(t *testing.T) {
-	client := &testClient{}
+	client := new(testClient)
 	tt := []struct {
 		name   string
 		cfg    Config

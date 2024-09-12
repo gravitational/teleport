@@ -26,16 +26,8 @@ const defaultUsage: StripeUsage = {
 const defaultProps = (): SummaryProps => ({
   data: {
     usageBasedBilling: true,
-    stripePublicKey: 'some-stripePublicKey',
-    stripeCustomerId: 'some-stripeCustomerId',
-    stripeTrial: false,
-    stripeTrialEnd: 1682989632,
-    stripeMissingPaymentMethod: false,
     productName: 'Team',
-    stripeSubscriptionStatus: null,
     stripeCurrentUsage: defaultUsage,
-    stripeSubscriptionCancelAt: 0,
-    stripeSubscriptionCanceledAt: 0,
     usageUpdatedAt: 1682900000,
     usageQuota: {
       mauMax: 30,
