@@ -1512,7 +1512,16 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
+		Auth: webclient.AuthenticationSettings{
+			// Nodes need the signature algorithm suite when joining to generate
+			// keys with the correct algorithm.
+			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		},
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,

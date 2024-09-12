@@ -812,7 +812,7 @@ type newHostKeys struct {
 
 func generateHostKeysForProxy(ctx context.Context, insecure bool, proxyAddr string) (*newHostKeys, error) {
 	getSuite := func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
-		pr, err := webclient.Ping(&webclient.Config{
+		pr, err := webclient.Find(&webclient.Config{
 			Context:   ctx,
 			ProxyAddr: proxyAddr,
 			Insecure:  insecure,
