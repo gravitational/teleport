@@ -309,6 +309,10 @@ type InitConfig struct {
 
 	// SPIFFEFederations is a service that manages storing SPIFFE federations.
 	SPIFFEFederations services.SPIFFEFederations
+
+	// StaticHostUsers is a service that manages host users that should be
+	// created on SSH nodes.
+	StaticHostUsers services.StaticHostUser
 }
 
 // Init instantiates and configures an instance of AuthServer

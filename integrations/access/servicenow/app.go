@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/accessrequest"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -49,8 +50,6 @@ const (
 	minServerVersion = "13.0.0"
 	// initTimeout is used to bound execution time of health check and teleport version check.
 	initTimeout = time.Second * 10
-	// handlerTimeout is used to bound the execution time of watcher event handler.
-	handlerTimeout = time.Second * 30
 	// modifyPluginDataBackoffBase is an initial (minimum) backoff value.
 	modifyPluginDataBackoffBase = time.Millisecond
 	// modifyPluginDataBackoffMax is a backoff threshold
@@ -62,11 +61,12 @@ type App struct {
 	*lib.Process
 	common.BaseApp
 
-	PluginName string
-	teleport   teleport.Client
-	serviceNow *Client
-	mainJob    lib.ServiceJob
-	conf       Config
+	PluginName            string
+	teleport              teleport.Client
+	serviceNow            ServiceNowClient
+	mainJob               lib.ServiceJob
+	conf                  Config
+	accessMonitoringRules *accessmonitoring.RuleHandler
 }
 
 // NewServicenowApp initializes a new teleport-servicenow app and returns it.
@@ -75,6 +75,22 @@ func NewServiceNowApp(ctx context.Context, conf *Config) (*App, error) {
 		PluginName: pluginName,
 		conf:       *conf,
 	}
+	teleClient, err := conf.GetTeleportClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serviceNowApp.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     teleClient,
+		PluginType: string(conf.PluginType),
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+	})
 	serviceNowApp.mainJob = lib.NewServiceJob(serviceNowApp.run)
 	return serviceNowApp, nil
 }
@@ -105,24 +121,36 @@ func (a *App) run(ctx context.Context) error {
 	if err := a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
 
-	watcherJob, err := watcherjob.NewJob(
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.teleport,
 		watcherjob.Config{
-			Watch:            types.Watch{Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}}},
-			EventFuncTimeout: handlerTimeout,
+			Watch: types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	a.SpawnCriticalJob(watcherJob)
 	ok, err := watcherJob.WaitReady(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	a.mainJob.SetReady(ok)
 	if ok {
 		log.Info("ServiceNow plugin is ready")
@@ -187,7 +215,19 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 	return pong, trace.Wrap(err)
 }
 
+// onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
+// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
+	switch event.Resource.GetKind() {
+	case types.KindAccessMonitoringRule:
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	case types.KindAccessRequest:
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
+	}
+	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
+}
+
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	if kind := event.Resource.GetKind(); kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -264,6 +304,14 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 
 	if isNew {
 		log.Infof("Creating servicenow incident")
+		recipientAssignee := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+		assignees := []string{}
+		recipientAssignee.ForEach(func(r common.Recipient) {
+			assignees = append(assignees, r.Name)
+		})
+		if len(assignees) > 0 {
+			reqData.SuggestedReviewers = assignees
+		}
 		if err = a.createIncident(ctx, reqID, reqData); err != nil {
 			// Even if we failed to create the incident we try to auto-approve
 			return trace.NewAggregate(
@@ -436,10 +484,15 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 }
 
 func (a *App) getOnCallUsers(ctx context.Context, serviceNames []string) ([]string, error) {
+	log := logger.Get(ctx)
 	onCallUsers := []string{}
 	for _, scheduleName := range serviceNames {
 		respondersResult, err := a.serviceNow.GetOnCall(ctx, scheduleName)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				log.WithError(err).Error("Failed to retrieve responder from schedule")
+				continue
+			}
 			return nil, trace.Wrap(err)
 		}
 		onCallUsers = append(onCallUsers, respondersResult...)

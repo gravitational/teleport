@@ -1,0 +1,91 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.userprovisioning.v2;
+
+import "google/protobuf/empty.proto";
+import "teleport/userprovisioning/v2/statichostuser.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2;userprovisioningv2";
+
+// StaticHostUsersService provides methods to manage static host users.
+service StaticHostUsersService {
+  // GetStaticHostUser retrieves a static host user resource by name.
+  rpc GetStaticHostUser(GetStaticHostUserRequest) returns (StaticHostUser);
+  // ListStaticHostUsers gets all existing static host users.
+  rpc ListStaticHostUsers(ListStaticHostUsersRequest) returns (ListStaticHostUsersResponse);
+  // CreateStaticHostUser creates a static host user if one does not already exist.
+  rpc CreateStaticHostUser(CreateStaticHostUserRequest) returns (StaticHostUser);
+  // UpdateStaticHostUser updates an existing static host user.
+  rpc UpdateStaticHostUser(UpdateStaticHostUserRequest) returns (StaticHostUser);
+  // UpsertStaticHostUser creates a new static host user or forcefully updates an existing static host user.
+  rpc UpsertStaticHostUser(UpsertStaticHostUserRequest) returns (StaticHostUser);
+  // DeleteStaticHostUser removes an existing static host user resource by name.
+  rpc DeleteStaticHostUser(DeleteStaticHostUserRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetStaticHostUser.
+message GetStaticHostUserRequest {
+  // Name of the user to retrieve, this take priority over current_user.
+  string name = 1;
+}
+
+// Request for ListStaticHostUsers.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListStaticHostUsersRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response for ListStaticHostUsers.
+message ListStaticHostUsersResponse {
+  // Static host users that matched the search.
+  repeated StaticHostUser users = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for CreateStaticHostUser.
+message CreateStaticHostUserRequest {
+  // The static host user resource to create.
+  StaticHostUser user = 1;
+}
+
+// Request for UpdateStaticHostUser.
+message UpdateStaticHostUserRequest {
+  // The static host user resource to update.
+  StaticHostUser user = 2;
+}
+
+// Request for UpsertStaticHostUser.
+message UpsertStaticHostUserRequest {
+  // The static host user resource to upsert.
+  StaticHostUser user = 2;
+}
+
+// Request for DeleteStaticHostUser.
+message DeleteStaticHostUserRequest {
+  // Name of the user resource to remove.
+  string name = 1;
+}

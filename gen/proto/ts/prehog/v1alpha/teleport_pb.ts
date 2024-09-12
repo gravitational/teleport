@@ -332,6 +332,13 @@ export interface SessionStartDesktopMetadata {
      * @generated from protobuf field: bool allow_user_creation = 4;
      */
     allowUserCreation: boolean;
+    /**
+     * Indicates whether network level authentication (NLA) was used to
+     * establish this RDP session.
+     *
+     * @generated from protobuf field: bool nla = 5;
+     */
+    nla: boolean;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -3974,7 +3981,8 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
             { no: 1, name: "desktop_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "windows_domain", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "nla", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<SessionStartDesktopMetadata>): SessionStartDesktopMetadata {
@@ -3983,6 +3991,7 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         message.origin = "";
         message.windowsDomain = "";
         message.allowUserCreation = false;
+        message.nla = false;
         if (value !== undefined)
             reflectionMergePartial<SessionStartDesktopMetadata>(this, message, value);
         return message;
@@ -4003,6 +4012,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
                     break;
                 case /* bool allow_user_creation */ 4:
                     message.allowUserCreation = reader.bool();
+                    break;
+                case /* bool nla */ 5:
+                    message.nla = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4028,6 +4040,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         /* bool allow_user_creation = 4; */
         if (message.allowUserCreation !== false)
             writer.tag(4, WireType.Varint).bool(message.allowUserCreation);
+        /* bool nla = 5; */
+        if (message.nla !== false)
+            writer.tag(5, WireType.Varint).bool(message.nla);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

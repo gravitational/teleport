@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
@@ -2314,6 +2315,22 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
 
+	spiffeFedSyncer, err := machineidv1.NewSPIFFEFederationSyncer(machineidv1.SPIFFEFederationSyncerConfig{
+		Backend:       b,
+		Store:         authServer.Services.SPIFFEFederations,
+		EventsWatcher: authServer.Services.Events,
+		Clock:         process.Clock,
+		Logger: logger.With(
+			teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, "spiffe_federation_syncer"),
+		),
+	})
+	if err != nil {
+		return trace.Wrap(err, "initializing SPIFFEFederation Syncer")
+	}
+	process.RegisterFunc("auth.spiffe_federation_syncer", func() error {
+		return trace.Wrap(spiffeFedSyncer.Run(process.GracefulExitContext()), "running SPIFFEFederation Syncer")
+	})
+
 	process.RegisterFunc("auth.server_info", func() error {
 		return trace.Wrap(authServer.ReconcileServerInfos(process.GracefulExitContext()))
 	})
@@ -2406,6 +2423,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
 	cfg.SPIFFEFederations = services.SPIFFEFederations
+	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
 	cfg.UserLoginStates = services.UserLoginStates
@@ -2448,6 +2466,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.SAMLIdPSession = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
+	cfg.StaticHostUsers = client.StaticHostUserClient()
 	cfg.Trust = client
 	cfg.UserGroups = client
 	cfg.UserLoginStates = client.UserLoginStateClient()
@@ -2867,6 +2886,22 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 		defer func() { warnOnErr(process.ExitContext(), s.Close(), logger) }()
+
+		if s.GetCreateHostUser() {
+			staticHostUserReconciler, err := srv.NewStaticHostUserHandler(srv.StaticHostUserHandlerConfig{
+				Events:         conn.Client,
+				StaticHostUser: conn.Client.StaticHostUserClient(),
+				Server:         s,
+				Users:          s.GetHostUsers(),
+				Sudoers:        s.GetHostSudoers(),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go func() {
+				warnOnErr(process.ExitContext(), staticHostUserReconciler.Run(process.ExitContext()), logger)
+			}()
+		}
 
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {

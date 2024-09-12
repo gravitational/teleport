@@ -248,6 +248,10 @@ message SessionStartDesktopMetadata {
   // enabled for the session. (This does not mean that the user will
   // be created, as Teleport does not know whether the user already exists.)
   bool allow_user_creation = 4;
+
+  // Indicates whether network level authentication (NLA) was used to
+  // establish this RDP session.
+  bool nla = 5;
 }
 
 // the issuance of a user certificate from the user CA

@@ -1264,10 +1264,10 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_name, windows_user }) => {
-      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_name}]`;
+    format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
+      let message = `User [${user}] started session ${sid} on Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        message += ` on [${windows_domain}]`;
+        message += ` with domain [${windows_domain}]`;
       }
       return message;
     },
@@ -1278,7 +1278,7 @@ export const formatters: Formatters = {
     format: ({ user, windows_domain, desktop_name, windows_user }) => {
       let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        message += ` on [${windows_domain}]`;
+        message += ` with domain [${windows_domain}]`;
       }
       return message;
     },
@@ -1286,12 +1286,12 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_name, windows_user }) => {
+    format: ({ user, windows_domain, desktop_name, sid, windows_user }) => {
       let desktopMessage = `[${windows_user}@${desktop_name}]`;
       if (windows_domain) {
-        desktopMessage += ` on [${windows_domain}]`;
+        desktopMessage += ` with domain [${windows_domain}]`;
       }
-      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      let message = `Session ${sid} for Windows desktop ${desktopMessage} has ended for user [${user}]`;
       return message;
     },
   },
@@ -1906,6 +1906,27 @@ export const formatters: Formatters = {
     desc: 'Integration Deleted',
     format: ({ user, name }) => {
       return `User [${user}] deleted an integration [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_CREATE]: {
+    type: 'static_host_user.create',
+    desc: 'Static Host User Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_UPDATE]: {
+    type: 'static_host_user.update',
+    desc: 'Static Host User Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_DELETE]: {
+    type: 'static_host_user.delete',
+    desc: 'Static Host User Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a static host user [${name}]`;
     },
   },
   [eventCodes.UNKNOWN]: {

@@ -1289,37 +1289,37 @@ func TestGetTargetNodes(t *testing.T) {
 		host      string
 		port      int
 		clt       fakeResourceClient
-		expected  []targetNode
+		expected  []TargetNode
 	}{
 		{
 			name: "options override",
 			options: SSHOptions{
 				HostAddress: "test:1234",
 			},
-			expected: []targetNode{{hostname: "test:1234", addr: "test:1234"}},
+			expected: []TargetNode{{Hostname: "test:1234", Addr: "test:1234"}},
 		},
 		{
 			name:     "explicit target",
 			host:     "test",
 			port:     1234,
-			expected: []targetNode{{hostname: "test", addr: "test:1234"}},
+			expected: []TargetNode{{Hostname: "test", Addr: "test:1234"}},
 		},
 		{
 			name:     "labels",
 			labels:   map[string]string{"foo": "bar"},
-			expected: []targetNode{{hostname: "labels", addr: "abcd:0"}},
+			expected: []TargetNode{{Hostname: "labels", Addr: "abcd:0"}},
 			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}}},
 		},
 		{
 			name:     "search",
 			search:   []string{"foo", "bar"},
-			expected: []targetNode{{hostname: "search", addr: "abcd:0"}},
+			expected: []TargetNode{{Hostname: "search", Addr: "abcd:0"}},
 			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}}},
 		},
 		{
 			name:      "predicate",
 			predicate: `resource.spec.hostname == "test"`,
-			expected:  []targetNode{{hostname: "predicate", addr: "abcd:0"}},
+			expected:  []TargetNode{{Hostname: "predicate", Addr: "abcd:0"}},
 			clt:       fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}}},
 		},
 	}
@@ -1337,7 +1337,7 @@ func TestGetTargetNodes(t *testing.T) {
 				},
 			}
 
-			match, err := clt.getTargetNodes(context.Background(), test.clt, test.options)
+			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
 		})

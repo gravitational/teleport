@@ -111,6 +111,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Origin:            u.Desktop.Origin,
 			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
 			AllowUserCreation: u.Desktop.AllowUserCreation,
+			Nla:               u.Desktop.Nla,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{

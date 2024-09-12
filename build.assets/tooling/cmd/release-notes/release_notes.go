@@ -36,6 +36,7 @@ var tmpl string
 type tmplInfo struct {
 	Version     string
 	Description string
+	Labels      string
 }
 
 var (
@@ -46,6 +47,13 @@ type releaseNotesGenerator struct {
 	// releaseVersion is the version for the release.
 	// This will be compared against the version present in the changelog.
 	releaseVersion string
+	// labels is a string applied to the end of the release description
+	// that will be picked up by other automation.
+	//
+	// It won't be validated but it is expected to be a comma separated list of
+	// entries in the format
+	// 	label=key
+	labels string
 }
 
 func (r *releaseNotesGenerator) generateReleaseNotes(md io.Reader) (string, error) {
@@ -57,6 +65,7 @@ func (r *releaseNotesGenerator) generateReleaseNotes(md io.Reader) (string, erro
 	info := tmplInfo{
 		Version:     r.releaseVersion,
 		Description: desc,
+		Labels:      r.labels,
 	}
 	var buff bytes.Buffer
 	if err := releaseNotesTemplate.Execute(&buff, info); err != nil {

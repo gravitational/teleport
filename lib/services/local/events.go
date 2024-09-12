@@ -19,9 +19,7 @@
 package local
 
 import (
-	"bytes"
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -35,6 +33,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -226,6 +225,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
+		case types.KindStaticHostUser:
+			parser = newStaticHostUserParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -379,7 +380,7 @@ func (p baseParser) prefixes() []backend.Key {
 
 func (p baseParser) match(key backend.Key) bool {
 	for _, prefix := range p.matchPrefixes {
-		if bytes.HasPrefix(key, prefix) {
+		if key.HasPrefix(prefix) {
 			return true
 		}
 	}
@@ -718,8 +719,8 @@ func (p *namespaceParser) match(key backend.Key) bool {
 	// namespaces are stored under key '/namespaces/<namespace-name>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 3
+		key.HasSuffix(backend.Key(paramsPrefix)) &&
+		len(key.Components()) == 3
 }
 
 func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
@@ -791,10 +792,10 @@ func (p *accessRequestParser) prefixes() []backend.Key {
 }
 
 func (p *accessRequestParser) match(key backend.Key) bool {
-	if !bytes.HasPrefix(key, p.matchPrefix) {
+	if !key.HasPrefix(p.matchPrefix) {
 		return false
 	}
-	if !bytes.HasSuffix(key, p.matchSuffix) {
+	if !key.HasSuffix(p.matchSuffix) {
 		return false
 	}
 	return true
@@ -832,8 +833,8 @@ func (p *userParser) match(key backend.Key) bool {
 	// users are stored under key '/web/users/<username>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 4
+		key.HasSuffix(backend.Key(paramsPrefix)) &&
+		len(key.Components()) == 4
 }
 
 func (p *userParser) parse(event backend.Event) (types.Resource, error) {
@@ -1365,7 +1366,7 @@ func (p *remoteClusterParser) prefixes() []backend.Key {
 }
 
 func (p *remoteClusterParser) match(key backend.Key) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error) {
@@ -1426,7 +1427,7 @@ func (p *networkRestrictionsParser) prefixes() []backend.Key {
 }
 
 func (p *networkRestrictionsParser) match(key backend.Key) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
@@ -1956,25 +1957,19 @@ type kubeWaitingContainerParser struct {
 func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// remove the first separator so no separated parts should be
-		// empty strings
-		key := string(event.Item.Key)
-		if len(key) > 0 && key[0] == backend.Separator {
-			key = key[1:]
-		}
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 6 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindKubeWaitingContainer, event.Item.Key)
 		}
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
-			parts[5],
+			string(parts[5]),
 			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
-				Username:      parts[1],
-				Cluster:       parts[2],
-				Namespace:     parts[3],
-				PodName:       parts[4],
-				ContainerName: parts[5],
+				Username:      string(parts[1]),
+				Cluster:       string(parts[2]),
+				Namespace:     string(parts[3]),
+				PodName:       string(parts[4]),
+				ContainerName: string(parts[5]),
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
 			},
@@ -2039,11 +2034,7 @@ type userNotificationParser struct {
 func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 4 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
@@ -2052,10 +2043,10 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			Kind:    types.KindNotification,
 			Version: types.V1,
 			Spec: &notificationsv1.NotificationSpec{
-				Username: parts[2],
+				Username: string(parts[2]),
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[3],
+				Name: string(parts[3]),
 			},
 		}
 
@@ -2087,12 +2078,7 @@ type globalNotificationParser struct {
 func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		// notifications/global/<uuid>
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 3 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
@@ -2106,7 +2092,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 				},
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[2],
+				Name: string(parts[2]),
 			},
 		}
 
@@ -2138,13 +2124,7 @@ type botInstanceParser struct {
 func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-
-		// bot_instance/<1: bot name>/<2: uuid>
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 3 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
 		}
@@ -2153,11 +2133,11 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
 			Spec: &machineidv1.BotInstanceSpec{
-				BotName:    parts[1],
-				InstanceId: parts[2],
+				BotName:    string(parts[1]),
+				InstanceId: string(parts[2]),
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[2],
+				Name: string(parts[2]),
 			},
 		}
 
@@ -2201,6 +2181,35 @@ func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newStaticHostUserParser() *staticHostUserParser {
+	return &staticHostUserParser{
+		baseParser: newBaseParser(backend.NewKey(staticHostUserPrefix)),
+	}
+}
+
+type staticHostUserParser struct {
+	baseParser
+}
+
+func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindStaticHostUser, types.V2, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)
 	if err != nil {
@@ -2210,7 +2219,7 @@ func resourceHeader(event backend.Event, kind, version string, offset int) (type
 		Kind:    kind,
 		Version: version,
 		Metadata: types.Metadata{
-			Name:      string(name),
+			Name:      name,
 			Namespace: apidefaults.Namespace,
 		},
 	}, nil
@@ -2226,7 +2235,7 @@ func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, o
 		SubKind: hdr.SubKind,
 		Version: hdr.Version,
 		Metadata: types.Metadata{
-			Name:      string(name),
+			Name:      name,
 			Namespace: apidefaults.Namespace,
 		},
 	}, nil
@@ -2290,7 +2299,7 @@ func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
 				Kind:    types.KindDevice,
 				Version: types.V1,
 				Metadata: types.Metadata{
-					Name: string(name),
+					Name: name,
 				},
 			},
 		}
@@ -2417,19 +2426,19 @@ type EventMatcher interface {
 	Match(types.Event) (types.Resource, error)
 }
 
-// base returns last element delimited by separator, index is
-// is an index of the key part to get counting from the end
-func base(key backend.Key, offset int) ([]byte, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
+// base returns the key component that is offset
+// components before the last component.
+func base(key backend.Key, offset int) (string, error) {
+	parts := key.Components()
 	if len(parts) < offset+1 {
-		return nil, trace.NotFound("failed parsing %v", string(key))
+		return "", trace.NotFound("failed parsing %v", string(key))
 	}
-	return parts[len(parts)-offset-1], nil
+	return string(parts[len(parts)-offset-1]), nil
 }
 
 // baseTwoKeys returns two last keys
 func baseTwoKeys(key backend.Key) (string, string, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
+	parts := key.Components()
 	if len(parts) < 2 {
 		return "", "", trace.NotFound("failed parsing %v", string(key))
 	}

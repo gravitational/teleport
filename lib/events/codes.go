@@ -643,6 +643,20 @@ const (
 	// IntegrationDeleteCode is the integration resource delete event code.
 	IntegrationDeleteCode = "IG003I"
 
+	// PluginCreateCode is the plugin resource create event code.
+	PluginCreateCode = "PG001I"
+	// PluginUpdateCode is the plugin resource update event code.
+	PluginUpdateCode = "PG002I"
+	// PluginDeleteCode is the plugin resource delete event code.
+	PluginDeleteCode = "PG003I"
+
+	// StaticHostUserCreateCode is the static host user resource create event code.
+	StaticHostUserCreateCode = "SHU001I"
+	// StaticHostUserUpdateCode is the static host user resource update event code.
+	StaticHostUserUpdateCode = "SHU002I"
+	// StaticHostUserDeleteCode is the static host user resource delete event code.
+	StaticHostUserDeleteCode = "SHU003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
