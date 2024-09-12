@@ -58,6 +58,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// SessionControlsInfoBroadcast is sent in tandem with session creation to inform any joining
+// users about the session controls.
+const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
+
 const sessionRecorderID = "session-recorder"
 
 const (
@@ -498,7 +502,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	s.io.OnReadError = s.disconnectPartyOnErr
 
 	s.BroadcastMessage("Creating session with ID: %v...", id.String())
-	s.BroadcastMessage(srv.SessionControlsInfoBroadcast)
+	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	go func() {
 		if _, open := <-s.io.TerminateNotifier(); open {
