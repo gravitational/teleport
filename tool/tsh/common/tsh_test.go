@@ -1861,7 +1861,7 @@ func TestNoRelogin(t *testing.T) {
 			extraArgs: []string{"--no-relogin"},
 			errorAssertion: func(t *testing.T, err error) {
 				require.Error(t, err)
-				require.False(t, errors.Is(err, reloginErr), "did not expect to get reloginErr")
+				require.NotErrorIs(t, err, reloginErr)
 			},
 		},
 	} {

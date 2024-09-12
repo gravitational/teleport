@@ -27,9 +27,10 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/trace"
 )
 
 // macMaxTLSCertValidityPeriod is the maximum validity period
