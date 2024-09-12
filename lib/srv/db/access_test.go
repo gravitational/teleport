@@ -2419,7 +2419,7 @@ type agentParams struct {
 	// ResourceMatchers are optional database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
-	GetServerInfoFn func(database types.Database) func() *types.DatabaseServerV3
+	GetServerInfoFn func(database types.Database) func(context.Context) (*types.DatabaseServerV3, error)
 	// OnReconcile sets database resource reconciliation callback.
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
@@ -2605,8 +2605,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		for _, db := range p.Databases {
 			select {
 			case sender := <-inventoryHandle.Sender():
+				dbServer, err := server.getServerInfo(db)
+				require.NoError(t, err)
 				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
-					DatabaseServer: server.getServerInfo(db),
+					DatabaseServer: dbServer,
 				}))
 			case <-time.After(20 * time.Second):
 				t.Fatal("timed out waiting for inventory handle sender")

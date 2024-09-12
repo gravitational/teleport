@@ -112,7 +112,7 @@ type Config struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// GetServerInfoFn returns function that returns database info for heartbeats.
-	GetServerInfoFn func(database types.Database) func() *types.DatabaseServerV3
+	GetServerInfoFn func(database types.Database) func(context.Context) (*types.DatabaseServerV3, error)
 	// Hostname is the hostname where this database server is running.
 	Hostname string
 	// HostID is the id of the host where this database server is running.
@@ -716,18 +716,18 @@ func (s *Server) stopHeartbeat(name string) error {
 // provided database to the auth server.
 //
 // It can be overridden by GetServerInfoFn from config by tests.
-func (s *Server) getServerInfoFunc(database types.Database) func() *types.DatabaseServerV3 {
+func (s *Server) getServerInfoFunc(database types.Database) func(context.Context) (*types.DatabaseServerV3, error) {
 	if s.cfg.GetServerInfoFn != nil {
 		return s.cfg.GetServerInfoFn(database)
 	}
-	return func() *types.DatabaseServerV3 {
+	return func(context.Context) (*types.DatabaseServerV3, error) {
 		return s.getServerInfo(database)
 	}
 }
 
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
-func (s *Server) getServerInfo(database types.Database) *types.DatabaseServerV3 {
+func (s *Server) getServerInfo(database types.Database) (*types.DatabaseServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
@@ -738,22 +738,18 @@ func (s *Server) getServerInfo(database types.Database) *types.DatabaseServerV3 
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 
-	return &types.DatabaseServerV3{
-		Kind:    types.KindDatabaseServer,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:    copy.GetName(),
-			Expires: &expires,
-		},
-		Spec: types.DatabaseServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: s.cfg.Hostname,
-			HostID:   s.cfg.HostID,
-			Rotation: s.getRotationState(),
-			Database: copy,
-			ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
-		},
-	}
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.DatabaseServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.cfg.Hostname,
+		HostID:   s.cfg.HostID,
+		Rotation: s.getRotationState(),
+		Database: copy,
+		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
+	})
+	return server, trace.Wrap(err)
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
