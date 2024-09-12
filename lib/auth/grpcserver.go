@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -5444,7 +5444,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	autoupdatepb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
+	autoupdatev1pb.RegisterAutoUpdateServiceServer(server, autoUpdateServiceServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
