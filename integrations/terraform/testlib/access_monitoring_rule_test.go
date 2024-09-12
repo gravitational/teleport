@@ -18,14 +18,16 @@ package testlib
 
 import (
 	"context"
-	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/types"
+	"time"
+
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
-	"time"
+
+	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 func (s *TerraformSuiteOSS) TestAccessMonitoringRule() {

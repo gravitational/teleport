@@ -20,7 +20,6 @@ import (
 	"context"
 	"embed"
 	"fmt"
-	"github.com/gravitational/teleport/lib/services"
 	"os"
 	"path/filepath"
 	"time"
@@ -42,6 +41,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
