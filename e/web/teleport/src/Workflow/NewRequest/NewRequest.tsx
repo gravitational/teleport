@@ -27,7 +27,7 @@ import Link from 'design/Link';
 import { Info } from 'design/Alert';
 import { getNumAddedResources } from 'shared/components/AccessRequests/Shared/utils';
 import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
-import UnifiedSearchPanel from 'teleport/UnifiedResources/SearchPanel';
+import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 import {
   FilterKind,
   UnifiedResources,
@@ -379,8 +379,8 @@ function NewRequest(props: State) {
             // we only use the SearchPanel in the header because we will need a separate
             // header that includes the request type dropdown and Proceed to Request button
             Header={
-              <Flex justifyContent="space-between" alignItems="center">
-                <UnifiedSearchPanel
+              <Flex justifyContent="space-between" alignItems="center" mb={3}>
+                <ServersideSearchPanel
                   params={agentFilter}
                   setParams={setAgentFilter}
                   // the following two parameters aren't needed as we don't need url
