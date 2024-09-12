@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 var (
@@ -86,6 +87,13 @@ func (s *Service) ReportAuthorizedKeys(in accessgraphsecretsv1pb.SecretsScannerS
 					errs = append(errs, err)
 				}
 			}
+
+			s.usageReporter.AnonymizeAndSubmit(
+				&usagereporter.AccessGraphSecretsScanAuthorizedKeysEvent{
+					HostId:    hostID,
+					TotalKeys: uint64(len(accumKeys)),
+				})
+
 			if len(errs) > 0 {
 				return trace.NewAggregate(errs...)
 			}
@@ -154,6 +162,13 @@ func (s *Service) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_
 			return trace.Wrap(err)
 		}
 	}
+
+	s.usageReporter.AnonymizeAndSubmit(
+		&usagereporter.AccessGraphSecretsScanSSHPrivateKeysEvent{
+			DeviceId:     devID,
+			TotalKeys:    uint64(len(allKeys)),
+			DeviceOsType: dev.OsType.String(),
+		})
 
 	return nil
 }

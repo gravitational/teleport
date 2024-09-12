@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestReportAuthorizedKeys(t *testing.T) {
@@ -44,6 +46,7 @@ func TestReportAuthorizedKeys(t *testing.T) {
 		// expectedAuthorizedKeys is the list of authorized keys that are expected to be stored in the database after the test.
 		expectedAuthorizedKeys []*accessgraphsecretsv1pb.AuthorizedKey
 		assertErr              func(t *testing.T, stream accessgraphsecretsv1pb.SecretsScannerService_ReportAuthorizedKeysClient)
+		assertUsageReports     func(t *testing.T, f *fakeUsageReporter)
 	}{
 		{
 			desc: "failure because identity isn't node",
@@ -111,6 +114,14 @@ func TestReportAuthorizedKeys(t *testing.T) {
 				_, err := stream.Recv()
 				require.ErrorIs(t, err, io.EOF)
 			},
+			assertUsageReports: func(t *testing.T, f *fakeUsageReporter) {
+				require.Len(t, f.events, 1)
+				evt := f.events[0].Anonymize(&fakeAnonymizer{})
+				require.NotNil(t, evt.GetAccessGraphSecretsScanAuthorizedKeys())
+				authEvt := evt.GetAccessGraphSecretsScanAuthorizedKeys()
+				require.Equal(t, "HOST1", authEvt.HostId) // fakeAnonymizer should uppercase the host id
+				require.EqualValues(t, 2, authEvt.TotalKeys)
+			},
 		},
 		{
 			desc: "successful with prior keys",
@@ -131,6 +142,14 @@ func TestReportAuthorizedKeys(t *testing.T) {
 			assertErr: func(t *testing.T, stream accessgraphsecretsv1pb.SecretsScannerService_ReportAuthorizedKeysClient) {
 				_, err := stream.Recv()
 				require.ErrorIs(t, err, io.EOF)
+			},
+			assertUsageReports: func(t *testing.T, f *fakeUsageReporter) {
+				require.Len(t, f.events, 1)
+				evt := f.events[0].Anonymize(&fakeAnonymizer{})
+				require.NotNil(t, evt.GetAccessGraphSecretsScanAuthorizedKeys())
+				authEvt := evt.GetAccessGraphSecretsScanAuthorizedKeys()
+				require.Equal(t, "HOST1", authEvt.HostId) // fakeAnonymizer should uppercase the host id
+				require.EqualValues(t, 2, authEvt.TotalKeys)
 			},
 		},
 	}
@@ -195,6 +214,10 @@ func TestReportAuthorizedKeys(t *testing.T) {
 				),
 			)
 
+			if tt.assertUsageReports != nil {
+				tt.assertUsageReports(t, env.usageReporter)
+			}
+
 		})
 	}
 }
@@ -236,6 +259,7 @@ func TestReportPrivateKeys(t *testing.T) {
 		// expectedPrivateKeys is the list of private keys that are expected to be stored in the database after the test.
 		expectedPrivateKeys []*accessgraphsecretsv1pb.PrivateKey
 		assertErr           func(t *testing.T, stream accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient)
+		assertUsageReports  func(t *testing.T, f *fakeUsageReporter)
 	}{
 		{
 			desc:             "macOS successful with no prior keys",
@@ -252,6 +276,15 @@ func TestReportPrivateKeys(t *testing.T) {
 				_, err := stream.Recv()
 				require.ErrorIs(t, err, io.EOF)
 			},
+			assertUsageReports: func(t *testing.T, f *fakeUsageReporter) {
+				require.Len(t, f.events, 1)
+				evt := f.events[0].Anonymize(&fakeAnonymizer{})
+				require.NotNil(t, evt.GetAccessGraphSecretsScanSshPrivateKeys())
+				authEvt := evt.GetAccessGraphSecretsScanSshPrivateKeys()
+				require.Equal(t, strings.ToUpper(deviceID), authEvt.DeviceId) // fakeAnonymizer should uppercase the host id
+				require.Equal(t, mac.GetDeviceOSType().String(), authEvt.DeviceOsType)
+				require.EqualValues(t, 2, authEvt.TotalKeys)
+			},
 		},
 		{
 			desc:             "linux successful with no prior keys",
@@ -267,6 +300,15 @@ func TestReportPrivateKeys(t *testing.T) {
 			assertErr: func(t *testing.T, stream accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) {
 				_, err := stream.Recv()
 				require.ErrorIs(t, err, io.EOF)
+			},
+			assertUsageReports: func(t *testing.T, f *fakeUsageReporter) {
+				require.Len(t, f.events, 1)
+				evt := f.events[0].Anonymize(&fakeAnonymizer{})
+				require.NotNil(t, evt.GetAccessGraphSecretsScanSshPrivateKeys())
+				authEvt := evt.GetAccessGraphSecretsScanSshPrivateKeys()
+				require.Equal(t, strings.ToUpper(deviceID), authEvt.DeviceId) // fakeAnonymizer should uppercase the host id
+				require.Equal(t, linux.GetDeviceOSType().String(), authEvt.DeviceOsType)
+				require.EqualValues(t, 2, authEvt.TotalKeys)
 			},
 		},
 		{
@@ -286,6 +328,15 @@ func TestReportPrivateKeys(t *testing.T) {
 			assertErr: func(t *testing.T, stream accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsClient) {
 				_, err := stream.Recv()
 				require.ErrorIs(t, err, io.EOF)
+			},
+			assertUsageReports: func(t *testing.T, f *fakeUsageReporter) {
+				require.Len(t, f.events, 1)
+				evt := f.events[0].Anonymize(&fakeAnonymizer{})
+				require.NotNil(t, evt.GetAccessGraphSecretsScanSshPrivateKeys())
+				authEvt := evt.GetAccessGraphSecretsScanSshPrivateKeys()
+				require.Equal(t, strings.ToUpper(deviceID), authEvt.DeviceId) // fakeAnonymizer should uppercase the host id
+				require.Equal(t, mac.GetDeviceOSType().String(), authEvt.DeviceOsType)
+				require.EqualValues(t, 2, authEvt.TotalKeys)
 			},
 		},
 		{
@@ -385,6 +436,10 @@ func TestReportPrivateKeys(t *testing.T) {
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
 				),
 			)
+
+			if tt.assertUsageReports != nil {
+				tt.assertUsageReports(t, env.usageReporter)
+			}
 		})
 	}
 
@@ -492,4 +547,12 @@ func newPrivateKey(t *testing.T, fingerprint string) *accessgraphsecretsv1pb.Pri
 	)
 	require.NoError(t, err)
 	return k
+}
+
+type fakeAnonymizer struct {
+	utils.Anonymizer
+}
+
+func (f fakeAnonymizer) AnonymizeString(s string) string {
+	return strings.ToUpper(s)
 }

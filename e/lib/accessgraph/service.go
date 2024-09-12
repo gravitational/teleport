@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 const (
@@ -48,6 +49,9 @@ type ServiceConfig struct {
 
 	// AuthPreferenceGetter a function to get the auth preference.
 	AuthPreferenceGetter AuthPreferenceGetterFunc
+
+	// UsageReporter is the usage reporter to use.
+	UsageReporter usagereporter.UsageReporter
 }
 
 // AuthPreferenceGetterFunc is a function that returns the auth preference.
@@ -71,6 +75,7 @@ type Service struct {
 
 	deviceAssertionServer func() (assertserver.Ceremony, error)
 	authPreferenceGetter  AuthPreferenceGetterFunc
+	usageReporter         usagereporter.UsageReporter
 }
 
 // NewService creates a new access graph service.
@@ -87,6 +92,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		secretsService:        cfg.Storage,
 		deviceAssertionServer: cfg.DeviceAssertionServer,
 		authPreferenceGetter:  cfg.AuthPreferenceGetter,
+		usageReporter:         cfg.UsageReporter,
 	}, nil
 }
 
@@ -117,6 +123,10 @@ func (c *ServiceConfig) checkAndSetDefaults() error {
 
 	if c.AuthPreferenceGetter == nil {
 		return trace.BadParameter("missing AuthPreferenceGetter")
+	}
+
+	if c.UsageReporter == nil {
+		return trace.BadParameter("missing UsageReporter")
 	}
 
 	return nil

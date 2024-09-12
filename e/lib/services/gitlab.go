@@ -52,6 +52,7 @@ func startGitlabService(ctx context.Context, process *service.TeleportProcess, s
 		AccessPoint:       conn.Client,
 		ClusterFeatures:   process.GetClusterFeatures,
 		PluginStatusSink:  statusSink,
+		UsageReporter:     process.GetAuthServer().UsageReporter,
 	})
 	if err != nil {
 		// Update plugin status if the service is running as a plugin.

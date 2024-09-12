@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,6 +36,7 @@ type env struct {
 	userStorage               *local.IdentityService
 	accessGraphSecretsStorage *local.AccessGraphSecretsService
 	fakeAccessGraphServer     *serviceFake
+	usageReporter             *fakeUsageReporter
 }
 
 type opts struct {
@@ -163,6 +165,8 @@ func setup(t *testing.T, ops ...option) env {
 		assert.NoError(t, err)
 	})
 
+	usageReporter := &fakeUsageReporter{}
+
 	serviceNew, err := NewService(ServiceConfig{
 		Authorizer:  authorizer,
 		Logger:      utils.NewSlogLoggerForTests(),
@@ -175,6 +179,7 @@ func setup(t *testing.T, ops ...option) env {
 			return authPref, nil
 		},
 		DeviceAssertionServer: fakeSvc.Service.CreateAssertCeremony,
+		UsageReporter:         usageReporter,
 	})
 	require.NoError(t, err)
 
@@ -212,6 +217,7 @@ func setup(t *testing.T, ops ...option) env {
 		userStorage:               userSvc,
 		fakeAccessGraphServer:     testFake,
 		accessGraphSecretsStorage: svc,
+		usageReporter:             usageReporter,
 	}
 }
 
@@ -311,4 +317,12 @@ type fakeAuthorizer struct {
 
 func (f fakeAuthorizer) Authorize(_ context.Context) (*authz.Context, error) {
 	return f.identity, nil
+}
+
+type fakeUsageReporter struct {
+	events []usagereporter.Anonymizable
+}
+
+func (f *fakeUsageReporter) AnonymizeAndSubmit(event ...usagereporter.Anonymizable) {
+	f.events = append(f.events, event...)
 }

@@ -424,6 +424,7 @@ func (p *Plugin) registerAccessGraphService(ctx context.Context, authServer *aut
 		Storage:               storage,
 		AuthPreferenceGetter:  p.authServer.AuthServer.GetReadOnlyAuthPreference,
 		DeviceAssertionServer: p.authServer.AuthServer.GetDeviceAssertionServer(),
+		UsageReporter:         p.authServer.AuthServer.UsageReporter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

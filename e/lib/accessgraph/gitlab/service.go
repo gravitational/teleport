@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 var (
@@ -44,6 +45,7 @@ type Service struct {
 	getCreds          accessgraph.ClientCredentialsGetter
 	fetcher           *gitlabFetcher
 	pluginStatusSink  common.StatusSink
+	usageReporter     usagereporter.UsageReporter
 }
 
 // GitlabOpts are configuration options for Gitlab.
@@ -65,6 +67,7 @@ type Opts struct {
 	AccessPoint       types.Semaphores
 	PluginStatusSink  common.StatusSink
 	ClusterFeatures   func() proto.Features
+	UsageReporter     usagereporter.UsageReporter
 }
 
 // Validate validates the options.
@@ -90,6 +93,11 @@ func (o *Opts) Validate() error {
 	if o.ClusterFeatures == nil {
 		return trace.BadParameter("missing cluster features")
 	}
+
+	if o.UsageReporter == nil {
+		return trace.BadParameter("missing usage reporter")
+	}
+
 	return nil
 }
 
@@ -288,6 +296,14 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 					},
 				})
 		}
+
+		s.usageReporter.AnonymizeAndSubmit(
+			&usagereporter.AccessGraphGitlabScanEvent{
+				TotalUsers:    uint64(len(currentTAGResources.Users)),
+				TotalGroups:   uint64(len(currentTAGResources.Groups)),
+				TotalProjects: uint64(len(currentTAGResources.Projects)),
+			},
+		)
 
 		select {
 		case <-ctx.Done():
