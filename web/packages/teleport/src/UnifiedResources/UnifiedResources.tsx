@@ -53,9 +53,9 @@ import {
   useSamlAppAction,
   SamlAppActionProvider,
 } from 'teleport/SamlApplications/useSamlAppActions';
+import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import SearchPanel from './SearchPanel';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
@@ -309,8 +309,8 @@ export function ClusterResources({
                 )}
               </Flex>
             </FeatureHeader>
-            <Flex alignItems="center" justifyContent="space-between">
-              <SearchPanel
+            <Flex alignItems="center" justifyContent="space-between" mb={3}>
+              <ServersideSearchPanel
                 params={params}
                 pathname={pathname}
                 replaceHistory={replaceHistory}
