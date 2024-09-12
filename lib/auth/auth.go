@@ -1315,6 +1315,14 @@ func (a *Server) runPeriodicOperations() {
 		go a.periodicSyncUpgradeWindowStartHour()
 	}
 
+	// disable periodics that are not required for cloud dashboard tenants
+	if services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		releaseCheck.Stop()
+		localReleaseCheck.Stop()
+		heartbeatCheckTicker.Stop()
+		dynamicLabelsCheck.Stop()
+	}
+
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -1460,7 +1468,7 @@ const (
 )
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
-// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
