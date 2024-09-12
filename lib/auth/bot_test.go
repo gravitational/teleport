@@ -44,6 +44,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -680,7 +681,7 @@ func authClientForCerts(t *testing.T, ctx context.Context, addr *utils.NetAddr, 
 		ClientConfig:          sshConfig,
 		Log:                   logrus.StandardLogger(),
 		InsecureSkipTLSVerify: true,
-		ClusterCAs:            tlsConfig.RootCAs,
+		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(tlsConfig.RootCAs),
 	})
 	require.NoError(t, err)
 

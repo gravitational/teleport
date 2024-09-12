@@ -106,7 +106,7 @@ type Manager struct {
 	// the first element.
 	usableSigningBackends []backend
 
-	authPrefGetter cryptosuites.AuthPreferenceGetter
+	currentSuiteGetter cryptosuites.GetSuiteFunc
 }
 
 // backend is an interface that holds private keys and provides signing
@@ -227,7 +227,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	return &Manager{
 		backendForNewKeys:     backendForNewKeys,
 		usableSigningBackends: usableSigningBackends,
-		authPrefGetter:        opts.AuthPreferenceGetter,
+		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 	}, nil
 }
 
@@ -454,7 +454,7 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -485,7 +485,7 @@ func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm)
 
 // NewTLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
 func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -522,7 +522,7 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 // New JWTKeyPair create a new JWT keypair in the keystore backend and returns
 // it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

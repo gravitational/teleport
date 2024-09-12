@@ -78,6 +78,9 @@ const (
 	// ProxyToDatabaseAgent represents keys used by the Proxy to dial the
 	// Database agent over a reverse tunnel.
 	ProxyToDatabaseAgent
+	// ProxyKubeClient represents a key generated on the proxy used as the
+	// subject for a generated kubernetes client cert.
+	ProxyKubeClient
 
 	// UserSSH represents a user SSH key.
 	UserSSH
@@ -85,6 +88,9 @@ const (
 	UserTLS
 	// UserDatabase represents a user Database key.
 	UserDatabase
+
+	// HostSSH represents a host SSH key.
+	HostSSH
 
 	// TODO(nklaassen): define remaining key purposes.
 
@@ -146,9 +152,12 @@ var (
 		UserSSH:             RSA2048,
 		UserTLS:             RSA2048,
 		UserDatabase:        RSA2048,
-		// We could consider updating this algorithm even in the legacy suite, only database agents need to
-		// accept these connections and they have never restricted algorithm support.
+		HostSSH:             RSA2048,
+		// We could consider updating these algorithms even in the legacy suite,
+		// only teleport agents need to accept these connections and they have
+		// never restricted algorithm support.
 		ProxyToDatabaseAgent: RSA2048,
+		ProxyKubeClient:      RSA2048,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 
@@ -171,7 +180,9 @@ var (
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              Ed25519,
 		ProxyToDatabaseAgent: ECDSAP256,
+		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 
@@ -194,7 +205,9 @@ var (
 		UserSSH:              ECDSAP256,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
+		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 
@@ -219,7 +232,9 @@ var (
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              Ed25519,
 		ProxyToDatabaseAgent: ECDSAP256,
+		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 
@@ -237,12 +252,28 @@ type AuthPreferenceGetter interface {
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
-func getSignatureAlgorithmSuite(ctx context.Context, authPrefGetter AuthPreferenceGetter) (types.SignatureAlgorithmSuite, error) {
-	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+// GetCurrentSuiteFromAuthPreference returns a [GetSuiteFunc] that fetches
+// the signature algorithm suite currently configured in the cluster via the
+// current auth preference.
+func GetCurrentSuiteFromAuthPreference(authPrefGetter AuthPreferenceGetter) GetSuiteFunc {
+	return GetSuiteFunc(func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		authPref, err := authPrefGetter.GetAuthPreference(ctx)
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
+		}
+		return authPref.GetSignatureAlgorithmSuite(), nil
+	})
+}
+
+// GetSuiteFunc is a function type that retrieves the current signature
+// algorithm suite configured in the cluster.
+type GetSuiteFunc func(context.Context) (types.SignatureAlgorithmSuite, error)
+
+func getSignatureAlgorithmSuite(ctx context.Context, getSuite GetSuiteFunc) (types.SignatureAlgorithmSuite, error) {
+	suite, err := getSuite(ctx)
 	if err != nil {
 		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
 	}
-	suite := authPref.GetSignatureAlgorithmSuite()
 	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
 		return defaultSuite, nil
 	}
@@ -263,8 +294,8 @@ func algorithmForKey(suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (A
 
 // AlgorithmForKey returns the cryptographic signature algorithm that should be used for new keys with the
 // given purpose, based on the currently configured algorithm suite.
-func AlgorithmForKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (Algorithm, error) {
-	suite, err := getSignatureAlgorithmSuite(ctx, authPrefGetter)
+func AlgorithmForKey(ctx context.Context, getSuite GetSuiteFunc, purpose KeyPurpose) (Algorithm, error) {
+	suite, err := getSignatureAlgorithmSuite(ctx, getSuite)
 	if err != nil {
 		return algorithmUnspecified, trace.Wrap(err)
 	}
@@ -278,8 +309,8 @@ func AlgorithmForKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, p
 // GenerateUserSSHAndTLSKey generates and returns a pair of keys to be used for
 // user SSH and TLS keys. If the legacy algorithm suite is currently configured,
 // a single key will be generated and returned.
-func GenerateUserSSHAndTLSKey(ctx context.Context, authPrefGetter AuthPreferenceGetter) (sshKey, tlsKey crypto.Signer, err error) {
-	currentSuite, err := getSignatureAlgorithmSuite(ctx, authPrefGetter)
+func GenerateUserSSHAndTLSKey(ctx context.Context, getSuite GetSuiteFunc) (sshKey, tlsKey crypto.Signer, err error) {
+	currentSuite, err := getSignatureAlgorithmSuite(ctx, getSuite)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -311,24 +342,10 @@ func GenerateUserSSHAndTLSKey(ctx context.Context, authPrefGetter AuthPreference
 	return sshKey, tlsKey, nil
 }
 
-// AlgorithmForKey generates a new cryptographic keypair for the given [purpose],
-// with a signature algorithm chosen based on the algorithm suite currently
-// configured in the cluster auth preference.
-func GenerateKey(ctx context.Context, authPrefGetter AuthPreferenceGetter, purpose KeyPurpose) (crypto.Signer, error) {
-	alg, err := AlgorithmForKey(ctx, authPrefGetter, purpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return GenerateKeyWithAlgorithm(alg)
-}
-
-// GenerateKeyWithSuite generates a new cryptographic keypair for the given
-// [purpose], with a signature algorithm chosen from [suite].
-func GenerateKeyWithSuite(ctx context.Context, suite types.SignatureAlgorithmSuite, purpose KeyPurpose) (crypto.Signer, error) {
-	if suite == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
-		suite = defaultSuite
-	}
-	alg, err := algorithmForKey(suite, purpose)
+// GenerateKey generates a new cryptographic keypair for the given [purpose],
+// with a signature algorithm chosen based on the current algorithm suite.
+func GenerateKey(ctx context.Context, getSuite GetSuiteFunc, purpose KeyPurpose) (crypto.Signer, error) {
+	alg, err := AlgorithmForKey(ctx, getSuite, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

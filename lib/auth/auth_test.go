@@ -1736,7 +1736,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// authenticate authenticates the specified user, creating a new key pair, a
 	// new pair of certificates, and parsing all relevant responses.
 	authenticate := func(t *testing.T, user, pass string) (tlsRaw, sshRaw []byte, xCert *x509.Certificate, sshCert *ssh.Certificate, identity *tlsca.Identity) {
-		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, authServer)
+		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer))
 		require.NoError(t, err)
 
 		sshPublicKey, err := ssh.NewPublicKey(sshKey.Public())

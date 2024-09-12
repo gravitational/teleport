@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -431,32 +432,46 @@ func TestShutdown(t *testing.T) {
 			// Validate that the server is proxying db0 after start.
 			require.Equal(t, types.Databases{db0}, server.getProxiedDatabases())
 
-			// Validate heartbeat is present after start.
-			server.ForceHeartbeat()
-			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
-			require.Len(t, dbServers, 1)
-			require.Equal(t, dbServers[0].GetDatabase(), db0)
+			// Validate that the heartbeat is eventually emitted and that
+			// the configured databases exist in the inventory.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, dbServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
+			}, 10*time.Second, 100*time.Millisecond)
 
-			// Shutdown should not return error.
-			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
-			t.Cleanup(cancel)
-			if test.hasForkedChild {
-				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			require.NoError(t, server.Shutdown(ctx))
+
+			// Send a Goodbye to simulate process shutdown.
+			if !test.hasForkedChild {
+				require.NoError(t, server.cfg.InventoryHandle.SendGoodbye(ctx))
 			}
 
-			require.NoError(t, server.Shutdown(shutdownCtx))
+			require.NoError(t, server.cfg.InventoryHandle.Close())
 
-			// Validate that the server is not proxying db0 after close.
-			require.Empty(t, server.getProxiedDatabases())
-
-			// Validate database servers based on the test.
-			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			// Validate db servers based on the test.
 			if test.wantDatabaseServersAfterShutdown {
-				require.Equal(t, dbServers, dbServersAfterShutdown)
+				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+				require.NoError(t, err)
+				require.Len(t, dbServersAfterShutdown, 1)
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
-				require.Empty(t, dbServersAfterShutdown)
+				require.EventuallyWithT(t, func(t *assert.CollectT) {
+					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, dbServersAfterShutdown) {
+						return
+					}
+				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
 	}

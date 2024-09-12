@@ -986,6 +986,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:           fc.Auth.TunnelStrategy,
 			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
+			SSHDialTimeout:           fc.Auth.SSHDialTimeout,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1989,7 +1990,20 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
 			Cloud:              application.Cloud,
+			RequiredAppNames:   application.RequiredApps,
 		}
+
+		if application.CORS != nil {
+			app.CORS = &servicecfg.CORS{
+				AllowedOrigins:   application.CORS.AllowedOrigins,
+				AllowedMethods:   application.CORS.AllowedMethods,
+				AllowedHeaders:   application.CORS.AllowedHeaders,
+				ExposedHeaders:   application.CORS.ExposedHeaders,
+				AllowCredentials: application.CORS.AllowCredentials,
+				MaxAge:           application.CORS.MaxAge,
+			}
+		}
+
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
 			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)

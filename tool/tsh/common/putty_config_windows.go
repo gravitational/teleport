@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/puttyhosts"
 	"github.com/gravitational/teleport/lib/utils/registry"
 )
@@ -254,10 +255,32 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// connect to proxy to fetch cluster info
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	matches, err := tc.GetTargetNodes(cf.Context, clusterClient.AuthClient, client.SSHOptions{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch len(matches) {
+	case 0:
+		return trace.NotFound("no matching hosts found")
+	case 1:
+		log.Debugf("Using host %v", matches[0])
+	default:
+		log.Debugf("found multiple matching hosts %v %v", matches[0], matches[1])
+		return trace.BadParameter("multiple matching hosts found")
+	}
+
 	// remove any spaces from the provided hostname. if the hostname contains a colon, it will be a
 	// hostname:port combination so we split it. this is useful as shorthand when adding OpenSSH hosts
 	// with `tsh puttyconfig user@host:22`, rather than using the longer `tsh puttyconfig --port 22 user@host`
-	hostname := strings.TrimSpace(tc.Config.Host)
+	hostname := strings.TrimSpace(matches[0].Hostname)
 	port := tc.Config.HostPort
 	if splitHost, splitPort, err := net.SplitHostPort(hostname); err == nil {
 		hostname = splitHost
@@ -279,13 +302,6 @@ func onPuttyConfig(cf *CLIConf) error {
 		login = strings.ReplaceAll(tc.Config.HostLogin, " ", "")
 		userHostString = fmt.Sprintf("%v@%v", login, userHostString)
 	}
-
-	// connect to proxy to fetch cluster info
-	clusterClient, err := tc.ConnectToCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clusterClient.Close()
 
 	// parse out proxy details
 	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
