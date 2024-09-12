@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { forwardRef, useRef, useState, useEffect } from 'react';
 import styled from 'styled-components';
 import {
   Alert,
@@ -48,81 +48,89 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
-
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { mergeRefs } from 'shared/libs/mergeRefs';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
 
 import { ReviewerOption } from './types';
-
 import shieldCheck from './shield-check.png';
 import { SelectReviewers } from './SelectReviewers';
 import { AdditionalOptions } from './AdditionalOptions';
 
 import type { TransitionStatus } from 'react-transition-group';
-
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
-export function RequestCheckoutWithSlider<
-  T extends PendingListItem = PendingListItem,
->({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
-  const ref = useRef<HTMLDivElement>();
+export const RequestCheckoutWithSlider = forwardRef<
+  HTMLDivElement,
+  RequestCheckoutWithSliderProps<PendingListItem>
+>(
+  (
+    { transitionState, ...props },
+    /**
+     * ref is extra ref that can be passed to RequestCheckoutWithSlider, at the moment used for
+     * animations.
+     */
+    ref
+  ) => {
+    const wrapperRef = useRef<HTMLDivElement>();
 
-  // Listeners are attached to enable overflow on the parent container after
-  // transitioning ends (entered) or starts (exits). Enables vertical scrolling
-  // when content gets too big.
-  //
-  // Overflow is initially hidden to prevent
-  // brief flashing of horizontal scroll bar resulting from positioning
-  // the container off screen to the right for the slide affect.
-  React.useEffect(() => {
-    function applyOverflowAutoStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `auto`;
-        // There will only ever be one 'end right' transition invoked event, so we remove it
-        // afterwards, and listen for the 'start right' transition which is only invoked
-        // when user exits this component.
+    // Listeners are attached to enable overflow on the wrapper div after
+    // transitioning ends (entered) or starts (exits). Enables vertical scrolling
+    // when content gets too big.
+    //
+    // Overflow is initially hidden to prevent
+    // brief flashing of horizontal scroll bar resulting from positioning
+    // the container off screen to the right for the slide affect.
+    useEffect(() => {
+      function applyOverflowAutoStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `auto`;
+          // There will only ever be one 'end right' transition invoked event, so we remove it
+          // afterwards, and listen for the 'start right' transition which is only invoked
+          // when user exits this component.
+          window.removeEventListener('transitionend', applyOverflowAutoStyle);
+          window.addEventListener('transitionstart', applyOverflowHiddenStyle);
+        }
+      }
+
+      function applyOverflowHiddenStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `hidden`;
+        }
+      }
+
+      window.addEventListener('transitionend', applyOverflowAutoStyle);
+
+      return () => {
         window.removeEventListener('transitionend', applyOverflowAutoStyle);
-        window.addEventListener('transitionstart', applyOverflowHiddenStyle);
-      }
-    }
+        window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
+      };
+    }, []);
 
-    function applyOverflowHiddenStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `hidden`;
-      }
-    }
-
-    window.addEventListener('transitionend', applyOverflowAutoStyle);
-
-    return () => {
-      window.removeEventListener('transitionend', applyOverflowAutoStyle);
-      window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
-    };
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      css={`
-        position: absolute;
-        width: 100vw;
-        height: 100vh;
-        top: 0;
-        left: 0;
-        overflow: hidden;
-      `}
-    >
-      <Dimmer className={transitionState} />
-      <SidePanel className={transitionState}>
-        <RequestCheckout {...props} />
-      </SidePanel>
-    </div>
-  );
-}
+    return (
+      <div
+        ref={mergeRefs([wrapperRef, ref])}
+        css={`
+          position: absolute;
+          width: 100vw;
+          height: 100vh;
+          top: 0;
+          left: 0;
+          overflow: hidden;
+        `}
+      >
+        <Dimmer className={transitionState} />
+        <SidePanel className={transitionState}>
+          <RequestCheckout {...props} />
+        </SidePanel>
+      </div>
+    );
+  }
+);
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,

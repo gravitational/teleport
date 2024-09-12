@@ -207,12 +207,15 @@ export function StepSlider<Flows>(props: Props<Flows>) {
     transition: `height ${tDuration}ms ease`,
   };
 
+  const transitionRef = useRef<HTMLDivElement>();
+
   return (
     <Box ref={rootRef} style={rootStyle}>
       {preMount && <HiddenBox>{$preContent}</HiddenBox>}
       <Wrap className={animationDirectionPrefix} tDuration={tDuration}>
         <TransitionGroup component={null}>
           <CSSTransition
+            nodeRef={transitionRef}
             // timeout needs to match the css transition duration for smoothness
             timeout={tDuration}
             key={`${step}${String(currFlow)}`}
@@ -233,7 +236,7 @@ export function StepSlider<Flows>(props: Props<Flows>) {
               setHasTransitionEnded(true);
             }}
           >
-            <Box>{$content}</Box>
+            <Box ref={transitionRef}>{$content}</Box>
           </CSSTransition>
         </TransitionGroup>
       </Wrap>

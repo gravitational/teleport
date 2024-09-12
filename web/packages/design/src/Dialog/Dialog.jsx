@@ -24,11 +24,17 @@ import Modal from './../Modal';
 
 export default class Dialog extends React.Component {
   render() {
-    const { children, dialogCss, className, ...modalProps } = this.props;
+    const { children, dialogCss, className, ref, ...modalProps } = this.props;
     return (
       <Modal role="dialog" {...modalProps}>
         <ModalBox>
+          {/*
+            ref is supposed to be set on DialogBox, not Modal, because when used with
+            react-transition-group, it's DialogBox that's going to have its className set based on
+            the transition state.
+          */}
           <DialogBox
+            ref={ref}
             data-testid="dialogbox"
             dialogCss={dialogCss}
             className={className}
