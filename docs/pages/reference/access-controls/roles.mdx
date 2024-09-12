@@ -162,7 +162,7 @@ The `client_idle_timeout` in Teleport is a configurable setting that helps impro
 
    - **Global configuration** (applies to all users):
 
- 	You can set the `client_idle_timeout` globally in the Teleport cluster configuration (`teleport.yaml`) under the `auth_service` section:
+You can set the `client_idle_timeout` globally in the Teleport cluster configuration (`teleport.yaml`) under the `auth_service` section:
 
  	```yaml
  	auth_service:
@@ -172,7 +172,7 @@ The `client_idle_timeout` in Teleport is a configurable setting that helps impro
 
    - **Per-role configuration** (applies to specific users or groups):
 
- 	You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
+You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
 
  	```yaml
  	kind: role
