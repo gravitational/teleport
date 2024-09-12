@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,7 +46,7 @@ type HeartbeatV2Config[T any] struct {
 	// InventoryHandle is used to send heartbeats.
 	InventoryHandle inventory.DownstreamHandle
 	// GetResource gets the latest item to heartbeat.
-	GetResource func() T
+	GetResource func(context.Context) (T, error)
 
 	// -- below values are all optional
 
@@ -86,8 +87,11 @@ func NewSSHServerHeartbeat(cfg HeartbeatV2Config[*types.ServerV2]) (*HeartbeatV2
 		getMetadata: metadata.Get,
 		announcer:   cfg.Announcer,
 	}
-	inner.getServer = func(ctx context.Context) *types.ServerV2 {
-		server := cfg.GetResource()
+	inner.getServer = func(ctx context.Context) (*types.ServerV2, error) {
+		server, err := cfg.GetResource(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		doneCtx, cancel := context.WithCancel(ctx)
 		cancel() // not a typo
@@ -97,7 +101,7 @@ func NewSSHServerHeartbeat(cfg HeartbeatV2Config[*types.ServerV2]) (*HeartbeatV2
 			server.SetCloudMetadata(meta.CloudMetadata)
 		}
 
-		return server
+		return server, nil
 	}
 
 	return newHeartbeatV2(cfg.InventoryHandle, inner, heartbeatV2Config{
@@ -116,7 +120,7 @@ func NewAppServerHeartbeat(cfg HeartbeatV2Config[*types.AppServerV3]) (*Heartbea
 	}
 
 	inner := &appServerHeartbeatV2{
-		getServer: func(ctx context.Context) *types.AppServerV3 { return cfg.GetResource() },
+		getServer: cfg.GetResource,
 		announcer: cfg.Announcer,
 	}
 
@@ -505,7 +509,7 @@ type metadataGetter func(ctx context.Context) (*metadata.Metadata, error)
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
 type sshServerHeartbeatV2 struct {
-	getServer   func(ctx context.Context) *types.ServerV2
+	getServer   func(ctx context.Context) (*types.ServerV2, error)
 	getMetadata metadataGetter
 	announcer   authclient.Announcer
 	prev        *types.ServerV2
@@ -515,7 +519,13 @@ func (h *sshServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
 	if h.prev == nil {
 		return true
 	}
-	return services.CompareServers(h.getServer(ctx), h.prev) == services.Different
+
+	server, err := h.getServer(ctx)
+	if err != nil {
+		return false
+	}
+
+	return services.CompareServers(server, h.prev) == services.Different
 }
 
 func (h *sshServerHeartbeatV2) SupportsFallback() bool {
@@ -526,22 +536,29 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	if h.announcer == nil {
 		return false
 	}
-	server := h.getServer(ctx)
-	_, err := h.announcer.UpsertNode(ctx, server)
+	server, err := h.getServer(ctx)
 	if err != nil {
 		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
 		return false
 	}
+
+	if _, err := h.announcer.UpsertNode(ctx, server); err != nil {
+		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
+		return false
+	}
+
 	h.prev = server
 	return true
 }
 
 func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
-	server := h.getServer(ctx)
-	err := sender.Send(ctx, proto.InventoryHeartbeat{
-		SSHServer: h.getServer(ctx),
-	})
+	server, err := h.getServer(ctx)
 	if err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
+		return false
+	}
+
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{SSHServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
 		return false
 	}
@@ -551,7 +568,7 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 
 // appServerHeartbeatV2 is the heartbeatV2 implementation for app servers.
 type appServerHeartbeatV2 struct {
-	getServer func(ctx context.Context) *types.AppServerV3
+	getServer func(ctx context.Context) (*types.AppServerV3, error)
 	announcer authclient.Announcer
 	prev      *types.AppServerV3
 }
@@ -560,7 +577,13 @@ func (h *appServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
 	if h.prev == nil {
 		return true
 	}
-	return services.CompareServers(h.getServer(ctx), h.prev) == services.Different
+
+	server, err := h.getServer(ctx)
+	if err != nil {
+		return false
+	}
+
+	return services.CompareServers(server, h.prev) == services.Different
 }
 
 func (h *appServerHeartbeatV2) SupportsFallback() bool {
@@ -571,9 +594,13 @@ func (h *appServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	if h.announcer == nil {
 		return false
 	}
-	server := h.getServer(ctx)
-	_, err := h.announcer.UpsertApplicationServer(ctx, server)
+	server, err := h.getServer(ctx)
 	if err != nil {
+		log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
+		return false
+	}
+
+	if _, err := h.announcer.UpsertApplicationServer(ctx, server); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			log.Warnf("Failed to perform fallback heartbeat for app server: %v", err)
 		}
@@ -605,8 +632,13 @@ func (h *appServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 		return h.FallbackAnnounce(ctx)
 	}
 
-	server := h.getServer(ctx)
-	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: h.getServer(ctx)}); err != nil {
+	server, err := h.getServer(ctx)
+	if err != nil {
+		log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
+		return false
+	}
+
+	if err := sender.Send(ctx, proto.InventoryHeartbeat{AppServer: apiutils.CloneProtoMsg(server)}); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			log.Warnf("Failed to perform inventory heartbeat for app server: %v", err)
 		}
