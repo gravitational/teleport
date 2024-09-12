@@ -132,7 +132,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		err = s.ln.Close()
 	}
 	s.mu.Unlock()
-	s.cfg.Handler.handler.stopFeatureWatcher()
 
 	activeConnections := s.cfg.Handler.handler.userConns.Load()
 	if activeConnections == 0 {

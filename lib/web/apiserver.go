@@ -173,9 +173,6 @@ type Handler struct {
 	// open.
 	wsIODeadline time.Duration
 
-	// featureWatcherStop is a channel used to emit a stop signal to the
-	// features watcher goroutine
-	featureWatcherStop chan struct{}
 	// featureWatcherReady is a chan that the feature watcher closes
 	// to signal it is ready. Used in tests.
 	featureWatcherReady chan struct{}
@@ -469,7 +466,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
-		featureWatcherStop:   make(chan struct{}),
 		featureWatcherReady:  make(chan struct{}),
 	}
 
