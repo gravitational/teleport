@@ -470,7 +470,7 @@ func TestWithRsync(t *testing.T) {
 			if errors.As(err, &exitErr) {
 				msg += fmt.Sprintf("exit code: %d\n", exitErr.ExitCode())
 			}
-			msg += fmt.Sprintf("stderr: %s", string(stderr.Bytes()))
+			msg += fmt.Sprintf("stderr: %s", stderr.String())
 			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
