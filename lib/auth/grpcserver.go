@@ -51,51 +51,51 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	crownjewelpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
-	dbobjectpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
-	dbobjectimportrulev12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	discoveryconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	clusterconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	crownjewelv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
+	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	integrationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubewaitingcontainerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	oktav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
-	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
-	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
-	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
-	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
+	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	userpreferencesv1pb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/accessmonitoringrules/accessmonitoringrulesv1"
+	"github.com/gravitational/teleport/lib/auth/accessmonitoringrules/accessmonitoringrulesv1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
-	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
-	kubewaitingcontainerv1 "github.com/gravitational/teleport/lib/auth/kubewaitingcontainer"
-	"github.com/gravitational/teleport/lib/auth/loginrule"
+	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
+	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	notifications "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
+	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
-	"github.com/gravitational/teleport/lib/auth/userloginstate"
+	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
-	userprovisioningv2 "github.com/gravitational/teleport/lib/auth/userprovisioning/v2"
+	"github.com/gravitational/teleport/lib/auth/userprovisioning/userprovisioningv2"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
-	"github.com/gravitational/teleport/lib/auth/vnetconfig/v1"
+	"github.com/gravitational/teleport/lib/auth/vnetconfig/vnetconfigv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -895,7 +895,7 @@ func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *authpb.ClearAlertA
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*types.UserV2, error) {
-	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
+	resp, err := g.usersService.GetUser(ctx, &usersv1pb.GetUserRequest{Name: req.Name, WithSecrets: req.WithSecrets})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -907,7 +907,7 @@ func (g *GRPCServer) GetUser(ctx context.Context, req *authpb.GetUserRequest) (*
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.GetUser] instead.
 func (g *GRPCServer) GetCurrentUser(ctx context.Context, req *emptypb.Empty) (*types.UserV2, error) {
-	resp, err := g.usersService.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
+	resp, err := g.usersService.GetUser(ctx, &usersv1pb.GetUserRequest{CurrentUser: true})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1236,7 +1236,7 @@ func (g *GRPCServer) Ping(ctx context.Context, req *authpb.PingRequest) (*authpb
 // TODO(tross): DELETE IN 17.0.0
 // Deprecated: use [usersv1.Service.CreateUser] instead.
 func (g *GRPCServer) CreateUser(ctx context.Context, req *types.UserV2) (*emptypb.Empty, error) {
-	resp, err := g.usersService.CreateUser(ctx, &userspb.CreateUserRequest{User: req})
+	resp, err := g.usersService.CreateUser(ctx, &usersv1pb.CreateUserRequest{User: req})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1277,7 +1277,7 @@ func (g *GRPCServer) UpdateUser(ctx context.Context, req *types.UserV2) (*emptyp
 
 // DeleteUser deletes an existng user in a backend by username.
 func (g *GRPCServer) DeleteUser(ctx context.Context, req *authpb.DeleteUserRequest) (*emptypb.Empty, error) {
-	resp, err := g.usersService.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: req.Name})
+	resp, err := g.usersService.DeleteUser(ctx, &usersv1pb.DeleteUserRequest{Name: req.Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2288,7 +2288,7 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 
-	chalExt := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
+	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
 	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, chalExt)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5149,7 +5149,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userspb.RegisterUsersServiceServer(server, usersService)
+	usersv1pb.RegisterUsersServiceServer(server, usersService)
 
 	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5219,7 +5219,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database objectImportRule service")
 	}
-	dbobjectimportrulev12.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
+	dbobjectimportrulev1pb.RegisterDatabaseObjectImportRuleServiceServer(server, dbObjectImportRuleService)
 
 	dbObjectService, err := dbobjectv1.NewDatabaseObjectService(dbobjectv1.DatabaseObjectServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5228,7 +5228,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "creating database object service")
 	}
-	dbobjectpb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
+	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
@@ -5274,7 +5274,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustpb.RegisterTrustServiceServer(server, trust)
+	trustv1pb.RegisterTrustServiceServer(server, trust)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5291,9 +5291,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
+	oktav1pb.RegisterOktaServiceServer(server, oktaServiceServer)
 
-	integrationServiceServer, err := integrationService.NewService(&integrationService.ServiceConfig{
+	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
 		Backend:         cfg.AuthServer.Services,
 		Cache:           cfg.AuthServer.Cache,
@@ -5304,9 +5304,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+	integrationv1pb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
-	integrationAWSOIDCServiceServer, err := integrationService.NewAWSOIDCService(&integrationService.AWSOIDCServiceConfig{
+	integrationAWSOIDCServiceServer, err := integrationv1.NewAWSOIDCService(&integrationv1.AWSOIDCServiceConfig{
 		Authorizer:            cfg.Authorizer,
 		IntegrationService:    integrationServiceServer,
 		Cache:                 cfg.AuthServer,
@@ -5316,7 +5316,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	integrationpb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
+	integrationv1pb.RegisterAWSOIDCServiceServer(server, integrationAWSOIDCServiceServer)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5327,7 +5327,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	discoveryconfigpb.RegisterDiscoveryConfigServiceServer(server, discoveryConfig)
+	discoveryconfigv1pb.RegisterDiscoveryConfigServiceServer(server, discoveryConfig)
 
 	crownJewel, err := crownjewelv1.NewService(crownjewelv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5337,7 +5337,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	crownjewelpb.RegisterCrownJewelServiceServer(server, crownJewel)
+	crownjewelv1pb.RegisterCrownJewelServiceServer(server, crownJewel)
 
 	// Initialize and register the user preferences service.
 	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
@@ -5347,7 +5347,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
+	userpreferencesv1pb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
 
 	// Initialize and register the user login state service.
 	userLoginState, err := local.NewUserLoginStateService(cfg.AuthServer.bk)
@@ -5355,14 +5355,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	userLoginStateServer, err := userloginstate.NewService(userloginstate.ServiceConfig{
+	userLoginStateServer, err := userloginstatev1.NewService(userloginstatev1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
 		UserLoginStates: userLoginState,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userloginstatev1.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
+	userloginstatev1pb.RegisterUserLoginStateServiceServer(server, userLoginStateServer)
 
 	clusterConfigService, err := clusterconfigv1.NewService(clusterconfigv1.ServiceConfig{
 		Cache:      cfg.AuthServer.Cache,
@@ -5381,7 +5381,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterconfigpb.RegisterClusterConfigServiceServer(server, clusterConfigService)
+	clusterconfigv1pb.RegisterClusterConfigServiceServer(server, clusterConfigService)
 
 	// Initialize and register the Kubernetes waiting container service.
 	kubeWaitingContsServer, err := kubewaitingcontainerv1.NewService(kubewaitingcontainerv1.ServiceConfig{
@@ -5392,7 +5392,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	kubewaitingcontainerpb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
+	kubewaitingcontainerv1pb.RegisterKubeWaitingContainersServiceServer(server, kubeWaitingContsServer)
 
 	accessMonitoringRuleServer, err := accessmonitoringrulesv1.NewService(&accessmonitoringrulesv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5405,7 +5405,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	accessmonitoringrules.RegisterAccessMonitoringRulesServiceServer(server, accessMonitoringRuleServer)
 
 	// Initialize and register the notifications service.
-	notificationsServer, err := notifications.NewService(notifications.ServiceConfig{
+	notificationsServer, err := notificationsv1.NewService(notificationsv1.ServiceConfig{
 		Authorizer:              cfg.Authorizer,
 		Backend:                 cfg.AuthServer.Services,
 		Clock:                   cfg.AuthServer.GetClock(),
@@ -5415,14 +5415,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	notificationsv1.RegisterNotificationServiceServer(server, notificationsServer)
+	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
 	vnetConfigStorage, err := local.NewVnetConfigService(cfg.AuthServer.bk)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
-	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
+	vnetConfigServiceServer := vnetconfigv1.NewService(vnetConfigStorage, cfg.Authorizer)
+	vnetv1pb.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
 	staticHostUserServer, err := userprovisioningv2.NewService(userprovisioningv2.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5433,13 +5433,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	userprovisioningpb.RegisterStaticHostUsersServiceServer(server, staticHostUserServer)
+	userprovisioningv2pb.RegisterStaticHostUsersServiceServer(server, staticHostUserServer)
 
 	// Only register the service if this is an open source build. Enterprise builds
 	// register the actual service via an auth plugin, if we register here then all
 	// Enterprise builds would fail with a duplicate service registered error.
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
-		loginrulepb.RegisterLoginRuleServiceServer(server, loginrule.NotImplementedService{})
+		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
 	}
 
 	return authServer, nil
