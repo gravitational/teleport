@@ -340,6 +340,12 @@ auth_service:
     keep_alive_interval: 5m
     keep_alive_count_max: 3
 
+    # Specifies the cluster wide dial timeout used for establishing SSH connections
+    # via tsh ssh and the Web UI. The default value of 30 seconds should suffice for
+    # most use cases. However, if there are multiple network hops to reach the target
+    # host causing dial timeout failures, this value can be increased as needed.
+    ssh_dial_timeout: 30s
+
     # Determines the internal session control timeout cluster-wide. This value
     # will be used with enterprise max_connections and max_sessions. It's
     # unlikely that you'll need to change this.
