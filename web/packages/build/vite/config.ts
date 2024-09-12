@@ -162,6 +162,11 @@ export function createViteConfig(
           changeOrigin: true,
           secure: false,
         },
+        '/enterprise': {
+          target: `https://${target}`,
+          changeOrigin: true,
+          secure: false,
+        },
       };
       if (process.env.VITE_HTTPS_KEY && process.env.VITE_HTTPS_CERT) {
         config.server.https = {
