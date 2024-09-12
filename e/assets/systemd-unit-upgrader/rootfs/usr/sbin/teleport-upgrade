@@ -11,7 +11,7 @@ conf_dir="${TELEPORT_UPGRADE_CONFIG:-/etc/teleport-upgrade.d}"
 # state_dir contains temporary state values
 state_dir="${TELEPORT_UPGRADE_STATE:-/var/lib/teleport-upgrade}"
 
-# agent conf is the path to teleport.yaml. Is it overidden in tests.
+# agent conf is the path to teleport.yaml. Is it overridden in tests.
 agent_conf="${TELEPORT_AGENT_CONFIG:-/etc/teleport.yaml}"
 
 # note: performing a dry run differs from running with the 'nop' installer
@@ -520,9 +520,13 @@ do_upgrade() {
             fi
 
             NEEDRESTART_SUSPEND=true DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades --allow-change-held-packages "$package_name=$target_version"
-            ensure_version_lock || true
-            do_reload_or_restart
-            return 0
+            install_status=$?
+
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
             ;;
         yum)
             # yum version strings have '-' replaced with '_'
@@ -541,6 +545,7 @@ do_upgrade() {
 
             # attempt installation
             yum install -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
+            install_status=$?
 
             # attempt to detect post-install version
             if ! post_install_version="$(get_current_version)"; then
@@ -554,10 +559,13 @@ do_upgrade() {
                 log_info "install may have been ineffectual (post_install_version=$post_install_version)."
                 log_info "attempting downgrade command variant..."
                 yum downgrade  -y --disablerepo="*" --enablerepo="$repository_name" --disableexcludes="$repository_name" "$package_name-$yum_target_version"
+                install_status=$?
             fi
-            ensure_version_lock || true
-            do_reload_or_restart
-            return 0
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
             ;;
         zypper)
             log_info "attempting zypper install $package_name-$target_version"
@@ -571,9 +579,13 @@ do_upgrade() {
 
             zypper removelock "$package_name" || true
             zypper install --oldpackage --no-confirm --repo="$repository_name" "$package_name-$target_version"
-            ensure_version_lock || true
-            do_reload_or_restart
-            return 0
+            install_status=$?
+
+            if [ $install_status -eq 0 ]; then
+                ensure_version_lock || true
+                do_reload_or_restart
+            fi
+            return $install_status
             ;;
         *)
             log_warn "unsupported installer kind: $installer_kind (expected one apt, yum, or nop)"
