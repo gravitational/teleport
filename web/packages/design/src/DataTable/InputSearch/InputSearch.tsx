@@ -54,7 +54,6 @@ export default function InputSearch({
           px={3}
           defaultValue={searchValue}
           name={searchInputName}
-          autoFocus
         />
         <ChildWrapperBackground>
           <ChildWrapper>{children}</ChildWrapper>
