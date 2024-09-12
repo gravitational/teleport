@@ -196,6 +196,13 @@ func (a *TestServer) Shutdown(ctx context.Context) error {
 	)
 }
 
+func (a *TestServer) Close() error {
+	return trace.NewAggregate(
+		a.TLS.Close(),
+		a.AuthServer.Close(),
+	)
+}
+
 // WithClock is a functional server option that sets the server's clock
 func WithClock(clock clockwork.Clock) ServerOption {
 	return func(s *Server) error {

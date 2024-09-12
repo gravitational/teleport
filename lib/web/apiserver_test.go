@@ -7899,7 +7899,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, server.Shutdown(ctx)) })
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
 
 	// use a sync recording mode because the disk-based uploader
 	// that runs in the background introduces races with test cleanup
