@@ -1,5 +1,19 @@
 # Changelog
 
+## 16.3.0 (09/11/2024)
+
+### Out-of-band user creation
+
+Cluster administrators are now able to configure Teleport's `ssh_service` to
+ensure that certain host users exist on the machine without the need to start
+an SSH session. [#46498](https://github.com/gravitational/teleport/pull/46498)
+
+### Other improvements and fixes
+
+* Allow the cluster wide ssh dial timeout to be set via `auth_service.ssh_dial_timeout` in the Teleport config file. [#46507](https://github.com/gravitational/teleport/pull/46507)
+* Fixed an issue preventing session joining while host user creation was in use. [#46501](https://github.com/gravitational/teleport/pull/46501)
+* Added tbot Helm chart for deploying a Machine ID Bot into a Teleport cluster. [#46373](https://github.com/gravitational/teleport/pull/46373)
+
 ## 16.2.2 (09/10/24)
 
 * Fixed an issue that prevented the Firestore backend from reading existing data. [#46433](https://github.com/gravitational/teleport/issues/46433)
