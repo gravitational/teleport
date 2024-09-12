@@ -48,17 +48,18 @@ jobs:
     env:
       CHART_SRC: ${{ github.workspace }}/teleport/examples/chart
       CHART_SUBDIRECTORIES: >-
-        teleport-cluster
-        teleport-kube-agent
-        teleport-cluster/charts/teleport-operator
         access/discord
-        access/pagerduty
-        access/msteams
-        access/jira
-        access/slack
-        access/mattermost
         access/email
+        access/jira
+        access/mattermost
+        access/msteams
+        access/pagerduty
+        access/slack
         event-handler
+        tbot
+        teleport-cluster
+        teleport-cluster/charts/teleport-operator
+        teleport-kube-agent
     steps:
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
