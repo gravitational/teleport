@@ -19,8 +19,6 @@
 package web
 
 import (
-	"context"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
 )
@@ -48,7 +46,7 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 func (h *Handler) startFeatureWatcher() {
 	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
 	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
-	ctx := context.Background()
+	ctx := h.cfg.Context
 
 	// close ready channel to signal it started the main loop
 	if h.featureWatcherReady != nil {
@@ -68,14 +66,9 @@ func (h *Handler) startFeatureWatcher() {
 
 			h.SetClusterFeatures(*pingResponse.ServerFeatures)
 			h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
-		case <-h.featureWatcherStop:
+		case <-ctx.Done():
 			h.log.Info("Feature service has stopped")
 			return
 		}
 	}
-}
-
-// stopFeatureWatcher stops the feature watcher
-func (h *Handler) stopFeatureWatcher() {
-	close(h.featureWatcherStop)
 }

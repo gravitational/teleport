@@ -62,16 +62,17 @@ func TestFeaturesWatcher(t *testing.T) {
 		AccessRequests: &proto.AccessRequestsFeature{},
 	}}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	handler := &Handler{
 		cfg: Config{
 			FeatureWatchInterval: 100 * time.Millisecond,
 			ProxyClient:          mockClient,
+			Context:              ctx,
 		},
-		clock:              clock,
-		clusterFeatures:    proto.Features{},
-		featureWatcherStop: make(chan struct{}),
-		log:                newPackageLogger(),
-		logger:             slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
+		clock:           clock,
+		clusterFeatures: proto.Features{},
+		log:             newPackageLogger(),
+		logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 	}
 
 	// before running the watcher, features should match the value passed to the handler
@@ -132,7 +133,7 @@ func TestFeaturesWatcher(t *testing.T) {
 	requireFeatures(t, clock, *expected, handler.GetClusterFeatures)
 
 	// stop watcher and ensure it stops updating features
-	handler.stopFeatureWatcher()
+	cancel()
 	features = proto.Features{
 		Kubernetes:     !features.Kubernetes,
 		App:            !features.App,
@@ -142,9 +143,9 @@ func TestFeaturesWatcher(t *testing.T) {
 	}
 	entitlements.BackfillFeatures(&features)
 	mockClient.setFeatures(features)
-	expected = utils.CloneProtoMsg(&features)
+	notExpected := utils.CloneProtoMsg(&features)
 	// assert the handler never get these last features as the watcher is stopped
-	neverFeatures(t, clock, *expected, handler.GetClusterFeatures)
+	neverFeatures(t, clock, *notExpected, handler.GetClusterFeatures)
 }
 
 // requireFeatures is a helper function that advances the clock, then
