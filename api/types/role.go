@@ -1998,55 +1998,15 @@ func (h CreateHostUserMode) encode() (string, error) {
 }
 
 func (h *CreateHostUserMode) decode(val any) error {
-	var valS string
-	switch val := val.(type) {
-	case int32:
-		return trace.Wrap(h.setFromEnum(val))
-	case int64:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case int:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case float64:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case float32:
-		return trace.Wrap(h.setFromEnum(int32(val)))
-	case string:
-		valS = val
-	case bool:
-		if val {
-			return trace.BadParameter("create_host_user_mode cannot be true, got %v", val)
-		}
-		valS = createHostUserModeOffString
-	default:
-		return trace.BadParameter("bad value type %T, expected string or int", val)
-	}
-
-	switch valS {
-	case "":
-		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
-	case createHostUserModeOffString:
-		*h = CreateHostUserMode_HOST_USER_MODE_OFF
-	case createHostUserModeKeepString:
-		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
-	case createHostUserModeInsecureDropString, createHostUserModeDropString:
-		*h = CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP
-	default:
-		return trace.BadParameter("invalid host user mode %v", val)
-	}
-	return nil
-}
-
-// setFromEnum sets the value from enum value as int32.
-func (h *CreateHostUserMode) setFromEnum(val int32) error {
-	// Map drop to insecure-drop
-	if val == int32(CreateHostUserMode_HOST_USER_MODE_DROP) {
-		val = int32(CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP)
-	}
-	if _, ok := CreateHostUserMode_name[val]; !ok {
-		return trace.BadParameter("invalid host user mode %v", val)
-	}
-	*h = CreateHostUserMode(val)
-	return nil
+	err := decodeEnum(h, val, map[interface{}]CreateHostUserMode{
+		"":                                   CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED,
+		false:                                CreateHostUserMode_HOST_USER_MODE_OFF,
+		createHostUserModeOffString:          CreateHostUserMode_HOST_USER_MODE_OFF,
+		createHostUserModeKeepString:         CreateHostUserMode_HOST_USER_MODE_KEEP,
+		createHostUserModeInsecureDropString: CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+		createHostUserModeDropString:         CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+	}, CreateHostUserMode_name)
+	return trace.Wrap(err, "failed to decode host user mode")
 }
 
 // UnmarshalYAML supports parsing CreateHostUserMode from string.
@@ -2114,28 +2074,13 @@ func (h CreateDatabaseUserMode) encode() (string, error) {
 }
 
 func (h *CreateDatabaseUserMode) decode(val any) error {
-	var str string
-	switch val := val.(type) {
-	case string:
-		str = val
-	default:
-		return trace.BadParameter("bad value type %T, expected string", val)
-	}
-
-	switch str {
-	case "":
-		*h = CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED
-	case createDatabaseUserModeOffString:
-		*h = CreateDatabaseUserMode_DB_USER_MODE_OFF
-	case createDatabaseUserModeKeepString:
-		*h = CreateDatabaseUserMode_DB_USER_MODE_KEEP
-	case createDatabaseUserModeBestEffortDropString:
-		*h = CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
-	default:
-		return trace.BadParameter("invalid database user mode %v", val)
-	}
-
-	return nil
+	err := decodeEnum(h, val, map[interface{}]CreateDatabaseUserMode{
+		"":                               CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED,
+		createDatabaseUserModeOffString:  CreateDatabaseUserMode_DB_USER_MODE_OFF,
+		createDatabaseUserModeKeepString: CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		createDatabaseUserModeBestEffortDropString: CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+	}, CreateDatabaseUserMode_name)
+	return trace.Wrap(err, "failed to decode require mfa type")
 }
 
 // UnmarshalYAML supports parsing CreateDatabaseUserMode from string.
