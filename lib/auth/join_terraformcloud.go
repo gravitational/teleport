@@ -51,13 +51,11 @@ func (a *Server) checkTerraformCloudJoinRequest(ctx context.Context, req *types.
 	}
 
 	hostnameOverride := token.Spec.TerraformCloud.Hostname
-	if hostnameOverride != "" {
-		if modules.GetModules().BuildType() != modules.BuildEnterprise {
-			return nil, fmt.Errorf(
-				"terraform_cloud joining for Terraform Enterprise: %w",
-				ErrRequiresEnterprise,
-			)
-		}
+	if hostnameOverride != "" && modules.GetModules().BuildType() != modules.BuildEnterprise{
+		return nil, fmt.Errorf(
+			"terraform_cloud joining for Terraform Enterprise: %w",
+			ErrRequiresEnterprise,
+		)
 	}
 
 	aud := token.Spec.TerraformCloud.Audience
