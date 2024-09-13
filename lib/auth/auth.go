@@ -82,7 +82,6 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -148,8 +147,9 @@ const (
 	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
 		"Reach out for unlimited desktops with Teleport Enterprise."
 
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
+	OSSDesktopsAlertLink     = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsAlertLinkText = "Contact Sales"
+	OSSDesktopsLimit         = 5
 )
 
 const (
@@ -394,8 +394,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 			return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 		}
-	} else {
-		native.PrecomputeKeys()
 	}
 	keyStore, err := keystore.NewManager(context.Background(), &cfg.KeyStoreConfig, keystoreOpts)
 	if err != nil {
@@ -1032,6 +1030,10 @@ type Server struct {
 	// directly by [Server].
 	// Used for testing.
 	bcryptCostOverride *int
+
+	// GithubUserAndTeamsOverride overrides the user and teams that would
+	// normally be fetched from the GitHub API. Used for testing.
+	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1391,7 +1393,7 @@ func (a *Server) runPeriodicOperations() {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.Chan():
-			err := a.autoRotateCertAuthorities(ctx)
+			err := a.AutoRotateCertAuthorities(ctx)
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -1945,7 +1947,6 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 func (a *Server) generateHostCert(
 	ctx context.Context, p services.HostCertParams,
 ) ([]byte, error) {
-
 	readOnlyAuthPref, err := a.GetReadOnlyAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4614,9 +4615,11 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats: true,
-			AppHeartbeats:  true,
-			AppCleanup:     true,
+			NodeHeartbeats:     true,
+			AppHeartbeats:      true,
+			AppCleanup:         true,
+			DatabaseHeartbeats: true,
+			DatabaseCleanup:    true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -5440,7 +5443,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"roles":                      strings.Join(req.GetRoles(), ","),
 				"assumable-time":             assumableTime,
 			},
-			Expires: timestamppb.New(req.Expiry())},
+			Expires: timestamppb.New(req.Expiry()),
+		},
 	}
 }
 
@@ -5711,7 +5715,8 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopsAlertLink),
+		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
 		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)
@@ -6711,7 +6716,6 @@ func (a *Server) ValidateMFAAuthResponse(
 	user string,
 	requiredExtensions *mfav1.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
-
 	authData, validateErr := a.validateMFAAuthResponseInternal(ctx, resp, user, requiredExtensions)
 	// validateErr handled after audit.
 

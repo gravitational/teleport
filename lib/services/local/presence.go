@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"sort"
 	"time"
@@ -80,7 +79,7 @@ func (s *PresenceService) GetNamespaces() ([]types.Namespace, error) {
 	}
 	out := make([]types.Namespace, 0, len(result.Items))
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 			continue
 		}
 		ns, err := services.UnmarshalNamespace(
@@ -1250,7 +1249,7 @@ func (s *PresenceService) GetIdentityCenterAccount(ctx context.Context, opts ...
 	}
 	acs := make([]*identitycenterv1.Account, len(result.Items))
 	for i, item := range result.Items {
-		serviceProvider, err := services.UnmarshalIdentityCenterAccount(
+		serviceProvider, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
 			item.Value,
 			services.AddOptions(opts,
 				services.WithExpires(item.Expires),
@@ -1711,7 +1710,7 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 }
 
 func backendItemToAWSIAMICAccount(item backend.Item) (types.ResourceWithLabels, error) {
-	awsicac, err := services.UnmarshalIdentityCenterAccount(
+	awsicac, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
 		item.Value,
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),

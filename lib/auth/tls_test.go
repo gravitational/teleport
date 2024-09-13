@@ -170,11 +170,21 @@ func TestRemoteBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	// re initialize client with trust established.
-	remoteProxy, err = remoteServer.NewRemoteClient(
-		TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
-	require.NoError(t, err)
+	//
+	// not using Eventually(WithT) because almost all the time the first try
+	// will work and Eventually will always wait for the interval to happen, and
+	// there's also no reason to retry if somehow we fail to build the client
+	for range 50 {
+		remoteProxy, err = remoteServer.NewRemoteClient(
+			TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
+		require.NoError(t, err)
 
-	_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		_, err = remoteProxy.GetNodes(ctx, apidefaults.Namespace)
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	require.NoError(t, err)
 
 	// remote auth server will get rejected even with established trust
@@ -428,7 +438,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -448,7 +458,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -471,7 +481,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// complete rotation - advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -530,7 +540,7 @@ func TestAutoFallback(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -2915,7 +2925,6 @@ func TestGenerateCerts(t *testing.T) {
 				}
 			})
 		}
-
 	})
 }
 

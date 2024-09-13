@@ -1,6 +1,7 @@
 package local
 
 import (
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -22,7 +23,8 @@ func (p *identityCenterAccountParser) parse(event backend.Event) (types.Resource
 	case types.OpDelete:
 		return resourceHeader(event, types.KindProvisioningState, types.V1, 0)
 	case types.OpPut:
-		r, err := services.UnmarshalIdentityCenterAccount(event.Item.Value,
+		r, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
+			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)

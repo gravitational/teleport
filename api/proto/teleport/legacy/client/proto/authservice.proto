@@ -2494,6 +2494,8 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+  // DatabaseServer is a complete db server spec to be heartbeated.
+  types.DatabaseServerV3 DatabaseServer = 3;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

@@ -67,12 +67,14 @@ type reconcileIntermeditateResult struct {
 	upsert, delete *accessgraphv1alpha.AWSResourceList
 }
 
+func instancesUniqueKeyFunc(instance *accessgraphv1alpha.AWSInstanceV1) string {
+	return fmt.Sprintf("%s;%s", instance.InstanceId, instance.Region)
+}
+
 func reconcileInstances(old []*accessgraphv1alpha.AWSInstanceV1, new []*accessgraphv1alpha.AWSInstanceV1) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(instance *accessgraphv1alpha.AWSInstanceV1) string {
-		return fmt.Sprintf("%s;%s", instance.InstanceId, instance.Region)
-	})
+	toAdd, toRemove := reconcile(old, new, instancesUniqueKeyFunc)
 
 	for _, instance := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -91,15 +93,17 @@ func reconcileInstances(old []*accessgraphv1alpha.AWSInstanceV1, new []*accessgr
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func usersUniqueKeyFunc(user *accessgraphv1alpha.AWSUserV1) string {
+	return fmt.Sprintf("%s;%s", user.AccountId, user.Arn)
+}
+
 func reconcileUsers(
 	old []*accessgraphv1alpha.AWSUserV1,
 	new []*accessgraphv1alpha.AWSUserV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(user *accessgraphv1alpha.AWSUserV1) string {
-		return fmt.Sprintf("%s;%s", user.AccountId, user.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, usersUniqueKeyFunc)
 	for _, user := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_User{
@@ -117,15 +121,17 @@ func reconcileUsers(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func usersInlinePolicyUniqueKeyFunc(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
+	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetUser().GetUserName(), policy.PolicyName)
+}
+
 func reconcileUserInlinePolicies(
 	old []*accessgraphv1alpha.AWSUserInlinePolicyV1,
 	new []*accessgraphv1alpha.AWSUserInlinePolicyV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetUser().GetUserName(), policy.PolicyName)
-	})
+	toAdd, toRemove := reconcile(old, new, usersInlinePolicyUniqueKeyFunc)
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_UserInlinePolicy{
@@ -141,6 +147,10 @@ func reconcileUserInlinePolicies(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func usersAttachedPoliciesUniqueKeyFunc(policy *accessgraphv1alpha.AWSUserAttachedPolicies) string {
+	return fmt.Sprintf("%s;%s", policy.AccountId, policy.User.Arn)
 }
 
 func reconcileUserAttachedPolicies(
@@ -149,9 +159,7 @@ func reconcileUserAttachedPolicies(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSUserAttachedPolicies) string {
-		return fmt.Sprintf("%s;%s", policy.AccountId, policy.User.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, usersAttachedPoliciesUniqueKeyFunc)
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_UserAttachedPolicies{
@@ -167,6 +175,10 @@ func reconcileUserAttachedPolicies(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func userGroupUniqueKeyFunc(group *accessgraphv1alpha.AWSUserGroupsV1) string {
+	return fmt.Sprintf("%s;%s", group.User.AccountId, group.User.Arn)
 }
 
 func reconcileUserGroups(
@@ -175,9 +187,7 @@ func reconcileUserGroups(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(group *accessgraphv1alpha.AWSUserGroupsV1) string {
-		return fmt.Sprintf("%s;%s", group.User.AccountId, group.User.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, userGroupUniqueKeyFunc)
 	for _, group := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_UserGroups{
@@ -193,6 +203,10 @@ func reconcileUserGroups(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func groupUniqueKeyFunc(group *accessgraphv1alpha.AWSGroupV1) string {
+	return fmt.Sprintf("%s;%s", group.AccountId, group.Arn)
 }
 
 func reconcileGroups(
@@ -201,9 +215,7 @@ func reconcileGroups(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(group *accessgraphv1alpha.AWSGroupV1) string {
-		return fmt.Sprintf("%s;%s", group.AccountId, group.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, groupUniqueKeyFunc)
 	for _, group := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_Group{
@@ -221,15 +233,16 @@ func reconcileGroups(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func groupInlinePolicyUniqueKeyFunc(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
+	return fmt.Sprintf("%s;%s;%s", policy.Group.Name, policy.PolicyName, policy.AccountId)
+}
 func reconcileGroupInlinePolicies(
 	old []*accessgraphv1alpha.AWSGroupInlinePolicyV1,
 	new []*accessgraphv1alpha.AWSGroupInlinePolicyV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s", policy.Group.Name, policy.PolicyName, policy.AccountId)
-	})
+	toAdd, toRemove := reconcile(old, new, groupInlinePolicyUniqueKeyFunc)
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_GroupInlinePolicy{
@@ -245,6 +258,10 @@ func reconcileGroupInlinePolicies(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func groupAttachedPolicyUniqueKeyFunc(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) string {
+	return fmt.Sprintf("%s;%s", policy.Group.GetAccountId(), policy.Group.Arn)
 }
 
 func reconcileGroupAttachedPolicies(
@@ -253,9 +270,7 @@ func reconcileGroupAttachedPolicies(
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) string {
-		return fmt.Sprintf("%s;%s", policy.Group.GetAccountId(), policy.Group.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, groupAttachedPolicyUniqueKeyFunc)
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_GroupAttachedPolicies{
@@ -273,14 +288,16 @@ func reconcileGroupAttachedPolicies(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func policyUniqueKeyFunc(policy *accessgraphv1alpha.AWSPolicyV1) string {
+	return fmt.Sprintf("%s;%s", policy.AccountId, policy.Arn)
+}
+
 func reconcilePolicies(
 	old []*accessgraphv1alpha.AWSPolicyV1,
 	new []*accessgraphv1alpha.AWSPolicyV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSPolicyV1) string {
-		return fmt.Sprintf("%s;%s", policy.AccountId, policy.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, policyUniqueKeyFunc)
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
 			Resource: &accessgraphv1alpha.AWSResource_Policy{
@@ -299,6 +316,9 @@ func reconcilePolicies(
 }
 
 func reconcile[T protoreflect.ProtoMessage](old []T, new []T, key func(T) string) (upsert, delete []T) {
+	// deduplicateSlice removes duplicates from a slice of T.
+	new = deduplicateSlice(new, key)
+
 	if len(old) == 0 {
 		return new, nil
 	}
@@ -329,12 +349,14 @@ func reconcile[T protoreflect.ProtoMessage](old []T, new []T, key func(T) string
 	return upsert, delete
 }
 
+func s3UniqueKeyFunc(s3 *accessgraphv1alpha.AWSS3BucketV1) string {
+	return fmt.Sprintf("%s;%s", s3.AccountId, s3.Name)
+}
+
 func reconcileS3(old []*accessgraphv1alpha.AWSS3BucketV1, new []*accessgraphv1alpha.AWSS3BucketV1) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
 
-	toAdd, toRemove := reconcile(old, new, func(s3 *accessgraphv1alpha.AWSS3BucketV1) string {
-		return fmt.Sprintf("%s;%s", s3.AccountId, s3.Name)
-	})
+	toAdd, toRemove := reconcile(old, new, s3UniqueKeyFunc)
 
 	for _, s3 := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -353,11 +375,13 @@ func reconcileS3(old []*accessgraphv1alpha.AWSS3BucketV1, new []*accessgraphv1al
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func roleUniqueKeyFunc(role *accessgraphv1alpha.AWSRoleV1) string {
+	return fmt.Sprintf("%s;%s", role.AccountId, role.Arn)
+}
+
 func reconcileRoles(old []*accessgraphv1alpha.AWSRoleV1, new []*accessgraphv1alpha.AWSRoleV1) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(role *accessgraphv1alpha.AWSRoleV1) string {
-		return fmt.Sprintf("%s;%s", role.AccountId, role.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, roleUniqueKeyFunc)
 
 	for _, role := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -376,14 +400,16 @@ func reconcileRoles(old []*accessgraphv1alpha.AWSRoleV1, new []*accessgraphv1alp
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func roleInlinePolicyUniqueKeyFunc(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
+	return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetAwsRole().Arn, policy.PolicyName)
+}
+
 func reconcileRoleInlinePolicies(
 	old []*accessgraphv1alpha.AWSRoleInlinePolicyV1,
 	new []*accessgraphv1alpha.AWSRoleInlinePolicyV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s", policy.AccountId, policy.GetAwsRole().Arn, policy.PolicyName)
-	})
+	toAdd, toRemove := reconcile(old, new, roleInlinePolicyUniqueKeyFunc)
 
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -400,6 +426,10 @@ func reconcileRoleInlinePolicies(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func roleAttachedPoliciesUniqueKeyFunc(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
+	return fmt.Sprintf("%s;%s", policy.GetAwsRole().GetArn(), policy.AccountId)
 }
 
 func reconcileRoleAttachedPolicies(
@@ -407,9 +437,7 @@ func reconcileRoleAttachedPolicies(
 	new []*accessgraphv1alpha.AWSRoleAttachedPolicies,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
-		return fmt.Sprintf("%s;%s", policy.GetAwsRole().GetArn(), policy.AccountId)
-	})
+	toAdd, toRemove := reconcile(old, new, roleAttachedPoliciesUniqueKeyFunc)
 
 	for _, policy := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -428,14 +456,15 @@ func reconcileRoleAttachedPolicies(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func instanceProfileUniqueKeyFunc(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
+	return fmt.Sprintf("%s;%s", profile.AccountId, profile.InstanceProfileId)
+}
 func reconcileInstanceProfiles(
 	old []*accessgraphv1alpha.AWSInstanceProfileV1,
 	new []*accessgraphv1alpha.AWSInstanceProfileV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
-		return fmt.Sprintf("%s;%s", profile.AccountId, profile.InstanceProfileId)
-	})
+	toAdd, toRemove := reconcile(old, new, instanceProfileUniqueKeyFunc)
 
 	for _, profile := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -454,14 +483,16 @@ func reconcileInstanceProfiles(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func eksClusterUniqueKeyFunc(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
+	return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
+}
+
 func reconcileEKSClusters(
 	old []*accessgraphv1alpha.AWSEKSClusterV1,
 	new []*accessgraphv1alpha.AWSEKSClusterV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
-		return fmt.Sprintf("%s;%s", cluster.AccountId, cluster.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, eksClusterUniqueKeyFunc)
 
 	for _, cluster := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -480,14 +511,16 @@ func reconcileEKSClusters(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func associatedAccessPolicyUniqueKeyFunc(profile *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) string {
+	return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.PolicyArn)
+}
+
 func reconcileAssociatedAccessPolicy(
 	old []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
 	new []*accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) string {
-		return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.PolicyArn)
-	})
+	toAdd, toRemove := reconcile(old, new, associatedAccessPolicyUniqueKeyFunc)
 
 	for _, profile := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -506,14 +539,15 @@ func reconcileAssociatedAccessPolicy(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func accessEntryUniqueKeyFunc(profile *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string {
+	return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.AccessEntryArn)
+}
 func reconcileAccessEntry(
 	old []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
 	new []*accessgraphv1alpha.AWSEKSClusterAccessEntryV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string {
-		return fmt.Sprintf("%s;%s;%s;%s", profile.AccountId, profile.Cluster.Arn, profile.PrincipalArn, profile.AccessEntryArn)
-	})
+	toAdd, toRemove := reconcile(old, new, accessEntryUniqueKeyFunc)
 
 	for _, profile := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -530,6 +564,10 @@ func reconcileAccessEntry(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func rdsUniqueKeyFunc(profile *accessgraphv1alpha.AWSRDSDatabaseV1) string {
+	return fmt.Sprintf("%s;%s", profile.AccountId, profile.Arn)
 }
 
 func reconcileAWSRDS(
@@ -537,9 +575,7 @@ func reconcileAWSRDS(
 	new []*accessgraphv1alpha.AWSRDSDatabaseV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(profile *accessgraphv1alpha.AWSRDSDatabaseV1) string {
-		return fmt.Sprintf("%s;%s", profile.AccountId, profile.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, rdsUniqueKeyFunc)
 
 	for _, profile := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -558,14 +594,16 @@ func reconcileAWSRDS(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func samlUniqueKeyFunc(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
+	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
+}
+
 func reconcileSAMLProviders(
 	old []*accessgraphv1alpha.AWSSAMLProviderV1,
 	new []*accessgraphv1alpha.AWSSAMLProviderV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
-		return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, samlUniqueKeyFunc)
 
 	for _, provider := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -584,14 +622,15 @@ func reconcileSAMLProviders(
 	return &reconcileIntermeditateResult{upsert, delete}
 }
 
+func oidcUniqueKeyFunc(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
+	return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
+}
 func reconcileOIDCProviders(
 	old []*accessgraphv1alpha.AWSOIDCProviderV1,
 	new []*accessgraphv1alpha.AWSOIDCProviderV1,
 ) *reconcileIntermeditateResult {
 	upsert, delete := &accessgraphv1alpha.AWSResourceList{}, &accessgraphv1alpha.AWSResourceList{}
-	toAdd, toRemove := reconcile(old, new, func(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
-		return fmt.Sprintf("%s;%s", provider.AccountId, provider.Arn)
-	})
+	toAdd, toRemove := reconcile(old, new, oidcUniqueKeyFunc)
 
 	for _, provider := range toAdd {
 		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.AWSResource{
@@ -608,4 +647,17 @@ func reconcileOIDCProviders(
 		})
 	}
 	return &reconcileIntermeditateResult{upsert, delete}
+}
+
+func deduplicateSlice[T any](s []T, key func(T) string) []T {
+	out := make([]T, 0, len(s))
+	seen := make(map[string]struct{})
+	for _, v := range s {
+		if _, ok := seen[key(v)]; ok {
+			continue
+		}
+		seen[key(v)] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }

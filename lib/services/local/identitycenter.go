@@ -96,32 +96,36 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err)
 	}
 
-	accountsSvc, err := generic.NewServiceWrapper(
-		cfg.Backend,
-		types.KindIdentityCenterAccount,
-		awsAccountPrefix,
-		services.MarshalIdentityCenterAccount,
-		services.UnmarshalIdentityCenterAccount)
+	accountsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.Account]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterAccount,
+		BackendPrefix: awsAccountPrefix,
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.Account],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.Account],
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating accounts service")
 	}
 
-	permissionSetSvc, err := generic.NewServiceWrapper(
-		cfg.Backend,
-		types.KindIdentityCenterPermissionSet,
-		awsPermissionSetPrefix,
-		services.MarshalPermissionSet,
-		services.UnmarshalPermissionSet)
+	permissionSetSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PermissionSet]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterPermissionSet,
+		BackendPrefix: awsPermissionSetPrefix,
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.PermissionSet],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.PermissionSet],
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating permission sets service")
 	}
 
-	assignmentsSvc, err := generic.NewServiceWrapper(
-		cfg.Backend,
-		types.KindIdentityCenterPrincipalAssignment,
-		awsPrincipalAssignmentPrefix,
-		services.MarshalPrincipalAssignment,
-		services.UnmarshalPrincipalAssignment)
+	assignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterPrincipalAssignment,
+		BackendPrefix: awsPrincipalAssignmentPrefix,
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.PrincipalAssignment],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.PrincipalAssignment],
+	})
+
 	if err != nil {
 		return nil, trace.Wrap(err, "creating assignments service")
 	}

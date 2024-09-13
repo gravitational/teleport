@@ -91,16 +91,6 @@ type IdentityCenterPrincipalAssignments interface {
 	DeleteAllPrincipalAssignments(context.Context) error
 }
 
-// MarshalPrincipalAssignment marshals the assignment state object into a JSON byte array.
-func MarshalPrincipalAssignment(object *identitycenterv1.PrincipalAssignment, opts ...MarshalOption) ([]byte, error) {
-	return MarshalProtoResource(object, opts...)
-}
-
-// UnmarshalPrincipalAssignment un-marshals the User State  object from a JSON byte array.
-func UnmarshalPrincipalAssignment(data []byte, opts ...MarshalOption) (*identitycenterv1.PrincipalAssignment, error) {
-	return UnmarshalProtoResource[*identitycenterv1.PrincipalAssignment](data, opts...)
-}
-
 type PermissionSetID string
 
 type IdentityCenterPermissionSets interface {

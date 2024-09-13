@@ -66,7 +66,7 @@ import (
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -90,10 +90,10 @@ import (
 	notifications "github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
-	statichostuserv1 "github.com/gravitational/teleport/lib/auth/statichostuser"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
+	userprovisioningv2 "github.com/gravitational/teleport/lib/auth/userprovisioning/v2"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/auth/vnetconfig/v1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -5432,8 +5432,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	vnetConfigServiceServer := vnetconfig.NewService(vnetConfigStorage, cfg.Authorizer)
 	vnet.RegisterVnetConfigServiceServer(server, vnetConfigServiceServer)
 
-	staticHostUserServer, err := statichostuserv1.NewService(statichostuserv1.ServiceConfig{
+	staticHostUserServer, err := userprovisioningv2.NewService(userprovisioningv2.ServiceConfig{
 		Authorizer: cfg.Authorizer,
+		Emitter:    cfg.Emitter,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
 	})

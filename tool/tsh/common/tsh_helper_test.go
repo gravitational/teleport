@@ -89,6 +89,9 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 			},
 			ClusterName:      "root",
 			SessionRecording: "node-sync",
+			Authentication: &config.AuthenticationConfig{
+				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+			},
 		},
 	}
 

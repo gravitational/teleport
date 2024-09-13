@@ -20,7 +20,6 @@
 package etcdbk
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -797,7 +796,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -1108,7 +1107,7 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 }
 
 func (b *EtcdBackend) trimPrefix(in backend.Key) backend.Key {
-	return bytes.TrimPrefix(in, backend.Key(b.cfg.Key))
+	return in.TrimPrefix(backend.Key(b.cfg.Key))
 }
 
 func (b *EtcdBackend) prependPrefix(in backend.Key) string {

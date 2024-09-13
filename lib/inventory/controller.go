@@ -43,7 +43,8 @@ type Auth interface {
 	UpsertNode(context.Context, types.Server) (*types.KeepAlive, error)
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
-
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
+	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
 	KeepAliveServer(context.Context, types.KeepAlive) error
 
 	UpsertInstance(ctx context.Context, instance types.Instance) error
@@ -70,6 +71,16 @@ const (
 
 	appUpsertRetryOk  testEvent = "app-upsert-retry-ok"
 	appUpsertRetryErr testEvent = "app-upsert-retry-err"
+
+	dbKeepAliveOk  testEvent = "db-keep-alive-ok"
+	dbKeepAliveErr testEvent = "db-keep-alive-err"
+	dbKeepAliveDel testEvent = "db-keep-alive-del"
+
+	dbUpsertOk  testEvent = "db-upsert-ok"
+	dbUpsertErr testEvent = "db-upsert-err"
+
+	dbUpsertRetryOk  testEvent = "db-upsert-retry-ok"
+	dbUpsertRetryErr testEvent = "db-upsert-retry-err"
 
 	instanceHeartbeatOk  testEvent = "instance-heartbeat-ok"
 	instanceHeartbeatErr testEvent = "instance-heartbeat-err"
@@ -321,10 +332,19 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 
 	defer func() {
 		if handle.goodbye.GetDeleteResources() {
-			log.WithField("apps", len(handle.appServers)).Debug("Cleaning up resources in response to instance termination")
+			log.WithFields(log.Fields{
+				"apps": len(handle.appServers),
+				"dbs":  len(handle.databaseServers)},
+			).Debug("Cleaning up resources in response to instance termination")
 			for _, app := range handle.appServers {
 				if err := c.auth.DeleteApplicationServer(c.closeContext, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
 					log.Warnf("Failed to remove app server %q on termination: %v.", handle.Hello().ServerID, err)
+				}
+			}
+
+			for _, db := range handle.databaseServers {
+				if err := c.auth.DeleteDatabaseServer(c.closeContext, apidefaults.Namespace, db.resource.GetHostID(), db.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+					log.Warnf("Failed to remove db server %q on termination: %v.", handle.Hello().ServerID, err)
 				}
 			}
 		}
@@ -345,7 +365,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 			c.onDisconnectFunc(constants.KeepAliveApp)
 		}
 
+		for range handle.databaseServers {
+			c.onDisconnectFunc(constants.KeepAliveDatabase)
+		}
+
 		clear(handle.appServers)
+		clear(handle.databaseServers)
 		c.testEvent(handlerClose)
 	}()
 
@@ -519,6 +544,12 @@ func (c *Controller) handleHeartbeatMsg(handle *upstreamHandle, hb proto.Invento
 		}
 	}
 
+	if hb.DatabaseServer != nil {
+		if err := c.handleDatabaseServerHB(handle, hb.DatabaseServer); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -579,10 +610,10 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 	}
 
 	if handle.appServers == nil {
-		handle.appServers = make(map[appServerKey]*heartBeatInfo[*types.AppServerV3])
+		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
 
-	appKey := appServerKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
+	appKey := resourceKey{hostID: appServer.GetHostID(), name: appServer.GetApp().GetName()}
 
 	if _, ok := handle.appServers[appKey]; !ok {
 		c.onConnectFunc(constants.KeepAliveApp)
@@ -615,6 +646,53 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 	return nil
 }
 
+func (c *Controller) handleDatabaseServerHB(handle *upstreamHandle, databaseServer *types.DatabaseServerV3) error {
+	// the auth layer verifies that a stream's hello message matches the identity and capabilities of the
+	// client cert. after that point it is our responsibility to ensure that heartbeated information is
+	// consistent with the identity and capabilities claimed in the initial hello.
+	if !handle.HasService(types.RoleDatabase) {
+		return trace.AccessDenied("control stream not configured to support database server heartbeats")
+	}
+	if databaseServer.GetHostID() != handle.Hello().ServerID {
+		return trace.AccessDenied("incorrect database server ID (expected %q, got %q)", handle.Hello().ServerID, databaseServer.GetHostID())
+	}
+
+	if handle.databaseServers == nil {
+		handle.databaseServers = make(map[resourceKey]*heartBeatInfo[*types.DatabaseServerV3])
+	}
+
+	dbKey := resourceKey{hostID: databaseServer.GetHostID(), name: databaseServer.GetDatabase().GetName()}
+
+	if _, ok := handle.databaseServers[dbKey]; !ok {
+		c.onConnectFunc(constants.KeepAliveDatabase)
+		handle.databaseServers[dbKey] = &heartBeatInfo[*types.DatabaseServerV3]{}
+	}
+
+	now := time.Now()
+
+	databaseServer.SetExpiry(now.Add(c.serverTTL).UTC())
+
+	lease, err := c.auth.UpsertDatabaseServer(c.closeContext, databaseServer)
+	if err == nil {
+		c.testEvent(dbUpsertOk)
+		// store the new lease and reset retry state
+		srv := handle.databaseServers[dbKey]
+		srv.lease = lease
+		srv.retryUpsert = false
+		srv.resource = databaseServer
+	} else {
+		c.testEvent(dbUpsertErr)
+		log.Warnf("Failed to upsert database server %q on heartbeat: %v.", handle.Hello().ServerID, err)
+
+		// blank old lease if any and set retry state. next time handleKeepAlive is called
+		// we will attempt to upsert the server again.
+		srv := handle.databaseServers[dbKey]
+		srv.lease = nil
+		srv.retryUpsert = true
+		srv.resource = databaseServer
+	}
+	return nil
+}
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
 	handle.SetAgentMetadata(m)
 
@@ -649,6 +727,10 @@ func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) erro
 	}
 
 	if err := c.keepAliveAppServer(handle, now); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.keepAliveDatabaseServer(handle, now); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -687,11 +769,53 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time) e
 				c.testEvent(appUpsertRetryErr)
 				log.Warnf("Failed to upsert app server %q on retry: %v.", handle.Hello().ServerID, err)
 				// since this is retry-specific logic, an error here means that upsert failed twice in
-				// a row. Missing upserts is more problematic than missing keepalives so we don'resource bother
+				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
 				// attempting a third time.
 				return trace.Errorf("failed to upsert app server on retry: %v", err)
 			}
 			c.testEvent(appUpsertRetryOk)
+
+			srv.lease = lease
+			srv.retryUpsert = false
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) keepAliveDatabaseServer(handle *upstreamHandle, now time.Time) error {
+	for name, srv := range handle.databaseServers {
+		if srv.lease != nil {
+			lease := *srv.lease
+			lease.Expires = now.Add(c.serverTTL).UTC()
+			if err := c.auth.KeepAliveServer(c.closeContext, lease); err != nil {
+				c.testEvent(dbKeepAliveErr)
+
+				srv.keepAliveErrs++
+				handle.databaseServers[name] = srv
+				shouldRemove := srv.keepAliveErrs > c.maxKeepAliveErrs
+				log.Warnf("Failed to keep alive database server %q: %v (count=%d, removing=%v).", handle.Hello().ServerID, err, srv.keepAliveErrs, shouldRemove)
+
+				if shouldRemove {
+					c.testEvent(dbKeepAliveDel)
+					delete(handle.databaseServers, name)
+				}
+			} else {
+				srv.keepAliveErrs = 0
+				c.testEvent(dbKeepAliveOk)
+			}
+		} else if srv.retryUpsert {
+			srv.resource.SetExpiry(time.Now().Add(c.serverTTL).UTC())
+			lease, err := c.auth.UpsertDatabaseServer(c.closeContext, srv.resource)
+			if err != nil {
+				c.testEvent(dbUpsertRetryErr)
+				log.Warnf("Failed to upsert database server %q on retry: %v.", handle.Hello().ServerID, err)
+				// since this is retry-specific logic, an error here means that upsert failed twice in
+				// a row. Missing upserts is more problematic than missing keepalives so we don't bother
+				// attempting a third time.
+				return trace.Errorf("failed to upsert database server on retry: %v", err)
+			}
+			c.testEvent(dbUpsertRetryOk)
 
 			srv.lease = lease
 			srv.retryUpsert = false

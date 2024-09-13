@@ -945,6 +945,22 @@ message AppV3 {
   ];
 }
 
+// CORSPolicy defines the CORS policy for AppSpecV3
+message CORSPolicy {
+  // allowed_origins specifies which origins are allowed to access the app.
+  repeated string allowed_origins = 1 [(gogoproto.jsontag) = "allowed_origins,omitempty"];
+  // allowed_methods specifies which methods are allowed when accessing the app.
+  repeated string allowed_methods = 2 [(gogoproto.jsontag) = "allowed_methods,omitempty"];
+  // allowed_headers specifies which headers can be used when accessing the app.
+  repeated string allowed_headers = 3 [(gogoproto.jsontag) = "allowed_headers,omitempty"];
+  // allow_credentials indicates whether credentials are allowed.
+  bool allow_credentials = 4 [(gogoproto.jsontag) = "allow_credentials,omitempty"];
+  // max_age indicates how long (in seconds) the results of a preflight request can be cached.
+  uint32 max_age = 5 [(gogoproto.jsontag) = "max_age,omitempty"];
+  // exposed_headers indicates which headers are made available to scripts via the browser.
+  repeated string exposed_headers = 6 [(gogoproto.jsontag) = "exposed_headers,omitempty"];
+}
+
 // AppSpecV3 is the AppV3 resource spec.
 message AppSpecV3 {
   // URI is the web app endpoint.
@@ -970,8 +986,13 @@ message AppSpecV3 {
   // Only applicable to AWS App Access.
   // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
   string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
+  // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
+  // be part of the authentication redirect flow and authenticate along side this app.
+  repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
+  // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
+  CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
 
-  AppIdentityCenter IdentityCenter = 10 [(gogoproto.jsontag) = "identity_center,omitempty"];
+  AppIdentityCenter IdentityCenter = 99 [(gogoproto.jsontag) = "identity_center,omitempty"];
 }
 
 message IdentityCenterPermissionSet {
@@ -1641,6 +1662,13 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Terraform Cloud, this value should be `foo`. If the variable is set to
   // match the cluster name, it does not need to be set here.
   string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // Hostname is the hostname of the Terraform Enterprise instance expected to
+  // issue JWTs allowed by this token. This may be unset for regular Terraform
+  // Cloud use, in which case it will be assumed to be `app.terraform.io`.
+  // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
+  // and provide standard JWKS endpoints.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -4576,10 +4604,14 @@ message OIDCAuthRequest {
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
 
-  // PublicKey is an optional public key, users want these
-  // keys to be signed by auth servers user CA in case
-  // of successful auth
-  bytes PublicKey = 7 [(gogoproto.jsontag) = "public_key"];
+  // PublicKey is an optional public key, users want these keys to be signed by
+  // auth servers user CA in case of successful auth.
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 7 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -4617,7 +4649,12 @@ message OIDCAuthRequest {
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -4625,6 +4662,17 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 20 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 21 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4728,7 +4776,12 @@ message SAMLAuthRequest {
   // PublicKey is an optional public key, users want these
   // keys to be signed by auth servers user CA in case
   // of successful auth.
-  bytes PublicKey = 6 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 6 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -4763,6 +4816,8 @@ message SAMLAuthRequest {
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
@@ -4771,6 +4826,17 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4863,7 +4929,12 @@ message GithubAuthRequest {
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
   // PublicKey is an optional public key to sign in case of successful auth.
-  bytes PublicKey = 5 [(gogoproto.jsontag) = "public_key"];
+  //
+  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
+  bytes PublicKey = 5 [
+    (gogoproto.jsontag) = "public_key",
+    deprecated = true
+  ];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -4893,13 +4964,28 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // attestation_statement is an attestation statement for the given public key.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // AttestationStatement is an attestation statement for the given public key.
+  //
+  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
+    (gogoproto.jsontag) = "attestation_statement,omitempty",
+    deprecated = true
+  ];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
   // ClientUserAgent is the user agent of the Web browser, used for issuing
   // a DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
+  // SshPublicKey is an optional public key to use as the subject of an issued
+  // SSH cert in case of successful auth.
+  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
+  // TlsPublicKey is an optional public key to use as the subject of an issued
+  // TLS cert in case of successful auth.
+  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
+  // SshAttestationStatement is an attestation statement for the given SSH public key.
+  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
+  // TlsAttestationStatement is an attestation statement for the given TLS public key.
+  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -6199,6 +6285,11 @@ message PluginOktaSyncSettings {
   //   ^app.*$
   //   ^.*service.*$
   repeated string app_filters = 7;
+
+  // AppName is the Okta-assigned unique name of the Okta App that Teleport uses
+  // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
+  // sync. May be missing for old Okta integration installs.
+  string app_name = 8;
 }
 
 // Defines a set of discord channel IDs
@@ -6303,9 +6394,37 @@ message AWSICProvisioningSpec {
   // BaseURL is the SCIM base URL
   string base_url = 1;
 
-  string access_token = 2;
+  // IncludeUsers is a list of predicate expressions used to identify users to
+  // provision into the downstream Identity Center. An empty list implies
+  // "provision all users".
+  repeated string include_users = 2;
 
-  repeated string default_owners = 3;
+  // ExcludeUsers is a list of predicate expressions used to identify users that
+  // must not be provisioned into the downstream Identity Center. ExcludeUsers
+  // overrides IncludeUsers
+  //
+  // An empty list implies "provision all users" (i.e. "exclude no-one")
+  repeated string exclude_users = 3;
+
+  // IncludeAccessLists is a list of predicate expressions used to identify
+  // Access Lists to provision as Groups in the downstream IdP. An empty list
+  // implies "provision all Access Lists".
+  repeated string include_access_lists = 4;
+
+  // ExcludeAccessLists is a list of predicate expressions used to identify
+  // AccessLists that must *not* be provisioned into the downstream Identity
+  // Center. ExcludeAccessLists overrides IncludeAccessLists
+  //
+  // An empty list implies "provision all access lists" (i.e. "exclude no-one")
+  repeated string exclude_access_lists = 5;
+
+  // PluginStaticCredentialsRef holds a reference to the static credential
+  // holding the SCIM bearer token hsed by the provisioning system.
+  PluginStaticCredentialsRef scim_token_ref = 6;
+
+  // DefaultOwners specifies the default owners of any Access Lists created
+  // during initial setup.
+  repeated string default_owners = 7;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -6582,6 +6701,8 @@ message PluginBearerTokenCredentials {
 
 // PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
 message PluginStaticCredentialsRef {
+  option (gogoproto.equal) = true;
+
   // Labels is the set of labels to use to match against a set of static credentials.
   map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }

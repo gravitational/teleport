@@ -18,6 +18,7 @@ package proto;
 
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
+import "teleport/autoupdate/v1/autoupdate.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -31,7 +32,7 @@ import "teleport/notifications/v1/notifications.proto";
 import "teleport/provisioning/v1/provisioning.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
-import "teleport/userprovisioning/v1/statichostuser.proto";
+import "teleport/userprovisioning/v2/statichostuser.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -50,7 +51,9 @@ enum Operation {
 message Event {
   reserved 7;
   reserved 49;
+  reserved 63;
   reserved "ExternalCloudAudit";
+  reserved "StaticHostUser";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -177,8 +180,12 @@ message Event {
     teleport.clusterconfig.v1.AccessGraphSettings AccessGraphSettings = 61;
     // SPIFFEFederation is a resource for SPIFFE federation.
     teleport.machineid.v1.SPIFFEFederation SPIFFEFederation = 62;
-    // StaticHostUser is a resource for static host users.
-    teleport.userprovisioning.v1.StaticHostUser StaticHostUser = 63;
+    // AutoUpdateConfig is a resource for autoupdate config.
+    teleport.autoupdate.v1.AutoUpdateConfig AutoUpdateConfig = 64;
+    // AutoUpdateVersion is a resource for autoupdate version.
+    teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
+    // StaticHostUserV2 is a resource for static host users.
+    teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
 
     teleport.provisioning.v1.PrincipalState PrincipalState = 99;
     teleport.identitycenter.v1.Account IdentityCenterAccount = 100;

@@ -12,6 +12,7 @@ including:
 - `tsh`
 - `tctl`
 - `tbot`
+- `fdpass-teleport`
 
 If you are new to Teleport, we recommend following our [getting started
 guide](./get-started.mdx).
@@ -56,7 +57,7 @@ Teleport maintains DEB and RPM package repositories for different operating
 systems, platforms, and Teleport versions. A server that installs Teleport from
 a DEB or RPM package must have systemd installed. You can also download TAR
 archives containing Teleport binaries. All installations include `teleport`,
-`tsh`, `tctl`, and `tbot`.
+`tsh`, `tctl`, `fdpass-teleport` and `tbot`.
 
 ### Recommended installation steps
 
@@ -68,7 +69,7 @@ agents by:
   you can select a resource to enroll in your Teleport cluster and retrieve an
   installation script to run on Linux hosts.
 - Using the example Terraform module for deploying agents in [Deploy Agents with
-  Terraform](enroll-resources/agents/deploy-agents-terraform.mdx).
+  Terraform](admin-guides/infrastructure-as-code/terraform-starter/enroll-resources.mdx).
 - Running the [one-line installation script](#one-line-installation-script) on
   each Linux server where you want to install a Teleport agent.
 

@@ -55,12 +55,13 @@ type ProvisioningStateService struct {
 var _ services.ProvisioningStates = (*ProvisioningStateService)(nil)
 
 func NewProvisioningStateService(backend backend.Backend, mode ProvisioningStateServiceMode) (*ProvisioningStateService, error) {
-	userStatusSvc, err := generic.NewServiceWrapper(
-		backend,
-		types.KindProvisioningState,
-		provisioningStatePrefix,
-		services.MarshalProvisioningState,
-		services.UnmarshalProvisioningState)
+	userStatusSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*provisioningv1.PrincipalState]{
+		Backend:       backend,
+		ResourceKind:  types.KindProvisioningState,
+		BackendPrefix: provisioningStatePrefix,
+		MarshalFunc:   services.MarshalProtoResource[*provisioningv1.PrincipalState],
+		UnmarshalFunc: services.UnmarshalProtoResource[*provisioningv1.PrincipalState],
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
