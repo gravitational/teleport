@@ -32,7 +32,9 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -72,8 +74,10 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
+	accountIds := map[string]struct{}{}
 	for _, fetcher := range allFetchers {
 		fetcher := fetcher
+		accountIds[fetcher.GetAccountID()] = struct{}{}
 		tokens <- struct{}{}
 		go func() {
 			defer func() {
@@ -113,6 +117,17 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	}
 	// Update the currentTAGResources with the result of the reconciliation.
 	*currentTAGResources = *result
+
+	if err := s.AccessPoint.SubmitUsageEvent(s.ctx, &proto.SubmitUsageEventRequest{
+		Event: &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_AccessGraphAwsScanEvent{
+				AccessGraphAwsScanEvent: result.UsageReport(len(accountIds)),
+			},
+		},
+	}); err != nil {
+		s.Log.WithError(err).Error("Error submitting usage event")
+	}
+
 	return nil
 }
 
