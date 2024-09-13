@@ -209,6 +209,9 @@ func (tv *TeleportVersion) download(ctx context.Context, url string) (r io.ReadS
 		return nil, nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
+	}
 	plog.InfoContext(ctx, "Downloading Teleport tarball", "path", f.Name(), "size", resp.ContentLength)
 
 	// Ensure there's enough space in /tmp for the download.
@@ -296,6 +299,9 @@ func (tv *TeleportVersion) getChecksum(ctx context.Context, url string) ([]byte,
 		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("unexpected HTTP status code: %d", resp.StatusCode)
+	}
 
 	// Only attempt to read first 64 bytes
 	var buf bytes.Buffer
