@@ -22,6 +22,7 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -30,6 +31,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +60,24 @@ import (
 const testuser = "teleport-testuser"
 const testgroup = "teleport-testgroup"
 
+func getUserShells(path string) (map[string]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+
+	userShells := make(map[string]string)
+	for scanner.Scan() {
+		parts := strings.Split(scanner.Text(), ":")
+		userShells[parts[0]] = parts[len(parts)-1]
+	}
+
+	return userShells, nil
+}
+
 func TestRootHostUsersBackend(t *testing.T) {
 	utils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
@@ -85,7 +105,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 
 		testHome := filepath.Join("/home", testuser)
-		err = usersbk.CreateUser(testuser, []string{testgroup}, testHome, "", "")
+		err = usersbk.CreateUser(testuser, []string{testgroup}, host.UserOpts{Home: testHome})
 		require.NoError(t, err)
 
 		tuser, err := usersbk.Lookup(testuser)
@@ -98,7 +118,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, tuserGids, group.Gid)
 
-		err = usersbk.CreateUser(testuser, []string{}, testHome, "", "")
+		err = usersbk.CreateUser(testuser, []string{}, host.UserOpts{Home: testHome})
 		require.True(t, trace.IsAlreadyExists(err))
 
 		require.NoFileExists(t, testHome)
@@ -112,7 +132,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 
 	t.Run("Test DeleteUser", func(t *testing.T) {
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, nil) })
-		err := usersbk.CreateUser(testuser, nil, "", "", "")
+		err := usersbk.CreateUser(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
 		_, err = usersbk.Lookup(testuser)
 		require.NoError(t, err)
@@ -129,7 +149,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		t.Cleanup(func() { cleanupUsersAndGroups(checkUsers, nil) })
 
 		for _, u := range checkUsers {
-			err := usersbk.CreateUser(u, []string{}, "", "", "")
+			err := usersbk.CreateUser(u, []string{}, host.UserOpts{})
 			require.NoError(t, err)
 		}
 
@@ -159,7 +179,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 
 	t.Run("Test CreateHomeDirectory does not follow symlinks", func(t *testing.T) {
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser}, nil) })
-		err := usersbk.CreateUser(testuser, nil, "", "", "")
+		err := usersbk.CreateUser(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
 
 		tuser, err := usersbk.Lookup(testuser)
@@ -430,6 +450,68 @@ func TestRootHostUsers(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("Test default shell assignment", func(t *testing.T) {
+		defaultShellUser := "default-shell"
+		namedShellUser := "named-shell"
+		absoluteShellUser := "absolute-shell"
+
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{defaultShellUser, namedShellUser, absoluteShellUser}, nil) })
+
+		// Create a user with a named shell expected to be available in the PATH
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		_, err := users.UpsertUser(namedShellUser, services.HostUsersInfo{
+			Mode:  services.HostUserModeKeep,
+			Shell: "bash",
+		})
+		require.NoError(t, err)
+
+		// Create a user with an absolute path to a shell
+		_, err = users.UpsertUser(absoluteShellUser, services.HostUsersInfo{
+			Mode:  services.HostUserModeKeep,
+			Shell: "/usr/bin/bash",
+		})
+		require.NoError(t, err)
+
+		// Create a user with the host default shell (default behavior)
+		_, err = users.UpsertUser(defaultShellUser, services.HostUsersInfo{
+			Mode:  services.HostUserModeKeep,
+			Shell: "zsh",
+		})
+		require.NoError(t, err)
+
+		_, err = user.Lookup(namedShellUser)
+		require.NoError(t, err)
+
+		_, err = user.Lookup(absoluteShellUser)
+		require.NoError(t, err)
+
+		_, err = user.Lookup(defaultShellUser)
+		require.NoError(t, err)
+
+		// Verify users have the correct shell assigned
+		userShells, err := getUserShells("/etc/passwd")
+		require.NoError(t, err)
+
+		// Using bash and sh for this test because they should be present on predictable paths for most reasonable places we might
+		// be running integration tests
+		expectedShell := "/usr/bin/bash"
+
+		assert.Equal(t, expectedShell, userShells[namedShellUser])
+		assert.Equal(t, expectedShell, userShells[absoluteShellUser])
+		assert.NotEqual(t, expectedShell, userShells[defaultShellUser])
+
+		// User's shell should not be overwritten when updating, only when creating a new host user
+		_, err = users.UpsertUser(namedShellUser, services.HostUsersInfo{
+			Mode:  services.HostUserModeKeep,
+			Shell: "sh",
+		})
+		require.NoError(t, err)
+
+		userShells, err = getUserShells("/etc/passwd")
+		require.NoError(t, err)
+		assert.Equal(t, expectedShell, userShells[namedShellUser])
 	})
 }
 
