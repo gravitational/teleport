@@ -61,10 +61,8 @@ type mockTrustBundleCache struct {
 	currentBundle *spiffe.BundleSet
 }
 
-func (m *mockTrustBundleCache) Subscribe() (<-chan *spiffe.BundleSet, func()) {
-	ch := make(chan *spiffe.BundleSet, 1)
-	ch <- m.currentBundle
-	return ch, func() {}
+func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error) {
+	return m.currentBundle, nil
 }
 
 // TestSDS_FetchSecrets performs a unit-test over the FetchSecrets method.

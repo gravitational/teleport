@@ -551,17 +551,10 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		)
 	}
 
-	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
-	defer stopBundleSetCh()
-
-	var bundleSet *spiffe.BundleSet
-	select {
-	case <-ctx.Done():
-		return nil
-	case bundleSet = <-bundleSetCh:
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	// TODO: If no value is available within the first X seconds, should we drop
-	// the client rather than keeping them waiting.
 
 	var svids []*workloadpb.X509SVID
 	for {
@@ -589,7 +582,11 @@ func (s *SPIFFEWorkloadAPIService) FetchX509SVID(
 		case <-ctx.Done():
 			log.DebugContext(ctx, "Context closed, stopping SVID stream")
 			return nil
-		case newBundleSet := <-bundleSetCh:
+		case <-bundleSet.Stale():
+			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			log.DebugContext(ctx, "Federated trust bundles have been updated, renewing SVIDs")
 			if !newBundleSet.Local.Equal(bundleSet.Local) {
 				// If the "local" trust domain's CA has changed, we need to
@@ -618,25 +615,24 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	s.log.InfoContext(ctx, "FetchX509Bundles stream opened by workload")
 	defer s.log.InfoContext(ctx, "FetchX509Bundles stream has closed")
 
-	bundleSetCh, stopBundleSetCh := s.trustBundleCache.Subscribe()
-	defer stopBundleSetCh()
-
 	for {
-		var bundleSet *spiffe.BundleSet
-		select {
-		case <-ctx.Done():
-			return nil
-		case bundleSet = <-bundleSetCh:
+		bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		// TODO: If no value is available within the first X seconds, should we drop
-		// the client rather than keeping them waiting.
 
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
-		err := srv.Send(&workloadpb.X509BundlesResponse{
+		err = srv.Send(&workloadpb.X509BundlesResponse{
 			Bundles: bundleSet.EncodedX509Bundles(true),
 		})
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-bundleSet.Stale():
 		}
 	}
 }

@@ -98,8 +98,9 @@ var (
 // Emulates the output of https://github.com/spiffe/spiffe-helper
 type SPIFFESVIDOutput struct {
 	// Destination is where the credentials should be written to.
-	Destination bot.Destination `yaml:"destination"`
-	SVID        SVIDRequest     `yaml:"svid"`
+	Destination                  bot.Destination `yaml:"destination"`
+	SVID                         SVIDRequest     `yaml:"svid"`
+	IncludeFederatedTrustBundles bool            `yaml:"include_federated_trust_bundles,omitempty"`
 }
 
 // Init initializes the destination.
