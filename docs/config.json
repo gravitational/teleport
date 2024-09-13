@@ -31,7 +31,11 @@
             {
               "title": "Set up Automatic Agent Updates",
               "slug": "/upgrading/automatic-agent-updates/"
-            }
+            },
+            {
+              "title": "Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
+	    }
           ]
         },
         {
@@ -2626,7 +2630,12 @@
     },
     {
       "source": "/upgrading/reference/",
-      "destination": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
       "permanent": true
     },
     {
