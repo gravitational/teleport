@@ -19,7 +19,7 @@ with an error code.
 ## Run the test suite
 
 ```bash
-$ cd tests/install-script
+$ cd assets/install-scripts/install-teleport-tests
 $ bash run-all-tests.sh
 ```
 
@@ -29,7 +29,7 @@ Run the `docker compose` service that corresponds to the test case you want to
 run:
 
 ```bash
-$ cd tests/install-script
+$ cd assets/install-scripts/install-teleport-tests
 $ docker compose up <TEST_CASE>
 ```
 
@@ -43,7 +43,7 @@ Consult `docker-compose.yml` for the available test cases.
    ```yaml
        volumes:
          - type: bind
-           source: ../../apps/next/public/static/install.sh
+           source: ../install.sh
            target: /install.sh
          - type: bind
            source: ./run-test.sh

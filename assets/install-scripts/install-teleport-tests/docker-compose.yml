@@ -4,7 +4,7 @@ services:
     image: ubuntu:22.04
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
@@ -20,7 +20,7 @@ services:
     image: ubuntu:22.04
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
@@ -36,7 +36,7 @@ services:
     image: debian:bookworm
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
@@ -52,7 +52,7 @@ services:
     image: rockylinux:9
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
@@ -65,7 +65,7 @@ services:
     image: registry.suse.com/bci/bci-base:15.5
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
@@ -86,7 +86,7 @@ services:
     image: ubuntu:22.04
     volumes:
       - type: bind
-        source: ../../apps/next/public/static/install.sh
+        source: ../install.sh
         target: /install.sh
       - type: bind
         source: ./run-test.sh
