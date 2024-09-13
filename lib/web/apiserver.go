@@ -2099,6 +2099,10 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	// Extract secret out of the request.
 	secretKey := u.Query().Get("secret_key")
 	if secretKey == "" {
+		if response.MFAToken != "" {
+			u.RawQuery = url.Values{"response": {response.MFAToken}}.Encode()
+			return u, nil
+		}
 		return nil, trace.BadParameter("missing secret_key")
 	}
 
@@ -5029,10 +5033,6 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	if response.MFAToken != "" {
-		websession.SetMFACookie(w, response.RequestID, response.MFAToken)
 	}
 
 	parsedRedirectURL, err := httplib.OriginLocalRedirectURI(response.ClientRedirectURL)
