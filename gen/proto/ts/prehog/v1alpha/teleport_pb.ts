@@ -2216,6 +2216,80 @@ export interface AccessGraphGitlabScanEvent {
     totalGroups: bigint;
 }
 /**
+ * AccessGraphAWSScanEvent is emitted when the Access Graph
+ * AWS scan is enabled.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphAWSScanEvent
+ */
+export interface AccessGraphAWSScanEvent {
+    /**
+     * total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_ec2_instances = 1;
+     */
+    totalEc2Instances: bigint;
+    /**
+     * total_users is the total amount of users found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_users = 2;
+     */
+    totalUsers: bigint;
+    /**
+     * total_groups is the total amount of groups found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_groups = 3;
+     */
+    totalGroups: bigint;
+    /**
+     * total_roles is the total amount of roles found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_roles = 4;
+     */
+    totalRoles: bigint;
+    /**
+     * total_policies is the total amount of policies found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_policies = 5;
+     */
+    totalPolicies: bigint;
+    /**
+     * total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_eks_clusters = 6;
+     */
+    totalEksClusters: bigint;
+    /**
+     * total_rds_instances is the total amount of RDS instances found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_rds_instances = 7;
+     */
+    totalRdsInstances: bigint;
+    /**
+     * total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_s3_buckets = 8;
+     */
+    totalS3Buckets: bigint;
+    /**
+     * total_saml_providers is the total amount of SAML providers found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_saml_providers = 9;
+     */
+    totalSamlProviders: bigint;
+    /**
+     * total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_oidc_providers = 10;
+     */
+    totalOidcProviders: bigint;
+    /**
+     * total_accounts is the total amount of accounts synchronized in the AWS scan.
+     *
+     * @generated from protobuf field: uint64 total_accounts = 11;
+     */
+    totalAccounts: bigint;
+}
+/**
  * ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
  * Storage feature authenticates to the customer AWS account via OIDC connector.
  * The purpose is to have a regularly emitted event indicating that the External
@@ -2948,6 +3022,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
          */
         accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent;
+    } | {
+        oneofKind: "accessGraphAwsScan";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+         */
+        accessGraphAwsScan: AccessGraphAWSScanEvent;
     } | {
         oneofKind: undefined;
     };
@@ -8782,6 +8862,133 @@ class AccessGraphGitlabScanEvent$Type extends MessageType<AccessGraphGitlabScanE
  */
 export const AccessGraphGitlabScanEvent = new AccessGraphGitlabScanEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphAWSScanEvent$Type extends MessageType<AccessGraphAWSScanEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphAWSScanEvent", [
+            { no: 1, name: "total_ec2_instances", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 2, name: "total_users", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_groups", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 4, name: "total_roles", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 5, name: "total_policies", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 6, name: "total_eks_clusters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 7, name: "total_rds_instances", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 8, name: "total_s3_buckets", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 9, name: "total_saml_providers", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 10, name: "total_oidc_providers", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 11, name: "total_accounts", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphAWSScanEvent>): AccessGraphAWSScanEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.totalEc2Instances = 0n;
+        message.totalUsers = 0n;
+        message.totalGroups = 0n;
+        message.totalRoles = 0n;
+        message.totalPolicies = 0n;
+        message.totalEksClusters = 0n;
+        message.totalRdsInstances = 0n;
+        message.totalS3Buckets = 0n;
+        message.totalSamlProviders = 0n;
+        message.totalOidcProviders = 0n;
+        message.totalAccounts = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphAWSScanEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphAWSScanEvent): AccessGraphAWSScanEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint64 total_ec2_instances */ 1:
+                    message.totalEc2Instances = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_users */ 2:
+                    message.totalUsers = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_groups */ 3:
+                    message.totalGroups = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_roles */ 4:
+                    message.totalRoles = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_policies */ 5:
+                    message.totalPolicies = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_eks_clusters */ 6:
+                    message.totalEksClusters = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_rds_instances */ 7:
+                    message.totalRdsInstances = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_s3_buckets */ 8:
+                    message.totalS3Buckets = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_saml_providers */ 9:
+                    message.totalSamlProviders = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_oidc_providers */ 10:
+                    message.totalOidcProviders = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_accounts */ 11:
+                    message.totalAccounts = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphAWSScanEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint64 total_ec2_instances = 1; */
+        if (message.totalEc2Instances !== 0n)
+            writer.tag(1, WireType.Varint).uint64(message.totalEc2Instances);
+        /* uint64 total_users = 2; */
+        if (message.totalUsers !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalUsers);
+        /* uint64 total_groups = 3; */
+        if (message.totalGroups !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalGroups);
+        /* uint64 total_roles = 4; */
+        if (message.totalRoles !== 0n)
+            writer.tag(4, WireType.Varint).uint64(message.totalRoles);
+        /* uint64 total_policies = 5; */
+        if (message.totalPolicies !== 0n)
+            writer.tag(5, WireType.Varint).uint64(message.totalPolicies);
+        /* uint64 total_eks_clusters = 6; */
+        if (message.totalEksClusters !== 0n)
+            writer.tag(6, WireType.Varint).uint64(message.totalEksClusters);
+        /* uint64 total_rds_instances = 7; */
+        if (message.totalRdsInstances !== 0n)
+            writer.tag(7, WireType.Varint).uint64(message.totalRdsInstances);
+        /* uint64 total_s3_buckets = 8; */
+        if (message.totalS3Buckets !== 0n)
+            writer.tag(8, WireType.Varint).uint64(message.totalS3Buckets);
+        /* uint64 total_saml_providers = 9; */
+        if (message.totalSamlProviders !== 0n)
+            writer.tag(9, WireType.Varint).uint64(message.totalSamlProviders);
+        /* uint64 total_oidc_providers = 10; */
+        if (message.totalOidcProviders !== 0n)
+            writer.tag(10, WireType.Varint).uint64(message.totalOidcProviders);
+        /* uint64 total_accounts = 11; */
+        if (message.totalAccounts !== 0n)
+            writer.tag(11, WireType.Varint).uint64(message.totalAccounts);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphAWSScanEvent
+ */
+export const AccessGraphAWSScanEvent = new AccessGraphAWSScanEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ExternalAuditStorageAuthenticateEvent$Type extends MessageType<ExternalAuditStorageAuthenticateEvent> {
     constructor() {
         super("prehog.v1alpha.ExternalAuditStorageAuthenticateEvent", []);
@@ -9304,7 +9511,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent },
             { no: 86, name: "access_graph_gitlab_scan", kind: "message", oneof: "event", T: () => AccessGraphGitlabScanEvent },
             { no: 87, name: "access_graph_secrets_scan_authorized_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanAuthorizedKeysEvent },
-            { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent }
+            { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent },
+            { no: 89, name: "access_graph_aws_scan", kind: "message", oneof: "event", T: () => AccessGraphAWSScanEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9836,6 +10044,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanSshPrivateKeys)
                     };
                     break;
+                case /* prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan */ 89:
+                    message.event = {
+                        oneofKind: "accessGraphAwsScan",
+                        accessGraphAwsScan: AccessGraphAWSScanEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphAwsScan)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -10109,6 +10323,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88; */
         if (message.event.oneofKind === "accessGraphSecretsScanSshPrivateKeys")
             AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanSshPrivateKeys, writer.tag(88, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphAWSScanEvent access_graph_aws_scan = 89; */
+        if (message.event.oneofKind === "accessGraphAwsScan")
+            AccessGraphAWSScanEvent.internalBinaryWrite(message.event.accessGraphAwsScan, writer.tag(89, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
