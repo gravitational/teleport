@@ -62,7 +62,7 @@ type KubernetesCR[T Resource] interface {
 // Implementing this interface allows to be reconciled by the resourceReconciler
 // instead of writing a new specific reconciliation loop.
 // resourceClient implementations can optionally implement the resourceMutator
-// and existingResourceMutator interfaces.
+// and resourceMutator interfaces.
 type resourceClient[T Resource] interface {
 	Get(context.Context, string) (T, error)
 	Create(context.Context, T) error
@@ -70,16 +70,10 @@ type resourceClient[T Resource] interface {
 	Delete(context.Context, string) error
 }
 
-// resourceMutator can be implemented by resourceClients
-// to edit a Resource before its creation/update.
+// resourceMutator can be implemented by TeleportResourceClients
+// to edit a Resource before its creation, or before its update based on the existing one.
 type resourceMutator[T Resource] interface {
-	Mutate(new T)
-}
-
-// existingResourceMutator can be implemented by TeleportResourceClients
-// to edit a Resource before its update based on the existing one.
-type existingResourceMutator[T Resource] interface {
-	MutateExisting(new, existing T)
+	Mutate(ctx context.Context, new, existing T, crKey kclient.ObjectKey) error
 }
 
 // resourceReconciler is a Teleport generic reconciler.
@@ -172,23 +166,35 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
 
+	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
+		debugLog.Info("Mutating resource")
+		objKey := kclient.ObjectKeyFromObject(k8sResource)
+		if err := mutator.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
+			// If an error happens we want to put it in status.conditions before returning.
+			updateErr = updateStatus(updateStatusConfig{
+				ctx:         ctx,
+				client:      r.Client,
+				k8sResource: k8sResource,
+				condition: metav1.Condition{
+					Type:    ConditionTypeSuccessfullyReconciled,
+					Status:  metav1.ConditionFalse,
+					Reason:  ConditionReasonMutationError,
+					Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutation failed with error: %s", err),
+				},
+			})
+
+			return trace.NewAggregate(err, updateErr)
+		}
+	}
+
 	if !exists {
 		// This is a new Resource
-		if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
-			debugLog.Info("Mutating new resource")
-			mutator.Mutate(teleportResource)
-		}
-
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
 		// This is a Resource update, we must propagate the revision
 		currentRevision := r.adapter.GetResourceRevision(existingResource)
 		r.adapter.SetResourceRevision(teleportResource, currentRevision)
 		debugLog.Info("Propagating revision", "currentRevision", currentRevision)
-		if mutator, ok := r.resourceClient.(existingResourceMutator[T]); ok {
-			debugLog.Info("Mutating existing resource")
-			mutator.MutateExisting(teleportResource, existingResource)
-		}
 
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
