@@ -30,7 +30,7 @@ services:
        bash -c 'apt-get update;
        apt-get install -y curl;
        bash /install.sh 15.0.0;
-       bash /run-test.sh oss'
+       bash /run-test.sh 15.0.0 oss'
 
   test-debian-bookworm-oss:
     image: debian:bookworm
@@ -46,7 +46,7 @@ services:
        bash -c 'apt-get update;
        apt-get install -y curl;
        bash /install.sh 15.0.0 oss;
-       bash /run-test.sh oss'
+       bash /run-test.sh 15.0.0 oss'
 
   test-rocky-9-enterprise:
     image: rockylinux:9
@@ -59,7 +59,7 @@ services:
         target: /run-test.sh
     command: |
        bash -c 'bash /install.sh 15.0.0 enterprise;
-       bash /run-test.sh enterprise'
+       bash /run-test.sh 15.0.0 enterprise'
 
   test-sles-cloud:
     image: registry.suse.com/bci/bci-base:15.5
@@ -77,7 +77,7 @@ services:
        zypper update -y;
        zypper install -y awk;
        bash /install.sh 15.1.0 cloud;
-       bash /run-test.sh cloud'
+       bash /run-test.sh 15.1.0 cloud'
 
   # Ensure that the installation script completes as expected when the ID_LIKE
   # value in /etc/os-release is "ubuntu debian", as it is on Linux Mint and
@@ -97,6 +97,6 @@ services:
        apt-get install -y curl;
        sed -E -i "s/ID_LIKE=.*$/ID_LIKE=\"ubuntu debian\"/" /etc/os-release;
        bash /install.sh 15.0.0;
-       bash /run-test.sh oss'
+       bash /run-test.sh 15.0.0 oss'
 
 
