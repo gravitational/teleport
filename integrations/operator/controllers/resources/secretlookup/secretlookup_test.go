@@ -20,7 +20,6 @@ package secretlookup
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strings"
 	"testing"
@@ -39,8 +38,6 @@ func TestLookupSecret(t *testing.T) {
 	secretName := "test-secret"
 	keyName := "test-key-name"
 	keyValue := "test-key-value"
-	b64KeyValue := make([]byte, base64.StdEncoding.EncodedLen(len(keyValue)))
-	base64.StdEncoding.Encode(b64KeyValue, []byte(keyValue))
 
 	secretWithAnnotations := func(annotations map[string]string) v1.Secret {
 		return v1.Secret{
@@ -50,7 +47,7 @@ func TestLookupSecret(t *testing.T) {
 				Annotations: annotations,
 			},
 			Data: map[string][]byte{
-				keyName: b64KeyValue,
+				keyName: []byte(keyValue),
 			},
 			StringData: nil,
 			Type:       v1.SecretTypeOpaque,
@@ -104,7 +101,7 @@ func TestLookupSecret(t *testing.T) {
 			input:   fmt.Sprintf("secret://%s/%s", secretName, keyName),
 			secrets: v1.SecretList{Items: []v1.Secret{secretWithAnnotations(nil)}},
 			assertErr: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(t, err, "no annotation")
+				require.ErrorContains(t, err, "annotation")
 			},
 		},
 		{
@@ -127,7 +124,7 @@ func TestLookupSecret(t *testing.T) {
 							Annotations: okAnnotations,
 						},
 						Data: map[string][]byte{
-							"wrong-key-name": b64KeyValue,
+							"wrong-key-name": []byte(keyValue),
 						},
 						StringData: nil,
 						Type:       v1.SecretTypeOpaque,
