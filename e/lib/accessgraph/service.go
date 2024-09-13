@@ -14,7 +14,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -235,6 +237,62 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 			}
 		}
 
+		process.RegisterFunc("access-graph-ca-sync", func() error {
+			clusterName := conn.ClusterName()
+			// deliberately hitting the backend, since this will only result in
+			// an occasional Get for a CA at init time, and making sure we can
+			// reach TAG is critical enough that we ought to avoid depending on
+			// a healthy cache for the watcher
+			services := process.GetAuthServer().Services
+			bk := process.GetBackend()
+
+			for {
+				err := backend.RunWhileLocked(
+					ctx,
+					backend.RunWhileLockedConfig{
+						LockConfiguration: backend.LockConfiguration{
+							LockName:      "accessGraphCASync",
+							Backend:       bk,
+							TTL:           5 * time.Minute,
+							RetryInterval: time.Minute,
+						},
+						ReleaseCtxTimeout:   10 * time.Second,
+						RefreshLockInterval: time.Minute,
+					},
+					func(ctx context.Context) error {
+						// we have to recreate the client in case we hold on to
+						// a client for the entirety of a CA rotation, because
+						// right at the very end we will attempt to push a list
+						// of CAs that doesn't include the issuer of the current
+						// certificate, which is disallowed by TAG - recreating
+						// the client has the effect of creating a new TLS
+						// connection with credentials that are up to date
+						// enough (at least, up to date enough)
+						accessGraphConn, err := NewAccessGraphClient(ctx, config, conn.ClientGetCertificate)
+						if err != nil {
+							return trace.Wrap(err)
+						}
+						defer accessGraphConn.Close()
+						accessGraphClient := accessgraphv1.NewAccessGraphServiceClient(accessGraphConn)
+
+						err = watchAndPushCAs(ctx, log, clusterName, services, accessGraphClient)
+						return trace.Wrap(err)
+					},
+				)
+				if ctx.Err() != nil {
+					return nil
+				}
+				cfg.Logger.ErrorContext(ctx, "Access graph CA sync failed.", "error", err)
+
+				select {
+				case <-time.After(accessGraphRetryPeriod):
+					continue
+				case <-ctx.Done():
+					return nil
+				}
+			}
+		})
+
 		for {
 			cfg.Logger.DebugContext(ctx, "Successfully registered with the access graph service")
 			if err := initializeAndWatchAccessGraph(ctx,
@@ -253,5 +311,98 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		}
 	})
 
+	return nil
+}
+
+func watchAndPushCAs(ctx context.Context, log *slog.Logger, clusterName string, services *auth.Services, client accessgraphv1.AccessGraphServiceClient) error {
+	watcher, err := services.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.HostCA: clusterName,
+			}.IntoMap(),
+		}},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	select {
+	case initEvent := <-watcher.Events():
+		if initEvent.Type != types.OpInit {
+			return trace.BadParameter("watcher yielded %[1]v (%[1]d) as first event, expected Init (this is a bug)", initEvent.Type)
+		}
+	case <-watcher.Done():
+		return trace.Wrap(watcher.Error())
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	log.DebugContext(ctx, "CA watcher initialized.")
+
+	{
+		const loadKeysFalse = false
+		hostCA, err := services.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName,
+		}, loadKeysFalse)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := pushCA(ctx, hostCA, client); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	for {
+		select {
+		case caEvent := <-watcher.Events():
+			if caEvent.Type != types.OpPut {
+				return trace.BadParameter("watcher yielded %[1]v (%[1]d) as event, expected Put (this is a bug)", caEvent.Type)
+			}
+			ca, ok := caEvent.Resource.(types.CertAuthority)
+			if !ok {
+				return trace.BadParameter("expected cert authority from watcher, got %T (this is a bug)", ca)
+			}
+			if caName := ca.GetClusterName(); caName != clusterName {
+				return trace.BadParameter("expected cert authority for cluster %v, got %q (this is a bug)", clusterName, caName)
+			}
+			if caType := ca.GetType(); caType != types.HostCA {
+				return trace.BadParameter("expected host cert authority, got %q (this is a bug)", caType)
+			}
+
+			log.DebugContext(ctx, "Got CA event, sending to TAG.")
+			if err := pushCA(ctx, ca, client); err != nil {
+				return trace.Wrap(err)
+			}
+		case <-watcher.Done():
+			return trace.Wrap(watcher.Error())
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func pushCA(ctx context.Context, hostCA types.CertAuthority, client accessgraphv1.AccessGraphServiceClient) error {
+	// this is roughly hostCA.GetTrustedTLSKeyPairs but it only gets the
+	// certificates in PEM
+	activeKeys := hostCA.GetActiveKeys().TLS
+	additionalTrustedKeys := hostCA.GetAdditionalTrustedKeys().TLS
+	caPEMs := make([][]byte, 0, len(activeKeys)+len(additionalTrustedKeys))
+	for _, k := range activeKeys {
+		caPEMs = append(caPEMs, k.Cert)
+	}
+	for _, k := range additionalTrustedKeys {
+		caPEMs = append(caPEMs, k.Cert)
+	}
+
+	if len(caPEMs) < 1 {
+		return trace.BadParameter("no TLS certs in host CA")
+	}
+	if _, err := client.ReplaceCAs(ctx, &accessgraphv1.ReplaceCAsRequest{HostCaPem: caPEMs}); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
