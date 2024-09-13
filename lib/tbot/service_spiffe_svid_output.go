@@ -109,7 +109,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 			backoffTime = jitter(backoffTime)
 			s.log.WarnContext(
 				ctx,
-				"Last attempt to generated failed, will retry",
+				"Last attempt to generate output failed, will retry",
 				"retry_after", backoffTime,
 				"failures", failures,
 			)
