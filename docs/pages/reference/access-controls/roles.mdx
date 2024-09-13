@@ -173,17 +173,14 @@ You can set the `client_idle_timeout` globally in the Teleport cluster configura
 
 You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
 
- 	```yaml
- 	kind: role
- 	version: v3
- 	metadata:
-   	name: admin-role
- 	spec:
-   	options:
-     	client_idle_timeout: 10m
- 	```
-
- 	In this example, the `admin-role` has an idle timeout of **10 minutes**.
+```yaml
+kind: role
+version: v3
+metadata:
+  name: admin-role
+spec:
+  options:
+    client_idle_timeout: 10m
 
 #### Default behavior
   If the `client_idle_timeout` is not set, sessions will not automatically close due to inactivity unless other timeout policies (like `disconnect_expired_cert`) are applied.
