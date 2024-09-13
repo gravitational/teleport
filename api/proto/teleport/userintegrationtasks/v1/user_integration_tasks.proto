@@ -70,15 +70,17 @@ message DiscoverEC2Instance {
   // Name is the instance Name.
   // Might be empty, if the instance doesn't have the Name tag.
   string name = 2;
+  // AccountID is the AWS Account ID for this instance.
+  string account_id = 3;
   // Region is the AWS Region where this issue is happening.
-  string region = 3;
+  string region = 4;
   // InvocationURL is the URL that points to the invocation.
   // Empty if there was an error before installing the
-  string invocation_url = 4;
+  string invocation_url = 5;
   // DiscoveryConfig is the discovery config name that originated this instance enrollment.
-  string discovery_config = 5;
+  string discovery_config = 6;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
-  string discovery_group = 6;
+  string discovery_group = 7;
   // SyncTime is the timestamp when the error was produced.
-  google.protobuf.Timestamp sync_time = 7;
+  google.protobuf.Timestamp sync_time = 8;
 }
