@@ -23,8 +23,8 @@ export const SSOConfirm = () => {
     };
   }, [mfaToken]);
   return (
-    <CardSuccess title="Authorized">
-      You have successfully authorized
+    <CardSuccess title="Authenticated">
+      You have successfully authenticated
     </CardSuccess>
   );
 };
