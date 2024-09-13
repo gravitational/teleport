@@ -111,6 +111,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Origin:            u.Desktop.Origin,
 			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
 			AllowUserCreation: u.Desktop.AllowUserCreation,
+			Nla:               u.Desktop.Nla,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -949,6 +950,55 @@ func (e *TagExecuteQueryEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 	}
 }
 
+// AccessGraphGitlabScanEvent is emitted when a user scans a GitLab repository
+type AccessGraphGitlabScanEvent prehogv1a.AccessGraphGitlabScanEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphGitlabScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphGitlabScan{
+			AccessGraphGitlabScan: &prehogv1a.AccessGraphGitlabScanEvent{
+				TotalProjects: e.TotalProjects,
+				TotalUsers:    e.TotalUsers,
+				TotalGroups:   e.TotalGroups,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanAuthorizedKeysEvent is emitted when hosts report authorized keys.
+// This event is used to track the number of authorized keys reported by hosts. Keys are
+// refreshed periodically.
+type AccessGraphSecretsScanAuthorizedKeysEvent prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanAuthorizedKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanAuthorizedKeys{
+			AccessGraphSecretsScanAuthorizedKeys: &prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent{
+				HostId:    a.AnonymizeString(e.HostId),
+				TotalKeys: e.TotalKeys,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when devices report private keys.
+type AccessGraphSecretsScanSSHPrivateKeysEvent prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanSSHPrivateKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanSshPrivateKeys{
+			AccessGraphSecretsScanSshPrivateKeys: &prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent{
+				DeviceId:     a.AnonymizeString(e.DeviceId),
+				TotalKeys:    e.TotalKeys,
+				DeviceOsType: e.DeviceOsType,
+			},
+		},
+	}
+}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1368,6 +1418,17 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverCreateNode.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverCreateNode.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverCreateNode.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent:
+		ret := &UIDiscoverCreateAppServerEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCreateAppServerEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverCreateAppServerEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverCreateAppServerEvent.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

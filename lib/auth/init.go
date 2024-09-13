@@ -306,6 +306,13 @@ type InitConfig struct {
 
 	// BotInstance is a service that manages Machine ID bot instances
 	BotInstance services.BotInstance
+
+	// SPIFFEFederations is a service that manages storing SPIFFE federations.
+	SPIFFEFederations services.SPIFFEFederations
+
+	// StaticHostUsers is a service that manages host users that should be
+	// created on SSH nodes.
+	StaticHostUsers services.StaticHostUser
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -1045,12 +1052,23 @@ type PresetUsers interface {
 	UpsertUser(ctx context.Context, user types.User) (types.User, error)
 }
 
+// getPresetUsers returns a list of all preset users expected to be available on
+// this cluster.
+func getPresetUsers() []types.User {
+	presets := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+
+	// Certain `New$FooUser()` functions will return a nil role if the
+	// corresponding feature is disabled. They should be filtered out as they
+	// are not actually made available on the cluster.
+	return slices.DeleteFunc(presets, func(u types.User) bool { return u == nil })
+}
+
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUsers) error {
-	users := []types.User{
-		services.NewSystemAutomaticAccessBotUser(),
-	}
+	users := getPresetUsers()
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped

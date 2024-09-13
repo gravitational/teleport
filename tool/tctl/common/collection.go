@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,11 +37,13 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
+	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -1697,4 +1700,97 @@ func (c *botInstanceCollection) writeText(w io.Writer, verbose bool) error {
 	t.SortRowsBy([]int{0}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type spiffeFederationCollection struct {
+	items []*machineidv1pb.SPIFFEFederation
+}
+
+func (c *spiffeFederationCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *spiffeFederationCollection) writeText(w io.Writer, verbose bool) error {
+	headers := []string{"Name", "Last synced at"}
+
+	var rows [][]string
+	for _, item := range c.items {
+		lastSynced := "never"
+		if t := item.GetStatus().GetCurrentBundleSyncedAt().AsTime(); !t.IsZero() {
+			lastSynced = t.Format(time.RFC3339)
+		}
+		rows = append(rows, []string{
+			item.Metadata.Name,
+			lastSynced,
+		})
+	}
+
+	t := asciitable.MakeTable(headers, rows...)
+
+	// stable sort by name.
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type staticHostUserCollection struct {
+	items []*userprovisioningpb.StaticHostUser
+}
+
+func (c *staticHostUserCollection) resources() []types.Resource {
+	r := make([]types.Resource, 0, len(c.items))
+	for _, resource := range c.items {
+		r = append(r, types.Resource153ToLegacy(resource))
+	}
+	return r
+}
+
+func (c *staticHostUserCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, item := range c.items {
+
+		for _, matcher := range item.Spec.Matchers {
+			labelMap := label.ToMap(matcher.NodeLabels)
+			labelStringMap := make(map[string]string, len(labelMap))
+			for k, vals := range labelMap {
+				labelStringMap[k] = fmt.Sprintf("[%s]", printSortedStringSlice(vals))
+			}
+			var uid string
+			if matcher.Uid != 0 {
+				uid = strconv.Itoa(int(matcher.Uid))
+			}
+			var gid string
+			if matcher.Gid != 0 {
+				gid = strconv.Itoa(int(matcher.Gid))
+			}
+			rows = append(rows, []string{
+				item.GetMetadata().Name,
+				common.FormatLabels(labelStringMap, verbose),
+				matcher.NodeLabelsExpression,
+				printSortedStringSlice(matcher.Groups),
+				uid,
+				gid,
+			})
+		}
+	}
+	headers := []string{"Login", "Node Labels", "Node Expression", "Groups", "Uid", "Gid"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Node Expression")
+	}
+	t.SortRowsBy([]int{0}, true)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func printSortedStringSlice(s []string) string {
+	s = slices.Clone(s)
+	slices.Sort(s)
+	return strings.Join(s, ",")
 }

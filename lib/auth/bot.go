@@ -37,7 +37,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
-	experiment "github.com/gravitational/teleport/lib/auth/machineid/machineidv1/bot_instance_experiment"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -45,8 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-// validateGenerationLabel validates and updates a generation label.
-func (a *Server) validateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
+// legacyValidateGenerationLabel validates and updates a generation label.
+// TODO(timothyb89): This is deprecated in favor of bot instance generation
+// counters. Upgrade/downgrade compatibility will be provided through v17.
+// TODO(timothyb89): In v18, we should explicitly remove generation counters
+// labels from the bot user.
+// REMOVE IN V18: Use bot instance generation counters instead.
+func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username string, certReq *certRequest, currentIdentityGeneration uint64) error {
 	// Fetch the user, bypassing the cache. We might otherwise fetch a stale
 	// value in case of a rapid certificate renewal.
 	user, err := a.Services.GetUser(ctx, username, false)
@@ -259,11 +263,6 @@ func (a *Server) updateBotInstance(
 	templateAuthRecord *machineidv1pb.BotInstanceStatusAuthentication,
 	currentIdentityGeneration int32,
 ) error {
-	if !experiment.Enabled() {
-		// Only attempt to update bot instances if the experiment is enabled.
-		return nil
-	}
-
 	if botName == "" {
 		// Only applies to bot identities
 		return nil
@@ -339,7 +338,7 @@ func (a *Server) updateBotInstance(
 			// If the incoming identity has a nonzero generation, validate it
 			// using the legacy check. This will increment the counter on the
 			// request automatically
-			if err := a.validateGenerationLabel(ctx, username, req, uint64(currentIdentityGeneration)); err != nil {
+			if err := a.legacyValidateGenerationLabel(ctx, username, req, uint64(currentIdentityGeneration)); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -416,8 +415,14 @@ func (a *Server) updateBotInstance(
 	authRecord.Generation = newGeneration
 	req.generation = uint64(newGeneration)
 
-	if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
-		l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
+	// Commit the generation counter to the bot user for downgrade
+	// compatibility, but only if this is a renewable identity. Previous
+	// versions only expect a nonzero generation counter for token joins, so
+	// setting this for other methods will break compatibility.
+	if req.renewable {
+		if err := a.commitLegacyGenerationCounterToBotUser(ctx, username, uint64(newGeneration)); err != nil {
+			l.WithError(err).Warn("unable to commit legacy generation counter to bot user")
+		}
 	}
 
 	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
@@ -537,59 +542,44 @@ func (a *Server) generateInitialBotCerts(
 		botName:       botName,
 	}
 
-	if experiment.Enabled() {
-		if existingInstanceID == "" {
-			// If no existing instance ID is known, create a new one.
-			uuid, err := uuid.NewRandom()
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			initialAuth.Generation = 1
-
-			bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
-				BotName:    botName,
-				InstanceId: uuid.String(),
-			}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
-
-			_, err = a.BotInstance.CreateBotInstance(ctx, bi)
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			certReq.botInstanceID = uuid.String()
-			certReq.generation = 1
-		} else {
-			// Otherwise, reuse the existing instance ID, and pass the
-			// initialAuth along.
-
-			// Note: botName is derived from the provision token rather than any
-			// value sent by the client, so we can trust it.
-			if err := a.updateBotInstance(
-				ctx, &certReq, username, botName, existingInstanceID,
-				initialAuth, currentIdentityGeneration,
-			); err != nil {
-				return nil, "", trace.Wrap(err)
-			}
-
-			// Only set the bot instance ID if it's empty; `updateBotInstance()`
-			// may set it if a new instance is created.
-			if certReq.botInstanceID == "" {
-				certReq.botInstanceID = existingInstanceID
-			}
-		}
-
-	} else {
-		// Unlike the new codepath, legacy generation counters are only nonzero
-		// for renewable certs, so we need to set it conditionally.
-		if renewable {
-			certReq.generation = 1
-		}
-
-		// If the bot instance experiment is disabled, fall back to old generation
-		// counter behavior.
-		if err := a.validateGenerationLabel(ctx, userState.GetName(), &certReq, 0); err != nil {
+	if existingInstanceID == "" {
+		// If no existing instance ID is known, create a new one.
+		uuid, err := uuid.NewRandom()
+		if err != nil {
 			return nil, "", trace.Wrap(err)
+		}
+
+		initialAuth.Generation = 1
+
+		bi := newBotInstance(&machineidv1pb.BotInstanceSpec{
+			BotName:    botName,
+			InstanceId: uuid.String(),
+		}, initialAuth, expires.Add(machineidv1.ExpiryMargin))
+
+		_, err = a.BotInstance.CreateBotInstance(ctx, bi)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		certReq.botInstanceID = uuid.String()
+		certReq.generation = 1
+	} else {
+		// Otherwise, reuse the existing instance ID, and pass the
+		// initialAuth along.
+
+		// Note: botName is derived from the provision token rather than any
+		// value sent by the client, so we can trust it.
+		if err := a.updateBotInstance(
+			ctx, &certReq, username, botName, existingInstanceID,
+			initialAuth, currentIdentityGeneration,
+		); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		// Only set the bot instance ID if it's empty; `updateBotInstance()`
+		// may set it if a new instance is created.
+		if certReq.botInstanceID == "" {
+			certReq.botInstanceID = existingInstanceID
 		}
 	}
 

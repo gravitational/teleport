@@ -82,6 +82,10 @@ type Application interface {
 	// GetIntegration will return the Integration.
 	// If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 	GetIntegration() string
+	// GetRequiredAppNames will return a list of required apps names that should be authenticated during this apps authentication process.
+	GetRequiredAppNames() []string
+	// GetCORS returns the CORS configuration for the app.
+	GetCORS() *CORSPolicy
 }
 
 // NewAppV3 creates a new app resource.
@@ -319,6 +323,14 @@ func (a *AppV3) Copy() *AppV3 {
 	return utils.CloneProtoMsg(a)
 }
 
+func (a *AppV3) GetRequiredAppNames() []string {
+	return a.Spec.RequiredAppNames
+}
+
+func (a *AppV3) GetCORS() *CORSPolicy {
+	return a.Spec.CORS
+}
+
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (a *AppV3) MatchSearch(values []string) bool {
@@ -359,7 +371,15 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	default:
 		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
 	}
-	url, err := url.Parse(a.Spec.PublicAddr)
+	publicAddr := a.Spec.PublicAddr
+	// If the public addr has digits in a sub-host and a port, it might cause url.Parse to fail.
+	// Eg of a failing url: 123.teleport.example.com:3080
+	// This is not a valid URL, but we have been using it as such.
+	// To prevent this from failing, we add the `//`.
+	if !strings.Contains(publicAddr, "//") && strings.Contains(publicAddr, ":") {
+		publicAddr = "//" + publicAddr
+	}
+	url, err := url.Parse(publicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
 	}

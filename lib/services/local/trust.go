@@ -161,7 +161,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+	key := backend.NewKey(authoritiesPrefix, string(new.GetType()), new.GetName())
 
 	actualItem, err := s.Get(context.TODO(), key)
 	if err != nil {
@@ -203,7 +203,7 @@ func (s *CA) DeleteCertAuthorities(ctx context.Context, ids ...types.CertAuthID)
 		if err := id.Check(); err != nil {
 			return trace.Wrap(err)
 		}
-		for _, key := range [][]byte{activeCAKey(id), inactiveCAKey(id)} {
+		for _, key := range []backend.Key{activeCAKey(id), inactiveCAKey(id)} {
 			condacts = append(condacts, backend.ConditionalAction{
 				Key:       key,
 				Condition: backend.Whatever(),
@@ -436,7 +436,7 @@ func (s *CA) UpsertTrustedCluster(ctx context.Context, trustedCluster types.Trus
 		return nil, trace.Wrap(err)
 	}
 	_, err = s.Put(ctx, backend.Item{
-		Key:      backend.Key(trustedClustersPrefix, trustedCluster.GetName()),
+		Key:      backend.NewKey(trustedClustersPrefix, trustedCluster.GetName()),
 		Value:    value,
 		Expires:  trustedCluster.Expiry(),
 		Revision: rev,
@@ -452,7 +452,7 @@ func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedC
 	if name == "" {
 		return nil, trace.BadParameter("missing trusted cluster name")
 	}
-	item, err := s.Get(ctx, backend.Key(trustedClustersPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(trustedClustersPrefix, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -485,7 +485,7 @@ func (s *CA) DeleteTrustedCluster(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing trusted cluster name")
 	}
-	err := s.Delete(ctx, backend.Key(trustedClustersPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(trustedClustersPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("trusted cluster %q is not found", name)
@@ -506,7 +506,7 @@ func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 		return trace.Wrap(err)
 	}
 	_, err = s.Put(context.TODO(), backend.Item{
-		Key:      backend.Key(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
+		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
 		Revision: rev,
@@ -519,7 +519,7 @@ func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
 
 // GetTunnelConnection returns connection by cluster name and connection name
 func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...services.MarshalOption) (types.TunnelConnection, error) {
-	item, err := s.Get(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	item, err := s.Get(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("trusted cluster connection %q is not found", connectionName)
@@ -588,7 +588,7 @@ func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(context.TODO(), backend.Key(tunnelConnectionsPrefix, clusterName, connectionName))
+	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
 // DeleteTunnelConnections deletes all tunnel connections for cluster
@@ -617,7 +617,7 @@ func (s *CA) CreateRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
+		Key:     backend.NewKey(remoteClustersPrefix, rc.GetName()),
 		Value:   value,
 		Expires: rc.Expiry(),
 	}
@@ -658,7 +658,7 @@ func (s *CA) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (t
 		}
 
 		lease, err := s.ConditionalUpdate(ctx, backend.Item{
-			Key:      backend.Key(remoteClustersPrefix, existing.GetName()),
+			Key:      backend.NewKey(remoteClustersPrefix, existing.GetName()),
 			Value:    updateValue,
 			Expires:  existing.Expiry(),
 			Revision: existing.GetRevision(),
@@ -713,7 +713,7 @@ func (s *CA) PatchRemoteCluster(
 		}
 
 		lease, err := s.ConditionalUpdate(ctx, backend.Item{
-			Key:      backend.Key(remoteClustersPrefix, name),
+			Key:      backend.NewKey(remoteClustersPrefix, name),
 			Value:    updatedValue,
 			Expires:  updated.Expiry(),
 			Revision: updated.GetRevision(),
@@ -759,7 +759,7 @@ func (s *CA) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, erro
 func (s *CA) ListRemoteClusters(
 	ctx context.Context, pageSize int, pageToken string,
 ) ([]types.RemoteCluster, string, error) {
-	rangeStart := backend.Key(remoteClustersPrefix, pageToken)
+	rangeStart := backend.NewKey(remoteClustersPrefix, pageToken)
 	rangeEnd := backend.RangeEnd(backend.ExactKey(remoteClustersPrefix))
 
 	// Adjust page size, so it can't be too large.
@@ -804,7 +804,7 @@ func (s *CA) GetRemoteCluster(
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing parameter cluster name")
 	}
-	item, err := s.Get(ctx, backend.Key(remoteClustersPrefix, clusterName))
+	item, err := s.Get(ctx, backend.NewKey(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("remote cluster %q is not found", clusterName)
@@ -828,7 +828,7 @@ func (s *CA) DeleteRemoteCluster(
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
+	return s.Delete(ctx, backend.NewKey(remoteClustersPrefix, clusterName))
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
@@ -839,7 +839,7 @@ func (s *CA) DeleteAllRemoteClusters(ctx context.Context) error {
 }
 
 // catToItem builds a backend.Item corresponding to the supplied CA.
-func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
+func caToItem(key backend.Key, ca types.CertAuthority) (backend.Item, error) {
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -854,13 +854,13 @@ func caToItem(key []byte, ca types.CertAuthority) (backend.Item, error) {
 }
 
 // activeCAKey builds the active key variant for the supplied ca id.
-func activeCAKey(id types.CertAuthID) []byte {
-	return backend.Key(authoritiesPrefix, string(id.Type), id.DomainName)
+func activeCAKey(id types.CertAuthID) backend.Key {
+	return backend.NewKey(authoritiesPrefix, string(id.Type), id.DomainName)
 }
 
 // inactiveCAKey builds the inactive key variant for the supplied ca id.
-func inactiveCAKey(id types.CertAuthID) []byte {
-	return backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
+func inactiveCAKey(id types.CertAuthID) backend.Key {
+	return backend.NewKey(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName)
 }
 
 const (

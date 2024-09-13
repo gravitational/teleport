@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -155,7 +156,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithInsecureSkipVerify(cfg.InsecureAddressDiscovery),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
@@ -680,6 +681,11 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }
 
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
+}
+
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -712,21 +718,36 @@ func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username st
 }
 
 // CreateGlobalNotification creates a global notification.
-func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+		GlobalNotification: gn,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+		Notification: notification,
+	})
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	// TODO(rudream): implement client methods for notifications
-	return trace.NotImplemented(notImplementedMessage)
+	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteUserNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+		Username:       username,
+		NotificationId: notificationId,
+	})
+	return trace.Wrap(err)
 }
 
 // DeleteAllGlobalNotifications not implemented: can only be called locally.
@@ -751,11 +772,6 @@ func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username
 
 // DeleteUserLastSeenNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteUserNotification not implemented: can only be called locally.
-func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -877,10 +893,17 @@ type OIDCAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates if user wants to generate a web
 	// session after successful authentication
 	CreateWebSession bool `json:"create_web_session"`
@@ -913,10 +936,17 @@ type SAMLAuthResponse struct {
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CSRFToken is associated with user web session token.
 	CSRFToken string `json:"csrf_token"`
 	// CreateWebSession indicates if user wants to generate a web
@@ -952,8 +982,17 @@ type GithubAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is used to protect against CSRF attacks.
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates that a user wants to generate a web session
 	// after successful authentication.
 	CreateWebSession bool `json:"create_web_session"`
@@ -1257,8 +1296,16 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// PublicKey is a public key in ssh authorized_keys format.
+	// Deprecated: prefer SSHPublicKey and/or TLSPublicKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -1291,8 +1338,58 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter 'username'")
 	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
+	case len(a.PublicKey) > 0 && len(a.SSHPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'ssh_public_key' cannot both be set")
+	case len(a.PublicKey) > 0 && len(a.TLSPublicKey) > 0:
+		return trace.BadParameter("'public_key' and 'tls_public_key' cannot both be set")
 	}
-	return nil
+	var err error
+	a.SSHPublicKey, a.TLSPublicKey, err = UserPublicKeys(a.PublicKey, a.SSHPublicKey, a.TLSPublicKey)
+	a.PublicKey = nil
+	return trace.Wrap(err)
+}
+
+// UserPublicKeys is a helper for the transition from clients sending a single
+// public key for both SSH and TLS, to separate public keys for each protocol.
+// [pubIn] should be the single public key that should be set by any pre-17.0.0
+// client in SSH authorized_keys format. If set, both returned keys will be
+// derived from this. If empty, sshPubIn and tlsPubIn will be returned.
+// [sshPubIn] should be the SSH public key set by any post-17.0.0 client in SSH
+// authorized_keys format.
+// [tlsPubIn] should be the TLS public key set by any post-17.0.0 client in
+// PEM-encoded PKIX or PKCS#1 ASN.1 DER form.
+// [sshPubOut] will be nil or an SSH public key in SSH authorized_keys format.
+// [tlsPubOut] will be nil or a TLS public key in PEM-encoded PKIX or PKCS#1
+// ASN.1 DER form.
+//
+// TODO(nklaassen): DELETE IN 18.0.0 after all clients should be using
+// the separated keys.
+func UserPublicKeys(pubIn, sshPubIn, tlsPubIn []byte) (sshPubOut, tlsPubOut []byte, err error) {
+	if len(pubIn) == 0 {
+		return sshPubIn, tlsPubIn, nil
+	}
+	sshPubOut = pubIn
+	cryptoPubKey, err := sshutils.CryptoPublicKey(pubIn)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	tlsPubOut, err = keys.MarshalPublicKey(cryptoPubKey)
+	return sshPubOut, tlsPubOut, trace.Wrap(err)
+}
+
+// UserAttestationStatements is a helper for the transition from clients sending
+// a single attestation statement for both SSH and TLS, to separate public keys
+// and attestation statements for each protocol.
+// [attIn] should be the single attestation that should be set by any pre-17.0.0
+// client. If set, it will be returned in both return positions. If nil,
+// sshAttIn and tlsAttIn will be returned.
+// [sshAttIn] and [tlsAttIn] should be the SSH and TLS attestation statements
+// set by any post-17.0.0 client.
+func UserAttestationStatements(attIn, sshAttIn, tlsAttIn *keys.AttestationStatement) (sshAttOut, tlsAttOut *keys.AttestationStatement) {
+	if attIn == nil {
+		return sshAttIn, tlsAttIn
+	}
+	return attIn, attIn
 }
 
 // PassCreds is a password credential
@@ -1327,8 +1424,18 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+
 	// AttestationStatement is an attestation statement associated with the given public key.
+	//
+	// Deprecated: prefer SSHAttestationStatement and/or TLSAttestationStatement.
 	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *keys.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *keys.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1336,9 +1443,16 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	switch {
+	case len(a.SSHPublicKey)+len(a.TLSPublicKey) == 0:
+		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
+	case a.AttestationStatement != nil && a.SSHAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'ssh_attestation_statement' cannot both be set")
+	case a.AttestationStatement != nil && a.TLSAttestationStatement != nil:
+		return trace.BadParameter("'attestation_statement' and 'tls_attestation_statement' cannot both be set")
 	}
+	a.SSHAttestationStatement, a.TLSAttestationStatement = UserAttestationStatements(a.AttestationStatement, a.SSHAttestationStatement, a.TLSAttestationStatement)
+	a.AttestationStatement = nil
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1703,6 +1817,11 @@ type ClientI interface {
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
 
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 
@@ -1758,7 +1877,7 @@ func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSe
 
 	// If the auth server is v16+, the client does not need to provide a pre-created app session.
 	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
+	if utils.MeetsMinVersion(pingResp.ServerVersion, minServerVersion) {
 		return "", nil
 	}
 

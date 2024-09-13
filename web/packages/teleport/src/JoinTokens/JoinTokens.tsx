@@ -147,7 +147,7 @@ export const JoinTokens = () => {
             width="240px"
             onClick={() => setCreatingToken(true)}
           >
-            Create new Token
+            Create New Token
           </Button>
         )}
       </FeatureHeader>
@@ -325,11 +325,8 @@ const NameCell = ({ token }: { token: JoinToken }) => {
     <Cell
       align="left"
       style={{
-        minWidth: '320px',
+        maxWidth: '320px',
         fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -337,13 +334,18 @@ const NameCell = ({ token }: { token: JoinToken }) => {
       <Flex alignItems="center" gap={2}>
         <Text
           css={`
-            text-overflow: clip;
-            overflow-x: auto;
+            overflow-wrap: break-word;
           `}
         >
           {method !== 'token' ? id : safeName}
         </Text>
-        {hovered && <CopyButton name={id} />}
+        <Box
+          css={`
+            visibility: ${hovered ? 'visible' : 'hidden'};
+          `}
+        >
+          <CopyButton name={id} />
+        </Box>
       </Flex>
     </Cell>
   );
@@ -368,7 +370,7 @@ function TokenDelete({
   attempt,
 }: {
   token: JoinToken;
-  onDelete: (token: string) => Promise<any>;
+  onDelete: () => void;
   onClose: () => void;
   attempt: Attempt<void>;
 }) {
@@ -390,8 +392,9 @@ function TokenDelete({
             {` ${token.safeName}`}
           </Text>
           . This will not remove any resources that used this token to join the
-          cluster. This will remove the ability for any new resources to join
-          with this token and any non-renewable resource from renewing.
+          cluster. This will remove the ability for any new resources or
+          resources using non-renewable certificates from joining with this
+          token.
         </Text>
       </DialogContent>
       <DialogFooter>

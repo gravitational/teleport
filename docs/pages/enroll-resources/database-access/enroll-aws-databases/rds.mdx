@@ -167,130 +167,17 @@ place it at the `/etc/teleport.yaml` location.
 
 ## Step 3/6. Create IAM policies for Teleport
 
-The Teleport Database Service needs AWS IAM permissions to be able to configure
-IAM authentication for RDS instances and Aurora clusters.
+(!docs/pages/includes/database-access/create-iam-role-step-description.mdx accessFor="RDS instances and Aurora clusters" !)
 
-In this step, we will show you how to provide the Teleport Database Service
-access to AWS credentials:
-
-<Tabs>
-<TabItem label="Linux Host">
-
-Follow these instructions on your Linux host.
+### Create an IAM role for Teleport
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+### Grant permissions
 
-<Admonition type="note">
-Teleport uses `rds:ModifyDBInstance` and `rds:ModifyDBCluster` to automatically
-enable IAM authentication on the RDS instance and the Aurora cluster,
-respectively. You can omit these permissions if IAM authentication is already
-enabled.
-</Admonition>
+Attach the following AWS IAM permissions to the Database Service IAM role:
 
-</TabItem>
-<TabItem label="Kubernetes Cluster">
-
-Follow these instructions on your local workstation.
-
-Create an IAM policy document that allows an IAM identity to connect to your RDS
-database. Assign <Var name="rds-region" /> to the name of the AWS region where
-your RDS database is running, <Var name="aws-account" /> to your AWS account
-number, and <Var name="resource-id" /> to the resource ID of your RDS database
-or the cluster ID of your Aurora cluster (e.g.,
-`db-AAAAAAAAAAAAAAAAAAAAAAAAAA`):
-
-```code
-$ cat > connect.json << EOF
-{
-   "Version": "2012-10-17",
-   "Statement": [
-      {
-         "Effect": "Allow",
-         "Action": [
-             "rds-db:connect"
-         ],
-         "Resource": [
-             "arn:aws:rds-db:<Var name="rds-region" />:<Var name="aws-account" />:dbuser:<Var name="resource-id" />/*"
-         ]
-      }
-   ]
-}
-EOF
-```
-
-Create the IAM policy:
-
-```code
-$ aws iam create-policy --policy-name teleport-rds-policy --policy-document file://connect.json
-{
-    "Policy": {
-        "PolicyName": "teleport-rds-policy",
-        "PolicyId": "000000000000000000000",
-        "Arn": "arn:aws:iam::000000000000:policy/teleport-rds-policy",
-        "Path": "/",
-        "DefaultVersionId": "v1",
-        "AttachmentCount": 0,
-        "PermissionsBoundaryUsageCount": 0,
-        "IsAttachable": true,
-        "CreateDate": "2023-07-13T18:03:08+00:00",
-        "UpdateDate": "2023-07-13T18:03:08+00:00"
-    }
-}
-```
-
-Next, create a trust policy for the `teleport-rds-role`, which allows the role
-to obtain temporary credentials via the IAM OIDC provider.
-
-Retrieve your OIDC issuer ID, assigning <Var name="cluster-name" /> to the name
-of your EKS cluster and <Var name="eks-region" /> to the AWS region where your
-EKS cluster is running:
-
-```code
-$ aws eks describe-cluster --name <Var name="cluster-name" /> --region <Var name="eks-region" /> | jq -r .cluster.identity.oidc.issuer | grep -Eo "[A-Z0-9]+$"
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-```
-
-Create a file called `trustpolicy.json` with the following content, assigning
-<Var name="oidc-issuer" /> to the issuer string you retrieved:
-
-```var
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": {
-                "Federated": "arn:aws:iam::<Var name="aws-account" />:oidc-provider/oidc.eks.<Var name="eks-region" />.amazonaws.com/id/<Var name="oidc-issuer" />"
-            },
-            "Action": "sts:AssumeRoleWithWebIdentity",
-            "Condition": {
-                "StringEquals": {
-                    "oidc.eks.<Var name="eks-region" />.amazonaws.com/id/<Var name="oidc-issuer" />:aud": "sts.amazonaws.com"
-                }
-            }
-        }
-    ]
-}
-```
-
-Create an IAM role with your trust policy. On success, the command will show the
-IAM resource you created:
-
-```code
-$ aws iam create-role --role-name teleport-rds-role --assume-role-policy-document file://trustpolicy.json
-```
-
-Attach the role to the policy you created earlier. On success, this command will
-show no output:
-
-```code
-$ aws iam attach-role-policy --policy-arn arn:aws:iam::<Var name="aws-account" />:policy/teleport-rds-policy --role-name teleport-rds-role
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/database-access/reference/aws-iam/rds/access-policy.mdx!)
 
 ## Step 4/6. Start the Database Service
 
@@ -405,7 +292,7 @@ $ tsh db ls
 Retrieve credentials for the database and connect to it as the `alice` user:
 
 ```code
-$ tsh db connect --db-user=postgres --db-name=postgres rds-example
+$ tsh db connect --db-user=alice --db-name=postgres rds-example
 ```
 
 <Admonition type="note" title="Note">

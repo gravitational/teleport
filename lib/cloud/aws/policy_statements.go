@@ -30,26 +30,6 @@ import (
 var wildcard = "*"
 var allResources = []string{wildcard}
 
-// StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
-// of the resources.
-func StatementForIAMEditRolePolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
-		Resources: resources,
-	}
-}
-
-// StatementForIAMEditUserPolicy returns a IAM Policy Statement which allows editting User Policy
-// of the resources.
-func StatementForIAMEditUserPolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"},
-		Resources: resources,
-	}
-}
-
 // StatementForECSManageService returns the statement that allows managing the ECS Service deployed
 // by DeployService (AWS OIDC Integration).
 func StatementForECSManageService() *Statement {
@@ -114,6 +94,20 @@ func StatementForRDSDBConnect() *Statement {
 	return &Statement{
 		Effect:    EffectAllow,
 		Actions:   SliceOrString{"rds-db:connect"},
+		Resources: allResources,
+	}
+}
+
+// StatementForRDSMetadata returns a statement that allows describing RDS
+// instances and clusters for metadata import, as in monitoring AWS tags and
+// whether IAM auth is enabled.
+func StatementForRDSMetadata() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
 		Resources: allResources,
 	}
 }
@@ -186,6 +180,7 @@ func StatementForEKSAccess() *Statement {
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
 			"eks:AssociateAccessPolicy",
+			"eks:TagResource",
 		},
 		Resources: allResources,
 	}
@@ -410,6 +405,7 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:GetBucketPolicy",
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
+			"s3:GetBucketTagging",
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",

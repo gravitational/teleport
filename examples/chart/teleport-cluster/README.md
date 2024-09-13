@@ -45,7 +45,7 @@ or by installing [cert-manager](https://cert-manager.io/docs/) and setting the `
 
 The first user can be created by executing a command in one of the auth pods.
 
-```shell
+```code
 kubectl exec it -n teleport-cluster statefulset/teleport-cluster-auth -- tctl users add my-username --roles=editor,auditor,access
 ```
 

@@ -77,6 +77,11 @@ func TestAppPublicAddrValidation(t *testing.T) {
 			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
 			check:      hasErrTypeBadParameter(),
 		},
+		{
+			name:       "addr with numbers in the host",
+			publicAddr: "123456789012.teleport.example.com:3080",
+			check:      hasNoErr(),
+		},
 	}
 
 	for _, tc := range tests {
@@ -380,6 +385,71 @@ func TestNewAppV3(t *testing.T) {
 				Version:  "v3",
 				Metadata: Metadata{Name: "myaws", Namespace: "default"},
 				Spec:     AppSpecV3{URI: constants.AWSConsoleURL, Cloud: CloudAWS, Integration: "my-integration"},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app with required apps list",
+			meta: Metadata{Name: "clientapp"},
+			spec: AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "clientapp", Namespace: "default"},
+				Spec:     AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app with basic CORS policy",
+			meta: Metadata{Name: "api22"},
+			spec: AppSpecV3{
+				URI: "example.com",
+				CORS: &CORSPolicy{
+					AllowedOrigins:   []string{"https://client.example.com"},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					AllowCredentials: true,
+					MaxAge:           86400,
+				},
+			},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "api22",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "example.com",
+					CORS: &CORSPolicy{
+						AllowedOrigins:   []string{"https://client.example.com"},
+						AllowedMethods:   []string{"GET", "POST"},
+						AllowedHeaders:   []string{"Content-Type", "Authorization"},
+						AllowCredentials: true,
+						MaxAge:           86400,
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app with no CORS policy",
+			meta: Metadata{Name: "api22"},
+			spec: AppSpecV3{
+				URI: "example.com",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "api22",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "example.com",
+					// CORS is nil, indicating no CORS policy
+				},
 			},
 			wantErr: require.NoError,
 		},

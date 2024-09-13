@@ -266,6 +266,9 @@ type CommandLineFlags struct {
 
 	// ProfileSeconds defines the time the pprof will be collected.
 	ProfileSeconds int
+
+	// DisableDebugService disables the debug service.
+	DisableDebugService bool
 }
 
 // IntegrationConfAccessGraphAWSSync contains the arguments of
@@ -462,8 +465,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
-	if fc.Debug.Enabled() {
-		cfg.DebugService.Enabled = true
+	if fc.Debug.Disabled() {
+		cfg.DebugService.Enabled = false
 	}
 
 	if fc.AccessGraph.Enabled {
@@ -983,6 +986,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:           fc.Auth.TunnelStrategy,
 			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
+			SSHDialTimeout:           fc.Auth.SSHDialTimeout,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1143,6 +1147,14 @@ func validatePROXYProtocolValue(p multiplexer.PROXYProtocolMode) error {
 	return nil
 }
 
+const proxyUntrustedTLSCertErrMsg = `The Proxy Service was unable to validate the certificate chain of the
+  configured TLS certificate. The authority that issued this certificate is not
+  trusted on this host. Using an untrusted certificate is likely to cause
+  connection problems when clients and other Teleport services connect to this
+  Proxy Service. To trust a custom certificate authority you may set the
+  SSL_CERT_FILE or SSL_CERT_DIR environment variables to a path with your
+  authority's certificate chain.`
+
 // applyProxyConfig applies file configuration for the "proxy_service" section.
 func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	var err error
@@ -1265,11 +1277,11 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
 				"Teleport users to Man-in-the-Middle attacks."
-			log.Warnf(warningMessage)
+			log.Warn(warningMessage)
 		} else {
 			if err := utils.VerifyCertificateChain(certificateChain); err != nil {
-				return trace.BadParameter("unable to verify HTTPS certificate chain in %v: %s",
-					fc.Proxy.CertFile, utils.UserMessageFromError(err))
+				return trace.BadParameter("unable to verify HTTPS certificate chain in %v:\n\n  %s\n\n  %s",
+					p.Certificate, proxyUntrustedTLSCertErrMsg, err)
 			}
 		}
 
@@ -1978,7 +1990,20 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
 			Cloud:              application.Cloud,
+			RequiredAppNames:   application.RequiredApps,
 		}
+
+		if application.CORS != nil {
+			app.CORS = &servicecfg.CORS{
+				AllowedOrigins:   application.CORS.AllowedOrigins,
+				AllowedMethods:   application.CORS.AllowedMethods,
+				AllowedHeaders:   application.CORS.AllowedHeaders,
+				ExposedHeaders:   application.CORS.ExposedHeaders,
+				AllowCredentials: application.CORS.AllowCredentials,
+				MaxAge:           application.CORS.MaxAge,
+			}
+		}
+
 		if application.Rewrite != nil {
 			// Parse http rewrite headers if there are any.
 			headers, err := servicecfg.ParseHeaders(application.Rewrite.Headers)
@@ -2160,6 +2185,8 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	cfg.WindowsDesktop.PKIDomain = fc.WindowsDesktop.PKIDomain
+
+	cfg.WindowsDesktop.KDCAddr = fc.WindowsDesktop.KDCAddress
 
 	var hlrs []servicecfg.HostLabelRule
 	for _, rule := range fc.WindowsDesktop.HostLabels {
@@ -2637,6 +2664,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
+	if clf.DisableDebugService {
+		cfg.DebugService.Enabled = false
+	}
+
 	return nil
 }
 
@@ -2915,14 +2946,20 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
+	creds, err := fc.Jamf.readJamfCredentials()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	jamfSpec, err := fc.Jamf.toJamfSpecV1()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:       jamfSpec,
-		ExitOnSync: fc.Jamf.ExitOnSync,
+		Spec:        jamfSpec,
+		ExitOnSync:  fc.Jamf.ExitOnSync,
+		Credentials: creds,
 	}
 	return nil
 }

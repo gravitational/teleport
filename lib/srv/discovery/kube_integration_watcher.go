@@ -20,7 +20,6 @@ package discovery
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -32,7 +31,7 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -215,23 +214,7 @@ func (s *Server) enrollEKSClusters(region, integration string, clusters []types.
 }
 
 func (s *Server) getKubeAgentVersion(releaseChannels automaticupgrades.Channels) (string, error) {
-	pingResponse, err := s.AccessPoint.Ping(s.ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	agentVersion := pingResponse.ServerVersion
-
-	clusterFeatures := s.ClusterFeatures()
-	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
-		defaultVersion, err := releaseChannels.DefaultVersion(s.ctx)
-		if err == nil {
-			agentVersion = defaultVersion
-		} else if !errors.Is(err, &version.NoNewVersionError{}) {
-			return "", trace.Wrap(err)
-		}
-	}
-
-	return strings.TrimPrefix(agentVersion, "v"), nil
+	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), releaseChannels)
 }
 
 type IntegrationFetcher interface {

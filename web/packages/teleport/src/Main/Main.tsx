@@ -44,7 +44,11 @@ import useTeleport from 'teleport/useTeleport';
 import { TopBar } from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import { storageService } from 'teleport/services/storageService';
-import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
+import {
+  ClusterAlert,
+  LINK_TEXT_LABEL,
+  LINK_DESTINATION_LABEL,
+} from 'teleport/services/alerts/alerts';
 import { useAlerts } from 'teleport/components/BannerList/useAlerts';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import {
@@ -184,7 +188,8 @@ export function Main(props: MainProps) {
   const banners: BannerType[] = alerts.map(alert => ({
     message: alert.spec.message,
     severity: mapSeverity(alert.spec.severity),
-    link: alert.metadata.labels[LINK_LABEL],
+    link: alert.metadata.labels[LINK_DESTINATION_LABEL],
+    linkText: alert.metadata.labels[LINK_TEXT_LABEL],
     id: alert.metadata.name,
   }));
 

@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
@@ -137,8 +139,10 @@ func TestIntegrations(t *testing.T) {
 	//       suite to complete
 	suite := newSuite(t)
 
+	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("AuditOff", suite.bind(testAuditOff))
 	t.Run("AuditOn", suite.bind(testAuditOn))
+	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("BPFExec", suite.bind(testBPFExec))
 	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
@@ -148,11 +152,13 @@ func TestIntegrations(t *testing.T) {
 	t.Run("X11Forwarding", suite.bind(testX11Forwarding))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
 	t.Run("DataTransfer", suite.bind(testDataTransfer))
+	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
 	t.Run("Disconnection", suite.bind(testDisconnectScenarios))
 	t.Run("Discovery", suite.bind(testDiscovery))
 	t.Run("DiscoveryNode", suite.bind(testDiscoveryNode))
 	t.Run("DiscoveryRecovers", suite.bind(testDiscoveryRecovers))
 	t.Run("EnvironmentVars", suite.bind(testEnvironmentVariables))
+	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("ExecEvents", suite.bind(testExecEvents))
 	t.Run("ExternalClient", suite.bind(testExternalClient))
 	t.Run("HA", suite.bind(testHA))
@@ -161,13 +167,17 @@ func TestIntegrations(t *testing.T) {
 	t.Run("Interoperability", suite.bind(testInteroperability))
 	t.Run("InvalidLogin", suite.bind(testInvalidLogins))
 	t.Run("IP Propagation", suite.bind(testIPPropagation))
+	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
 	t.Run("JumpTrustedClusters", suite.bind(testJumpTrustedClusters))
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
+	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
 	t.Run("LeafSessionRecording", suite.bind(testLeafProxySessionRecording))
 	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
 	t.Run("ModeratedSessions", suite.bind(testModeratedSessions))
+	t.Run("ModeratedSFTP", suite.bind(testModeratedSFTP))
 	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
+	t.Run("NegotiatedALPNProtocols", suite.bind(testNegotiatedALPNProtocols))
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
 	t.Run("ProxyHostKeyCheck", suite.bind(testProxyHostKeyCheck))
@@ -176,8 +186,11 @@ func TestIntegrations(t *testing.T) {
 	t.Run("RotateSuccess", suite.bind(testRotateSuccess))
 	t.Run("RotateTrustedClusters", suite.bind(testRotateTrustedClusters))
 	t.Run("SessionStartContainsAccessRequest", suite.bind(testSessionStartContainsAccessRequest))
+	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("SessionStreaming", suite.bind(testSessionStreaming))
+	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
+	t.Run("SSHTracker", suite.bind(testSSHTracker))
 	t.Run("Shutdown", suite.bind(testShutdown))
 	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
 	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
@@ -188,16 +201,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("TwoClustersTunnel", suite.bind(testTwoClustersTunnel))
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
-	t.Run("SSHTracker", suite.bind(testSSHTracker))
-	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
-	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
-	t.Run("JoinOverReverseTunnelOnly", suite.bind(testJoinOverReverseTunnelOnly))
-	t.Run("SFTP", suite.bind(testSFTP))
-	t.Run("ModeratedSFTP", suite.bind(testModeratedSFTP))
-	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
-	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
-	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
-	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -491,7 +494,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site authclient.ClientI) (types.SessionTracker, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeout, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 				defer cancel()
 				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
@@ -519,7 +522,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-endC:
 				require.NoError(t, err)
-			case <-time.After(10 * time.Second):
+			case <-time.After(15 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
 
@@ -1245,7 +1248,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 					return
 				}
 				sessionID = trackers[0].GetSessionID()
-			}, time.Second*5, time.Millisecond*100)
+			}, time.Second*15, time.Millisecond*100)
 
 			// Send stuff to the session.
 			term.Type("echo Hello\n\r")
@@ -1259,7 +1262,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 
 			// Wait for the session to terminate without error.
 			term.Type("exit\n\r")
-			require.NoError(t, waitForError(errCh, 5*time.Second))
+			require.NoError(t, waitForError(errCh, 15*time.Second))
 
 			// Wait for the session recording to be uploaded and available
 			var uploaded bool
@@ -1279,7 +1282,7 @@ func testLeafProxySessionRecording(t *testing.T, suite *integrationTestSuite) {
 				events, err := authSrv.GetSessionEvents(defaults.Namespace, session.ID(sessionID), 0)
 				assert.NoError(t, err)
 				assert.NotEmpty(t, events)
-			}, 5*time.Second, 200*time.Millisecond)
+			}, 15*time.Second, 200*time.Millisecond)
 		})
 	}
 }
@@ -1891,7 +1894,7 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 			select {
 			case err := <-sshErr:
 				require.NoError(t, err)
-			case <-time.After(5 * time.Second):
+			case <-time.After(15 * time.Second):
 				require.FailNow(t, "failed to shutdown ssh session")
 			}
 
@@ -4533,7 +4536,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4629,7 +4632,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start (and defer close) a agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			defer helpers.CloseAgent(teleAgent, socketDirPath)
 
@@ -4726,7 +4729,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 
 			// Start an agent that runs during this integration test.
-			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(suite.Me, &creds.Key)
+			teleAgent, socketDirPath, socketPath, err := helpers.CreateAgent(&creds.KeyRing)
 			require.NoError(t, err)
 			t.Cleanup(func() { helpers.CloseAgent(teleAgent, socketDirPath) })
 
@@ -4744,7 +4747,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 					}
 
 					// Create and run an exec command twice. When ControlPath is set, this will cause
-					// re-use of the connection and creation of two sessions within  the connection.
+					// re-use of the connection and creation of two sessions within the connection.
 					for i := 0; i < 2; i++ {
 						execCmd, err := helpers.ExternalSSHCommand(helpers.CommandOptions{
 							ForcePTY:      true,
@@ -5240,6 +5243,9 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -5259,21 +5265,28 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	helpers.EnableKubernetesService(t, config)
 	helpers.EnableDesktopService(config)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
@@ -5322,9 +5335,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reload
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	cfg := helpers.ClientConfig{
 		Login:   suite.Me.Username,
@@ -5354,9 +5365,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// new credentials will work from this phase to others
 	newCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{Process: svc, Username: suite.Me.Username})
@@ -5384,9 +5393,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	t.Logf("Cert authority: %v", auth.CertAuthorityInfo(hostCA))
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -5399,19 +5406,15 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 	cancel()
 	// close the service without waiting for the connections to drain
 	require.NoError(t, svc.Close())
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
 }
 
 // TestRotateRollback tests cert authority rollback
 func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -5426,21 +5429,28 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	config, err := teleport.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	checkSSHPrincipals := func(svc *service.TeleportProcess) {
 		conn, err := svc.WaitForConnector(service.SSHIdentityEvent, nil)
@@ -5486,9 +5496,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reload
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	cfg := helpers.ClientConfig{
 		Login:   s.Me.Username,
@@ -5514,9 +5522,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	t.Logf("Service reloaded. Setting rotation state to %q.", types.RotationPhaseRollback)
 
@@ -5528,9 +5534,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	// old client works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -5542,20 +5546,16 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 	// shut down the service
 	cancel()
 	// close the service without waiting for the connections to drain
-	svc.Close()
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
+	require.NoError(t, svc.Close())
 }
 
 // TestRotateTrustedClusters tests CA rotation support for trusted clusters
 func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
+
+	var eg errgroup.Group
+	defer func() { require.NoError(t, eg.Wait()) }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -5574,20 +5574,28 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	config, err := main.GenerateConfig(t, nil, tconf)
 	require.NoError(t, err)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-	runErrCh := make(chan error, 1)
-	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
-		})
-	}()
-
-	svc, err := waitForProcessStart(serviceC)
+	svc, err := service.NewTeleport(config)
 	require.NoError(t, err)
+	require.NoError(t, svc.Start())
+	eg.Go(func() error { return svc.WaitForSignals(ctx, nil) })
+
+	credentialsUpdatedC := make(chan service.Event, 10)
+	svc.ListenForEvents(ctx, service.TeleportCredentialsUpdatedEvent, credentialsUpdatedC)
+	select {
+	case <-credentialsUpdatedC:
+		t.Fatal("unexpected credentials update before rotation")
+	default:
+	}
+
+	waitForCredentialsUpdated := func() {
+		timeout := time.NewTimer(time.Minute)
+		defer timeout.Stop()
+		select {
+		case <-timeout.C:
+			t.Fatal("timeout while waiting for credentials updated event")
+		case <-credentialsUpdatedC:
+		}
+	}
 
 	// main cluster has a local user and belongs to role "main-devs"
 	mainDevs := "main-devs"
@@ -5700,9 +5708,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseUpdateClients)
 
@@ -5720,9 +5726,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseUpdateServers)
 
@@ -5747,11 +5751,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// wait until service reloaded
-	t.Log("Waiting for service reload.")
-	svc, err = waitForReload(serviceC, svc)
-	require.NoError(t, err)
-	t.Log("Service reload completed, waiting for phase.")
+	waitForCredentialsUpdated()
 
 	waitForPhase(types.RotationPhaseStandby)
 	t.Log("Phase completed.")
@@ -5766,13 +5766,6 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	cancel()
 	// close the service without waiting for the connections to drain
 	require.NoError(t, svc.Close())
-
-	select {
-	case err := <-runErrCh:
-		require.NoError(t, err)
-	case <-time.After(20 * time.Second):
-		t.Fatalf("failed to shut down the server")
-	}
 }
 
 // rotationConfig sets up default config used for CA rotation tests
@@ -5794,75 +5787,6 @@ func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecf
 func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout time.Duration) error {
 	if _, err := svc.WaitForEventTimeout(timeout, event); err != nil {
 		return trace.BadParameter("timeout waiting for service to broadcast event %v", event)
-	}
-	return nil
-}
-
-// waitForProcessStart is waiting for the process to start
-func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.TeleportProcess, error) {
-	var svc *service.TeleportProcess
-	select {
-	case svc = <-serviceC:
-	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to start")
-	}
-	return svc, nil
-}
-
-// waitForReload waits for multiple events to happen:
-//
-// 1. new service to be created and started
-// 2. old service, if present to shut down
-//
-// this helper function allows to serialize tests for reloads.
-func waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
-	var svc *service.TeleportProcess
-	select {
-	case svc = <-serviceC:
-	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to start")
-	}
-
-	if _, err := svc.WaitForEventTimeout(20*time.Second, service.TeleportReadyEvent); err != nil {
-		dumpGoroutineProfile()
-		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
-	}
-
-	// if old service is present, wait for it to complete shut down procedure
-	if old != nil {
-		if err := waitForProcessReloadEvent(old); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ctx, cancel := context.WithCancel(context.TODO())
-		go func() {
-			defer cancel()
-			old.Supervisor.Wait()
-		}()
-		select {
-		case <-ctx.Done():
-		case <-time.After(1 * time.Minute):
-			dumpGoroutineProfile()
-			return nil, trace.BadParameter("timeout waiting for old service to stop")
-		}
-	}
-	return svc, nil
-}
-
-// waitForProcessReloadEvent waits for the old process to receive a TeleportExitEvent
-// and verifies the event payload indicates the process is reloading.
-func waitForProcessReloadEvent(old *service.TeleportProcess) error {
-	event, err := old.WaitForEventTimeout(20*time.Second, service.TeleportExitEvent)
-	if err != nil {
-		return trace.WrapWithMessage(err, "timeout waiting for old service to broadcast exit event")
-	}
-	ctx, ok := event.Payload.(context.Context)
-	if !ok {
-		return trace.BadParameter("payload of the exit event is not a context.Context")
-	}
-	if !services.IsProcessReloading(ctx) {
-		return trace.BadParameter("payload of the exit event is not a ProcessReloadContext")
 	}
 	return nil
 }
@@ -8541,7 +8465,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				select {
 				case err := <-errChan:
 					require.NoError(t, err)
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 				require.Contains(t, term.AllOutput(), "hi")
@@ -8573,7 +8497,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 					if !authRunning {
 						require.Empty(t, term.AllOutput())
 					}
-				case <-time.After(5 * time.Second):
+				case <-time.After(15 * time.Second):
 					t.Fatal("timeout waiting for session to exit")
 				}
 			},
@@ -9101,5 +9025,40 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		require.Contains(t, m, "Forcefully terminating session...")
 	case <-time.After(5 * time.Second):
 		t.Fatal("Timeout waiting for session to be terminated.")
+	}
+}
+
+func testNegotiatedALPNProtocols(t *testing.T, suite *integrationTestSuite) {
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Proxy.DisableWebService = false
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.Kube.Enabled = true
+
+	process := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+	t.Cleanup(func() { _ = process.StopAll() })
+
+	for _, p := range common.SupportedProtocols {
+		if p == common.ProtocolAuth {
+			continue
+		}
+
+		protocol := string(p)
+		t.Run(protocol, func(t *testing.T) {
+			conn, err := tls.DialWithDialer(
+				&net.Dialer{Timeout: 20 * time.Second},
+				"tcp",
+				process.Config.Proxy.WebAddr.Addr,
+				&tls.Config{
+					InsecureSkipVerify: true,
+					NextProtos:         []string{protocol},
+				})
+			require.NoError(t, err)
+
+			defer conn.Close()
+
+			require.Equal(t, protocol, conn.ConnectionState().NegotiatedProtocol)
+		})
 	}
 }

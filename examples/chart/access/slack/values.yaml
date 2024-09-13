@@ -13,6 +13,9 @@ teleport:
   # For example:
   #   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
   #   - joining an Auth: `teleport-auth.example.com:3025`
+  #
+  # When the address is empty, `tbot.teleportProxyAddress`
+  # or `tbot.teleportAuthAddress` will be used if they are set.
   address: ""
   # teleport.identitySecretName(string) -- is the name of the Kubernetes secret
   # that contains the credentials for the connection to your Teleport cluster.
@@ -30,7 +33,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+  # Slack](../../admin-guides/access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -88,6 +91,54 @@ log:
   # to write logs to a file. Bear in mind that a few service startup messages
   # will still go to `stderr` for resilience.
   output: stdout
+
+# tbot -- controls the optional tbot deployment that obtains and renews
+# credentials for the plugin to connect to Teleport.
+# Only default and mandatory values are described here, see the tbot chart reference
+# for the full list of supported values.
+tbot:
+  # tbot.enabled(bool) -- controls if tbot should be deployed with the slack plugin.
+  enabled: false
+  # tbot.clusterName(string) -- is the name of the Teleport cluster tbot and the Slack plugin will join.
+  # Setting this value is mandatory when tbot is enabled.
+  clusterName: ""
+  # tbot.teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
+  # This must contain the port number, usually 443 or 3080 for Proxy Service.
+  # Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+  # This is mandatory to connect to Teleport Enterprise (Cloud).
+  #
+  # This setting is mutually exclusive with `teleportAuthAddress`.
+  #
+  # For example:
+  # ```yaml
+  # tbot:
+  #   teleportProxyAddress: "test.teleport.sh:443"
+  # ```
+  teleportProxyAddress: ""
+  # tbot.teleportAuthAddress(string) -- is the teleport Auth Service address the bot will connect to.
+  # This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+  # should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+  # Helm release and have direct access to the Auth Service.
+  # Else, you should prefer connecting via the Proxy Service.
+  #
+  # This setting is mutually exclusive with `teleportProxyAddress`.
+  #
+  # For example:
+  # ```yaml
+  # teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+  # ```
+  teleportAuthAddress: ""
+
+  # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
+  # See [the join method reference](../../reference/join-methods.mdx) for a list fo supported values and detailed explanations.
+  joinMethod: "kubernetes"
+  token: ""
+
+  # Don't touch the tbot values below, this will break the chart.
+  # This ensures that tbot.fullname is not shortened if the release name contains "tbot"
+  nameOverride: tbot
+  defaultOutput:
+    enabled: true
 
 secretVolumeName: "password-file"
 

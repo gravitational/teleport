@@ -50,6 +50,7 @@ import { StepSlider, StepComponentProps } from 'design/StepSlider';
 import { P } from 'design/Text/Text';
 
 import { UserCredentials } from 'teleport/services/auth';
+import history from 'teleport/services/history';
 
 import { PasskeyIcons } from '../Passkeys';
 
@@ -87,6 +88,8 @@ export default function LoginForm(props: Props) {
     errorMessage = attempt.message;
   }
 
+  const showAccessChangedMessage = history.hasAccessChangedParam();
+
   // Everything below requires local auth to be enabled.
   return (
     <Card my="5" mx="auto" width={500} py={4}>
@@ -94,6 +97,11 @@ export default function LoginForm(props: Props) {
         Sign in to Teleport
       </Text>
       {errorMessage && <Alerts.Danger m={4}>{errorMessage}</Alerts.Danger>}
+      {showAccessChangedMessage && (
+        <Alerts.Warning m={4}>
+          Your access has changed. Please re-login.
+        </Alerts.Warning>
+      )}
       {allowedAuthTypes.length > 0 ? (
         <StepSlider<typeof loginViews>
           flows={loginViews}

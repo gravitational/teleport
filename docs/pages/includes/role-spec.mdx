@@ -3,6 +3,7 @@ kind: role
 version: v7
 metadata:
   name: example
+  description: This is an example role.
 spec:
   # options specify connection, in case if user has multiple non-default
   # conflicting options, teleport chooses the least permissive value.
@@ -41,6 +42,10 @@ spec:
     device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any assigned user of this role
     require_session_mfa: true
+    # mfa_verification_interval optionally defines the maximum duration that can elapse between successive MFA verifications.
+    # This variable is used to ensure that users are periodically prompted to verify their identity, enhancing
+    # security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives.
+    mfa_verification_interval: 1h
     # lock sets locking mode for user of this role,
     # valid values are 'strict' or 'best_effort'
     lock: strict
@@ -140,6 +145,20 @@ spec:
       # 'region': '^us-west-1|eu-central-1$'
       'reg': '^us-west-1|eu-central-1$'
 
+    # List of host groups the created user will be added to. Any that don't
+    # already exist are created. Only applies when create_host_user_mode
+    # is not 'off'.
+    host_groups: [ubuntu, nginx, other]
+
+    # List of entries to include in a temporary sudoers file created in
+    # `/etc/sudoers.d`. The records are removed on session close.
+    host_sudoers: [
+      # This line will allow the login user to run `systemctl restart nginx.service`
+      # as root without requiring a password. The sudoers entry will be prefixed
+      # with the logged in username.
+      "ALL = (root) NOPASSWD: /usr/bin/systemctl restart nginx.service"
+    ]
+
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the 'external' property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
@@ -224,7 +243,7 @@ spec:
 
     # List of database roles to grant. Mutually exclusive with 'db_permissions'.
     db_roles: ['{{external.db_roles}}']
-    
+
     # Grant all possible Postgres permissions for all tables.
     # List of database permissions to grant. Mutually exclusive with 'db_roles'.
     db_permissions:

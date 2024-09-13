@@ -332,6 +332,13 @@ export interface SessionStartDesktopMetadata {
      * @generated from protobuf field: bool allow_user_creation = 4;
      */
     allowUserCreation: boolean;
+    /**
+     * Indicates whether network level authentication (NLA) was used to
+     * establish this RDP session.
+     *
+     * @generated from protobuf field: bool nla = 5;
+     */
+    nla: boolean;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -1059,6 +1066,25 @@ export interface UIDiscoverDeployEICEEvent {
  * @generated from protobuf message prehog.v1alpha.UIDiscoverCreateNodeEvent
  */
 export interface UIDiscoverCreateNodeEvent {
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
+     */
+    metadata?: DiscoverMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverResourceMetadata resource = 2;
+     */
+    resource?: DiscoverResourceMetadata;
+    /**
+     * @generated from protobuf field: prehog.v1alpha.DiscoverStepStatus status = 3;
+     */
+    status?: DiscoverStepStatus;
+}
+/**
+ * UIDiscoverCreateAppServerEvent is emitted when an app server is created.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIDiscoverCreateAppServerEvent
+ */
+export interface UIDiscoverCreateAppServerEvent {
     /**
      * @generated from protobuf field: prehog.v1alpha.DiscoverMetadata metadata = 1;
      */
@@ -2118,6 +2144,78 @@ export interface TAGExecuteQueryEvent {
     isSuccess: boolean;
 }
 /**
+ * AccessGraphSecretsScanAuthorizedKeysEvent is emitted when the Access Graph
+ * SSH authorized keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export interface AccessGraphSecretsScanAuthorizedKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string host_id = 1;
+     */
+    hostId: string;
+    /**
+     * total_keys is the total amount of keys found in the authorized keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+}
+/**
+ * AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when the Access Graph
+ * SSH private keys scan is performed.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export interface AccessGraphSecretsScanSSHPrivateKeysEvent {
+    /**
+     * anonymized
+     *
+     * @generated from protobuf field: string device_id = 1;
+     */
+    deviceId: string;
+    /**
+     * total_keys is the total amount of keys found in the private keys file.
+     *
+     * @generated from protobuf field: uint64 total_keys = 2;
+     */
+    totalKeys: bigint;
+    /**
+     * device OS type
+     *
+     * @generated from protobuf field: string device_os_type = 3;
+     */
+    deviceOsType: string;
+}
+/**
+ * AccessGraphGitlabScanEvent is emitted when the Access Graph
+ * Gitlab scan is enabled.
+ *
+ * @generated from protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export interface AccessGraphGitlabScanEvent {
+    /**
+     * total_projects is the total amount of projects found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_projects = 1;
+     */
+    totalProjects: bigint;
+    /**
+     * total_users is the total amount of users found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_users = 2;
+     */
+    totalUsers: bigint;
+    /**
+     * total_groups is the total amount of groups found in the Gitlab scan.
+     *
+     * @generated from protobuf field: uint64 total_groups = 3;
+     */
+    totalGroups: bigint;
+}
+/**
  * ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
  * Storage feature authenticates to the customer AWS account via OIDC connector.
  * The purpose is to have a regularly emitted event indicating that the External
@@ -2826,6 +2924,30 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84;
          */
         uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent;
+    } | {
+        oneofKind: "uiDiscoverCreateAppServerEvent";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85;
+         */
+        uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent;
+    } | {
+        oneofKind: "accessGraphGitlabScan";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86;
+         */
+        accessGraphGitlabScan: AccessGraphGitlabScanEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanAuthorizedKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
+         */
+        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent;
+    } | {
+        oneofKind: "accessGraphSecretsScanSshPrivateKeys";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
+         */
+        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent;
     } | {
         oneofKind: undefined;
     };
@@ -3949,7 +4071,8 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
             { no: 1, name: "desktop_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "windows_domain", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 4, name: "allow_user_creation", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "nla", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<SessionStartDesktopMetadata>): SessionStartDesktopMetadata {
@@ -3958,6 +4081,7 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         message.origin = "";
         message.windowsDomain = "";
         message.allowUserCreation = false;
+        message.nla = false;
         if (value !== undefined)
             reflectionMergePartial<SessionStartDesktopMetadata>(this, message, value);
         return message;
@@ -3978,6 +4102,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
                     break;
                 case /* bool allow_user_creation */ 4:
                     message.allowUserCreation = reader.bool();
+                    break;
+                case /* bool nla */ 5:
+                    message.nla = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -4003,6 +4130,9 @@ class SessionStartDesktopMetadata$Type extends MessageType<SessionStartDesktopMe
         /* bool allow_user_creation = 4; */
         if (message.allowUserCreation !== false)
             writer.tag(4, WireType.Varint).bool(message.allowUserCreation);
+        /* bool nla = 5; */
+        if (message.nla !== false)
+            writer.tag(5, WireType.Varint).bool(message.nla);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5794,6 +5924,66 @@ class UIDiscoverCreateNodeEvent$Type extends MessageType<UIDiscoverCreateNodeEve
  * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateNodeEvent
  */
 export const UIDiscoverCreateNodeEvent = new UIDiscoverCreateNodeEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UIDiscoverCreateAppServerEvent$Type extends MessageType<UIDiscoverCreateAppServerEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIDiscoverCreateAppServerEvent", [
+            { no: 1, name: "metadata", kind: "message", T: () => DiscoverMetadata },
+            { no: 2, name: "resource", kind: "message", T: () => DiscoverResourceMetadata },
+            { no: 3, name: "status", kind: "message", T: () => DiscoverStepStatus }
+        ]);
+    }
+    create(value?: PartialMessage<UIDiscoverCreateAppServerEvent>): UIDiscoverCreateAppServerEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UIDiscoverCreateAppServerEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIDiscoverCreateAppServerEvent): UIDiscoverCreateAppServerEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* prehog.v1alpha.DiscoverMetadata metadata */ 1:
+                    message.metadata = DiscoverMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
+                    break;
+                case /* prehog.v1alpha.DiscoverResourceMetadata resource */ 2:
+                    message.resource = DiscoverResourceMetadata.internalBinaryRead(reader, reader.uint32(), options, message.resource);
+                    break;
+                case /* prehog.v1alpha.DiscoverStepStatus status */ 3:
+                    message.status = DiscoverStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIDiscoverCreateAppServerEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* prehog.v1alpha.DiscoverMetadata metadata = 1; */
+        if (message.metadata)
+            DiscoverMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverResourceMetadata resource = 2; */
+        if (message.resource)
+            DiscoverResourceMetadata.internalBinaryWrite(message.resource, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.DiscoverStepStatus status = 3; */
+        if (message.status)
+            DiscoverStepStatus.internalBinaryWrite(message.status, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIDiscoverCreateAppServerEvent
+ */
+export const UIDiscoverCreateAppServerEvent = new UIDiscoverCreateAppServerEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UIDiscoverDatabaseConfigureIAMPolicyEvent$Type extends MessageType<UIDiscoverDatabaseConfigureIAMPolicyEvent> {
     constructor() {
@@ -8411,6 +8601,187 @@ class TAGExecuteQueryEvent$Type extends MessageType<TAGExecuteQueryEvent> {
  */
 export const TAGExecuteQueryEvent = new TAGExecuteQueryEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanAuthorizedKeysEvent$Type extends MessageType<AccessGraphSecretsScanAuthorizedKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent", [
+            { no: 1, name: "host_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanAuthorizedKeysEvent>): AccessGraphSecretsScanAuthorizedKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.hostId = "";
+        message.totalKeys = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanAuthorizedKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanAuthorizedKeysEvent): AccessGraphSecretsScanAuthorizedKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string host_id */ 1:
+                    message.hostId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanAuthorizedKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string host_id = 1; */
+        if (message.hostId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.hostId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent
+ */
+export const AccessGraphSecretsScanAuthorizedKeysEvent = new AccessGraphSecretsScanAuthorizedKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphSecretsScanSSHPrivateKeysEvent$Type extends MessageType<AccessGraphSecretsScanSSHPrivateKeysEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent", [
+            { no: 1, name: "device_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "total_keys", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "device_os_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphSecretsScanSSHPrivateKeysEvent>): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.deviceId = "";
+        message.totalKeys = 0n;
+        message.deviceOsType = "";
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphSecretsScanSSHPrivateKeysEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphSecretsScanSSHPrivateKeysEvent): AccessGraphSecretsScanSSHPrivateKeysEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string device_id */ 1:
+                    message.deviceId = reader.string();
+                    break;
+                case /* uint64 total_keys */ 2:
+                    message.totalKeys = reader.uint64().toBigInt();
+                    break;
+                case /* string device_os_type */ 3:
+                    message.deviceOsType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphSecretsScanSSHPrivateKeysEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string device_id = 1; */
+        if (message.deviceId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.deviceId);
+        /* uint64 total_keys = 2; */
+        if (message.totalKeys !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalKeys);
+        /* string device_os_type = 3; */
+        if (message.deviceOsType !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.deviceOsType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent
+ */
+export const AccessGraphSecretsScanSSHPrivateKeysEvent = new AccessGraphSecretsScanSSHPrivateKeysEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AccessGraphGitlabScanEvent$Type extends MessageType<AccessGraphGitlabScanEvent> {
+    constructor() {
+        super("prehog.v1alpha.AccessGraphGitlabScanEvent", [
+            { no: 1, name: "total_projects", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 2, name: "total_users", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
+            { no: 3, name: "total_groups", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+        ]);
+    }
+    create(value?: PartialMessage<AccessGraphGitlabScanEvent>): AccessGraphGitlabScanEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.totalProjects = 0n;
+        message.totalUsers = 0n;
+        message.totalGroups = 0n;
+        if (value !== undefined)
+            reflectionMergePartial<AccessGraphGitlabScanEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessGraphGitlabScanEvent): AccessGraphGitlabScanEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint64 total_projects */ 1:
+                    message.totalProjects = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_users */ 2:
+                    message.totalUsers = reader.uint64().toBigInt();
+                    break;
+                case /* uint64 total_groups */ 3:
+                    message.totalGroups = reader.uint64().toBigInt();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AccessGraphGitlabScanEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint64 total_projects = 1; */
+        if (message.totalProjects !== 0n)
+            writer.tag(1, WireType.Varint).uint64(message.totalProjects);
+        /* uint64 total_users = 2; */
+        if (message.totalUsers !== 0n)
+            writer.tag(2, WireType.Varint).uint64(message.totalUsers);
+        /* uint64 total_groups = 3; */
+        if (message.totalGroups !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.totalGroups);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessGraphGitlabScanEvent
+ */
+export const AccessGraphGitlabScanEvent = new AccessGraphGitlabScanEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class ExternalAuditStorageAuthenticateEvent$Type extends MessageType<ExternalAuditStorageAuthenticateEvent> {
     constructor() {
         super("prehog.v1alpha.ExternalAuditStorageAuthenticateEvent", []);
@@ -8929,7 +9300,11 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 81, name: "database_user_created", kind: "message", oneof: "event", T: () => DatabaseUserCreatedEvent },
             { no: 82, name: "database_user_permissions_updated", kind: "message", oneof: "event", T: () => DatabaseUserPermissionsUpdateEvent },
             { no: 83, name: "ui_discover_create_discovery_config", kind: "message", oneof: "event", T: () => UIDiscoverCreateDiscoveryConfigEvent },
-            { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent }
+            { no: 84, name: "ui_discover_kube_eks_enroll_event", kind: "message", oneof: "event", T: () => UIDiscoverKubeEKSEnrollEvent },
+            { no: 85, name: "ui_discover_create_app_server_event", kind: "message", oneof: "event", T: () => UIDiscoverCreateAppServerEvent },
+            { no: 86, name: "access_graph_gitlab_scan", kind: "message", oneof: "event", T: () => AccessGraphGitlabScanEvent },
+            { no: 87, name: "access_graph_secrets_scan_authorized_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanAuthorizedKeysEvent },
+            { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -9437,6 +9812,30 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiDiscoverKubeEksEnrollEvent: UIDiscoverKubeEKSEnrollEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverKubeEksEnrollEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event */ 85:
+                    message.event = {
+                        oneofKind: "uiDiscoverCreateAppServerEvent",
+                        uiDiscoverCreateAppServerEvent: UIDiscoverCreateAppServerEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiDiscoverCreateAppServerEvent)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan */ 86:
+                    message.event = {
+                        oneofKind: "accessGraphGitlabScan",
+                        accessGraphGitlabScan: AccessGraphGitlabScanEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphGitlabScan)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys */ 87:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanAuthorizedKeys",
+                        accessGraphSecretsScanAuthorizedKeys: AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanAuthorizedKeys)
+                    };
+                    break;
+                case /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys */ 88:
+                    message.event = {
+                        oneofKind: "accessGraphSecretsScanSshPrivateKeys",
+                        accessGraphSecretsScanSshPrivateKeys: AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphSecretsScanSshPrivateKeys)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -9698,6 +10097,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 84; */
         if (message.event.oneofKind === "uiDiscoverKubeEksEnrollEvent")
             UIDiscoverKubeEKSEnrollEvent.internalBinaryWrite(message.event.uiDiscoverKubeEksEnrollEvent, writer.tag(84, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 85; */
+        if (message.event.oneofKind === "uiDiscoverCreateAppServerEvent")
+            UIDiscoverCreateAppServerEvent.internalBinaryWrite(message.event.uiDiscoverCreateAppServerEvent, writer.tag(85, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphGitlabScanEvent access_graph_gitlab_scan = 86; */
+        if (message.event.oneofKind === "accessGraphGitlabScan")
+            AccessGraphGitlabScanEvent.internalBinaryWrite(message.event.accessGraphGitlabScan, writer.tag(86, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87; */
+        if (message.event.oneofKind === "accessGraphSecretsScanAuthorizedKeys")
+            AccessGraphSecretsScanAuthorizedKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanAuthorizedKeys, writer.tag(87, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88; */
+        if (message.event.oneofKind === "accessGraphSecretsScanSshPrivateKeys")
+            AccessGraphSecretsScanSSHPrivateKeysEvent.internalBinaryWrite(message.event.accessGraphSecretsScanSshPrivateKeys, writer.tag(88, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

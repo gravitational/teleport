@@ -20,8 +20,6 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -607,12 +605,14 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Try to login as an unknown user.
 	_, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username: user,
-			Pass:     &authclient.PassCreds{Password: pass},
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 	})
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
+	var accessDeniedErr *trace.AccessDeniedError
+	require.ErrorAs(t, err, &accessDeniedErr)
 
 	// Create the user.
 	_, role, err := CreateUserAndRole(s.a, user, []string{user}, nil)
@@ -626,16 +626,13 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	role, err = s.a.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	kg := testauthority.New()
-	_, pub, err := kg.GetNewKeyPairFromPool()
-	require.NoError(t, err)
-
 	// Login to the root cluster.
 	resp, err := s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
@@ -643,17 +640,18 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, user, resp.Username)
 	// Verify the public key and principals in SSH cert.
-	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey(pub)
+	inSSHPub, _, _, _, err := ssh.ParseAuthorizedKey([]byte(sshPubKey))
 	require.NoError(t, err)
 	gotSSHCert, err := sshutils.ParseCertificate(resp.Cert)
 	require.NoError(t, err)
 	require.Equal(t, inSSHPub, gotSSHCert.Key)
 	require.Equal(t, []string{user, teleport.SSHSessionJoinPrincipal}, gotSSHCert.ValidPrincipals)
 	// Verify the public key and Subject in TLS cert.
-	inCryptoPub := inSSHPub.(ssh.CryptoPublicKey).CryptoPublicKey()
+	inTLSPub, err := keys.ParsePublicKey([]byte(tlsPubKey))
+	require.NoError(t, err)
 	gotTLSCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
 	require.NoError(t, err)
-	require.Equal(t, gotTLSCert.PublicKey, inCryptoPub)
+	require.Equal(t, gotTLSCert.PublicKey, inTLSPub)
 	wantID := tlsca.Identity{
 		Username:         user,
 		Groups:           []string{role.GetName()},
@@ -672,9 +670,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:               time.Hour,
 		RouteToCluster:    "leaf.localhost",
@@ -718,9 +717,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
@@ -749,9 +749,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
@@ -781,9 +782,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
@@ -812,9 +814,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login without specifying kube cluster. Kube cluster in the certificate should be empty.
 	resp, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
@@ -844,9 +847,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Username:     user,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
@@ -891,13 +895,6 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	dev2, err := RegisterTestDevice(ctx, userClient, "dev2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, dev1 /* authenticator */)
 	require.NoError(t, err, "RegisterTestDevice")
 
-	// Prepare an SSH public key for testing.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "GenerateKey")
-	signer, err := ssh.NewSignerFromSigner(privKey)
-	require.NoError(t, err, "NewSignerFromSigner")
-	pubKey := ssh.MarshalAuthorizedKey(signer.PublicKey())
-
 	// Users initially authenticate via Proxy, as there isn't a userClient before
 	// authn.
 	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
@@ -923,8 +920,9 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 
 		return proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-				Username:  user,
-				PublicKey: pubKey,
+				Username:     user,
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
@@ -1567,15 +1565,14 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 		"UpsertPassword failed")
 
 	// Authenticate and create certificates.
-	_, pub, err := testauthority.New().GetNewKeyPairFromPool()
-	require.NoError(t, err, "GetNewKeyPairFromPool failed")
 	authResp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username: username,
 			Pass: &authclient.PassCreds{
 				Password: []byte(pass),
 			},
-			PublicKey: pub,
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL: 1 * time.Hour,
 	})
@@ -1603,7 +1600,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			name:    "device extensions",
 			x509PEM: authResp.TLSCert,
 			opts: &AugmentUserCertificateOpts{
-				SSHAuthorizedKey: authResp.Cert,
+				SSHAuthorizedKey:         authResp.Cert,
+				SSHKeySatisfiedChallenge: true,
 				DeviceExtensions: &DeviceExtensions{
 					DeviceID:     devID,
 					AssetTag:     devTag,
@@ -1738,11 +1736,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// authenticate authenticates the specified user, creating a new key pair, a
 	// new pair of certificates, and parsing all relevant responses.
 	authenticate := func(t *testing.T, user, pass string) (tlsRaw, sshRaw []byte, xCert *x509.Certificate, sshCert *ssh.Certificate, identity *tlsca.Identity) {
-		// Avoid using recycled keys here, otherwise the test may flake.
-		privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		require.NoError(t, err, "GenerateKey failed")
-		sPubKey, err := ssh.NewPublicKey(privKey.Public())
-		require.NoError(t, err, "NewPublicKey failed")
+		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(authServer))
+		require.NoError(t, err)
+
+		sshPublicKey, err := ssh.NewPublicKey(sshKey.Public())
+		require.NoError(t, err)
+		tlsPublicKeyPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
 
 		authResp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: authclient.AuthenticateUserRequest{
@@ -1750,7 +1750,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				Pass: &authclient.PassCreds{
 					Password: []byte(pass),
 				},
-				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
+				SSHPublicKey: ssh.MarshalAuthorizedKey(sshPublicKey),
+				TLSPublicKey: tlsPublicKeyPEM,
 			},
 			TTL: 1 * time.Hour,
 		})
@@ -1815,7 +1816,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	aaCtx, err := ctxFromAuthorize(aCtx)
 	require.NoError(t, err, "ctxFromAuthorize failed")
 	augResp, err := authServer.AugmentContextUserCertificates(aCtx, aaCtx, &AugmentUserCertificateOpts{
-		SSHAuthorizedKey: sshRaw1,
+		SSHAuthorizedKey:         sshRaw1,
+		SSHKeySatisfiedChallenge: true,
 		DeviceExtensions: &DeviceExtensions{
 			DeviceID:     "device1",
 			AssetTag:     "tag1",
@@ -1844,6 +1846,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			AssetTag:     "devicetag1",
 			CredentialID: "credentialid1",
 		},
+		SSHKeySatisfiedChallenge: true,
 	}
 	optsFromBase := func(_ *testing.T) *AugmentUserCertificateOpts { return baseOpts }
 
@@ -1939,12 +1942,13 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			wantErr:  "x509 user mismatch",
 		},
 		{
-			name:     "x509/SSH public key mismatch",
+			name:     "SSH challenge not satisfied and x509/SSH public key mismatch",
 			x509Cert: xCert1,
 			identity: identity1,
 			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
 				cp := *baseOpts
 				cp.SSHAuthorizedKey = sshRaw11 // should be sshRaw1
+				cp.SSHKeySatisfiedChallenge = false
 				return &cp
 			},
 			wantErr: "public key mismatch",
@@ -2373,17 +2377,13 @@ func setupUserForAugmentWebSessionCertificatesTest(t *testing.T, testServer *Tes
 		"UpsertPassword",
 	)
 
-	// Generate underlying keys for SSH and TLS.
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err, "GenerateKey")
-	pubKeySSH, err := ssh.NewPublicKey(privKey.Public())
-	require.NoError(t, err, "NewPublicKey")
-	user.pubKey = ssh.MarshalAuthorizedKey(pubKeySSH)
+	user.pubKey = []byte(sshPubKey)
 
 	// Prepare a WebSession to be augmented.
 	authnReq := authclient.AuthenticateUserRequest{
-		Username:  user.user,
-		PublicKey: user.pubKey,
+		Username:     user.user,
+		SSHPublicKey: user.pubKey,
+		TLSPublicKey: []byte(tlsPubKey),
 		Pass: &authclient.PassCreds{
 			Password: user.pass,
 		},
@@ -2421,10 +2421,6 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	options.PinSourceIP = true
 	pinnedRole.SetOptions(options)
 
-	keygen := testauthority.New()
-	_, pub, err := keygen.GetNewKeyPairFromPool()
-	require.NoError(t, err)
-
 	_, err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
@@ -2460,8 +2456,9 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	baseAuthRequest := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-			Pass:      &authclient.PassCreds{Password: pass},
-			PublicKey: pub,
+			Pass:         &authclient.PassCreds{Password: pass},
+			SSHPublicKey: []byte(sshPubKey),
+			TLSPublicKey: []byte(tlsPubKey),
 		},
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),

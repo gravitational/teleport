@@ -28,13 +28,7 @@ export function Motd({ message, onClick }: Props) {
         <StyledText typography="body1" mb={3} textAlign="left">
           {message}
         </StyledText>
-        <ButtonPrimary
-          width="100%"
-          mt={3}
-          size="large"
-          onClick={onClick}
-          align="center"
-        >
+        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
           Acknowledge
         </ButtonPrimary>
       </Box>

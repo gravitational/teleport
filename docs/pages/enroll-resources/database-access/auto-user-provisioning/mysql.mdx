@@ -107,7 +107,7 @@ granted through database-specific roles, such as `reader`.
 
 Otherwise you may see errors like the following:
 
-```shell
+```code
 $ tsh db connect --db-name <database> example
 ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-username>'@'%' to database '<database>'
 ```
@@ -116,7 +116,7 @@ ERROR 1105 (HY000): ERROR 1044 (42000): Access denied for user '<your-teleport-u
 
 You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 ERROR 3501 (HY000): The ACL operation failed due to the following error from SE: errcode 165 - Table is read only
 ```
@@ -131,5 +131,5 @@ endpoints. Please use auto-user provisioning on the primary endpoints.
 ## Next steps
 
 - Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../access-controls/guides/role-templates.mdx#interpolation-rules).
+- Learn about [role templating](../../../admin-guides/access-controls/guides/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

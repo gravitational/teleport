@@ -183,6 +183,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionCommandResultEvent:
+		e = &events.DatabaseSessionCommandResult{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPermissionsUpdateEvent:
@@ -270,6 +272,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
@@ -385,24 +389,48 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case UnknownEvent:
 		e = &events.Unknown{}
 
-	case CassandraBatchEventCode:
+	case DatabaseSessionCassandraBatchEvent:
 		e = &events.CassandraBatch{}
-	case CassandraRegisterEventCode:
+	case DatabaseSessionCassandraRegisterEvent:
 		e = &events.CassandraRegister{}
-	case CassandraPrepareEventCode:
+	case DatabaseSessionCassandraPrepareEvent:
 		e = &events.CassandraPrepare{}
-	case CassandraExecuteEventCode:
+	case DatabaseSessionCassandraExecuteEvent:
 		e = &events.CassandraExecute{}
 
-	case DiscoveryConfigCreateCode:
+	case DiscoveryConfigCreateEvent:
 		e = &events.DiscoveryConfigCreate{}
-	case DiscoveryConfigUpdateCode:
+	case DiscoveryConfigUpdateEvent:
 		e = &events.DiscoveryConfigUpdate{}
-	case DiscoveryConfigDeleteCode:
+	case DiscoveryConfigDeleteEvent:
 		e = &events.DiscoveryConfigDelete{}
-	case DiscoveryConfigDeleteAllCode:
+	case DiscoveryConfigDeleteAllEvent:
 		e = &events.DiscoveryConfigDeleteAll{}
 
+	case SPIFFEFederationCreateEvent:
+		e = &events.SPIFFEFederationCreate{}
+	case SPIFFEFederationDeleteEvent:
+		e = &events.SPIFFEFederationDelete{}
+	case IntegrationCreateEvent:
+		e = &events.IntegrationCreate{}
+	case IntegrationUpdateEvent:
+		e = &events.IntegrationUpdate{}
+	case IntegrationDeleteEvent:
+		e = &events.IntegrationDelete{}
+
+	case PluginCreateEvent:
+		e = &events.PluginCreate{}
+	case PluginUpdateEvent:
+		e = &events.PluginUpdate{}
+	case PluginDeleteEvent:
+		e = &events.PluginDelete{}
+
+	case StaticHostUserCreateEvent:
+		e = &events.StaticHostUserCreate{}
+	case StaticHostUserUpdateEvent:
+		e = &events.StaticHostUserUpdate{}
+	case StaticHostUserDeleteEvent:
+		e = &events.StaticHostUserDelete{}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}

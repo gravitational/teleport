@@ -19,7 +19,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"time"
@@ -50,7 +49,7 @@ func NewAccessService(backend backend.Backend) *AccessService {
 
 // DeleteAllRoles deletes all roles
 func (s *AccessService) DeleteAllRoles(ctx context.Context) error {
-	startKey := backend.Key(rolesPrefix)
+	startKey := backend.NewKey(rolesPrefix)
 	endKey := backend.RangeEnd(startKey)
 	return s.DeleteRange(ctx, startKey, endKey)
 }
@@ -101,7 +100,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 	startKey := backend.ExactKey(rolesPrefix)
 	if req.StartKey != "" {
-		startKey = backend.Key(rolesPrefix, req.StartKey, paramsPrefix)
+		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
 	}
 
 	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
@@ -113,7 +112,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -168,7 +167,7 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
 		Revision: rev,
@@ -196,7 +195,7 @@ func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
 		Revision: rev,
@@ -224,7 +223,7 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.
 	}
 
 	item := backend.Item{
-		Key:      backend.Key(rolesPrefix, role.GetName(), paramsPrefix),
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
 		Value:    value,
 		Expires:  role.Expiry(),
 		Revision: rev,
@@ -243,9 +242,10 @@ func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, e
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
+			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
 			return nil, trace.NotFound("role %v is not found", name)
 		}
 		return nil, trace.Wrap(err)
@@ -259,7 +259,7 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, backend.Key(rolesPrefix, name, paramsPrefix))
+	err := s.Delete(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
@@ -273,7 +273,7 @@ func (s *AccessService) GetLock(ctx context.Context, name string) (types.Lock, e
 	if name == "" {
 		return nil, trace.BadParameter("missing lock name")
 	}
-	item, err := s.Get(ctx, backend.Key(locksPrefix, name))
+	item, err := s.Get(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("lock %q is not found", name)
@@ -324,7 +324,7 @@ func (s *AccessService) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      backend.Key(locksPrefix, lock.GetName()),
+		Key:      backend.NewKey(locksPrefix, lock.GetName()),
 		Value:    value,
 		Expires:  lock.Expiry(),
 		Revision: rev,
@@ -341,7 +341,7 @@ func (s *AccessService) DeleteLock(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing lock name")
 	}
-	err := s.Delete(ctx, backend.Key(locksPrefix, name))
+	err := s.Delete(ctx, backend.NewKey(locksPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("lock %q is not found", name)
@@ -382,18 +382,18 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.Key(locksPrefix, lock.GetName()),
+				Key:      backend.NewKey(locksPrefix, lock.GetName()),
 				Value:    value,
 				Expires:  lock.Expiry(),
 				Revision: rev,
 			}
-			newRemoteLocksToStore[string(item.Key)] = item
+			newRemoteLocksToStore[item.Key.String()] = item
 		}
 
 		for _, origLockItem := range origRemoteLocks.Items {
 			// If one of the new remote locks to store is already known,
 			// perform a CompareAndSwap.
-			key := string(origLockItem.Key)
+			key := origLockItem.Key.String()
 			if newLockItem, ok := newRemoteLocksToStore[key]; ok {
 				if _, err := s.CompareAndSwap(ctx, origLockItem, newLockItem); err != nil {
 					return trace.Wrap(err)

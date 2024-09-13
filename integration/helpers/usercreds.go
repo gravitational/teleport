@@ -23,28 +23,28 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // UserCreds holds user client credentials
 type UserCreds struct {
-	// Key is user client key and certificate
-	Key client.KeyRing
-	// HostCA is a trusted host certificate authority
+	// KeyRing is user client key ring.
+	KeyRing client.KeyRing
+	// HostCA is a trusted host certificate authority.
 	HostCA types.CertAuthority
 }
 
 // SetupUserCreds sets up user credentials for client
 func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds) error {
-	err := tc.AddKey(&creds.Key)
+	err := tc.AddKeyRing(&creds.KeyRing)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,14 +114,29 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		ttl = time.Hour
 	}
 
-	priv, err := testauthority.New().GeneratePrivateKey()
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub := sshPriv.MarshalSSHPublicKey()
+	tlsPub, err := tlsPriv.MarshalTLSPublicKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	a := req.Process.GetAuthServer()
-	sshPub := ssh.MarshalAuthorizedKey(priv.SSHPublicKey())
 	sshCert, x509Cert, err := a.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            sshPub,
+		SSHPubKey:      sshPub,
+		TLSPubKey:      tlsPub,
 		Username:       req.Username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -145,10 +160,11 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 
 	return &UserCreds{
 		HostCA: ca,
-		Key: client.KeyRing{
-			PrivateKey: priv,
-			Cert:       sshCert,
-			TLSCert:    x509Cert,
+		KeyRing: client.KeyRing{
+			SSHPrivateKey: sshPriv,
+			TLSPrivateKey: tlsPriv,
+			Cert:          sshCert,
+			TLSCert:       x509Cert,
 		},
 	}, nil
 }

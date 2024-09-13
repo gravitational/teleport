@@ -90,6 +90,7 @@ export enum DiscoverEvent {
   DatabaseConfigureIAMPolicy = 'tp.ui.discover.database.configure.iampolicy',
   EC2InstanceSelection = 'tp.ui.discover.selectedEC2Instance',
   EC2DeployEICE = 'tp.ui.discover.deployEICE',
+  CreateApplicationServer = 'tp.ui.discover.createAppServer',
   CreateNode = 'tp.ui.discover.createNode',
   CreateDiscoveryConfig = 'tp.ui.discover.createDiscoveryConfig',
   KubeEKSEnrollEvent = 'tp.ui.discover.kube.enroll.eks',

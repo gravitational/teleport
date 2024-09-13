@@ -59,6 +59,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodSpacelift),
 	string(types.JoinMethodToken),
 	string(types.JoinMethodTPM),
+	string(types.JoinMethodTerraformCloud),
 }
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
@@ -219,6 +220,14 @@ type AzureOnboardingConfig struct {
 	ClientID string `yaml:"client_id,omitempty"`
 }
 
+// TerraformOnboardingConfig contains parameters for the "terraform" join method
+type TerraformOnboardingConfig struct {
+	// TokenTag is the name of the tag configured via the environment variable
+	// `TERRAFORM_WORKLOAD_IDENTITY_AUDIENCE(_$TAG)`. If unset, the untagged
+	// variant is used.
+	AudienceTag string `yaml:"audience_tag,omitempty"`
+}
+
 // OnboardingConfig contains values relevant to how the bot authenticates with
 // the Teleport cluster.
 type OnboardingConfig struct {
@@ -242,6 +251,9 @@ type OnboardingConfig struct {
 
 	// Azure holds configuration relevant to the azure joining method.
 	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
+
+	// Terraform holds configuration relevant to the `terraform` join method.
+	Terraform TerraformOnboardingConfig `yaml:"terraform,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -436,6 +448,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 			"Certificate TTL is shorter than the renewal interval. This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval",
 			"ttl", conf.CertificateTTL,
 			"interval", conf.RenewalInterval,
+		)
+	}
+
+	if conf.CertificateTTL > defaults.MaxRenewableCertTTL {
+		log.WarnContext(
+			context.TODO(),
+			"Requested certificate TTL exceeds the maximum TTL allowed and will likely be reduced by the Teleport server",
+			"requested_ttl", conf.CertificateTTL,
+			"maximum_ttl", defaults.MaxRenewableCertTTL,
 		)
 	}
 

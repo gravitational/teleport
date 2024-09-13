@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -95,6 +96,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
@@ -111,12 +113,12 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
-	samlidp "github.com/gravitational/teleport/lib/idp/saml"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -139,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	utilsaws "github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/web/app"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/terminal"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -487,7 +490,11 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Emitter:                         s.proxyClient,
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
-		ProxySettings:                   &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   s.server.Auth(),
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(proxySessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -2283,7 +2290,7 @@ func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
 	require.NoError(t, err)
 	require.IsType(t, tdp.ClientScreenSpec{}, msg)
 
-	err = tdpConn.WriteMessage(tdp.Notification{Message: "test", Severity: tdp.SeverityWarning})
+	err = tdpConn.WriteMessage(tdp.Alert{Message: "test", Severity: tdp.SeverityWarning})
 	require.NoError(t, err)
 }
 
@@ -2357,7 +2364,7 @@ func TestDesktopAccessMFARequiresMfa(t *testing.T) {
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
-			require.IsType(t, tdp.Notification{}, msg)
+			require.IsType(t, tdp.Alert{}, msg)
 		})
 	}
 }
@@ -3056,6 +3063,38 @@ func TestMultipleConnectors(t *testing.T) {
 	require.Equal(t, "foo", out.Auth.OIDC.Name)
 }
 
+func TestPingSSHDialTimeout(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	// hit the ping endpoint to get the ssh dial timeout
+	re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	var out webclient.PingResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, apidefaults.DefaultIOTimeout, out.Proxy.SSH.DialTimeout)
+
+	// Update the timeout
+	cnc, err := s.server.Auth().GetClusterNetworkingConfig(s.ctx)
+	require.NoError(t, err)
+
+	cnc.SetSSHDialTimeout(time.Minute)
+	cnc, err = s.server.Auth().UpsertClusterNetworkingConfig(s.ctx, cnc)
+	require.NoError(t, err)
+
+	// hit the ping endpoint again to validate that updated values are returned
+	re, err = wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(re.Bytes(), &out))
+
+	// Validate the timeout is the default value.
+	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
+
+}
+
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
 // encrypt and decrypt data that passes through the ConstructSSHResponse
 // function.
@@ -3633,6 +3672,7 @@ func TestSignMTLS_failsAccessDenied(t *testing.T) {
 
 // TestCheckAccessToRegisteredResource_AccessDenied tests that access denied error
 // is ignored.
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3675,6 +3715,7 @@ func TestCheckAccessToRegisteredResource_AccessDenied(t *testing.T) {
 	require.False(t, resp.HasResource)
 }
 
+// TODO(kiosion): DELETE in 18.0
 func TestCheckAccessToRegisteredResource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -7161,7 +7202,7 @@ func TestCreateDatabase(t *testing.T) {
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
 
 	// Create an initial database to table test a duplicate creation
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     "duplicatedb",
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7170,13 +7211,13 @@ func TestCreateDatabase(t *testing.T) {
 
 	for _, tt := range []struct {
 		name           string
-		req            createDatabaseRequest
+		req            createOrOverwriteDatabaseRequest
 		expectedStatus int
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "mydatabase",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7192,7 +7233,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "valid with labels",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "dbwithlabels",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7212,7 +7253,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty name",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7224,7 +7265,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty protocol",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyprotocol",
 				Protocol: "",
 				URI:      "someuri:3306",
@@ -7236,7 +7277,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "empty uri",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "emptyuri",
 				Protocol: "mysql",
 				URI:      "",
@@ -7248,7 +7289,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "missing port",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "missingport",
 				Protocol: "mysql",
 				URI:      "someuri",
@@ -7260,7 +7301,7 @@ func TestCreateDatabase(t *testing.T) {
 		},
 		{
 			name: "duplicatedb",
-			req: createDatabaseRequest{
+			req: createOrOverwriteDatabaseRequest{
 				Name:     "duplicatedb",
 				Protocol: "mysql",
 				URI:      "someuri:3306",
@@ -7317,6 +7358,79 @@ func TestCreateDatabase(t *testing.T) {
 	}
 }
 
+func TestOverwriteDatabase(t *testing.T) {
+	t.Parallel()
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+
+	initDb, err := types.NewDatabaseV3(types.Metadata{
+		Name: "postgres",
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+		},
+	})
+	require.NoError(t, err)
+
+	err = env.server.Auth().CreateDatabase(context.Background(), initDb)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		req            createOrOverwriteDatabaseRequest
+		verifyResponse func(*testing.T, *roundtrip.Response, createOrOverwriteDatabaseRequest, error)
+	}{
+		{
+			name: "overwrite",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      initDb.GetName(),
+				Overwrite: true,
+				URI:       "some-other-uri:3306",
+				Protocol:  "postgres",
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.NoError(t, err)
+
+				var gotDb ui.Database
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &gotDb))
+				require.Equal(t, req.URI, gotDb.URI)
+				require.Equal(t, req.Protocol, gotDb.Protocol)
+				require.Empty(t, req.AWSRDS)
+				require.Equal(t, initDb.GetName(), gotDb.Name)
+
+				backendDb, err := env.server.Auth().GetDatabase(context.Background(), req.Name)
+				require.NoError(t, err)
+				require.Equal(t, ui.MakeDatabase(backendDb, nil, nil, false), gotDb)
+			},
+		},
+		{
+			name: "overwrite error: database does not exist",
+			req: createOrOverwriteDatabaseRequest{
+				Name:      "this-db-does-not-exist",
+				URI:       "some-uri",
+				Protocol:  "mysql",
+				Overwrite: true,
+			},
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, req createOrOverwriteDatabaseRequest, err error) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases")
+			resp, err := pack.clt.PostJSON(context.Background(), endpoint, test.req)
+
+			test.verifyResponse(t, resp, test.req, err)
+		})
+	}
+}
+
 func TestUpdateDatabase_Errors(t *testing.T) {
 	t.Parallel()
 
@@ -7342,7 +7456,7 @@ func TestUpdateDatabase_Errors(t *testing.T) {
 
 	// Create database
 	createDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases")
-	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createDatabaseRequest{
+	_, err = pack.clt.PostJSON(ctx, createDatabaseEndpoint, createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: "mysql",
 		URI:      "someuri:3306",
@@ -7445,7 +7559,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 
 	// Create a database.
 	dbProtocol := "mysql"
-	database, err := getNewDatabaseResource(createDatabaseRequest{
+	database, err := getNewDatabaseResource(createOrOverwriteDatabaseRequest{
 		Name:     databaseName,
 		Protocol: dbProtocol,
 		URI:      "someuri:3306",
@@ -8185,7 +8299,11 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
+		ProxySettings: &ProxySettings{
+			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ProxySSHAddr:  "127.0.0.1",
+			AccessPoint:   client,
+		},
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(sessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -8478,22 +8596,6 @@ func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(term, "teleport"))
-}
-
-type mockProxySettings struct {
-	mockedGetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
-}
-
-func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
-	if mock.mockedGetProxySettings != nil {
-		return mock.mockedGetProxySettings(ctx)
-	}
-	return &webclient.ProxySettings{}, nil
-}
-
-// GetOpenAIAPIKey returns a dummy OpenAI API key.
-func (mock *mockProxySettings) GetOpenAIAPIKey() string {
-	return "test-key"
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9331,74 +9433,6 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
-// TestSAMlSessionClearedOnLogout tests if SAML IdP session is cleared on logout.
-func TestSAMlSessionClearedOnLogout(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	env := newWebPack(t, 2)
-
-	const user = "llama"
-	const samlSessionID = "saml_session_id"
-
-	// create logged in session
-	pack := env.proxies[0].authPack(t, user, nil /* roles */)
-
-	// manually add SAML IdP session. The actual SAML IdP session and session cookie is set
-	// by the SAML IdP and the code to do that is on teleport.e.
-	_, err := env.proxies[0].client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
-		SessionID:   samlSessionID,
-		Username:    pack.user,
-		SAMLSession: &types.SAMLSessionData{ID: samlSessionID},
-	})
-	require.NoError(t, err)
-	// add SAML session session cookie to authenticated client pack.
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
-	setSAMLCookie := &http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    samlSessionID,
-		MaxAge:   int(time.Second) * 5,
-		HttpOnly: true,
-		Secure:   true,
-		Path:     "/",
-	}
-	jar.SetCookies(&env.proxies[0].webURL, append(pack.cookies, setSAMLCookie))
-	pack2 := env.proxies[0].newClient(t, roundtrip.BearerAuth(pack.session.Token), roundtrip.CookieJar(jar))
-
-	samlSession, err := env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, user, samlSession.GetUser())
-	require.Equal(t, samlSessionID, samlSession.GetSAMLSession().ID)
-
-	// logout from web. The saml session needs to be deleted and the proxy should
-	// respond with SAML session cookie with empty value.
-	resp, err := pack2.Delete(ctx, pack.clt.Endpoint("webapi", "sessions", "web"))
-	require.NoError(t, err)
-	require.True(t, hasEmptySAMLSessionCookieValue(resp.Cookies()))
-	_, err = env.proxies[0].client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
-		SessionID: samlSessionID,
-	})
-	require.ErrorContains(t, err, `key "/saml_idp/sessions/saml_session_id" is not found`)
-}
-
-func hasEmptySAMLSessionCookieValue(cookies []*http.Cookie) bool {
-	samlCookieString := (&http.Cookie{
-		Name:     samlidp.SAMLSessionCookieName,
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-	}).String()
-	for _, cookie := range cookies {
-		if cookie.String() == samlCookieString {
-			return true
-		}
-	}
-	return false
-}
-
 // initGRPCServer creates a gRPC server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
@@ -10122,6 +10156,197 @@ func Test_consumeTokenForAPICall(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGithubAuthCompat asserts that the proxy can handle github login flows
+// from tsh clients that send split keys in the new format, or only a single key
+// in the old format.
+func TestGithubAuthCompat(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	env.server.Auth().GithubUserAndTeamsOverride = func() (*auth.GithubUserResponse, []auth.GithubTeamResponse, error) {
+		return &auth.GithubUserResponse{
+				Login: "alice",
+			}, []auth.GithubTeamResponse{{
+				Name: "devs",
+				Slug: "devs",
+				Org:  auth.GithubOrgResponse{Login: "octocats"},
+			}}, nil
+	}
+
+	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "octocats",
+				Team:         "devs",
+				Roles:        []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = env.server.Auth().UpsertGithubConnector(ctx, connector)
+	require.NoError(t, err)
+
+	access, err := types.NewRole("access", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = env.server.Auth().CreateRole(ctx, access)
+	require.NoError(t, err)
+
+	clt := env.proxies[0].newClient(t)
+
+	// The response in the callback will be encrypted with this key.
+	secretKey, err := secret.NewKey()
+	require.NoError(t, err)
+
+	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(sshKey.Public())
+	require.NoError(t, err)
+	sshPubBytes := ssh.MarshalAuthorizedKey(sshPub)
+
+	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	tlsPubBytes, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                         string
+		pubKey, sshPubKey, tlsPubKey []byte
+		expectLoginError             string
+		expectSSHSubjectKey          ssh.PublicKey
+		expectTLSSubjectKey          crypto.PublicKey
+	}{
+		{
+			desc:             "no keys",
+			expectLoginError: "Failed to login",
+		},
+		{
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
+			sshPubKey:           sshPubBytes,
+			tlsPubKey:           tlsPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+		{
+			desc:                "only ssh",
+			sshPubKey:           sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+		},
+		{
+			desc:                "only tls",
+			tlsPubKey:           tlsPubBytes,
+			expectTLSSubjectKey: tlsKey.Public(),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Initiate the github SSO login.
+			loginResponse, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "github", "login", "console"), client.SSOLoginConsoleReq{
+				RedirectURL: (&url.URL{
+					Scheme:   "http",
+					Host:     "localhost",
+					Path:     "callback",
+					RawQuery: url.Values{"secret_key": []string{secretKey.String()}}.Encode(),
+				}).String(),
+				ConnectorID: "github",
+				SSOUserPublicKeys: client.SSOUserPublicKeys{
+					PublicKey: tc.pubKey,
+					SSHPubKey: tc.sshPubKey,
+					TLSPubKey: tc.tlsPubKey,
+				},
+				CertTTL: time.Hour,
+			})
+			if tc.expectLoginError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tc.expectLoginError)
+				return
+			}
+			require.NoError(t, err)
+
+			// Retrieve the state token from the redirect URL in the response.
+			stateToken := stateTokenFromConsoleLoginResponse(t, loginResponse.Bytes())
+
+			// Send the callback to the proxy to complete the login.
+			callbackResponse, err := clt.Get(ctx, clt.Endpoint("webapi", "github", "callback"), url.Values{
+				"state": []string{stateToken},
+				"code":  []string{"success"},
+			})
+			require.NoError(t, err)
+
+			// Retrieve the login response from the callback response HTML.
+			sshLoginResponse := sshLoginResponseFromCallbackResponse(t, callbackResponse.Reader(), secretKey)
+
+			// Make sure the subject key in the issued SSH cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectSSHSubjectKey != nil {
+				sshCert, err := apisshutils.ParseCertificate(sshLoginResponse.Cert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectSSHSubjectKey, sshCert.Key)
+			} else {
+				// No SSH cert should be issued if we didn't ask for one.
+				require.Empty(t, sshLoginResponse.Cert)
+			}
+
+			// Make sure the subject key in the issued TLS cert matches the
+			// expected key and didn't get accidentally switched.
+			if tc.expectTLSSubjectKey != nil {
+				tlsCert, err := tlsca.ParseCertificatePEM(sshLoginResponse.TLSCert)
+				require.NoError(t, err)
+				require.Equal(t, tc.expectTLSSubjectKey, tlsCert.PublicKey)
+			} else {
+				// No TLS cert should be issued if we didn't ask for one.
+				require.Empty(t, sshLoginResponse.TLSCert)
+			}
+		})
+	}
+}
+
+func stateTokenFromConsoleLoginResponse(t *testing.T, responseBody []byte) string {
+	var loginResp client.SSOLoginConsoleResponse
+	require.NoError(t, json.Unmarshal(responseBody, &loginResp))
+	u, err := url.Parse(loginResp.RedirectURL)
+	require.NoError(t, err, "parsing login redirect URL")
+	q, err := url.ParseQuery(u.RawQuery)
+	require.NoError(t, err, "parsing login redirect URL query params")
+	require.Contains(t, q, "state", "redirect query did not contain state token")
+	return q["state"][0]
+}
+
+// The login response we're after with the certs in it is:
+// - JSON
+// - encrypted with [secretKey]
+// - in a query param
+// - in a redirect URL
+// - in an HTML document
+func sshLoginResponseFromCallbackResponse(t *testing.T, responseBody io.Reader, secretKey secret.Key) *authclient.SSHLoginResponse {
+	// First pull the URL from the HTML meta redirect.
+	redirectURL, err := app.GetURLFromMetaRedirect(responseBody)
+	require.NoError(t, err)
+
+	// Then get the encrypted JSON out of the query param.
+	u, err := url.Parse(redirectURL)
+	require.NoError(t, err)
+	require.Contains(t, u.Query(), "response", "redirect query did not contain response")
+	ciphertext := u.Query().Get("response")
+
+	// Then unencrypt.
+	callbackPlaintext, err := secretKey.Open([]byte(ciphertext))
+	require.NoError(t, err, "unencrypting github callback response")
+
+	// Then unmarshal the JSON.
+	var sshLoginResponse authclient.SSHLoginResponse
+	require.NoError(t, json.Unmarshal(callbackPlaintext, &sshLoginResponse))
+	return &sshLoginResponse
 }
 
 func TestGithubConnector(t *testing.T) {

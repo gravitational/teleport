@@ -192,8 +192,7 @@ func (s *SSHMultiplexerService) writeArtifacts(
 	}
 
 	var sshConfigBuilder strings.Builder
-	sshConf := openssh.NewSSHConfig(openssh.GetSystemSSHVersion, nil)
-	err = sshConf.GetMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
+	err = openssh.WriteMuxedSSHConfig(&sshConfigBuilder, &openssh.MuxedSSHConfigParameters{
 		AppName:         openssh.TbotApp,
 		ClusterNames:    clusterNames,
 		KnownHostsPath:  filepath.Join(absPath, ssh.KnownHostsName),

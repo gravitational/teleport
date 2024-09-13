@@ -33,18 +33,27 @@ import { Node } from '../nodes';
  * while "plugin" resource is only supported in enterprise. Plugin
  * type exists in OS for easier typing when combining the resources
  * into one list.
+ *
+ * Generics:
+ *  T is resource type "integration" or "plugin"
+ *  K is the kind of integration (eg: aws-oidc) or plugin (eg: okta)
+ *  SP is the provider-specific spec of integration or plugin
+ *  SD is the provider-specific status containing status details
+ *   - currently only defined for plugin resource
  */
 export type Integration<
   T extends string = 'integration',
   K extends string = IntegrationKind,
-  S extends Record<string, any> = IntegrationSpecAwsOidc,
+  SP extends Record<string, any> = IntegrationSpecAwsOidc,
+  SD extends Record<string, any> = null,
 > = {
   resourceType: T;
   kind: K;
-  spec?: S;
+  spec?: SP;
   name: string;
   details?: string;
   statusCode: IntegrationStatusCode;
+  status?: SD;
 };
 // IntegrationKind string values should be in sync
 // with the backend value for defining the integration
@@ -118,7 +127,32 @@ export type ExternalAuditStorageIntegration = Integration<
   ExternalAuditStorage
 >;
 
-export type Plugin<T = any> = Integration<'plugin', PluginKind, T>;
+export type Plugin<SP = any, D = any> = Integration<
+  'plugin',
+  PluginKind,
+  SP,
+  PluginStatus<D>
+>;
+
+export type PluginStatus<D = any> = {
+  /**
+   * the status code of the plugin
+   */
+  code: IntegrationStatusCode;
+  /**
+   * the time the plugin was last run
+   */
+  lastRun: Date;
+  /**
+   * the last error message from the plugin
+   */
+  errorMessage: string;
+  /**
+   * contains provider-specific status information
+   */
+  details?: D;
+};
+
 export type PluginSpec =
   | PluginOktaSpec
   | PluginSlackSpec
@@ -160,6 +194,15 @@ export type PluginOktaSpec = {
   // that were deemed not serious enough to fail the plugin installation, but
   // may effect the operation of advanced features like User Sync or SCIM.
   error: string;
+  /**
+   * is the set of usernames that the integration assigns as
+   * owners to any Access Lists that it creates
+   */
+  defaultOwners: string[];
+  /**
+   * the Okta org's base URL
+   */
+  orgUrl: string;
 };
 
 export type PluginSlackSpec = {
@@ -290,6 +333,23 @@ export type ListAwsRdsDatabaseResponse = {
   nextToken?: string;
 };
 
+export type ListAwsRdsFromAllEnginesResponse = {
+  databases: AwsRdsDatabase[];
+  /**
+   * next page for rds instances.
+   */
+  instancesNextToken?: string;
+  /**
+   * next page for rds clusters.
+   */
+  clustersNextToken?: string;
+  /**
+   * set if fetching rds instances OR rds clusters
+   * returned an error
+   */
+  oneOfError?: string;
+};
+
 export type IntegrationUpdateRequest = {
   awsoidc: {
     roleArn: string;
@@ -301,8 +361,9 @@ export type AwsOidcDeployServiceRequest = {
   region: Regions;
   subnetIds: string[];
   taskRoleArn: string;
-  databaseAgentMatcherLabels: Label[];
   securityGroups?: string[];
+  vpcId: string;
+  accountId: string;
 };
 
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
@@ -368,7 +429,7 @@ export type EnrollEksClustersResponse = {
   results: {
     clusterName: string;
     resourceId: string;
-    error: { message: string };
+    error: string;
   }[];
 };
 
@@ -460,6 +521,36 @@ export type DeployEc2InstanceConnectEndpointResponse = {
   endpoints: AwsEc2InstanceConnectEndpoint[];
 };
 
+export type Subnet = {
+  /**
+   * Subnet name.
+   * This is just a friendly name and should not be used for further API calls.
+   * It can be empty if the subnet was not given a "Name" tag.
+   */
+  name?: string;
+  /**
+   * Subnet ID, for example "subnet-0b3ca383195ad2cc7".
+   * This is the value that should be used when doing further API calls.
+   */
+  id: string;
+  /**
+   *  AWS availability zone of the subnet, for example
+   * "us-west-1a".
+   */
+  availabilityZone: string;
+};
+
+export type ListAwsSubnetsRequest = {
+  vpcId: string;
+  region: Regions;
+  nextToken?: string;
+};
+
+export type ListAwsSubnetsResponse = {
+  subnets: Subnet[];
+  nextToken?: string;
+};
+
 export type ListAwsSecurityGroupsRequest = {
   // VPCID is the VPC to filter Security Groups.
   vpcId: string;
@@ -513,4 +604,18 @@ export type Cidr = {
 export type IntegrationUrlLocationState = {
   kind: IntegrationKind;
   redirectText: string;
+};
+
+export type Vpc = {
+  id: string;
+  name?: string;
+  /**
+   * if defined, a database service is already deployed for this vpc.
+   */
+  ecsServiceDashboardURL?: string;
+};
+
+export type AwsDatabaseVpcsResponse = {
+  vpcs: Vpc[];
+  nextToken: string;
 };

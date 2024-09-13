@@ -90,12 +90,14 @@ import (
 )
 
 func init() {
+	var rustLogLevel string
+
 	// initialize the Rust logger by setting $RUST_LOG based
 	// on the logrus log level
 	// (unless RUST_LOG is already explicitly set, then we
 	// assume the user knows what they want)
-	if rl := os.Getenv("RUST_LOG"); rl == "" {
-		var rustLogLevel string
+	rl := os.Getenv("RUST_LOG")
+	if rl == "" {
 		switch l := logrus.GetLevel(); l {
 		case logrus.TraceLevel:
 			rustLogLevel = "trace"
@@ -108,6 +110,10 @@ func init() {
 		default:
 			rustLogLevel = "error"
 		}
+
+		// sspi-rs info-level logs are extremely verbose, so filter them out by default
+		// TODO(zmb3): remove this after sspi-rs logging is cleaned up
+		rustLogLevel += ",sspi=warn"
 
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
@@ -262,7 +268,7 @@ func (c *Client) readClientSize() error {
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
-			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
+			if err := c.sendTDPAlert(err.Error(), tdp.SeverityError); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(err)
@@ -272,8 +278,8 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
-	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
+func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context) error {
@@ -290,6 +296,18 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	// thus can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
+
+	// [kdcAddr] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	kdcAddr := C.CString(c.cfg.KDCAddr)
+	defer C.free(unsafe.Pointer(kdcAddr))
+
+	// [computerName] need only be valid for the duration of
+	// C.client_run. It is copied on the Rust side and
+	// thus can be freed here.
+	computerName := C.CString(c.cfg.ComputerName)
+	defer C.free(unsafe.Pointer(computerName))
 
 	cert_der, err := utils.UnsafeSliceData(userCertDER)
 	if err != nil {
@@ -308,7 +326,11 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr: addr,
+			ad:               C.bool(c.cfg.AD),
+			nla:              C.bool(c.cfg.NLA),
+			go_addr:          addr,
+			go_computer_name: computerName,
+			go_kdc_addr:      kdcAddr,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(cert_der),
@@ -329,7 +351,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		defer C.free_string(res.message)
 	}
 
-	// If the client exited with an error, send a tdp error notification and return it.
+	// If the client exited with an error, send a TDP notification and return it.
 	if res.err_code != C.ErrCodeSuccess {
 		var err error
 
@@ -339,7 +361,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDPNotification(err.Error(), tdp.SeverityError)
+		c.sendTDPAlert(err.Error(), tdp.SeverityError)
 		return err
 	}
 
@@ -350,7 +372,9 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	}
 
 	c.cfg.Logger.InfoContext(ctx, message)
-	c.sendTDPNotification(message, tdp.SeverityInfo)
+
+	// TODO(zmb3): convert this to severity error and ensure it renders in the UI
+	c.sendTDPAlert(message, tdp.SeverityInfo)
 
 	return nil
 }

@@ -47,8 +47,8 @@ export default function TrustedClusters() {
 
   const title =
     resources.status === 'creating'
-      ? 'Add a new trusted cluster'
-      : 'Edit trusted cluster';
+      ? 'Add a new trusted root cluster'
+      : 'Edit trusted root cluster';
 
   function onRemove() {
     return remove(resources.item.name);
@@ -63,7 +63,7 @@ export default function TrustedClusters() {
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle>Trusted Clusters</FeatureHeaderTitle>
+        <FeatureHeaderTitle>Trusted Root Clusters</FeatureHeaderTitle>
         {hasClusters && (
           <Button
             intent="primary"
@@ -133,8 +133,8 @@ const Info = props => (
     <P>
       Trusted Clusters allow Teleport administrators to connect multiple
       clusters together and establish trust between them. Users of Trusted
-      Clusters can seamlessly access the nodes of the cluster from the root
-      cluster.
+      Clusters can seamlessly access the resources of the leaf cluster from the
+      root cluster.
     </P>
     <P mb={2}>
       Please{' '}

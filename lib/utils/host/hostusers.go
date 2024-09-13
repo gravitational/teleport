@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,7 @@ import (
 
 // man GROUPADD(8), exit codes section
 const GroupExistExit = 9
+const GroupInvalidArg = 3
 
 // man USERADD(8), exit codes section
 const UserExistExit = 9
@@ -53,10 +55,19 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 	cmd := exec.Command(groupaddBin, args...)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))
-	if cmd.ProcessState.ExitCode() == GroupExistExit {
-		return cmd.ProcessState.ExitCode(), trace.AlreadyExists("group already exists")
+
+	switch code := cmd.ProcessState.ExitCode(); code {
+	case GroupExistExit:
+		return code, trace.AlreadyExists("group already exists")
+	case GroupInvalidArg:
+		errMsg := "bad parameter"
+		if strings.Contains(string(output), "not a valid group name") {
+			errMsg = "invalid group name"
+		}
+		return code, trace.BadParameter(errMsg)
+	default:
+		return code, trace.Wrap(err)
 	}
-	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
 // UserAdd creates a user on a host using `useradd`
@@ -69,6 +80,13 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 	if home == "" {
 		// Users without a home directory should land at the root, to match OpenSSH behavior.
 		home = string(os.PathSeparator)
+	}
+
+	// user's without an explicit gid should be added to the group that shares their
+	// login name if it's defined, otherwise user creation will fail because their primary
+	// group already exists
+	if slices.Contains(groups, username) && gid == "" {
+		gid = username
 	}
 
 	// useradd ---no-create-home (username) (groups)...

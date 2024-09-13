@@ -67,24 +67,10 @@ that a user intends to access.
 On your local workstation, create a join token so you can add the server to your
 Teleport cluster:
 
-<Tabs>
-<TabItem label="Linux">
-
 ```code
 Let's save the token to a file
 $ tctl tokens add --type=node --format=text > token.file
 ```
-
-</TabItem>
-<TabItem label="macOS">
-
-```code
-Let's save the token to a file
-$ tctl tokens add --type=node --format=text > token.file
-```
-
-</TabItem>
-</Tabs>
 
 `--type=node` specifies that the Teleport process will act and join as an SSH
 server.
@@ -141,7 +127,8 @@ configuration:
 
 ### Access the Web UI
 
-Run the following command to create a user that can access the Teleport Web UI:
+Run the following command to create a local user that can access the Teleport
+Web UI:
 
 ```code
 $ tctl users add myuser --roles=editor,access --logins=root,ubuntu,ec2-user
@@ -388,6 +375,10 @@ further Getting Started exercises.
 
 ## Next steps
 
+- While this guide shows you how to create a local user in order to access a
+  server, you can also enable Teleport users to authenticate through a single
+  sign-on provider. Read the
+  [documentation](../../admin-guides/access-controls/sso.mdx) to learn more.
 - Learn more about Teleport `tsh` through the [reference documentation](../../reference/cli/tsh.mdx#tsh-ssh).
 - For a complete list of ports used by Teleport, read the [Networking Guide](../../reference/networking.mdx).
 
@@ -397,5 +388,5 @@ further Getting Started exercises.
 - [Announcing Teleport SSH Server](https://goteleport.com/blog/announcing-teleport-ssh-server/)
 - [How to SSH properly](https://goteleport.com/blog/how-to-ssh-properly/)
 - Consider whether [OpenSSH or Teleport SSH](https://goteleport.com/blog/openssh-vs-teleport/) is right for you.
-- [Labels](../../management/admin/labels.mdx)
+- [Labels](../../admin-guides/management/admin/labels.mdx)
 

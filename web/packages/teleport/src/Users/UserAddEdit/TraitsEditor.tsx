@@ -141,10 +141,6 @@ export function TraitsEditor({
                       background: ${props => props.theme.colors.levels.surface};
                     `}
                     placeholder="Type a trait value and press enter"
-                    defaultValue={traitValues.map(r => ({
-                      value: r,
-                      label: r,
-                    }))}
                     label="Value"
                     isMulti
                     isSearchable
@@ -190,7 +186,6 @@ export function TraitsEditor({
       <Box mt={5}>
         <ButtonBorder
           onClick={addNewTraitPair}
-          label={addLabelText}
           css={`
             padding-left: 12px;
             &:disabled {

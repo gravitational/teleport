@@ -42,15 +42,13 @@ func CheckIfCertsAreAllowedToAccessCluster(k *client.KeyRing, rootCluster, telep
 	if rootCluster != teleportCluster {
 		return nil
 	}
-	for k8sCluster, cert := range k.KubeTLSCerts {
-		if k8sCluster != kubeCluster {
-			continue
-		}
-		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
-		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
+	if cred, ok := k.KubeTLSCredentials[kubeCluster]; ok {
+		log.Debugf("Got TLS cert for Kubernetes cluster %q", kubeCluster)
+		exist, err := checkIfCertHasKubeGroupsAndUsers(cred.Cert)
 		if err != nil {
 			return trace.Wrap(err)
-		} else if exist {
+		}
+		if exist {
 			return nil
 		}
 	}

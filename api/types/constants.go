@@ -67,6 +67,8 @@ const (
 	KindBot = "bot"
 	// KindBotInstance is an instance of a Machine ID bot
 	KindBotInstance = "bot_instance"
+	// KindSPIFFEFederation is a SPIFFE federation resource
+	KindSPIFFEFederation = "spiffe_federation"
 
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
@@ -317,6 +319,18 @@ const (
 	// still used when checking access to the new configuration resources, as an
 	// alternative to their individual resource kinds.
 	KindClusterConfig = "cluster_config"
+
+	// KindAutoUpdateConfig is the resource with autoupdate configuration.
+	KindAutoUpdateConfig = "autoupdate_config"
+
+	// KindAutoUpdateVersion is the resource with autoupdate versions.
+	KindAutoUpdateVersion = "autoupdate_version"
+
+	// MetaNameAutoUpdateConfig is the name of a configuration resource for autoupdate config.
+	MetaNameAutoUpdateConfig = "autoupdate-config"
+
+	// MetaNameAutoUpdateVersion is the name of a resource for autoupdate version.
+	MetaNameAutoUpdateVersion = "autoupdate-version"
 
 	// KindClusterAuditConfig is the resource that holds cluster audit configuration.
 	KindClusterAuditConfig = "cluster_audit_config"
@@ -686,10 +700,16 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
-	// ProjectIDLabel is used to identify virtual machines by GCP project
+	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
+	projectIDLabelSuffix = "project-id"
+	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
 	// id found via automatic discovery, to avoid re-running
 	// installation commands on the node.
-	ProjectIDLabel = TeleportInternalLabelPrefix + "project-id"
+	ProjectIDLabelDiscovery = TeleportInternalLabelPrefix + projectIDLabelSuffix
+	// ProjectIDLabel is used to identify the project ID for a virtual machine in GCP.
+	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
+	// and can be used in RBAC checks.
+	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabel is used to identify virtual machines by region found
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
@@ -698,14 +718,14 @@ const (
 	// via automatic discovery, to avoid re-running installation commands
 	// on the node.
 	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
-	// ZoneLabel is used to identify virtual machines by GCP zone
+	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	ZoneLabel = TeleportInternalLabelPrefix + "zone"
-	// NameLabel is used to identify virtual machines by GCP VM name
+	ZoneLabelDiscovery = TeleportInternalLabelPrefix + "zone"
+	// NameLabelDiscovery is used to identify virtual machines by GCP VM name
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
-	NameLabel = TeleportInternalLabelPrefix + "name"
+	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -748,6 +768,8 @@ const (
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
+	// Also added by discovery service to indicate the type of discovered
+	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
 	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
 	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
 	DiscoveryPortLabel = TeleportNamespace + "/port"
@@ -940,6 +962,10 @@ const (
 	// AlertLink is an internal label that indicates that an alert is a link.
 	AlertLink = TeleportInternalLabelPrefix + "link"
 
+	// AlertLinkText is a text that will be rendered by Web UI on the action
+	// button accompanying the alert.
+	AlertLinkText = TeleportInternalLabelPrefix + "link-text"
+
 	// AlertVerbPermit is an internal label that permits a user to view the alert if they
 	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
 	// a coarser control than it might initially appear and has the potential for accidental
@@ -1041,6 +1067,8 @@ const (
 	NotificationClickedLabel = TeleportInternalLabelPrefix + "clicked"
 	// NotificationScope is the label which contains the scope of the notification, either "user" or "global"
 	NotificationScope = TeleportInternalLabelPrefix + "scope"
+	// NotificationTextContentLabel is the label which contains the text content of a user-created notification.
+	NotificationTextContentLabel = TeleportInternalLabelPrefix + "content"
 
 	// NotificationDefaultInformationalSubKind is the default subkind for an informational notification.
 	NotificationDefaultInformationalSubKind = "default-informational"
@@ -1199,6 +1227,7 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
@@ -1276,10 +1305,17 @@ var KubernetesClusterWideResourceKinds = []string{
 }
 
 const (
-	// TeleportServiceGroup is a default group that users of the
-	// teleport automated user provisioning system get added to so
-	// already existing users are not deleted
-	TeleportServiceGroup = "teleport-system"
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (

@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -497,7 +496,7 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 }
 
 // GetRange returns range of elements
-func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -530,7 +529,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	return &backend.GetResult{Items: values}, nil
 }
 
-func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
+func (b *Backend) getAllRecords(ctx context.Context, startKey, endKey backend.Key, limit int) (*getResult, error) {
 	var result getResult
 
 	// this code is being extra careful here not to introduce endless loop
@@ -564,7 +563,7 @@ const (
 )
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -607,7 +606,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 }
 
 // Get returns a single item or not found error
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	r, err := b.getKey(ctx, key)
 	if err != nil {
 		return nil, err
@@ -638,7 +637,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 
@@ -682,7 +681,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 }
 
 // Delete deletes item by key
-func (b *Backend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	if _, err := b.getKey(ctx, key); err != nil {
 		return err
 	}
@@ -711,7 +710,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 
 // ConditionalDelete deletes item by key if the provided revision matches
 // the revision of the item in Dynamo.
-func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	if rev == "" {
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
@@ -999,13 +998,13 @@ const (
 
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
-func prependPrefix(key []byte) string {
+func prependPrefix(key backend.Key) string {
 	return keyPrefix + string(key)
 }
 
 // trimPrefix removes leading 'teleport' from the key
-func trimPrefix(key string) []byte {
-	return []byte(strings.TrimPrefix(key, keyPrefix))
+func trimPrefix(key string) backend.Key {
+	return backend.Key(strings.TrimPrefix(key, keyPrefix))
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.
@@ -1064,7 +1063,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 	return r.Revision, nil
 }
 
-func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
+func (b *Backend) deleteKey(ctx context.Context, key backend.Key) error {
 	av, err := attributevalue.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -1079,7 +1078,7 @@ func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
+func (b *Backend) deleteKeyIfExpired(ctx context.Context, key backend.Key) error {
 	_, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
 		Key:       keyToAttributeValueMap(key),
@@ -1095,7 +1094,7 @@ func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
 	return trace.Wrap(err)
 }
 
-func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
+func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) {
 	av, err := attributevalue.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -1207,7 +1206,7 @@ func fullPathToAttributeValueMap(fullPath string) map[string]types.AttributeValu
 	}
 }
 
-func keyToAttributeValueMap(key []byte) map[string]types.AttributeValue {
+func keyToAttributeValueMap(key backend.Key) map[string]types.AttributeValue {
 	return fullPathToAttributeValueMap(prependPrefix(key))
 }
 

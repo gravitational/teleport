@@ -2464,6 +2464,8 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+  // DatabaseServer is a complete db server spec to be heartbeated.
+  types.DatabaseServerV3 DatabaseServer = 3;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance
@@ -2933,17 +2935,29 @@ service AuthService {
   rpc DeleteAllSnowflakeSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // CreateSAMLIdPSession creates web session with sub kind saml_idp used by the SAML IdP.
-  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse);
+  rpc CreateSAMLIdPSession(CreateSAMLIdPSessionRequest) returns (CreateSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // GetSAMLIdPSession returns a SAML IdP session with sub kind saml_idp.
-  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse);
+  rpc GetSAMLIdPSession(GetSAMLIdPSessionRequest) returns (GetSAMLIdPSessionResponse) {
+    option deprecated = true;
+  }
   // ListSAMLIdPSessions gets all SAML IdP sessions.
-  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse);
+  rpc ListSAMLIdPSessions(ListSAMLIdPSessionsRequest) returns (ListSAMLIdPSessionsResponse) {
+    option deprecated = true;
+  }
   // DeleteSAMLIdPSession removes a SAML IdP session.
-  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty);
+  rpc DeleteSAMLIdPSession(DeleteSAMLIdPSessionRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
-  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+  rpc DeleteAllSAMLIdPSessions(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
   // DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
-  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty);
+  rpc DeleteUserSAMLIdPSessions(DeleteUserSAMLIdPSessionsRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
