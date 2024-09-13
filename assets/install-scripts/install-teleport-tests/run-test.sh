@@ -33,7 +33,7 @@ function test_upgrader() {
 
 function test_teleport_version() {
     VER=$(teleport version | sed -E 's|.*Teleport (Enterprise)? v([0-9]+\.[0-9]+\.[0-9]+).*|\2|');
-    if [ "$VER" -ne $1 ]; then
+    if [ "$VER" != "$1" ]; then
       echo "INSTALL_SCRIPT_TEST_FAILURE: expected teleport to have version $VER but got $1"
     fi
 }
