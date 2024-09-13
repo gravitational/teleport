@@ -61,7 +61,7 @@ func MigrateIncorrectKeyTypes(ctx context.Context, b backend.Backend) error {
 }
 
 func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) T) error {
-	limit := 500
+	limit := 200
 	startKey := newKey([]byte("/"))
 
 	bulkWriter := b.svc.BulkWriter(b.clientContext)
