@@ -36,6 +36,9 @@ export const KeysEnum = {
   USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED:
     'grv_users_not_equal_to_mau_acknowledged',
   LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
+
+  //TODO(rudream): Remove once sidenav implementation is complete.
+  USE_SIDENAV: 'grv_teleport_use_sidenav',
 };
 
 // SurveyRequest is the request for sending data to the back end

@@ -260,4 +260,8 @@ export const storageService = {
       JSON.stringify(true)
     );
   },
+
+  getUseSideNav(): boolean {
+    return this.getParsedJSONValue(KeysEnum.USE_SIDENAV, false);
+  },
 };
