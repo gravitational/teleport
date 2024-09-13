@@ -247,6 +247,7 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 	ui := services.HostUsersInfo{
 		Groups: createUser.Groups,
 		Mode:   services.HostUserModeStatic,
+		Shell:  createUser.DefaultShell,
 	}
 	if createUser.Uid != 0 {
 		ui.UID = strconv.Itoa(int(createUser.Uid))
