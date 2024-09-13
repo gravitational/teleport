@@ -295,7 +295,7 @@ func generateSVID(
 	defer span.End()
 	privateKey, err := cryptosuites.GenerateKey(ctx,
 		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
-		cryptosuites.BotImpersonatedIdentity)
+		cryptosuites.BotSVID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
