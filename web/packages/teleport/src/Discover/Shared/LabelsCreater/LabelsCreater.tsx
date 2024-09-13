@@ -127,7 +127,6 @@ export function LabelsCreater({
             <Box mb={2} key={index}>
               <Flex alignItems="center">
                 <FieldInput
-                  Input
                   rule={requiredUniqueKey}
                   autoFocus={autoFocus}
                   value={label.name}

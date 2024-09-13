@@ -18,15 +18,24 @@
 
 import React from 'react';
 
-import { render, theme } from 'design/utils/testing';
+import { render, screen, theme } from 'design/utils/testing';
 
 import Input from './Input';
 
 describe('design/Input', () => {
+  it('forwards a ref', () => {
+    const ref = jest.fn();
+    render(<Input ref={ref} defaultValue="foo" />);
+    expect(ref).toHaveBeenCalledWith(expect.objectContaining({ value: 'foo' }));
+  });
   it('respects hasError prop', () => {
-    let { container } = render(<Input hasError={true} />);
-    expect(container.firstChild).toHaveStyle({
-      'border-color': theme.colors.error.main,
+    render(<Input hasError={true} />);
+    expect(screen.getByRole('textbox')).toHaveStyle({
+      'border-color': theme.colors.interactive.solid.danger.default.background,
     });
+    expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
+      'aria-label',
+      'Error'
+    );
   });
 });
