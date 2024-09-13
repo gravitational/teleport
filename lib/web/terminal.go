@@ -655,9 +655,7 @@ func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec, cert
 			// TODO add clientRedirectURL to chall
 			envelopeType = defaults.WebsocketIdPChallenge
 			challenge = &client.MFAAuthenticateChallenge{
-				IdPChallenge: client.IdPChallenge{
-					RedirectURL: chal.GetSSOChallenge().RedirectUrl,
-				},
+				SSOChallenge: chal.GetSSOChallenge(),
 			}
 		case chal.GetWebauthnChallenge() != nil:
 			envelopeType = defaults.WebsocketWebauthnChallenge

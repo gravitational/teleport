@@ -301,11 +301,12 @@ type MFAAuthenticateChallenge struct {
 	// login/authentication ceremonies.
 	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
 	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool         `json:"totp_challenge"`
-	IdPChallenge  IdPChallenge `json:"idp_challenge"`
+	TOTPChallenge bool                `json:"totp_challenge"`
+	SSOChallenge  *proto.SSOChallenge `json:"sso_challenge"`
 }
 
 type IdPChallenge struct {
+	RequestID   string `json:"request_id"`
 	RedirectURL string `json:"redirect_url"`
 }
 
