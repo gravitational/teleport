@@ -170,7 +170,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	isUsageBased := features.IsUsageBased
 	isStripeManaged := features.IsStripeManaged
 
-	if features.Cloud || (isDashboard && (isUsageBased && !isStripeManaged)) {
+	if features.Cloud || (isDashboard && isUsageBased && !isStripeManaged) {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
