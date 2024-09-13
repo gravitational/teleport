@@ -410,10 +410,9 @@ func (c *Config) transfer(ctx context.Context) error {
 				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
 			}
 			if fi.IsDir() && !c.opts.Recursive {
-				// Note: using any other error constructor than BadParameter
-				// might lead to relogin attempt and a completely obscure
-				// error message
-				return trace.BadParameter("%q is a directory, but the recursive option was not passed", match)
+				// Note: Using an error constructor included in lib/client.IsErrorResolvableWithRelogin,
+				// e.g. BadParameter, will lead to relogin attempt and a completely obscure error message.
+				return trace.Errorf("%q is a directory, but the recursive option was not passed", match)
 			}
 			fileInfos = append(fileInfos, fi)
 		}
