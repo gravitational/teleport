@@ -21,6 +21,7 @@ package firestore
 import (
 	"context"
 
+	"cloud.google.com/go/firestore"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -63,6 +64,8 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 	limit := 500
 	startKey := newKey([]byte("/"))
 
+	bulkWriter := b.svc.BulkWriter(b.clientContext)
+	defer bulkWriter.End()
 	for {
 		docs, err := b.svc.Collection(b.CollectionName).
 			// passing the key type here forces the client to map the key to the underlying type
@@ -78,19 +81,34 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 			return trace.Wrap(err)
 		}
 
-		for _, dbDoc := range docs {
+		jobs := make([]*firestore.BulkWriterJob, len(docs))
+		for i, dbDoc := range docs {
 			newDoc, err := newRecordFromDoc(dbDoc)
 			if err != nil {
 				return trace.Wrap(err, "failed to convert document")
 			}
 
-			if _, err := b.svc.Collection(b.CollectionName).
-				Doc(b.keyToDocumentID(newDoc.Key)).
-				Set(ctx, newDoc); err != nil {
-				return trace.Wrap(err, "failed to upsert document")
+			jobs[i], err = bulkWriter.Set(
+				b.svc.Collection(b.CollectionName).
+					Doc(b.keyToDocumentID(newDoc.Key)),
+				newDoc,
+			)
+			if err != nil {
+				return trace.Wrap(err, "failed stream bulk action")
 			}
 
 			startKey = newKey(newDoc.Key) // update start key
+		}
+
+		bulkWriter.Flush() // flush the buffer
+		var errs []error
+		for _, job := range jobs {
+			if _, err := job.Results(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if err := trace.NewAggregate(errs...); err != nil {
+			return trace.Wrap(err, "failed to write bulk actions")
 		}
 
 		if len(docs) < limit {
