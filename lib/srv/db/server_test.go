@@ -18,12 +18,14 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -65,13 +68,21 @@ func TestDatabaseServerStart(t *testing.T) {
 	}
 
 	// Make sure servers were announced and their labels updated.
-	servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, servers, 4)
-	for _, server := range servers {
-		require.Equal(t, map[string]string{"echo": "test"},
-			server.GetDatabase().GetAllLabels())
-	}
+	retryutils.RetryStaticFor(5*time.Second, 20*time.Millisecond, func() error {
+		servers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return err
+		}
+		if len(servers) != 4 {
+			return fmt.Errorf("expected 4 servers, got %d", len(servers))
+		}
+		for _, server := range servers {
+			if diff := cmp.Diff(map[string]string{"echo": "test"}, server.GetDatabase().GetAllLabels()); diff != "" {
+				return fmt.Errorf("expected echo:test label, diff: %s", diff)
+			}
+		}
+		return nil
+	})
 }
 
 func TestDatabaseServerLimiting(t *testing.T) {
