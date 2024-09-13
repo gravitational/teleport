@@ -364,7 +364,7 @@ func botIdentityFromAuth(
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
 
-	// TODO(nklaassen): split SSH and TLS keys in identity.
+	// TODO(nklaassen): consider splitting SSH and TLS keys in identity.
 	sshPublicKey := ident.PublicKeyBytes
 	cryptoPubKey, err := sshutils.CryptoPublicKey(sshPublicKey)
 	if err != nil {

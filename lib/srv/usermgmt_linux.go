@@ -20,6 +20,7 @@ package srv
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -72,7 +73,16 @@ func newHostSudoersBackend(uuid string) (HostSudoersBackend, error) {
 
 // Lookup implements host user information lookup
 func (*HostUsersProvisioningBackend) Lookup(username string) (*user.User, error) {
-	return user.Lookup(username)
+	usr, err := user.Lookup(username)
+	if err != nil {
+		if !errors.Is(err, user.UnknownUserError(username)) && strings.Contains(err.Error(), "no such file or directory") {
+			return nil, trace.Wrap(err, "looking up user %q, sources configured for passwd in host's /etc/nsswitch.conf may be misconfigured", username)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return usr, nil
 }
 
 // UserGIDs returns the list of group IDs for a user
