@@ -1,5 +1,5 @@
 /*
-Copyright 2024 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,6 @@ package v1
 import "github.com/gravitational/teleport/integrations/terraform/tfschema/resource153"
 
 var (
-	GenSchemaDuration = resource153.GenSchemaDuration
-	CopyToDuration    = resource153.CopyToDuration
-	CopyFromDuration  = resource153.CopyFromDuration
-
 	GenSchemaTimestamp = resource153.GenSchemaTimestamp
 	CopyToTimestamp    = resource153.CopyToTimestamp
 	CopyFromTimestamp  = resource153.CopyFromTimestamp

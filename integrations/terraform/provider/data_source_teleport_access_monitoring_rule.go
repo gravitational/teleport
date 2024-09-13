@@ -20,38 +20,38 @@ package provider
 import (
 	"context"
 
-	apitypes "github.com/gravitational/teleport/api/types"
+	
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/gravitational/teleport/integrations/terraform/tfschema"
+	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/accessmonitoringrules/v1"
 )
 
-// dataSourceTeleportGithubConnectorType is the data source metadata type
-type dataSourceTeleportGithubConnectorType struct{}
+// dataSourceTeleportAccessMonitoringRuleType is the data source metadata type
+type dataSourceTeleportAccessMonitoringRuleType struct{}
 
-// dataSourceTeleportGithubConnector is the resource
-type dataSourceTeleportGithubConnector struct {
+// dataSourceTeleportAccessMonitoringRule is the resource
+type dataSourceTeleportAccessMonitoringRule struct {
 	p Provider
 }
 
 // GetSchema returns the data source schema
-func (r dataSourceTeleportGithubConnectorType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
-	return tfschema.GenSchemaGithubConnectorV3(ctx)
+func (r dataSourceTeleportAccessMonitoringRuleType) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+	return schemav1.GenSchemaAccessMonitoringRule(ctx)
 }
 
 // NewDataSource creates the empty data source
-func (r dataSourceTeleportGithubConnectorType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
-	return dataSourceTeleportGithubConnector{
+func (r dataSourceTeleportAccessMonitoringRuleType) NewDataSource(_ context.Context, p tfsdk.Provider) (tfsdk.DataSource, diag.Diagnostics) {
+	return dataSourceTeleportAccessMonitoringRule{
 		p: *(p.(*Provider)),
 	}, nil
 }
 
-// Read reads teleport GithubConnector
-func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
+// Read reads teleport AccessMonitoringRule
+func (r dataSourceTeleportAccessMonitoringRule) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
 	var id types.String
 	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
 	resp.Diagnostics.Append(diags...)
@@ -59,16 +59,16 @@ func (r dataSourceTeleportGithubConnector) Read(ctx context.Context, req tfsdk.R
 		return
 	}
 
-	githubConnectorI, err := r.p.Client.GetGithubConnector(ctx, id.Value, true)
+	accessMonitoringRuleI, err := r.p.Client.AccessMonitoringRulesClient().GetAccessMonitoringRule(ctx, id.Value)
 	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Wrap(err), "github"))
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessMonitoringRule", trace.Wrap(err), "access_monitoring_rule"))
 		return
 	}
 
     var state types.Object
+	accessMonitoringRule := accessMonitoringRuleI
 	
-	githubConnector := githubConnectorI.(*apitypes.GithubConnectorV3)
-	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &state)
+	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
