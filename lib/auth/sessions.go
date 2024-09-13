@@ -372,7 +372,6 @@ func (a *Server) newWebSession(
 
 		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
 			log.WithFields(logrus.Fields{
-				"session":                    sess.GetName(),
 				"user":                       req.User,
 				"trusted_device_requirement": tdr,
 			}).Debug("Calculated trusted device requirement for session")
