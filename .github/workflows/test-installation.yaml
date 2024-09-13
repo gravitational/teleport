@@ -3,7 +3,7 @@ name: Test installation script
 on:
   pull_request:
     paths:
-      - "apps/next/public/static/install.sh"
+      - "assets/install-scripts/install.sh"
 
 jobs:
   check:
