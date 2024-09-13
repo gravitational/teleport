@@ -1,7 +1,7 @@
 #!/bin/bash
 # Script parameters:
 # $1: Teleport version (e.g., 10.11.12)
-# $2: edition: cloud, team, oss, or enterprise
+# $2: edition: cloud, oss, or enterprise
 
 function test_teleport() {
     if ! type teleport; then
@@ -54,7 +54,7 @@ if ! echo "$1" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
 fi
 
 case $2 in
-    cloud | team)
+    cloud)
     	test_teleport
     	test_tctl
     	test_tsh
