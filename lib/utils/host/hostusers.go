@@ -117,7 +117,7 @@ func SetUserGroups(username string, groups []string) (exitCode int, err error) {
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find usermod binary")
 	}
-	// usermod -G (replace groups) (username)
+
 	cmd := exec.Command(usermodBin, "-G", strings.Join(groups, ","), username)
 	output, err := cmd.CombinedOutput()
 	log.Debugf("%s output: %s", cmd.Path, string(output))

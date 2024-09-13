@@ -236,12 +236,15 @@ func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) 
 		return nil, trace.Wrap(err)
 	}
 
+	noGroupsAssigned := len(ui.Groups) == 0
+
 	currentGroups := make(map[string]struct{}, len(ui.Groups))
 	groupIDs, err := u.backend.UserGIDs(existingUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	var teleportGroups = []string{types.TeleportDropGroup, types.TeleportKeepGroup, types.TeleportStaticGroup}
 	for _, groupID := range groupIDs {
 		group, err := u.backend.LookupGroupByID(groupID)
 		if err != nil {
@@ -249,6 +252,10 @@ func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) 
 		}
 
 		currentGroups[group.Name] = struct{}{}
+		// no groups assigned means we need to retain the current group assignments
+		if noGroupsAssigned && !slices.Contains(teleportGroups, group.Name) && group.Name != name {
+			ui.Groups = append(ui.Groups, group.Name)
+		}
 	}
 
 	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added

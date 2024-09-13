@@ -744,3 +744,52 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
 }
+
+func TestUpsertUserWithoutHostGroups(t *testing.T) {
+	t.Parallel()
+	backend := newTestUserMgmt()
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	pres := local.NewPresenceService(bk)
+	users := HostUserManagement{
+		backend: backend,
+		storage: pres,
+	}
+
+	userinfo := services.HostUsersInfo{
+		Groups: []string{},
+		Mode:   services.HostUserModeKeep,
+	}
+
+	// creating a new user with no groups should still get the relevant teleport group
+	closer, err := users.UpsertUser("bob", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, []string{"teleport-keep"}, backend.users["bob"])
+
+	// setup existing user with existing groups
+	existingGroups := []string{"foo", "bar", "baz"}
+	userinfo.Groups = slices.Clone(existingGroups)
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, append(userinfo.Groups, "teleport-keep"), backend.users["alice"])
+
+	// empty groups should be a no-op, so all existing groups will remain
+	userinfo.Groups = []string{}
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Zero(t, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, append(existingGroups, "teleport-keep"), backend.users["alice"])
+
+	// swapping to a drop user should still be possible
+	userinfo.Mode = services.HostUserModeDrop
+	closer, err = users.UpsertUser("alice", userinfo)
+	assert.NoError(t, err)
+	assert.NotEqual(t, nil, closer)
+	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.ElementsMatch(t, append(existingGroups, "teleport-system"), backend.users["alice"])
+}

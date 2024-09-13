@@ -381,7 +381,12 @@ func TestRootHostUsers(t *testing.T) {
 				secondGroups: []string{"group1", "group2"},
 			},
 			{
-				name:        "delete groups",
+				name:         "delete groups",
+				firstGroups:  []string{"group1", "group2"},
+				secondGroups: []string{"group1"},
+			},
+			{
+				name:        "stop managing groups",
 				firstGroups: []string{"group1", "group2"},
 			},
 			{
@@ -424,6 +429,11 @@ func TestRootHostUsers(t *testing.T) {
 				// Verify that the appropriate groups form the first set were deleted.
 				userGroups := getUserGroups(t, u)
 				for _, group := range tc.firstGroups {
+					if len(tc.secondGroups) == 0 {
+						require.Contains(t, userGroups, group)
+						continue
+					}
+
 					if !slices.Contains(tc.secondGroups, group) {
 						require.NotContains(t, userGroups, group)
 					}
