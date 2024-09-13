@@ -297,6 +297,10 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// ToolsVersion defines the version of {tsh, tctl} for client auto-upgrade.
+	ToolsVersion string `json:"tools_version"`
+	// ToolsAutoupdate enables client autoupdate feature.
+	ToolsAutoupdate bool `json:"tools_autoupdate"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
