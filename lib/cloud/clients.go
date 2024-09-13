@@ -20,6 +20,8 @@ package cloud
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go/service/organizations"
+	"github.com/aws/aws-sdk-go/service/organizations/organizationsiface"
 	"io"
 	"sync"
 	"time"
@@ -143,6 +145,8 @@ type AWSClients interface {
 	GetAWSKMSClient(ctx context.Context, region string, opts ...AWSOptionsFn) (kmsiface.KMSAPI, error)
 	// GetAWSS3Client returns AWS S3 client.
 	GetAWSS3Client(ctx context.Context, region string, opts ...AWSOptionsFn) (s3iface.S3API, error)
+	// GetAWSOrganizationsClient returns AWS Organizations client.
+	GetAWSOrganizationsClient(ctx context.Context, region string, opts ...AWSOptionsFn) (organizationsiface.OrganizationsAPI, error)
 }
 
 // AzureClients is an interface for Azure-specific API clients
@@ -627,6 +631,14 @@ func (c *cloudClients) GetAWSKMSClient(ctx context.Context, region string, opts 
 	return kms.New(session), nil
 }
 
+func (c *cloudClients) GetAWSOrganizationsClient(ctx context.Context, region string, opts ...AWSOptionsFn) (organizationsiface.OrganizationsAPI, error) {
+	session, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return organizations.New(session), nil
+}
+
 // GetGCPIAMClient returns GCP IAM client.
 func (c *cloudClients) GetGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.RLock()
@@ -1029,6 +1041,7 @@ type TestCloudClients struct {
 	EKS                     eksiface.EKSAPI
 	KMS                     kmsiface.KMSAPI
 	S3                      s3iface.S3API
+	Organizations           organizationsiface.OrganizationsAPI
 	AzureMySQL              azure.DBServersClient
 	AzureMySQLPerSub        map[string]azure.DBServersClient
 	AzurePostgres           azure.DBServersClient
@@ -1210,6 +1223,15 @@ func (c *TestCloudClients) GetAWSSSMClient(ctx context.Context, region string, o
 		return nil, trace.Wrap(err)
 	}
 	return c.SSM, nil
+}
+
+// GetAWSOrganizationsClient returns an AWS Organizations client
+func (c *TestCloudClients) GetAWSOrganizationsClient(ctx context.Context, region string, opts ...AWSOptionsFn) (organizationsiface.OrganizationsAPI, error) {
+	_, err := c.GetAWSSession(ctx, region, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c.Organizations, nil
 }
 
 // GetGCPIAMClient returns GCP IAM client.
