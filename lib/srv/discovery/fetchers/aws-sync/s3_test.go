@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -199,4 +200,110 @@ func s3Buckets(bucketNames ...string) []*s3.Bucket {
 
 	}
 	return output
+}
+
+// Helper function to create AWSS3BucketV1 for testing
+func createAWSS3Bucket(name, accountID string, policyDocument []byte, isPublic bool, lastSync time.Time) *accessgraphv1alpha.AWSS3BucketV1 {
+	return &accessgraphv1alpha.AWSS3BucketV1{
+		Name:           name,
+		AccountId:      accountID,
+		PolicyDocument: policyDocument,
+		IsPublic:       isPublic,
+		LastSyncTime:   timestamppb.New(lastSync),
+	}
+}
+
+func TestMergeS3Protos(t *testing.T) {
+	// Define a common time for the test
+	lastSync := time.Now()
+
+	// Define test cases in a table-driven format
+	tests := []struct {
+		name       string
+		existing   *accessgraphv1alpha.AWSS3BucketV1
+		new        *accessgraphv1alpha.AWSS3BucketV1
+		failedReqs failedRequests
+		expected   *accessgraphv1alpha.AWSS3BucketV1
+	}{
+		{
+			name:     "Both existing and new are nil",
+			existing: nil,
+			new:      nil,
+			failedReqs: failedRequests{
+				policyFailed:       false,
+				failedPolicyStatus: false,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: nil,
+		},
+		{
+			name:     "Existing is nil, new is non-nil",
+			existing: nil,
+			new:      createAWSS3Bucket("new-bucket", "account-1", []byte("policy"), true, lastSync),
+			failedReqs: failedRequests{
+				policyFailed:       false,
+				failedPolicyStatus: false,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: createAWSS3Bucket("new-bucket", "account-1", []byte("policy"), true, lastSync),
+		},
+		{
+			name:     "New is nil, existing is non-nil",
+			existing: createAWSS3Bucket("existing-bucket", "account-1", []byte("existing-policy"), false, lastSync),
+			new:      nil,
+			failedReqs: failedRequests{
+				policyFailed:       false,
+				failedPolicyStatus: false,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: createAWSS3Bucket("existing-bucket", "account-1", []byte("existing-policy"), false, lastSync),
+		},
+		{
+			name:     "New and existing both non-nil, no failures",
+			existing: createAWSS3Bucket("existing-bucket", "account-1", []byte("existing-policy"), false, lastSync),
+			new:      createAWSS3Bucket("new-bucket", "account-2", []byte("new-policy"), true, lastSync),
+			failedReqs: failedRequests{
+				policyFailed:       false,
+				failedPolicyStatus: false,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: createAWSS3Bucket("new-bucket", "account-2", []byte("new-policy"), true, lastSync),
+		},
+		{
+			name:     "Policy merge failed",
+			existing: createAWSS3Bucket("existing-bucket", "account-1", []byte("existing-policy"), false, lastSync),
+			new:      createAWSS3Bucket("new-bucket", "account-2", []byte("new-policy"), true, lastSync),
+			failedReqs: failedRequests{
+				policyFailed:       true,
+				failedPolicyStatus: false,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: createAWSS3Bucket("new-bucket", "account-2", []byte("existing-policy"), true, lastSync),
+		},
+		{
+			name:     "Policy status merge failed",
+			existing: createAWSS3Bucket("existing-bucket", "account-1", []byte("existing-policy"), false, lastSync),
+			new:      createAWSS3Bucket("new-bucket", "account-2", []byte("new-policy"), true, lastSync),
+			failedReqs: failedRequests{
+				policyFailed:       false,
+				failedPolicyStatus: true,
+				failedAcls:         false,
+				failedTags:         false,
+			},
+			expected: createAWSS3Bucket("new-bucket", "account-2", []byte("new-policy"), false, lastSync),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := mergeS3Protos(tt.existing, tt.new, tt.failedReqs)
+
+			require.Empty(t, cmp.Diff(tt.expected, result, protocmp.Transform()))
+		})
+	}
 }
