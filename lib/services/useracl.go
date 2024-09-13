@@ -163,12 +163,14 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		activeSessionAccess.Read = true
 	}
 
-	// The billing dashboards are available in cloud clusters or for
-	// self-hosted dashboards for usage-based subscriptions.
+	// The billing dashboards are available in: cloud clusters &
+	// usage-based self-hosted non-stripe dashboards.
 	var billingAccess ResourceAccess
 	isDashboard := IsDashboard(features)
-	isUsageBasedEnterprise := features.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
-	if features.Cloud || (isDashboard && isUsageBasedEnterprise) {
+	isUsageBased := features.IsUsageBased
+	isStripeManaged := features.IsStripeManaged
+
+	if features.Cloud || (isDashboard && isUsageBased && !isStripeManaged) {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
