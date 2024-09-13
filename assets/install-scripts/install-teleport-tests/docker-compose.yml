@@ -99,4 +99,22 @@ services:
        bash /install.sh 15.0.0;
        bash /run-test.sh 15.0.0 oss'
 
+  test-ubuntu-jammy-script-version-no-params:
+    image: ubuntu:22.04
+    volumes:
+      - type: bind
+        source: ../install.sh
+        # The file path has the same format as the versioned installation script
+        # uploaded to our CDN. We expect the script with no parameters to
+        # install the version of Teleport given in the script filename.
+        target: /install-v16.3.0.sh
+      - type: bind
+        source: ./run-test.sh
+        target: /run-test.sh
+    # Need to install curl on the ubuntu container
+    command: |
+       bash -c 'apt-get update;
+       apt-get install -y curl;
+       bash /install-v16.3.0.sh;
+       bash /run-test.sh 16.3.0 oss'
 
