@@ -93,9 +93,6 @@ func Try(ctx context.Context, clt kclient.Client, name, namespace, uri string) (
 // explicitly allow the resource, or allow any resource ("*").
 func isInclusionAllowed(secret *corev1.Secret, name string) error {
 	secretName := secret.Name
-	if secret.Annotations == nil {
-		return trace.BadParameter("secret %q has no annotation", secretName)
-	}
 	annotation, ok := secret.Annotations[AllowInclusionAnnotation]
 	if !ok {
 		return trace.BadParameter("secret %q doesn't have the %q annotation", secretName, AllowInclusionAnnotation)
