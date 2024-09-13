@@ -175,7 +175,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 			switch envelope.Type {
 			case defaults.WebsocketClose:
 				return
-			case defaults.WebsocketWebauthnChallenge:
+			case defaults.WebsocketWebauthnChallenge, defaults.WebsocketIdPChallenge:
 				select {
 				case <-ctx.Done():
 					return

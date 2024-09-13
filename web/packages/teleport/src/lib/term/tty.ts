@@ -19,7 +19,10 @@
 import Logger from 'shared/libs/logger';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { WebauthnAssertionResponse } from 'teleport/services/auth';
+import {
+  SSOMFAResponse,
+  WebauthnAssertionResponse,
+} from 'teleport/services/auth';
 import { AuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket';
 
 import { EventType, TermEvent, WebsocketCloseCode } from './enums';
@@ -82,6 +85,13 @@ class Tty extends EventEmitterWebAuthnSender {
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
     const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  sendSSOMfa(data: SSOMFAResponse) {
+    console.log('sendSSOMFA', { data });
+    const encoded = this._proto.encodeSSOMFAResponse(JSON.stringify(data));
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }

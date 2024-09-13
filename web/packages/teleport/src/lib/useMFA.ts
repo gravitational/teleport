@@ -16,8 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback } from 'react';
-import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import {
+  useState,
+  useCallback,
+  useEffect,
+  Dispatch,
+  SetStateAction,
+} from 'react';
 
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { TermEvent } from 'teleport/lib/term/enums';
@@ -26,25 +31,30 @@ import {
   makeWebauthnAssertionResponse,
 } from 'teleport/services/auth';
 
-type SSOasMFACallbacks = Record<string, VoidFunction>;
+type MFACallback = (e: MessageEvent<{ mfaToken: string }>) => void;
+type SSOasMFACallbacks = Record<string, MFACallback>;
 
 export default function useMFA(
   emitterSender: EventEmitterWebAuthnSender
 ): WebAuthnState {
-  const [state, setState] = useState({
+  const [state, setState] = useState<{
+    addMfaToScpUrls: boolean;
+    requested: boolean;
+    errorText: string;
+    publicKey: PublicKeyCredentialRequestOptions;
+    ssoChallenge: SSOChallenge;
+  }>({
     addMfaToScpUrls: false,
     requested: false,
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
-    redirectUri: '',
+    ssoChallenge: null,
   });
   const [awaitingIdpResponse, setAwaitingIdpResponse] = useState(false);
-  const [bc, setBc] = useState<BroadcastChannel>(
-    new BroadcastChannel('sso_confirm')
-  );
+  const [ssoChal, setSSOChal] = useState<SSOChallenge>(null);
   const [mfaCallbacks, setMfaCallbacks] = useState<SSOasMFACallbacks>({});
 
-  const registerMfaCallback = (key: string, cb: VoidFunction) => {
+  const registerMfaCallback = (key: string, cb: MFACallback) => {
     const newCallbacks = { ...mfaCallbacks };
     newCallbacks[key] = cb;
     setMfaCallbacks(newCallbacks);
@@ -56,20 +66,20 @@ export default function useMFA(
     setMfaCallbacks(newCallbacks);
   };
 
-  useEffect(() => {
-    function handleMessage() {
-      bc.postMessage({ received: true });
-      mfaCallbacks['session_mfa']?.();
-    }
+  // useEffect(() => {
+  //   // function handleMessage(data: MessageEvent<string>) {
+  //   //   // bc.postMessage({ received: true });
+  //   //   // mfaCallbacks['session_mfa']?.(data);
+  //   // }
 
-    bc.addEventListener('message', handleMessage);
+  //   // bc.addEventListener('message', handleMessage);
 
-    return () => {
-      bc.removeEventListener('message', handleMessage);
-      // TODO (avatus) : close this properly
-      // bc.close();
-    };
-  }, [bc, mfaCallbacks]);
+  //   // return () => {
+  //   //   bc.removeEventListener('message', handleMessage);
+  //   //   // TODO (avatus) : close this properly
+  //   //   // bc.close();
+  //   // };
+  // }, [bc, mfaCallbacks]);
 
   function authenticateWebauthn() {
     if (!window.PublicKeyCredential) {
@@ -115,7 +125,7 @@ export default function useMFA(
 
     // these params will open a tiny window. adjust as needed
     const params = `width=${width},height=${height},left=${left},top=${top}`;
-    window.open(state.redirectUri, '_blank', params);
+    window.open(ssoChal.sso_challenge.redirect_url, '_blank', params);
   }
 
   const onWebAuthnChallenge = challengeJson => {
@@ -130,28 +140,47 @@ export default function useMFA(
     });
   };
 
-  const onIdPChallenge = challengeJson => {
-    const challenge = JSON.parse(challengeJson);
+  const onSSOChallenge = useCallback(
+    challengeJson => {
+      const challenge = JSON.parse(challengeJson) as SSOChallenge;
+      setSSOChal(challenge);
 
-    setState({
-      ...state,
-      requested: true,
-      addMfaToScpUrls: true, // i dont think we'll use this with IdP?
-      redirectUri: challenge.idp_challenge.redirect_url,
-    });
-  };
+      const channel = new BroadcastChannel('sso_confirm');
+
+      const handleMessage = (e: MessageEvent<{ mfaToken: string }>) => {
+        emitterSender.sendSSOMfa({
+          request_id: challenge.sso_challenge.request_id,
+          token: e.data.mfaToken,
+        });
+        setState(prevState => ({
+          ...prevState,
+          requested: false,
+        }));
+        channel.removeEventListener('message', handleMessage);
+        channel.close();
+      };
+
+      channel.addEventListener('message', handleMessage);
+      setState(prevState => ({
+        ...prevState,
+        addMfaToScpUrls: true,
+        requested: true,
+      }));
+    },
+    [emitterSender]
+  );
 
   useEffect(() => {
     if (emitterSender) {
       emitterSender.on(TermEvent.WEBAUTHN_CHALLENGE, onWebAuthnChallenge);
-      emitterSender.on(TermEvent.IDP_CHALLENGE, onIdPChallenge);
+      emitterSender.on(TermEvent.IDP_CHALLENGE, onSSOChallenge);
 
       return () => {
         emitterSender.removeListener(
           TermEvent.WEBAUTHN_CHALLENGE,
           onWebAuthnChallenge
         );
-        emitterSender.removeListener(TermEvent.IDP_CHALLENGE, onIdPChallenge);
+        emitterSender.removeListener(TermEvent.IDP_CHALLENGE, onSSOChallenge);
       };
     }
   }, [emitterSender]);
@@ -167,14 +196,13 @@ export default function useMFA(
     setState,
     addMfaToScpUrls: state.addMfaToScpUrls,
     publicKey: state.publicKey,
-    redirectUri: state.redirectUri,
   };
 }
 
 export type WebAuthnState = {
   errorText: string;
   requested: boolean;
-  registerMfaCallback: (key: string, cb: VoidFunction) => void;
+  registerMfaCallback: (key: string, cb: MFACallback) => void;
   unregisterMfaCallback: (key: string) => void;
   authenticateWebauthn: () => void;
   authenticateProvider: () => void;
@@ -189,5 +217,11 @@ export type WebAuthnState = {
   addMfaToScpUrls: boolean;
   awaitingIdpResponse: boolean;
   publicKey: PublicKeyCredentialRequestOptions;
-  redirectUri: string;
+};
+
+type SSOChallenge = {
+  sso_challenge: {
+    redirect_url: string;
+    request_id: string;
+  };
 };

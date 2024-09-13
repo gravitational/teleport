@@ -59,13 +59,17 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   } = useFileTransfer(tty, session, doc, mfa.addMfaToScpUrls);
   const theme = useTheme();
 
-  useEffect(() => {
-    mfa.registerMfaCallback('session_mfa', () => window.location.reload());
+  // const mfaCallback = (e: MessageEvent<SSOMFAResponse>) => {
+  //   tty.sendWebAuthn
+  // };
 
-    return () => {
-      mfa.unregisterMfaCallback('session_mfa');
-    };
-  }, []);
+  // useEffect(() => {
+  //   mfa.registerMfaCallback('session_mfa', mfaCallback);
+
+  //   return () => {
+  //     mfa.unregisterMfaCallback('session_mfa');
+  //   };
+  // }, []);
 
   function handleCloseFileTransfer() {
     terminalRef.current?.focus();

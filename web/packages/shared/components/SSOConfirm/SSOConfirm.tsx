@@ -1,23 +1,27 @@
 import React, { useEffect } from 'react';
+import { useLocation } from 'react-router';
 
 import { CardSuccess } from 'design';
 
 export const SSOConfirm = () => {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  const mfaToken = params.get('response');
+
   useEffect(() => {
     const bc = new BroadcastChannel('sso_confirm');
-    function handleMessage(e: MessageEvent) {
-      if (e.data?.received) {
+    if (mfaToken) {
+      bc.postMessage({ mfaToken });
+      setTimeout(() => {
         window.close();
-      }
+      }, 1000);
     }
-    bc.addEventListener('message', handleMessage);
-    bc.postMessage({ success: true });
 
     return () => {
-      bc.removeEventListener('message', handleMessage);
-      bc.close();
+      // bc.removeEventListener('message', handleMessage);
+      // bc.close();
     };
-  }, []);
+  }, [mfaToken]);
   return (
     <CardSuccess title="Authorized">
       You have successfully authorized

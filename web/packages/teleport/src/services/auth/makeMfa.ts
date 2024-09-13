@@ -135,6 +135,11 @@ export function makeWebauthnAssertionResponse(res): WebauthnAssertionResponse {
   };
 }
 
+export type SSOMFAResponse = {
+  request_id: string;
+  token: string;
+};
+
 export type WebauthnAssertionResponse = {
   id: string;
   type: string;
