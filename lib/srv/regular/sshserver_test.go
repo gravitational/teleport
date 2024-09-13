@@ -259,7 +259,9 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	server, err := sshSrv.getServerInfo(ctx)
+	require.NoError(t, err)
+	_, err = testServer.Auth().UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
