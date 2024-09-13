@@ -1,0 +1,16 @@
+name: Test installation script
+
+on:
+  pull_request:
+    paths:
+      - "assets/install-scripts/install.sh"
+
+jobs:
+  check:
+    if: ${{ !github.event.pull_request.draft }}
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: bash run-all-tests.sh
+        working-directory: ./assets/install-scripts/install-teleport-tests
