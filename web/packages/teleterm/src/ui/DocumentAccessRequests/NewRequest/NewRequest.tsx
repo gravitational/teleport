@@ -142,7 +142,6 @@ function Inner(props: { rootCluster: Cluster }) {
             updateSearch={updateSearch}
             pageIndicators={pageCount}
             filter={agentFilter}
-            showSearchBar={true}
             disableSearch={fetchStatus === 'loading'}
           />
         )}
