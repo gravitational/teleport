@@ -341,6 +341,11 @@ func (c *authnCeremony) validateDeviceWebToken(
 		return trace.Wrap(errInvalidDeviceWebToken)
 	}
 	if sourceIP != storedToken.BrowserIp {
+		c.logger.DebugContext(ctx,
+			"Device web authentication IP mismatch",
+			"source_ip", sourceIP,
+			"token_ip", storedToken.BrowserIp,
+		)
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication IP mismatch",
