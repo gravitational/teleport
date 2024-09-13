@@ -155,7 +155,7 @@ func (a *awsFetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.
 	// always discard the error
 	_ = eG.Wait()
 
-	return s3s, trace.Wrap(err)
+	return s3s, trace.NewAggregate(errs...)
 }
 
 func awsS3Bucket(name string,
