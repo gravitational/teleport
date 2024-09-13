@@ -60,7 +60,9 @@ case $2 in
     	test_tsh
     	test_tbot
     	test_upgrader
-    	test_teleport_version $1
+	# Don't test the expected version for Teleport Enterprise (Cloud), since
+	# the test suite does not manage the version of the stable/cloud
+	# channel.
     ;;
     oss)
     	test_teleport
