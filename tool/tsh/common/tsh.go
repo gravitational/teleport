@@ -1860,7 +1860,7 @@ func onLogin(cf *CLIConf) error {
 	// The user is not logged in and has typed in `tsh --proxy=... login`, if
 	// the running binary needs to be updated, update and re-exec.
 	if profile == nil {
-		if err := updateAndRun(); err != nil {
+		if err := updateAndRun(context.Background(), tc.WebProxyAddr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1878,7 +1878,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(); err != nil {
+			if err := updateAndRun(context.Background(), tc.WebProxyAddr); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1898,7 +1898,7 @@ func onLogin(cf *CLIConf) error {
 
 			// The user has typed `tsh login`, if the running binary needs to
 			// be updated, update and re-exec.
-			if err := updateAndRun(); err != nil {
+			if err := updateAndRun(context.Background(), tc.WebProxyAddr); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1976,7 +1976,7 @@ func onLogin(cf *CLIConf) error {
 		default:
 			// The user is logged in and has typed in `tsh --proxy=... login`, if
 			// the running binary needs to be updated, update and re-exec.
-			if err := updateAndRun(); err != nil {
+			if err := updateAndRun(context.Background(), tc.WebProxyAddr); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -5464,12 +5464,15 @@ const (
 		"https://goteleport.com/docs/access-controls/guides/headless/#troubleshooting"
 )
 
-func updateAndRun() error {
+func updateAndRun(ctx context.Context, proxy string) error {
 	fmt.Printf("--> Will check remote and if needed, will update binary and re-exec.\n")
 
 	// If needed, download the new version of {tsh, tctl} and re-exec. Make
 	// sure to exit this process with the same exit code as the child process.
-	toolsVersion, reexec := update.CheckRemote()
+	toolsVersion, reexec, err := update.CheckRemote(ctx, proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	if reexec {
 		// Download the version of client tools required by the cluster.
 		if err := update.Download(toolsVersion); err != nil {

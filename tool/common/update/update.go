@@ -19,16 +19,12 @@
 package update
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,44 +35,76 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/renameio/v2"
-	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	teleportToolsVersion = "TELEPORT_TOOLS_VERSION"
+)
+
+var (
+	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
+	baseUrl = "https://cdn.teleport.dev"
 )
 
 // CheckLocal is run at client tool startup and will only perform local checks.
 func CheckLocal() (string, bool) {
-	// Check if the user has requested a specific version of client tools.
-	requestedVersion := os.Getenv("TELEPORT_TOOLS_VERSION")
-	switch {
-	// The user has turned off any form of automatic updates.
-	case requestedVersion == "off":
-		return "", false
-	// The user has requested a specific version of client tools.
-	case requestedVersion != "":
-		return requestedVersion, true
-	}
-
 	// If a version of client tools has already been downloaded to
 	// $TELEPORT_HOME/bin, return that.
 	toolsVersion, err := version()
 	if err != nil {
 		return "", false
 	}
-	return toolsVersion, true
+
+	// Check if the user has requested a specific version of client tools.
+	requestedVersion := os.Getenv(teleportToolsVersion)
+	switch {
+	// The user has turned off any form of automatic updates.
+	case requestedVersion == "off":
+		return "", false
+	// The user has requested a specific version of client tools.
+	case requestedVersion != "" && requestedVersion != toolsVersion:
+		return requestedVersion, true
+	}
+
+	return toolsVersion, false
 }
 
 // CheckRemote will check against Proxy Service if client tools need to be
 // updated.
-func CheckRemote() (string, bool) {
-	// TODO(russjones): CheckRemote should still honor TELEPORT_TOOLS_VERSION
-	// as it allows the user to override what the server has requested.
-	return "", false
+func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
+	// If a version of client tools has already been downloaded to
+	// $TELEPORT_HOME/bin, return that.
+	toolsVersion, err := version()
+	if err != nil {
+		return "", false, nil
+	}
+
+	resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: proxyAddr})
+	if err != nil {
+		return "", false, trace.Wrap(err)
+	}
+
+	requestedVersion := os.Getenv(teleportToolsVersion)
+	switch {
+	// The user has turned off any form of automatic updates.
+	case requestedVersion == "off":
+		return "", false, nil
+	case requestedVersion != "" && requestedVersion != toolsVersion:
+		return requestedVersion, true, nil
+	case !resp.ToolsAutoupdate || resp.ToolsVersion == "":
+		return "", false, nil
+	case resp.ToolsVersion != toolsVersion:
+		return resp.ToolsVersion, true, nil
+	}
+
+	return "", false, nil
 }
 
 func Download(toolsVersion string) error {
@@ -112,11 +140,16 @@ func Download(toolsVersion string) error {
 
 // TODO(russjones): Add edition check here as well.
 func update(toolsVersion string) error {
+	dir, err := toolsDir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// Lock to allow multiple concurrent {tsh, tctl} to run.
-	unlock, err := lock()
+	unlock, err := lock(dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer unlock()
-
-	// TODO(russjones): Cleanup any partial downloads first.
 
 	// Get platform specific download URLs.
 	archiveURL, hashURL, err := urls(toolsVersion, "")
@@ -138,7 +171,7 @@ func update(toolsVersion string) error {
 	defer os.Remove(path)
 
 	// Perform atomic replace so concurrent exec do not fail.
-	if err := atomicReplace(path); err != nil {
+	if err := replace(path, hash); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -152,12 +185,9 @@ func urls(toolsVersion string, toolsEdition string) (string, string, error) {
 
 	switch runtime.GOOS {
 	case "darwin":
-		// TODO(russjones): Once tctl.app is created, update this to whatever the
-		// new package will be called. Maybe back to teleport-{toolsVersion}.pkg?
-		archive = "https://cdn.teleport.dev/tsh-" + toolsVersion + ".pkg"
+		archive = baseUrl + "/tsh-" + toolsVersion + ".pkg"
 	case "windows":
-		// TODO(russjones): Update this to whatever this package will be called.
-		archive = "https://cdn.teleport.dev/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
+		archive = baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
 	case "linux":
 		edition := ""
 		if toolsEdition == "ent" || toolsEdition == "fips" {
@@ -169,7 +199,7 @@ func urls(toolsVersion string, toolsEdition string) (string, string, error) {
 		}
 
 		var b strings.Builder
-		b.WriteString("https://cdn.teleport.dev/teleport-")
+		b.WriteString(baseUrl + "/teleport-")
 		if edition != "" {
 			b.WriteString(edition)
 		}
@@ -197,7 +227,7 @@ func downloadHash(url string) (string, error) {
 		return "", trace.BadParameter("request failed with: %v", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -222,16 +252,15 @@ func downloadArchive(url string, hash string) (string, error) {
 	}
 
 	// Caller of this function will remove this file after the atomic swap has
-	// occured.
+	// occurred.
 	f, err := os.CreateTemp(dir, "tmp-")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	// TODO(russjones): Add ability to Ctrl-C cancel here.
 	h := sha256.New()
 	pw := &progressWriter{n: 0, limit: resp.ContentLength}
-	body := io.TeeReader(io.TeeReader(resp.Body, h), pw)
+	body := cancelableTeeReader(io.TeeReader(resp.Body, h), pw, syscall.SIGINT, syscall.SIGTERM)
 
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows {tsh,
@@ -247,209 +276,12 @@ func downloadArchive(url string, hash string) (string, error) {
 	return f.Name(), nil
 }
 
-func atomicReplace(path string) error {
-	switch runtime.GOOS {
-	case "darwin":
-		return trace.Wrap(replaceDarwin(path))
-	case "linux":
-		return trace.Wrap(replaceLinux(path))
-	case "windows":
-		return trace.Wrap(replaceWindows(path))
-	default:
-		return trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
-	}
-}
-
-func replaceDarwin(path string) error {
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Use "pkgutil" from the filesystem to expand the archive. In theory .pkg
-	// files are xz archives, however it's still safer to use "pkgutil" in-case
-	// Apple makes non-standard changes to the format.
-	//
-	// Full command: pkgutil --expand-full NAME.pkg DIRECTORY/
-	pkgutil, err := exec.LookPath("pkgutil")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	expandUUID := uuid.NewString()
-	expandPath := filepath.Join(dir, expandUUID+"-pkg")
-	out, err := exec.Command(pkgutil, "--expand-full", path, expandPath).Output()
-	if err != nil {
-		log.Debugf("Failed to run pkgutil: %v.", out)
-		return trace.Wrap(err)
-	}
-
-	// The first time a signed and notarized binary macOS application is run,
-	// execution is paused while it gets sent to Apple to verify. Once Apple
-	// approves the binary, the "com.apple.macl" extended attribute is added
-	// and the process is allow to execute. This process is not concurrent, any
-	// other operations (like moving the application) on the application during
-	// this time will lead the the application being sent SIGKILL.
-	//
-	// Since {tsh, tctl} have to be concurrent, execute {tsh, tctl} before
-	// performing any swap operations. This ensures that the "com.apple.macl"
-	// extended attribute is set and macOS will not send a SIGKILL to the
-	// process if multiple processes are trying to operate on it.
-	//
-	// TODO(russjones): Update to support tctl.app as well.
-	expandExecPath := filepath.Join(expandPath, "Payload", "tsh.app", "Contents", "MacOS", "tsh")
-	if _, err := exec.Command(expandExecPath, "version", "--client").Output(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Due to macOS applications not being a single binary (they are a
-	// directory), atomic operations are not possible. To work around this, use
-	// a symlink (which can be atomically swapped), then do a cleanup pass
-	// removing any stale copies of the expanded package.
-	oldName := filepath.Join(expandPath, "Payload", "tsh.app", "Contents", "MacOS", "tsh")
-	newName := filepath.Join(dir, "tsh")
-	if err := renameio.Symlink(oldName, newName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Perform a cleanup pass to remove any old copies of "{tsh, tctl}.app".
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			return nil
-		}
-		if expandUUID+"-pkg" == info.Name() {
-			return nil
-		}
-		if !strings.HasSuffix(info.Name(), "-pkg") {
-			return nil
-		}
-
-		// Found a stale expanded package.
-		if err := os.RemoveAll(filepath.Join(dir, info.Name())); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	return nil
-}
-
-func replaceLinux(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	gzipReader, err := gzip.NewReader(f)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tempDir := renameio.TempDir(dir)
-
-	tarReader := tar.NewReader(gzipReader)
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		// Skip over any files in the archive that are not {tsh, tctl}.
-		if header.Name != "teleport/tctl" &&
-			header.Name != "teleport/tsh" &&
-			header.Name != "teleport/tbot" {
-			if _, err := io.Copy(ioutil.Discard, tarReader); err != nil {
-				log.Debugf("Failed to discard %v: %v.", header.Name, err)
-			}
-			continue
-		}
-
-		dest := filepath.Join(dir, strings.TrimPrefix(header.Name, "teleport/"))
-		t, err := renameio.TempFile(tempDir, dest)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := os.Chmod(t.Name(), 0755); err != nil {
-			return trace.Wrap(err)
-		}
-		defer t.Cleanup()
-
-		if _, err := io.Copy(t, tarReader); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := t.CloseAtomicallyReplace(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func replaceWindows(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	fi, err := f.Stat()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	zipReader, err := zip.NewReader(f, fi.Size())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tempDir := renameio.TempDir(dir)
-
-	for _, r := range zipReader.File {
-		if r.Name != "tsh.exe" {
-			continue
-		}
-		rr, err := r.Open()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer rr.Close()
-
-		dest := filepath.Join(dir, r.Name)
-		t, err := renameio.TempFile(tempDir, dest)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := os.Chmod(t.Name(), 0755); err != nil {
-			return trace.Wrap(err)
-		}
-		defer t.Cleanup()
-
-		if _, err := io.Copy(t, rr); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := t.CloseAtomicallyReplace(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
+// Exec re-executes tool command with same arguments and environ variables.
 func Exec() (int, error) {
 	path, err := toolName()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-
-	//// On macOS and Linux, this may be better.
-	//err := syscall.Exec(path, os.Args[1:], os.Environ())
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
 
 	cmd := exec.Command(path, os.Args[1:]...)
 	cmd.Env = os.Environ()
@@ -462,37 +294,6 @@ func Exec() (int, error) {
 	}
 
 	return cmd.ProcessState.ExitCode(), nil
-}
-
-func lock() (func(), error) {
-	// Build the path to the lock file that will be used by flock.
-	dir, err := toolsDir()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lockFile := filepath.Join(dir, ".lock")
-
-	// Create the advisory lock using flock.
-	// TODO(russjones): Use os.CreateTemp here?
-	lf, err := os.OpenFile(lockFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return func() {
-		if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_UN); err != nil {
-			log.Debugf("Failed to unlock file: %v: %v.", lockFile, err)
-		}
-		//if err := os.Remove(lockFile); err != nil {
-		//	log.Debugf("Failed to remove lock file: %v: %v.", lockFile, err)
-		//}
-		if err := lf.Close(); err != nil {
-			log.Debugf("Failed to close lock file %v: %v.", lockFile, err)
-		}
-	}, nil
 }
 
 func version() (string, error) {
@@ -508,7 +309,7 @@ func version() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Execue "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
+	// Execute "{tsh, tctl} version" and pass in TELEPORT_TOOLS_VERSION=off to
 	// turn off all automatic updates code paths to prevent any recursion.
 	command := exec.CommandContext(ctx, path, "version")
 	command.Env = []string{teleportToolsVersion + "=off"}
@@ -555,6 +356,8 @@ func toolsDir() (string, error) {
 	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
 }
 
+// toolName returns the path to {tsh, tctl} for the executable that started
+// the current process.
 func toolName() (string, error) {
 	base, err := toolsDir()
 	if err != nil {
@@ -569,30 +372,3 @@ func toolName() (string, error) {
 
 	return filepath.Join(base, toolName), nil
 }
-
-type progressWriter struct {
-	n     int64
-	limit int64
-}
-
-func (w *progressWriter) Write(p []byte) (int, error) {
-	w.n = w.n + int64(len(p))
-
-	n := int((w.n*100)/w.limit) / 10
-	bricks := strings.Repeat("▒", n) + strings.Repeat(" ", 10-n)
-	fmt.Printf("\rUpdate progress: [" + bricks + "] (Ctrl-C to cancel update)")
-
-	if w.n == w.limit {
-		fmt.Printf("\n")
-	}
-
-	return len(p), nil
-}
-
-const (
-	teleportToolsVersion = "TELEPORT_TOOLS_VERSION"
-)
-
-var (
-	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
-)
