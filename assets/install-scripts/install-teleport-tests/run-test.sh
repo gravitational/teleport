@@ -32,7 +32,7 @@ function test_upgrader() {
 }
 
 function test_teleport_version() {
-    VER=$(teleport version);
+    VER=$(teleport version | sed -E 's|.*Teleport (Enterprise)? v([0-9]+\.[0-9]+\.[0-9]+).*|\2|');
     if [ "$VER" -ne $1 ]; then
       echo "INSTALL_SCRIPT_TEST_FAILURE: expected teleport to have version $VER but got $1"
     fi
@@ -45,7 +45,7 @@ if [ "$#" -lt 2 ]; then
   exit 1
 fi
 
-if ! echo "$1" |  grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
+if ! echo "$1" | grep -qE "[0-9]+\.[0-9]+\.[0-9]+"; then
   echo "ERROR: The first parameter must be a version number, e.g., 10.1.9.";
   exit 1
 fi

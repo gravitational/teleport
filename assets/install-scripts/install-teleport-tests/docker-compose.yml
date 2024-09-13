@@ -14,7 +14,7 @@ services:
        bash -c 'apt-get update;
        apt-get install -y curl;
        bash /install.sh 15.1.0 cloud;
-       bash /run-test.sh cloud'
+       bash /run-test.sh 15.1.0 cloud'
 
   test-ubuntu-jammy-no-edition:
     image: ubuntu:22.04
