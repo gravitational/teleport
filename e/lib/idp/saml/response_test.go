@@ -55,7 +55,6 @@ func TestWriteSAMLPOSTFormWithHeaders(t *testing.T) {
 			csp, err := parseCSP(cspStr)
 			require.NoError(t, err)
 			valdiateBaseCSPValues(t, csp)
-			require.Equal(t, []string{testURL}, csp["form-action"])
 			nonceHexFromScriptDirective := nonceHexValue(csp["script-src"])
 			require.NotEmpty(t, nonceHexFromScriptDirective)
 
@@ -121,11 +120,9 @@ func parseCSP(policyStr string) (map[string][]string, error) {
 
 func TestSetSecurityHeaders(t *testing.T) {
 	const submitNonce = "nonce1"
-	const acsURL = "https://test/acs"
 	expectedCspVals := map[string]string{
 		"base-uri":        "'none'",
 		"script-src":      "'nonce-nonce1'",
-		"form-action":     acsURL,
 		"frame-ancestors": "'none'",
 		"object-src":      "'none'",
 		"img-src":         "'none'",
@@ -133,7 +130,7 @@ func TestSetSecurityHeaders(t *testing.T) {
 	}
 
 	h := make(http.Header)
-	setSecurityHeaders(h, acsURL, submitNonce)
+	setSecurityHeaders(h, submitNonce)
 	actualCsp := h.Get("Content-Security-Policy")
 	for k, v := range expectedCspVals {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)

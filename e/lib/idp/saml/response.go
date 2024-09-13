@@ -137,7 +137,7 @@ func WriteSAMLPOSTFormWithHeaders(w http.ResponseWriter, formData POSTFormData) 
 		return trace.Wrap(err)
 	}
 
-	setSecurityHeaders(w.Header(), formData.URL, submitScriptNonce)
+	setSecurityHeaders(w.Header(), submitScriptNonce)
 
 	formBuf := bytes.NewBuffer(nil)
 	if err := postFormTemplate.Execute(formBuf, formData); err != nil {
@@ -183,10 +183,10 @@ var postFormTemplate = template.Must(template.New("saml-post-form").Parse(`
 
 // setSecurityHeaders sets CSP headers and security headers
 // applied from httplib.SetDefaultSecurityHeaders.
-func setSecurityHeaders(h http.Header, formActionURL, submitScriptNonce string) {
+func setSecurityHeaders(h http.Header, submitScriptNonce string) {
 	h.Set("Content-Security-Policy",
 		httplib.GetContentSecurityPolicyString(
-			samlIdPCSP(formActionURL, submitScriptNonce),
+			samlIdPCSP(submitScriptNonce),
 		),
 	)
 
@@ -196,19 +196,17 @@ func setSecurityHeaders(h http.Header, formActionURL, submitScriptNonce string) 
 // samlIdPCSP returns Content Security Policy for SAML POST form response.
 // samlIdPCSP satisfies strict CSP structure - https://web.dev/articles/strict-csp#structure.
 // The only script that is allowed is the one that auto submit's the SAML POST form.
-// The form action URL controls the permitted destination of the form.
 //
 // Note: The Web API server sets it's own CSP header for "/web" path. But here
 // we are using a custom CSP header for the IDP "/enterprise/saml-idp/*" because it
-// allow us to scope down permitted script src and form action whereas the base CSP
+// allow us to scope down permitted script src whereas the base CSP
 // header for the Web UI needs to be more permissive due to its functional requirements.
-func samlIdPCSP(formActionURL, submitNonce string) httplib.CSPMap {
+func samlIdPCSP(submitNonce string) httplib.CSPMap {
 	return httplib.CSPMap{
 		"script-src": {
 			fmt.Sprintf("'nonce-%s'", submitNonce),
 		},
 		"base-uri":        {"'none'"},
-		"form-action":     {formActionURL},
 		"frame-ancestors": {"'none'"},
 		"object-src":      {"'none'"},
 		"img-src":         {"'none'"},

@@ -328,7 +328,6 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	csp, err := parseCSP(cspStr)
 	require.NoError(t, err)
 	valdiateBaseCSPValues(t, csp)
-	require.Equal(t, []string{acsURLWithHTMLTag}, csp["form-action"])
 	nonceHexFromScriptDirective := nonceHexValue(csp["script-src"])
 	require.NotEmpty(t, nonceHexFromScriptDirective)
 
@@ -397,7 +396,6 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	csp, err := parseCSP(cspStr)
 	require.NoError(t, err)
 	valdiateBaseCSPValues(t, csp)
-	require.Equal(t, []string{acsURLWithHTMLTag}, csp["form-action"])
 	nonceHexFromScriptDirective := nonceHexValue(csp["script-src"])
 	require.NotEmpty(t, nonceHexFromScriptDirective)
 
