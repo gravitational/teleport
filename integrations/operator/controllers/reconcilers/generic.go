@@ -179,7 +179,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 					Type:    ConditionTypeSuccessfullyReconciled,
 					Status:  metav1.ConditionFalse,
 					Reason:  ConditionReasonMutationError,
-					Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutatin failed with error: %s", err),
+					Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutation failed with error: %s", err),
 				},
 			})
 

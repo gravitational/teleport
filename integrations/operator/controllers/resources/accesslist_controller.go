@@ -60,7 +60,7 @@ func (r accessListClient) Delete(ctx context.Context, name string) error {
 // Mutate propagates fields from the existing AccessList resource
 // to the one the operator will upsert. This allows propagating fields computed
 // server-side such as the NextAuditDate.
-func (r accessListClient) Mutate(_ context.Context, new, existing *accesslist.AccessList, crKey kclient.ObjectKey) error {
+func (r accessListClient) Mutate(_ context.Context, new, existing *accesslist.AccessList, _ kclient.ObjectKey) error {
 	if existing == nil {
 		return nil
 	}
