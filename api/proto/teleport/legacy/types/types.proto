@@ -3736,6 +3736,7 @@ message MFADevice {
     TOTPDevice totp = 8;
     U2FDevice u2f = 9;
     WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
   }
 }
 
@@ -3798,6 +3799,14 @@ message WebauthnDevice {
   // backfill (for older authenticators).
   // https://w3c.github.io/webauthn/#authdata-flags-bs
   google.protobuf.BoolValue credential_backed_up = 10;
+}
+
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
