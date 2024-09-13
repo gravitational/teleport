@@ -37,6 +37,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		preset             string
 		relayState         string
 		expectedRelayState string
+		launchURLs         []string
 	}{
 		{
 			name:             "valid entity descriptor",
@@ -230,6 +231,31 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			preset:             "",
 			expectedRelayState: "",
 		},
+		{
+			name:       "http launch url",
+			entityID:   "IAMShowcase",
+			acsURL:     "https:/test.com/acs",
+			launchURLs: []string{"http://test.com/myapp"},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:       "empty launch URLs",
+			entityID:   "IAMShowcase",
+			acsURL:     "https:/test.com/acs",
+			launchURLs: []string{""},
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:         "valid launch URLs",
+			entityID:     "IAMShowcase",
+			acsURL:       "https:/test.com/acs",
+			launchURLs:   []string{"https://test.com/myapp", "https://anysubdomain.test.com/myapp"},
+			errAssertion: require.NoError,
+		},
 	}
 
 	for _, test := range tests {
@@ -243,6 +269,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				AttributeMapping: test.attributeMapping,
 				Preset:           test.preset,
 				RelayState:       test.relayState,
+				LaunchURLs:       test.launchURLs,
 			})
 
 			test.errAssertion(t, err)
