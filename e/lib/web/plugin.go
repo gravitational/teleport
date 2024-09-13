@@ -23,7 +23,6 @@ import (
 	googleproto "google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
@@ -359,8 +358,10 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	// the billing summary API is available for cloud users
 	// as well as self-hosted dashboards for usage-based customers
 	isDashboard := services.IsDashboard(p.h.ClusterFeatures)
-	isUsageBasedEnterprise := p.h.ClusterFeatures.GetProductType() == proto.ProductType_PRODUCT_TYPE_EUB
-	if p.h.ClusterFeatures.GetCloud() || (isDashboard && isUsageBasedEnterprise) {
+	isUsageBased := p.h.ClusterFeatures.IsUsageBased
+	isStripeManaged := p.h.ClusterFeatures.IsStripeManaged
+
+	if p.h.ClusterFeatures.GetCloud() || (isDashboard && isUsageBased && !isStripeManaged) {
 		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
 	}
 
