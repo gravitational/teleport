@@ -708,13 +708,6 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
-	if c.Arn == "" {
-		return trace.BadParameter("arn must be set")
-	}
-
-	if !arn.IsARN(c.Arn) {
-		return trace.BadParameter("malformed arn")
-	}
 	return nil
 }
 

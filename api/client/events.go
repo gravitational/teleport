@@ -101,10 +101,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_StaticHostUserV2{
 				StaticHostUserV2: r,
 			}
-		case *provisioningv1.PrincipalState:
-			out.Resource = &proto.Event_PrincipalState{
-				PrincipalState: r,
-			}
 		case *identitycenterv1.Account:
 			out.Resource = &proto.Event_IdentityCenterAccount{
 				IdentityCenterAccount: r,
@@ -116,14 +112,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *provisioningv1.PrincipalState:
 			out.Resource = &proto.Event_PrincipalState{
 				PrincipalState: r,
-			}
-		case *identitycenterv1.Account:
-			out.Resource = &proto.Event_IdentityCenterAccount{
-				IdentityCenterAccount: r,
-			}
-		case *identitycenterv1.PrincipalAssignment:
-			out.Resource = &proto.Event_PrincipalAssignment{
-				PrincipalAssignment: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
