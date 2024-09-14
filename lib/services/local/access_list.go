@@ -366,26 +366,51 @@ func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessLi
 }
 
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members
-// for an access list. Note that deleting all members is the only member
-// operation allowed on a list with implicit membership, as it provides a
-// mechanism for cleaning out the user list if a list is converted from explicit
-// to implicit.
+// for an access list except for those with membershipType 'list'.
+// Note that deleting all members is the only member operation allowed on a list
+// with implicit membership, as it provides a mechanism for cleaning out the user list
+// if a list is converted from explicit to implicit.
 func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	err := a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		_, err := a.service.GetResource(ctx, accessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(a.memberService.WithPrefix(accessList).DeleteAllResources(ctx))
+		members, _, err := a.memberService.WithPrefix(accessList).ListResourcesWithFilter(ctx, 0, "", func(member *accesslist.AccessListMember) bool {
+			return member.Spec.MembershipKind != accesslist.MembershipKindList
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(func() error {
+			for _, member := range members {
+				if err := a.memberService.WithPrefix(accessList).DeleteResource(ctx, member.GetName()); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}())
 	})
 	return trace.Wrap(err)
 }
 
-// DeleteAllAccessListMembers hard deletes all access list members.
+// DeleteAllAccessListMembers hard deletes all access list members except for those with membershipType 'list'.
 func (a *AccessListService) DeleteAllAccessListMembers(ctx context.Context) error {
-
 	// Locks are not used here as this operation is more likely to be used by the cache.
-	return trace.Wrap(a.memberService.DeleteAllResources(ctx))
+	members, _, err := a.memberService.ListResourcesWithFilter(ctx, 0, "", func(member *accesslist.AccessListMember) bool {
+		return member.Spec.MembershipKind != accesslist.MembershipKindList
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(func() error {
+		for _, member := range members {
+			if err := a.memberService.DeleteResource(ctx, member.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}())
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
