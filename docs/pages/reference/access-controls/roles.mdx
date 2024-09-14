@@ -131,7 +131,7 @@ metadata:
   name: example-role
 spec:
   options:
-    client_idle_timeout: 30m  # Idle timeout set to 30 minutes
+    client_idle_timeout: 30m  # Idle client timeout set to 30 minutes
   allow:
     node_labels:
       'env': 'stage'
@@ -146,19 +146,19 @@ spec:
 
 ### `client_idle_timeout`
 
-This example configures a global idle timeout of **30 minutes**. After 30 minutes of inactivity, the session will be terminated.
+This example configures a global client idle timeout of **30 minutes**. After 30 minutes of inactivity, the session will be terminated.
 
 The `client_idle_timeout` in Teleport is a configurable setting that helps improve security by terminating inactive sessions after a specified period. It can be applied globally or per role, allowing for flexibility based on your organization's security policies.
-   The `client_idle_timeout` configuration ensures that SSH sessions, web application, kubectl, or database connection that remain inactive for a certain period of time
-   are automatically terminated. You can also use it to set limits for SSH sessions initiated *from* the web interface (note that this is distinct from `web_idle_timeout`, which sets idle timeout for the Web UI). 
-   This helps to mitigate risks associated with unattended sessions, such as unauthorized access.
+The `client_idle_timeout` configuration ensures that SSH sessions, desktop sessions, kubectl exec or database connections that remain inactive for a certain period of time
+are automatically terminated. You can also use it to set limits for SSH sessions initiated *from* the web interface (note that this is distinct from `web_idle_timeout`, which sets idle timeout for the Web UI). 
+This helps to mitigate risks associated with unattended sessions, such as unauthorized access.
 
 #### How it works
-   Teleport monitors user activity within sessions (like key presses or mouse movement).
-   If there is no detected activity for the duration defined by `client_idle_timeout`, the session is terminated, forcing the user to reconnect.
+Teleport monitors user activity within sessions (like key presses or mouse movement).
+If there is no detected activity for the duration defined by `client_idle_timeout`, the session is terminated, forcing the user to reconnect.
    
 #### Configuration
-   The `client_idle_timeout` can be configured globally or per role, giving administrators flexibility in how they apply idle timeout rules.
+The `client_idle_timeout` can be configured globally or per role, giving administrators flexibility in how they apply client idle timeout rules.
 
    - **Global configuration** (applies to all users):
 
@@ -184,7 +184,7 @@ spec:
     client_idle_timeout: 10m
 
 #### Default behavior
-  If the `client_idle_timeout` is not set, sessions will not automatically close due to inactivity unless other timeout policies (like `disconnect_expired_cert`) are applied.
+If the `client_idle_timeout` is not set, sessions will not automatically close due to inactivity unless other timeout policies (like `disconnect_expired_cert`) are applied.
    
 #### Use cases
    - Security compliance: Many organizations require idle timeout enforcement as part of their security policies, ensuring that inactive sessions are not left open.
