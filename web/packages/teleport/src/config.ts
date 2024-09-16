@@ -557,8 +557,7 @@ const cfg = {
   },
 
   getUsersRoute() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.users, { clusterId });
+    return cfg.routes.users;
   },
 
   getBotsRoute() {

@@ -32,6 +32,7 @@ export default {
 
 export const Loaded = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
       recordings: recordings.map(makeRecording),
@@ -43,6 +44,7 @@ export const Loaded = () => {
 
 export const LoadedFetchMore = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
     Promise.resolve({
       recordings: recordings.map(makeRecording),
@@ -54,12 +56,14 @@ export const LoadedFetchMore = () => {
 
 export const Processing = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () => new Promise(() => null);
   return render(ctx);
 };
 
 export const Failed = () => {
   const ctx = new Context();
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
     Promise.reject(new Error('server error'));
   return render(ctx);

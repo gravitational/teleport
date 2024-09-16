@@ -150,7 +150,9 @@ export function Notification({
 
   const formattedDate = formatDate(notification.createdDate);
 
-  function onNotificationClick(e: React.MouseEvent<HTMLElement>) {
+  function onNotificationClick(
+    e: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>
+  ) {
     // Prevents this from being triggered when the user is just clicking away from
     // an open "mark as read/hide this notification" menu popover.
     if (e.currentTarget.contains(e.target as HTMLElement)) {
@@ -175,6 +177,10 @@ export function Notification({
         clicked={isClicked}
         onClick={onNotificationClick}
         className="notification"
+        tabIndex={0}
+        onKeyUp={e =>
+          (e.key === 'Enter' || e.key === ' ') && onNotificationClick(e)
+        }
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>
