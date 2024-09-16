@@ -240,3 +240,9 @@ variable "teleport_auth_type" {
   type    = string
   default = "local"
 }
+
+// (optional) Change the default tags applied to all resources.
+variable "default_tags" {
+  type    = map(string)
+  default = {}
+}
