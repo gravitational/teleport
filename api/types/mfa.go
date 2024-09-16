@@ -125,6 +125,8 @@ func (d *MFADevice) WithoutSensitiveData() (*MFADevice, error) {
 		// OK, no sensitive secrets.
 	case *MFADevice_Webauthn:
 		// OK, no sensitive secrets.
+	case *MFADevice_Sso:
+		// OK, no sensitive secrets.
 	default:
 		return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
 	}
@@ -146,13 +148,15 @@ func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
 // MFAType returns the human-readable name of the MFA protocol of this device.
 func (d *MFADevice) MFAType() string {
-	switch d.Device.(type) {
+	switch d := d.Device.(type) {
 	case *MFADevice_Totp:
 		return "TOTP"
 	case *MFADevice_U2F:
 		return "U2F"
 	case *MFADevice_Webauthn:
 		return "WebAuthn"
+	case *MFADevice_Sso:
+		return d.Sso.ConnectorType
 	default:
 		return "unknown"
 	}

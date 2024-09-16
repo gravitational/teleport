@@ -6756,6 +6756,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
+	SSO      *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
@@ -6772,6 +6773,8 @@ func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByTyp
 			if groupWebauthn {
 				res.Webauthn = append(res.Webauthn, dev)
 			}
+		case *types.MFADevice_Sso:
+			res.SSO = dev
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
