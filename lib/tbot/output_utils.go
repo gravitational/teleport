@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -231,28 +230,6 @@ func writeTLSCAs(ctx context.Context, dest bot.Destination, hostCAs, userCAs, da
 	}
 
 	return nil
-}
-
-// generateKeys generates TLS and SSH keypairs.
-func generateKeys() (private, sshpub, tlspub []byte, err error) {
-	// TODO(nklaassen): consider splitting SSH and TLS keys, support
-	// configurable key algorithms.
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	return privateKey, publicKey, tlsPublicKey, nil
 }
 
 // describeTLSIdentity generates an informational message about the given
