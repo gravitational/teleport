@@ -1431,7 +1431,11 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 	case constants.Github:
 		return nil, trace.NotFound("no SSO MFA device found; user's auth connector does not have MFA enabled")
 	default:
-		return nil, trace.BadParameter("user created by unknown auth connector type %v", cb.Connector.Type)
+		return nil, trace.NotFound("user created by unknown auth connector type %v", cb.Connector.Type)
+	}
+
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("user created by unknown %v auth connector %v", cb.Connector.Type, cb.Connector.ID)
 	}
 
 	if err != nil {
