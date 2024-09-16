@@ -53,6 +53,9 @@ type Datadog struct {
 	// DatadogConfig specifies datadog client configuration.
 	DatadogConfig
 
+	// TODO: Datadog API client implemented using resty because implementation is
+	// simpler to integrate with the existing framework. Consider using the official
+	// datadog api client package: https://github.com/DataDog/datadog-api-client-go.
 	client *resty.Client
 }
 
