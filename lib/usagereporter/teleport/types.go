@@ -20,6 +20,7 @@ package usagereporter
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -1019,6 +1020,33 @@ func (e *AccessGraphAWSScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.Submit
 				TotalOidcProviders: e.TotalOidcProviders,
 				TotalAccounts:      e.TotalAccounts,
 			},
+		},
+	}
+}
+
+// AccessGraphAccessPathChangedEvent is emitted when a Crown Jewel Access Path changes.
+type AccessGraphAccessPathChangedEvent prehogv1a.AccessGraphAccessPathChangedEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphAccessPathChangedEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphAccessPathChanged{
+			AccessGraphAccessPathChanged: &prehogv1a.AccessGraphAccessPathChangedEvent{
+				AffectedResourceType:   strings.ToLower(e.AffectedResourceType),
+				AffectedResourceSource: strings.ToLower(e.AffectedResourceSource),
+			},
+		},
+	}
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates a crown jewel object in Teleport.
+type AccessGraphCrownJewelCreateEvent prehogv1a.AccessGraphCrownJewelCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphCrownJewelCreateEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphCrownJewelCreate{
+			AccessGraphCrownJewelCreate: &prehogv1a.AccessGraphCrownJewelCreateEvent{},
 		},
 	}
 }
