@@ -41,6 +41,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -1388,7 +1389,64 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		}
 		devices = append(devices, &d)
 	}
+
+	// If the user originated from an SSO connector with MFA enabled,
+	// append the corresponding SSO MFA device for the user.
+	ssoDev, err := s.getSSOMFADevice(ctx, user)
+	if err == nil {
+		devices = append(devices, ssoDev)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	return devices, nil
+}
+
+// getSSOMFADevice returns the user's SSO MFA device.
+func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	u, err := s.GetUser(ctx, user, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cb := u.GetCreatedBy()
+	if cb.Connector == nil {
+		return nil, trace.NotFound("no SSO MFA device found; user was not created by an auth connector")
+	}
+
+	var mfaConnector interface {
+		IsMFAEnabled() bool
+	}
+
+	switch cb.Connector.Type {
+	case constants.SAML:
+		mfaConnector, err = s.GetSAMLConnector(ctx, cb.Connector.ID, false)
+	case constants.OIDC:
+		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false)
+	case constants.Github:
+		return nil, trace.NotFound("no SSO MFA device found; user's auth connector does not have MFA enabled")
+	default:
+		return nil, trace.BadParameter("user created by unknown auth connector type %v", cb.Connector.Type)
+	}
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !mfaConnector.IsMFAEnabled() {
+		return nil, trace.NotFound("no SSO MFA device found; user's auth connector does not have MFA enabled")
+	}
+
+	return types.NewMFADevice(cb.Connector.ID, cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{
+		Sso: &types.SSOMFADevice{
+			ConnectorId:   cb.Connector.ID,
+			ConnectorType: cb.Connector.Type,
+		},
+	})
 }
 
 // UpsertOIDCConnector upserts OIDC Connector
