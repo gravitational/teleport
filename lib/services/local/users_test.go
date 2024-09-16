@@ -532,6 +532,128 @@ func TestIdentityService_UpsertMFADevice_errors(t *testing.T) {
 	}
 }
 
+func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	samlConnectorNoMFA, err := types.NewSAMLConnector("saml-no-mfa", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: false,
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnectorNoMFA)
+	require.NoError(t, err)
+
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+
+	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access"},
+			},
+		},
+		MFASettings: &types.OIDCConnectorMFASettings{
+			Enabled: true,
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertOIDCConnector(ctx, oidcConnector)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		connectorRef    *types.ConnectorRef
+		expectSSODevice bool
+	}{
+		{
+			name:            "non-sso user",
+			connectorRef:    nil,
+			expectSSODevice: false,
+		}, {
+			name: "sso user mfa disabled",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorNoMFA.GetName(),
+			},
+			expectSSODevice: false,
+		}, {
+			name: "saml user",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnector.GetName(),
+			},
+			expectSSODevice: true,
+		}, {
+			name: "oidc user",
+			connectorRef: &types.ConnectorRef{
+				Type: "oidc",
+				ID:   oidcConnector.GetName(),
+			},
+			expectSSODevice: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			user, err := types.NewUser("alice")
+			require.NoError(t, err)
+			user.SetCreatedBy(types.CreatedBy{
+				Time:      clock.Now().UTC(),
+				Connector: test.connectorRef,
+			})
+			_, err = identity.UpsertUser(ctx, user)
+			require.NoError(t, err)
+
+			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
+			require.NoError(t, err)
+
+			if !test.expectSSODevice {
+				require.Empty(t, devs)
+			} else {
+				expectSSODevice, err := types.NewMFADevice(test.connectorRef.ID, test.connectorRef.ID, clock.Now().UTC(), &types.MFADevice_Sso{
+					Sso: &types.SSOMFADevice{
+						ConnectorId:   test.connectorRef.ID,
+						ConnectorType: test.connectorRef.Type,
+					},
+				})
+				require.NoError(t, err)
+
+				require.Len(t, devs, 1)
+				require.Equal(t, devs[0], expectSSODevice)
+			}
+		})
+	}
+}
+
 func TestIdentityService_UpsertWebauthnLocalAuth(t *testing.T) {
 	t.Parallel()
 	identity := newIdentityService(t, clockwork.NewFakeClock())
