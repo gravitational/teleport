@@ -19,7 +19,7 @@
 import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
-import { space, color, borderRadius } from 'design/system';
+import { space, color, borderRadius, SpaceProps } from 'design/system';
 
 export function Icon({
   size = 'medium',
@@ -65,28 +65,14 @@ const StyledIcon = styled.span`
 
 export type IconSize = 'small' | 'medium' | 'large' | 'extraLarge' | number;
 
-export type IconProps = {
+export type IconProps = SpaceProps & {
   size?: IconSize;
   color?: string;
   title?: string;
-  m?: number | string;
-  mr?: number | string;
-  ml?: number | string;
-  mb?: number | string;
-  mt?: number | string;
-  my?: number | string;
-  mx?: number | string;
-  p?: number | string;
-  pr?: number | string;
-  pl?: number | string;
-  pb?: number | string;
-  pt?: number | string;
-  py?: number | string;
-  px?: number | string;
   role?: string;
   style?: React.CSSProperties;
   borderRadius?: number;
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler;
   disabled?: boolean;
   as?: any;
   to?: string;

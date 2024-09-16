@@ -154,7 +154,7 @@ export function TestConnection({
             <Box width="500px">
               <FieldSelect
                 label={'Kubernetes User'}
-                labelTip={
+                helperText={
                   userOpts.length === 0
                     ? 'Defaulted to your teleport username'
                     : ''

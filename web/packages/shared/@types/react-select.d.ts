@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,8 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Select, { SelectAsync, SelectCreatable } from './Select';
+// Declare custom props via module augmentation, per
+// https://react-select.com/typescript#custom-select-props
 
-export * from './types';
-export default Select;
-export { SelectAsync, SelectCreatable };
+import type {} from 'react-select/base';
+// This import is necessary for module augmentation.
+// It allows us to extend the 'Props' interface in the 'react-select/base' module
+// and add our custom property 'myCustomProp' to it.
+
+declare module 'react-select/base' {
+  export interface Props {
+    customProps?: Record<string, any>;
+  }
+}
