@@ -190,7 +190,7 @@ func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping use
 		return nil
 	}
 	newGroups := map[string]types.UserGroup{}
-	err := s.client.iterateGroups(ctx, func(oktaGroup *okta.Group) error {
+	err := s.client.IterateGroups(ctx, func(oktaGroup *okta.Group) error {
 		s.log.Debugf("Processing Okta group %v", oktaGroup.Id)
 
 		userGroup, err := s.oktaGroupToUserGroup(oktaGroup, groupsToAppsMapping[oktaGroup.Id])
@@ -240,7 +240,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 
 	groupsToAppsMapping := userGroupsToApplications{}
 	newApps := map[string]types.Application{}
-	err := s.client.iterateApps(ctx, func(oktaApp okta.App) error {
+	err := s.client.IterateApps(ctx, func(oktaApp okta.App) error {
 		// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
 		// does not contain all of the information that we need to create a types.Application
 		// object.
@@ -253,7 +253,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		log := s.log.WithField("application_id", oktaApplication.Id)
 		log.Debug("Processing Okta application")
 
-		oktaGroups, err := s.client.getAppGroups(ctx, oktaAppID(oktaApplication.Id))
+		oktaGroups, err := s.client.GetAppGroups(ctx, oktaAppID(oktaApplication.Id))
 		if err != nil {
 			log.WithError(err).Warn("Error getting groups for application")
 			if !trace.IsNotFound(err) {
@@ -643,7 +643,7 @@ func (s *Service) calcUserTraits(ctx context.Context, connector types.SAMLConnec
 	if !ok {
 		return trace.BadParameter("user missing Okta user ID")
 	}
-	groups, err := s.client.listUserGroups(ctx, oktaUserID)
+	groups, err := s.client.ListUserGroups(ctx, oktaUserID)
 	if err != nil {
 		return trace.Wrap(err, "listing user groups")
 	}

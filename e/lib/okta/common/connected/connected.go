@@ -1,4 +1,4 @@
-package okta
+package connected
 
 import (
 	"context"
@@ -20,33 +20,28 @@ import (
 var DefaultOktaConnectedCacheTTL time.Duration = 30 * time.Second
 
 // ConnectedGetter is an interface used to retrieve the current inventory or the current plugins.
-type ConnectedGetter interface {
+type connectedGetter interface {
 	// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
 	GetInventoryConnectedServiceCount(service types.SystemRole) uint64
 }
 
-// OktaConnectedConfig is the configuration for the OktaConnected utility.
-type OktaConnectedConfig struct {
+// Config is the configuration for the OktaConnected utility.
+type Config struct {
 	// Log is the log to use for the OktaConnected utility.
 	Log *logrus.Entry
-
 	// Clock is the clock to use for the OktaConnected utility.
 	Clock clockwork.Clock
-
 	// DisableCache will disable the cache.
 	DisableCache bool
-
 	// CacheTTL is the amount of time a connected result should be cached for.
 	CacheTTL time.Duration
-
 	// ConnectedGetter is the service for getting service counts.
-	ConnectedGetter ConnectedGetter
-
+	ConnectedGetter connectedGetter
 	// Plugins is the service for getting plugins. Is optional.
 	Plugins services.Plugins
 }
 
-func (o *OktaConnectedConfig) CheckAndSetDefaults() error {
+func (o *Config) CheckAndSetDefaults() error {
 	if o.ConnectedGetter == nil {
 		return trace.BadParameter("missing connected getter")
 	}
@@ -66,8 +61,8 @@ func (o *OktaConnectedConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewOktaConnected will create an Okta connected struct utility.
-func NewOktaConnected(cfg OktaConnectedConfig) (*OktaConnected, error) {
+// New will create an Okta connected struct utility.
+func New(cfg Config) (*OktaConnected, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,7 +98,7 @@ func NewOktaConnected(cfg OktaConnectedConfig) (*OktaConnected, error) {
 type OktaConnected struct {
 	fnCache *utils.FnCache
 	log     logrus.FieldLogger
-	getter  ConnectedGetter
+	getter  connectedGetter
 	plugins services.Plugins
 }
 

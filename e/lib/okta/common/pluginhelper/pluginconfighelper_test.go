@@ -1,4 +1,4 @@
-package okta
+package pluginhelper
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/e/lib/okta/api"
 )
 
 func TestGetOktaGroups(t *testing.T) {
@@ -89,7 +91,7 @@ func TestGetOktaGroups(t *testing.T) {
 			c := initPluginConfigHelper(t)
 
 			for _, group := range test.groups {
-				c.client.addOktaGroupToMapping(group)
+				c.client.AddOktaGroupToMapping(group)
 			}
 
 			ctx := context.Background()
@@ -150,7 +152,7 @@ func TestGetOktaApps(t *testing.T) {
 			name: "get apps with no filters, one not an app instances",
 			apps: []okta.App{
 				&okta.Application{Id: "1", Label: "app1"},
-				&dummyOktaApp{},
+				&api.DummyOktaApp{},
 				&okta.Application{Id: "3", Label: "dev-app3"},
 			},
 			expectErr: require.NoError,
@@ -185,7 +187,7 @@ func TestGetOktaApps(t *testing.T) {
 			c := initPluginConfigHelper(t)
 
 			for _, app := range test.apps {
-				c.client.addOktaApplicationToMapping(app)
+				c.client.AddOktaApplicationToMapping(app)
 			}
 
 			ctx := context.Background()
@@ -202,15 +204,15 @@ func TestGetOktaApps(t *testing.T) {
 
 type pluginConfigHelperComponents struct {
 	svc    *PluginConfigHelper
-	client *testOktaClient
+	client *api.TestOktaClient
 }
 
 func initPluginConfigHelper(t *testing.T) *pluginConfigHelperComponents {
 	t.Helper()
 
-	testClient := newTestClient()
-	svc, err := NewPluginConfigHelper(PluginConfigHelperConfig{
-		oktaClientCreator: creatorFromTestClient(testClient),
+	testClient := api.NewTestClient()
+	svc, err := NewPluginConfigHelper(Config{
+		oktaClientCreator: api.CreatorFromTestClient(testClient),
 	})
 	require.NoError(t, err)
 

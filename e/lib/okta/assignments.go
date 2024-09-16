@@ -11,6 +11,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -41,7 +42,7 @@ type assignmentReconciler struct {
 	clock               clockwork.Clock
 	clusterName         string
 	accessPoint         AssignmentReconcilerAccessPoint
-	oktaClient          OktaClient
+	oktaClient          api.Client
 	watcher             *services.OktaAssignmentWatcher
 	assignmentProcessor *assignmentProcessor
 

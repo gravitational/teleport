@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/trait"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
@@ -184,8 +185,8 @@ func isGroupValid(oktaGroup *okta.Group) error {
 		return trace.BadParameter("the okta group %s has no profile", oktaGroup.Id)
 	}
 
-	if oktaGroup.Profile.Name == oktaGroupEveryone {
-		return trace.BadParameter("group %s is %s", oktaGroup.Id, oktaGroupEveryone)
+	if oktaGroup.Profile.Name == api.OktaGroupEveryone {
+		return trace.BadParameter("group %s is %s", oktaGroup.Id, api.OktaGroupEveryone)
 	}
 
 	return nil
@@ -196,12 +197,12 @@ func isAppValid(app *okta.Application) error {
 	appIdentifier := fmt.Sprintf("%s (%s)", app.Id, app.Label)
 
 	// If the application isn't active, then we'll filter it out.
-	if app.Status != oktaActive {
+	if app.Status != api.OktaActive {
 		return trace.BadParameter("application %s is not active", appIdentifier)
 	}
 
 	// We'll filter out the admin console as well.
-	if app.Label == oktaAdminConsole {
+	if app.Label == api.OktaAdminConsole {
 		return trace.BadParameter("application %s is the Okta admin console", app.Id)
 	}
 	return nil

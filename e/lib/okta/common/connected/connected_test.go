@@ -1,7 +1,8 @@
-package okta
+package connected
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -9,13 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func TestIsOktaConnected(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	ap := newTestAccessPoint(t, clock)
-	connected, err := NewOktaConnected(OktaConnectedConfig{
+	connected, err := New(Config{
 		Clock:           clock,
 		ConnectedGetter: ap,
 		Plugins:         ap,
@@ -104,4 +108,40 @@ func TestIsOktaConnected(t *testing.T) {
 		clock.Advance(time.Minute)
 		require.False(t, connected.IsConnected(ctx))
 	})
+}
+
+// testAccessPoint is a test access point for the Okta service.
+type testAccessPoint struct {
+	services.Plugins
+
+	serviceCounts map[types.SystemRole]uint64
+	mu            sync.Mutex
+}
+
+// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+func (t *testAccessPoint) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.serviceCounts[service]
+}
+
+func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
+	t.Helper()
+
+	backend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+
+	plugins := local.NewPluginsService(backend)
+	require.NoError(t, err)
+
+	client := &testAccessPoint{
+		Plugins: plugins,
+	}
+	client.serviceCounts = map[types.SystemRole]uint64{
+		types.RoleOkta: 1,
+	}
+
+	return client
 }

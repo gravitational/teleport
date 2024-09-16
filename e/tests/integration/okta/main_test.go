@@ -6,6 +6,7 @@ import (
 	"time"
 
 	libokta "github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/integration/helpers"
 	tctlcommon "github.com/gravitational/teleport/tool/tctl/common"
 	tshcommon "github.com/gravitational/teleport/tool/tsh/common"
@@ -39,7 +40,7 @@ func TestMain(m *testing.M) {
 // TestOktaSyncTimes will align the Okta sync times to ensure that the tests
 // run quicker.
 func alignOktaSyncTimes() {
-	libokta.DefaultOktaConnectedCacheTTL = time.Millisecond * 100
+	connected.DefaultOktaConnectedCacheTTL = time.Millisecond * 100
 	libokta.OktaDefaultTimeBetweenSyncs = time.Second
 	libokta.SyncRetryAfterLeadershipFailure = time.Second
 	libokta.AccessListSyncFirstDuration = time.Second

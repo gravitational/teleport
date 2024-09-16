@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/api/cloud"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
-	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common/pluginhelper"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -100,7 +100,7 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaPluginConfigHelper, err := okta.NewPluginConfigHelper(okta.PluginConfigHelperConfig{})
+	oktaPluginConfigHelper, err := pluginhelper.NewPluginConfigHelper(pluginhelper.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,7 +127,7 @@ type Plugin struct {
 	authMiddleware   *auth.Middleware
 
 	// oktaPluginConfigHelper helps with the multistage configuration of Okta plugins.
-	oktaPluginConfigHelper *okta.PluginConfigHelper
+	oktaPluginConfigHelper *pluginhelper.PluginConfigHelper
 
 	pluginDescriptors map[types.PluginType]pluginDescriptor
 

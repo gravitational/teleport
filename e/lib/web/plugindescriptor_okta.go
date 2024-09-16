@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -15,7 +16,9 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -132,7 +135,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 				Metadata: types.Metadata{
 					Name: types.PluginTypeOkta,
 					Labels: map[string]string{
-						okta.CredPurposeLabel: okta.CredPurposeOktaAuth,
+						common.CredPurposeLabel: common.CredPurposeOktaAuth,
 					},
 				},
 			},
@@ -151,7 +154,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 				Metadata: types.Metadata{
 					Name: oktaSCIMTokenName,
 					Labels: map[string]string{
-						okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+						common.CredPurposeLabel: common.CredPurposeSCIMToken,
 					},
 				},
 			},
@@ -228,7 +231,7 @@ type oktaPluginInputs struct {
 	appFilters           []string
 	defaultOwners        []string
 	enableAccessListSync bool
-	oktaClient           okta.OktaClient
+	oktaClient           api.Client
 }
 
 type validateOktaPluginInputsArgs struct {
@@ -297,18 +300,21 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 		"oktaOrg":             orgURL.String(),
 	})
 
-	oktaClient, err := okta.NewClient(ctx, okta.ClientConfig{
+	oktaClient, err := api.NewClient(ctx, api.ClientConfig{
 		HTTPClient: args.httpClient,
 		Endpoint:   orgURL.String(),
 		Token:      oktaAPIToken,
-		Log:        log,
+		Log: slog.With(
+			"okta_url", orgURL.String(),
+			teleport.ComponentKey, teleport.Component(types.PluginTypeOkta),
+		),
 	})
 	if err != nil {
 		return oktaPluginInputs{}, trace.Wrap(err, "constructing Okta client")
 	}
 
 	log.Debug("Validating Okta configuration...")
-	if err := okta.TestCredentials(ctx, oktaClient); err != nil {
+	if err := api.TestCredentials(ctx, oktaClient); err != nil {
 		return oktaPluginInputs{}, trace.BadParameter("bad Okta configuration: %s", err.Error())
 	}
 	log.Debug("Okta configuration looks good.")
@@ -406,7 +412,7 @@ func getOktaAppFilters(form url.Values) ([]string, error) {
 	return getOktaFilters(form.Get("appFilters"))
 }
 
-func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, oktaClient okta.OktaClient, samlConnectorName string, signingKeypair *types.AsymmetricKeyPair, log *logrus.Entry) (*okta.SAMLConnectorInfo, error) {
+func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, oktaClient api.Client, samlConnectorName string, signingKeypair *types.AsymmetricKeyPair, log *logrus.Entry) (*sso.SAMLConnectorInfo, error) {
 	log.Debug("Fetching cluster information")
 	client, err := sessCtx.GetClient()
 	if err != nil {
@@ -440,7 +446,7 @@ func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, 
 	samlConnector, err := client.GetSAMLConnector(getConnectorCtx, samlConnectorName, false)
 	if trace.IsNotFound(err) {
 		log.Infof("SAML connector %s not found. Creating...", samlConnectorName)
-		connInfo, err := okta.CreateSAMLConnector(ctx, okta.ConnectorArgs{
+		connInfo, err := sso.CreateSAMLConnector(ctx, sso.ConnectorArgs{
 			ConnectorName:        samlConnectorName,
 			OktaClient:           oktaClient,
 			SAMLConnectorService: client,
@@ -454,7 +460,7 @@ func getOrCreateSAMLConnector(ctx context.Context, sessCtx *web.SessionContext, 
 		return nil, trace.Wrap(err, "fetching SAML connector %s", samlConnectorName)
 	}
 
-	connectorInfo, err := okta.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
+	connectorInfo, err := sso.ValidateSAMLConnector(ctx, samlConnector, oktaClient)
 	if err != nil {
 		// Using the CompareFailed error here results in the HTTP request
 		// returning http.StatusPreconditionFailed, which we can use as a signal

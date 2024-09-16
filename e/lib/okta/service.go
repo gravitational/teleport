@@ -4,10 +4,8 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"errors"
-	"math"
+	"log/slog"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -16,8 +14,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/okta/okta-sdk-golang/v2/okta/query"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
@@ -25,6 +21,9 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+	oktacommon "github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/okta/common/sso"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -149,7 +148,7 @@ type Config struct {
 	OktaSAMLAppID string
 
 	// ConnectorService is the SAML connector service.
-	ConnectorService SAMLConnectorService
+	ConnectorService sso.SAMLConnectorService
 
 	// DisableAppGroupSync allows to disable Okta application and group sync.
 	DisableAppGroupSync bool
@@ -246,107 +245,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// errStopIteration is a sentinel value that iterator functions can use to
-// signals oktaClient iterate* methods to stop iterating without it
-// being passed up the call stack.
-var errStopIteration = errors.New("stop iterating")
-
-// appAssignmentrepresents an individual assignmenet to an application.
-type appAssignment struct {
-	userID string
-	scope  appAssignmentScope
-}
-
-// appAssignmentScope is the assignment scope of the application.
-// components/schemas/AppUserProfile Okta API users assigment scope
-// A description of this field can be found in the Okta API docs:
-// https://developer.okta.com/docs/reference/api/apps/#application-user-object
-type appAssignmentScope string
-
-const (
-	userScope  appAssignmentScope = "USER"
-	groupScope appAssignmentScope = "GROUP"
-)
-
-// OktaClient is an Okta client interface that can be mocked for testing.
-type OktaClient interface {
-	// getCurrentUser will fetch the profile of the user currently logged into
-	// Okta.
-	getCurrentUser(context.Context) (*okta.User, error)
-
-	// iterateUsers will iterate over the list of all Okta users. The supplied
-	// iterator callback may return errStopIteration to signal that it does not want
-	// to continue receiving users. All other non-nil return values are
-	// considered an error and will be propagated to the caller.
-	iterateUsers(context.Context, func(*okta.User) error, ...query.ParamOptions) error
-
-	// listUserGroups will return the list of groups a user belongs to.
-	listUserGroups(ctx context.Context, userID string) ([]UserGroup, error)
-
-	// iterateAppUsers will iterate over the list of all Okta users assigned to
-	// a given app. The supplied iterator callback may return stopIteration to
-	// signal that it does not want to continue receiving users. All other
-	// non-nil return values are considered an error and will be propagated to
-	// the caller.
-	iterateAppUsers(context.Context, oktaAppID, func(*okta.AppUser) error) error
-
-	// iterateGroups will iterate over the list of all Okta groups. The supplied
-	// iterator callback may return errStopIteration to signal that it does not want
-	// to continue receiving groups. All other non-nil return values are
-	// considered an error and will be propagated to the caller.
-	iterateGroups(context.Context, func(*okta.Group) error) error
-
-	// iterateApps will iterate over the list of all Okta applications. The
-	// supplied iterator callback may return errStopIteration to signal that it
-	// does not want to continue receiving apps. All other non-nil return values
-	// are considered an error and will be propagated to the caller.
-	iterateApps(context.Context, func(okta.App) error) error
-
-	// getGroupAssignments will return the list of users assigned to a group.
-	getGroupAssignments(ctx context.Context, groupID oktaGroupID) ([]oktaUserID, error)
-
-	// getAppAssignments will return the list of users assigned to an app.
-	getAppAssignments(ctx context.Context, appID oktaAppID) ([]appAssignment, error)
-
-	// getAppGroups will return the list of groups an application belongs to.
-	getAppGroups(ctx context.Context, appID oktaAppID) ([]oktaGroupID, error)
-
-	// listUsers will return a mapping of usernames to user IDs from Okta.
-	listUsers(ctx context.Context, paramOpts ...query.ParamOptions) (map[userName]oktaUserID, error)
-
-	// assignUserToGroup will assign the given user to the group.
-	assignUserToGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error
-
-	// unassignUserFromGroup will unassign the given user from the group.
-	unassignUserFromGroup(ctx context.Context, userID oktaUserID, groupId oktaGroupID) error
-
-	// assignUserToApplication will assign the given user to the application.
-	assignUserToApplication(ctx context.Context, userID oktaUserID, applicationId oktaAppID) error
-
-	// assignGroupToApplication assigns the given group to the application.
-	assignGroupToApplication(ctx context.Context, groupID oktaGroupID, applicationID oktaAppID) error
-
-	// unassignUserFromApplication will unassign the given user from the application.
-	unassignUserFromApplication(ctx context.Context, userID oktaUserID, applicationId oktaAppID) error
-
-	// createApplication attempts to create a new Okta application from the
-	// supplied application request.
-	createApplication(ctx context.Context, application okta.App) (okta.App, error)
-
-	// getApplication fetches the data for single application.
-	getApplication(ctx context.Context, appID oktaAppID, appType okta.App) (okta.App, error)
-
-	// getOrgURL will return the org URL for the client.
-	orgURL() string
-
-	// orgName returns the configured
-	orgName(context.Context) (string, error)
-
-	// doHttp executes a HTTP request on the supplied URL using the same
-	// credentials and headers used by underlying Okta client
-	doHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
-}
-
 // Service is the core data for the Okta integration service. The running
 // service synchronizes data with an upstream Okta IdP.
 type Service struct {
@@ -366,7 +264,7 @@ type Service struct {
 	// service to interact with the Teleport cluster.
 	accessPoint authclient.OktaAccessPoint
 	onHeartbeat func(error)
-	client      OktaClient
+	client      api.Client
 	emitter     apievents.Emitter
 	orgURL      string
 
@@ -460,7 +358,7 @@ type Service struct {
 	oktaSAMLAppID string
 
 	// connectorService is the SAML connector service.
-	connectorService SAMLConnectorService
+	connectorService sso.SAMLConnectorService
 
 	// disableOktaAppGroupSync allows to disable Okta application and group sync.
 	// when only SCIM or user sync integration is needed.
@@ -543,76 +441,13 @@ func (cfg *ClientConfig) Check() error {
 	return nil
 }
 
-var clientProviderMtx sync.Mutex
-
-// SetClientProvider sets the Okta client provider for testing.
-func SetClientProvider(fn clientProviderFunc) {
-	clientProviderMtx.Lock()
-	defer clientProviderMtx.Unlock()
-	clientProvider = fn
-}
-
-func getClientProvider() clientProviderFunc {
-	clientProviderMtx.Lock()
-	defer clientProviderMtx.Unlock()
-	return clientProvider
-}
-
-type clientProviderFunc func(ctx context.Context, cfg ...okta.ConfigSetter) (Client, error)
-
-// clientProvider is an Okta client interface that can be mocked for testing.
-var clientProvider = func(ctx context.Context, cfg ...okta.ConfigSetter) (Client, error) {
-	_, client, err := okta.NewClient(ctx, cfg...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return newClientAPIAdapter(client), err
-}
-
-// NewClient creates and initializes a new okta client
-func NewClient(ctx context.Context, cfg ClientConfig) (OktaClient, error) {
-	if err := cfg.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	createFunc := getClientProvider()
-	client, err := createFunc(ctx,
-		okta.WithCache(false), // We don't want a cache as we need up to date info.
-		okta.WithOrgUrl(cfg.Endpoint),
-		okta.WithToken(cfg.Token),
-		okta.WithHttpClientPtr(cfg.HTTPClient),
-		// This will retry until the request timeout has passed, doing a backoff
-		// of up to 30 seconds.
-		okta.WithRequestTimeout(RequestTimeoutSeconds),
-		okta.WithRateLimitMaxRetries(math.MaxInt32),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &wrappedClient{
-		log:        cfg.Log,
-		client:     client,
-		oktaOrgURL: cfg.Endpoint,
-		updateCode: cfg.UpdateStatusCode,
-	}, nil
-}
-
-// oktaClientFn is a function interface for creating Okta client.
-type oktaClientFn func(context.Context, ClientConfig) (OktaClient, error)
-
-// createNewOktaClient will create a new Okta client.
-func createNewOktaClient(ctx context.Context, config ClientConfig) (OktaClient, error) {
-	return NewClient(ctx, config)
-}
-
 // New will create a new Okta service.
 func New(ctx context.Context, config Config) (*Service, error) {
-	return newWithClientCreator(ctx, config, createNewOktaClient)
+	return newWithClientCreator(ctx, config, api.CreateNewOktaClient)
 }
 
 // newWithClientCreator will create a new Okta service with the given oktaClient.
-func newWithClientCreator(ctx context.Context, config Config, creator oktaClientFn) (*Service, error) {
+func newWithClientCreator(ctx context.Context, config Config, creator api.OktaClientFn) (*Service, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		reportPluginStatus(ctx, config.Log, config.PluginStatusSink,
 			types.PluginStatusCode_OTHER_ERROR,
@@ -692,10 +527,10 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		config.Log.Info("User synchronization is disabled.")
 	}
 
-	client, err := creator(ctx, ClientConfig{
+	client, err := creator(ctx, api.ClientConfig{
 		Endpoint:         config.OktaAPIEndpoint,
 		Token:            config.OktaAPIToken,
-		Log:              config.Log,
+		Log:              slog.With("okta", "client"),
 		UpdateStatusCode: s.serviceStatus.SetCode,
 	})
 	if err != nil {
@@ -705,7 +540,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 
 	// Assign the client to the service.
 	s.client = client
-	s.orgURL = strings.TrimSuffix(client.orgURL(), "/")
+	s.orgURL = strings.TrimSuffix(client.OrgURL(), "/")
 
 	clusterName, err := s.accessPoint.GetClusterName()
 	if err != nil {
@@ -839,7 +674,7 @@ func (s *Service) Close(ctx context.Context) error {
 // SelectSCIMToken searches the supplied list of credentials for a SCIM bearer
 // token. Returns a NotFound error if no such credential exists.
 func SelectSCIMToken(staticCredentials []types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
-	creds, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeSCIMToken)
+	creds, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeSCIMToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -854,7 +689,7 @@ func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.Pl
 	// For backward compatibility, when Teleport is downgraded to a version that doesn't support
 	// stopping app group sync via the feature flag (AppGroupSyncDisabled), we will rely on the behavior
 	// of preventing starting the Okta Plugin due to the missing credential.
-	if v, err := selectCredsByPurposeLabel(staticCredentials, CredPurposeOktaAPITokenWithSCIMOnlyIntegration); err == nil {
+	if v, err := selectCredsByPurposeLabel(staticCredentials, oktacommon.CredPurposeOktaAPITokenWithSCIMOnlyIntegration); err == nil {
 		return v, nil
 	}
 	// For now, we'll just choose the first eligible static credential until we
@@ -863,8 +698,8 @@ func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.Pl
 		// Older Okta API credentials are not labeled with a purpose, so a cred
 		// is considered eligible if it has no purpose label, or a purpose label
 		// set to okta.CredPurposeOktaAuth.
-		purpose, present := cred.GetLabel(CredPurposeLabel)
-		if !present || purpose == CredPurposeOktaAuth {
+		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
+		if !present || purpose == oktacommon.CredPurposeOktaAuth {
 			return cred, nil
 		}
 	}
@@ -873,7 +708,7 @@ func SelectAPIToken(staticCredentials []types.PluginStaticCredentials) (types.Pl
 
 func selectCredsByPurposeLabel(staticCredentials []types.PluginStaticCredentials, purposeLabel string) (types.PluginStaticCredentials, error) {
 	for _, cred := range staticCredentials {
-		purpose, present := cred.GetLabel(CredPurposeLabel)
+		purpose, present := cred.GetLabel(oktacommon.CredPurposeLabel)
 		if present && purpose == purposeLabel {
 			return cred, nil
 		}

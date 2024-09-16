@@ -1,4 +1,4 @@
-package okta
+package api
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -13,10 +14,13 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
+	require.True(t, trace.IsNotFound(err), "Expected NotFound, got %s", err)
+}
 
 func TestErrorConversion(t *testing.T) {
 	errorCases := []struct {
@@ -30,7 +34,7 @@ func TestErrorConversion(t *testing.T) {
 			roundTrip: func(request *http.Request) (*http.Response, error) {
 				response := simulateOktaError(
 					http.StatusNotFound,
-					oktaErrCodeResourceNotFoundException,
+					OktaErrCodeResourceNotFoundException,
 					"Not Found: ResourceNotFound",
 				)
 				return response, nil
@@ -43,7 +47,7 @@ func TestErrorConversion(t *testing.T) {
 			roundTrip: func(request *http.Request) (*http.Response, error) {
 				response := simulateOktaError(
 					http.StatusUnauthorized,
-					oktaErrCodeAccessDeniedException,
+					OktaErrCodeAccessDeniedException,
 					"Access Denied",
 				)
 				return response, nil
@@ -56,7 +60,7 @@ func TestErrorConversion(t *testing.T) {
 			roundTrip: func(request *http.Request) (*http.Response, error) {
 				response := simulateOktaError(
 					http.StatusForbidden,
-					oktaErrCodeInvalidSessionException,
+					OktaErrCodeInvalidSessionException,
 					"Invalid Session",
 				)
 				return response, nil
@@ -69,7 +73,7 @@ func TestErrorConversion(t *testing.T) {
 			roundTrip: func(request *http.Request) (*http.Response, error) {
 				response := simulateOktaError(
 					http.StatusForbidden,
-					oktaErrCodeInvalidTokenProvidedException,
+					OktaErrCodeInvalidTokenProvidedException,
 					"Invalid token provided",
 				)
 				return response, nil
@@ -87,78 +91,78 @@ func TestErrorConversion(t *testing.T) {
 
 	operations := []struct {
 		name   string
-		action func(context.Context, OktaClient) error
+		action func(context.Context, Client) error
 	}{
 		{
 			name: "getCurrentUser",
-			action: func(ctx context.Context, client OktaClient) error {
-				_, err := client.getCurrentUser(ctx)
+			action: func(ctx context.Context, client Client) error {
+				_, err := client.GetCurrentUser(ctx)
 				return err
 			},
 		},
 		{
 			name: "getGroupAssignments",
-			action: func(ctx context.Context, client OktaClient) error {
-				_, err := client.getGroupAssignments(ctx, "someGroupID")
+			action: func(ctx context.Context, client Client) error {
+				_, err := client.GetGroupAssignments(ctx, "someGroupID")
 				return err
 			},
 		},
 		{
 			name: "getAppAssignments",
-			action: func(ctx context.Context, client OktaClient) error {
-				_, err := client.getAppAssignments(ctx, "someAppID")
+			action: func(ctx context.Context, client Client) error {
+				_, err := client.GetAppAssignments(ctx, "someAppID")
 				return err
 			},
 		},
 		{
 			name: "getAppGroups",
-			action: func(ctx context.Context, client OktaClient) error {
-				_, err := client.getAppGroups(ctx, "someAppID")
+			action: func(ctx context.Context, client Client) error {
+				_, err := client.GetAppGroups(ctx, "someAppID")
 				return err
 			},
 		},
 		{
 			name: "listUsers",
-			action: func(ctx context.Context, client OktaClient) error {
-				_, err := client.listUsers(ctx)
+			action: func(ctx context.Context, client Client) error {
+				_, err := client.ListUsers(ctx)
 				return err
 			},
 		},
 		{
 			name: "assignUserToGroup",
-			action: func(ctx context.Context, client OktaClient) error {
-				return client.assignUserToGroup(ctx, "someUserID", "someGroupID")
+			action: func(ctx context.Context, client Client) error {
+				return client.AssignUserToGroup(ctx, "someUserID", "someGroupID")
 			},
 		},
 		{
 			name: "unassignUserFromGroup",
-			action: func(ctx context.Context, client OktaClient) error {
-				return client.unassignUserFromGroup(ctx, "someUserID", "someGroupID")
+			action: func(ctx context.Context, client Client) error {
+				return client.UnassignUserFromGroup(ctx, "someUserID", "someGroupID")
 			},
 		},
 		{
 			name: "assignUserToApplication",
-			action: func(ctx context.Context, client OktaClient) error {
-				return client.assignUserToApplication(ctx, "someUserID", "someAppID")
+			action: func(ctx context.Context, client Client) error {
+				return client.AssignUserToApplication(ctx, "someUserID", "someAppID")
 			},
 		},
 		{
 			name: "assignGroupToApplication",
-			action: func(ctx context.Context, client OktaClient) error {
-				return client.assignGroupToApplication(ctx, "someGroupID", "someAppID")
+			action: func(ctx context.Context, client Client) error {
+				return client.AssignGroupToApplication(ctx, "someGroupID", "someAppID")
 			},
 		},
 		{
 			name: "unassignUserFromApplication",
-			action: func(ctx context.Context, client OktaClient) error {
-				return client.unassignUserFromApplication(ctx, "someGroupID", "someAppID")
+			action: func(ctx context.Context, client Client) error {
+				return client.UnassignUserFromApplication(ctx, "someGroupID", "someAppID")
 			},
 		},
 		{
 			name: "getApplication",
-			action: func(ctx context.Context, client OktaClient) error {
+			action: func(ctx context.Context, client Client) error {
 				var app okta.App
-				_, err := client.getApplication(ctx, "someAppID", app)
+				_, err := client.GetApplication(ctx, "someAppID", app)
 				return err
 			},
 		},
@@ -180,7 +184,7 @@ func TestErrorConversion(t *testing.T) {
 						Endpoint:   "https://okta.example.com",
 						Token:      "i-am-not-a-token",
 						HTTPClient: &http.Client{Transport: mockta},
-						Log:        logrus.WithField("test", t.Name()),
+						Log:        slog.With("test", t.Name()),
 					})
 					require.NoError(t, err)
 

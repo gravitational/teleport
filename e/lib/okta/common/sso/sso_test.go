@@ -1,4 +1,4 @@
-package okta
+package sso
 
 import (
 	"context"
@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+)
+
+const (
+	testConnectorName = "okta-test"
+	testClusterName   = "test-cluster-name"
+	testClusterURL    = "https://test-cluster.example.com"
 )
 
 const entityDescriptor = `
@@ -66,7 +73,7 @@ func (m *mockSamlConnectors) GetSAMLConnector(ctx context.Context, id string, wi
 
 // makeTestGroup constructs a minimal okta.Group instance for use with the
 // testOktaClient
-func makeTestGroup(id oktaGroupID, kind, name string) *okta.Group {
+func makeTestGroup(id api.OktaGroupID, kind, name string) *okta.Group {
 	return &okta.Group{
 		Id:      string(id),
 		Type:    kind,
@@ -81,8 +88,8 @@ func TestSSOConectorCreation(t *testing.T) {
 
 	t.Run("happy path", func(t *testing.T) {
 		const (
-			testTeleportAppId             = oktaAppID("TEST-OKTA-APP-ID")
-			everyoneGroupId               = oktaGroupID("EVERYONE-GROUP-ID")
+			testTeleportAppId             = api.OktaAppID("TEST-OKTA-APP-ID")
+			everyoneGroupId               = api.OktaGroupID("EVERYONE-GROUP-ID")
 			testEntityMetadataURL         = "https://example.com/some/thing/or/other"
 			testEntityMetadataContentType = "vegetable/potato"
 		)
@@ -110,13 +117,13 @@ func TestSSOConectorCreation(t *testing.T) {
 		createAppCalled := false
 		groupWasAssigned := false
 		metadataWasFetched := false
-		oktaClient := newTestClient()
-		oktaClient.oktaGroups = []*okta.Group{
+		oktaClient := api.NewTestClient()
+		oktaClient.OktaGroups = []*okta.Group{
 			makeTestGroup("NOT A BUILTIN", "OKTA_GROUP", "Everyone"),
 			makeTestGroup("NOT EVERYONE", "BUILT_IN", "Bananas"),
 			makeTestGroup(everyoneGroupId, "BUILT_IN", "Everyone"),
 		}
-		oktaClient.monkeyPatch.createApp =
+		oktaClient.MonkeyPatch.CreateApp =
 			func(ctx context.Context, app okta.App) (okta.App, error) {
 				// Expect that createApp was called.]
 				createAppCalled = true
@@ -138,14 +145,14 @@ func TestSSOConectorCreation(t *testing.T) {
 				}
 				return samlApp, nil
 			}
-		oktaClient.monkeyPatch.assignGroupToApplication =
-			func(ctx context.Context, groupId oktaGroupID, appId oktaAppID) error {
+		oktaClient.MonkeyPatch.AssignGroupToApplication =
+			func(ctx context.Context, groupId api.OktaGroupID, appId api.OktaAppID) error {
 				require.Equal(t, everyoneGroupId, groupId)
 				require.Equal(t, testTeleportAppId, appId)
 				groupWasAssigned = true
 				return nil
 			}
-		oktaClient.monkeyPatch.doHttp =
+		oktaClient.MonkeyPatch.DoHttp =
 			func(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error) {
 				require.Equal(t, http.MethodGet, method)
 				require.Equal(t, testEntityMetadataURL, url.String())
@@ -188,8 +195,8 @@ func TestSSOConectorCreation(t *testing.T) {
 
 		// and an Okta client rigged to fail the test if someone tries to
 		// actually create an Okta application
-		oktaClient := newTestClient()
-		oktaClient.monkeyPatch.createApp = func(context.Context, okta.App) (okta.App, error) {
+		oktaClient := api.NewTestClient()
+		oktaClient.MonkeyPatch.CreateApp = func(context.Context, okta.App) (okta.App, error) {
 			t.Fatal("Unexpected call to oktaClient.CreateApp")
 			return nil, nil
 		}

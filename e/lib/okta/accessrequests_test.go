@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 )
 
 func TestAccessRequestReconciler(t *testing.T) {
@@ -24,7 +25,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	ap := newTestAccessPoint(t, clock)
 	onReconcileCh := make(chan struct{}, 1)
 	onServiceDisconnectedCh := make(chan struct{}, 1)
-	connected, err := NewOktaConnected(OktaConnectedConfig{
+	connected, err := connected.New(connected.Config{
 		DisableCache:    true,
 		ConnectedGetter: ap,
 		Plugins:         ap,
@@ -282,7 +283,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
-			connected, err := NewOktaConnected(OktaConnectedConfig{
+			connected, err := connected.New(connected.Config{
 				DisableCache:    true,
 				ConnectedGetter: ap,
 				Plugins:         ap,
@@ -534,7 +535,7 @@ func TestOnLogin(t *testing.T) {
 			// Set the service count to 1 to make sure the reconciler is active.
 			ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 
-			connected, err := NewOktaConnected(OktaConnectedConfig{
+			connected, err := connected.New(connected.Config{
 				DisableCache:    true,
 				ConnectedGetter: ap,
 				Plugins:         ap,

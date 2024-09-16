@@ -16,7 +16,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
@@ -297,7 +297,7 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 			ResourceHeader: types.ResourceHeader{
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						okta.CredPurposeLabel: okta.CredPurposeSCIMToken,
+						common.CredPurposeLabel: common.CredPurposeSCIMToken,
 					},
 				},
 			},

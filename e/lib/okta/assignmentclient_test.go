@@ -3,6 +3,7 @@ package okta
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -16,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 )
 
@@ -45,10 +48,10 @@ func TestAssignmentClient(t *testing.T) {
 	testClientWithAssignments := func() (*testOktaClient, *assignmentClient) {
 		oktaClient := newTestClient()
 
-		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
-		oktaClient.appsToUsers.Store(testApp, newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}))
-		oktaClient.groupsToUsers.Store(testGroup, newSet(testOktaUserID))
-		oktaClient.appsToGroups = map[oktaAppID][]oktaGroupID{
+		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
+		oktaClient.AppsToUsers.Store(testApp, newSet(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}))
+		oktaClient.GroupsToUsers.Store(testGroup, newSet(testOktaUserID))
+		oktaClient.AppsToGroups = map[oktaAppID][]oktaGroupID{
 			testApp: {testGroup},
 		}
 		assignmentClient := newAssignmentClient(log, oktaClient)
@@ -74,7 +77,7 @@ func TestAssignmentClient(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user and
 		// no apps or groups configured...
 		oktaClient := newTestClient()
-		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
+		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
 		assignmentClient := newAssignmentClient(log, oktaClient)
 
 		// When I test that user's group and app memberships, the tests all
@@ -91,9 +94,9 @@ func TestAssignmentClient(t *testing.T) {
 		// Given an assignmentClient backed by an Okta system with one user, one
 		// group and one app configured, but the user is not assigned to either...
 		oktaClient := newTestClient()
-		oktaClient.usernamesToUserIDs.Store(testUser, testOktaUserID)
-		oktaClient.appsToUsers.Store(testApp, newSet[appAssignment]())
-		oktaClient.groupsToUsers.Store(testGroup, newSet[oktaUserID]())
+		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
+		oktaClient.AppsToUsers.Store(testApp, newSet[api.AppAssignment]())
+		oktaClient.GroupsToUsers.Store(testGroup, newSet[api.OktaUserID]())
 
 		assignmentClient := newAssignmentClient(log, oktaClient)
 
@@ -110,11 +113,11 @@ func TestAssignmentClient(t *testing.T) {
 		// test client and re-test the membership, expect that the
 		// assignmentClient uses cached data rather than re-querying the back
 		// end, and so still reports `false`.
-		oktaClient.appsToUsers.Write(func(m map[oktaAppID]set[appAssignment]) {
-			m[testApp].add(appAssignment{userID: string(testOktaUserID), scope: userScope})
+		oktaClient.AppsToUsers.Write(func(m map[api.OktaAppID]set.Set[api.AppAssignment]) {
+			m[testApp].Add(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope})
 		})
-		oktaClient.groupsToUsers.Write(func(m map[oktaGroupID]set[oktaUserID]) {
-			m[testGroup].add(testOktaUserID)
+		oktaClient.GroupsToUsers.Write(func(m map[oktaGroupID]set.Set[oktaUserID]) {
+			m[testGroup].Add(testOktaUserID)
 		})
 
 		isAssigned, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)
@@ -159,8 +162,8 @@ func TestAssignmentClient(t *testing.T) {
 
 		// Also expect that the change has been passed through to the okta
 		// client
-		require.Empty(t, firstVal(oktaClient.groupsToUsers.Load(testGroup)))
-		require.Empty(t, firstVal(oktaClient.appsToUsers.Load(testApp)))
+		require.Empty(t, firstVal(oktaClient.GroupsToUsers.Load(testGroup)))
+		require.Empty(t, firstVal(oktaClient.AppsToUsers.Load(testApp)))
 
 		// When I attempt to re-associate a user to an app or group,
 		// expect the operations to succeed and subsequent membership
@@ -182,8 +185,8 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient, assignmentClient := testClientWithAssignments()
 
 		// When calls to the underlying client fail with a oktaAPIValidationError
-		oktaClient.unassignAppErr[testApp] = &oktaAPIValidationError{}
-		oktaClient.unassignGroupErr[testGroup] = &oktaAPIValidationError{}
+		oktaClient.UnassignAppErr[testApp] = &api.OktaAPIValidationError{}
+		oktaClient.UnassignGroupErr[testGroup] = &api.OktaAPIValidationError{}
 
 		// Expect that the oktaAPIValidationError is treated as a success, the
 		// error is *NOT* propagated from the underlying Okta client, and the
@@ -204,8 +207,8 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient, assignmentClient := testClientWithAssignments()
 
 		// When calls to the underlying client fail with a NotFound error
-		oktaClient.unassignAppErr[testApp] = trace.WithField(trace.NotFound("summary"), oktaErrorID, oktaErrCodeNotFoundException)
-		oktaClient.unassignGroupErr[testGroup] = trace.WithField(trace.NotFound("summary"), oktaErrorID, oktaErrCodeNotFoundException)
+		oktaClient.UnassignAppErr[testApp] = trace.WithField(trace.NotFound("summary"), api.OktaErrorID, api.OktaErrCodeNotFoundException)
+		oktaClient.UnassignGroupErr[testGroup] = trace.WithField(trace.NotFound("summary"), api.OktaErrorID, api.OktaErrCodeNotFoundException)
 
 		// Expect that the NotFound is treated as a success, the
 		// error is *NOT* propagated from the underlying Okta client, and the
@@ -226,8 +229,8 @@ func TestAssignmentClient(t *testing.T) {
 		oktaClient, assignmentClient := testClientWithAssignments()
 
 		// When calls to the underlying client fail...
-		oktaClient.unassignAppErr[testApp] = trace.BadParameter("bad parameter")
-		oktaClient.unassignGroupErr[testGroup] = trace.BadParameter("bad parameter")
+		oktaClient.UnassignAppErr[testApp] = trace.BadParameter("bad parameter")
+		oktaClient.UnassignGroupErr[testGroup] = trace.BadParameter("bad parameter")
 
 		// Expect that general errors are propagated from the underlying Okta
 		// client, and that the assignments have not been affected.
@@ -263,7 +266,7 @@ func newTestAssignmentOktaServer(t *testing.T, log *logrus.Entry) *testAssignmen
 	return fixture
 }
 
-func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) OktaClient {
+func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) api.Client {
 	_, oktaClient, err := okta.NewClient(ctx,
 		okta.WithHttpClientPtr(ts.httpServer.Client()),
 		okta.WithCache(false),
@@ -272,9 +275,9 @@ func (ts *testAssignmentOktaServer) client(t *testing.T, ctx context.Context) Ok
 	)
 	require.NoError(t, err)
 
-	client := &wrappedClient{
-		client: newClientAPIAdapter(oktaClient),
-		log:    ts.log,
+	client := &api.WrappedClient{
+		Client: api.NewClientAPIAdapter(oktaClient),
+		Log:    slog.Default(),
 	}
 
 	return client
@@ -285,8 +288,8 @@ func (ts *testAssignmentOktaServer) ServeHTTP(w http.ResponseWriter, r *http.Req
 	switch r.URL.Path {
 	case "/api/v1/users":
 		payload = []*okta.User{
-			{Id: "userid1", Profile: &okta.UserProfile{oktaUserProfileLogin: "username1"}},
-			{Id: "userid2", Profile: &okta.UserProfile{oktaUserProfileLogin: "username2"}},
+			{Id: "userid1", Profile: &okta.UserProfile{api.OktaUserProfileLogin: "username1"}},
+			{Id: "userid2", Profile: &okta.UserProfile{api.OktaUserProfileLogin: "username2"}},
 		}
 	case "/api/v1/apps/testApp/users":
 		ts.appsCallsCount.Add(1)

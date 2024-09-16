@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/userloginstate"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -354,7 +355,7 @@ func initUACSuite(t *testing.T, ctx context.Context, clock clockwork.Clock) *tes
 		testAccessPoint: newTestAccessPoint(t, clock),
 	}
 	ap.serviceCounts[types.RoleOkta] = 1
-	connected, err := NewOktaConnected(OktaConnectedConfig{
+	connected, err := connected.New(connected.Config{
 		DisableCache:    true,
 		ConnectedGetter: ap,
 		Plugins:         ap,

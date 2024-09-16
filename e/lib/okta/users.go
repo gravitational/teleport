@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -64,7 +65,7 @@ type UserAssignmentCreatorConfig struct {
 	Clock clockwork.Clock
 
 	// OktaConnected is a utility that will detect if an Okta service is connected.
-	OktaConnected *OktaConnected
+	OktaConnected *connected.OktaConnected
 
 	// ClusterName is the name of the cluster.
 	ClusterName string
@@ -109,7 +110,7 @@ type UserAssignmentCreator struct {
 	clusterName string
 	accessPoint UserAssignmentCreatorAccessPoint
 	accessState services.AccessState
-	connected   *OktaConnected
+	connected   *connected.OktaConnected
 
 	// hash will be used to calculate the name of the assignment to create.
 	hash          crypto.Hash

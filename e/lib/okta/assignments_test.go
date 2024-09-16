@@ -29,7 +29,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	testUser := userName("test-user@test.user")
 	testOktaUserID := oktaUserID("okta-user-id")
 
-	oktaClient.addUserID(testUser, testOktaUserID)
+	oktaClient.AddUserID(testUser, testOktaUserID)
 
 	const link = "link"
 	appName := func(name string) string {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
@@ -114,6 +115,6 @@ func isOktaSCIMEnabled(deps instanceDependencies) (bool, error) {
 // the jsonPB unmarshaler with missing ignore unknown fields will fail to unmarshal the plugin spec.
 // when a new field was added.
 func shouldDisabledAppGroupSync(tokenCreds types.PluginStaticCredentials) bool {
-	v, ok := tokenCreds.GetLabel(okta.CredPurposeLabel)
-	return ok && v == okta.CredPurposeOktaAPITokenWithSCIMOnlyIntegration
+	v, ok := tokenCreds.GetLabel(common.CredPurposeLabel)
+	return ok && v == common.CredPurposeOktaAPITokenWithSCIMOnlyIntegration
 }

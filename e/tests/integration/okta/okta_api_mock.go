@@ -11,7 +11,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
 
-	libokta "github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 )
 
 type mockOktaAPIClient struct {
@@ -41,7 +41,7 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 }
 
 func setOktaMockedAPIClient(apiMock *mockOktaAPIClient) {
-	libokta.SetClientProvider(func(ctx context.Context, cfg ...okta.ConfigSetter) (libokta.Client, error) {
+	api.SetClientProvider(func(ctx context.Context, cfg ...okta.ConfigSetter) (api.OktaAPI, error) {
 		return apiMock, nil
 	})
 }

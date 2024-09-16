@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,7 +65,7 @@ type AccessRequestReconcilerConfig struct {
 	AccessPoint AccessRequestReconcilerAccessPoint
 
 	// OktaConnected is a utility that will detect if an Okta service is connected.
-	OktaConnected *OktaConnected
+	OktaConnected *connected.OktaConnected
 
 	// OktaClient is the Okta client for creating Okta assignment objects.
 	OktaClient services.OktaAssignments
@@ -128,7 +129,7 @@ type AccessRequestReconciler struct {
 	lockWatcher *services.LockWatcher
 
 	accessPoint AccessRequestReconcilerAccessPoint
-	connected   *OktaConnected
+	connected   *connected.OktaConnected
 	oktaClient  services.OktaAssignments
 	onReconcile func(types.AccessRequests)
 

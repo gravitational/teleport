@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/okta/common"
 )
 
 func requireNotFound(t require.TestingT, err error, _ ...interface{}) {
@@ -38,7 +39,7 @@ func TestSelectSelectCredentials(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: types.PluginTypeOkta,
 					Labels: map[string]string{
-						CredPurposeLabel: CredPurposeSCIMToken,
+						common.CredPurposeLabel: common.CredPurposeSCIMToken,
 					},
 				},
 			},
@@ -55,7 +56,7 @@ func TestSelectSelectCredentials(t *testing.T) {
 			Metadata: types.Metadata{
 				Name: types.PluginTypeOkta,
 				Labels: map[string]string{
-					CredPurposeLabel: CredPurposeOktaAuth,
+					common.CredPurposeLabel: common.CredPurposeOktaAuth,
 				},
 			},
 		},

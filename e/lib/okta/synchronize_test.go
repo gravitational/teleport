@@ -43,7 +43,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	t.Cleanup(svc.stopAllHeartbeats)
 
 	// Add in one app to get a group to app mapping from
-	client.oktaApps = []okta.App{
+	client.OktaApps = []okta.App{
 		// This app should be added.
 		&okta.Application{
 			Id:     "app1",
@@ -60,7 +60,7 @@ func TestSynchronizeGroups(t *testing.T) {
 			},
 		},
 	}
-	client.appsToGroups["app1"] = []oktaGroupID{"group4"}
+	client.AppsToGroups["app1"] = []oktaGroupID{"group4"}
 
 	// Add a few groups to ignore since they don't have an origin of Okta.
 	addGroup(t, "ignored1", types.OriginConfigFile, "", ap)
@@ -77,7 +77,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	addGroup(t, "group3", types.OriginOkta, svc.orgURL, ap)
 
 	// Add okta groups.
-	client.oktaGroups = []*okta.Group{
+	client.OktaGroups = []*okta.Group{
 		// This group should trigger an update.
 		{
 			Id: "group3",
@@ -153,7 +153,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	})
 
 	// App1 is now assigned to group3 as well.
-	client.appsToGroups["app1"] = []oktaGroupID{"group3", "group4"}
+	client.AppsToGroups["app1"] = []oktaGroupID{"group3", "group4"}
 
 	require.NoError(t, svc.synchronize(ctx))
 
@@ -223,7 +223,7 @@ func TestSynchronizeGroups(t *testing.T) {
 
 	// This will cause delete to be run on a non-existent group, which should be handled.
 	require.NoError(t, ap.DeleteUserGroup(ctx, group4.GetName()))
-	client.oktaGroups = client.oktaGroups[0:1]
+	client.OktaGroups = client.OktaGroups[0:1]
 
 	require.NoError(t, svc.synchronize(ctx))
 
@@ -295,7 +295,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 			// ALSO GIVEN a mocked Okta organization with several applications
 			// configured
 			for _, appName := range appNames {
-				client.oktaApps = append(client.oktaApps, &okta.Application{
+				client.OktaApps = append(client.OktaApps, &okta.Application{
 					Id:     appName,
 					Name:   fmt.Sprintf("An app called %q", appName),
 					Status: "ACTIVE",
@@ -310,7 +310,7 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 					},
 				})
 			}
-			client.appsToGroups["app1"] = []oktaGroupID{"group1"}
+			client.AppsToGroups["app1"] = []oktaGroupID{"group1"}
 
 			// ALSO GIVEN a set of Teleport Applications created by pre-syncing
 			// the Okta organization with the Teleport cluster
@@ -322,12 +322,12 @@ func TestSynchronizeAppsImportError(t *testing.T) {
 
 			// GIVEN ALSO an okta client rigged to fail when fetching groups for
 			// specific applications
-			client.monkeyPatch.getAppGroups =
+			client.MonkeyPatch.GetAppGroups =
 				func(_ context.Context, appID oktaAppID) ([]oktaGroupID, error) {
 					if err, ok := tt.importErrors[appID]; ok {
 						return nil, err
 					}
-					return client.appsToGroups[appID], nil
+					return client.AppsToGroups[appID], nil
 				}
 
 			// WHEN I attempt to synchronize the Teleport cluster with the
@@ -373,7 +373,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	addApp(t, app3Name, types.OriginOkta, svc.orgURL, svc)
 
 	// Add okta apps.
-	client.oktaApps = []okta.App{
+	client.OktaApps = []okta.App{
 		// This app should trigger an update.
 		&okta.Application{
 			Id:     "app3",
@@ -418,7 +418,7 @@ func TestSynchronizeApplications(t *testing.T) {
 		// This app should fail but not interrupt the sync.
 		&dummyOktaApp{},
 	}
-	client.appsToGroups["app4"] = []oktaGroupID{"group4"}
+	client.AppsToGroups["app4"] = []oktaGroupID{"group4"}
 
 	apps := mapOfAllApps(t, svc)
 	require.Len(t, apps, 3)
@@ -619,7 +619,7 @@ func TestFetchUsers(t *testing.T) {
 
 	ctx := context.Background()
 	testClient := newTestClient()
-	testClient.oktaUsers = []*okta.User{
+	testClient.OktaUsers = []*okta.User{
 		{
 			Id:      "00000001",
 			Profile: &okta.UserProfile{},
@@ -657,7 +657,7 @@ func TestFetchAppUsers(t *testing.T) {
 	log := logrus.WithField("test", t.Name())
 	ctx := context.Background()
 	testClient := newTestClient()
-	testClient.oktaAppUsers = []*okta.AppUser{
+	testClient.OktaAppUsers = []*okta.AppUser{
 		{
 			Id:         "00000001",
 			ExternalId: "alpha@example.org",
@@ -696,6 +696,29 @@ func TestFetchAppUsers(t *testing.T) {
 
 	require.NotContains(t, users, "missing-credentials@example.org")
 }
+
+const entityDescriptor = `
+<?xml version="1.0"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2021-02-26T15:57:24Z" cacheDuration="PT1614787044S" entityID="http://some.entity.id">
+	<md:IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+	<md:KeyDescriptor use="signing">
+		<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+		<ds:X509Data>
+			<ds:X509Certificate>MIIFazCCA1OgAwIBAgIUDpXWZ8npv3sWeCQbB1WCwMoDe9QwDQYJKoZIhvcNAQELBQAwRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yMTAyMTgyMTUyNTVaFw0yMjAyMTgyMTUyNTVaMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDiEvFfAwgR8rfFPXVkJiWQGisFQNpQ5oq4ng5sD/3phPBBzwx0TTn+V+XG5pBTlyVe0h9kLqZ3Dnavdk9VDC1DIrc0CSKUhP01JdV9TlC/tCek9a2IQEjEZ0pZPbU/gtXxEGyrs9JVFf0K8saMH6xB8jJwB4Eq9jB8rsWZJh4HeyX1VEdruPdwRkFjuNhBnIax//DQSZepAhtM+mtxP+cHtRzXPlXHTpYvxcP2LoXjSdCh/XEu8Ai33O4Ek14HIFmNQ63pmzmxhpcPm8ejDFchOEU67zeOz2RQNAefeHRgG1gvFIcgmVXcLM+VmC0JlzNuyMFY1XUygm1PYcFz93p4OGJBkYgKifNHPcMzTLQtPoY397WREd/kkMtvgxSDs6GQr2VwByHoo5IoQJ/OpridaDduL9NSc6YHEEXxSceMSdI+txuZvOAJJuLR1DQ5S5xjdHBj8uDsAnmX7oORVadEJ38Aj1UlM+Lk6qnmoBEGAXEfa3Fxyz0qgN9MrtutJO0S4BLqqmXgM9Kulp0B7e7gkRaAyNt/Y0+dAuzYva+uTd7Qm96EEYCTwd9LM4OghTLpDCXFm5EQI+D0zEyOGhDqwQDdx3MHJoPd6xg72ZkoiADY235D/av/ZisF7acPucLvQ41gbWphQgsRTN81lRll/Wgd4EknznXq060RQBkNbwIDAQABo1MwUTAdBgNVHQ4EFgQUzpwOh72T7DyvsvkVV9Cu4YRKBTYwHwYDVR0jBBgwFoAUzpwOh72T7DyvsvkVV9Cu4YRKBTYwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEADSc0AEFgMcwArn9zvppOdMlF4GqyJa7mzeVAKHRyXiLm4TSUk8oBk8GgO9f32B5sEUVBnL5FnzEUm7hMAG5DUcMXANkHguIwoISpAZdFh1VhH+13HIOmxre/UN9a1l829g1dANvYWcoGJc4uUtj3HF5UKcfEmrUwISimW0Mpuin+jDlRiLvpvImqxWUyFazucpE8Kj4jqmFNnoOLAQbEerR61W1wC3fpifM9cW5mKLsSpk9uG5PUTWKA1W7u+8AgLxvfdbFA9HnDc93JKWeWyBLX6GSeVL6y9pOY9MRBHqnpPVEPcjbZ3ZpX1EPWbniF+WRCIpjcye0obTTjipWJli5HqwGGauyXPGmevCkG96jiy8nf18HrQ3459SuRSZ1lQD5EoF+1QBL/O1Y6P7PVuOSQev376RD56tOLu1EWxZAmfDNNmlZSmZSn+h5JRcjSh1NFfktIVkHtNPKw8FXDp8098oqrJ3MoNTQgE0vpXiho1QIxWhfaEU5y/WynZFk1PssjBULWNxbeIpOFYk3paNyEpb9cOkOE8ZHOdi7WWJSwHaDmx6qizOQXO75QMLIMxkCdENFx6wWbNMvKCxOlPfgkNcBaAsybM+K0AHwwvyzlcpVfEdaCexGtecBoGkjFRCG+f9InppaaSzmgbIJvkSOMUWEDO/JlFizzWAG8koM=</ds:X509Certificate>
+		</ds:X509Data>
+		</ds:KeyInfo>
+	</md:KeyDescriptor>
+	<md:KeyDescriptor use="encryption">
+		<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+		<ds:X509Data>
+			<ds:X509Certificate>MIIFazCCA1OgAwIBAgIUDpXWZ8npv3sWeCQbB1WCwMoDe9QwDQYJKoZIhvcNAQELBQAwRTELMAkGA1UEBhMCQVUxEzARBgNVBAgMClNvbWUtU3RhdGUxITAfBgNVBAoMGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDAeFw0yMTAyMTgyMTUyNTVaFw0yMjAyMTgyMTUyNTVaMEUxCzAJBgNVBAYTAkFVMRMwEQYDVQQIDApTb21lLVN0YXRlMSEwHwYDVQQKDBhJbnRlcm5ldCBXaWRnaXRzIFB0eSBMdGQwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDiEvFfAwgR8rfFPXVkJiWQGisFQNpQ5oq4ng5sD/3phPBBzwx0TTn+V+XG5pBTlyVe0h9kLqZ3Dnavdk9VDC1DIrc0CSKUhP01JdV9TlC/tCek9a2IQEjEZ0pZPbU/gtXxEGyrs9JVFf0K8saMH6xB8jJwB4Eq9jB8rsWZJh4HeyX1VEdruPdwRkFjuNhBnIax//DQSZepAhtM+mtxP+cHtRzXPlXHTpYvxcP2LoXjSdCh/XEu8Ai33O4Ek14HIFmNQ63pmzmxhpcPm8ejDFchOEU67zeOz2RQNAefeHRgG1gvFIcgmVXcLM+VmC0JlzNuyMFY1XUygm1PYcFz93p4OGJBkYgKifNHPcMzTLQtPoY397WREd/kkMtvgxSDs6GQr2VwByHoo5IoQJ/OpridaDduL9NSc6YHEEXxSceMSdI+txuZvOAJJuLR1DQ5S5xjdHBj8uDsAnmX7oORVadEJ38Aj1UlM+Lk6qnmoBEGAXEfa3Fxyz0qgN9MrtutJO0S4BLqqmXgM9Kulp0B7e7gkRaAyNt/Y0+dAuzYva+uTd7Qm96EEYCTwd9LM4OghTLpDCXFm5EQI+D0zEyOGhDqwQDdx3MHJoPd6xg72ZkoiADY235D/av/ZisF7acPucLvQ41gbWphQgsRTN81lRll/Wgd4EknznXq060RQBkNbwIDAQABo1MwUTAdBgNVHQ4EFgQUzpwOh72T7DyvsvkVV9Cu4YRKBTYwHwYDVR0jBBgwFoAUzpwOh72T7DyvsvkVV9Cu4YRKBTYwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAgEADSc0AEFgMcwArn9zvppOdMlF4GqyJa7mzeVAKHRyXiLm4TSUk8oBk8GgO9f32B5sEUVBnL5FnzEUm7hMAG5DUcMXANkHguIwoISpAZdFh1VhH+13HIOmxre/UN9a1l829g1dANvYWcoGJc4uUtj3HF5UKcfEmrUwISimW0Mpuin+jDlRiLvpvImqxWUyFazucpE8Kj4jqmFNnoOLAQbEerR61W1wC3fpifM9cW5mKLsSpk9uG5PUTWKA1W7u+8AgLxvfdbFA9HnDc93JKWeWyBLX6GSeVL6y9pOY9MRBHqnpPVEPcjbZ3ZpX1EPWbniF+WRCIpjcye0obTTjipWJli5HqwGGauyXPGmevCkG96jiy8nf18HrQ3459SuRSZ1lQD5EoF+1QBL/O1Y6P7PVuOSQev376RD56tOLu1EWxZAmfDNNmlZSmZSn+h5JRcjSh1NFfktIVkHtNPKw8FXDp8098oqrJ3MoNTQgE0vpXiho1QIxWhfaEU5y/WynZFk1PssjBULWNxbeIpOFYk3paNyEpb9cOkOE8ZHOdi7WWJSwHaDmx6qizOQXO75QMLIMxkCdENFx6wWbNMvKCxOlPfgkNcBaAsybM+K0AHwwvyzlcpVfEdaCexGtecBoGkjFRCG+f9InppaaSzmgbIJvkSOMUWEDO/JlFizzWAG8koM=</ds:X509Certificate>
+		</ds:X509Data>
+		</ds:KeyInfo>
+	</md:KeyDescriptor>
+	<md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+	<md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="http://example.com/saml/acs/example"/>
+	</md:IDPSSODescriptor>
+</md:EntityDescriptor>`
 
 func TestSynchronizeUsers(t *testing.T) {
 	const (
@@ -741,7 +764,7 @@ func TestSynchronizeUsers(t *testing.T) {
 		subtestT.Cleanup(svc.stopAllHeartbeats)
 
 		for i, name := range userNames {
-			client.oktaAppUsers = append(client.oktaAppUsers,
+			client.OktaAppUsers = append(client.OktaAppUsers,
 				&okta.AppUser{
 					Id:         fmt.Sprintf("%08d", i+1),
 					ExternalId: name + "@example.org",
@@ -795,7 +818,7 @@ func TestSynchronizeUsers(t *testing.T) {
 
 		// ALSO GIVEN an Okta client rigged to simulate an access denied error
 		// while enumerating Okta users...
-		client.monkeyPatch.iterateAppUsers =
+		client.MonkeyPatch.IterateAppUsers =
 			func(context.Context, oktaAppID, func(*okta.AppUser) error) error {
 				return trace.AccessDenied(errorText)
 			}

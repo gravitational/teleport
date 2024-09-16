@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -561,7 +562,7 @@ func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 	})
 	require.NoError(t, plugins.CreatePlugin(context.Background(), oktaPlugin))
 
-	connected, err := okta.NewOktaConnected(okta.OktaConnectedConfig{
+	connected, err := connected.New(connected.Config{
 		DisableCache:    true,
 		ConnectedGetter: svc.authServer,
 		Plugins:         plugins,

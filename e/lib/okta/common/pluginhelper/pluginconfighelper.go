@@ -1,8 +1,9 @@
-package okta
+package pluginhelper
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -21,36 +23,30 @@ const (
 	defaultPluginConfigHelperCacheTTL = 10 * time.Minute
 )
 
-// PluginConfigHelperConfig is the configuration for the PluginConfigHelper.
-type PluginConfigHelperConfig struct {
+// Config is the configuration for the PluginConfigHelper.
+type Config struct {
 	// Clock is the clock to use.
 	Clock clockwork.Clock
-
 	// Log is the log to use.
 	Log *logrus.Entry
-
 	// CacheTTL is the Cache TTL of the application and group results coming from Okta.
 	CacheTTL time.Duration
-
 	// oktaClientCreator will create Okta clients. For use in tests.
-	oktaClientCreator oktaClientFn
+	oktaClientCreator api.OktaClientFn
 }
 
-func (c *PluginConfigHelperConfig) CheckAndSetDefaults() {
+func (c *Config) CheckAndSetDefaults() {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
-
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, eteleport.ComponentOkta)
 	}
-
 	if c.CacheTTL == 0 {
 		c.CacheTTL = defaultPluginConfigHelperCacheTTL
 	}
-
 	if c.oktaClientCreator == nil {
-		c.oktaClientCreator = createNewOktaClient
+		c.oktaClientCreator = api.CreateNewOktaClient
 	}
 }
 
@@ -59,11 +55,11 @@ func (c *PluginConfigHelperConfig) CheckAndSetDefaults() {
 type PluginConfigHelper struct {
 	log               *logrus.Entry
 	cache             *utils.FnCache
-	oktaClientCreator oktaClientFn
+	oktaClientCreator api.OktaClientFn
 }
 
 // NewPluginConfigHelper creates a new plugin config helper service.
-func NewPluginConfigHelper(config PluginConfigHelperConfig) (*PluginConfigHelper, error) {
+func NewPluginConfigHelper(config Config) (*PluginConfigHelper, error) {
 	config.CheckAndSetDefaults()
 
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
@@ -103,7 +99,7 @@ func (p *PluginConfigHelper) GetOktaGroups(ctx context.Context, orgURL, apiToken
 	groups, err := utils.FnCacheGet(ctx, p.cache, fmt.Sprintf("%s-%s-groups", orgURL, apiToken),
 		func(ctx context.Context) ([]*PluginConfigOktaGroup, error) {
 			var groups []*PluginConfigOktaGroup
-			err := client.iterateGroups(ctx, func(g *okta.Group) error {
+			err := client.IterateGroups(ctx, func(g *okta.Group) error {
 				if g.Profile == nil {
 					p.log.Debugf("Found a nil profile, skipping")
 					return nil
@@ -148,7 +144,7 @@ func (p *PluginConfigHelper) GetOktaApps(ctx context.Context, orgURL, apiToken s
 	apps, err := utils.FnCacheGet(ctx, p.cache, fmt.Sprintf("%s-%s-apps", orgURL, apiToken),
 		func(ctx context.Context) ([]*PluginConfigOktaApp, error) {
 			var apps []*PluginConfigOktaApp
-			err := client.iterateApps(ctx, func(a okta.App) error {
+			err := client.IterateApps(ctx, func(a okta.App) error {
 				// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
 				// does not contain all of the information that we need to create a types.Application
 				// object.
@@ -194,11 +190,11 @@ func getMatches[T any](resources []T, filters []*regexp.Regexp, getNameFn func(T
 }
 
 // getClientAndFilters will create the Okta client and compile the given filters.
-func (p *PluginConfigHelper) getClientAndFilters(ctx context.Context, orgURL, token string, filters []string) (OktaClient, []*regexp.Regexp, error) {
-	client, err := p.oktaClientCreator(ctx, ClientConfig{
+func (p *PluginConfigHelper) getClientAndFilters(ctx context.Context, orgURL, token string, filters []string) (api.Client, []*regexp.Regexp, error) {
+	client, err := p.oktaClientCreator(ctx, api.ClientConfig{
 		Endpoint: orgURL,
 		Token:    token,
-		Log:      p.log,
+		Log:      slog.With("okta_url", orgURL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

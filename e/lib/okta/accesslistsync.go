@@ -23,7 +23,9 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	accesslistsvc "github.com/gravitational/teleport/e/lib/accesslist"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
+	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -59,7 +61,7 @@ type accessListSyncConfig struct {
 	ClusterName string
 
 	// Client is the okta client.
-	Client OktaClient
+	Client api.Client
 
 	// Owners is the default owners for access lists.
 	Owners []string
@@ -184,7 +186,7 @@ type accessListSync struct {
 	clusterName string
 
 	// client is the Okta client so that the importer can query the Okta API.
-	client OktaClient
+	client api.Client
 
 	// owners is the default owners for access lists.
 	owners []accesslist.Owner
@@ -523,7 +525,7 @@ func (a *accessListSync) importOktaNativeAssignmentsAsAccessLists(ctx context.Co
 		a.convertAccessListMetadata(convertContext, importCh)
 	}()
 
-	userNameToIDMapping, err := a.client.listUsers(ctx)
+	userNameToIDMapping, err := a.client.ListUsers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -722,7 +724,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			}
 		}
 
-		if appIDProcessed.has(appID) {
+		if appIDProcessed.Has(appID) {
 			log.Debug("application ID was already processed")
 			continue
 		}
@@ -736,7 +738,7 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 			continue
 		}
 
-		appIDProcessed.add(appID)
+		appIDProcessed.Add(appID)
 
 		if len(irMetadata.members) > 0 {
 			log.Info("Processing application")
@@ -749,13 +751,18 @@ func (a *accessListSync) importApps(ctx context.Context, params importAppsParams
 	return nil
 }
 
+// New constructs a set from an arbitrary collection of elements
+func newSet[T comparable](elements ...T) set.Set[T] {
+	return set.New[T](elements...)
+}
+
 func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaAppID, app types.Application, userMapping map[oktaUserID]userName) (importResourceMetadata, error) {
 	title, ok := app.GetLabel(types.OktaAppNameLabel)
 	if !ok {
 		a.log.WithField("app_id", appID).Debug("application ID has no app name to use as a title")
 	}
 
-	assignments, err := a.client.getAppAssignments(ctx, appID)
+	assignments, err := a.client.GetAppAssignments(ctx, appID)
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}
@@ -771,8 +778,8 @@ func (a *accessListSync) appToImportResources(ctx context.Context, appID oktaApp
 		// Add a member to the Okta App synced access list only if an Okta user has UserScope (the user has an individual Okta App assessment type).
 		// We do not want to add users with GroupScope to App synced access list because this will cause redundancy were the user will be assigned as
 		// member to both App and Group synced access list and will introduce duplicate access paths.
-		if assignment.scope == userScope {
-			if user, ok := userMapping[oktaUserID(assignment.userID)]; ok {
+		if assignment.Scope == api.UserScope {
+			if user, ok := userMapping[oktaUserID(assignment.UserID)]; ok {
 				members = append(members, user)
 			}
 		}
@@ -814,7 +821,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 
 		log = log.WithField("group_id", groupID)
 
-		if groupIDProcessed.has(groupID) {
+		if groupIDProcessed.Has(groupID) {
 			log.Debug("group ID was already processed")
 			continue
 		}
@@ -851,7 +858,7 @@ func (a *accessListSync) importGroups(ctx context.Context, params importGroupsPa
 			continue
 		}
 
-		groupIDProcessed.add(groupID)
+		groupIDProcessed.Add(groupID)
 
 		params.importCh <- irMetadata
 		a.groupsImported.Add(1)
@@ -867,7 +874,7 @@ func (a *accessListSync) groupToImportResources(ctx context.Context, groupID okt
 
 	description, _ := group.GetLabel(types.OktaGroupDescriptionLabel)
 
-	assignments, err := a.client.getGroupAssignments(ctx, groupID)
+	assignments, err := a.client.GetGroupAssignments(ctx, groupID)
 	if err != nil {
 		return importResourceMetadata{}, trace.Wrap(err)
 	}

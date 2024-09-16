@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/common"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/entitlements"
@@ -87,7 +88,7 @@ func (a *accessListSyncTestContext) groupReviewerRoleName(id string) string {
 
 func (a *accessListSyncTestContext) addGroup(group types.UserGroup) {
 	a.groups[group.GetName()] = group
-	a.client.addGroupToMapping(group.GetName())
+	a.client.AddGroupToMapping(group.GetName())
 }
 
 func (a *accessListSyncTestContext) advanceAndWaitForSync() {
@@ -245,11 +246,11 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have no assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.client.addUserID("user1", "1")
-		c.client.addUserID("user2", "2")
-		c.client.addUserID("user3", "3")
-		c.client.addAppAssignments("app1-okta", "1", "2", "3")
-		c.client.addAppAssignments("app2-okta", "1", "2", "3")
+		c.client.AddUserID("user1", "1")
+		c.client.AddUserID("user2", "2")
+		c.client.AddUserID("user3", "3")
+		c.client.AddAppAssignments("app1-okta", "1", "2", "3")
+		c.client.AddAppAssignments("app2-okta", "1", "2", "3")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -307,11 +308,11 @@ func TestAccessListSync(t *testing.T) {
 	t.Run("Okta apps have assignments, groups have assignments", func(t *testing.T) {
 		c := initAccessListSync(t, ctx)
 
-		c.client.addUserID("user1", "1")
-		c.client.addUserID("user2", "2")
-		c.client.addAppAssignments("app1-okta", "1")
-		c.client.addAppAssignments("app2-okta", "1", "2")
-		c.client.addGroupAssignments("group1", "1", "2")
+		c.client.AddUserID("user1", "1")
+		c.client.AddUserID("user2", "2")
+		c.client.AddAppAssignments("app1-okta", "1")
+		c.client.AddAppAssignments("app2-okta", "1", "2")
+		c.client.AddGroupAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -375,14 +376,14 @@ func TestAccessListSync(t *testing.T) {
 			regexp.MustCompile("^dev.*$"),
 		}
 
-		c.client.addUserID("user1", "1")
-		c.client.addUserID("user2", "2")
-		c.client.addAppAssignments("admin-app1-okta", "1")
-		c.client.addAppAssignments("dev-app2-okta", "1", "2")
-		c.client.addAppAssignments("dev-app3-okta", "1", "2")
-		c.client.addGroupAssignments("admin-group1", "1", "2")
-		c.client.addGroupAssignments("dev-group2", "1", "2")
-		c.client.addGroupAssignments("dev-group3", "1", "2")
+		c.client.AddUserID("user1", "1")
+		c.client.AddUserID("user2", "2")
+		c.client.AddAppAssignments("admin-app1-okta", "1")
+		c.client.AddAppAssignments("dev-app2-okta", "1", "2")
+		c.client.AddAppAssignments("dev-app3-okta", "1", "2")
+		c.client.AddGroupAssignments("admin-group1", "1", "2")
+		c.client.AddGroupAssignments("dev-group2", "1", "2")
+		c.client.AddGroupAssignments("dev-group3", "1", "2")
 
 		c.addApp(newAccessListSyncAppLabelAppName(t, "admin-app1"))
 		c.addApp(newAccessListSyncAppLabelAppName(t, "dev-app2"))
@@ -486,12 +487,12 @@ func TestAccessListSync(t *testing.T) {
 			"app4": newRole(t, "app4", nil, nil),
 		}, c.svc.importRoles.Clone(), cmpOpts...))
 
-		c.client.addUserID("user1", "1")
-		c.client.addUserID("user2", "2")
-		c.client.addUserID("user-to-remove", "remove")
-		c.client.addAppAssignments("app1-okta", "1")
-		c.client.addAppAssignments("app2-okta", "1", "2")
-		c.client.addGroupAssignments("group1", "1", "2")
+		c.client.AddUserID("user1", "1")
+		c.client.AddUserID("user2", "2")
+		c.client.AddUserID("user-to-remove", "remove")
+		c.client.AddAppAssignments("app1-okta", "1")
+		c.client.AddAppAssignments("app2-okta", "1", "2")
+		c.client.AddGroupAssignments("group1", "1", "2")
 
 		c.addApp(newAccessListSyncApp(t, "app1"))
 		c.addApp(newAccessListSyncApp(t, "app2"))
@@ -614,12 +615,12 @@ func TestAccessListSync(t *testing.T) {
 
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta group
-				c.client.monkeyPatch.getGroupAssignments =
+				c.client.MonkeyPatch.GetGroupAssignments =
 					func(_ context.Context, groupID oktaGroupID) ([]oktaUserID, error) {
 						if err, ok := tt.importErrors[groupID]; ok {
 							return nil, err
 						}
-						return c.client.getTestGroupAssignments(groupID)
+						return c.client.GetTestGroupAssignments(groupID)
 					}
 
 				// WHEN I force a new Access List Sync
@@ -694,12 +695,12 @@ func TestAccessListSync(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				// GIVEN an Okta integration with multiple synced users and apps
 				c := initAccessListSync(t, ctx)
-				c.client.addUserID("user1", "1")
-				c.client.addUserID("user2", "2")
+				c.client.AddUserID("user1", "1")
+				c.client.AddUserID("user2", "2")
 				for _, appName := range appNames {
 					app := c.addApp(newAccessListSyncApp(t, appName))
 					appID, _ := app.GetLabel(eteleport.OktaAppIDLabel)
-					c.client.addAppAssignments(appID, "1", "2")
+					c.client.AddAppAssignments(appID, "1", "2")
 				}
 				c.advanceAndWaitForSync()
 				expectAuditEvent(t, c.emitter, func(event *apievents.OktaAccessListSync) {
@@ -709,12 +710,12 @@ func TestAccessListSync(t *testing.T) {
 
 				// ALSO GIVEN an Okta client that is rigged to fail when importing a
 				// specific Okta app
-				c.client.monkeyPatch.getAppAssignments =
-					func(_ context.Context, app oktaAppID) ([]appAssignment, error) {
+				c.client.MonkeyPatch.GetAppAssignments =
+					func(_ context.Context, app api.OktaAppID) ([]api.AppAssignment, error) {
 						if err, ok := tt.importErrors[app]; ok {
 							return nil, err
 						}
-						return c.client.getTestAppAssignments(app)
+						return c.client.GetTestAppAssignments(app)
 					}
 
 				// WHEN I force a new Access List Sync

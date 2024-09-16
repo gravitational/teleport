@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
@@ -122,7 +123,7 @@ type Plugin struct {
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
 	// oktaConnected is a utility that detects whether Okta is connected.
-	oktaConnected *okta.OktaConnected
+	oktaConnected *connected.OktaConnected
 }
 
 // GetName returns plugin name
@@ -265,7 +266,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	// resource sync.
 	p.authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
 
-	p.oktaConnected, err = okta.NewOktaConnected(okta.OktaConnectedConfig{
+	p.oktaConnected, err = connected.New(connected.Config{
 		Log:             log,
 		ConnectedGetter: p.authServer.AuthServer,
 		Plugins:         p.plugins,

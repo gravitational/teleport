@@ -16,6 +16,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/okta/api"
+	"github.com/gravitational/teleport/e/lib/okta/common/set"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
 )
@@ -54,8 +56,8 @@ func TestProcessAssignments(t *testing.T) {
 		expected               types.OktaAssignments
 		incrementTimeDuration  time.Duration
 		skipAssignmentCreation bool
-		oktaClientGroupMapping map[oktaGroupID]set[oktaUserID]
-		oktaClientAppMapping   map[oktaAppID]set[appAssignment]
+		oktaClientGroupMapping map[api.OktaGroupID]set.Set[api.OktaUserID]
+		oktaClientAppMapping   map[api.OktaAppID]set.Set[api.AppAssignment]
 		expectedAuditEvents    []auditEventInfo
 		errAssertionFunc       require.ErrorAssertionFunc
 	}{
@@ -89,8 +91,8 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet(testOktaUserID),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New(testOktaUserID),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -127,9 +129,9 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: 10 * time.Minute,
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
-				"app2": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}),
+				"app2": set.New(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -156,8 +158,8 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet(testOktaUserID),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New(testOktaUserID),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -181,8 +183,8 @@ func TestProcessAssignments(t *testing.T) {
 			expected:               types.OktaAssignments{},
 			incrementTimeDuration:  time.Minute,
 			skipAssignmentCreation: true,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet[oktaUserID](),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New[oktaUserID](),
 			},
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `"assignment1" doesn't exist`)
@@ -238,11 +240,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet[oktaUserID](),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New[oktaUserID](),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet[appAssignment](),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New[api.AppAssignment](),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -269,11 +271,11 @@ func TestProcessAssignments(t *testing.T) {
 			)},
 			expected:              types.OktaAssignments{},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet[oktaUserID](),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New[oktaUserID](),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet[appAssignment](),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New[api.AppAssignment](),
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -294,11 +296,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: time.Minute,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet(testOktaUserID),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New(testOktaUserID),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet(appAssignment{userID: "okta-user-id", scope: userScope}),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New(api.AppAssignment{UserID: "okta-user-id", Scope: api.UserScope}),
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -320,11 +322,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			incrementTimeDuration: processingTimeout,
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet(testOktaUserID),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New(testOktaUserID),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}),
 			},
 			expectedAuditEvents: []auditEventInfo{
 				{
@@ -357,11 +359,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet[oktaUserID](),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New[oktaUserID](),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet[appAssignment](),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New[api.AppAssignment](),
 			},
 			// 6 minutes pass from the start time, which should trigger an immediate cleanup.
 			incrementTimeDuration: processingTimeout + time.Minute,
@@ -392,11 +394,11 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
-			oktaClientGroupMapping: map[oktaGroupID]set[oktaUserID]{
-				"group1": newSet[oktaUserID](),
+			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
+				"group1": set.New[oktaUserID](),
 			},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet[appAssignment](),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New[api.AppAssignment](),
 			},
 			incrementTimeDuration: processingTimeout + 10*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -430,8 +432,8 @@ func TestProcessAssignments(t *testing.T) {
 				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}),
 			},
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -465,8 +467,8 @@ func TestProcessAssignments(t *testing.T) {
 				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(processingTimeout+5*time.Minute), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				)},
-			oktaClientAppMapping: map[oktaAppID]set[appAssignment]{
-				"app1": newSet(appAssignment{userID: string(testOktaUserID), scope: userScope}),
+			oktaClientAppMapping: map[api.OktaAppID]set.Set[api.AppAssignment]{
+				"app1": set.New(api.AppAssignment{UserID: string(testOktaUserID), Scope: api.UserScope}),
 			},
 			incrementTimeDuration: processingTimeout + 5*time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -496,7 +498,7 @@ func TestProcessAssignments(t *testing.T) {
 				return test.assignments
 			})
 
-			oktaClient.addUserID(testUser, testOktaUserID)
+			oktaClient.AddUserID(testUser, testOktaUserID)
 
 			// Make sure the rate limit is not in effect here.
 			a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
@@ -505,7 +507,7 @@ func TestProcessAssignments(t *testing.T) {
 				require.NoError(t, ap.CreateUserGroup(ctx, group))
 
 				if !test.groupsSkipAddToOkta {
-					oktaClient.addGroupToMapping(group.GetName())
+					oktaClient.AddGroupToMapping(group.GetName())
 				}
 			}
 
@@ -521,7 +523,7 @@ func TestProcessAssignments(t *testing.T) {
 				if !test.appsSkipAddToOkta {
 					oktaAppID, ok := app.GetLabel(teleport.OktaAppIDLabel)
 					if ok {
-						oktaClient.addApplicationToMapping(oktaAppID)
+						oktaClient.AddApplicationToMapping(oktaAppID)
 					}
 				}
 			}
@@ -544,11 +546,11 @@ func TestProcessAssignments(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.expected, types.OktaAssignments(actual),
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			oktaClient.groupsToUsers.Read(func(m map[oktaGroupID]set[oktaUserID]) {
+			oktaClient.GroupsToUsers.Read(func(m map[oktaGroupID]set.Set[oktaUserID]) {
 				require.Empty(t, cmp.Diff(test.oktaClientGroupMapping, m))
 			})
 
-			oktaClient.appsToUsers.Read(func(m map[oktaAppID]set[appAssignment]) {
+			oktaClient.AppsToUsers.Read(func(m map[api.OktaAppID]set.Set[api.AppAssignment]) {
 				require.Empty(t, cmp.Diff(test.oktaClientAppMapping, m))
 			})
 
