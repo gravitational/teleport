@@ -111,7 +111,7 @@ message JWTSVIDResponse {
   // The full SPIFFE ID that was included in the x509 SVID.
   string spiffe_id = 3;
   // The audience that was included in the JWT.
-  repeated string audience = 4;
+  repeated string audiences = 4;
   // The hint that was included in SVIDRequest in order to allow a workload to
   // distinguish an individual SVID.
   string hint = 5;

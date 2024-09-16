@@ -463,11 +463,11 @@ func (wis *WorkloadIdentityService) signJWTSVID(
 	}
 
 	return &pb.JWTSVIDResponse{
-		Audience: req.Audiences,
-		Jwt:      signed,
-		SpiffeId: spiffeID.String(),
-		Jti:      jti,
-		Hint:     req.Hint,
+		Audiences: req.Audiences,
+		Jwt:       signed,
+		SpiffeId:  spiffeID.String(),
+		Jti:       jti,
+		Hint:      req.Hint,
 	}, nil
 }
 
