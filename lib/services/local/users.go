@@ -1420,6 +1420,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 
 	var mfaConnector interface {
 		IsMFAEnabled() bool
+		GetDisplay() string
 	}
 
 	switch cb.Connector.Type {
@@ -1441,7 +1442,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		return nil, trace.NotFound("no SSO MFA device found; user's auth connector does not have MFA enabled")
 	}
 
-	return types.NewMFADevice(cb.Connector.ID, cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{
+	return types.NewMFADevice(mfaConnector.GetDisplay(), cb.Connector.ID, cb.Time.UTC(), &types.MFADevice_Sso{
 		Sso: &types.SSOMFADevice{
 			ConnectorId:   cb.Connector.ID,
 			ConnectorType: cb.Connector.Type,
