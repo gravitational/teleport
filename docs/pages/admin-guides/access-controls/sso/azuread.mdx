@@ -220,10 +220,10 @@ the public certificate with Azure AD and the private key with Teleport.
 $ openssl req -nodes -new -x509 -keyout server.key -out server.cer
 ```
 
-If you are modifying the existing connector, write the YAML to a file first:
+If you are modifying the existing connector, open it in your editor:
 
 ```code
-$ tctl get saml --with-secrets > azure-out.yaml
+$ tctl edit saml
 ```
 
 You will notice that Teleport has generated a `signing_key_pair`. This key pair
@@ -349,11 +349,7 @@ spec:
 version: v2
 ```
 
-Update the connector:
-
-```code
-$ tctl create -f azure-connector.yaml
-```
+Update the connector by saving and closing the file in your editor.
 
 ### Activate token encryption
 

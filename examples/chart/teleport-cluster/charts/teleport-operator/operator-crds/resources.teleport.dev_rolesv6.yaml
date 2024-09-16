@@ -1139,6 +1139,10 @@ spec:
                     description: CreateHostUser allows users to be automatically created
                       on a host
                     type: boolean
+                  create_host_user_default_shell:
+                    description: CreateHostUserDefaultShell is used to configure the
+                      default shell for newly provisioned host users.
+                    type: string
                   create_host_user_mode:
                     description: CreateHostUserMode allows users to be automatically
                       created on a host when not set to off. 0 is "unspecified"; 1

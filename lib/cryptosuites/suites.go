@@ -89,6 +89,9 @@ const (
 	// UserDatabase represents a user Database key.
 	UserDatabase
 
+	// HostSSH represents a host SSH key.
+	HostSSH
+
 	// TODO(nklaassen): define remaining key purposes.
 
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
@@ -149,6 +152,7 @@ var (
 		UserSSH:             RSA2048,
 		UserTLS:             RSA2048,
 		UserDatabase:        RSA2048,
+		HostSSH:             RSA2048,
 		// We could consider updating these algorithms even in the legacy suite,
 		// only teleport agents need to accept these connections and they have
 		// never restricted algorithm support.
@@ -176,6 +180,7 @@ var (
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              Ed25519,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
@@ -200,6 +205,7 @@ var (
 		UserSSH:              ECDSAP256,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
@@ -226,6 +232,7 @@ var (
 		UserSSH:              Ed25519,
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
+		HostSSH:              Ed25519,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.

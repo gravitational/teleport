@@ -34,7 +34,7 @@ import (
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
 // Currently the same client is used by all role versions. If we need to treat
-// them differently at some point, for example by introducing Mutate or MutateExisting
+// them differently at some point, for example by adding a Mutate function
 // functions, we can always split the client into separate clients.
 type roleClient struct {
 	teleportClient *client.Client

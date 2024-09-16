@@ -11,8 +11,8 @@ metadata:
 data:
   teleport-slack.toml: |
     [teleport]
-    addr = "{{ .Values.teleport.address }}"
-    identity = "/var/lib/teleport/plugins/slack/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    identity = "/var/lib/teleport/plugins/slack/teleport-identity/{{ include "slack.identitySecretPath" . }}"
     refresh_identity = true
 
     [slack]

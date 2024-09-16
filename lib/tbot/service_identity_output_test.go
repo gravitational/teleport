@@ -26,7 +26,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -117,39 +116,28 @@ func (p *mockALPNConnTester) isUpgradeRequired(ctx context.Context, addr string,
 func Test_renderSSHConfig(t *testing.T) {
 	tests := []struct {
 		Name        string
-		Version     string
-		Env         map[string]string
 		TLSRouting  bool
 		ALPNUpgrade bool
 	}{
 		{
-			Name:       "legacy OpenSSH",
-			Version:    "6.5.0",
-			TLSRouting: true,
+			Name:        "no tls routing, no alpn upgrade",
+			TLSRouting:  false,
+			ALPNUpgrade: false,
 		},
 		{
-			Name:       "latest OpenSSH",
-			Version:    "9.0.0",
-			TLSRouting: true,
-		},
-		{
-			Name:       "latest OpenSSH no tls routing",
-			Version:    "9.0.0",
-			TLSRouting: false,
-		},
-		{
-			Name:        "latest OpenSSH with alpn upgrade",
-			Version:     "9.0.0",
+			Name:        "no tls routing, alpn upgrade",
+			TLSRouting:  false,
 			ALPNUpgrade: true,
-			TLSRouting:  true,
 		},
 		{
-			Name:    "latest OpenSSH with legacy proxycommand",
-			Version: "9.0.0",
-			Env: map[string]string{
-				sshConfigProxyModeEnv: "legacy",
-			},
-			TLSRouting: true,
+			Name:        "tls routing, no alpn upgrade",
+			TLSRouting:  true,
+			ALPNUpgrade: false,
+		},
+		{
+			Name:        "tls routing, alpn upgrade",
+			TLSRouting:  true,
+			ALPNUpgrade: true,
 		},
 	}
 
@@ -182,15 +170,6 @@ func Test_renderSSHConfig(t *testing.T) {
 					clusterName:       mockClusterName,
 				},
 				fakeGetExecutablePath,
-				func() (*semver.Version, error) {
-					return semver.New(tc.Version), nil
-				},
-				func(key string) string {
-					if tc.Env == nil {
-						return ""
-					}
-					return tc.Env[key]
-				},
 				&mockALPNConnTester{
 					isALPNUpgradeRequired: tc.ALPNUpgrade,
 				},

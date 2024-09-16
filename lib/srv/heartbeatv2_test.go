@@ -514,10 +514,10 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 
 	heartbeat, err := NewSSHServerHeartbeat(HeartbeatV2Config[*types.ServerV2]{
 		InventoryHandle: &fakeDownstreamHandle{},
-		GetResource: func() *types.ServerV2 {
+		GetResource: func(context.Context) (*types.ServerV2, error) {
 			return &types.ServerV2{
 				Spec: types.ServerSpecV2{},
-			}
+			}, nil
 		},
 	})
 	require.NoError(t, err)
@@ -527,18 +527,23 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 	inner.getMetadata = metadataGetter
 
 	// Metadata won't be set before metadata getter returns.
-	server := inner.getServer(ctx)
+	server, err := inner.getServer(ctx)
+	require.NoError(t, err)
 	assert.Nil(t, server.GetCloudMetadata(), "Metadata was set before background process returned")
 
 	// Metadata won't be set if the getter fails.
 	metaCh <- nil
 	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
-	assert.Nil(t, inner.getServer(ctx).GetCloudMetadata(), "Metadata was set despite metadata getter failing")
+	server, err = inner.getServer(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, server.GetCloudMetadata(), "Metadata was set despite metadata getter failing")
 
 	// getServer gets updated metadata value.
 	metaCh <- makeMetadata("foo")
 	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
-	meta := inner.getServer(ctx).GetCloudMetadata()
+	server, err = inner.getServer(ctx)
+	require.NoError(t, err)
+	meta := server.GetCloudMetadata()
 	assert.NotNil(t, meta, "Heartbeat never got metadata")
 	assert.Equal(t, "foo", meta.AWS.InstanceID)
 }
