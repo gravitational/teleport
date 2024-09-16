@@ -42,6 +42,17 @@ resource "aws_autoscaling_group" "auth" {
     }
   }
 
+  dynamic "instance_refresh" {
+    for_each = var.enable_auth_asg_instance_refresh ? [1] : []
+    content {
+      strategy = "Rolling"
+      preferences {
+        auto_rollback          = true
+        min_healthy_percentage = 50
+      }
+    }
+  }
+
   // external autoscale algos can modify these values,
   // so ignore changes to them
   lifecycle {

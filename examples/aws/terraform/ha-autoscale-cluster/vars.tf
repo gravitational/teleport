@@ -246,3 +246,24 @@ variable "default_tags" {
   type    = map(string)
   default = {}
 }
+
+// Whether to trigger instance refresh rollout for Teleport Auth servers when
+// the launch template or resource tags change.
+variable "enable_auth_asg_instance_refresh" {
+  type    = bool
+  default = true
+}
+
+// Whether to trigger instance refresh rollout for Teleport Proxy servers when
+// the launch template or resource tags change.
+variable "enable_proxy_asg_instance_refresh" {
+  type    = bool
+  default = true
+}
+
+// Whether to trigger instance refresh rollout for Teleport Node servers when
+// the launch template or resource tags change.
+variable "enable_node_asg_instance_refresh" {
+  type    = bool
+  default = true
+}
