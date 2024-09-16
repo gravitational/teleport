@@ -232,12 +232,10 @@ To migrate Teleport agents:
    update the repository channel to `stable/cloud` for Teleport
    Enterprise (Cloud). For self-hosted Teleport Enterprise you can use the major version
    `stable/v(=teleport.major_version=)` or if you are using automatic
-
    upgrades the `stable/rolling` channel has all released versions.
 
 
-1. If you are using the Teleport Community Edition, uninstall `teleport`
-
+1. If you are using the Teleport Community Edition, [uninstall Teleport](./management/admin/uninstall-teleport.mdx)
    and install the enterprise version. You can confirm if the `teleport` binary
    is enterprise by running `teleport version`. The output will contain the words
    `Teleport Enterprise`. The enterprise version of the `teleport`
@@ -296,7 +294,6 @@ To migrate Teleport agents:
    kubectl -n <namespace> delete secret <release-name>-0-state
    ```
    The settings for the new Teleport Kubernetes Agent should have the 
-
    `enterprise` value set to true.
 
 ### Migrate Machine ID Bots
