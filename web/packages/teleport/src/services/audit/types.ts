@@ -1720,16 +1720,16 @@ export type RawEvents = {
     HasName
   >;
   [eventCodes.CROWN_JEWEL_CREATE]: RawEvent<
-      typeof eventCodes.CROWN_JEWEL_CREATE,
-      HasName
+    typeof eventCodes.CROWN_JEWEL_CREATE,
+    HasName
   >;
   [eventCodes.CROWN_JEWEL_UPDATE]: RawEvent<
-      typeof eventCodes.CROWN_JEWEL_UPDATE,
-      HasName
+    typeof eventCodes.CROWN_JEWEL_UPDATE,
+    HasName
   >;
   [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
-      typeof eventCodes.CROWN_JEWEL_DELETE,
-      HasName
+    typeof eventCodes.CROWN_JEWEL_DELETE,
+    HasName
   >;
 };
 
