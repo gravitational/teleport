@@ -43,7 +43,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	service, err := NewAutoupdateService(bk)
+	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -99,7 +99,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	service, err := NewAutoupdateService(bk)
+	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -155,7 +155,7 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	service, err := NewAutoupdateService(bk)
+	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -190,7 +190,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
-	service, err := NewAutoupdateService(bk)
+	service, err := NewAutoUpdateService(bk)
 	require.NoError(t, err)
 
 	ctx := context.Background()
