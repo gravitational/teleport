@@ -28,6 +28,15 @@ resource "aws_autoscaling_group" "node" {
     propagate_at_launch = true
   }
 
+  dynamic "tag" {
+    for_each = data.aws_default_tags.this.tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+
   // external autoscale algos can modify these values,
   // so ignore changes to them
   lifecycle {
@@ -82,5 +91,13 @@ resource "aws_launch_template" "node" {
 
   iam_instance_profile {
     name = aws_iam_instance_profile.node.name
+  }
+
+  dynamic "tag_specifications" {
+    for_each = ["instance", "volume", "network-interface"]
+    content {
+      resource_type = tag_specifications.value
+      tags          = data.aws_default_tags.this.tags
+    }
   }
 }

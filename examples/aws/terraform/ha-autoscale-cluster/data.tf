@@ -33,3 +33,5 @@ locals {
 data "aws_kms_alias" "ssm" {
   name = var.kms_alias_name
 }
+
+data "aws_default_tags" "this" {}
