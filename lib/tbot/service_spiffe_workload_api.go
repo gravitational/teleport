@@ -44,8 +44,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -642,6 +644,67 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	ctx context.Context,
 	req *workloadpb.JWTSVIDRequest,
 ) (*workloadpb.JWTSVIDResponse, error) {
+	log, creds, err := s.authenticateClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "authenticating client")
+	}
+
+	log.InfoContext(ctx, "FetchJWTSVID request received from workload")
+	defer log.InfoContext(ctx, "FetchJWTSVID request handled")
+	if req.SpiffeId == "" {
+		log = log.With("requested_spiffe_id", req.SpiffeId)
+	}
+
+	// The SPIFFE Workload API (6.2.1):
+	// > The JWTSVIDRequest request message contains a mandatory audience field,
+	// > which MUST contain the value to embed in the audience claim of the
+	// > returned JWT-SVIDs.
+	if len(req.Audience) == 0 {
+		return nil, trace.BadParameter("audience: must have at least one value")
+	}
+
+	svidReqs := filterSVIDRequests(ctx, log, s.cfg.SVIDs, creds)
+	// The SPIFFE Workload API (6.2.1):
+	// > If the client is not authorized for any identities, or not authorized
+	// > for the specific identity requested via the spiffe_id field, then the
+	// > server SHOULD respond with the "PermissionDenied" gRPC status code.
+	if len(svidReqs) == 0 {
+		log.ErrorContext(ctx, "Workload did not pass attestation for any SVIDs")
+		return nil, status.Error(
+			codes.PermissionDenied,
+			"workload did not pass attestation for any SVIDs",
+		)
+	}
+
+	// The SPIFFE Workload API (6.2.1):
+	// > The spiffe_id field is optional, and is used to request a JWT-SVID for
+	// > a specific SPIFFE ID. If unspecified, the server MUST return JWT-SVIDs
+	// > for all identities authorized for the client.
+	if req.SpiffeId != "" {
+		// Search through available SVIDs to find the one that matches the
+		// requested SPIFFE ID.
+		found := false
+		for _, svidReq := range svidReqs {
+			// TODO: THis comparison doesn't work.
+			if svidReq.Path == req.SpiffeId {
+				found = true
+				svidReqs = []config.SVIDRequest{svidReq}
+				break
+			}
+		}
+		if !found {
+			log.ErrorContext(ctx, "Workload is not authorized for the specifically requested SPIFFE ID")
+		}
+	}
+
+	s.client.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+		Svids: []*machineidv1pb.JWTSVIDRequest{
+			{
+				Audiences: req.Audience,
+				Ttl:       durationpb.New(time.Minute * 30), // TODO: This should be configurable.
+			},
+		},
+	})
 	// JWT functionality currently not implemented in Teleport Workload Identity.
 	return nil, trace.NotImplemented("method not implemented")
 }
