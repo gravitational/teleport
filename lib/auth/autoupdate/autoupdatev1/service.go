@@ -77,6 +77,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // GetAutoUpdateConfig gets the current autoupdate config singleton.
 func (s *Service) GetAutoUpdateConfig(ctx context.Context, req *autoupdate.GetAutoUpdateConfigRequest) (*autoupdate.AutoUpdateConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	config, err := s.cache.GetAutoUpdateConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,6 +174,15 @@ func (s *Service) DeleteAutoUpdateConfig(ctx context.Context, req *autoupdate.De
 
 // GetAutoUpdateVersion gets the current autoupdate version singleton.
 func (s *Service) GetAutoUpdateVersion(ctx context.Context, req *autoupdate.GetAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateVersion, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	version, err := s.cache.GetAutoUpdateVersion(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

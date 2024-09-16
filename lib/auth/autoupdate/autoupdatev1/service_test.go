@@ -110,10 +110,14 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:             "GetAutoUpdateConfig",
-			allowedStates:    []authz.AdminActionAuthState{},
-			disallowedStates: []authz.AdminActionAuthState{},
-			allowedVerbs:     []string{types.VerbRead},
+			name: "GetAutoUpdateConfig",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
 		},
 		{
 			name:          "DeleteAutoUpdateConfig",
@@ -149,10 +153,14 @@ func TestServiceAccess(t *testing.T) {
 			allowedVerbs: []string{types.VerbUpdate, types.VerbCreate},
 		},
 		{
-			name:             "GetAutoUpdateVersion",
-			allowedStates:    []authz.AdminActionAuthState{},
-			disallowedStates: []authz.AdminActionAuthState{},
-			allowedVerbs:     []string{types.VerbRead},
+			name: "GetAutoUpdateVersion",
+			allowedStates: []authz.AdminActionAuthState{
+				authz.AdminActionAuthUnauthorized,
+				authz.AdminActionAuthNotRequired,
+				authz.AdminActionAuthMFAVerified,
+				authz.AdminActionAuthMFAVerifiedWithReuse,
+			},
+			allowedVerbs: []string{types.VerbRead},
 		},
 		{
 			name:          "DeleteAutoUpdateVersion",
