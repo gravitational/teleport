@@ -3824,13 +3824,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
-		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
-	}
-	sfToCount := make(map[constants.SecondFactorType]int)
-	var knownDevices int
+	knownDevices := make(map[constants.SecondFactorType]int)
 	var deviceToDelete *types.MFADevice
 	var numResidentKeys int
 
@@ -3845,18 +3839,26 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			deviceToDelete = d
 		}
 
-		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
-		switch {
-		case !ok && d == deviceToDelete:
-			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
-		case !ok:
+		var sfType constants.SecondFactorType
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			sfType = constants.SecondFactorOTP
+		case *types.MFADevice_U2F, *types.MFADevice_Webauthn:
+			sfType = constants.SecondFactorWebauthn
+		case *types.MFADevice_Sso:
+			// TODO(Joerger): sso will not be supported in the current `second_factor` option.
+			// It will be supported in the new `second_factors` option instead, which will not
+			// use the old constants.SecondFactorType type. This will be handled in a separate PR.
+			sfType = "sso"
+			if d == deviceToDelete {
+				return nil, trace.BadParameter("cannot delete ephemeral SSO MFA device")
+			}
+		default:
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
 		}
 
-		sfToCount[sf]++
-		knownDevices++
-
+		knownDevices[sfType]++
 		if isResidentKey(d) {
 			numResidentKeys++
 		}
@@ -3870,12 +3872,12 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
+		if len(knownDevices) <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
+		if knownDevices[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
@@ -3910,7 +3912,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Minimum number of WebAuthn devices includes the passkey that we attempt
 		// to delete, hence 2.
-		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
+		if knownDevices[constants.SecondFactorWebauthn] >= 2 {
 			return true, nil
 		}
 
@@ -3918,7 +3920,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		// enabled.
 		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
 		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-			if sfToCount[constants.SecondFactorOTP] >= 1 {
+			if knownDevices[constants.SecondFactorOTP] >= 1 {
 				return true, nil
 			}
 		}
