@@ -216,7 +216,7 @@ func TestRootNetworkingCommand(t *testing.T) {
 	utils.RequireRoot(t)
 
 	login := utils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, "", "", "")
+	_, err := host.UserAdd(login, nil, host.UserOpts{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, err := host.UserDel(login)

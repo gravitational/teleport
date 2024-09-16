@@ -1222,15 +1222,16 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:              constants.Local,
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		AllowPasswordless: cap.GetAllowPasswordless(),
-		AllowHeadless:     cap.GetAllowHeadless(),
-		Local:             &webclient.LocalSettings{},
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		Type:                    constants.Local,
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		AllowPasswordless:       cap.GetAllowPasswordless(),
+		AllowHeadless:           cap.GetAllowHeadless(),
+		Local:                   &webclient.LocalSettings{},
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -1267,11 +1268,12 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1284,11 +1286,12 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1300,11 +1303,12 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1402,7 +1406,6 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
-	as.SignatureAlgorithmSuite = authPreference.GetSignatureAlgorithmSuite()
 
 	return as, nil
 }
@@ -1509,7 +1512,16 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
+		Auth: webclient.AuthenticationSettings{
+			// Nodes need the signature algorithm suite when joining to generate
+			// keys with the correct algorithm.
+			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		},
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,

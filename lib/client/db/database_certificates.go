@@ -94,6 +94,7 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 	}
 
 	if req.KeyRing == nil {
+		// TODO(nklaassen): don't hardcode RSA here.
 		keyRing, err := client.GenerateRSAKeyRing()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -101,7 +102,7 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		req.KeyRing = keyRing
 	}
 
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.KeyRing.PrivateKey)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.KeyRing.TLSPrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

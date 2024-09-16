@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -626,7 +627,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(signer crypto.Signer, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -636,7 +637,7 @@ func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.Pro
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      keyRing.PrivateKey.Signer,
+		Signer:      signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,

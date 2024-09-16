@@ -15,7 +15,7 @@ resource "teleport_github_connector" "test" {
     teams_to_logins = [{
       organization = "octocat"
       team         = "devs"
-      logins       = ["terraform"]
+      logins       = ["terraform-provider"]
     }]
   }
 }

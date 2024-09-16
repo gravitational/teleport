@@ -379,6 +379,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 // generateSnowflakeKey exports DatabaseCA public key in the format required by Snowflake
 // Ref: https://docs.snowflake.com/en/user-guide/key-pair-auth.html#step-2-generate-a-public-key
 func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI certificateSigner) error {
+	// TODO(nklaassen): don't hardcode RSA here.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
@@ -491,6 +492,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	principals := strings.Split(a.genHost, ",")
 
 	// generate a keypair
+	// TODO(nklaassen): get away from RSA here. Only need an SSH key.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
@@ -503,7 +505,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	clusterName := cn.GetClusterName()
 
 	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         keyRing.PrivateKey.MarshalSSHPublicKey(),
+		Key:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  principals,
@@ -547,6 +549,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 // generateDatabaseKeys generates a new unsigned key and signs it with Teleport
 // CA for database access.
 func (a *AuthCommand) generateDatabaseKeys(ctx context.Context, clusterAPI certificateSigner) error {
+	// TODO(nklaasen): don't hardcode RSA.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
@@ -847,7 +850,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 	}
 
 	// Generate a keypair.
-	// TODO(nklaassen): support configurable key algorithms, split SSH and TLS keys.
+	// TODO(nklaassen): get away from RSA here, but identity files only support
+	// a single private key.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)
@@ -917,8 +921,8 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 		certUsage = proto.UserCertsRequest_Database
 	}
 
-	sshPublicKey := keyRing.PrivateKey.MarshalSSHPublicKey()
-	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.PrivateKey.Public())
+	sshPublicKey := keyRing.SSHPrivateKey.MarshalSSHPublicKey()
+	tlsPublicKey, err := keys.MarshalPublicKey(keyRing.TLSPrivateKey.Public())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1163,6 +1167,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI certificate
 }
 
 func (a *AuthCommand) generateDBOracleCert(ctx context.Context, api certificateSigner) error {
+	// TODO(nklaassen): don't hardcode RSA.
 	keyRing, err := client.GenerateRSAKeyRing()
 	if err != nil {
 		return trace.Wrap(err)

@@ -332,37 +332,33 @@ func (s *Server) stopHeartbeat(name string) error {
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided application to the auth server.
-func (s *Server) getServerInfoFunc(app types.Application) func() *types.AppServerV3 {
-	return func() *types.AppServerV3 {
+func (s *Server) getServerInfoFunc(app types.Application) func(context.Context) (*types.AppServerV3, error) {
+	return func(context.Context) (*types.AppServerV3, error) {
 		return s.getServerInfo(app)
 	}
 }
 
 // getServerInfo returns up-to-date app resource.
-func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
+func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.AppServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.c.Hostname,
+		HostID:   s.c.HostID,
+		Rotation: s.getRotationState(),
+		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
+	})
 
-	return &types.AppServerV3{
-		Kind:    types.KindAppServer,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:    copy.GetName(),
-			Expires: &expires,
-		},
-		Spec: types.AppServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: s.c.Hostname,
-			HostID:   s.c.HostID,
-			Rotation: s.getRotationState(),
-			App:      copy,
-			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-		},
-	}
+	return server, trace.Wrap(err)
 }
 
 // getRotationState is a helper to return this server's CA rotation state.

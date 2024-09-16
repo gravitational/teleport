@@ -1093,7 +1093,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	return srv
 }
 
-func (s *Server) getServerInfo() *types.ServerV2 {
+func (s *Server) getServerInfo(context.Context) (*types.ServerV2, error) {
 	server := s.getBasicInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -1108,11 +1108,11 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPeerAddr(s.peerAddr)
-	return server
+	return server, nil
 }
 
 func (s *Server) getServerResource() (types.Resource, error) {
-	return s.getServerInfo(), nil
+	return s.getServerInfo(s.ctx)
 }
 
 // dialTCPIP dials the given tcpip address through the network process.

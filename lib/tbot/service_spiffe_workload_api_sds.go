@@ -59,8 +59,8 @@ const (
 	envoyAllBundlesName = "ALL"
 )
 
-type trustBundleSubscriber interface {
-	Subscribe() (<-chan *spiffe.BundleSet, func())
+type bundleSetGetter interface {
+	GetBundleSet(ctx context.Context) (*spiffe.BundleSet, error)
 }
 
 // spiffeSDSHandler implements an Envoy SDS API.
@@ -71,7 +71,7 @@ type spiffeSDSHandler struct {
 	log              *slog.Logger
 	cfg              *config.SPIFFEWorkloadAPIService
 	botCfg           *config.BotConfig
-	trustBundleCache trustBundleSubscriber
+	trustBundleCache bundleSetGetter
 
 	clientAuthenticator func(ctx context.Context) (*slog.Logger, workloadattest.Attestation, error)
 	svidFetcher         func(
@@ -109,16 +109,10 @@ func (s *spiffeSDSHandler) FetchSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets request handled")
 
-	bundleSetCh, unsubscribe := s.trustBundleCache.Subscribe()
-	defer unsubscribe()
-
-	var bundleSet *spiffe.BundleSet
-	select {
-	case bundleSet = <-bundleSetCh:
-	case <-ctx.Done():
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting trust bundle set")
 	}
-	// TODO: If no value is available within the first X seconds, should we drop
-	// the client rather than keeping them waiting.
 
 	// Filter SVIDs down to those accessible to this workload
 	svids, err := s.svidFetcher(
@@ -191,16 +185,10 @@ func (s *spiffeSDSHandler) StreamSecrets(
 	)
 	defer log.DebugContext(ctx, "SecretDiscoveryService.FetchSecrets stream finished")
 
-	bundleSetCh, unsubBundleSet := s.trustBundleCache.Subscribe()
-	defer unsubBundleSet()
-
-	var bundleSet *spiffe.BundleSet
-	select {
-	case bundleSet = <-bundleSetCh:
-	case <-ctx.Done():
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return trace.Wrap(err, "getting trust bundle set")
 	}
-	// TODO: If no value is available within the first X seconds, should we drop
-	// the client rather than keeping them waiting.
 
 	// Push incoming messages into a chan for the main loop to handle
 	recvCh := make(chan *discoveryv3pb.DiscoveryRequest, 1)
@@ -305,7 +293,11 @@ func (s *spiffeSDSHandler) StreamSecrets(
 				continue
 			}
 
-		case newBundleSet := <-bundleSetCh:
+		case <-bundleSet.Stale():
+			newBundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+			if err != nil {
+				return trace.Wrap(err, "getting trust bundle set")
+			}
 			if !newBundleSet.Local.Equal(bundleSet.Local) {
 				// If the "local" trust domain's CA has changed, we need to
 				// reissue the SVIDs.

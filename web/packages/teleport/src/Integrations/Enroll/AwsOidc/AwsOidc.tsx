@@ -21,6 +21,7 @@ import { Link as InternalRouteLink } from 'react-router-dom';
 import { useLocation } from 'react-router';
 import styled from 'styled-components';
 import { Box, ButtonSecondary, Text, Link, Flex, ButtonPrimary } from 'design';
+import { P } from 'design/Text/Text';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
@@ -34,8 +35,10 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 import { Header } from 'teleport/Discover/Shared';
+import { AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK } from 'teleport/Discover/Shared/const';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
   Integration,
@@ -53,6 +56,8 @@ export function AwsOidc() {
   const [scriptUrl, setScriptUrl] = useState('');
   const [createdIntegration, setCreatedIntegration] = useState<Integration>();
   const { attempt, run } = useAttempt('');
+
+  const { clusterId } = useStickyClusterId();
 
   const location = useLocation<DiscoverUrlLocationState>();
 
@@ -147,6 +152,28 @@ export function AwsOidc() {
           AWS RDS
         </RouteLink>{' '}
         instances during resource enrollment.
+        <P>
+          AWS Resources created by the integration are tagged so that you can
+          search and export them using the{' '}
+          <Link target="_blank" href={AWS_RESOURCE_GROUPS_TAG_EDITOR_LINK}>
+            AWS Resource Groups / Tag Editor
+          </Link>
+          . The following tags are applied:
+          <TextSelectCopyMulti
+            bash={false}
+            lines={[
+              {
+                text:
+                  `teleport.dev/cluster: ` +
+                  clusterId +
+                  `\n` +
+                  `teleport.dev/origin: integration_awsoidc\n` +
+                  `teleport.dev/integration: ` +
+                  integrationName,
+              },
+            ]}
+          />
+        </P>
       </Box>
 
       <Validation>
