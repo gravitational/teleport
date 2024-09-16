@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -74,6 +75,13 @@ func UserAdd(username string, groups []string, home, uid, gid string) (exitCode 
 
 	if home == "" {
 		return -1, trace.BadParameter("home is a required parameter")
+	}
+
+	// user's without an explicit gid should be added to the group that shares their
+	// login name if it's defined, otherwise user creation will fail because their primary
+	// group already exists
+	if slices.Contains(groups, username) && gid == "" {
+		gid = username
 	}
 
 	// useradd ---no-create-home (username) (groups)...
