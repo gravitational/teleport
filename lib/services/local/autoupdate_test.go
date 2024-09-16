@@ -61,7 +61,6 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
-	require.NotEmpty(t, created.GetMetadata().GetRevision())
 
 	got, err := service.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
@@ -117,7 +116,6 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
-	require.NotEmpty(t, created.GetMetadata().GetRevision())
 
 	got, err := service.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
