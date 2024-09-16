@@ -390,6 +390,9 @@ const CreateAccessRole = ({
 }) => {
   const [scriptUrl, setScriptUrl] = useState('');
   const { awsIntegration, awsRegion } = dbMeta;
+  const { awsAccountId: accountID } = splitAwsIamArn(
+    awsIntegration.spec.roleArn
+  );
 
   function generateAutoConfigScript() {
     if (!validator.validate()) {
@@ -399,10 +402,11 @@ const CreateAccessRole = ({
     const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
       integrationName: awsIntegration.name,
       region: awsRegion,
-      // arn's are formatted as `don-care-about-this-part/role-arn`.
+      // arn's are formatted as `don-care-about-this-part/role-name`.
       // We are splitting by slash and getting the last element.
       awsOidcRoleArn: awsIntegration.spec.roleArn.split('/').pop(),
       taskRoleArn,
+      accountID,
     });
 
     setScriptUrl(newScriptUrl);

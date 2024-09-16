@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -46,6 +47,9 @@ type EICEIAMConfigureRequest struct {
 	// IntegrationRoleEICEPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to EC2InstanceConnectEndpoint
 	IntegrationRoleEICEPolicy string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -67,11 +71,13 @@ func (r *EICEIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EICEIAMConfigureClient describes the required methods to create the IAM Policies required for accessing EC2 instances usine EICE.
 type EICEIAMConfigureClient interface {
+	callerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultEICEIAMConfigureClient struct {
+	callerIdentityGetter
 	*iam.Client
 }
 
@@ -87,7 +93,8 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 	}
 
 	return &defaultEICEIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		callerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iam.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -120,6 +127,10 @@ func NewEICEIAMConfigureClient(ctx context.Context, region string) (EICEIAMConfi
 //   - iam:PutRolePolicy
 func ConfigureEICEIAM(ctx context.Context, clt EICEIAMConfigureClient, req EICEIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 
