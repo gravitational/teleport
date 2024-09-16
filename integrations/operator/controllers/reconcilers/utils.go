@@ -44,6 +44,7 @@ const (
 	ConditionReasonNewResource            = "NewResource"
 	ConditionReasonNoError                = "NoError"
 	ConditionReasonTeleportError          = "TeleportError"
+	ConditionReasonMutationError          = "MutationError"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
 	ConditionTypeValidStructure           = "ValidStructure"
