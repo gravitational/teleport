@@ -1315,6 +1315,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindIdentityCenterAccount:
 		keyPrefix = []string{awsAccountPrefix}
 		unmarshalItemFunc = backendItemToAWSIAMICAccount
+	case types.KindIdentityCenterAccountAssignment:
+		keyPrefix = []string{awsAccountAssignmentPrefix}
+		unmarshalItemFunc = backendItemToAWSIAMICAccount
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1720,6 +1723,18 @@ func backendItemToAWSIAMICAccount(item backend.Item) (types.ResourceWithLabels, 
 	}
 	wrappedAccount := services.IdentityCenterAccount{Account: awsicac}
 	return services.Resource153Adapter[services.IdentityCenterAccount]{Inner: wrappedAccount}, nil
+}
+
+func backendItemToAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
+	asmt, err := services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment](
+		item.Value,
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return services.Resource153Adapter[services.IdentityCenterAccount]{Inner: asmt}, nil
 }
 
 const (

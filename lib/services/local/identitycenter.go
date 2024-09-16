@@ -50,6 +50,7 @@ const (
 	awsAccountPrefix             = awsICPrefix + "/accounts"
 	awsPermissionSetPrefix       = awsICPrefix + "/permission_sets"
 	awsPrincipalAssignmentPrefix = awsICPrefix + "/principal_assignments"
+	awsAccountAssignmentPrefix   = awsICPrefix + "/account_assignments"
 )
 
 type IdentityCenterServiceConfig struct {

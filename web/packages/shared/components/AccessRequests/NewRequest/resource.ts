@@ -40,5 +40,6 @@ export function getEmptyResourceState(): ResourceMap {
     role: {},
     saml_idp_service_provider: {},
     aws_iam_ic_account: {},
+    aws_iam_ic_account_assignment: {},
   };
 }

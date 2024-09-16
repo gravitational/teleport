@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"slices"
@@ -132,7 +133,15 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 }
 
 func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) error {
-	return a.withOptions().action(namespace, resource, verbs...)
+	err := a.withOptions().action(namespace, resource, verbs...)
+
+	if err != nil {
+		slog.Default().
+			With("user", a.context.User.GetName()).
+			Error(err.Error())
+	}
+
+	return err
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -1389,8 +1398,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		resourceAccess.kindAccessMap[kind] = a.action(apidefaults.Namespace, kind, actionVerbs...)
 	}
 
-	fmt.Printf("---- kindAccessMap %#v\n", resourceAccess.kindAccessMap)
-
 	// Before doing any listing, verify that the user is allowed to list
 	// at least one of the requested kinds. If no access is permitted, then
 	// return an access denied error.
@@ -1408,7 +1415,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	fmt.Printf("---- RBAC ERRORS: %#v\n", rbacErrors)
 
 	if rbacErrors == len(requested) {
-		fmt.Printf("---- No access, baling out\n")
+		fmt.Printf("---- No access, bailing out\n")
 		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 

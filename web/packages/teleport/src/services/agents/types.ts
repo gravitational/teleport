@@ -90,7 +90,8 @@ export type ResourceIdKind =
   | 'user_group'
   | 'windows_desktop'
   | 'saml_idp_service_provider'
-  | 'aws_iam_ic_account';
+  | 'aws_iam_ic_account'
+  | 'aws_iam_ic_account_assignment';
 
 export type AccessRequestScope =
   | 'my_requests'

@@ -20,11 +20,11 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1";
 
-// PermissionSetRef represents a permission set that is available on a given
+// PermissionSetInfo represents a permission set that is available on a given
 // account. This is not intended to be a complete description of a PermissionSet,
 // but just enough to identify it for cross-referencing when included in an
 // Account record.
-message PermissionSetRef {
+message PermissionSetInfo {
   // Arn is the unique ARN for this permission set
   string arn = 1;
 
@@ -64,7 +64,7 @@ message AccountSpec {
   string start_url = 5;
 
   // PermissionSets...
-  repeated PermissionSetRef permission_sets = 6;
+  repeated PermissionSetInfo permission_sets = 6;
 
   // IsOrganizationOwner indicates that this account is the organisation owner,
   // and may have restrictions about adding permission sets
@@ -93,6 +93,29 @@ message PermissionSetSpec {
   string description = 3;
 }
 
+// AccountAssignment captures the relationship between a PermissionSet
+// and an Identity Center Account. It represents two parts of a potential 3-part
+// Identity Center Account Assignment. This is the primary requestable resource
+// for a user and a user having access to an AccountAssignment resource implies
+// that there is a corresponding Account Assignment in AWS Identity Center that
+// granting that user the Permission Set specified in that resource, on the
+// AWS Account specified in that resource.
+message AccountAssignment {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AccountAssignment spec = 5;
+}
+
+// AccountAssignmentSpec...
+message AccountAssignmentSpec {
+  string display = 1;
+  PermissionSetInfo permission_set = 2;
+  string account_name = 3;
+  string account_id = 4;
+}
+
 // PrincipalAssignment relates a collection of PermissionSets and Applications
 // to a given principal
 message PrincipalAssignment {
@@ -102,33 +125,6 @@ message PrincipalAssignment {
   teleport.header.v1.Metadata metadata = 4;
   PrincipalAssignmentSpec spec = 5;
   PrincipalAssignmentStatus status = 6;
-}
-
-// PermissionSetBinding captures the relationship between a PermissionSet
-// and an Identity Center Account. This is the primary requestable resource
-// for user. A user having access to a PermissionSetAssignment resource implies
-// that there is a corresponding Account Assignment in AWS Identity Center that
-// grants that user the Permission Set specified in that resource, on the
-// AWS Account specified in that resource.
-//
-// The name "binding" was chosen to evoke the idea of binding parameters in a
-// function (inspired by stc::bind in C++) and to avoid using the word "assignment"
-// which is implies an existing relationship - whereas this type only captures
-// two thirds of a potential Identity Center Account Assignment.
-message PermissionSetBinding {
-  string kind = 1;
-  string sub_kind = 2;
-  string version = 3;
-  teleport.header.v1.Metadata metadata = 4;
-  PermissionSetBindingSpec spec = 5;
-}
-
-// PermissionSetBindingSpec...
-message PermissionSetBindingSpec {
-  string display = 1;
-  PermissionSetRef permission_set = 2;
-  string account_name = 3;
-  string account_id = 4;
 }
 
 // PrincipalType indicates the type of principal represented by a PrincipalAssignment
@@ -164,22 +160,20 @@ enum State {
   STATE_DELETED = 3;
 }
 
-// AccountAssignment describes the provisioning of a specific permision set on
-// a specific AWS account
-message AccountAssignment {
-  // PermissionSetArn holds the permission set assgnment ARN
-  string permission_set_arn = 1;
+// AccountAssignmentRef is a minimal link between an AWS Account and a
+// permission set
+message AccountAssignmentRef {
+  // AccountId holds the AWS account ID for the target account
+  string account_id = 1;
 
-  // AccountId holds the AWS account ID fo thr target account
-  string account_id = 2;
-  string account_name = 3;
-  string permission_set_name = 4;
+  // PermissionSetArn holds the Permission Set ARN
+  string permission_set_arn = 3;
 }
 
 // PrincipalAssignmentAssignmentStatus
 message PrincipalAssignmentStatus {
   State state = 1;
-  repeated AccountAssignment assignments = 2;
+  repeated AccountAssignmentRef assignments = 2;
   repeated string applications = 3;
   string error = 4;
 }
