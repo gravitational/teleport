@@ -92,6 +92,7 @@ func TestMFADeviceManagement(t *testing.T) {
 		SecondFactors: []types.SecondFactorType{
 			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
 			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
 		},
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -440,6 +441,55 @@ func TestMFADeviceManagement(t *testing.T) {
 	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
 	require.NoError(t, err)
 	require.Equal(t, lastDeviceName, resp.Devices[0].GetName())
+
+	// Change the user to an SSO user with an MFA enabled auth connector.
+	samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+	require.NoError(t, err)
+	user.SetCreatedBy(types.CreatedBy{
+		Time: authServer.clock.Now(),
+		Connector: &types.ConnectorRef{
+			ID:   "saml",
+			Type: "saml",
+		},
+	})
+	_, err = authServer.UpsertUser(ctx, user)
+	require.NoError(t, err)
+
+	// Ephemeral sso device should show up in the list now. It can't be deleted.
+	resp, err = userClient.GetMFADevices(ctx, &proto.GetMFADevicesRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Devices, 2)
+
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  "saml",
+		authHandler: lastDeviceWebAuthnHandler,
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
+			require.ErrorAs(t, err, new(*trace.BadParameterError))
+			require.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
+		}},
+	)
+
+	// Last non-SSO device can be deleted now.
+	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
+		deviceName:  lastDeviceName,
+		authHandler: lastDeviceWebAuthnHandler,
+		checkErr:    require.NoError,
+	})
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
@@ -532,6 +582,44 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
+			name: "OK SSO user with SSO MFA device",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				user, err := authServer.GetUser(ctx, username, false)
+				require.NoError(t, err, "GetUser")
+
+				// Create an MFA enabled auth connetor for the user.
+				samlConnector, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+					AssertionConsumerService: "http://localhost:65535/acs", // not called
+					Issuer:                   "test",
+					SSO:                      "https://localhost:65535/sso", // not called
+					AttributesToRoles: []types.AttributeMapping{
+						// not used. can be any name, value but role must exist
+						{Name: "groups", Value: "admin", Roles: user.GetRoles()},
+					},
+					MFASettings: &types.SAMLConnectorMFASettings{
+						Enabled: true,
+						Issuer:  "test",
+						Sso:     "https://localhost:65535/sso", // not called
+					},
+				})
+				require.NoError(t, err)
+				_, err = authServer.UpsertSAMLConnector(ctx, samlConnector)
+				require.NoError(t, err)
+
+				// Convert the user to an SSO user for this auth connector.
+				user.SetCreatedBy(types.CreatedBy{
+					Time: authServer.clock.Now(),
+					Connector: &types.ConnectorRef{
+						ID:   samlConnector.GetKind(),
+						Type: samlConnector.GetName(),
+					},
+				})
+				_, err = authServer.UpsertUser(ctx, user)
+				require.NoError(t, err)
+			},
+			checkErr: require.NoError,
+		},
+		{
 			name: "NOK password set but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
@@ -570,6 +658,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				SecondFactors: []types.SecondFactorType{
 					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
 					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
