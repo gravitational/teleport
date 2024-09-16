@@ -36,14 +36,14 @@ const (
 	autoUpdateVersionPrefix = "auto_update_version"
 )
 
-// AutoupdateService is responsible for managing auto update configuration and version.
-type AutoupdateService struct {
+// AutoUpdateService is responsible for managing auto update configuration and version.
+type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
 }
 
-// NewAutoupdateService returns a new AutoupdateService.
-func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
+// NewAutoUpdateService returns a new AutoUpdateService.
+func NewAutoUpdateService(backend backend.Backend) (*AutoUpdateService, error) {
 	config, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateConfig]{
 			Backend:       backend,
@@ -75,14 +75,14 @@ func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &AutoupdateService{
+	return &AutoUpdateService{
 		config:  config,
 		version: version,
 	}, nil
 }
 
 // CreateAutoUpdateConfig creates an auto update configuration singleton.
-func (s *AutoupdateService) CreateAutoUpdateConfig(
+func (s *AutoUpdateService) CreateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -91,7 +91,7 @@ func (s *AutoupdateService) CreateAutoUpdateConfig(
 }
 
 // UpdateAutoUpdateConfig updates an auto update configuration singleton.
-func (s *AutoupdateService) UpdateAutoUpdateConfig(
+func (s *AutoUpdateService) UpdateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -100,7 +100,7 @@ func (s *AutoupdateService) UpdateAutoUpdateConfig(
 }
 
 // UpsertAutoUpdateConfig sets an auto update configuration.
-func (s *AutoupdateService) UpsertAutoUpdateConfig(
+func (s *AutoUpdateService) UpsertAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -109,18 +109,18 @@ func (s *AutoupdateService) UpsertAutoUpdateConfig(
 }
 
 // GetAutoUpdateConfig gets the auto update configuration from the backend.
-func (s *AutoupdateService) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+func (s *AutoUpdateService) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 	config, err := s.config.GetResource(ctx, types.MetaNameAutoUpdateConfig)
 	return config, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateConfig deletes the auto update configuration from the backend.
-func (s *AutoupdateService) DeleteAutoUpdateConfig(ctx context.Context) error {
+func (s *AutoUpdateService) DeleteAutoUpdateConfig(ctx context.Context) error {
 	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoUpdateConfig))
 }
 
 // CreateAutoUpdateVersion creates an autoupdate version resource.
-func (s *AutoupdateService) CreateAutoUpdateVersion(
+func (s *AutoUpdateService) CreateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -129,7 +129,7 @@ func (s *AutoupdateService) CreateAutoUpdateVersion(
 }
 
 // UpdateAutoUpdateVersion updates an autoupdate version resource.
-func (s *AutoupdateService) UpdateAutoUpdateVersion(
+func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -138,7 +138,7 @@ func (s *AutoupdateService) UpdateAutoUpdateVersion(
 }
 
 // UpsertAutoUpdateVersion sets autoupdate version resource.
-func (s *AutoupdateService) UpsertAutoUpdateVersion(
+func (s *AutoUpdateService) UpsertAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -147,12 +147,12 @@ func (s *AutoupdateService) UpsertAutoUpdateVersion(
 }
 
 // GetAutoUpdateVersion gets the auto update version from the backend.
-func (s *AutoupdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+func (s *AutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 	version, err := s.version.GetResource(ctx, types.MetaNameAutoUpdateVersion)
 	return version, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateVersion deletes the auto update version from the backend.
-func (s *AutoupdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
+func (s *AutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoUpdateVersion))
 }
