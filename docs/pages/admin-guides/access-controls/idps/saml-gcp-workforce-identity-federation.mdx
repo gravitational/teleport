@@ -9,7 +9,7 @@ for identities that are not managed within Google Workspace Admin or GCP Cloud I
 
 The general workflow of configuring the Workforce Identity Federation is to first create
 a workforce pool. Then the next step is to create and configure a pool identity provider.
-Once a pool identity provider is configured, user's can sign in into GCP web console as
+Once a pool identity provider is configured, users can sign into the GCP web console as
 long as their identity is signed by the identity provider in a federated authentication
 process.
 
@@ -206,7 +206,7 @@ gcloud iam workforce-pools create <pool_name> \
 
 Next, download Teleport SAML IdP metadata file.
 ```
-curl -o teleport-samlidp-metadata.xml https://<proxy_host>/enterprise/saml-dp/metadata
+curl -o teleport-samlidp-metadata.xml https://<proxy_host>/enterprise/saml-idp/metadata
 ```
 
 Finally, create workforce pool provider.

@@ -35,6 +35,22 @@ export type TableProps<T> = {
    */
   emptyHint?: string;
   pagination?: PaginationConfig<T>;
+  /**
+   * config for client searching.
+   * supports any table except when "serversideProps"
+   * field is defined
+   */
+  clientSearch?: {
+    /**
+     * By default, no initial search is applied (empty search),
+     * unless "initialSearchValue" is defined.
+     */
+    initialSearchValue: string;
+    /**
+     * After setting a new search value, this function will be called.
+     */
+    onSearchValueChange(searchString: string): void;
+  };
   isSearchable?: boolean;
   searchableProps?: Extract<keyof T, string>[];
   // customSearchMatchers contains custom functions to run when search matching.

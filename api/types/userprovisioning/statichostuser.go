@@ -1,6 +1,6 @@
-/**
+/*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,27 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render } from 'design/utils/testing';
+package userprovisioning
 
-import { Loaded, Failed, Empty, EmptyReadOnly } from './Nodes.story';
+import (
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	"github.com/gravitational/teleport/api/types"
+)
 
-test('loaded', () => {
-  const { container } = render(<Loaded />);
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('failed', () => {
-  const { container } = render(<Failed />);
-  expect(container.firstChild).toMatchSnapshot();
-});
-
-test('empty state', () => {
-  const { container } = render(<Empty />);
-  expect(container).toMatchSnapshot();
-});
-
-test('readonly empty state', () => {
-  const { container } = render(<EmptyReadOnly />);
-  expect(container).toMatchSnapshot();
-});
+// NewStaticHostUser creates a new host user to be applied to matching SSH nodes.
+func NewStaticHostUser(name string, spec *userprovisioningpb.StaticHostUserSpec) *userprovisioningpb.StaticHostUser {
+	return &userprovisioningpb.StaticHostUser{
+		Kind:    types.KindStaticHostUser,
+		Version: types.V2,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}

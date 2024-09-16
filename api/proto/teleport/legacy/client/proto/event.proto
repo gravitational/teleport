@@ -30,6 +30,7 @@ import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
+import "teleport/userprovisioning/v2/statichostuser.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -48,7 +49,9 @@ enum Operation {
 message Event {
   reserved 7;
   reserved 49;
+  reserved 63;
   reserved "ExternalCloudAudit";
+  reserved "StaticHostUser";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -179,5 +182,7 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateConfig AutoUpdateConfig = 64;
     // AutoUpdateVersion is a resource for autoupdate version.
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
+    // StaticHostUserV2 is a resource for static host users.
+    teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
   }
 }
