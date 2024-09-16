@@ -4,6 +4,7 @@ package update
 
 import (
 	"context"
+	"golang.org/x/sys/unix"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -57,4 +58,21 @@ func lock(dir string) (func(), error) {
 // sendInterrupt sends a SIGINT to the process.
 func sendInterrupt(cmd *exec.Cmd) error {
 	return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+}
+
+// freeDiskWithReserve returns the available disk space.
+func freeDiskWithReserve(dir string) (uint64, error) {
+	var stat unix.Statfs_t
+	err := unix.Statfs(dir, &stat)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if stat.Bsize < 0 {
+		return 0, trace.Errorf("invalid size")
+	}
+	avail := stat.Bavail * uint64(stat.Bsize)
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }

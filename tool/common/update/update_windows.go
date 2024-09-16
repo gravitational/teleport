@@ -72,6 +72,11 @@ func replace(path string, hash string) error {
 			continue
 		}
 
+		// Verify that we have enough space for uncompressed file.
+		if err := checkFreeSpace(tempDir, r.UncompressedSize64); err != nil {
+			return trace.Wrap(err)
+		}
+
 		rr, err := r.Open()
 		if err != nil {
 			return trace.Wrap(err)
@@ -121,6 +126,7 @@ func lock(dir string) (func(), error) {
 		case windows.NO_ERROR, windows.ERROR_ALREADY_EXISTS:
 			lockFile = os.NewFile(fd, path)
 		case windows.ERROR_SHARING_VIOLATION:
+			// if the file is locked by another process we have to wait until the next check.
 			time.Sleep(time.Second)
 		default:
 			windows.CloseHandle(windows.Handle(fd))
@@ -146,4 +152,17 @@ func sendInterrupt(cmd *exec.Cmd) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// freeDiskWithReserve returns the available disk space.
+func freeDiskWithReserve(dir string) (uint64, error) {
+	var avail uint64
+	err := windows.GetDiskFreeSpaceEx(windows.StringToUTF16Ptr(dir), &avail, nil, nil)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }

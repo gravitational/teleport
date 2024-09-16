@@ -691,16 +691,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	// If needed, download the new version of {tsh, tctl} and re-exec. Make
 	// sure to exit this process with the same exit code as the child process.
 	//
-	// TODO(russjones): Consolidate this with updateAndRun.
-	fmt.Printf("--> Will check remote and if needed, will update binary and re-exec.\n")
-
 	toolsVersion, reexec, err := update.CheckRemote(ctx, tc.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if reexec {
 		// Download the version of client tools required by the cluster.
-		if err := update.Download(toolsVersion); err != nil {
+		err := update.Download(toolsVersion)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 

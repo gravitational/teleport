@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -46,11 +48,18 @@ import (
 
 const (
 	teleportToolsVersion = "TELEPORT_TOOLS_VERSION"
+	checksumHexLen       = 64
+	reservedFreeDisk     = 10 * 1024 * 1024
+
+	FlagEnt  = 1 << 0
+	FlagFips = 1 << 1
 )
 
 var (
-	pattern = regexp.MustCompile(`(?m)Teleport v(.*) git`)
-	baseUrl = "https://cdn.teleport.dev"
+	pattern       = regexp.MustCompile(`(?m)Teleport v(.*) git`)
+	baseUrl       = "https://cdn.teleport.dev"
+	defaultClient = newClient(&downloadConfig{})
+	featureFlag   int
 )
 
 // CheckLocal is run at client tool startup and will only perform local checks.
@@ -86,7 +95,16 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 		return "", false, nil
 	}
 
-	resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: proxyAddr})
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return "", false, trace.Wrap(err)
+	}
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyAddr,
+		Pool:      certPool,
+		Timeout:   30 * time.Second,
+	})
 	if err != nil {
 		return "", false, trace.Wrap(err)
 	}
@@ -107,6 +125,7 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 	return "", false, nil
 }
 
+// Download downloads requested version package, unarchive and replace existing one.
 func Download(toolsVersion string) error {
 	// If the version of the running binary or the version downloaded to
 	// $TELEPORT_HOME/bin is the same as the requested version of client tools,
@@ -138,7 +157,6 @@ func Download(toolsVersion string) error {
 	return nil
 }
 
-// TODO(russjones): Add edition check here as well.
 func update(toolsVersion string) error {
 	dir, err := toolsDir()
 	if err != nil {
@@ -152,7 +170,7 @@ func update(toolsVersion string) error {
 	defer unlock()
 
 	// Get platform specific download URLs.
-	archiveURL, hashURL, err := urls(toolsVersion, "")
+	archiveURL, hashURL, err := urls(toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -180,7 +198,7 @@ func update(toolsVersion string) error {
 
 // urls returns the URL for the Teleport archive to download. The format is:
 // https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func urls(toolsVersion string, toolsEdition string) (string, string, error) {
+func urls(toolsVersion string) (string, string, error) {
 	var archive string
 
 	switch runtime.GOOS {
@@ -190,11 +208,11 @@ func urls(toolsVersion string, toolsEdition string) (string, string, error) {
 		archive = baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
 	case "linux":
 		edition := ""
-		if toolsEdition == "ent" || toolsEdition == "fips" {
+		if featureFlag&FlagEnt != 0 || featureFlag&FlagFips != 0 {
 			edition = "ent-"
 		}
 		fips := ""
-		if toolsEdition == "fips" {
+		if featureFlag&FlagFips != 0 {
 			fips = "fips-"
 		}
 
@@ -217,7 +235,14 @@ func urls(toolsVersion string, toolsEdition string) (string, string, error) {
 }
 
 func downloadHash(url string) (string, error) {
-	resp, err := http.Get(url)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	resp, err := defaultClient.Do(req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -227,17 +252,20 @@ func downloadHash(url string) (string, error) {
 		return "", trace.BadParameter("request failed with: %v", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	var buf bytes.Buffer
+	_, err = io.CopyN(&buf, resp.Body, checksumHexLen)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	// Hash is the first 64 bytes of the response.
-	return string(body)[0:64], nil
+	raw := buf.String()
+	if _, err = hex.DecodeString(raw); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return raw, nil
 }
 
 func downloadArchive(url string, hash string) (string, error) {
-	resp, err := http.Get(url)
+	resp, err := defaultClient.Get(url)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -249,6 +277,12 @@ func downloadArchive(url string, hash string) (string, error) {
 	dir, err := toolsDir()
 	if err != nil {
 		return "", trace.Wrap(err)
+	}
+
+	if resp.ContentLength != -1 {
+		if err := checkFreeSpace(dir, uint64(resp.ContentLength)); err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	// Caller of this function will remove this file after the atomic swap has
@@ -371,4 +405,17 @@ func toolName() (string, error) {
 	toolName := filepath.Base(executablePath)
 
 	return filepath.Join(base, toolName), nil
+}
+
+// checkFreeSpace verifies that we have enough requested space at specific directory.
+func checkFreeSpace(path string, requested uint64) error {
+	free, err := freeDiskWithReserve(path)
+	if err != nil {
+		return trace.Errorf("failed to calculate free disk in %q: %v", path, err)
+	}
+	// Bail if there's not enough free disk space at the target.
+	if requested > free {
+		return trace.Errorf("%q needs %d additional bytes of disk space", path, requested-free)
+	}
+	return nil
 }

@@ -66,6 +66,11 @@ func replace(path string, _ string) error {
 			continue
 		}
 
+		// Verify that we have enough space for uncompressed file.
+		if err := checkFreeSpace(tempDir, uint64(header.Size)); err != nil {
+			return trace.Wrap(err)
+		}
+
 		dest := filepath.Join(dir, strings.TrimPrefix(header.Name, "teleport/"))
 		t, err := renameio.TempFile(tempDir, dest)
 		if err != nil {

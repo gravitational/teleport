@@ -120,6 +120,13 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
+	err = cmd.Start()
+	require.NoError(t, err, "failed to start updater")
+
+	errChan := make(chan error)
+	go func() {
+		errChan <- cmd.Wait()
+	}()
 
 	// By setting the limit request next test http serving file going blocked until unlock is sent.
 	lock := make(chan struct{})
@@ -128,12 +135,9 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		lock:  lock,
 	})
 
-	errChan := make(chan error)
-	go func() {
-		errChan <- cmd.Run()
-	}()
-
 	select {
+	case err := <-errChan:
+		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Errorf("failed to wait till the download is started")
 	case <-lock:

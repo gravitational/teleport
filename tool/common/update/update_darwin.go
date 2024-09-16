@@ -57,7 +57,7 @@ func replace(path string, hash string) error {
 		// The first time a signed and notarized binary macOS application is run,
 		// execution is paused while it gets sent to Apple to verify. Once Apple
 		// approves the binary, the "com.apple.macl" extended attribute is added
-		// and the process is allow to execute. This process is not concurrent, any
+		// and the process is allowed to execute. This process is not concurrent, any
 		// other operations (like moving the application) on the application during
 		// this time will lead to the application being sent SIGKILL.
 		//

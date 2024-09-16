@@ -5465,8 +5465,6 @@ const (
 )
 
 func updateAndRun(ctx context.Context, proxy string) error {
-	fmt.Printf("--> Will check remote and if needed, will update binary and re-exec.\n")
-
 	// If needed, download the new version of {tsh, tctl} and re-exec. Make
 	// sure to exit this process with the same exit code as the child process.
 	toolsVersion, reexec, err := update.CheckRemote(ctx, proxy)
