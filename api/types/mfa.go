@@ -148,7 +148,7 @@ func (d *MFADevice) SetExpiry(exp time.Time) { d.Metadata.SetExpiry(exp) }
 
 // MFAType returns the human-readable name of the MFA protocol of this device.
 func (d *MFADevice) MFAType() string {
-	switch d := d.Device.(type) {
+	switch d.Device.(type) {
 	case *MFADevice_Totp:
 		return "TOTP"
 	case *MFADevice_U2F:
@@ -156,7 +156,7 @@ func (d *MFADevice) MFAType() string {
 	case *MFADevice_Webauthn:
 		return "WebAuthn"
 	case *MFADevice_Sso:
-		return d.Sso.ConnectorType
+		return "SSO"
 	default:
 		return "unknown"
 	}
