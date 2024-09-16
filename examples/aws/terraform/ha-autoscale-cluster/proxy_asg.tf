@@ -53,6 +53,17 @@ resource "aws_autoscaling_group" "proxy" {
     }
   }
 
+  dynamic "instance_refresh" {
+    for_each = var.enable_proxy_asg_instance_refresh ? [1] : []
+    content {
+      strategy = "Rolling"
+      preferences {
+        auto_rollback          = true
+        min_healthy_percentage = 50
+      }
+    }
+  }
+
   // external autoscale algos can modify these values,
   // so ignore changes to them
   lifecycle {
@@ -112,6 +123,17 @@ resource "aws_autoscaling_group" "proxy_acm" {
       key                 = tag.key
       value               = tag.value
       propagate_at_launch = true
+    }
+  }
+
+  dynamic "instance_refresh" {
+    for_each = var.enable_proxy_asg_instance_refresh ? [1] : []
+    content {
+      strategy = "Rolling"
+      preferences {
+        auto_rollback          = true
+        min_healthy_percentage = 50
+      }
     }
   }
 
