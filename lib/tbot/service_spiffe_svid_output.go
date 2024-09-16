@@ -95,7 +95,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 	jitter := retryutils.NewJitter()
 	var res *machineidv1pb.SignX509SVIDsResponse
-	var privateKey *rsa.PrivateKey
+	var privateKey crypto.Signer
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
@@ -160,7 +160,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 func (s *SPIFFESVIDOutputService) requestSVID(
 	ctx context.Context,
-) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SPIFFESVIDOutputService/requestSVID",
@@ -208,7 +208,7 @@ func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
 	bundleSet *spiffe.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
-	privateKey *rsa.PrivateKey,
+	privateKey crypto.Signer,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
