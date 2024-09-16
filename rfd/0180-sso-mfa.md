@@ -91,8 +91,6 @@ of the preferred MFA method with instructions on how to use a different
 available method.
 
 ```console
-### If more than one MFA method is available to the user, 
-### let them know and given them a path to use any method.
 Available MFA methods [WEBAUTHN, SSO, OTP]. Continuing with WEBAUTHN.
 If you wish to perform MFA with another method, specify with --mfa-mode=<sso,webauthn,otp> flag. 
 
@@ -117,15 +115,17 @@ SSO MFA is the preferred method when:
 2. User has no WebAuthn device registered or connected
 
 Note: On MacOS, Linux, and Window's we can detect whether the user has an MFA
-device plugged in using the `libfido2` or touchID libraries.
+device plugged in using the `libfido2` and touchID libraries.
 
 See [User Stories](#user-stories) for more specific examples.
 
 #### WebUI and Teleport Connect
 
-We will add a `SSO` button the existing MFA modal when SSO MFA is enabled.
-It will either be gray, colored (default), or removed depending on whether
-WebAuthn is also available:
+We will add an `SSO` button to the existing MFA modal when SSO MFA is enabled.
+The `Continue` button will be changed to say `WebAuthn`.
+
+Each button will be gray, colored, or removed depending on which methods are
+available.
 
 | Webauthn | SSO | WebAuthn button | SSO button |
 |----------|-----|-----------------|------------|
@@ -134,12 +134,8 @@ WebAuthn is also available:
 | no       | yes | removed         | colored    |
 
 When the user clicks the SSO button, the SSO redirect URL will be opened in a
-new browser window. Once the SSO authentication is complete, the window will
+pop up browser window. Once the SSO authentication is complete, the window will
 close, and the WebUI will proceed with the resulting MFA response.
-
-Note: If possible, for the WebUI, it would be best to open the SSO redirect URL
-in a pop up window rather than opening a new tab. I'm leaving this as an
-implementation decision.
 
 #### Teleport Connect
 
@@ -149,16 +145,16 @@ handle MFA prompts (Per-session MFA for Server and App access).
 In other cases Teleport Connect's `tshd` prompts webauthn (blinking key) and
 displays a modal to notify the user that WebAuthn must be provided to continue.
 
-`tshd`'s MFA prompt will be updated to decide whether WebAuthn or SSO is
-preferred for the user in the same way `tsh` does. If SSO is preferred, a new
-SSO modal will be shown with a clickable SSO link instead of the WebAuthn
-modal.
+`tshd`'s MFA prompt will be updated to display a modal with a `WebAuthn` and
+`SSO` button just like the WebUI modal described above.
 
-Note: Due to the way MFA is currently implemented in Teleport Connect, it isn't
-currently possible to display a unified MFA modal with an SSO and WebAuthn
-like we do in the WebUI. It may be possible to update the `tshd` mfa event
-lifecycle to not prompt WebAuthn until after the user clicks a button, but I'm
-leaving this as an implementation detail for now.
+If the WebAuthn button is clicked, the user's WebAuthn key should start blinking
+and the current WebAuthn modal will be displayed until the user taps their key.
+
+If the SSO button is clicked, a browser window will open automatically. A new
+SSO modal will be displayed to allow the user to cancel the SSO login, or to
+go to the displayed (clickable) link in case the browser failed to open
+automatically.
 
 ### User stories
 
@@ -285,8 +281,8 @@ MFA for every user in the cluster.
 | second_factor | otp | webauthn       | sso | mfa mode |
 |---------------|-----|----------------|-----|----------|
 | off           | no  | no             | ?   | off      |
-| optional      | yes | yes (if set)   | ?   | optional |
-| on            | yes | yes (if set)   | ?   | required |
+| optional      | yes | yes            | ?   | optional |
+| on            | yes | yes            | ?   | required |
 | otp           | yes | no             | ?   | required |
 | webauthn      | no  | yes (must set) | ?   | required |
 | sso           | ?   | ?              | yes | required |
@@ -301,8 +297,9 @@ control and less ambiguity over which second factors are permitted.
 | webauthn       | webauthn is enabled, `webauthn` settings must be set                |
 | sso            | sso MFA is enabled for sso-users with an MFA-enabled auth connector |
 
-In order to maintain the ability to set the MFA mode to `off`, `optional`,
-or `required`, we will add a new explicit `mfa_mode` field.
+
+Note: as of v16, `second_factor` can no longer be disabled, so we do not need
+to support the `off` or `optional` values with an extra config option.
 
 Example config:
 
@@ -315,18 +312,13 @@ spec:
   type: oidc
   connector_name: auth0
   require_session_mfa: yes
-  mfa_mode: required
   second_factors: [ sso, webauthn ]
 ```
 
-The old `second_factor` field will be deprecated. During the deprecation cycle,
-`second_factors` and `mfa_mode` will be filled in from `second_factor` based on
-the tables above.
-
-Note: currently we are choosing to prefer WebAuthn > SSO > OTP in all cases. If
-we wish to give admins the ability to set the preference order, we could treat
-`second_factors` as an ordered list. For now, this additional complexity does
-not seem warranted as we expect this order to provide the best UX anyways.
+The old `second_factor` field will be deprecated, but will be supported
+indefinitely. `second_factors` will be filled in from `second_factor` based on
+the tables above. A deprecation warning will be printed when an admin tries to
+set the deprecated `second_factor` field.
 
 #### Auth Connector
 
@@ -350,9 +342,8 @@ spec:
   mfa:
     # enabled specifies whether this auth connector supports MFA checks.
     enabled: yes
-    # set entity_descriptor_url or entity_descriptor to use a different IdP configured
-    # app to handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. required.
+    # entity_descriptor_url or entity_descriptor should point to an IdP configured
+    # app configured to handle MFA checks.
     entity_descriptor_url: XXX
     entity_descriptor: YYY
     # force_reauth determines whether existing login sessions are accepted or if
@@ -375,9 +366,8 @@ spec:
   mfa:
     # enabled specifies whether this auth connector supports MFA checks.
     enabled: yes
-    # set client_id and client_secret to use a different IdP configured app to
-    # handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. required.
+    # client_id and client_secret should point to an IdP configured
+    # app configured to handle MFA checks.
     client_id: XXX
     client_secret: YYY
     # prompt can be set to request a specific prompt flow from the IdP. Supported
@@ -405,9 +395,8 @@ spec:
     # enabled specifies whether users originating from this auth connector
     # can use the auth connector for MFA flows.
     enabled: yes
-    # set client_id and client_secret to use a different IdP configured app to
-    # handle MFA checks. This is useful when configuring a separate MFA flow
-    # tied to a separate app. required.
+    # client_id and client_secret should point to an IdP configured
+    # app configured to handle MFA checks.
     client_id: XXX
     client_secret: YYY
     # max_age determines when an existing IdP session should be considered
@@ -487,7 +476,7 @@ invariant, device trust must be enforced within the SSO MFA check.
 sequenceDiagram
     participant Client
     participant Teleport
-    participant Identity Provider
+    participant IdP
     participant Node
 
     Note over Client: `tsh ssh node`
@@ -500,13 +489,13 @@ sequenceDiagram
     end    
     Note over Client: Prompt user to complete SSO MFA check
     par complete SSO MFA ceremony
-        Client ->> Identity Provider: browse to redirect URL
-        Identity Provider ->> Identity Provider: login and pass configured MFA check
-        Identity Provider ->> Teleport: send successful IdP auth response
+        Client ->> IdP: browse to redirect URL
+        IdP ->> IdP: login and pass configured MFA check
+        IdP ->> Teleport: send successful IdP auth response
         Teleport ->> Teleport: verify IdP username matches the SSO Auth request username
         Teleport ->> Teleport: retrieve SSO MFA session for { request_id, username }<br/>and add an mfa_token
-        Teleport ->> Identity Provider: return client callback URL<br/>w/ encode encrypted mfa_token in query params
-        Identity Provider -> Client: redirect
+        Teleport ->> IdP: return client callback URL<br/>w/ encode encrypted mfa_token in query params
+        IdP -> Client: redirect
     end
     Note over Client: Decode and decrypt mfa_token<br/>from redirect query params
     par per-session MFA ceremony
@@ -518,9 +507,7 @@ sequenceDiagram
     Client ->> Node: connect w/ MFA verified certs
 ```
 
-The WebUI flow is a little different, as we use a CSRF token instead of a
-secret key, and set the SSO MFA token as a web cookie instead of handling it
-directly on the WebUI client.
+The WebUI flow is a little bit different:
 
 ```mermaid
 sequenceDiagram
@@ -541,11 +528,11 @@ sequenceDiagram
     User ->> WebUI: click SSO
     WebUI ->> IdP: open a pop-up window at IdP redirect_url
     IdP ->> Proxy: complete SSO MFA ceremony<br/>set mfa_token as web cookie
-    Proxy ->> IdP: return client callback url - /web/msg/info/login_success
+    Proxy ->> IdP: return client callback URL - /web/msg/info/login_success<br/>w/ mfa_token in query params
     IdP ->> WebUI: redirect to /web/msg/info/login_success
-    Note over WebUI: catch redirect to success screen, close pop-up window
-    WebUI -->> Proxy: signal over websocket that mfa_token web cookie is set
-    Proxy <<->> Auth: complete Per-session MFA ceremony with mfa_token
+    Note over WebUI: catch redirect to success screen,<br/>close pop-up window,<br/>parse mfa_token from query params
+    WebUI -->> Proxy: send SSOChallengeResponse{ request_id, mfa_token } over websocket
+    Proxy <<->> Auth: complete Per-session MFA ceremony
     Proxy ->> Node: connect w/ MFA verified certs
 ```
 
@@ -890,31 +877,6 @@ SSO MFA to lock out specific users from using SSO MFA.
 Note: The SSO MFA flow has an auth connector check built into both sides of the
 challenge/response cycle, so a change to the auth connector configuration to
 disable MFA would act the same as a lock on the SSO MFA device directly.
-
-#### Modes
-
-In one of the initial designs, I introduce the idea of SSO MFA modes, which
-would provide more UX options and the ability to enforce SSO MFA over other
-options.
-
-Auth connectors with MFA enabled will be configured with one of the following
-modes:
-- `optional`: SSO MFA is available to the user, but WebAuthn is preferred when
-  applicable.
-- `preferred`: SSO MFA is preferred over WebAuthn, but Webauthn is still
-  available to the user.
-- `required`: SSO MFA is the only available MFA method.
-
-With these modes, the user would be prompted for WebAuthn, SSO, or both. The
-browser would only automatically open in some cases. The resulting UX was okay,
-but its configuration was confusing.
-
-Additionally, Webauthn is currently the best UX experience and provides great
-great security, so it would be better to always treat webauthn as preferred
-over SSO, as it is with OTP.
-
-If in the future we have a reason to require SSO MFA over Webauthn, we can
-introduce these modes or `second_factor: sso`.
 
 #### `tctl sso configure`
 
