@@ -91,6 +91,9 @@ const (
 
 	// HostSSH represents a host SSH key.
 	HostSSH
+	// HostIdentity represents a key used for a Teleport host identity.
+	// TODO(nklaassen): split SSH and TLS keys used for host identities.
+	HostIdentity
 
 	// TODO(nklaassen): define remaining key purposes.
 
@@ -153,6 +156,7 @@ var (
 		UserTLS:             RSA2048,
 		UserDatabase:        RSA2048,
 		HostSSH:             RSA2048,
+		HostIdentity:        RSA2048,
 		// We could consider updating these algorithms even in the legacy suite,
 		// only teleport agents need to accept these connections and they have
 		// never restricted algorithm support.
@@ -181,6 +185,7 @@ var (
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
 		HostSSH:              Ed25519,
+		HostIdentity:         ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
@@ -206,6 +211,7 @@ var (
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
 		HostSSH:              ECDSAP256,
+		HostIdentity:         ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
@@ -233,6 +239,7 @@ var (
 		UserTLS:              ECDSAP256,
 		UserDatabase:         RSA2048,
 		HostSSH:              Ed25519,
+		HostIdentity:         ECDSAP256,
 		ProxyToDatabaseAgent: ECDSAP256,
 		ProxyKubeClient:      ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
