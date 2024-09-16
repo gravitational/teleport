@@ -493,9 +493,9 @@ Because of the is requirement, the SCIM service will require
 
 Ideally the implementation will leverage existing scim libraries (e.g. [scim2](https://github.com/scim2/server)
 or [elimity-com/scim](https://github.com/elimity-com/scim), but that not work in practice:
-At first glance, the existing SCIM libraies seem 
+At first glance, the existing SCIM libraries seem 
  * strongly coupled to an HTTP implementation (which we can't use directly), and
- * very conservative about what they export, amking it harder to implement our
+ * very conservative about what they export, making it harder to implement our
    services in terms of the library types.
 
 Even if using the libraries directly is impractical we can, at the very least,

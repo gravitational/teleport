@@ -433,7 +433,7 @@ leading to the removal of collaborator's permissions from Github.
 Adding a user to a Github-synced access list makes the reconciler add the
 corresponding Github user to the appropriate Github team. In effect, this is
 the same as Teleport->Github membership sync explained above - a new member
-gets their permissions through a team membership rather than invididual
+gets their permissions through a team membership rather than individual
 collaborator assignment.
 
 Owners of Github-synced lists become Github team maintainers.
@@ -609,7 +609,7 @@ To help us track the integration usage we will implement the following product
 metrics:
 
 - The integration setup funnel showing how many users started enrolling the
-  integration and succesfully completed or fell off at a certain stage, similar
+  integration and successfully completed or fell off at a certain stage, similar
   to existing Discover flows.
 - Periodic reporting of the number of Github-synced access lists per tenant
   and the number of members in them to be able to see how the overall usage of

@@ -690,7 +690,7 @@ auth_service:
       #   Only mode available for OSS.
       # * `optional` means Teleport attempts use Device Trust extensions for
       #   enrolled devices, but they aren't enforced.
-      #   Default for Enteprise.
+      #   Default for Enterprise.
       # * `required` means that Teleport enforces Device Trust extensions for
       #   the entire cluster, requiring an enrolled device to use/access SSH
       #   sessions, Databases, Windows Desktops, Apps and Kubernetes.

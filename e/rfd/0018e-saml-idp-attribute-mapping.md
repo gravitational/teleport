@@ -195,7 +195,7 @@ Introducing attribute mapping will not disrupt existing SAML IdP and SP configur
 
 ## Audit events
 
-Attribute mapping will add mapped attribute name and values to Service Provider create and udpate events.
+Attribute mapping will add mapped attribute name and values to Service Provider create and update events.
 
 ```diff
 // SAMLIdPServiceProviderMetadata contains common metadata for SAML IdP service provider
