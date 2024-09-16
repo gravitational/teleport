@@ -150,6 +150,7 @@ export function DiscoveryConfigSsm() {
       region: selectedRegion,
       ssmDocument: ssmDocumentName,
       integrationName: agentMeta.awsIntegration.name,
+      accountID: awsAccountId,
     });
     setScriptUrl(scriptUrl);
   }
