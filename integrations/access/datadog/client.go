@@ -40,6 +40,11 @@ const (
 )
 
 const (
+	// IncidentWritePermissions is a Datadog permission that allows the role to
+	// create, view, and manage incidents in Datadog.
+	//
+	// See documentation for more details:
+	// https://docs.datadoghq.com/account_management/rbac/permissions/#case-and-incident-management
 	IncidentWritePermissions = "incident_write"
 )
 
@@ -116,8 +121,11 @@ func (d *Datadog) CheckHealth(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	for _, permission := range result.Data {
-		if permission.Attributes.Name == IncidentWritePermissions && permission.Attributes.Restricted {
-			return trace.AccessDenied("missing incident_write permissions")
+		if permission.Attributes.Name == IncidentWritePermissions {
+			if permission.Attributes.Restricted {
+				return trace.AccessDenied("missing incident_write permissions")
+			}
+			return nil
 		}
 	}
 	return nil

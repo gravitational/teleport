@@ -32,8 +32,10 @@ import (
 )
 
 const (
+	// APIEndpointDefaultURL specifies the default US1 region api endpoint.
 	APIEndpointDefaultURL = "https://api.datadoghq.com/api/v2"
-	SeverityDefault       = "SEV-3"
+	// SeverityDefault specifies the default incident severity.
+	SeverityDefault = "SEV-3"
 )
 
 // Config stores the full configuration for the teleport-datadog plugin to run.
@@ -57,7 +59,7 @@ type Config struct {
 // DatadogConfig stores datadog specifc configuration.
 type DatadogConfig struct {
 	// APIEndpoint specifies the Datadog API endpoint.
-	APIEndpoint string `toml:"-"`
+	APIEndpoint string `toml:"api_endpoint"`
 	// APIKey specifies a Datadog API key.
 	APIKey string `toml:"api_key"`
 	// ApplicationKey specifies a Datadog Application key.
