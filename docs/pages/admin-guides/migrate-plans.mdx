@@ -84,10 +84,10 @@ migrating from Teleport Enterprise to Teleport Community Edition.
    $ tctl inventory ls --newer-than=<version>
    ```
 
-1. Both the self-hosted and Teleport Enterprise (Cloud) support automatic upgrading
-   that is recommended to maintain a healthy set of agents. See how to 
+1. We recommend that Teleport Enterprise (Self-Hosted) customers set up automatic updates to maintain a healthy set of Agents, and require this in Teleport Enterprise (Cloud). See how to 
    [Set up Automatic Agent Updates](../upgrading/automatic-agent-updates.mdx) to
    incorporate this into your migration.
+
 
 Validate connectivity to both the new Teleport Enterprise cluster and your
 original Teleport Enterprise cluster. You should be able to connect to both
@@ -230,16 +230,20 @@ To migrate Teleport agents:
 
 1. If you are using Teleport repositories to install on Linux
    update the repository channel to `stable/cloud` for Teleport
-   Enterprise (cloud). For self-hosted you can use the major version
-   `stable/v(=teleport.major_version=)` or if you are using the automatic
-   upgrades the `stable/rolling` has all released versions.
+   Enterprise (Cloud). For self-hosted Teleport Enterprise you can use the major version
+   `stable/v(=teleport.major_version=)` or if you are using automatic
 
-1. If you are using the community version of Teleport uninstall `teleport`
+   upgrades the `stable/rolling` channel has all released versions.
+
+
+1. If you are using the Teleport Community Edition, uninstall `teleport`
+
    and install the enterprise version. You can confirm if the `teleport` binary
    is enterprise by running `teleport version`. The output will contain the words
    `Teleport Enterprise`. The enterprise version of the `teleport`
-   binary should be used when connecting to Teleport Enterprise (cloud) or
-   Teleport Enterprise self-hosted.
+   binary should be used when connecting to Teleport Enterprise (Cloud) or
+   Teleport Enterprise (Self-Hosted).
+
 
 1. Update the `proxy_server` or `auth_servers` field in each Agent configuration
    file to point to the address of your new Teleport Enterprise cluster. By
@@ -291,7 +295,8 @@ To migrate Teleport agents:
    # delete the state secret
    kubectl -n <namespace> delete secret <release-name>-0-state
    ```
-   The settings for the new Teleport Kubernetes agent should have the 
+   The settings for the new Teleport Kubernetes Agent should have the 
+
    `enterprise` value set to true.
 
 ### Migrate Machine ID Bots
