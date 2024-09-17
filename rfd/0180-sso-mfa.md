@@ -379,29 +379,6 @@ spec:
     # max_age determines when an existing IdP session should be considered
     # expired. Defaults to "0" to force re-authentication on MFA checks.
     max_age: 0
----
-kind: github
-metadata:
-  name: github
-spec:
-  client_id: AAA
-  client_secret: BBB
-  display: GitHub
-  redirect_url: https://root.example.com:3080/v1/webapi/github/callback
-  teams_to_roles:
-    - { organization: org-name, team: github-team, roles: [dev], }
-  # new mfa settings field. Defaults to null.
-  mfa:
-    # enabled specifies whether users originating from this auth connector
-    # can use the auth connector for MFA flows.
-    enabled: yes
-    # client_id and client_secret should point to an IdP configured
-    # app configured to handle MFA checks.
-    client_id: XXX
-    client_secret: YYY
-    # max_age determines when an existing IdP session should be considered
-    # expired. Defaults to "0" to force re-authentication on MFA checks.
-    max_age: 0
 ```
 
 Most of the MFA setting options are inherited from the parent auth connector,
@@ -412,12 +389,6 @@ but let's cover some of the new ones in more detail.
 For SAML, forced re-authentication can be achieved by adding the `ForceAuth`
 attribute to the SAML request. This field will be added to both the parent
 and MFA auth connector settings.
-
-##### `mfa.max_age` (github) 
-
-The github connector does not currently support `max_age`, so it will be
-added to both the parent and MFA auth connector settings to match the
-generic OIDC auth connector resource.
 
 ### Security
 
@@ -559,7 +530,7 @@ type SSOMFASessionData struct {
   MFAToken string `json:"token,omitempty"`
   // ConnectorID is id of the corresponding Auth connector.
   ConnectorID string `json:"connector_id,omitempty"`
-  // ConnectorType is SSO type of the corresponding Auth connector (SAML, OIDC, or Github).
+  // ConnectorType is SSO type of the corresponding Auth connector.
   ConnectorType string `json:"connector_type,omitempty"`
   // ChallengeExtensions are challenge extensions that apply to this SSO MFA session.
   ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
@@ -732,33 +703,6 @@ message OIDCConnectorSpecV3 {
 }
 ```
 
-**GithubConnectorMFASettings**
-
-```proto
-message GithubConnectorMFASettings {
-  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
-  bool enabled = 1;
-  // ClientID is the id of the authentication client (Teleport Auth server). If unset, the parent 
-  // Github connector's ClientID will be used.
-  string client_id = 2;
-  // ClientSecret is used to authenticate the client. If unset, the parent Github connector's
-  // ClientSecret will be used.
-  string client_secret = 3;
-  // MaxAge is the amount of time that an IdP session is valid for. Defaults to 0 to always
-  // force re-authentication for MFA checks. This should only be set to a non-zero value if
-  // the IdP is setup to perform MFA checks on top of active user sessions.
-  google.protobuf.Duration max_age = 4;
-}
-```
-
-```diff
-message GithubConnectorSpecV3 {
-  ...
-+ // MFASettings contains settings to enabled SSO MFA checks through this auth connector.
-+ GithubConnectorMFASettings MFASettings = 10 [(gogoproto.jsontag) = "mfa_settings,omitempty"];
-}
-```
-
 **SSOAuthRequests**
 
 ```diff
@@ -772,12 +716,6 @@ message OIDCAuthRequest {
   ...
 + // Username is the Teleport username for the auth request. This must be set for MFA requests.
 + string Username = 20 [(gogoproto.jsontag) = "username,omitempty"];
-}
-
-message GithubAuthRequest {
-  ...
-+ // Username is the Teleport username for the auth request. This must be set for MFA requests.
-+ string Username = 19 [(gogoproto.jsontag) = "username,omitempty"];
 }
 ```
 
@@ -814,7 +752,7 @@ MFA session.
 In practice, the metadata will be filled out like this:
 - `DeviceName` - Name of the auth connector
 - `DeviceID` - UUID of the auth connector
-- `DeviceType` - SSO type (`OIDC`, `SAML`, or `Github`)
+- `DeviceType` - SSO type (`OIDC`, `SAML`)
 
 ```proto
 message MFADeviceMetadata {
@@ -885,3 +823,11 @@ connector for MFA checks in addition to login. This seems to me like a large
 undertaking, and would be best if we implemented different simplified flow for
 different IdPs. I am going to leave this out of scope, though it would be a
 welcome improvement.
+
+#### Github Connector
+
+Github's OIDC provider does not provide any sophisticated MFA configuration.
+From what I can tell from the [documentation](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps),
+you can only do the basic github 2fa login flow. There is no support for MFA
+acr values like okta, or customized web flows with MFA like Auth0. Therefore
+Github connectors will be left out of the initial implementation.
