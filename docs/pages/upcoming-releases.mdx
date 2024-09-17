@@ -43,6 +43,16 @@ Teleport will support web application access where one application depends on
 another. For example, you may have a web application that depends on a backend
 API service, of which are separate apps protected by Teleport.
 
+#### Okta integration status dashboard
+
+Cluster admins will be able to get a detailed overview of the Okta integration
+status in the Teleport web UI.
+
+#### Secrets support for Kubernetes Operator
+
+Kubernetes Operator will be able to lookup values from Kubernetes secrets for
+`GithubConnector.ClientSecret` and `OIDCConnector.ClientSecret`.
+
 ### 17.0.0
 
 #### New Nav
@@ -91,7 +101,7 @@ Teleport Policy will support Teleport trusted clusters, allowing users to
 enroll multiple self-hosted Teleport clusters into a single Policy instance.
 This feature will allow users to see access across all Teleport clusters.
 
-#### New NetIQ and Azure integrations
+#### NetIQ and Azure integrations
 
 Teleport Policy will support NetIQ and Azure integrations, allowing users to
 sync and NetIQ permissions and Azure resources.
