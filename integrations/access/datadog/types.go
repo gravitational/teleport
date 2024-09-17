@@ -18,42 +18,55 @@
 
 package datadog
 
-// Datadog API types
+// Datadog API types.
+// See: https://docs.datadoghq.com/api/latest/
 
+// Metadata contains metadata for all Datadog resources.
 type Metadata struct {
 	ID   string `json:"id,omitempty"`
 	Type string `json:"type,omitempty"`
 }
 
+// PermissionsBody contains the response body for a list permissions request
+//
+// See: https://docs.datadoghq.com/api/latest/roles/#list-permissions
 type PermissionsBody struct {
 	Data []PermissionsData `json:"data,omitempty"`
 }
 
+// PermissionsData contains the permissions data.
 type PermissionsData struct {
 	Metadata
 	Attributes PermissionsAttributes `json:"attributes,omitempty"`
 }
 
+// PermissionsAttributes contains the permissions attributes.
 type PermissionsAttributes struct {
 	Name       string `json:"name,omitempty"`
 	Restricted bool   `json:"restricted"`
 }
 
+// IncidentBody contains the request/response body for an incident request.
+//
+// See: https://docs.datadoghq.com/api/latest/incidents
 type IncidentsBody struct {
 	Data IncidentsData `json:"data,omitempty"`
 }
 
+// IncidentData contains the incident data.
 type IncidentsData struct {
 	Metadata
 	Attributes IncidentsAttributes `json:"attributes,omitempty"`
 }
 
+// IncidentsAttributes contains the incident attributes.
 type IncidentsAttributes struct {
 	Title               string               `json:"title,omitempty"`
 	Fields              IncidentsFields      `json:"fields,omitempty"`
 	NotificationHandles []NotificationHandle `json:"notification_handles,omitempty"`
 }
 
+// IncidentsFields contains the incident fields.
 type IncidentsFields struct {
 	Summary         *StringField      `json:"summary,omitempty"`
 	Severity        *StringField      `json:"severity,omitempty"`
@@ -64,39 +77,47 @@ type IncidentsFields struct {
 	Services        *StringSliceField `json:"services,omitempty"`
 }
 
+// StringField represents a single string field value.
 type StringField struct {
 	Type  string `json:"type,omitempty"`
 	Value string `json:"value,omitempty"`
 }
 
+// StringSliceField represents a multi-value string field value.
 type StringSliceField struct {
 	Type  string   `json:"type,omitempty"`
 	Value []string `json:"value,omitempty"`
 }
 
+// NotificationHandle represents an incident notification handle.
 type NotificationHandle struct {
 	DisplayName string `json:"display_name,omitempty"`
 	Handle      string `json:"handle,omitempty"`
 }
 
+// TimelineBody contains the request/response body for an incident timeline request.
 type TimelineBody struct {
 	Data TimelineData `json:"data,omitempty"`
 }
 
+// TimelineData contains the incident timeline data.
 type TimelineData struct {
 	Metadata
 	Attributes TimelineAttributes `json:"attributes,omitempty"`
 }
 
+// TimelineAttributes contains the incident timeline attributes.
 type TimelineAttributes struct {
 	CellType string          `json:"cell_type,omitempty"`
 	Content  TimelineContent `json:"content,omitempty"`
 }
 
+// TimelineContent contains the incident tineline content.
 type TimelineContent struct {
 	Content string `json:"content,omitempty"`
 }
 
+// ErrorResult contains the error response.
 type ErrorResult struct {
 	Errors []string `json:"errors"`
 }
