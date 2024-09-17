@@ -55,14 +55,14 @@ export default function useServersideSearchPanel({
       });
     }
     replaceHistory(
-      encodeUrlQueryParams(
+      encodeUrlQueryParams({
         pathname,
         searchString,
-        params.sort,
-        params.kinds,
+        sort: params.sort,
+        kinds: params.kinds,
         isAdvancedSearch,
-        params.pinnedOnly
-      )
+        pinnedOnly: params.pinnedOnly,
+      })
     );
   }
 

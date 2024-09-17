@@ -341,6 +341,69 @@ type APIHandler struct {
 // ConnectionHandler defines a function for serving incoming connections.
 type ConnectionHandler func(ctx context.Context, conn net.Conn) error
 
+func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
+	raddr, err := utils.ParseAddr(r.Host)
+	if err != nil {
+		return
+	}
+	publicAddr := raddr.Host()
+
+	servers, err := app.Match(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	if err != nil {
+		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
+		return
+	}
+
+	if len(servers) == 0 {
+		h.handler.log.Info("failed to match application with public addr %s", publicAddr)
+		return
+	}
+
+	foundApp := servers[0].GetApp()
+	corsPolicy := foundApp.GetCORS()
+	if corsPolicy == nil {
+		return
+	}
+
+	origin := r.Header.Get("Origin")
+	// The Access-Control-Allow-Origin can only include one origin or a wildcard. However,
+	// any request which includes credentials _must_ return an origin and not a wildcard.
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#sect2
+	if slices.Contains(corsPolicy.AllowedOrigins, "*") || slices.Contains(corsPolicy.AllowedOrigins, origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	} else {
+		return
+	}
+
+	if len(corsPolicy.AllowedMethods) > 0 {
+		w.Header().Set("Access-Control-Allow-Methods", strings.Join(corsPolicy.AllowedMethods, ","))
+	}
+
+	// This is a list of headers that are allowed in the spec. Wildcards are allowed.
+	// Note: "Authorization" headers must be explicitly listed and cannot be wildcarded
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers#sect2
+	if len(corsPolicy.AllowedHeaders) > 0 {
+		w.Header().Set("Access-Control-Allow-Headers", strings.Join(corsPolicy.AllowedHeaders, ","))
+	}
+
+	if len(corsPolicy.ExposedHeaders) > 0 {
+		w.Header().Set("Access-Control-Expose-Headers", strings.Join(corsPolicy.ExposedHeaders, ","))
+	}
+
+	// The only valid value for this header is "true", so we will only set it if configured to true
+	if corsPolicy.AllowCredentials {
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+
+	// This will allow preflight responses to be cached for the specified duration
+	if corsPolicy.MaxAge > 0 {
+		w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsPolicy.MaxAge))
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
 // Check if this request should be forwarded to an application handler to
 // be handled by the UI and handle the request appropriately.
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -353,12 +416,16 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if the request is for an app, passthrough OPTIONS requests to the app handler
+	redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs)
+	if ok && r.Method == http.MethodOptions {
+		h.handlePreflight(w, r)
+		return
+	}
 	// Only try to redirect if the handler is serving the full Web API.
-	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly {
-		if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
-			http.Redirect(w, r, redir, http.StatusFound)
-			return
-		}
+	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly && ok {
+		http.Redirect(w, r, redir, http.StatusFound)
+		return
 	}
 
 	// Serve the Web UI.
@@ -675,15 +742,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", h.WithHighLimiter(h.motd))
 
-	// Unauthenticated access to retrieving the script used to install
-	// Teleport
+	// Unauthenticated access to retrieving the script used to install Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
-
-	// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
-	// TODO(isaiah): Delete in v17.0.0.
-	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
-	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
-	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
 
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
@@ -1162,15 +1222,16 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:              constants.Local,
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		AllowPasswordless: cap.GetAllowPasswordless(),
-		AllowHeadless:     cap.GetAllowHeadless(),
-		Local:             &webclient.LocalSettings{},
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		Type:                    constants.Local,
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		AllowPasswordless:       cap.GetAllowPasswordless(),
+		AllowHeadless:           cap.GetAllowHeadless(),
+		Local:                   &webclient.LocalSettings{},
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -1207,11 +1268,12 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1224,11 +1286,12 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1240,11 +1303,12 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:      cap.GetSecondFactor(),
-		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
-		PIVSlot:           cap.GetPIVSlot(),
-		DeviceTrust:       deviceTrustSettings(cap),
+		SecondFactor:            cap.GetSecondFactor(),
+		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
+		PIVSlot:                 cap.GetPIVSlot(),
+		DeviceTrust:             deviceTrustSettings(cap),
+		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
 	}
 }
 
@@ -1342,7 +1406,6 @@ func getAuthSettings(ctx context.Context, authClient authclient.ClientI) (webcli
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
-	as.SignatureAlgorithmSuite = authPreference.GetSignatureAlgorithmSuite()
 
 	return as, nil
 }
@@ -1449,7 +1512,16 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return webclient.PingResponse{
+		Auth: webclient.AuthenticationSettings{
+			// Nodes need the signature algorithm suite when joining to generate
+			// keys with the correct algorithm.
+			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		},
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,

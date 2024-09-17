@@ -410,10 +410,9 @@ func (c *Config) transfer(ctx context.Context) error {
 				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
 			}
 			if fi.IsDir() && !c.opts.Recursive {
-				// Note: using any other error constructor than BadParameter
-				// might lead to relogin attempt and a completely obscure
-				// error message
-				return trace.BadParameter("%q is a directory, but the recursive option was not passed", match)
+				// Note: Using an error constructor included in lib/client.IsErrorResolvableWithRelogin,
+				// e.g. BadParameter, will lead to relogin attempt and a completely obscure error message.
+				return trace.Wrap(&NonRecursiveDirectoryTransferError{Path: match})
 			}
 			fileInfos = append(fileInfos, fi)
 		}
@@ -666,4 +665,16 @@ func NewProgressBar(size int64, desc string, writer io.Writer) *progressbar.Prog
 		progressbar.OptionFullWidth(),
 		progressbar.OptionSetRenderBlankState(true),
 	)
+}
+
+// NonRecursiveDirectoryTransferError is returned when an attempt is made
+// to download a directory without providing the recursive option.
+// It's used to distinguish this specific situation in clients which
+// do not support the recursive option.
+type NonRecursiveDirectoryTransferError struct {
+	Path string
+}
+
+func (n *NonRecursiveDirectoryTransferError) Error() string {
+	return fmt.Sprintf("%q is a directory, but the recursive option was not passed", n.Path)
 }

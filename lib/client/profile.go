@@ -429,16 +429,28 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
-// KeyPath returns path to the private key for this profile.
+// SSHKeyPath returns path to the SSH private key for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>.
-func (p *ProfileStatus) KeyPath() string {
+func (p *ProfileStatus) SSHKeyPath() string {
 	// Return an env var override if both valid and present for this identity.
 	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
 		return path
 	}
 
-	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
+	return keypaths.UserSSHKeyPath(p.Dir, p.Name, p.Username)
+}
+
+// TLSKeyPath returns path to the TLS private key for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>.
+func (p *ProfileStatus) TLSKeyPath() string {
+	// Return an env var override if both valid and present for this identity.
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
+		return path
+	}
+
+	return keypaths.UserTLSKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPathForCluster returns path to the specified database access
@@ -498,7 +510,7 @@ func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string)
 	return keypaths.DatabaseOracleWalletDirectory(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
-// DatabaseLocalCAPath returns the specified db 's self-signed localhost CA path for
+// DatabaseLocalCAPath returns the specified db's self-signed localhost CA path for
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-db/proxy-localca.pem

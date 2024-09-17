@@ -23,12 +23,16 @@ join method and token to the provider.
 - [Kubernetes MachineID guide](../../../enroll-resources/machine-id/deployment/kubernetes.mdx)
 - [TPM MachineID guide](../../../enroll-resources/machine-id/deployment/linux-tpm.mdx)
 
+HCP Terraform (Terraform Cloud) and self-hosted Terraform Enterprise are
+supported but require special configuration, so refer to our
+[dedicated guide](./terraform-cloud.mdx).
 </Admonition>
 
-This guide does not cover running Teleport locally or on a dedicated server.
-If you are in one of those cases, follow the dedicated guides:
+This guide does not cover running Teleport locally, on a dedicated server or on
+certain platforms. See the following more specific guides for those cases:
 - [Run the Terraform Provider locally](./local.mdx)
 - [Run the Teleport Terraform Provider on a server](./dedicated-server.mdx)
+- [Run the Teleport Terraform Provider on Spacelift](./spacelift.mdx)
 
 ## How it works
 
@@ -288,7 +292,7 @@ Copy the `main.tf` file on the GCP VM you will run Terraform from.
 </TabItem>
 </Tabs>
 
-### Step 4/4. Run Terraform
+## Step 4/4. Run Terraform
 
 This step shows minimal examples on how to run Terraform based on your environment. This code uses the default local
 backend which is not fit for production purposes. Especially in CI, you must

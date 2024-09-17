@@ -77,13 +77,13 @@ auth_service:
 </TabItem>
 <TabItem label="Dynamic resources">
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-Ensure that `cap.yaml` contains the following content:
+Ensure that the resource contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -94,11 +94,7 @@ spec:
 version: v2
 ```
 
-Create the resource:
-
-```code
-$ tctl create -f cap.yaml
-```
+Apply your changes by saving and closing the file in your editor.
 
 </TabItem>
 </Tabs>
@@ -106,13 +102,13 @@ $ tctl create -f cap.yaml
 </TabItem>
 <TabItem scope="cloud" label="Teleport Enterprise">
 
-Obtain your existing `cluster_auth_preference` resource:
+Edit your `cluster_auth_preference` resource:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-Ensure that `cap.yaml` contains the following content:
+Ensure that the resource contains the following content:
 
 ```yaml
 kind: cluster_auth_preference
@@ -123,11 +119,7 @@ spec:
 version: v2
 ```
 
-Create the resource:
-
-```code
-$ tctl create -f cap.yaml
-```
+Apply your changes by saving and closing the file in your editor.
 
 </TabItem>
 

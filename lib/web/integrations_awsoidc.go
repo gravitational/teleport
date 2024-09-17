@@ -281,6 +281,11 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -300,6 +305,7 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
 		fmt.Sprintf("--task-role=%s", shsprintf.EscapeDefaultContext(taskRole)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -325,6 +331,11 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -336,6 +347,7 @@ func (h *Handler) awsOIDCConfigureEICEIAM(w http.ResponseWriter, r *http.Request
 		"integration", "configure", "eice-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -408,6 +420,11 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("invalid region %q", region)
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	ssmDocumentName := queryParams.Get("ssmDocument")
 	if ssmDocumentName == "" {
 		return nil, trace.BadParameter("missing ssmDocument query param")
@@ -434,6 +451,7 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
 		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
 		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -458,6 +476,11 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 		return nil, trace.BadParameter("invalid aws region")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -469,6 +492,7 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 		"integration", "configure", "eks-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -1142,6 +1166,11 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 		return nil, trace.BadParameter("invalid awsRegion")
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	role := queryParams.Get("role")
 	if err := aws.IsValidIAMRoleName(role); err != nil {
 		return nil, trace.BadParameter("invalid role %q", role)
@@ -1153,6 +1182,7 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 		"integration", "configure", "listdatabases-iam",
 		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),
@@ -1188,11 +1218,17 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 		return nil, trace.BadParameter("invalid role %q", role)
 	}
 
+	awsAccountID := queryParams.Get("awsAccountID")
+	if err := aws.IsValidAccountID(awsAccountID); err != nil {
+		return nil, trace.Wrap(err, "invalid awsAccountID")
+	}
+
 	// The script must execute the following command:
 	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
 		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		TeleportArgs:   strings.Join(argsList, " "),

@@ -1154,6 +1154,7 @@ export type RawEvents = {
     {
       desktop_addr: string;
       desktop_name: string;
+      sid: string;
       windows_user: string;
       windows_domain: string;
     }
@@ -1172,6 +1173,7 @@ export type RawEvents = {
     {
       desktop_addr: string;
       desktop_name: string;
+      sid: string;
       windows_user: string;
       windows_domain: string;
     }

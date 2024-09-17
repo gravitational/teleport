@@ -65,9 +65,11 @@ test('lock search', async () => {
   expect(rows).toHaveLength(3);
 
   // Test searching.
-  fireEvent.change(screen.getByPlaceholderText(/search/i), {
+  const search = screen.getByPlaceholderText(/search/i);
+  fireEvent.change(search, {
     target: { value: 'lock-role' },
   });
+  fireEvent.submit(search);
 
   expect(screen.queryAllByText(/lock-role/i)).toHaveLength(2);
   expect(screen.queryByText(/lock-user/i)).not.toBeInTheDocument();
