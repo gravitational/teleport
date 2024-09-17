@@ -203,7 +203,7 @@ than adding new fields to `sshutils.DialReq` which would set a bad precedent.
 ##### Implementing a custom protocol
 
 Instead of abusing ALPN, we could actually make use of it by implementing a custom protocol, say
-`teleport-tcp-multi-port`. A client speaking this protocol (a local proxy) would be expected to send
+`teleport-tcp-multi-port`. A client speaking this protocol would be expected to send
 the port number in the first few bytes of the connection and then proxy the rest of the downstream
 connection (of whatever client that wants to connect to a TCP app over a local proxy).
 
@@ -244,13 +244,14 @@ of port numbers to local proxies to avoid creating a new proxy and a cert on eac
 
 ### Configuration
 
-The ports are set through the `ports` field. The user is expected to not include a port number in
+The ports are set through the `ports` field. The user is expected to not include the port number in
 the `uri` field. `tctl edit`, `tctl create` and other means of adding apps should be updated to
-prevent the user from including the port number in `uri` if the `ports` field is present. Apps
-without the `ports` field and with no port number in the `uri` field should be allowed to exist in
-order to not introduce a breaking change in behavior – those are technically allowed as of v16.2.
-E.g., Teleport v16.2 lets you define an app with `"tcp://localhost"` as the URI and will only error
-during an actual connection attempt.
+prevent the user from including the port number in `uri` if the `ports` field is present.
+
+Apps without the `ports` field and with no port number in the `uri` field should be allowed to exist
+in order to avoid introducing a breaking change – those apps are technically allowed as of v16.2.
+That is, Teleport v16.2 lets you define an app with the URI set to `"tcp://localhost"` and it will
+only return an error during an actual connection attempt.
 
 In order to keep the implementation simple, the user is allowed to duplicate port numbers and
 ranges. For example, these are all valid `ports` values: `[4080-4090, 4080-4090]`, `[4080-4090,
@@ -333,10 +334,10 @@ support.
 #### Server-client compatibility
 
 Old clients that do not support multi-port apps don't show the URI anywhere, with the exception of
-`tsh apps ls -v` and `tctl get`. A client connecting to a TCP app is not expected to present the
-port from the URI. This means we are able to provide partial backward compatibility for older
-clients in the form of connecting them to the first port found in the app spec. This is true for all
-cases except a specific scenario with dynamic app registration described below.
+`tsh apps ls -v` and `tctl get`. A client connecting to a TCP app is not expected to even know about
+the URI. This means we are able to provide partial backward compatibility for older clients in the
+form of connecting them to the first port found in the app spec. This is true for all cases except a
+specific scenario with dynamic app registration described below.
 
 In Teleport v16.2 and before, it's completely valid to define an app with no port number in the URI.
 In that case, the app service returns an error when attempting to connect to such an app because
@@ -361,7 +362,8 @@ An app service on version N - 1 cannot statically define a multi-port TCP app.
 However, it's possible that the app service is fed a multi-port app from the auth service through
 dynamic registration. There's no way for the app service to continue, so it returns an error, just
 like a v16.2 app service when a TCP app doesn't specify the port in the URI. This is a price we are
-willing to pay for reduced implementation and UX complexity.
+willing to pay for reduced implementation and UX complexity compared to the solutions described
+below.
 
 ##### Alternative approaches
 
@@ -394,7 +396,8 @@ example above.
 
 If the only scenario where the `ports` field breaks backward compatibility is dynamic app
 registration, we could introduce a new version of the app resource. The intent would be to let the
-old app service drop the unrecognized version of an app resource.
+old app service drop the unrecognized version of an app resource when receiving it from the auth
+service.
 
 However, this is not how the app service operates today. When an app service populates its cache
 with dynamically registered apps, it interprets all apps as V3 apps, meaning we can't add a V4 app
@@ -545,5 +548,5 @@ The Application Access section of the test plan needs to be extended with these 
 The VNet section of Teleport Connect test plan needs to be extended with these items:
 
 - [ ] Verify that VNet works with multi-port TCP apps. Connecting to an app from a VNet-enabled
-  device over a certain port should forward the connection to the same port on the host specified by
-  the URI field in the app spec.
+  device over a certain port should forward the connection to the same port on the hostname
+  specified by the URI field in the app spec.
