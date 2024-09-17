@@ -2323,6 +2323,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"create_desktop_user": GenSchemaBoolOption(ctx),
 						"create_host_user":    GenSchemaBoolOption(ctx),
+						"create_host_user_default_shell": {
+							Description: "CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"create_host_user_mode": {
 							Description: "CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is \"unspecified\"; 1 is \"off\"; 2 is \"drop\" (removed for v15 and above), 3 is \"keep\"; 4 is \"insecure-drop\".",
 							Optional:    true,
@@ -15237,6 +15242,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.CreateHostUserDefaultShell = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -19993,6 +20015,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = time.Duration(obj.MFAVerificationInterval)
 											v.Unknown = false
 											tf.Attrs["mfa_verification_interval"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := tf.Attrs["create_host_user_default_shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Options.CreateHostUserDefaultShell", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.CreateHostUserDefaultShell) == ""
+											}
+											v.Value = string(obj.CreateHostUserDefaultShell)
+											v.Unknown = false
+											tf.Attrs["create_host_user_default_shell"] = v
 										}
 									}
 								}

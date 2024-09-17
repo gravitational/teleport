@@ -108,8 +108,8 @@ func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error 
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, home, uid, gid string) error {
-	_, err := host.UserAdd(name, groups, home, uid, gid)
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, opts host.UserOpts) error {
+	_, err := host.UserAdd(name, groups, opts)
 	return trace.Wrap(err)
 }
 

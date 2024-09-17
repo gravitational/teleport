@@ -70,35 +70,61 @@ func GroupAdd(groupname string, gid string) (exitCode int, err error) {
 	}
 }
 
+// UserOpts allow for customizing the resulting command for adding a new user.
+type UserOpts struct {
+	// UID a user should be created with. When empty, the UID is determined by the
+	// useradd command.
+	UID string
+	// GID a user should be assigned to on creation. When empty, a group of the same name
+	// as the user will be used.
+	GID string
+	// Home directory for a user. When empty, this will be the root directory to match
+	// OpenSSH behavior.
+	Home string
+	// Shell that the user should use when logging in. When empty, the default shell
+	// for the host is used (typically /usr/bin/sh).
+	Shell string
+}
+
 // UserAdd creates a user on a host using `useradd`
-func UserAdd(username string, groups []string, home, uid, gid string) (exitCode int, err error) {
+func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err error) {
 	useraddBin, err := exec.LookPath("useradd")
 	if err != nil {
 		return -1, trace.Wrap(err, "cant find useradd binary")
 	}
 
-	if home == "" {
+	if opts.Home == "" {
 		// Users without a home directory should land at the root, to match OpenSSH behavior.
-		home = string(os.PathSeparator)
+		opts.Home = string(os.PathSeparator)
 	}
 
 	// user's without an explicit gid should be added to the group that shares their
 	// login name if it's defined, otherwise user creation will fail because their primary
 	// group already exists
-	if slices.Contains(groups, username) && gid == "" {
-		gid = username
+	if slices.Contains(groups, username) && opts.GID == "" {
+		opts.GID = username
 	}
 
 	// useradd ---no-create-home (username) (groups)...
-	args := []string{"--no-create-home", "--home-dir", home, username}
+	args := []string{"--no-create-home", "--home-dir", opts.Home, username}
 	if len(groups) != 0 {
 		args = append(args, "--groups", strings.Join(groups, ","))
 	}
-	if uid != "" {
-		args = append(args, "--uid", uid)
+
+	if opts.UID != "" {
+		args = append(args, "--uid", opts.UID)
 	}
-	if gid != "" {
-		args = append(args, "--gid", gid)
+
+	if opts.GID != "" {
+		args = append(args, "--gid", opts.GID)
+	}
+
+	if opts.Shell != "" {
+		if shell, err := exec.LookPath(opts.Shell); err != nil {
+			log.Warnf("configured shell %q not found, falling back to host default", opts.Shell)
+		} else {
+			args = append(args, "--shell", shell)
+		}
 	}
 
 	cmd := exec.Command(useraddBin, args...)
