@@ -17473,7 +17473,7 @@ type SAMLIdPServiceProviderSpecV1 struct {
 	// the following scenarios:
 	//  1. If a service provider does not support IdP initiated authentication, launch url can be
 	//     configured to launch users directly into the service provider authentication endpoint.
-	//  2. If a service provider does support IdP initiated authentication, it can be usefull if
+	//  2. If a service provider does support IdP initiated authentication, it can be useful if
 	//     that service provider acts as a master authentication service provider for internal services.
 	//     In such case, Teleport administrator can configure launch URL, that lets user pick a specific
 	//     internal service URL from the Log In tile in the UI, which would take them to that particular
