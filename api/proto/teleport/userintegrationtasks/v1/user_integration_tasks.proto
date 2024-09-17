@@ -49,9 +49,14 @@ message UserIntegrationTaskSpec {
   // IssueType is an identifier for the type of issue that happened.
   // Example for discover-ec2: SSM_AGENT_NOT_AVAILABLE
   string issue_type = 3;
+  // State indicates the task state.
+  // When the task is created, it starts with OPEN.
+  // Users can mark it as RESOLVED.
+  // If the issue happens again (eg, new discover iteration faces the same error), it will move to OPEN again.
+  string state = 4;
   // DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
   // Present when TaskType is discover-ec2.
-  DiscoverEC2 discover_ec2 = 4;
+  DiscoverEC2 discover_ec2 = 5;
 }
 
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
@@ -62,25 +67,20 @@ message DiscoverEC2 {
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
 message DiscoverEC2Instance {
-  // State indicates the current issue state.
-  // When the issue is created, it starts with OPEN.
-  // Users can mark this instance issue as RESOLVED.
-  // If the issue happens again (eg, new discover iteration faces the same error), it will move to OPEN again.
-  string state = 1;
   // Name is the instance Name.
   // Might be empty, if the instance doesn't have the Name tag.
-  string name = 2;
+  string name = 1;
   // AccountID is the AWS Account ID for this instance.
-  string account_id = 3;
+  string account_id = 2;
   // Region is the AWS Region where this issue is happening.
-  string region = 4;
+  string region = 3;
   // InvocationURL is the URL that points to the invocation.
   // Empty if there was an error before installing the
-  string invocation_url = 5;
+  string invocation_url = 4;
   // DiscoveryConfig is the discovery config name that originated this instance enrollment.
-  string discovery_config = 6;
+  string discovery_config = 5;
   // DiscoveryGroup is the DiscoveryGroup name that originated this task.
-  string discovery_group = 7;
+  string discovery_group = 6;
   // SyncTime is the timestamp when the error was produced.
-  google.protobuf.Timestamp sync_time = 8;
+  google.protobuf.Timestamp sync_time = 7;
 }
