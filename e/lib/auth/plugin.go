@@ -20,6 +20,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	externalauditstoragev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
@@ -37,6 +38,7 @@ import (
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
+	oktaservice "github.com/gravitational/teleport/e/lib/okta/service"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
@@ -354,6 +356,15 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	if err != nil {
 		return trace.Wrap(err, "registering SCIM service")
 	}
+
+	oktaSvc, err := oktaservice.NewService(oktaservice.ServiceConfig{
+		Backend:    p.authServer.GetBackend(),
+		Authorizer: p.authServer.Authorizer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	oktapb.RegisterOktaServiceServer(gRPCServer, oktaSvc)
 
 	return nil
 }
