@@ -24,6 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -42,6 +43,9 @@ type AccessGraphAWSIAMConfigureRequest struct {
 	// IntegrationRoleTAGPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to "AccessGraphSyncAccess"
 	IntegrationRoleTAGPolicy string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -60,11 +64,13 @@ func (r *AccessGraphAWSIAMConfigureRequest) CheckAndSetDefaults() error {
 // AccessGraphIAMConfigureClient describes the required methods to create the IAM Policies
 // required for enrolling Access Graph AWS Sync into Teleport.
 type AccessGraphIAMConfigureClient interface {
+	callerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultTAGIAMConfigureClient struct {
+	callerIdentityGetter
 	*iam.Client
 }
 
@@ -76,7 +82,8 @@ func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfig
 	}
 
 	return &defaultTAGIAMConfigureClient{
-		Client: iam.NewFromConfig(cfg),
+		callerIdentityGetter: sts.NewFromConfig(cfg),
+		Client:               iam.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -86,6 +93,10 @@ func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfig
 //   - iam:PutRolePolicy
 func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigureClient, req AccessGraphAWSIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -58,11 +58,11 @@ export function CreateAppAccess() {
     }
   });
 
-  const iamRoleName = splitAwsIamArn(
-    agentMeta.awsIntegration.spec.roleArn
-  ).arnResourceName;
+  const { awsAccountId: accountID, arnResourceName: iamRoleName } =
+    splitAwsIamArn(agentMeta.awsIntegration.spec.roleArn);
   const scriptUrl = cfg.getAwsIamConfigureScriptAppAccessUrl({
     iamRoleName,
+    accountID,
   });
 
   return (
