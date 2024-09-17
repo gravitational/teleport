@@ -9,17 +9,8 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date               |
 |---------|--------------------|
-| 16.3.0  | September 13, 2024 |
 | 16.4.0  | September 18, 2024 |
 | 17.0.0  | October 31, 2024   |
-
-### 16.3.0
-
-#### Out-of-band user creation
-
-Cluster administrators will be able to configure Teleport's `ssh_service` to
-ensure that certain host users exist on the machine without the need to start
-an SSH session.
 
 ### 16.4.0
 
@@ -42,6 +33,16 @@ versa.
 Teleport will support web application access where one application depends on
 another. For example, you may have a web application that depends on a backend
 API service, of which are separate apps protected by Teleport.
+
+#### Okta integration status dashboard
+
+Cluster admins will be able to get a detailed overview of the Okta integration
+status in the Teleport web UI.
+
+#### Secrets support for Kubernetes Operator
+
+Kubernetes Operator will be able to lookup values from Kubernetes secrets for
+`GithubConnector.ClientSecret` and `OIDCConnector.ClientSecret`.
 
 ### 17.0.0
 
@@ -79,26 +80,22 @@ members in other Access Lists.
 
 ## Teleport Policy
 
-| Version | Date               |
-|---------|--------------------|
-| 1.24.0  | September 9, 2024  |
+| Version | Date          |
+|---------|---------------|
+| 1.25.0  | December 2024 |
 
-### 1.24.0
+### 1.25.0
 
-#### New UI
+#### Support for Teleport trusted clusters
 
-Access Graph will include navigation updates to enhance the usability and
-scalability of the web UI.
+Teleport Policy will support Teleport trusted clusters, allowing users to
+enroll multiple self-hosted Teleport clusters into a single Policy instance.
+This feature will allow users to see access across all Teleport clusters.
 
-#### Crown Jewels
+#### NetIQ and Azure integrations
 
-Access Graph will allow marking the most critical resources as "Crown Jewels,"
-providing enhanced traceability and auditing capabilities for them.
-
-#### SSH Key Scanning
-
-Access Graph will support scanning of SSH keys on servers and client machines 
-to help detect unauthorized access paths.
+Teleport Policy will support NetIQ and Azure integrations, allowing users to
+sync and NetIQ permissions and Azure resources.
 
 ## Teleport Cloud
 
@@ -106,7 +103,6 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                    |
 |--------------------|----------------------------------------------------------------|
-| September 9, 2024  | Teleport Policy 1.24.0 will begin rollout on Cloud.            |
 | September 16, 2024 | Teleport 16.3 will begin rollout on Cloud.                     |
 | September 16, 2024 | Teleport 16.3 agents will begin rollout to eligible tenants.   |
 | September 30, 2024 | Teleport 16.4 will begin rollout on Cloud.                     |
