@@ -73,6 +73,12 @@ tsh proxy app waldo --target-port 5095 --port 5095
 waldo-debug localhost # In a separate shell session.
 ```
 
+###### Per-session MFA
+
+Bob wants to connect to waldo after Alice enabled per-session MFA on the cluster. Since waldo-client
+connects to two different ports, Bob gets two separate MFA prompts in Teleport Connect. Once when
+connecting over 4080 and once when connecting over 4081.
+
 ##### Error path
 
 ###### Incorrect port
@@ -117,11 +123,30 @@ in the app spec and prevents Alice from saving such app spec.
 
 ### Passing the port number from the client to the app agent
 
-In order to pass the port number from the client to the app service, the underlying local proxy is
-going to include the port number as a part of a special subdomain in the SNI, e.g.
-`app-teleport-proxy-target-port-1337.teleport.cluster.local`. The ALPN proxy is then able to extract
-the port number out of the SNI and pass it to the app service through a new field in
-`sshutils.DialReq`.
+In order to pass the port number from the client to the app service, the port is going to be
+included in `RouteToApp` portion of the app cert. `RouteToApp` is used today to route connections to
+single-port TCP apps. With a few modifications, it can be used for multi-port access.
+
+`RouteToApp` already has the `URI` field which includes the port number. However, the `URI` field is
+a recent addition used solely for audit events, not as the source of truth in routing. Instead, the
+app service reads [the current URI from the cache of the backend state](https://github.com/gravitational/teleport/blob/d6640d89d8a99908d7ac5385f2cfe0e08e230239/lib/srv/app/tcpserver.go#L45-L55).
+A valid app cert grants access to a specific app as it's defined at any given moment on the backend,
+not as it was defined at the time of generating a cert. We want to keep this behavior for
+single-port apps after introducing multi-port apps.
+
+As such, we cannot reuse the `URI` field by simply changing the port number in it. When looking at a
+cert like this during routing, it'd be impossible to tell these two scenarios apart:
+
+* The cert was issued for a multi-port app and allows access to a single port.
+* The cert was issued for a single-port app and allows access to the port currently defined in the
+  app spec.
+
+The `URI` field should be left unchanged to merely mirror the same field from the app spec.
+
+Instead, we add a `TargetPort` field to `RouteToApp`. The presence of this field signifies that the
+cert grants access to the specific port of a specific app, as long as the port is currently defined
+in the app spec. The `URI` field still won't be used as the source of truth for the hostname during
+routing as we continue to use `URI` from the app spec.
 
 When the port makes its way to the app service, the app service checks the port against ports
 defined in the app spec before deciding whether to proxy the connection or not. The app service
@@ -134,18 +159,25 @@ ports.
 
 #### Advantages
 
-* A single cert per app.
-* With per-session MFA enabled, the user needs to tap an MFA device only once per app.
-* Old clients that don't send info about target port can still be routed to the first port found in
-  the `ports` field.
+* It's the simplest way to add multi-port support to Teleport that doesn't set bad precedents.
+* Old clients that don't send info about the target port can still be routed to the first port found
+  in the `ports` field.
 * Backward-compatible with existing UIs (tsh, tctl, Web UI, Connect). Requires minimal effort to add
   support for multi-port to those UIs.
 
 #### Disadvantages
 
-* It's another instance of misusing ALPN to pass some metadata about the connection.
-* It's not a solution that can be extended to work for HTTP apps in the future. For starters,
-  browsers don't let you send arbitrary SNIs.
+* Not so great performance in a situation where the end user wants to connect to many different ports
+  at the same time. First connection over each port requires a new cert.
+* Bad UX with per-session MFA enabled when connecting to many different ports at the same time. Each
+  port requires a separate tap to create a cert.
+  * However, for now the design partner wants to use multi-port for an app with two exposed ports
+    that likely won't be used at the same time.
+* While it doesn't introduce new bad precedents, it reinforces existing ones which prioritize
+  reduced system complexity over user experience, namely the practice of embedding routing
+  information within the cert.
+  * The practice in itself is not bad, but we'll likely want to address it at some point to deal
+    with performance (creating many certs) and UX issues (per-session MFA taps) it creates.
 * It breaks compatibility – if an older app service gets a multi-port TCP app from the auth server
   through dynamic registration, it cannot proxy connections to that app because it doesn't know
   which port to proxy the connections to. See [Backward Compatibility](#backward-compatibility) for
@@ -153,25 +185,20 @@ ports.
 
 #### Alternative approaches
 
-##### Embedding the port within an app cert (`RouteToApp`)
+##### Embedding the port within SNI or an ALPN protocol
 
-The easiest way to implement multi-port app access would be to extend `RouteToApp` to include the
-port number. The main drawback here is that the client would need to request a cert for each port.
-With per-session MFA in use, every connection over a separate port would require a separate tap of
-an MFA device.
-
-##### Embedding the port within an ALPN protocol
+The port number could be included within TLS config on the client side, either as a special sudomain
+in the SNI, e.g. `app-teleport-proxy-target-port-1337.teleport.cluster.local`, or a new ALPN
+protocol, say `teleport-tcp@1337`.
 
 We already have [`ProtocolAuth`](https://github.com/gravitational/teleport/blob/8495398fa164aaa70236f6d7abd55238b2925cb2/lib/srv/alpnproxy/common/protocols.go#L99-L100)
 in the form of `"teleport-auth@"` that's used to [pass the cluster name](https://github.com/gravitational/teleport/blob/8495398fa164aaa70236f6d7abd55238b2925cb2/lib/srv/alpnproxy/auth/auth_proxy.go#L96-L97)
 when dialing the auth server.
 
-In a similar fashion, we could introduce `"teleport-tcp@"` which includes the port number after `@`.
-It'd be yet another method of abusing ALPN to pass additional data.
-
-The `"teleport-tcp"` protocol is currently used by the ALPN proxy to select an appropriate ALPN
-handler. Since the handler for multi-port apps and non-multi-port apps would be pretty much the
-same, it seems that passing the port number through the SNI is a slightly better choice.
+Both solutions abuse ALPN to pass around extra info from the client. Both take care only of the part
+between the client and the proxy service. The proxy service would still need to pass the port
+somehow to the app service. At the moment, there doesn't seem to be a good way to do this, other
+than adding new fields to `sshutils.DialReq` which would set a bad precedent.
 
 ##### Implementing a custom protocol
 
@@ -209,18 +236,11 @@ own app resource. Per-session MFA would require creating a separate cert for eac
 
 ### Passing the port number from VNet to the client
 
-Since VNet creates a single local proxy per app, `alpnproxy.LocalProxy` needs to support dynamically
-changing the SNI per connection.
-
-VNet already uses the [`alpnproxy.LocalProxy.HandleTCPConnector`](https://github.com/gravitational/teleport/blob/3fd79ce5c557cdfa5603b0d691dc8bab199afce2/lib/srv/alpnproxy/local_proxy.go#L249)
-method which was added specifically for VNet. Technically, we could read the port number [in
-`vnet.NetworkStack.handleTCP`](https://github.com/gravitational/teleport/blob/b5df678e22d26776aa87f9dd493b3c443e013fa4/lib/vnet/vnet.go#L377)
-(`req.ID().LocalPort`), but we don't even need to do that. The port number can be read directly
-[from `downstreamConn` inside
-`alpnproxy.LocalProxy.HandleTCPConnector`](https://github.com/gravitational/teleport/blob/3fd79ce5c557cdfa5603b0d691dc8bab199afce2/lib/srv/alpnproxy/local_proxy.go#L267).
-
-Since `alpnproxy.LocalProxy.HandleTCPConnector` is VNet-specific, we can modify it so that the
-config it passes to `dialALPNMaybePing` has a different SNI depending on which local port was used.
+VNet [creates a proxy for an app](https://github.com/gravitational/teleport/blob/0b3163e7bd70afa5a2ddb5bd42f3efc034377d70/lib/vnet/app_resolver.go#L355)
+at the point of [resolving an A query for the app](https://github.com/gravitational/teleport/blob/0b3163e7bd70afa5a2ddb5bd42f3efc034377d70/lib/vnet/vnet.go#L567).
+With multi-port, VNet needs to create a local proxy at a later step, [in `vnet.NetworkStack.handleTCP`](https://github.com/gravitational/teleport/blob/b5df678e22d26776aa87f9dd493b3c443e013fa4/lib/vnet/vnet.go#L377),
+where it can read the port used by the connection (`req.ID().LocalPort`). It needs to maintain a map
+of port numbers to local proxies to avoid creating a new proxy and a cert on each connection.
 
 ### Configuration
 
@@ -263,17 +283,14 @@ could want Teleport to support.
 
 ### Security
 
-SNI is sent over plain text, so information about the port is both visible and can be rewritten by a
-malicious agent (in security terms, not Teleport terms) between the device and the proxy service.
-
 By using wide ranges of allowed ports, cluster admins can mistakenly grant access to ports that
-shouldn't be accessible within Teleport. As there's no RBAC for ports, a user with a valid cert for
-an app can access any of the ports specified in the app spec.
+shouldn't be accessible within Teleport. As there's no RBAC for ports, a user with access to an app
+can access any of the ports specified in the app spec.
 
 ### Privacy
 
-As stated above, the port is sent in plain text in SNI. Other than that, the feature described here
-does not warrant any extra privacy considerations.
+Multi-port TCP access does not warrant extra privacy considerations as no sensitive data is
+exchanged between the client and the server.
 
 ### UI
 
@@ -331,11 +348,11 @@ access, N - 1 is a version before that.
 
 ##### Services on version N, a client on version N - 1
 
-Since the client doesn't know about available ports, it's not going to send a port number through
-the SNI.
+Since the client doesn't know about available ports, it's not going to include a port number when
+asking for an app cert.
 
-In this case, we can support old clients by defaulting to the first port from the `ports` field if
-no port was sent in the SNI.
+In this case, we can support old clients by the app service defaulting to the first port from the
+`ports` field if no port was included in the cert.
 
 ##### Auth and proxy services on version N, app service on version N - 1
 
@@ -394,7 +411,7 @@ forward the connection.
 Before multi-port was available, VNet would let you connect to an arbitrary port on the public
 address of an app. The connection would ultimately be forwarded to the port number from the `uri`
 field of the app spec. This behavior is kept for single-port apps for backward compatibility. The
-port number is not sent over SNI in this case.
+port number is not included in the cert in this case.
 
 ### Audit Events
 
@@ -405,41 +422,37 @@ service agent proxies a connection to the actual URI of an app, the agent create
 ID comes from the cert](https://github.com/gravitational/teleport/blob/d1c7f26e70544879c04f184d88b9fbc07626be6b/lib/srv/app/common/audit.go#L94)
 and the cert is the same for all connections coming from a single local proxy.
 
-The only thing that changes for multi-port apps is that `app_uri` includes the actual port to which
-the connection was forwarded to. The session ID stays the same no matter which target port was
-chosen. This means that two connections on two different ports for the same app are going to
-generate two `app.session.start` events which are identical, with the exception of `app_uri`,
-`time`, and `uid` fields.
+The only thing that changes for multi-port apps is that we add `app_target_port` field which
+includes the port to which the connection was forwarded to. The session ID is the same for
+connections forwarded to the same port using the same cert and different for connections on
+different ports. This means that two connections on two different ports for the same app are going
+to generate two `app.session.start` events which are identical, with the exception of
+`app_target_port`, `time`, `sid`, and `uid` fields.
 
 ### Observability
 
 Whether the target port makes it all the way from the client to the app service can be observed by
-the `app.session.start` audit event. It should include the correct port in the `app_uri` field.
+the `app.session.start` audit event. It should include the correct port in the `app_target_port`
+field.
 
-We don't expect the implementation to impact performance. The port number is transmitted between the
-client and the proxy service through SNI which is already sent. The proxy service is going to pass
-it to the app agent through `sshutils.DialReq`. That struct is serialized to JSON with empty fields
-completely skipped, so only connections to TCP apps are going to pay the price for an extra field.
-
-The app service already has access to the app spec to verify whether the target port is valid, so it
-doesn't need to perform any additional network calls.
+We don't expect the implementation to impact performance. The cert used to transport the port number
+already includes routing details for apps. The app service already has access to the app spec to
+verify whether the target port is valid, so it doesn't need to perform any additional network calls.
 
 ### Product Usage
 
 The telemetry already tracks TCP app sessions through the `tp.session.start.v2` event where
 `tp.session_type` is set to `app_tcp`. We're going to extend this event with a new boolean property
-called `tp.app.is_multi_port`.
-
-To do this, we need to add a new boolean field to `AppMetadata` in `apievents.AppSessionStart`
-called `AppIsMultiPort`.
+called `tp.app.is_multi_port`, which value is going to depend on the presence of `AppTargetPort` in
+`AppMetadata` of `apievents.AppSessionStart`.
 
 ### Proto Specification
 
 Changes in `api/proto/teleport/legacy/types/types.proto`:
 
 ```diff
-message AppSpecV3 {
-…
+ message AppSpecV3 {
+ …
    // Only applicable to AWS App Access.
    // If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
    string Integration = 9 [(gogoproto.jsontag) = "integration,omitempty"];
@@ -463,17 +476,57 @@ message AppSpecV3 {
  }
 ```
 
+Changes in `api/proto/teleport/legacy/client/proto/authservice.proto`:
+
+```diff
+ message RouteToApp {
+ …
+   string GCPServiceAccount = 7 [(gogoproto.jsontag) = "gcp_service_account,omitempty"];
+   // URI is the URI of the app. This is the internal endpoint where the application is running and isn't user-facing.
++  // Used merely for audit events and mirrors the URI from the app spec.
+   string URI = 8 [(gogoproto.jsontag) = "uri,omitempty"];
++  // TargetPort signifies that the cert grants access to a specific port in a multi-port TCP app, as
++  // long as the port is defined in the app spec. When specified, it must be between 1 and 65535 and
++  // the URI is expected to use this port as well.
++  // Used only for routing, should not be used in other contexts (e.g., access requests).
++  uint32 TargetPort = 9 [(gogoproto.jsontag) = "target_port,omitempty"];
+ }
+```
+
 Changes in `api/proto/teleport/legacy/types/events/events.proto`:
 
 ```diff
-message AppMetadata {
-…
+ message AppMetadata {
+ …
    // AppName is the configured application name.
    string AppName = 4 [(gogoproto.jsontag) = "app_name,omitempty"];
-+  // AppIsMultiPort describes whether the app defines its ports through the Ports field of the app
-+  // spec. Relevant only for TCP apps.
-+  bool AppIsMultiPort = 5 [(gogoproto.jsontag) = "app_is_multi_port"];
++  // AppTargetPort signifies that the app is a multi-port TCP app and says which port was used to
++  // access the app. This field is not set for other types of apps, including single-port TCP apps.
++  uint32 AppTargetPort = 5 [(gogoproto.jsontag) = "app_target_port,omitempty"];
  }
+```
+
+Changes in Cloud in `build/prehog/proto/prehog/v1alpha/teleport.proto`:
+
+```diff
+ message SessionStartEvent {
+ …
+   // Indicates this event was generated by a Machine ID bot user.
+   UserKind user_kind = 5;
++
++  // if session_type == "app_tcp" the app struct contains additional information about app session.
++  //
++  // PostHog property: tp.app
++  SessionStartAppMetadata app = 6;
+ }
+
+ …
+
++// SessionStartAppMetadata contains additional information about an app session.
++message SessionStartAppMetadata {
++  // is_multi_port is true for multi-port TCP apps.
++  bool is_multi_port = 1;
++}
 ```
 
 ### Test Plan
@@ -481,8 +534,8 @@ message AppMetadata {
 The Application Access section of the test plan needs to be extended with these items:
 
 - [ ] Verify Audit Records
-  - [ ] For multi-port TCP apps, `app.session.start` includes the chosen target port in the `app_uri`
-    field and `app_is_multi_port` is set to `true`.
+  - [ ] For multi-port TCP apps, `app.session.start` includes the chosen target port in the
+    `app_target_port` field.
 - [ ] Verify multi-port TCP access with `tsh proxy app --target-port` (link to docs).
   - [ ] Can create a TCP app with multiple ports and port ranges.
   - [ ] Cannot access ports not listed in the app spec.
