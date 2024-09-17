@@ -205,7 +205,7 @@ message MemberSpec {
   MembershipKind membership_kind = 9;
 }
 
-//.MembershipKind represents the different kinds of list membership
+// MembershipKind represents the different kinds of list membership
 enum MembershipKind {
   // MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
   // unknown membership kind, defaulting to _USER
@@ -213,7 +213,7 @@ enum MembershipKind {
   // MEMBERSHIP_KIND_USER represents list members that are normal
   // users
   MEMBERSHIP_KIND_USER = 1;
-  // MEMBERSHIP_KIND_LIST represetns a list member that is another list
+  // MEMBERSHIP_KIND_LIST represents a list member that is another list
   MEMBERSHIP_KIND_LIST = 2;
 }
 

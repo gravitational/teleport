@@ -20,6 +20,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -280,6 +281,9 @@ message AccessListMember {
 
   // MemberName is the name of the member.
   string MemberName = 4 [(gogoproto.jsontag) = "member_name,omitempty"];
+
+  // MembershipKind is the type of member (user or list).
+  teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.

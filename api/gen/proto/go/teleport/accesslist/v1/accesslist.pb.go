@@ -147,7 +147,7 @@ func (ReviewDayOfMonth) EnumDescriptor() ([]byte, []int) {
 	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{1}
 }
 
-// .MembershipKind represents the different kinds of list membership
+// MembershipKind represents the different kinds of list membership
 type MembershipKind int32
 
 const (
@@ -157,7 +157,7 @@ const (
 	// MEMBERSHIP_KIND_USER represents list members that are normal
 	// users
 	MembershipKind_MEMBERSHIP_KIND_USER MembershipKind = 1
-	// MEMBERSHIP_KIND_LIST represetns a list member that is another list
+	// MEMBERSHIP_KIND_LIST represents a list member that is another list
 	MembershipKind_MEMBERSHIP_KIND_LIST MembershipKind = 2
 )
 

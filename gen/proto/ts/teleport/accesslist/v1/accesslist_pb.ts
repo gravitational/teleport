@@ -493,7 +493,7 @@ export enum ReviewDayOfMonth {
     LAST = 31
 }
 /**
- * .MembershipKind represents the different kinds of list membership
+ * MembershipKind represents the different kinds of list membership
  *
  * @generated from protobuf enum teleport.accesslist.v1.MembershipKind
  */
@@ -513,7 +513,7 @@ export enum MembershipKind {
      */
     USER = 1,
     /**
-     * MEMBERSHIP_KIND_LIST represetns a list member that is another list
+     * MEMBERSHIP_KIND_LIST represents a list member that is another list
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_LIST = 2;
      */
