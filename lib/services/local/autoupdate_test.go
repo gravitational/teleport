@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
@@ -47,11 +47,11 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := &autoupdatepb.AutoUpdateConfig{
+	config := &autoupdatev1pb.AutoUpdateConfig{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateConfig},
-		Spec:     &autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+		Spec:     &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
 	}
 
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
@@ -103,11 +103,11 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	version := &autoupdatepb.AutoUpdateVersion{
+	version := &autoupdatev1pb.AutoUpdateVersion{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: types.MetaNameAutoUpdateVersion},
-		Spec:     &autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+		Spec:     &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
 	}
 
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
@@ -159,22 +159,22 @@ func TestAutoUpdateServiceInvalidNameCreate(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := &autoupdatepb.AutoUpdateConfig{
+	config := &autoupdatev1pb.AutoUpdateConfig{
 		Kind:     types.KindAutoUpdateConfig,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-config-name"},
-		Spec:     &autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+		Spec:     &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
 	}
 
 	createdConfig, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.Error(t, err)
 	require.Nil(t, createdConfig)
 
-	version := &autoupdatepb.AutoUpdateVersion{
+	version := &autoupdatev1pb.AutoUpdateVersion{
 		Kind:     types.KindAutoUpdateVersion,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: "invalid-auto-update-version-name"},
-		Spec:     &autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+		Spec:     &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
 	}
 
 	createdVersion, err := service.CreateAutoUpdateVersion(ctx, version)
@@ -196,7 +196,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// Validate the config update restriction.
-	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatepb.AutoUpdateConfigSpec{ToolsAutoupdate: true})
+	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true})
 	require.NoError(t, err)
 
 	createdConfig, err := service.UpsertAutoUpdateConfig(ctx, config)
@@ -209,7 +209,7 @@ func TestAutoUpdateServiceInvalidNameUpdate(t *testing.T) {
 	require.Nil(t, createdConfig)
 
 	// Validate the version update restriction.
-	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"})
+	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"})
 	require.NoError(t, err)
 
 	createdVersion, err := service.UpsertAutoUpdateVersion(ctx, version)

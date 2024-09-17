@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -306,6 +307,12 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAutoUpdateConfig gets the autoupdate config from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -1175,6 +1182,9 @@ type Cache interface {
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
+
+	// AutoUpdateServiceGetter defines method for fetching the auto update config and version resources.
+	services.AutoUpdateServiceGetter
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)

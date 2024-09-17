@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -254,6 +255,8 @@ type cacheCollections struct {
 	globalNotifications      collectionReader[notificationGetter]
 	accessMonitoringRules    collectionReader[accessMonitoringRuleGetter]
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
+	autoupdateConfigs        collectionReader[autoupdateConfigGetter]
+	autoupdateVersions       collectionReader[autoupdateVersionGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -764,6 +767,24 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindAutoUpdateConfig:
+			if c.AutoupdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoupdateConfigs = &genericCollection[*autoupdate.AutoUpdateConfig, autoupdateConfigGetter, autoupdateConfigExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoupdateConfigs
+		case types.KindAutoUpdateVersion:
+			if c.AutoupdateService == nil {
+				return nil, trace.BadParameter("missing parameter AutoUpdateService")
+			}
+			collections.autoupdateVersions = &genericCollection[*autoupdate.AutoUpdateVersion, autoupdateVersionGetter, autoupdateVersionExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.autoupdateVersions
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1269,7 +1290,75 @@ type clusterNameGetter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
-var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
+type autoupdateConfigExecutor struct{}
+
+func (autoupdateConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateConfig, error) {
+	config, err := cache.AutoupdateService.GetAutoUpdateConfig(ctx)
+	return []*autoupdate.AutoUpdateConfig{config}, trace.Wrap(err)
+}
+
+func (autoupdateConfigExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateConfig) error {
+	_, err := cache.autoupdateCache.UpsertAutoUpdateConfig(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoupdateConfigExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoupdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoupdateConfigExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoupdateCache.DeleteAutoUpdateConfig(ctx)
+}
+
+func (autoupdateConfigExecutor) isSingleton() bool { return true }
+
+func (autoupdateConfigExecutor) getReader(cache *Cache, cacheOK bool) autoupdateConfigGetter {
+	if cacheOK {
+		return cache.autoupdateCache
+	}
+	return cache.Config.AutoupdateService
+}
+
+type autoupdateConfigGetter interface {
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateConfig, autoupdateConfigGetter] = autoupdateConfigExecutor{}
+
+type autoupdateVersionExecutor struct{}
+
+func (autoupdateVersionExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateVersion, error) {
+	version, err := cache.AutoupdateService.GetAutoUpdateVersion(ctx)
+	return []*autoupdate.AutoUpdateVersion{version}, trace.Wrap(err)
+}
+
+func (autoupdateVersionExecutor) upsert(ctx context.Context, cache *Cache, resource *autoupdate.AutoUpdateVersion) error {
+	_, err := cache.autoupdateCache.UpsertAutoUpdateVersion(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (autoupdateVersionExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.autoupdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoupdateVersionExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.autoupdateCache.DeleteAutoUpdateVersion(ctx)
+}
+
+func (autoupdateVersionExecutor) isSingleton() bool { return true }
+
+func (autoupdateVersionExecutor) getReader(cache *Cache, cacheOK bool) autoupdateVersionGetter {
+	if cacheOK {
+		return cache.autoupdateCache
+	}
+	return cache.Config.AutoupdateService
+}
+
+type autoupdateVersionGetter interface {
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+}
+
+var _ executor[*autoupdate.AutoUpdateVersion, autoupdateVersionGetter] = autoupdateVersionExecutor{}
 
 type userExecutor struct{}
 

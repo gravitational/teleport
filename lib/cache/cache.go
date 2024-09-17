@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -185,6 +186,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
 		{Kind: types.KindStaticHostUser},
+		{Kind: types.KindAutoUpdateVersion},
+		{Kind: types.KindAutoUpdateConfig},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -237,6 +240,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindAutoUpdateConfig},
+		{Kind: types.KindAutoUpdateVersion},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -491,6 +496,7 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfiguration
+	autoupdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -639,6 +645,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// AutoupdateService is an autoupdate service.
+	AutoupdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
 	// Users is a users service
@@ -918,6 +926,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	autoupdateCache, err := local.NewAutoUpdateService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
 	for i := 0; i < config.FanoutShards; i++ {
@@ -956,6 +970,7 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
+		autoupdateCache:              autoupdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
 		usersCache:                   local.NewIdentityService(config.Backend),
 		accessCache:                  local.NewAccessService(config.Backend),
@@ -1879,6 +1894,52 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		return cachedName.Clone(), nil
 	}
 	return rg.reader.GetClusterName(opts...)
+}
+
+// GetAutoUpdateConfig gets the autoupdate config from the backend.
+func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoupdateConfigs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+			cfg, err := rg.reader.GetAutoUpdateConfig(ctx)
+			return cfg, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedConfig).(*autoupdate.AutoUpdateConfig), nil
+	}
+	return rg.reader.GetAutoUpdateConfig(ctx)
+}
+
+// GetAutoUpdateVersion gets the autoupdate version from the backend.
+func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.autoupdateVersions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	if !rg.IsCacheRead() {
+		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+			version, err := rg.reader.GetAutoUpdateVersion(ctx)
+			return version, err
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return protobuf.Clone(cachedVersion).(*autoupdate.AutoUpdateVersion), nil
+	}
+	return rg.reader.GetAutoUpdateVersion(ctx)
 }
 
 func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {

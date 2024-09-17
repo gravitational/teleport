@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -93,6 +94,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
+		case types.KindAutoUpdateConfig:
+			parser = newAutoupdateConfigParser()
+		case types.KindAutoUpdateVersion:
+			parser = newAutoupdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -696,6 +701,72 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return clusterName, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoupdateConfigParser() *autoupdateConfigParser {
+	return &autoupdateConfigParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateConfigPrefix)),
+	}
+}
+
+type autoupdateConfigParser struct {
+	baseParser
+}
+
+func (p *autoupdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateConfig)
+		return h, nil
+	case types.OpPut:
+		autoupdateConfig, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoupdateConfig), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoupdateVersionParser() *autoupdateVersionParser {
+	return &autoupdateVersionParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateVersionPrefix)),
+	}
+}
+
+type autoupdateVersionParser struct {
+	baseParser
+}
+
+func (p *autoupdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateVersion, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateVersion)
+		return h, nil
+	case types.OpPut:
+		autoupdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoupdateVersion), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
