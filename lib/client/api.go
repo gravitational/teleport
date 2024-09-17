@@ -2711,17 +2711,25 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	)
 	defer span.End()
 
-	// Let's check if the first node requires mfa.
-	// If it's required, run commands sequentially to avoid
-	// race conditions and weird ux during mfa.
-	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_Node{
+	req := &proto.IsMFARequiredRequest{}
+	if githubOrg, ok := types.GetGitHubOrgFromNodeAddr(nodes[0].addr); ok {
+		req.Target = &proto.IsMFARequiredRequest_GitServer{
+			GitServer: &proto.RouteToGitServer{
+				GitHubOrganization: githubOrg,
+			},
+		}
+	} else {
+		req.Target = &proto.IsMFARequiredRequest_Node{
 			Node: &proto.NodeLogin{
 				Node:  nodeName(targetNode{addr: nodes[0].addr}),
 				Login: tc.Config.HostLogin,
 			},
-		},
-	})
+		}
+	}
+	// Let's check if the first node requires mfa.
+	// If it's required, run commands sequentially to avoid
+	// race conditions and weird ux during mfa.
+	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}

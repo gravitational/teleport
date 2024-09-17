@@ -33,6 +33,7 @@ import (
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -309,14 +310,21 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		defer authClient.Close()
 	}
 
+	params := ReissueParams{
+		RouteToCluster: target.Cluster,
+		MFACheck:       target.MFACheck,
+	}
+
+	if githubOrg, ok := types.GetGitHubOrgFromNodeAddr(target.Addr); ok {
+		params.RouteToGitServer.GitHubOrganization = githubOrg
+	} else {
+		params.NodeName = nodeName(targetNode{addr: target.Addr})
+	}
+
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	keyRing, err = c.performMFACeremony(ctx,
 		mfaClt,
-		ReissueParams{
-			NodeName:       nodeName(targetNode{addr: target.Addr}),
-			RouteToCluster: target.Cluster,
-			MFACheck:       target.MFACheck,
-		},
+		params,
 		keyRing,
 		c.tc.NewMFAPrompt(),
 	)
@@ -402,6 +410,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		RouteToDatabase:       params.RouteToDatabase,
 		RouteToWindowsDesktop: params.RouteToWindowsDesktop,
 		RouteToApp:            params.RouteToApp,
+		RouteToGitServer:      params.RouteToGitServer,
 		NodeName:              params.NodeName,
 		Usage:                 params.usage(),
 		Format:                c.tc.CertificateFormat,
@@ -655,6 +664,8 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 	if err != nil {
 		return nil, nil, trace.Wrap(ceremonyFailedErr{err})
 	}
+
+	log.Debugf("==== params.MFAPrompt.Run resp %v", authnSolved)
 
 	// Issue certificate.
 	certsReq := params.CertsReq

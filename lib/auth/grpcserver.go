@@ -600,6 +600,10 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 		if req.NodeName == "" {
 			return trace.BadParameter("missing NodeName field in a ssh-only UserCertsRequest")
 		}
+	case authpb.UserCertsRequest_GitServer:
+		if req.RouteToGitServer.GitHubOrganization == "" {
+			return trace.BadParameter("missing GithubOrganization field in a git-server-only UserCertsRequest")
+		}
 	case authpb.UserCertsRequest_Kubernetes:
 		if req.KubernetesCluster == "" {
 			return trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
@@ -2468,6 +2472,8 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	resp := &authpb.Certs{}
 	switch req.Usage {
 	case authpb.UserCertsRequest_SSH:
+		resp.SSH = certs.SSH
+	case authpb.UserCertsRequest_GitServer:
 		resp.SSH = certs.SSH
 	case authpb.UserCertsRequest_Kubernetes, authpb.UserCertsRequest_Database, authpb.UserCertsRequest_WindowsDesktop, authpb.UserCertsRequest_App:
 		resp.TLS = certs.TLS

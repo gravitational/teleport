@@ -501,8 +501,19 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
+// TODO
 func MakeGitHubOrgServerDomain(org string) string {
 	return fmt.Sprintf("%s.%s", org, GitHubServerDomain)
+}
+
+func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	if strings.HasSuffix(addr, "."+GitHubServerDomain) {
+		return strings.TrimSuffix(addr, "."+GitHubServerDomain), true
+	}
+	return "", false
 }
 
 func (s *ServerV2) githubCheckAndSetDefaults() error {

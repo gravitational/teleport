@@ -184,6 +184,9 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
+    // GitServer means a request for an SSH certificate for access to a git
+    // server, as specified by RouteToGitServer.
+    GitServer = 6;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -291,6 +294,12 @@ message UserCertsRequest {
   teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
   // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
   teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
+
+  // RouteToGitServer specifies application to issue certificate for.
+  RouteToGitServer RouteToGitServer = 27 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "route_to_git_server,omitempty"
+  ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -313,6 +322,12 @@ message RouteToWindowsDesktop {
   string WindowsDesktop = 1 [(gogoproto.jsontag) = "windows_desktop"];
   // Login is the Windows desktop user login to embed.
   string Login = 2 [(gogoproto.jsontag) = "login"];
+}
+
+// RouteToGitServer combines parameters for Git server routing information.
+message RouteToGitServer {
+  // GitHubOrganization is the GitHub organization to embed.
+  string GitHubOrganization = 1 [(gogoproto.jsontag) = "github_organization"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -1417,6 +1432,8 @@ message IsMFARequiredRequest {
     AdminAction AdminAction = 5;
     // App specifies the target App.
     RouteToApp App = 6;
+    // GitServer specifies the target GitServer
+    RouteToGitServer GitServer = 7;
   }
 }
 

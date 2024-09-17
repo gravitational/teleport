@@ -3378,6 +3378,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	case proto.UserCertsRequest_SSH:
 		// SSH certs are ssh-only by definition, certReq.usage only applies to
 		// TLS certs.
+	case proto.UserCertsRequest_GitServer:
+		// Same as SSH
 	case proto.UserCertsRequest_All:
 		// Unrestricted usage.
 	case proto.UserCertsRequest_WindowsDesktop:

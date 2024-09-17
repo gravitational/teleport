@@ -6354,6 +6354,38 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			}
 		}
 
+	case *proto.IsMFARequiredRequest_GitServer:
+		if t.GitServer == nil || t.GitServer.GitHubOrganization == "" {
+			return nil, trace.BadParameter("missing GitHubOrganization")
+		}
+
+		allGitServers, err := a.GetGitServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var matchedServer types.Server
+		for _, server := range allGitServers {
+			if github := server.GetGitHub(); github != nil {
+				// RBAC is based on the GitHub org name so pick any server that matches.
+				if github.Organization == t.GitServer.GitHubOrganization {
+					matchedServer = server
+					break
+				}
+			}
+		}
+		if matchedServer == nil {
+			return nil, trace.NotFound("git server for github organization %q not found", t.GitServer.GitHubOrganization)
+		}
+
+		accessError := checker.CheckAccess(matchedServer, services.AccessState{})
+		switch {
+		case errors.Is(accessError, services.ErrSessionMFARequired):
+			noMFAAccessErr = accessError
+		case accessError != nil:
+			return nil, trace.Wrap(accessError)
+		}
+
 	case *proto.IsMFARequiredRequest_KubernetesCluster:
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
