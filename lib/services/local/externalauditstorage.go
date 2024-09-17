@@ -83,9 +83,9 @@ func (s *ExternalAuditStorageService) CreateDraftExternalAuditStorage(ctx contex
 	var lease *backend.Lease
 	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
+			Backend:            s.backend,
+			LockNameComponents: []string{externalAuditStorageLockName},
+			TTL:                externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
 		// Check that the referenced AWS OIDC integration actually exists.
@@ -122,9 +122,9 @@ func (s *ExternalAuditStorageService) UpsertDraftExternalAuditStorage(ctx contex
 	var lease *backend.Lease
 	err = backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
+			Backend:            s.backend,
+			LockNameComponents: []string{externalAuditStorageLockName},
+			TTL:                externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
 		// Check that the referenced AWS OIDC integration actually exists.
@@ -185,9 +185,9 @@ func (s *ExternalAuditStorageService) GetClusterExternalAuditStorage(ctx context
 func (s *ExternalAuditStorageService) PromoteToClusterExternalAuditStorage(ctx context.Context) error {
 	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:  s.backend,
-			LockName: externalAuditStorageLockName,
-			TTL:      externalAuditStorageLockTTL,
+			Backend:            s.backend,
+			LockNameComponents: []string{externalAuditStorageLockName},
+			TTL:                externalAuditStorageLockTTL,
 		},
 	}, func(ctx context.Context) error {
 		draft, err := s.GetDraftExternalAuditStorage(ctx)
