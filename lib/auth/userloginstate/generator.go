@@ -151,7 +151,8 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	}
 
 	// Generate the user login state.
-	if err := g.addAccessListsToState(ctx, user, uls); err != nil {
+	inheritedGrants, err := g.addAccessListsToState(ctx, user, uls)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -162,7 +163,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 
 	if g.usageEvents != nil {
 		// Emit the usage event metadata.
-		if err := g.emitUsageEvent(ctx, user, uls); err != nil {
+		if err := g.emitUsageEvent(ctx, user, uls, inheritedGrants); err != nil {
 			g.log.Debug("Error emitting usage event during user login state generation, skipping")
 		}
 	}
@@ -170,11 +171,15 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	return uls, nil
 }
 
-// addAccessListsToState will added the user's applicable access lists to the user login state.
-func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) error {
+// addAccessListsToState will add the user's applicable access lists to the user login state.
+func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) (accesslist.Grants, error) {
+	inheritedGrants := accesslist.Grants{
+		Roles:  []string{},
+		Traits: map[string][]string{},
+	}
 	accessLists, err := g.accessLists.GetAccessLists(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return inheritedGrants, trace.Wrap(err)
 	}
 
 	// Create an identity for testing membership to access lists.
@@ -186,19 +191,31 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		if err := services.IsAccessListOwner(ctx, g.accessLists, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
+		if dynamic, err := services.IsAccessListOwner(ctx, g.accessLists, identity, accessList); err == nil {
+			added := g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state)
+			if dynamic {
+				inheritedGrants.Roles = append(inheritedGrants.Roles, added.Roles...)
+				for k, values := range added.Traits {
+					inheritedGrants.Traits[k] = append(inheritedGrants.Traits[k], values...)
+				}
+			}
 		}
 
-		if err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
+		if dynamic, err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
 			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state)
+			if dynamic {
+				inheritedGrants.Roles = append(inheritedGrants.Roles, accessList.Spec.Grants.Roles...)
+				for k, values := range accessList.Spec.Grants.Traits {
+					inheritedGrants.Traits[k] = append(inheritedGrants.Traits[k], values...)
+				}
+			}
 		}
 	}
 
-	return nil
+	return inheritedGrants, nil
 }
 
-func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState) {
+func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState) accesslist.Grants {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
 
 	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
@@ -207,6 +224,11 @@ func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accessli
 
 	for k, values := range grants.Traits {
 		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
+	}
+
+	return accesslist.Grants{
+		Roles:  grants.Roles,
+		Traits: grants.Traits,
 	}
 }
 
@@ -240,7 +262,7 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 }
 
 // emitUsageEvent will emit the usage event for user state generation.
-func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *userloginstate.UserLoginState) error {
+func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *userloginstate.UserLoginState, inheritedGrants accesslist.Grants) error {
 	staticRoleCount := len(user.GetRoles())
 	staticTraitCount := 0
 	for _, values := range user.GetTraits() {
@@ -253,6 +275,12 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 		stateTraitCount += len(values)
 	}
 
+	countInheritedRolesGranted := len(inheritedGrants.Roles)
+	countInheritedTraitsGranted := 0
+	for _, values := range inheritedGrants.Traits {
+		countInheritedTraitsGranted += len(values)
+	}
+
 	countRolesGranted := stateRoleCount - staticRoleCount
 	countTraitsGranted := stateTraitCount - staticTraitCount
 
@@ -262,8 +290,10 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	}
 
 	grantsToUser := &usageeventsv1.AccessListGrantsToUser{
-		CountRolesGranted:  int32(countRolesGranted),
-		CountTraitsGranted: int32(countTraitsGranted),
+		CountRolesGranted:           int32(countRolesGranted),
+		CountTraitsGranted:          int32(countTraitsGranted),
+		CountInheritedRolesGranted:  int32(countInheritedRolesGranted),
+		CountInheritedTraitsGranted: int32(countInheritedTraitsGranted),
 	}
 
 	if err := g.usageEvents.SubmitUsageEvent(ctx, &proto.SubmitUsageEventRequest{

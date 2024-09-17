@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -198,10 +199,12 @@ func TestAccessListMemberMarshal(t *testing.T) {
 }
 
 func TestIsAccessListOwner(t *testing.T) {
+	baseAccessList := newAccessList(t)
 	tests := []struct {
-		name             string
-		identity         tlsca.Identity
-		errAssertionFunc require.ErrorAssertionFunc
+		name                  string
+		identity              tlsca.Identity
+		accessListsAndMembers testListsAndMembers
+		errAssertionFunc      require.ErrorAssertionFunc
 	}{
 		{
 			name: "is owner",
@@ -213,7 +216,8 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			errAssertionFunc: require.NoError,
+			errAssertionFunc:      require.NoError,
+			accessListsAndMembers: testListsAndMembers{baseAccessList, []*accesslist.AccessList{}, []*accesslist.AccessListMember{}},
 		},
 		{
 			name: "is not an owner",
@@ -225,7 +229,8 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			errAssertionFunc: requireAccessDenied,
+			errAssertionFunc:      requireAccessDenied,
+			accessListsAndMembers: testListsAndMembers{baseAccessList, []*accesslist.AccessList{}, []*accesslist.AccessListMember{}},
 		},
 		{
 			name: "is owner with missing roles",
@@ -237,7 +242,8 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			errAssertionFunc: requireAccessDenied,
+			errAssertionFunc:      requireAccessDenied,
+			accessListsAndMembers: testListsAndMembers{baseAccessList, []*accesslist.AccessList{}, []*accesslist.AccessListMember{}},
 		},
 		{
 			name: "is owner with missing traits",
@@ -249,7 +255,34 @@ func TestIsAccessListOwner(t *testing.T) {
 					"otrait2": {"ovalue3"},
 				},
 			},
-			errAssertionFunc: requireAccessDenied,
+			errAssertionFunc:      requireAccessDenied,
+			accessListsAndMembers: testListsAndMembers{baseAccessList, []*accesslist.AccessList{}, []*accesslist.AccessListMember{}},
+		},
+		{
+			name: "is owner through a nested list",
+			identity: tlsca.Identity{
+				Username: ownerUser,
+				Groups:   []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			errAssertionFunc:      require.NoError,
+			accessListsAndMembers: createNestedAccessListAndMembers(t, 2),
+		},
+		{
+			name: "is owner through nested lists with nesting over accesslist.MaxAllowedDepth",
+			identity: tlsca.Identity{
+				Username: ownerUser,
+				Groups:   []string{"orole1", "orole2"},
+				Traits: map[string][]string{
+					"otrait1": {"ovalue1", "ovalue2"},
+					"otrait2": {"ovalue3", "ovalue4"},
+				},
+			},
+			errAssertionFunc:      require.Error,
+			accessListsAndMembers: createNestedAccessListAndMembers(t, accesslist.MaxAllowedDepth+1),
 		},
 	}
 
@@ -259,27 +292,111 @@ func TestIsAccessListOwner(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
 
-			accessList := newAccessList(t)
+			memberMap := map[string]map[string]*accesslist.AccessListMember{}
+			for _, member := range test.accessListsAndMembers.Members {
+				accessListName := member.Spec.AccessList
+				if _, ok := memberMap[accessListName]; !ok {
+					memberMap[accessListName] = map[string]*accesslist.AccessListMember{}
+				}
+				memberMap[accessListName][member.Spec.Name] = member
+			}
+			aclMap := map[string]*accesslist.AccessList{}
+			for _, list := range test.accessListsAndMembers.Lists {
+				aclMap[list.GetName()] = list
+			}
 
-			test.errAssertionFunc(t, IsAccessListOwner(ctx, &testMembersAndLockGetter{}, test.identity, accessList))
+			getter := &testMembersAndLockGetter{members: memberMap, lists: aclMap}
+
+			_, err := IsAccessListOwner(ctx, getter, test.identity, test.accessListsAndMembers.ListToUse)
+			test.errAssertionFunc(t, err)
 		})
+	}
+}
+
+type testListsAndMembers struct {
+	ListToUse *accesslist.AccessList
+	Lists     []*accesslist.AccessList
+	Members   []*accesslist.AccessListMember
+}
+
+func createNestedAccessListAndMembers(t *testing.T, nestingDepth int) testListsAndMembers {
+	lists := make([]*accesslist.AccessList, nestingDepth)
+	members := []*accesslist.AccessListMember{}
+
+	var err error
+	var prevListName string
+
+	for i := 0; i < nestingDepth; i++ {
+		listName := fmt.Sprintf("nested-%d", i+1)
+		lists[i], err = accesslist.NewAccessList(header.Metadata{Name: listName}, accesslist.Spec{
+			Title:  listName,
+			Owners: []accesslist.Owner{{Name: member1, MembershipKind: accesslist.MembershipKindUser}},
+		})
+		require.NoError(t, err)
+
+		if i > 0 {
+			member, err := accesslist.NewAccessListMember(header.Metadata{Name: listName}, accesslist.AccessListMemberSpec{
+				Name:           listName,
+				AccessList:     prevListName,
+				MembershipKind: accesslist.MembershipKindList,
+				Joined:         time.Now(),
+				Expires:        time.Now().UTC().Add(24 * time.Hour),
+				AddedBy:        ownerUser,
+			})
+			require.NoError(t, err)
+			members = append(members, member)
+		}
+
+		prevListName = listName
+	}
+
+	rootAccessList, err := accesslist.NewAccessList(header.Metadata{Name: "root"}, accesslist.Spec{
+		Title:  "root",
+		Owners: []accesslist.Owner{{Name: lists[0].GetName(), MembershipKind: accesslist.MembershipKindList}},
+	})
+	require.NoError(t, err)
+
+	ownerMember, err := accesslist.NewAccessListMember(header.Metadata{Name: ownerUser}, accesslist.AccessListMemberSpec{
+		Name:           ownerUser,
+		AccessList:     lists[len(lists)-1].GetName(),
+		MembershipKind: accesslist.MembershipKindUser,
+		Joined:         time.Now(),
+		Expires:        time.Now().UTC().Add(24 * time.Hour),
+		AddedBy:        ownerUser,
+	})
+	require.NoError(t, err)
+	members = append(members, ownerMember)
+	allLists := append([]*accesslist.AccessList{rootAccessList}, lists...)
+
+	return testListsAndMembers{
+		ListToUse: rootAccessList,
+		Lists:     allLists,
+		Members:   members,
 	}
 }
 
 // testMembersAndLockGetter implements AccessListMembersGetter and LockGetter for testing.
 type testMembersAndLockGetter struct {
 	members map[string]map[string]*accesslist.AccessListMember
+	lists   map[string]*accesslist.AccessList
 	locks   map[string]types.Lock
 }
 
 // GetAccessList implements AccessListGetter.
-func (t *testMembersAndLockGetter) GetAccessList(context.Context, string) (*accesslist.AccessList, error) {
-	return nil, trace.NotFound("not implemented")
+func (t *testMembersAndLockGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
+	if list, ok := t.lists[name]; ok {
+		return list, nil
+	}
+
+	return nil, trace.NotFound("not found")
 }
 
 // GetAccessList implements AccessListGetter.
-func (t *testMembersAndLockGetter) GetAccessLists(context.Context) ([]*accesslist.AccessList, error) {
-	return nil, trace.NotFound("not implemented")
+func (t *testMembersAndLockGetter) GetAccessLists(context.Context) (lists []*accesslist.AccessList, err error) {
+	for _, list := range t.lists {
+		lists = append(lists, list)
+	}
+	return lists, nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -501,7 +618,8 @@ func TestIsAccessListMemberChecker(t *testing.T) {
 			getter := &testMembersAndLockGetter{members: memberMap, locks: test.locks}
 
 			checker := NewAccessListMembershipChecker(clockwork.NewFakeClockAt(test.currentTime), getter, getter)
-			test.errAssertionFunc(t, checker.IsAccessListMember(ctx, test.identity, accessList))
+			_, err := checker.IsAccessListMember(ctx, test.identity, accessList)
+			test.errAssertionFunc(t, err)
 		})
 	}
 }

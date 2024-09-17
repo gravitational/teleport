@@ -57,6 +57,7 @@ func TestAccessLists(t *testing.T) {
 	})
 
 	user, err := types.NewUser("user")
+	require.NoError(t, err)
 	user.SetStaticLabels(map[string]string{
 		"label1": "value1",
 		"label2": "value2",
@@ -65,24 +66,25 @@ func TestAccessLists(t *testing.T) {
 	user.SetTraits(map[string][]string{
 		"otrait1": {"value1", "value2"},
 	})
-	require.NoError(t, err)
 
 	userNoRolesOrTraits, err := types.NewUser("user")
 	require.NoError(t, err)
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
-		name               string
-		user               types.User
-		cloud              bool
-		accessLists        []*accesslist.AccessList
-		members            []*accesslist.AccessListMember
-		locks              []types.Lock
-		roles              []string
-		wantErr            require.ErrorAssertionFunc
-		expected           *userloginstate.UserLoginState
-		expectedRoleCount  int
-		expectedTraitCount int
+		name                        string
+		user                        types.User
+		cloud                       bool
+		accessLists                 []*accesslist.AccessList
+		members                     []*accesslist.AccessListMember
+		locks                       []types.Lock
+		roles                       []string
+		wantErr                     require.ErrorAssertionFunc
+		expected                    *userloginstate.UserLoginState
+		expectedRoleCount           int
+		expectedTraitCount          int
+		expectedInheritedRoleCount  int
+		expectedInheritedTraitCount int
 	}{
 		{
 			name:    "access lists are empty",
@@ -99,8 +101,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 0,
+			expectedRoleCount:           0,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add roles and traits",
@@ -127,8 +131,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2"},
 				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}}),
-			expectedRoleCount:  2,
-			expectedTraitCount: 3,
+			expectedRoleCount:           2,
+			expectedTraitCount:          3,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "lock prevents adding roles and traits",
@@ -158,8 +164,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": []string{"value1", "value2"}}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 0,
+			expectedRoleCount:           0,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add member roles and traits (cloud disabled)",
@@ -186,8 +194,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2"},
 				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3"}}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 0,
+			expectedRoleCount:           0,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add owner roles and traits",
@@ -213,8 +223,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "owner-role1", "owner-role2"},
 				trait.Traits{"otrait1": {"value1", "value2"}, "owner-trait1": {"owner-value1"}}),
-			expectedRoleCount:  2,
-			expectedTraitCount: 1,
+			expectedRoleCount:           2,
+			expectedTraitCount:          1,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add owner and member roles and traits",
@@ -240,8 +252,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "owner-role1", "owner-role2", "role1"},
 				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"owner-value1", "value1"}}),
-			expectedRoleCount:  3,
-			expectedTraitCount: 2,
+			expectedRoleCount:           3,
+			expectedTraitCount:          2,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add member roles and traits, roles missing from backend",
@@ -288,8 +302,10 @@ func TestAccessLists(t *testing.T) {
 				[]string{"orole1", "role1"},
 				trait.Traits{
 					"otrait1": {"value1", "value2"}, "trait1": {"value1"}}),
-			expectedRoleCount:  1,
-			expectedTraitCount: 1,
+			expectedRoleCount:           1,
+			expectedTraitCount:          1,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add roles with duplicates",
@@ -311,8 +327,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1", "role1", "role2", "role3"},
 				trait.Traits{"otrait1": {"value1", "value2"}}),
-			expectedRoleCount:  3,
-			expectedTraitCount: 0,
+			expectedRoleCount:           3,
+			expectedTraitCount:          0,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add traits with duplicates",
@@ -344,8 +362,10 @@ func TestAccessLists(t *testing.T) {
 				trait.Traits{"otrait1": {"value1", "value2"}},
 				[]string{"orole1"},
 				trait.Traits{"otrait1": {"value1", "value2"}, "trait1": {"value1", "value2"}, "trait2": {"value3", "value4", "value1"}, "trait3": {"value5", "value6"}}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 7,
+			expectedRoleCount:           0,
+			expectedTraitCount:          7,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists add traits with no roles or traits in original",
@@ -376,8 +396,10 @@ func TestAccessLists(t *testing.T) {
 					"trait1": {"value1", "value2"},
 					"trait2": {"value3", "value4"},
 					"trait3": {"value5", "value6"}}),
-			expectedRoleCount:  1,
-			expectedTraitCount: 6,
+			expectedRoleCount:           1,
+			expectedTraitCount:          6,
+			expectedInheritedRoleCount:  0,
+			expectedInheritedTraitCount: 0,
 		},
 		{
 			name:  "access lists member of nested list",
@@ -407,8 +429,10 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				[]string{"role1", "role2"},
 				trait.Traits{"trait1": {"value"}}),
-			expectedRoleCount:  2,
-			expectedTraitCount: 1,
+			expectedRoleCount:           2,
+			expectedTraitCount:          1,
+			expectedInheritedRoleCount:  2,
+			expectedInheritedTraitCount: 1,
 		},
 
 		{
@@ -439,8 +463,10 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				[]string{"role1", "role2"},
 				trait.Traits{"trait1": {"value"}}),
-			expectedRoleCount:  2,
-			expectedTraitCount: 1,
+			expectedRoleCount:           2,
+			expectedTraitCount:          1,
+			expectedInheritedRoleCount:  2,
+			expectedInheritedTraitCount: 1,
 		},
 		{
 			name:  "access lists member of nested list, in diamond formation",
@@ -469,8 +495,11 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				nil,
 				trait.Traits{"trait": {"1", "2", "3", "4"}}),
-			expectedRoleCount:  0,
-			expectedTraitCount: 4,
+			expectedRoleCount:          0,
+			expectedTraitCount:         4,
+			expectedInheritedRoleCount: 0,
+			// trait 1 is directly granted to user via acl 1; it is not inherited
+			expectedInheritedTraitCount: 3,
 		},
 		{
 			name:  "access list owners inherit owner grants",
@@ -499,8 +528,10 @@ func TestAccessLists(t *testing.T) {
 				nil,
 				[]string{"oroleA", "oroleB", "oroleC"},
 				trait.Traits{"okey": {"oval1", "oval2", "oval3"}}),
-			expectedRoleCount:  3,
-			expectedTraitCount: 3,
+			expectedRoleCount:           3,
+			expectedTraitCount:          3,
+			expectedInheritedRoleCount:  3,
+			expectedInheritedTraitCount: 3,
 		},
 	}
 
@@ -561,6 +592,8 @@ func TestAccessLists(t *testing.T) {
 
 				require.Equal(t, test.expectedRoleCount, int(event.AccessListGrantsToUser.CountRolesGranted))
 				require.Equal(t, test.expectedTraitCount, int(event.AccessListGrantsToUser.CountTraitsGranted))
+				require.Equal(t, test.expectedInheritedRoleCount, int(event.AccessListGrantsToUser.CountInheritedRolesGranted))
+				require.Equal(t, test.expectedInheritedTraitCount, int(event.AccessListGrantsToUser.CountInheritedTraitsGranted))
 			}
 		})
 	}
