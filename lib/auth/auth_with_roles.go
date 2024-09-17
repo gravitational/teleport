@@ -3664,6 +3664,7 @@ func (a *ServerWithRoles) CreateOIDCConnector(ctx context.Context, connector typ
 	return creted, trace.Wrap(err)
 }
 
+// CreateOIDCAuthRequestForMFA gets an OIDC connector.
 func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
@@ -3676,6 +3677,7 @@ func (a *ServerWithRoles) GetOIDCConnector(ctx context.Context, id string, withS
 	return a.authServer.GetOIDCConnector(ctx, id, withSecrets)
 }
 
+// CreateOIDCAuthRequestForMFA gets OIDC connectors.
 func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
 	if err := a.authConnectorAction(apidefaults.Namespace, types.KindOIDC, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -3691,6 +3693,7 @@ func (a *ServerWithRoles) GetOIDCConnectors(ctx context.Context, withSecrets boo
 	return a.authServer.GetOIDCConnectors(ctx, withSecrets)
 }
 
+// CreateOIDCAuthRequestForMFA creates an OIDC AuthnRequest.
 func (a *ServerWithRoles) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if !modules.GetModules().Features().GetEntitlement(entitlements.OIDC).Enabled {
 		// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
@@ -3737,6 +3740,7 @@ func (a *ServerWithRoles) GetOIDCAuthRequest(ctx context.Context, id string) (*t
 	return a.authServer.GetOIDCAuthRequest(ctx, id)
 }
 
+// ValidateSAMLResponse validates OIDC auth response.
 func (a *ServerWithRoles) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	// auth callback is it's own authz, no need to check extra permissions
 	resp, err := a.authServer.ValidateOIDCAuthCallback(ctx, q)
