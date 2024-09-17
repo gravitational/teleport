@@ -352,7 +352,7 @@ However, it's possible that the app service is fed a multi-port app from the aut
 dynamic registration. There's no way for the app service to continue, so it returns an error, just
 like a v16.2 app service when a TCP app doesn't specify the port in the URI. This is a price we are
 willing to pay for reduced implementation and UX complexity compared to the solutions described
-below.
+below. Single-port apps would still be served just fine by an app service on version N - 1.
 
 ##### Alternative approaches
 
