@@ -117,8 +117,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
+
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
@@ -410,6 +413,11 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
+// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+func (c *AuthPreferenceV2) SetRequireMFAType(t RequireMFAType) {
+	c.Spec.RequireMFAType = t
 }
 
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.

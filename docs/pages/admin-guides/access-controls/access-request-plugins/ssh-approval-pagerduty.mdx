@@ -322,14 +322,14 @@ To grant these permissions to your user, give your user the `editor-reviewer`,
 `access-plugin-impersonator`, and `demo-role-requester` roles we defined
 earlier.
 
-Retrieve your user definition:
+Open your user definition in an editor:
 
 ```code
 $ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get users/${TELEPORT_USER?} > myuser.yaml
+$ tctl edit users/${TELEPORT_USER?}
 ```
 
-Edit `myuser.yaml` to include the roles you just created:
+Edit the user to include the roles you just created:
 
 ```diff
   roles:
@@ -341,11 +341,7 @@ Edit `myuser.yaml` to include the roles you just created:
 +  - demo-role-requester
 ```
 
-Apply your changes:
-
-```code
-$ tctl create -f myuser.yaml
-```
+Apply your changes by saving and closing the file in your editor.
 
 Log out of your Teleport cluster and log in again. You will now be able to
 review requests for the `editor` role, request the `demo-role` role, and

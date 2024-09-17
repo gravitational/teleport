@@ -35,7 +35,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -2369,16 +2369,7 @@ func (staticHostUserExecutor) deleteAll(ctx context.Context, cache *Cache) error
 }
 
 func (staticHostUserExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	var hostUser *userprovisioningpb.StaticHostUser
-	r, ok := resource.(types.Resource153Unwrapper)
-	if ok {
-		hostUser, ok = r.Unwrap().(*userprovisioningpb.StaticHostUser)
-		if ok {
-			err := cache.staticHostUsersCache.DeleteStaticHostUser(ctx, hostUser.Metadata.Name)
-			return trace.Wrap(err)
-		}
-	}
-	return trace.BadParameter("unknown StaticHostUser type, expected %T, got %T", hostUser, resource)
+	return trace.Wrap(cache.staticHostUsersCache.DeleteStaticHostUser(ctx, resource.GetName()))
 }
 
 func (staticHostUserExecutor) isSingleton() bool { return false }
