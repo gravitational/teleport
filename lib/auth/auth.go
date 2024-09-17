@@ -3673,7 +3673,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, challengeExtensions)
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -6754,7 +6754,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
+func (a *Server) mfaAuthChallenge(ctx context.Context, user string, ssoClientRedirectURL string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
 	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
@@ -6854,6 +6854,14 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 			return nil, trace.Wrap(err)
 		}
 		challenge.WebauthnChallenge = wantypes.CredentialAssertionToProto(assertion)
+	}
+
+	// If the user has an SSO device and the client provided a redirect URL to handle
+	// the MFA SSO flow, create an SSO challenge.
+	if groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := a.GetClusterName()
