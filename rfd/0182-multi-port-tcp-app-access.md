@@ -69,9 +69,12 @@ Charlie needs to connect to waldo's debug service. Its API is typically availabl
 waldo app supports the port 5095, so they start a local proxy that targets that port:
 
 ```
-tsh proxy app waldo --target-port 5095 --port 5095
+tsh proxy app waldo --port 5095:5095
 waldo-debug localhost # In a separate shell session.
 ```
+
+In this port mapping format, the first port is the local port used by the local proxy and the second
+port is a target port that needs to match one of the ports from the app spec.
 
 ###### Per-session MFA
 
@@ -528,7 +531,7 @@ The Application Access section of the test plan needs to be extended with these 
 - [ ] Verify Audit Records
   - [ ] For multi-port TCP apps, `app.session.start` includes the chosen target port in the
     `app_target_port` field.
-- [ ] Verify multi-port TCP access with `tsh proxy app --target-port` (link to docs).
+- [ ] Verify multi-port TCP access with `tsh proxy app` (link to docs).
   - [ ] Can create a TCP app with multiple ports and port ranges.
   - [ ] Cannot access ports not listed in the app spec.
   - [ ] `tctl edit`, `tctl create` and `teleport start` return an error if the app spec includes a
