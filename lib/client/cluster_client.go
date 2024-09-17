@@ -373,7 +373,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		}
 		newUserKeys.kube = tlsSubjectKey
 	case proto.UserCertsRequest_Database:
-		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserDatabase)
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.DatabaseClient)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

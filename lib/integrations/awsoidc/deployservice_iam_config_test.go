@@ -47,6 +47,7 @@ var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{
 
 var baseReq = func() DeployServiceIAMConfigureRequest {
 	return DeployServiceIAMConfigureRequest{
+		AccountID:       "123456789012",
 		Cluster:         "mycluster",
 		IntegrationName: "myintegration",
 		Region:          "us-east-1",
@@ -67,6 +68,7 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 			req:      baseReq,
 			errCheck: require.NoError,
 			expected: DeployServiceIAMConfigureRequest{
+				AccountID:                          "123456789012",
 				Cluster:                            "mycluster",
 				IntegrationName:                    "myintegration",
 				Region:                             "us-east-1",
@@ -126,6 +128,29 @@ func TestDeployServiceIAMConfigReqDefaults(t *testing.T) {
 			},
 			errCheck: badParameterCheck,
 		},
+		{
+			name: "missing account id is ok",
+			req: func() DeployServiceIAMConfigureRequest {
+				req := baseReq()
+				req.AccountID = ""
+				return req
+			},
+			errCheck: require.NoError,
+			expected: DeployServiceIAMConfigureRequest{
+				Cluster:                            "mycluster",
+				IntegrationName:                    "myintegration",
+				Region:                             "us-east-1",
+				IntegrationRole:                    "integrationrole",
+				TaskRole:                           "taskrole",
+				partitionID:                        "aws",
+				IntegrationRoleDeployServicePolicy: "DeployService",
+				ResourceCreationTags: tags.AWSTags{
+					"teleport.dev/cluster":     "mycluster",
+					"teleport.dev/integration": "myintegration",
+					"teleport.dev/origin":      "integration_awsoidc",
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.req()
@@ -171,11 +196,18 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 			req:               baseReq,
 			errCheck:          notFoundCheck,
 		},
+		{
+			name:              "account does not match expected account",
+			mockAccountID:     "222222222222",
+			mockExistingRoles: []string{"integrationrole"},
+			req:               baseReq,
+			errCheck:          badParameterCheck,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockDeployServiceIAMConfigClient{
-				accountID:     tt.mockAccountID,
-				existingRoles: tt.mockExistingRoles,
+				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureDeployServiceIAM(ctx, &clt, tt.req())
@@ -185,15 +217,8 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 }
 
 type mockDeployServiceIAMConfigClient struct {
-	accountID     string
+	callerIdentityGetter
 	existingRoles []string
-}
-
-// GetCallerIdentity returns information about the caller identity.
-func (m *mockDeployServiceIAMConfigClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Account: &m.accountID,
-	}, nil
 }
 
 // CreateRole creates a new IAM Role.
@@ -218,4 +243,15 @@ func (m *mockDeployServiceIAMConfigClient) PutRolePolicy(ctx context.Context, pa
 		}
 	}
 	return nil, nil
+}
+
+type mockSTSClient struct {
+	accountID string
+}
+
+// GetCallerIdentity returns information about the caller identity.
+func (m mockSTSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return &sts.GetCallerIdentityOutput{
+		Account: &m.accountID,
+	}, nil
 }

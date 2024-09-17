@@ -200,6 +200,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 		cfg.ClusterConfiguration = clusterConfig
 	}
+	if cfg.AutoUpdateService == nil {
+		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
 	}
@@ -410,6 +416,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:                    cfg.Access,
 		DynamicAccessExt:          cfg.DynamicAccessExt,
 		ClusterConfiguration:      cfg.ClusterConfiguration,
+		AutoUpdateService:         cfg.AutoUpdateService,
 		Restrictions:              cfg.Restrictions,
 		Apps:                      cfg.Apps,
 		Kubernetes:                cfg.Kubernetes,
@@ -645,6 +652,7 @@ type Services struct {
 	services.DevicesGetter
 	services.SPIFFEFederations
 	services.StaticHostUser
+	services.AutoUpdateService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -6158,13 +6166,19 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return proto.PingResponse{}, nil
+	}
+
 	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  features,
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LoadAllCAs:      a.loadAllCAs,
+		ClusterName:             cn.GetClusterName(),
+		ServerVersion:           teleport.Version,
+		ServerFeatures:          features,
+		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		IsBoring:                modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:              a.loadAllCAs,
+		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 	}, nil
 }
 
