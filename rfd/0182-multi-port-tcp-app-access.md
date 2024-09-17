@@ -90,19 +90,8 @@ number that's not in the app spec.
 waldo-debug waldo.teleport.example.com:5096
 ```
 
-The connection reaches the app service which closes the connection because of an unknown port.
-waldo-debug observes the connection being unexpectedly closed. Dave doesn't see any immediate
-information about an incorrect port – the app service has no way of passing this information as it
-does not know about the protocol used by waldo. Dave has to ask Alice to look into the logs of the
-app agent. She notices that around the time when the connection was made, the app service logged a
-warning saying that port 5096 is not defined in the app spec.
-
-```
-2024-08-23T16:47:02+02:00 WARN [APP:SERVI] Failed to handle client connection. error:[
-ERROR REPORT:
-Original Error: *trace.BadParameterError port 5096 not found in ports of the app "waldo"
-Stack Trace: …
-```
+VNet notices that the port is not present in the cached app spec. It closes the connection and shows
+an error in Connect.
 
 ###### Invalid app spec
 
