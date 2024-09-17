@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -759,6 +760,10 @@ func TestGCPRequireSSL(t *testing.T) {
 		Username:   user,
 	})
 	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: ephemeralCert.Certificate[0],
+	})
 
 	// Setup database servers for Postgres and MySQL with a mock GCP API that
 	// will require SSL and return the ephemeral certificate created above.
@@ -768,7 +773,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
-			EphemeralCert: ephemeralCert,
+			EphemeralCert: string(certPEM),
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
