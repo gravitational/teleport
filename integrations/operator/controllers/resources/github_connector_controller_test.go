@@ -156,7 +156,7 @@ func TestGithubConnectorSecretLookup(t *testing.T) {
 			Name:      secretName,
 			Namespace: setup.Namespace.Name,
 			Annotations: map[string]string{
-				secretlookup.AllowInclusionAnnotation: crName,
+				secretlookup.AllowLookupAnnotation: crName,
 			},
 		},
 		StringData: map[string]string{
