@@ -179,7 +179,7 @@ func TestWriteMuxedSSHConfig(t *testing.T) {
 	}
 }
 
-func TestSSHConfig_GetClusterSSHConfig(t *testing.T) {
+func TestWriteClusterSSHConfig(t *testing.T) {
 	tests := []struct {
 		name       string
 		sshVersion string
@@ -231,15 +231,8 @@ func TestSSHConfig_GetClusterSSHConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &SSHConfig{
-				getSSHVersion: func() (*semver.Version, error) {
-					return semver.New(tt.sshVersion), nil
-				},
-				log: logrus.New(),
-			}
-
 			sb := &strings.Builder{}
-			err := c.GetClusterSSHConfig(sb, tt.config)
+			err := WriteClusterSSHConfig(sb, tt.config)
 			if golden.ShouldSet() {
 				golden.Set(t, []byte(sb.String()))
 			}
