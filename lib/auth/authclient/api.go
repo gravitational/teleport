@@ -1183,8 +1183,11 @@ type Cache interface {
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
 
-	// AutoUpdateServiceGetter defines method for fetching the auto update config and version resources.
-	services.AutoUpdateServiceGetter
+	// GetAutoUpdateConfig gets the autoupdate config from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 
 	// GetAccessGraphSettings returns the access graph settings.
 	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)

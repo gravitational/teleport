@@ -1896,6 +1896,12 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.reader.GetClusterName(opts...)
 }
 
+type autoUpdateCacheKey struct {
+	kind string
+}
+
+var _ map[autoUpdateCacheKey]struct{} // compile-time hashability check
+
 // GetAutoUpdateConfig gets the autoupdate config from the backend.
 func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
@@ -1907,7 +1913,7 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdate
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+		cachedConfig, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"config"}, func(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 			cfg, err := rg.reader.GetAutoUpdateConfig(ctx)
 			return cfg, err
 		})
@@ -1930,7 +1936,7 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdat
 	}
 	defer rg.Release()
 	if !rg.IsCacheRead() {
-		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, clusterConfigCacheKey{"name"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+		cachedVersion, err := utils.FnCacheGet(ctx, c.fnCache, autoUpdateCacheKey{"version"}, func(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 			version, err := rg.reader.GetAutoUpdateVersion(ctx)
 			return version, err
 		})
