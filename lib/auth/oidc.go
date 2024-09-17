@@ -32,7 +32,11 @@ import (
 )
 
 type OIDCService interface {
+	// CreateOIDCAuthRequestForMFA creates an OIDC AuthnRequest.
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
+	// CreateOIDCAuthRequestForMFA creates an OIDC AuthnRequest for MFA.
+	CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
+	// ValidateSAMLResponse validates OIDC auth response.
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
 }
 
@@ -124,6 +128,8 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 	return nil
 }
 
+// CreateOIDCAuthRequest delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
 func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
@@ -133,6 +139,19 @@ func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 	return rq, trace.Wrap(err)
 }
 
+// CreateOIDCAuthRequestForMFA delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if a.oidcAuthService == nil {
+		return nil, errOIDCNotImplemented
+	}
+
+	rq, err := a.oidcAuthService.CreateOIDCAuthRequestForMFA(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
+// ValidateOIDCAuthCallback delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
 func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
