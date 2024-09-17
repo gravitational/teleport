@@ -1952,11 +1952,11 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
@@ -2055,10 +2055,8 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		return trace.Wrap(err)
 	}
 
-	// Emit session join event to both the Audit Log as well as over the
-	// "x-teleport-event" channel in the SSH connection.
+	// Emit session join event to the Audit Log
 	s.emitSessionJoinEvent(p.ctx)
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	return nil
 }
