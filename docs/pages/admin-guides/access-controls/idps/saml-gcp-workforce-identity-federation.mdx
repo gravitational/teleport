@@ -216,7 +216,7 @@ gcloud iam workforce-pools providers create-saml <pool_provider_name> \
       --workforce-pool=<pool_name> \
       --display-name=<pool_provider_name> \
       --description="Teleport workforce identity provider" \
-      --idp-metadata-path=teleport-samlidp-metadata.xml" \
+      --idp-metadata-path=./teleport-samlidp-metadata.xml \
       --attribute-mapping="google.subject=assertion.subject,google.groups=assertion.attributes.roles" \
       --location=global
 ```
