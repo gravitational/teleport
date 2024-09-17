@@ -396,7 +396,7 @@ func renderSSHConfig(
 
 			knownHosts, ok := clusterKnownHosts[clusterName]
 			if !ok {
-				log.DebugContext(
+				log.WarnContext(
 					ctx,
 					"No generated known_hosts for cluster, will skip",
 					"cluster", clusterName,
