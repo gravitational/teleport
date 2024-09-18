@@ -37,6 +37,8 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -610,6 +612,8 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 	}
 
 	bundle := spiffebundle.New(td)
+
+	// Convert X509 authorities to SPIFFE bundle format.
 	for _, certBytes := range services.GetTLSCerts(ca) {
 		block, _ := pem.Decode(certBytes)
 		cert, err := x509.ParseCertificate(block.Bytes)
@@ -617,6 +621,21 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 			return nil, trace.Wrap(err, "parsing cert")
 		}
 		bundle.AddX509Authority(cert)
+	}
+
+	// Convert JWT keys to SPIFFE bundle format.
+	for _, keyPair := range ca.GetTrustedJWTKeyPairs() {
+		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing public key")
+		}
+		kid, err := jwt.KeyID(pubKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating key ID")
+		}
+		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
+			return nil, trace.Wrap(err, "adding JWT authority to bundle")
+		}
 	}
 
 	return bundle, nil

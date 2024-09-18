@@ -701,8 +701,9 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	for _, svidReq := range svidReqs {
 		reqs = append(reqs, &machineidv1pb.JWTSVIDRequest{
 			Audiences: req.Audience,
-			Ttl:       durationpb.New(time.Minute * 30), // TODO: This should be configurable.
-			Hint:      svidReq.Hint,
+			// TODO: This should be configurable.
+			Ttl:  durationpb.New(time.Minute * 30),
+			Hint: svidReq.Hint,
 		})
 	}
 
