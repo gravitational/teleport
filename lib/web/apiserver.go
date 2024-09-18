@@ -139,7 +139,7 @@ type Handler struct {
 	logger *slog.Logger
 
 	sync.Mutex
-	httprouter.Router
+	*httplib.TracedRouter
 	cfg                     Config
 	auth                    *sessionCache
 	sessionStreamPollPeriod time.Duration
@@ -447,8 +447,13 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	cfg.SetDefaults()
 
+	innerRouter := httprouter.New()
+	// for properly handling url-encoded parameter values.
+	innerRouter.UseRawPath = true
+
 	h := &Handler{
 		cfg:                  cfg,
+		TracedRouter:         httplib.NewTracedRouter(teleport.ComponentProxy, innerRouter),
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
@@ -461,9 +466,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {
 		h.cfg.AutomaticUpgradesChannels = automaticupgrades.Channels{}
 	}
-
-	// for properly handling url-encoded parameter values.
-	h.UseRawPath = true
 
 	for _, o := range opts {
 		if err := o(h); err != nil {
@@ -568,7 +570,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
-		h.Handle("GET", "/robots.txt", httplib.MakeHandler(serveRobotsTxt))
+		h.GET("/robots.txt", httplib.MakeHandler(serveRobotsTxt))
 
 		etagFromAppHash, err := readEtagFromAppHash(cfg.StaticFS)
 		if err != nil {
@@ -579,7 +581,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	// This endpoint is used both by Web UI and Connect.
-	h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
+	h.GET("/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
@@ -647,7 +649,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	})
 
-	h.NotFound = routingHandler
+	innerRouter.NotFound = httplib.TracingMiddleware(
+		teleport.ComponentProxy, "not_found",
+	)(routingHandler)
 
 	if cfg.PluginRegistry != nil {
 		if err := cfg.PluginRegistry.RegisterProxyWebHandlers(h); err != nil {
@@ -3535,7 +3539,7 @@ func (h *Handler) siteNodeConnect(
 
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
-	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
+	term.ServeHTTP(w, r)
 
 	return nil, nil
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -94,7 +95,7 @@ type AccessGraphConfig struct {
 // APIServer implements http API server for AuthServer interface
 type APIServer struct {
 	APIConfig
-	httprouter.Router
+	*httplib.TracedRouter
 	clockwork.Clock
 }
 
@@ -104,8 +105,9 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 		APIConfig: *config,
 		Clock:     clockwork.NewRealClock(),
 	}
-	srv.Router = *httprouter.New()
-	srv.Router.UseRawPath = true
+	internalRouter := httprouter.New()
+	internalRouter.UseRawPath = true
+	srv.TracedRouter = httplib.NewTracedRouter(teleport.ComponentAuth, internalRouter)
 
 	// Kubernetes extensions
 	srv.POST("/:version/kube/csr", srv.WithAuth(srv.processKubeCSR))

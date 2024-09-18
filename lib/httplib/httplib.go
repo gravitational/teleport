@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime"
 	"net"
 	"net/http"
@@ -40,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -79,40 +79,6 @@ func MakeSecurityHeaderHandler(h http.Handler) http.Handler {
 		h.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(handler)
-}
-
-// MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
-// with one that will add a tracing span for each request.
-func MakeTracingHandler(h http.Handler, component string) http.Handler {
-	// Wrap the provided handler with one that will inject
-	// any propagated tracing context provided via a query parameter
-	// if there isn't already a header containing tracing context.
-	// This is required for scenarios using web sockets as headers
-	// cannot be modified to inject the tracing context.
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		// ensure headers have priority over query parameters
-		if r.Header.Get(tracing.TraceParent) != "" {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		traceParent := r.URL.Query()[tracing.TraceParent]
-		if len(traceParent) > 0 {
-			r.Header.Add(tracing.TraceParent, traceParent[0])
-		}
-
-		h.ServeHTTP(w, r)
-	}
-
-	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
-}
-
-// MakeTracingMiddleware returns an HTTP middleware that makes tracing
-// handlers.
-func MakeTracingMiddleware(component string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return MakeTracingHandler(next, component)
-	}
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
@@ -334,4 +300,89 @@ func (r *ResponseStatusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 		return nil, nil, errors.New("hijack not supported")
 	}
 	return h.Hijack()
+}
+
+func extractTraceParentQueryParam(r *http.Request) {
+	// ensure headers have priority over query parameters
+	if r.Header.Get(tracing.TraceParent) != "" {
+		return
+	}
+
+	traceParent := r.URL.Query()[tracing.TraceParent]
+	if len(traceParent) > 0 {
+		r.Header.Add(tracing.TraceParent, traceParent[0])
+	}
+}
+
+func TracingMiddleware(component, operation string) func(http.Handler) http.Handler {
+	m := otelhttp.NewMiddleware(fmt.Sprintf("%s %s", component, operation))
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract the trace parent from the query parameters if it exists
+			// before passing the request to otelhttp
+			extractTraceParentQueryParam(r)
+			m(next).ServeHTTP(w, r)
+		})
+	}
+}
+
+// TracedRouter wraps a httprouter.Router, wrapping all declared routes in a
+// otel tracing middleware.
+type TracedRouter struct {
+	component string
+	internal  *httprouter.Router
+}
+
+func (r *TracedRouter) wrap(path string, handle httprouter.Handle) (string, httprouter.Handle) {
+	// This is a little gnarly since we have to go from httprouter.Handle to
+	// http.Handler and back to httprouter.Handle.
+	m := TracingMiddleware(r.component, path)
+	return path, func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		m(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handle(w, r, params)
+		}))
+	}
+}
+
+// GET is a shortcut for router.Handle(http.MethodGet, path, handle)
+func (r *TracedRouter) GET(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodGet, path, handle)
+}
+
+// HEAD is a shortcut for router.Handle(http.MethodHead, path, handle)
+func (r *TracedRouter) HEAD(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodHead, path, handle)
+}
+
+// OPTIONS is a shortcut for router.Handle(http.MethodOptions, path, handle)
+func (r *TracedRouter) OPTIONS(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodOptions, path, handle)
+}
+
+// POST is a shortcut for router.Handle(http.MethodPost, path, handle)
+func (r *TracedRouter) POST(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodPost, path, handle)
+}
+
+// PUT is a shortcut for router.Handle(http.MethodPut, path, handle)
+func (r *TracedRouter) PUT(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodPut, path, handle)
+}
+
+// PATCH is a shortcut for router.Handle(http.MethodPatch, path, handle)
+func (r *TracedRouter) PATCH(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodPatch, path, handle)
+}
+
+// DELETE is a shortcut for router.Handle(http.MethodDelete, path, handle)
+func (r *TracedRouter) DELETE(path string, handle httprouter.Handle) {
+	r.internal.Handle(http.MethodDelete, path, handle)
+}
+
+func (r *TracedRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.internal.ServeHTTP(w, req)
+}
+
+func NewTracedRouter(component string, r *httprouter.Router) *TracedRouter {
+	return &TracedRouter{internal: r, component: component}
 }
