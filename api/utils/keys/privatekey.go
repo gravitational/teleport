@@ -241,7 +241,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		return NewPrivateKey(cryptoSigner, keyPEM)
 	case PKCS1PrivateKeyType, PKCS8PrivateKeyType, ECPrivateKeyType:
 		// The DER format doesn't always exactly match the PEM header, various
-		// versions of Teleport and OpenSSH have been guilty of writing PKCS#8
+		// versions of Teleport and OpenSSL have been guilty of writing PKCS#8
 		// data into an "RSA PRIVATE KEY" block or vice-versa, so we just try
 		// parsing every DER format. This matches the behavior of [tls.X509KeyPair].
 		var preferredErr error
