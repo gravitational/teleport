@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -75,6 +76,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -4007,11 +4009,11 @@ func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
-func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
 	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
-			return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
 		sshLogin, err := tc.NewSSHLogin(keyRing)
@@ -4019,30 +4021,89 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string
 			return nil, trace.Wrap(err)
 		}
 
-		pr, err := tc.Ping(ctx)
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName, connectorType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		proxyVersion := semver.New(pr.ServerVersion)
 
-		if protocol == constants.SAML && pr.Auth.SAML != nil {
-			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+		rd, err := sso.NewRedirector(ctx, rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		// initiate SSO login through the Proxy.
+		req := SSOLoginConsoleReq{
+			RedirectURL: rd.ClientCallbackURL,
+			SSOUserPublicKeys: SSOUserPublicKeys{
+				SSHPubKey:               sshLogin.SSHPubKey,
+				TLSPubKey:               sshLogin.TLSPubKey,
+				SSHAttestationStatement: sshLogin.SSHAttestationStatement,
+				TLSAttestationStatement: sshLogin.TLSAttestationStatement,
+			},
+			CertTTL:           sshLogin.TTL,
+			ConnectorID:       connectorID,
+			Compatibility:     sshLogin.Compatibility,
+			RouteToCluster:    sshLogin.RouteToCluster,
+			KubernetesCluster: sshLogin.KubernetesCluster,
 		}
 
-		// ask the CA (via proxy) to sign our public key:
-		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-			SSHLogin:                      sshLogin,
-			ConnectorID:                   connectorID,
-			ConnectorName:                 connectorName,
-			Protocol:                      protocol,
-			BindAddr:                      tc.BindAddr,
-			CallbackAddr:                  tc.CallbackAddr,
-			Browser:                       tc.Browser,
-			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		}, nil)
-		return response, trace.Wrap(err)
+		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var re SSOLoginConsoleResponse
+		if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := rd.SSOCeremony(ctx, re.RedirectURL)
+		return resp, trace.Wrap(err)
 	}
+}
+
+// ssoRedirectorConfig returns a standard configured sso redirector for login.
+func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorName, connectorType string) (sso.RedirectorConfig, error) {
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return sso.RedirectorConfig{}, trace.Wrap(err)
+	}
+	proxyVersion := semver.New(pr.ServerVersion)
+
+	if connectorType == constants.SAML && pr.Auth.SAML != nil {
+		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+	}
+
+	if tc.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
+		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
+			"the remote host. Make sure that you trust the provided callback host " +
+			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
+		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
+			fmt.Sprintf(callbackPrompt, tc.CallbackAddr, tc.BindAddr),
+		)
+		if err != nil {
+			return sso.RedirectorConfig{}, trace.Wrap(err)
+		}
+		if !ok {
+			return sso.RedirectorConfig{}, trace.BadParameter("Login canceled.")
+		}
+	}
+
+	return sso.RedirectorConfig{
+		ProxyAddr:                     tc.WebProxyAddr,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
+		ConnectorDisplayName:          connectorName,
+	}, nil
 }
 
 func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
@@ -4068,7 +4129,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
