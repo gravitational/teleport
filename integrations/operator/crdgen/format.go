@@ -138,91 +138,92 @@ const statusDescription = "Status defines the observed state of the Teleport res
 const statusName = "status"
 
 func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]PropertyTable, error) {
-	switch props.Type {
-	case "object":
-		tab := PropertyTable{
-			Name: currentFieldName,
+	// Only create a property table for an object field. For other types, we can
+	// describe the type within a table row.
+	if props.Type != "object" {
+		return nil, nil
+	}
+	tab := PropertyTable{
+		Name: currentFieldName,
+	}
+	fields := []PropertyTableField{}
+	tables := []PropertyTable{}
+	var i int
+	for k, v := range props.Properties {
+		// Don't document the Status field, which is for
+		// internal use.
+		if k == statusName && strings.HasPrefix(v.Description, statusDescription) {
+			continue
 		}
-		fields := []PropertyTableField{}
-		tables := []PropertyTable{}
-		var i int
-		for k, v := range props.Properties {
-			// Don't document the Status field, which is for
-			// internal use.
-			if k == statusName && strings.HasPrefix(v.Description, statusDescription) {
-				continue
-			}
-			// Name the table after the hierarchy of
-			// field names to avoid duplication.
-			var tableName string
-			if currentFieldName != "" {
-				tableName = currentFieldName + "." + k
-			} else {
-				tableName = k
+		// Name the table after the hierarchy of
+		// field names to avoid duplication.
+		var tableName string
+		if currentFieldName != "" {
+			tableName = currentFieldName + "." + k
+		} else {
+			tableName = k
+		}
+
+		var fieldType string
+		var fieldDesc string
+		switch v.Type {
+		case "object":
+			fieldType = "object"
+			if len(v.Properties) == 0 {
+				break
 			}
 
-			var fieldType string
-			var fieldDesc string
-			switch v.Type {
-			case "object":
-				fieldType = "object"
-				if len(v.Properties) == 0 {
-					break
-				}
-
+			extra, err := propertyTable(
+				tableName,
+				&v,
+			)
+			if err != nil {
+				return nil, err
+			}
+			fieldType = fmt.Sprintf("[object](#%v)", strings.ReplaceAll(strings.ReplaceAll(tableName, ".", ""), " ", "-"))
+			tables = append(tables, extra...)
+		case "array":
+			var subtp string
+			if v.Items.Schema.Type == "object" {
 				extra, err := propertyTable(
-					tableName,
-					&v,
+					fmt.Sprintf("%v items", tableName),
+					v.Items.Schema,
 				)
 				if err != nil {
 					return nil, err
 				}
-				fieldType = fmt.Sprintf("[object](#%v)", strings.ReplaceAll(tableName, ".", ""))
 				tables = append(tables, extra...)
-			case "array":
-				var subtp string
-				if v.Items.Schema.Type == "object" {
-					extra, err := propertyTable(
-						fmt.Sprintf("%v items", tableName),
-						v.Items.Schema,
-					)
-					if err != nil {
-						return nil, err
-					}
-					tables = append(tables, extra...)
-					subtp = fmt.Sprintf("[object](#%v-items)", strings.ReplaceAll(tableName, ".", ""))
-				} else {
-					subtp = v.Items.Schema.Type
-				}
-				fieldType = fmt.Sprintf("[]%v", subtp)
-			case "":
-				if !v.XIntOrString {
-					fieldType = v.Type
-					break
-				}
-				fieldType = "string or integer"
-				fieldDesc = strings.TrimSuffix(v.Description, ".") + ". " + "Can be either the string or the integer representation of each option."
-			default:
+				subtp = fmt.Sprintf("[object](#%v-items)", strings.ReplaceAll(strings.ReplaceAll(tableName, ".", ""), " ", "-"))
+			} else {
+				subtp = v.Items.Schema.Type
+			}
+			fieldType = fmt.Sprintf("[]%v", subtp)
+		case "":
+			if !v.XIntOrString {
 				fieldType = v.Type
+				break
 			}
-
-			if fieldDesc == "" {
-				fieldDesc = v.Description
-			}
-
-			fields = append(fields, PropertyTableField{
-				Name:        k,
-				Type:        fieldType,
-				Description: fieldDesc,
-			})
-			i++
+			fieldType = "string or integer"
+			fieldDesc = strings.TrimSuffix(v.Description, ".") + ". " + "Can be either the string or the integer representation of each option."
+		default:
+			fieldType = v.Type
 		}
-		tab.Fields = fields
-		sort.Sort(tab)
-		tables = append([]PropertyTable{tab}, tables...)
-		return tables, nil
+
+		if fieldDesc == "" {
+			fieldDesc = v.Description
+		}
+
+		fields = append(fields, PropertyTableField{
+			Name:        k,
+			Type:        fieldType,
+			Description: fieldDesc,
+		})
+		i++
 	}
-	return nil, nil
+	tab.Fields = fields
+	sort.Sort(tab)
+	tables = append([]PropertyTable{tab}, tables...)
+	return tables, nil
 }
 
 func formatAsDocsPage(crd apiextv1.CustomResourceDefinition) ([]byte, string, error) {
