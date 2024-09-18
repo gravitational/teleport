@@ -19,30 +19,34 @@
 package peer
 
 import (
+	"context"
 	"net"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
+	"github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0/peerv0connect"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
-	peerv0.UnimplementedProxyServiceServer
 	clusterDialer ClusterDialer
 	log           logrus.FieldLogger
 }
+
+var _ peerv0connect.ProxyServiceHandler = (*proxyService)(nil)
 
 // serverFrameStream wraps a server side stream as a [streamutils.Source].
 type serverFrameStream struct {
 	stream interface {
 		Send(*peerv0.DialNodeResponse) error
-		Recv() (*peerv0.DialNodeRequest, error)
+		Receive() (*peerv0.DialNodeRequest, error)
 	}
 }
 
@@ -51,7 +55,7 @@ func (s *serverFrameStream) Send(p []byte) error {
 }
 
 func (s *serverFrameStream) Recv() ([]byte, error) {
-	frame, err := s.stream.Recv()
+	frame, err := s.stream.Receive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,8 +68,8 @@ func (s *serverFrameStream) Recv() ([]byte, error) {
 }
 
 // DialNode opens a bidirectional stream to the requested node.
-func (s *proxyService) DialNode(stream peerv0.ProxyService_DialNodeServer) error {
-	frame, err := stream.Recv()
+func (s *proxyService) DialNode(ctx context.Context, stream *connect.BidiStream[peerv0.DialNodeRequest, peerv0.DialNodeResponse]) error {
+	frame, err := stream.Receive()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -127,7 +131,7 @@ func (s *proxyService) DialNode(stream peerv0.ProxyService_DialNodeServer) error
 
 	streamConn := utils.NewTrackingConn(streamutils.NewConn(streamRW, source, destination))
 
-	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
+	err = utils.ProxyConn(ctx, streamConn, nodeConn)
 	sent, received := streamConn.Stat()
 	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
 	return trace.Wrap(err)

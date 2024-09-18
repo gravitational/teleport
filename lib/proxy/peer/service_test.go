@@ -21,16 +21,17 @@ package peer
 import (
 	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
 	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
+	peerv0c "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0/peerv0connect"
 )
 
 type mockClusterDialer struct {
@@ -44,46 +45,40 @@ func (m *mockClusterDialer) Dial(clusterName string, request DialParams) (net.Co
 	return m.MockDialCluster(clusterName, request)
 }
 
-func setupService(t *testing.T) (*proxyService, peerv0.ProxyServiceClient) {
-	server := grpc.NewServer()
-	t.Cleanup(server.Stop)
-
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
+func setupService(t *testing.T) (*proxyService, peerv0c.ProxyServiceClient) {
 	proxyService := &proxyService{
 		log: logrus.New(),
 	}
-	peerv0.RegisterProxyServiceServer(server, proxyService)
 
-	go server.Serve(listener)
+	mux := http.NewServeMux()
+	mux.Handle(peerv0c.NewProxyServiceHandler(proxyService))
+	server := httptest.NewUnstartedServer(mux)
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	t.Cleanup(server.CloseClientConnections)
 
-	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	require.NoError(t, err)
-	t.Cleanup(func() { conn.Close() })
+	client := peerv0c.NewProxyServiceClient(server.Client(), server.URL)
 
-	client := peerv0.NewProxyServiceClient(conn)
 	return proxyService, client
 }
 
 func TestInvalidFirstFrame(t *testing.T) {
 	_, client := setupService(t)
-	stream, err := client.DialNode(context.Background())
-	require.NoError(t, err)
+	stream := client.DialNode(context.Background())
 
-	err = stream.Send(&peerv0.DialNodeRequest{
+	err := stream.Send(&peerv0.DialNodeRequest{
 		Message: &peerv0.DialNodeRequest_Data{Data: &peerv0.Data{}},
 	})
 	require.NoError(t, err)
 
-	_, err = stream.Recv()
+	_, err = stream.Receive()
 	require.Error(t, err, "expected invalid dial request")
 }
 
 func TestSendReceive(t *testing.T) {
 	service, client := setupService(t)
-	stream, err := client.DialNode(context.Background())
-	require.NoError(t, err)
+	stream := client.DialNode(context.Background())
 
 	dialRequest := &peerv0.DialRequest{
 		NodeId:      "test-id.test-cluster",
@@ -96,7 +91,7 @@ func TestSendReceive(t *testing.T) {
 	service.clusterDialer = &mockClusterDialer{
 		MockDialCluster: func(clusterName string, request DialParams) (net.Conn, error) {
 			require.Equal(t, "test-cluster", clusterName)
-			require.Equal(t, dialRequest.TunnelType, request.ConnType)
+			require.Equal(t, dialRequest.TunnelType, string(request.ConnType))
 			require.Equal(t, dialRequest.NodeId, request.ServerID)
 
 			return remote, nil
@@ -106,12 +101,12 @@ func TestSendReceive(t *testing.T) {
 	send := []byte("ping")
 	recv := []byte("pong")
 
-	err = stream.Send(&peerv0.DialNodeRequest{
+	err := stream.Send(&peerv0.DialNodeRequest{
 		Message: &peerv0.DialNodeRequest_DialRequest{DialRequest: dialRequest},
 	})
 	require.NoError(t, err)
 
-	_, err = stream.Recv()
+	_, err = stream.Receive()
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -129,7 +124,7 @@ func TestSendReceive(t *testing.T) {
 
 		recv := append(recv, byte(i))
 		local.Write(recv)
-		msg, err := stream.Recv()
+		msg, err := stream.Receive()
 		require.NoError(t, err)
 		require.Equal(t, recv, msg.GetData().Bytes, "unexpected bytes received")
 	}

@@ -478,7 +478,7 @@ func (c *Connector) clientSSHClientConfig(fips bool) (*ssh.ClientConfig, error) 
 func (c *Connector) ServerTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 	conf := utils.TLSConfig(cipherSuites)
 	conf.GetCertificate = func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
-		return c.serverGetCertificate()
+		return c.ServerGetCertificate()
 	}
 	return conf, nil
 }
@@ -503,7 +503,7 @@ func (c *Connector) ServerGetValidPrincipals() []string {
 	return slices.Clone(sshCert.ValidPrincipals)
 }
 
-func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
+func (c *Connector) ServerGetCertificate() (*tls.Certificate, error) {
 	tlsCert := c.serverState.Load().tlsCert
 	if tlsCert == nil {
 		return nil, trace.NotFound("no TLS credentials setup for this identity")
@@ -512,7 +512,7 @@ func (c *Connector) serverGetCertificate() (*tls.Certificate, error) {
 }
 
 func (c *Connector) getPROXYSigner(clock clockwork.Clock) (multiplexer.PROXYHeaderSigner, error) {
-	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.serverGetCertificate, clock)
+	proxySigner, err := multiplexer.NewPROXYSigner(c.clusterName, c.ServerGetCertificate, clock)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not create PROXY signer")
 	}
@@ -4668,7 +4668,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var proxyServer *peer.Server
+	var peerServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4676,25 +4676,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		peerAddrString = peerAddr.String()
 
-		// TODO(espadolini): once connectors are live updated we can get rid of
-		// this and just refer to the host CA pool in the connector instead
-		peerServerTLSConfig := serverTLSConfig.Clone()
-		peerServerTLSConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-			pool, _, err := authclient.ClientCertPool(chi.Context(), accessPoint, clusterName, types.HostCA)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			tlsConfig := peerServerTLSConfig.Clone()
-			tlsConfig.ClientCAs = pool
-			return tlsConfig, nil
-		}
+		peerServer, err = peer.NewServer(peer.ServerConfig{
+			CipherSuites: cfg.CipherSuites,
+			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return conn.ServerGetCertificate()
+			},
+			GetClientCAs: func(chi *tls.ClientHelloInfo) (*x509.CertPool, error) {
+				pool, _, err := authclient.ClientCertPool(chi.Context(), accessPoint, clusterName, types.HostCA)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return pool, nil
+			},
 
-		proxyServer, err = peer.NewServer(peer.ServerConfig{
-			Listener:      listeners.proxyPeer,
-			TLSConfig:     peerServerTLSConfig,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-			Log:           process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			ClusterName:   clusterName,
+
+			Log: process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4707,7 +4704,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			logger.InfoContext(process.ExitContext(), "Starting peer proxy service", "listen_address", logutils.StringerAttr(listeners.proxyPeer.Addr()))
-			err := proxyServer.Serve()
+			err := peerServer.Serve(listeners.proxyPeer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5244,8 +5241,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(process.ExitContext(), tsrv.Close(), logger)
 			}
 			warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
-			if proxyServer != nil {
-				warnOnErr(process.ExitContext(), proxyServer.Close(), logger)
+			if peerServer != nil {
+				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
 			}
 			if webServer != nil {
 				warnOnErr(process.ExitContext(), webServer.Close(), logger)
@@ -5295,8 +5292,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
 			}
 			warnOnErr(ctx, rcWatcher.Close(), logger)
-			if proxyServer != nil {
-				warnOnErr(ctx, proxyServer.Shutdown(), logger)
+			if peerServer != nil {
+				warnOnErr(ctx, peerServer.Shutdown(ctx), logger)
 			}
 			if peerClient != nil {
 				peerClient.Shutdown(ctx)

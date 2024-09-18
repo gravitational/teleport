@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/connectivity"
@@ -67,7 +68,7 @@ func TestClientConn(t *testing.T) {
 
 	// close second server
 	// and attempt to redial it
-	server2.Shutdown()
+	server2.Shutdown(context.Background())
 	stream, cached, err = client.dial([]string{"s2"}, &peerv0.DialRequest{})
 	require.Error(t, err)
 	require.True(t, cached)
@@ -107,7 +108,7 @@ func TestClientUpdate(t *testing.T) {
 	s2.Close()
 
 	// watcher finds two servers with one broken connection
-	server2.Shutdown()
+	server2.Shutdown(context.Background())
 	err = client.updateConnections([]types.Server{def1, def2})
 	require.NoError(t, err) // server2 is in a transient failure state but not reported as an error
 	require.Len(t, client.conns, 2)
@@ -137,10 +138,10 @@ func TestCAChange(t *testing.T) {
 	currentServerCA := newAtomicCA(serverCA)
 
 	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy)
-	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
 
 	// dial server and send a test data frame
-	conn, err := client.connect("s1", server.config.Listener.Addr().String())
+	conn, err := client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,11 +153,12 @@ func TestCAChange(t *testing.T) {
 	// rotate server ca
 	require.NoError(t, server.Close())
 	newServerCA := newSelfSignedCA(t)
-	server, _ = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+
+	_, ts = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err = peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
@@ -167,7 +169,7 @@ func TestCAChange(t *testing.T) {
 	// RootCAs.
 	currentServerCA.Store(newServerCA)
 
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err = peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
@@ -183,7 +185,7 @@ func TestBackupClient(t *testing.T) {
 	// Force the first client connection to fail.
 	_, def1 := setupServer(t, "s1", ca, ca, types.RoleProxy, func(c *ServerConfig) {
 		c.service = &mockProxyService{
-			mockDialNode: func(stream peerv0.ProxyService_DialNodeServer) error {
+			mockDialNode: func(ctx context.Context, stream *connect.BidiStream[peerv0.DialNodeRequest, peerv0.DialNodeResponse]) error {
 				dialCalled = true
 				return trace.NotFound("tunnel not found")
 			},

@@ -19,6 +19,7 @@
 package peer
 
 import (
+	"context"
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
@@ -29,10 +30,12 @@ import (
 	"testing"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -57,23 +60,19 @@ type mockProxyAccessPoint struct {
 }
 
 type mockProxyService struct {
-	peerv0.UnimplementedProxyServiceServer
-	mockDialNode func(stream peerv0.ProxyService_DialNodeServer) error
+	mockDialNode func(ctx context.Context, stream *connect.BidiStream[peerv0.DialNodeRequest, peerv0.DialNodeResponse]) error
 }
 
-func (s *mockProxyService) DialNode(stream peerv0.ProxyService_DialNodeServer) error {
+func (s *mockProxyService) DialNode(ctx context.Context, stream *connect.BidiStream[peerv0.DialNodeRequest, peerv0.DialNodeResponse]) error {
 	if s.mockDialNode != nil {
-		return s.mockDialNode(stream)
+		return s.mockDialNode(ctx, stream)
 	}
 
-	return s.defaultDialNode(stream)
+	return s.defaultDialNode(ctx, stream)
 }
 
-func (s *mockProxyService) defaultDialNode(stream peerv0.ProxyService_DialNodeServer) error {
-	sendErr := make(chan error)
-	recvErr := make(chan error)
-
-	frame, err := stream.Recv()
+func (s *mockProxyService) defaultDialNode(ctx context.Context, stream *connect.BidiStream[peerv0.DialNodeRequest, peerv0.DialNodeResponse]) error {
+	frame, err := stream.Receive()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -91,17 +90,15 @@ func (s *mockProxyService) defaultDialNode(stream peerv0.ProxyService_DialNodeSe
 		return trace.Wrap(err)
 	}
 
-	go func() {
+	var eg errgroup.Group
+	eg.Go(func() error {
 		for {
-			if _, err := stream.Recv(); err != nil {
-				recvErr <- err
-				close(recvErr)
-				return
+			if _, err := stream.Receive(); err != nil {
+				return err
 			}
 		}
-	}()
-
-	go func() {
+	})
+	eg.Go(func() error {
 		for {
 			err := stream.Send(&peerv0.DialNodeResponse{
 				Message: &peerv0.DialNodeResponse_Data{
@@ -109,21 +106,11 @@ func (s *mockProxyService) defaultDialNode(stream peerv0.ProxyService_DialNodeSe
 				},
 			})
 			if err != nil {
-				sendErr <- err
-				close(sendErr)
-				return
+				return err
 			}
 		}
-	}()
-
-	select {
-	case <-stream.Context().Done():
-		return stream.Context().Err()
-	case err := <-recvErr:
-		return err
-	case err := <-sendErr:
-		return err
-	}
+	})
+	return eg.Wait()
 }
 
 // newSelfSignedCA creates a new CA for testing.
@@ -216,25 +203,29 @@ type serverTestOption func(*ServerConfig)
 
 // setupServer return a Server object.
 func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+
 	tlsCert := certFromIdentity(t, serverCA, tlsca.Identity{
 		Username: name + ".test",
 		Groups:   []string{string(role)},
 	})
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-	}
-	tlsConf.ClientCAs = x509.NewCertPool()
-	tlsConf.ClientCAs.AddCert(clientCA.Cert)
 
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	clientCAs := x509.NewCertPool()
+	clientCAs.AddCert(clientCA.Cert)
 
 	config := ServerConfig{
-		Listener:      listener,
-		TLSConfig:     tlsConf,
 		ClusterDialer: &mockClusterDialer{},
-		service:       &mockProxyService{},
-		ClusterName:   "test",
+
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &tlsCert, nil
+		},
+		GetClientCAs: func(*tls.ClientHelloInfo) (*x509.CertPool, error) {
+			return clientCAs, nil
+		},
+
+		service: &mockProxyService{},
 	}
 	for _, option := range options {
 		option(&config)
@@ -249,7 +240,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	)
 	require.NoError(t, err)
 
-	go server.Serve()
+	go server.Serve(listener)
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
