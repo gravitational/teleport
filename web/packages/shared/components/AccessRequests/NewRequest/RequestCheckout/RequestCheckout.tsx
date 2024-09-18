@@ -64,7 +64,7 @@ import { AdditionalOptions } from './AdditionalOptions';
 import type { TransitionStatus } from 'react-transition-group';
 
 import type { AccessRequest } from 'shared/services/accessRequests';
-import type { ResourceKind } from '../resource';
+import type { RequestableResourceKind } from '../resource';
 
 export function RequestCheckoutWithSlider<
   T extends PendingListItem = PendingListItem,
@@ -263,6 +263,13 @@ export function RequestCheckout<T extends PendingListItem>({
                   {
                     key: 'name',
                     headerText: 'Name',
+                    render: item => (
+                      <Cell>
+                        {item.subResourceName
+                          ? `${item.name}/${item.subResourceName}`
+                          : `${item.name}`}
+                      </Cell>
+                    ),
                   },
                   {
                     altKey: 'delete-btn',
@@ -274,7 +281,7 @@ export function RequestCheckout<T extends PendingListItem>({
                           p={2}
                           onClick={() => {
                             clearAttempt();
-                            toggleResource(resource);
+                            toggleResource(resource); // todo problem here
                           }}
                           disabled={createAttempt.status === 'processing'}
                           css={`
@@ -667,7 +674,7 @@ function TextBox({
   );
 }
 
-function getPrettyResourceKind(kind: ResourceKind): string {
+function getPrettyResourceKind(kind: RequestableResourceKind): string {
   switch (kind) {
     case 'role':
       return 'Role';
@@ -687,6 +694,8 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'Desktop';
     case 'saml_idp_service_provider':
       return 'SAML Application';
+    case 'namespace':
+      return 'Namespace';
     default:
       kind satisfies never;
       return kind;
@@ -764,12 +773,13 @@ export type RequestCheckoutWithSliderProps<
 } & RequestCheckoutProps<T>;
 
 export interface PendingListItem {
-  kind: ResourceKind;
+  kind: RequestableResourceKind;
   /** Name of the resource, for presentation purposes only. */
   name: string;
   /** Identifier of the resource. Should be sent in requests. */
   id: string;
   clusterName?: string;
+  subResourceName?: string;
 }
 
 export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =

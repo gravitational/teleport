@@ -142,7 +142,8 @@ export function AccessRequestCheckout() {
                   .slice(0, MAX_RESOURCES_IN_BAR_TO_SHOW)
                   .map(c => {
                     let resource = {
-                      name: c.name,
+                      name:
+                        c.kind === 'namespace' ? `${c.name}/${c.id}` : c.name,
                       key: `${c.clusterName}-${c.kind}-${c.id}`,
                       Icon: undefined,
                     };
@@ -158,8 +159,10 @@ export function AccessRequestCheckout() {
                         resource.Icon = Icon.Database;
                         break;
                       case 'kube_cluster':
+                      case 'namespace':
                         resource.Icon = Icon.Kubernetes;
                         break;
+
                       case 'role':
                         break;
                       default:

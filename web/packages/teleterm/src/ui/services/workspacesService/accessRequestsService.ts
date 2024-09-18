@@ -24,6 +24,7 @@ import {
   DatabaseUri,
   KubeUri,
   AppUri,
+  KubeNamespaceUri,
 } from 'teleterm/ui/uri';
 import { ModalsService } from 'teleterm/ui/services/modals';
 
@@ -78,8 +79,10 @@ export class AccessRequestsService {
 
   async addOrRemoveResource(request: ResourceRequest): Promise<void> {
     if (!(await this.canUpdateRequest('resource'))) {
+      console.log('--- here???');
       return;
     }
+    console.log('----- equest: ', request);
     this.setState(draftState => {
       if (draftState.pending.kind !== 'resource') {
         draftState.pending = {
@@ -209,6 +212,12 @@ function getRequiredProperties({
       resource: { uri: resource.uri, samlApp: resource.samlApp },
     };
   }
+  if (kind === 'namespace') {
+    return {
+      kind,
+      resource: { uri: resource.uri, kubeCluster: resource.kubeCluster },
+    };
+  }
   return {
     kind,
     resource: { uri: resource.uri },
@@ -266,6 +275,12 @@ export type ResourceRequest =
         uri: AppUri;
         samlApp: boolean;
       };
+    }
+  | {
+      kind: 'namespace';
+      resource: {
+        uri: KubeNamespaceUri;
+      };
     };
 
 type SharedResourceAccessRequestKind =
@@ -273,7 +288,8 @@ type SharedResourceAccessRequestKind =
   | 'db'
   | 'node'
   | 'kube_cluster'
-  | 'saml_idp_service_provider';
+  | 'saml_idp_service_provider'
+  | 'namespace';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -311,6 +327,12 @@ export function extractResourceRequestProperties({
     case 'kube': {
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
+    }
+    case 'namespace': {
+      const { kubeNamespaceId, kubeId } = routing.parseKubeNamespaceUri(
+        resource.uri
+      ).params;
+      return { kind: 'namespace', id: kubeNamespaceId, name: kubeId };
     }
     default:
       kind satisfies never;
@@ -394,6 +416,20 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
+      };
+    case 'namespace':
+      return {
+        resource: {
+          uri: routing.getKubeNamespaceUri({
+            rootClusterId,
+            leafClusterId,
+            // kubeId is required to know what
+            // kube cluster this namespace belongs to.
+            kubeId: resourceName,
+            kubeNamespaceId: resourceId,
+          }),
+        },
+        kind: 'namespace',
       };
     default:
       kind satisfies never;

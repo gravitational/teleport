@@ -20,11 +20,16 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
 
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -41,6 +46,40 @@ func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.
 	}
 	for _, kube := range resp.Kubes {
 		response.Agents = append(response.Agents, newAPIKube(kube))
+	}
+
+	return response, nil
+}
+
+// ListKubernetesResources accepts parameterized input to enable searching, sorting, and pagination
+func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKubernetesResourcesRequest) (*api.ListKubernetesResourcesResponse, error) {
+	fmt.Println("------- here")
+
+	clusterURI, err := uri.Parse(req.GetClusterUri())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Println("------- here print clusterURI", clusterURI, req.Search)
+	fmt.Println("---- parsed search: ", client.ParseSearchKeywords(req.GetSearch(), ' '))
+
+	resp, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, &kubeproto.ListKubernetesResourcesRequest{
+		ResourceType:      req.GetKubeResourceType(),
+		SearchKeywords:    client.ParseSearchKeywords(req.GetSearch(), ' '),
+		UseSearchAsRoles:  req.GetSearchAsRoles(),
+		KubernetesCluster: req.GetKubeCluster(),
+		Limit:             req.GetLimit(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response := &api.ListKubernetesResourcesResponse{
+		StartKey: resp.NextKey,
+	}
+
+	for _, kubeResource := range resp.Resources {
+		response.Items = append(response.Items, newApiKubeResource(kubeResource, req.ClusterUri))
 	}
 
 	return response, nil
@@ -68,5 +107,23 @@ func newAPIKube(kube clusters.Kube) *api.Kube {
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
+	}
+}
+
+func newApiKubeResource(resource *types.KubernetesResourceV1, cluster string) *api.KubeResource {
+	apiLabels := APILabels{}
+	for name, value := range resource.GetStaticLabels() {
+		apiLabels = append(apiLabels, &api.Label{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	return &api.KubeResource{
+		Kind:      resource.Kind,
+		Name:      resource.GetName(),
+		Labels:    apiLabels,
+		Namespace: resource.Spec.Namespace,
+		Cluster:   cluster,
 	}
 }

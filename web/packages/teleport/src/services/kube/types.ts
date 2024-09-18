@@ -25,3 +25,18 @@ export interface Kube {
   groups?: string[];
   requiresRequest?: boolean;
 }
+
+export interface KubeNamespace {
+  kind: 'namespace';
+  name: string;
+  labels: ResourceLabel[];
+  /**
+   * the kube cluster where this  namespace belongs to
+   */
+  cluster: string;
+}
+
+export interface KubeNamespaceResponse {
+  items: KubeNamespace[];
+  startKey?: string;
+}

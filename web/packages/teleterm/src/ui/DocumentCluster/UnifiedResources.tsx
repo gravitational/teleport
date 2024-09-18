@@ -46,6 +46,10 @@ import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_res
 
 import { NodeSubKind } from 'shared/services';
 import { waitForever } from 'shared/utils/wait';
+import {
+  RequestableResourceKind,
+  Option,
+} from 'shared/components/AccessRequests/NewRequest/resource';
 
 import {
   UserPreferences,
@@ -78,13 +82,22 @@ import {
 } from './ActionButtons';
 import { useResourcesContext, ResourcesContext } from './resourcesContext';
 import { useUserPreferences } from './useUserPreferences';
+import { KubeRequestButton } from 'shared/components/AccessRequests/NewRequest/KubeRequestButton';
+import {
+  extractResourceRequestProperties,
+  toResourceRequest,
+} from '../services/workspacesService/accessRequestsService';
+import {
+  getKubeNamespaceId,
+  KubeNamespaceRequest,
+} from 'shared/components/AccessRequests/NewRequest/kube';
 
 export function UnifiedResources(props: {
   clusterUri: uri.ClusterUri;
   docUri: uri.DocumentUri;
   queryParams: DocumentClusterQueryParams;
 }) {
-  const { clustersService } = useAppContext();
+  const { clustersService, tshd } = useAppContext();
   const { userPreferencesAttempt, updateUserPreferences, userPreferences } =
     useUserPreferences(props.clusterUri);
   const { documentsService, rootClusterUri, accessRequestsService } =
@@ -193,6 +206,35 @@ export function UnifiedResources(props: {
     return accessRequestsService.getAddedItemsCount();
   }, [accessRequestsService]);
 
+  async function fetchKubeNamespaces({
+    kubeCluster,
+    search,
+  }: KubeNamespaceRequest): Promise<Option[]> {
+    console.log('--- cluster uri : ', props.clusterUri);
+    const { response } = await tshd.listKubernetesResources({
+      kubeCluster,
+      search,
+      limit: 5,
+      searchAsRoles: true,
+      startKey: '',
+      kubeResourceType: 'namespace',
+      clusterUri: props.clusterUri,
+    });
+    return response.items.map(i => {
+      const resourceRequest = toResourceRequest({
+        kind: 'namespace',
+        clusterUri: props.clusterUri,
+        resourceId: i.name,
+        resourceName: kubeCluster,
+      });
+      return {
+        kind: 'namespace',
+        value: resourceRequest.resource.uri,
+        label: i.name,
+      };
+    });
+  }
+
   const getAccessRequestButton = useCallback(
     (resource: UnifiedResourceResponse) => {
       const isResourceAdded = addedResources?.has(resource.resource.uri);
@@ -206,6 +248,28 @@ export function UnifiedResources(props: {
           requestStarted);
 
       if (showRequestButton) {
+        if (resource.kind === 'kube') {
+          return (
+            <KubeRequestButton
+              resource={resource}
+              addOrRemoveResource={resource =>
+                accessRequestsService.addOrRemoveResource(resource)
+              }
+              fetchNamespaces={fetchKubeNamespaces}
+              RequestButton={({ onClick }) => {
+                return (
+                  <AccessRequestButton
+                    isResourceAdded={isResourceAdded}
+                    requestStarted={requestStarted}
+                    onClick={onClick}
+                  />
+                );
+              }}
+              addedResources={addedResources}
+              clusterUri={props.clusterUri}
+            />
+          );
+        }
         return (
           <AccessRequestButton
             isResourceAdded={isResourceAdded}
@@ -402,7 +466,7 @@ const Resources = memo(
                   text:
                     props.getAddedItemsCount() > 0
                       ? 'Add/Remove to Request'
-                      : 'Request Access',
+                      : 'Request Access', // access request
                   disabled: false,
                   action: selectedResources =>
                     props.bulkAddResources(

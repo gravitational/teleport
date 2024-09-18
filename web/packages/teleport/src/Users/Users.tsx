@@ -30,6 +30,7 @@ import UserAddEdit from './UserAddEdit';
 import UserDelete from './UserDelete';
 import UserReset from './UserReset';
 import useUsers, { State, UsersContainerProps } from './useUsers';
+import KubeService from 'teleport/services/kube';
 
 export function UsersContainer(props: UsersContainerProps) {
   const state = useUsers(props);
@@ -37,6 +38,11 @@ export function UsersContainer(props: UsersContainerProps) {
 }
 
 export function Users(props: State) {
+  const kube = new KubeService();
+
+  kube.fetchKubernetesNamespaces('kimlisa22.cloud.gravitational.io', {
+    kubeCluster: 'cluster-pumpkin',
+  });
   const {
     attempt,
     users,

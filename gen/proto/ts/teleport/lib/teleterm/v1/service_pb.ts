@@ -43,6 +43,7 @@ import { Database } from "./database_pb";
 import { Server } from "./server_pb";
 import { Gateway } from "./gateway_pb";
 import { Cluster } from "./cluster_pb";
+import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
@@ -343,6 +344,52 @@ export interface GetSuggestedAccessListsResponse {
      * @generated from protobuf field: repeated teleport.accesslist.v1.AccessList access_lists = 1;
      */
     accessLists: AccessList[];
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+ */
+export interface ListKubernetesResourcesRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: string kube_resource_type = 2;
+     */
+    kubeResourceType: string;
+    /**
+     * @generated from protobuf field: string kube_cluster = 3;
+     */
+    kubeCluster: string;
+    /**
+     * @generated from protobuf field: string start_key = 4;
+     */
+    startKey: string;
+    /**
+     * @generated from protobuf field: int32 limit = 5;
+     */
+    limit: number;
+    /**
+     * @generated from protobuf field: string search = 6;
+     */
+    search: string;
+    /**
+     * @generated from protobuf field: bool search_as_roles = 7;
+     */
+    searchAsRoles: boolean;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+ */
+export interface ListKubernetesResourcesResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource items = 1;
+     */
+    items: KubeResource[];
+    /**
+     * @generated from protobuf field: string start_key = 2;
+     */
+    startKey: string;
 }
 /**
  * CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -2411,6 +2458,156 @@ class GetSuggestedAccessListsResponse$Type extends MessageType<GetSuggestedAcces
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
  */
 export const GetSuggestedAccessListsResponse = new GetSuggestedAccessListsResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesResourcesRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListKubernetesResourcesRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "kube_resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "kube_cluster", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 6, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListKubernetesResourcesRequest>): ListKubernetesResourcesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        message.kubeResourceType = "";
+        message.kubeCluster = "";
+        message.startKey = "";
+        message.limit = 0;
+        message.search = "";
+        message.searchAsRoles = false;
+        if (value !== undefined)
+            reflectionMergePartial<ListKubernetesResourcesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesResourcesRequest): ListKubernetesResourcesRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* string kube_resource_type */ 2:
+                    message.kubeResourceType = reader.string();
+                    break;
+                case /* string kube_cluster */ 3:
+                    message.kubeCluster = reader.string();
+                    break;
+                case /* string start_key */ 4:
+                    message.startKey = reader.string();
+                    break;
+                case /* int32 limit */ 5:
+                    message.limit = reader.int32();
+                    break;
+                case /* string search */ 6:
+                    message.search = reader.string();
+                    break;
+                case /* bool search_as_roles */ 7:
+                    message.searchAsRoles = reader.bool();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListKubernetesResourcesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* string kube_resource_type = 2; */
+        if (message.kubeResourceType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.kubeResourceType);
+        /* string kube_cluster = 3; */
+        if (message.kubeCluster !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.kubeCluster);
+        /* string start_key = 4; */
+        if (message.startKey !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.startKey);
+        /* int32 limit = 5; */
+        if (message.limit !== 0)
+            writer.tag(5, WireType.Varint).int32(message.limit);
+        /* string search = 6; */
+        if (message.search !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.search);
+        /* bool search_as_roles = 7; */
+        if (message.searchAsRoles !== false)
+            writer.tag(7, WireType.Varint).bool(message.searchAsRoles);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+ */
+export const ListKubernetesResourcesRequest = new ListKubernetesResourcesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesResourcesResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListKubernetesResourcesResponse", [
+            { no: 1, name: "items", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource },
+            { no: 2, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListKubernetesResourcesResponse>): ListKubernetesResourcesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.items = [];
+        message.startKey = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListKubernetesResourcesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesResourcesResponse): ListKubernetesResourcesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.KubeResource items */ 1:
+                    message.items.push(KubeResource.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string start_key */ 2:
+                    message.startKey = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListKubernetesResourcesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.KubeResource items = 1; */
+        for (let i = 0; i < message.items.length; i++)
+            KubeResource.internalBinaryWrite(message.items[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string start_key = 2; */
+        if (message.startKey !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.startKey);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+ */
+export const ListKubernetesResourcesResponse = new ListKubernetesResourcesResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CredentialInfo$Type extends MessageType<CredentialInfo> {
     constructor() {
@@ -5563,6 +5760,7 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AssumeRole", options: {}, I: AssumeRoleRequest, O: EmptyResponse },
     { name: "PromoteAccessRequest", options: {}, I: PromoteAccessRequestRequest, O: PromoteAccessRequestResponse },
     { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse },
+    { name: "ListKubernetesResources", options: {}, I: ListKubernetesResourcesRequest, O: ListKubernetesResourcesResponse },
     { name: "GetKubes", options: {}, I: GetKubesRequest, O: GetKubesResponse },
     { name: "GetApps", options: {}, I: GetAppsRequest, O: GetAppsResponse },
     { name: "AddCluster", options: {}, I: AddClusterRequest, O: Cluster },

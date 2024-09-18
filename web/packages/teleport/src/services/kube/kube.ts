@@ -17,10 +17,13 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams } from 'teleport/config';
+import cfg, {
+  UrlKubeNamespacesParams,
+  UrlResourcesParams,
+} from 'teleport/config';
 import { ResourcesResponse } from 'teleport/services/agents';
 
-import { Kube } from './types';
+import { Kube, KubeNamespaceResponse } from './types';
 import makeKube from './makeKube';
 
 class KubeService {
@@ -38,6 +41,23 @@ class KubeService {
           agents: items.map(makeKube),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
+        };
+      });
+  }
+
+  fetchKubernetesNamespaces(
+    clusterId,
+    params: UrlKubeNamespacesParams,
+    signal?: AbortSignal
+  ): Promise<KubeNamespaceResponse> {
+    return api
+      .get(cfg.getKubernetesNamespacesUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
+
+        return {
+          items: items.map(makeKube),
+          startKey: json?.startKey,
         };
       });
   }

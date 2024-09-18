@@ -38,6 +38,7 @@ import type { RouteProps } from 'react-router';
 export type RootClusterUri = string;
 export type RootClusterServerUri = string;
 export type RootClusterKubeUri = string;
+export type RootClusterKubeNamespaceUri = string;
 export type RootClusterDatabaseUri = string;
 export type RootClusterAppUri = string;
 export type RootClusterResourceUri =
@@ -49,6 +50,7 @@ export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri = string;
 export type LeafClusterServerUri = string;
 export type LeafClusterKubeUri = string;
+export type LeafClusterKubeNamespaceUri = string;
 export type LeafClusterDatabaseUri = string;
 export type LeafClusterAppUri = string;
 export type LeafClusterResourceUri =
@@ -62,6 +64,9 @@ export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
 export type ClusterUri = RootClusterUri | LeafClusterUri;
 export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
 export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
+export type KubeNamespaceUri =
+  | RootClusterKubeNamespaceUri
+  | LeafClusterKubeNamespaceUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
@@ -92,6 +97,10 @@ export const paths = {
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
+  kubeNamespace:
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/namespace/:kubeId/:kubeNamespaceId',
+  kubeNamespaceLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/namespace/:kubeId/:kubeNamespaceId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
@@ -124,6 +133,10 @@ export const routing = {
 
   parseKubeUri(uri: string) {
     return routing.parseUri(uri, paths.kube);
+  },
+
+  parseKubeNamespaceUri(uri: string) {
+    return routing.parseUri(uri, paths.kubeNamespace);
   },
 
   parseAppUri(uri: string) {
@@ -232,6 +245,18 @@ export const routing = {
     }
   },
 
+  getKubeNamespaceUri(params: Params) {
+    if (params.leafClusterId) {
+      // paths.kubeLeaf is needed as path-to-regexp used by react-router doesn't support
+      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
+      //
+      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
+      return generatePath(paths.kubeNamespaceLeaf, params as any) as string;
+    } else {
+      return generatePath(paths.kubeNamespace, params as any) as string;
+    }
+  },
+
   isClusterServer(clusterUri: ClusterUri, serverUri: ServerUri) {
     return serverUri.startsWith(`${clusterUri}/servers/`);
   },
@@ -289,6 +314,7 @@ export type Params = {
   leafClusterId?: string;
   serverId?: string;
   kubeId?: string;
+  kubeNamespaceId?: string;
   dbId?: string;
   gatewayId?: string;
   tabId?: string;

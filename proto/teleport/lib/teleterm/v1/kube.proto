@@ -33,3 +33,21 @@ message Kube {
   // labels is the kube labels
   repeated Label labels = 3;
 }
+
+// KubeResource describes a variety of kubernetes resource eg: pods, namespace
+message KubeResource {
+  // kind is the kube resource kind eg: pods, namespace
+  string kind = 1;
+  // name is the kube resource name eg: pod name, namespace name
+  string name = 2;
+  // labels is the kube resource labels
+  repeated Label labels = 3;
+  // cluster is the kube cluster name that this kube resource belongs to
+  // eg: the kube cluster that a namespace belongs to
+  string cluster = 4;
+  // namespace is the kube namespace where the resource is located
+  // note:
+  //  this field will be blank if this resource "kind" is "namespace"
+  //  refer to field "name" for the name of namespace
+  string namespace = 5;
+}

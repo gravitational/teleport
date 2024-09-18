@@ -21,6 +21,7 @@ package kubev1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -128,6 +129,8 @@ func (c *Config) CheckAndSetDefaults() error {
 func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKubernetesResourcesRequest) (*proto.ListKubernetesResourcesResponse, error) {
 	userContext, err := s.authorize(ctx)
 	if err != nil {
+		fmt.Println("----- grpc ListKube authorize: ", err)
+
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -142,6 +145,8 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 
 		extendedContext, err := userContext.WithExtraRoles(s.cfg.AccessPoint, s.cfg.ClusterName, extraRoles)
 		if err != nil {
+			fmt.Println("----- grpc ListKube WithExtraRoles: ", err)
+
 			return nil, trail.ToGRPC(err)
 		}
 		if len(extendedContext.Checker.RoleNames()) != len(userContext.Checker.RoleNames()) {
@@ -200,6 +205,7 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 	return trace.Wrap(err)
 }
 
+// here listing kubes
 // listKubernetesResources returns the list of resources available for the user for
 // the specified Kubernetes cluster and namespace. If respectLimit is true,
 // the limit will be respected, otherwise the limit will be ignored and we return
@@ -315,6 +321,8 @@ func (s *Server) iterateKubernetesResources(
 		case types.KindKubeNamespace:
 			lItems, err := kubeClient.CoreV1().Namespaces().List(ctx, listOpts)
 			if err != nil {
+				fmt.Println("----- iterateKubernetesResources calling kube api: ", err)
+
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))

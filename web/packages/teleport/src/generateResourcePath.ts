@@ -57,6 +57,7 @@ export default function generateResourcePath(
     .replace(':searchAsRoles?', processedParams.searchAsRoles || '')
     .replace(':sort?', processedParams.sort || '')
     .replace(':kinds?', processedParams.kinds || '')
+    .replace(':kubeCluster?', processedParams.kubeCluster || '')
     .replace(':pinnedOnly?', processedParams.pinnedOnly || '')
     .replace(
       ':includedResourceMode?',

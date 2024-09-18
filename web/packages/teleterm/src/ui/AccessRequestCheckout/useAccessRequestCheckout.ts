@@ -113,15 +113,26 @@ export default function useAccessRequestCheckout() {
           clusterUri: rootClusterUri,
           resourceIds: data
             .filter(d => d.kind !== 'role')
-            .map(d => ({
-              // We have to use id, not name.
-              // These fields are the same for all resources except servers,
-              // where id is UUID and name is the hostname.
-              name: d.id,
-              kind: d.kind,
-              clusterName: d.clusterName,
-              subResourceName: '',
-            })),
+            .map(d => {
+              if (d.kind === 'namespace') {
+                console.log('---- here: ', d);
+                return {
+                  name: d.name,
+                  kind: d.kind,
+                  clusterName: d.clusterName,
+                  subResourceName: d.subResourceName,
+                };
+              }
+              return {
+                // We have to use id, not name.
+                // These fields are the same for all resources except servers,
+                // where id is UUID and name is the hostname.
+                name: d.id,
+                kind: d.kind,
+                clusterName: d.clusterName,
+                subResourceName: '',
+              };
+            }),
         });
         setResourceRequestRoles(response.applicableRoles);
         setSelectedResourceRequestRoles(response.applicableRoles);
@@ -171,7 +182,7 @@ export default function useAccessRequestCheckout() {
         pendingRequest.resources.forEach(resourceRequest => {
           const { kind, id, name } =
             extractResourceRequestProperties(resourceRequest);
-          data.push({
+          const item: PendingListItemWithOriginalItem = {
             kind,
             id,
             name,
@@ -179,7 +190,12 @@ export default function useAccessRequestCheckout() {
             clusterName: ctx.clustersService.findClusterByResource(
               resourceRequest.resource.uri
             )?.name,
-          });
+          };
+
+          if (kind === 'namespace') {
+            item.subResourceName = id;
+          }
+          data.push(item);
         });
       }
     }
@@ -229,12 +245,22 @@ export default function useAccessRequestCheckout() {
       dryRun: req.dryRun,
       resourceIds: data
         .filter(d => d.kind !== 'role')
-        .map(d => ({
-          name: d.id,
-          clusterName: d.clusterName,
-          kind: d.kind,
-          subResourceName: '',
-        })),
+        .map(d => {
+          if (d.kind === 'namespace') {
+            return {
+              name: d.name,
+              kind: d.kind,
+              clusterName: d.clusterName,
+              subResourceName: d.subResourceName,
+            };
+          }
+          return {
+            name: d.id,
+            clusterName: d.clusterName,
+            kind: d.kind,
+            subResourceName: '',
+          };
+        }),
       roles: data.filter(d => d.kind === 'role').map(d => d.name),
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),

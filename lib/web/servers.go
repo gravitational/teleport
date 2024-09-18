@@ -19,6 +19,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -71,6 +72,30 @@ func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p h
 
 	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), types.KindKubePod)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeKubeResources(resp.Resources, r.URL.Query().Get("kubeCluster")),
+		StartKey:   resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
+}
+
+// clusterKubePodsGet returns a list of Kubernetes Pods in a form the
+// UI can present. TODO
+func (h *Handler) clusterKubeClusterNamespacesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	fmt.Println("----- at get kube cluster namespaces")
+	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
+	if err != nil {
+		fmt.Println("----- new kube service client error: ", err)
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), types.KindKubeNamespace)
+	if err != nil {
+		fmt.Println("----- listKubeResources: ", err)
+
 		return nil, trace.Wrap(err)
 	}
 

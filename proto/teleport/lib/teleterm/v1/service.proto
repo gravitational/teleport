@@ -82,6 +82,9 @@ service TerminalService {
   rpc PromoteAccessRequest(PromoteAccessRequestRequest) returns (PromoteAccessRequestResponse);
   // GetSuggestedAccessLists returns suggested access lists for an access request.
   rpc GetSuggestedAccessLists(GetSuggestedAccessListsRequest) returns (GetSuggestedAccessListsResponse);
+  // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated. Only
+  // one type of kube resource can be retrieved per request.
+  rpc ListKubernetesResources(ListKubernetesResourcesRequest) returns (ListKubernetesResourcesResponse);
 
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
@@ -306,6 +309,21 @@ message GetSuggestedAccessListsRequest {
 
 message GetSuggestedAccessListsResponse {
   repeated accesslist.v1.AccessList access_lists = 1;
+}
+
+message ListKubernetesResourcesRequest {
+  string cluster_uri = 1;
+  string kube_resource_type = 2;
+  string kube_cluster = 3;
+  string start_key = 4;
+  int32 limit = 5;
+  string search = 6;
+  bool search_as_roles = 7;
+}
+
+message ListKubernetesResourcesResponse {
+  repeated KubeResource items = 1;
+  string start_key = 2;
 }
 
 // CredentialInfo holds fields related to a user's WebAuthn credential.

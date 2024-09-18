@@ -124,6 +124,7 @@ export function FieldSelectAsync<
   maxMenuHeight,
   isClearable,
   isMulti,
+  menuIsOpen,
   menuPosition,
   rule = defaultRule,
   stylesConfig,
@@ -131,10 +132,16 @@ export function FieldSelectAsync<
   autoFocus,
   isDisabled,
   elevated,
+  defaultOptions = true,
+  controlShouldRenderValue,
+  closeMenuOnSelect,
+  hideSelectedOptions,
   noOptionsMessage,
   loadOptions,
   inputId = 'select',
   defaultValue,
+  cacheOptions,
+  menuPlacement,
   ...styles
 }: AsyncSelectProps<Opt, IsMulti, Group> & FieldProps<Opt, IsMulti>) {
   const [attempt, runAttempt] = useAsync(resolveUndefinedOptions(loadOptions));
@@ -153,10 +160,15 @@ export function FieldSelectAsync<
         inputId={inputId}
         name={name}
         menuPosition={menuPosition}
+        menuIsOpen={menuIsOpen}
         hasError={hasError}
         isSearchable={isSearchable}
         isClearable={isClearable}
+        closeMenuOnSelect={closeMenuOnSelect}
+        hideSelectedOptions={hideSelectedOptions}
         value={value}
+        cacheOptions={cacheOptions}
+        menuPlacement={menuPlacement}
         onChange={onChange}
         loadOptions={async (value, callback) => {
           const [options, error] = await runAttempt(value, callback);
@@ -172,7 +184,8 @@ export function FieldSelectAsync<
           return noOptionsMessage?.(obj) ?? 'No options';
         }}
         maxMenuHeight={maxMenuHeight}
-        defaultOptions={true}
+        defaultOptions={defaultOptions}
+        controlShouldRenderValue={controlShouldRenderValue}
         placeholder={placeholder}
         isMulti={isMulti}
         autoFocus={autoFocus}

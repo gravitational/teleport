@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -811,6 +812,34 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	}
 
 	return response, nil
+}
+
+// ListKubernetesResources accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.ResourceURI, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	cluster, tc, err := s.ResolveClusterURI(clusterURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyGRPCClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.TeleportCluster = cluster.Name
+
+	var resources *kubeproto.ListKubernetesResourcesResponse
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		resources, err = proxyGRPCClient.ListKubernetesResources(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	})
+
+	return resources, trace.Wrap(err)
 }
 
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {

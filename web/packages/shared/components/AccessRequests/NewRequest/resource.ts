@@ -18,15 +18,24 @@
 
 import { ResourceIdKind } from 'teleport/services/agents';
 
+import { Option as BaseOption } from 'shared/components/Select';
+
 /** Available request kinds for resource-based and role-based access requests. */
-export type ResourceKind = ResourceIdKind | 'role' | 'resource';
+export type RequestableResourceKind =
+  | ResourceIdKind
+  | 'role'
+  | 'resource'
+  /**
+   * namespace refers to kubernetes cluster namespaces
+   */
+  | 'namespace';
 
 /**
  * Maps a resource ID (usually agent name) to resource description (usually the
  * same, but not necessarily).
  */
 export type ResourceMap = {
-  [K in ResourceIdKind | 'role']: Record<string, string>;
+  [K in Exclude<RequestableResourceKind, 'resource'>]: Record<string, string>;
 };
 
 export function getEmptyResourceState(): ResourceMap {
@@ -39,5 +48,11 @@ export function getEmptyResourceState(): ResourceMap {
     windows_desktop: {},
     role: {},
     saml_idp_service_provider: {},
+    namespace: {},
   };
 }
+
+export type Option = BaseOption & {
+  isAdded?: boolean;
+  kind: 'app' | 'user_group' | 'namespace';
+};

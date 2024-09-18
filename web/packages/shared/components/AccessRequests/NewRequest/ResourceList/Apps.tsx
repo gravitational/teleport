@@ -31,7 +31,7 @@ import Select, {
 import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { ResourceMap, ResourceKind } from '../resource';
+import { ResourceMap, RequestableResourceKind } from '../resource';
 
 import { ListProps, StyledTable } from './ResourceList';
 
@@ -126,7 +126,7 @@ function ActionCell({
   agent: App;
   addedResources: ResourceMap;
   addOrRemoveResource: (
-    kind: ResourceKind,
+    kind: RequestableResourceKind,
     resourceId: string,
     resourceName?: string
   ) => void;

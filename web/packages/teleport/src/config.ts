@@ -247,8 +247,11 @@ const cfg = {
 
     // TODO(zmb3): remove this when Assist is no longer using it
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
+
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    kubernetesNamespacesPath:
+      '/v1/webapi/sites/:clusterId/kubernetes/namespaces?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?',
 
     usersPath: '/v1/webapi/users',
     userWithUsernamePath: '/v1/webapi/users/:username',
@@ -881,6 +884,13 @@ const cfg = {
     });
   },
 
+  getKubernetesNamespacesUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesNamespacesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getAuthnChallengeWithTokenUrl(tokenId: string) {
     return generatePath(cfg.api.mfaAuthnChallengeWithTokenPath, {
       tokenId,
@@ -1231,6 +1241,16 @@ export interface UrlResourcesParams {
   includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
+}
+
+export interface UrlKubeNamespacesParams {
+  query?: string;
+  search?: string;
+  sort?: SortType;
+  limit?: number;
+  startKey?: string;
+  searchAsRoles?: 'yes' | '';
+  kubeCluster?: string;
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {

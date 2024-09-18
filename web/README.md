@@ -16,7 +16,7 @@ You can make production builds locally, or you can use Docker to do that.
 
 ### Local Build
 
-Install Node.js (you can take the version by executing 
+Install Node.js (you can take the version by executing
 `make -C build.assets print-node-version` from the root directory).
 After that, run `corepack enable pnpm` to enable installing a package manager.
 
@@ -27,11 +27,12 @@ pnpm install
 ```
 
 You will also need the following tools installed:
-* The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
-* The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
+
+- The `Rust` and `Cargo` version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L11) (search for `RUST_VERSION`) are required.
+- The [`wasm-pack`](https://github.com/rustwasm/wasm-pack) version in [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/versions.mk#L12) (search for `WASM_PACK_VERSION`) is required:
   `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
-* [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
-    on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
+- [`binaryen`](https://github.com/WebAssembly/binaryen) (which contains `wasm-opt`) is required to be installed manually
+  on linux aarch64 (64-bit ARM). You can check if it's already installed on your system by running `which wasm-opt`. If not you can install it like `apt-get install binaryen` (for Debian-based Linux). `wasm-pack` will install this automatically on other platforms.
 
 To build the Teleport open source version
 
@@ -110,7 +111,7 @@ For example, if `https://example.com:3080` is the URL of your cluster then:
 To start your local Teleport development server
 
 ```
-PROXY_TARGET=example.com:3080 pnpm start-teleport
+PROXY_TARGET=kimlisa22.cloud.gravitational.io pnpm start-teleport-e
 ```
 
 If you're running a local cluster at `https://localhost:3080`, you can just run
@@ -296,7 +297,7 @@ not own.
 We use [pnpm workspaces](https://pnpm.io/workspaces) to manage dependencies.
 
 To add a package to the workspace, run `pnpm --filter=<workspace-name> add <package-name>`.
-Alternatively, you can add a line to the workspace's `package.json` file and then 
+Alternatively, you can add a line to the workspace's `package.json` file and then
 run `pnpm install` (or `pnpm i`) from the root of this repository.
 
 Dependencies should generally be added to the specific workspaces that use them.
@@ -310,9 +311,9 @@ However, there are cases where dependencies should be added not in a workspace, 
 in the root `package.json`:
 
 1. Dependencies imported in `e` code (we can't declare dependencies in `e/web/teleport/package.json`
-to avoid generating a different lockfile when `e` isn't cloned).
-For example, `react` - it is imported in every package (in `e` too), so it
-needs to be kept in the root.
+   to avoid generating a different lockfile when `e` isn't cloned).
+   For example, `react` - it is imported in every package (in `e` too), so it
+   needs to be kept in the root.
 2. CLI tools which are run from the root of the repo, like `prettier`.
 
 ### Adding an Audit Event

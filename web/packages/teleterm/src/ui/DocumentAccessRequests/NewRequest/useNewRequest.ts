@@ -22,6 +22,14 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
+import {
+  RequestableResourceKind,
+  Option,
+} from 'shared/components/AccessRequests/NewRequest/resource';
+import {
+  getKubeNamespaceId,
+  KubeNamespaceRequest,
+} from 'shared/components/AccessRequests/NewRequest/kube';
 
 import {
   ShowResources,
@@ -49,7 +57,6 @@ import type {
   ResourceLabel,
   ResourceFilter as WeakAgentFilter,
   ResourcesResponse,
-  ResourceIdKind,
   UnifiedResource,
 } from 'teleport/services/agents';
 import type * as teleportApps from 'teleport/services/apps';
@@ -275,6 +282,30 @@ export default function useNewRequest(rootCluster: Cluster) {
     }
   }
 
+  async function fetchKubeNamespaces({
+    kubeCluster,
+    search,
+  }: KubeNamespaceRequest): Promise<Option[]> {
+    const { response } = await ctx.tshd.listKubernetesResources({
+      kubeCluster,
+      search,
+      limit: 5,
+      searchAsRoles: true,
+      startKey: '',
+      kubeResourceType: 'namespace',
+      clusterUri,
+    });
+    return response.items.map(i => {
+      const id = getKubeNamespaceId({ namespace: i.name, kubeCluster });
+      return {
+        kind: 'namespace',
+        value: id,
+        label: i.name,
+        isAdded: !!addedResources['namespace'][id],
+      };
+    });
+  }
+
   // Calculate counts for our resource list.
   let fromPage = 0;
   let toPage = 0;
@@ -295,6 +326,7 @@ export default function useNewRequest(rootCluster: Cluster) {
     updateSort,
     attempt,
     fetchStatus,
+    fetchKubeNamespaces,
     updateQuery,
     updateSearch,
     onAgentLabelClick,
@@ -347,8 +379,13 @@ function getDefaultSort(kind: ResourceKind): SortType {
 
 export type ResourceKind =
   | Extract<
-      ResourceIdKind,
-      'node' | 'app' | 'db' | 'kube_cluster' | 'saml_idp_service_provider'
+      RequestableResourceKind,
+      | 'node'
+      | 'app'
+      | 'db'
+      | 'kube_cluster'
+      | 'saml_idp_service_provider'
+      | 'namespace'
     >
   | 'role';
 

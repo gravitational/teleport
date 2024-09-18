@@ -433,7 +433,7 @@ func onRequestSearch(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req := kubeproto.ListKubernetesResourcesRequest{
+		req := kubeproto.ListKubernetesResourcesRequest{ // here is tsh command
 			ResourceType:        cf.ResourceKind,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
