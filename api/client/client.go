@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
-	"github.com/gravitational/teleport/api/client/autoupdate"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -893,8 +892,8 @@ func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 }
 
 // AutoUpdateServiceClient returns an unadorned client for the AutoUpdate service.
-func (c *Client) AutoUpdateServiceClient() *autoupdate.Client {
-	return autoupdate.NewClient(autoupdatev1pb.NewAutoUpdateServiceClient(c.conn))
+func (c *Client) AutoUpdateServiceClient() autoupdatev1pb.AutoUpdateServiceClient {
+	return autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -2870,18 +2869,18 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// GetAutoUpdateConfig gets autoupdate configuration.
+// GetAutoUpdateConfig gets AutoUpdateConfig resource.
 func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateConfig(ctx)
+	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resp, nil
 }
 
-// GetAutoUpdateVersion gets autoupdate version.
+// GetAutoUpdateVersion gets AutoUpdateVersion resource.
 func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx)
+	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
