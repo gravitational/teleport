@@ -1,1 +1,1 @@
-export { AccessGraphWrapper as default } from './AccessGraph';
+export { AccessGraph as default } from './AccessGraph';
