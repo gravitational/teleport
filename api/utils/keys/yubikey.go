@@ -320,6 +320,12 @@ const (
 )
 
 func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	// Lock the connection for the entire duration of the sign process.
+	// Without this, the connection will be released after releaseConnectionDelay,
+	// leading to a failure when providing PIN or touch input:
+	// "verify pin: transmitting request: the supplied handle was invalid".
+	y.connect()
+	defer y.releaseConnection()
 	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
 		touchPromptDelayTimer = time.NewTimer(signTouchPromptDelay)
