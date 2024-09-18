@@ -225,19 +225,8 @@ func TestTrustBundleCache_Run(t *testing.T) {
 		errCh <- err
 	}()
 
-	subscription, stop := cache.Subscribe()
-	t.Cleanup(stop)
-
-	// Fetch the first bundle, we expect to see the Local bundle and the one
-	// pre-initialized federated bundle.
-	var gotBundleSet *BundleSet
-	select {
-	case gotBundleSet = <-subscription:
-	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
-	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
-	}
+	gotBundleSet, err := cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -270,12 +259,14 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the updated local CA
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -306,12 +297,14 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the updated federated bundle
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
 	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
@@ -342,14 +335,16 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the new federated bundle
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
-	require.NotNil(t, gotBundleSet.Local)
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
 	require.Len(t, gotBundleSet.Local.X509Authorities(), 2)
 	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
@@ -375,12 +370,15 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	}
 	// Check we receive a bundle with the new federated bundle deleted
 	select {
-	case gotBundleSet = <-subscription:
+	case <-gotBundleSet.Stale():
 	case <-time.After(5 * time.Second):
-		t.Fatalf("timed out waiting for bundle set")
+		t.Fatalf("timed out waiting for bundle set update")
 	case <-ctx.Done():
-		t.Fatalf("context canceled waiting for bundle set")
+		t.Fatalf("context canceled waiting for bundle set update")
 	}
+	gotBundleSet, err = cache.GetBundleSet(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, gotBundleSet)
 	// Check the local bundle
 	require.NotNil(t, gotBundleSet.Local)
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())

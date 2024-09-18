@@ -29,7 +29,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -323,13 +322,12 @@ type DeployServiceClient interface {
 	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
 	TokenService
 
-	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	callerIdentityGetter
 }
 
 type defaultDeployServiceClient struct {
+	callerIdentityGetter
 	*ecs.Client
-	stsClient          *sts.Client
 	tokenServiceClient TokenService
 }
 
@@ -341,11 +339,6 @@ func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) 
 // UpsertToken creates or updates a provision token.
 func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	return d.tokenServiceClient.UpsertToken(ctx, token)
-}
-
-// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
@@ -361,9 +354,9 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, to
 	}
 
 	return &defaultDeployServiceClient{
-		Client:             ecsClient,
-		stsClient:          stsClient,
-		tokenServiceClient: tokenServiceClient,
+		Client:               ecsClient,
+		callerIdentityGetter: stsClient,
+		tokenServiceClient:   tokenServiceClient,
 	}, nil
 }
 
