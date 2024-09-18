@@ -1902,7 +1902,7 @@ type autoUpdateCacheKey struct {
 
 var _ map[autoUpdateCacheKey]struct{} // compile-time hashability check
 
-// GetAutoUpdateConfig gets the autoupdate config from the backend.
+// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
 	defer span.End()
@@ -1925,7 +1925,7 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdate
 	return rg.reader.GetAutoUpdateConfig(ctx)
 }
 
-// GetAutoUpdateVersion gets the autoupdate version from the backend.
+// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
 	defer span.End()

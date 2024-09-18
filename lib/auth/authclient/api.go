@@ -308,10 +308,10 @@ type ReadProxyAccessPoint interface {
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 
-	// GetAutoUpdateConfig gets the autoupdate config from the backend.
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
 
-	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
@@ -1183,10 +1183,10 @@ type Cache interface {
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
 
-	// GetAutoUpdateConfig gets the autoupdate config from the backend.
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
 
-	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 
 	// GetAccessGraphSettings returns the access graph settings.

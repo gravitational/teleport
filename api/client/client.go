@@ -891,11 +891,6 @@ func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
 }
 
-// AutoUpdateServiceClient returns an unadorned client for the AutoUpdate service.
-func (c *Client) AutoUpdateServiceClient() autoupdatev1pb.AutoUpdateServiceClient {
-	return autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-}
-
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -2871,7 +2866,8 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 
 // GetAutoUpdateConfig gets AutoUpdateConfig resource.
 func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2880,7 +2876,8 @@ func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoU
 
 // GetAutoUpdateVersion gets AutoUpdateVersion resource.
 func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
