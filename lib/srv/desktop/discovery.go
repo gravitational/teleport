@@ -322,8 +322,10 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	currentResources := make(map[string]types.WindowsDesktop)
 	var newResources map[string]types.WindowsDesktop
+
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
 		Matcher: func(desktop types.WindowsDesktop) bool {
 			return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
@@ -349,23 +351,10 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 			case desktops := <-watcher.DynamicWindowsDesktopsC:
 				newResources = make(map[string]types.WindowsDesktop)
 				for _, dynamicDesktop := range desktops {
-					width, height := dynamicDesktop.GetScreenSize()
-					labels := make(map[string]string)
-					maps.Copy(labels, dynamicDesktop.GetAllLabels())
-					labels[types.OriginLabel] = types.OriginDynamic
-					desktop, err := types.NewWindowsDesktopV3(dynamicDesktop.GetName(), dynamicDesktop.GetAllLabels(), types.WindowsDesktopSpecV3{
-						Addr:   dynamicDesktop.GetAddr(),
-						Domain: dynamicDesktop.GetDomain(),
-						HostID: s.cfg.Heartbeat.HostUUID,
-						NonAD:  dynamicDesktop.NonAD(),
-						ScreenSize: &types.Resolution{
-							Width:  width,
-							Height: height,
-						},
-					})
+					desktop, err := s.toWindowsDesktop(dynamicDesktop)
 					if err != nil {
-						s.cfg.Logger.ErrorContext(ctx, "Can't create desktop resource", "error", err)
-						return
+						s.cfg.Logger.WarnContext(ctx, "Can't create desktop resource", "error", err)
+						continue
 					}
 					newResources[dynamicDesktop.GetName()] = desktop
 				}
@@ -380,4 +369,21 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 		}
 	}()
 	return watcher, nil
+}
+
+func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDesktop) (*types.WindowsDesktopV3, error) {
+	width, height := dynamicDesktop.GetScreenSize()
+	labels := make(map[string]string)
+	maps.Copy(labels, dynamicDesktop.GetAllLabels())
+	labels[types.OriginLabel] = types.OriginDynamic
+	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
+		Addr:   dynamicDesktop.GetAddr(),
+		Domain: dynamicDesktop.GetDomain(),
+		HostID: s.cfg.Heartbeat.HostUUID,
+		NonAD:  dynamicDesktop.NonAD(),
+		ScreenSize: &types.Resolution{
+			Width:  width,
+			Height: height,
+		},
+	})
 }
