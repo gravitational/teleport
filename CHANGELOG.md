@@ -1,5 +1,51 @@
 # Changelog
 
+## 16.4.0 (09/18/2024)
+
+### Machine ID for HCP Terraform and Terraform Enterprise
+
+Teleport now supports secure joining via Terraform Cloud, allowing Machine ID
+workflows to run on Terraform Cloud without shared secrets.
+
+### SPIFFE Federation for Workload Identity
+
+Teleport Workload Identity now supports SPIFFE Federation, allowing trust
+relationships to be established between a Teleport cluster's trust domain and
+trust domains managed by other SPIFFE compatible platforms. Establishing a
+relationship between the trust domains enables workloads belonging to one trust
+domain to validate the identity of workloads in the other trust domain, and vice
+versa.
+
+### Multi-domain support for web applications
+
+Teleport now supports web application access where one application depends on
+another. For example, you may have a web application that depends on a backend
+API service, both of which are separate apps protected by Teleport.
+
+### Okta integration status dashboard
+
+Cluster admins are now able to get a detailed overview of the Okta integration
+status in the Teleport web UI.
+
+### Other improvements and fixes
+
+* Fixed the web favicon not displaying on specific builds. [#46736](https://github.com/gravitational/teleport/pull/46736)
+* Fixed regression in private key parser to handle mismatched PEM headers. [#46727](https://github.com/gravitational/teleport/pull/46727)
+* Removed TXT record validation from custom DNS zones in VNet; VNet now supports any custom DNS zone, as long as it's included in `vnet_config`. [#46722](https://github.com/gravitational/teleport/pull/46722)
+* Fixed audit log not recognizing static host user events. [#46697](https://github.com/gravitational/teleport/pull/46697)
+* Fixes a bug in Kubernetes access that causes the error `expected *metav1.PartialObjectMetadata object` when trying to list resources. [#46694](https://github.com/gravitational/teleport/pull/46694)
+* Added a new `default_shell` configuration for the static host users resource that works exactly the same as the `create_host_user_default_shell` configuration added for roles. [#46688](https://github.com/gravitational/teleport/pull/46688)
+* Machine ID now generates cluster-specific `ssh_config` and `known_hosts` files which will always direct SSH connections made using them via Teleport. [#46684](https://github.com/gravitational/teleport/pull/46684)
+* Fixed a regression that prevented the `fish` shell from starting in Teleport Connect. [#46662](https://github.com/gravitational/teleport/pull/46662)
+* Added a new `create_host_user_default_shell` configuration under role options that changes the default shell of auto provisioned host users. [#46648](https://github.com/gravitational/teleport/pull/46648)
+* Fixed an issue that prevented host user creation when the username was also listed in `host_groups`. [#46635](https://github.com/gravitational/teleport/pull/46635)
+* Fixed `tsh scp` showing a login prompt when attempting to transfer a folder without the recursive option. [#46603](https://github.com/gravitational/teleport/pull/46603)
+* The Teleport Terraform provider now supports AccessMonitoringRule resources. [#46582](https://github.com/gravitational/teleport/pull/46582)
+* The `teleport-plugin-slack` chart can now deploy `tbot` to obtain and renew the Slack plugin credentials automatically. This setup is easier and more secure than signing long-lived credentials. [#46581](https://github.com/gravitational/teleport/pull/46581)
+* Always show the device trust green shield for authenticated devices. [#46565](https://github.com/gravitational/teleport/pull/46565)
+* Add new `terraform_cloud` joining method to enable secretless authentication on HCP Terraform jobs for the Teleport Terraform provider. [#46049](https://github.com/gravitational/teleport/pull/46049)
+* Emit audit logs when creating, updating or deleting Teleport Plugins. [#4939](https://github.com/gravitational/teleport.e/pull/4939)
+
 ## 16.3.0 (09/11/2024)
 
 ### Out-of-band user creation

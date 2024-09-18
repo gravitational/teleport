@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.3.0
+VERSION=16.4.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -765,7 +765,7 @@ $(RELEASE_NOTES_GEN): $(wildcard $(TOOLINGDIR)/cmd/release-notes/*.go)
 CHANGELOG := $(TOOLINGDIR)/bin/changelog
 .PHONY: $(CHANGELOG)
 $(CHANGELOG):
-	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.1
+	@GOBIN=$(TOOLINGDIR)/bin go install github.com/gravitational/shared-workflows/tools/changelog@v1.0.2
 
 .PHONY: tooling
 tooling: ensure-gotestsum $(DIFF_TEST)
