@@ -1,18 +1,20 @@
 /*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package main
 
@@ -27,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/slack"
+	"github.com/gravitational/teleport/integrations/access/datadog"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -37,15 +39,15 @@ var exampleConfig string
 
 func main() {
 	logger.Init()
-	app := kingpin.New("teleport-slack", "Teleport plugin for access requests approval via Slack.")
+	app := kingpin.New("teleport-datadog", "Teleport plugin for access requests approval via Datadog.")
 
 	app.Command("configure", "Prints an example .TOML configuration file.")
-	app.Command("version", "Prints teleport-slack version and exits.")
+	app.Command("version", "Prints teleport-datadog version and exits.")
 
-	startCmd := app.Command("start", "Starts a the Teleport Slack plugin.")
+	startCmd := app.Command("start", "Starts a Teleport Datadog Incident Management plugin.")
 	path := startCmd.Flag("config", "TOML config file path").
 		Short('c').
-		Default("/etc/teleport-slack.toml").
+		Default("/etc/teleport-datadog.toml").
 		String()
 	debug := startCmd.Flag("debug", "Enable verbose logging to stderr").
 		Short('d').
@@ -71,7 +73,7 @@ func main() {
 }
 
 func run(configPath string, debug bool) error {
-	conf, err := slack.LoadSlackConfig(configPath)
+	conf, err := datadog.LoadConfig(configPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -81,16 +83,16 @@ func run(configPath string, debug bool) error {
 		logConfig.Severity = "debug"
 	}
 	if err = logger.Setup(logConfig); err != nil {
-		return trace.Wrap(err)
+		return err
 	}
 	if debug {
 		logger.Standard().Debugf("DEBUG logging enabled")
 	}
 
-	app := slack.NewSlackApp(conf)
+	app := datadog.NewDatadogApp(conf)
 	go lib.ServeSignals(app, common.PluginShutdownTimeout)
 
-	logger.Standard().Infof("Starting Teleport Access Slack Plugin %s:%s", teleport.Version, teleport.Gitref)
+	logger.Standard().Infof("Starting Teleport Access Datadog Incident Management Plugin %s:%s", teleport.Version, teleport.Gitref)
 	return trace.Wrap(
 		app.Run(context.Background()),
 	)
