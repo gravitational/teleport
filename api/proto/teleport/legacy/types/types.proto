@@ -4764,6 +4764,8 @@ message SAMLConnectorSpecV2 {
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
   // MFASettings contains settings to enable SSO MFA checks through this auth connector.
   SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa,omitempty"];
+  // ForceAuthn should be set to force authentication on login, ignoring existing SAML sessions.
+  bool ForceAuthn = 18 [(gogoproto.jsontag) = "force_authn,omitempty"];
 }
 
 // SAMLConnectorMFASettings contains SAML MFA settings.
@@ -4775,6 +4777,9 @@ message SAMLConnectorMFASettings {
   string entity_descriptor = 2;
   // EntityDescriptorUrl is a URL that supplies a configuration XML.
   string entity_descriptor_url = 3;
+  // NoForceAuthn should be set if forced authentication is not needed for MFA checks. This should only
+  // be set if the SAML app is configured to handle MFA verification for existing SAML sessions.
+  bool no_force_authn = 4;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
