@@ -400,6 +400,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	if _, err := s.startReconciler(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(s.cfg.DiscoveryBaseDN) > 0 {
 		if err := s.startDesktopDiscovery(); err != nil {
 			return nil, trace.Wrap(err)
@@ -412,6 +416,80 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 
 	ok = true
 	return s, nil
+}
+
+// startReconciler starts resource watcher and reconciler that registers/unregisters windows desktops
+// according to the up-to-date list of dynamic windows desktops resources.
+func (s *WindowsService) startReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
+	if len(s.cfg.ResourceMatchers) == 0 {
+		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
+		return nil, nil
+	}
+	s.cfg.Logger.DebugContext(ctx, "Starting dynamic desktop resource watcher.")
+	watcher, err := services.NewDynamicWindowsDesktopWatcher(ctx, services.DynamicWindowsDesktopWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentDynamicWindowsDesktop,
+			Client:    s.cfg.AccessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	currentResources := make(map[string]types.WindowsDesktop)
+	var newResources map[string]types.WindowsDesktop
+	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.WindowsDesktop]{
+		Matcher: func(desktop types.WindowsDesktop) bool {
+			return services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels())
+		},
+		GetCurrentResources: func() map[string]types.WindowsDesktop {
+			return currentResources
+		},
+		GetNewResources: func() map[string]types.WindowsDesktop {
+			return newResources
+		},
+		OnCreate: s.upsertDesktop,
+		OnUpdate: s.updateDesktop,
+		OnDelete: s.deleteDesktop,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		defer s.cfg.Logger.DebugContext(ctx, "DynamicWindowsDesktop resource watcher done.")
+		defer watcher.Close()
+		for {
+			select {
+			case desktops := <-watcher.DynamicWindowsDesktopsC:
+				newResources = make(map[string]types.WindowsDesktop)
+				for _, dynamicDesktop := range desktops {
+					width, height := dynamicDesktop.GetScreenSize()
+					desktop, err := types.NewWindowsDesktopV3(dynamicDesktop.GetName(), dynamicDesktop.GetAllLabels(), types.WindowsDesktopSpecV3{
+						Addr:   dynamicDesktop.GetAddr(),
+						Domain: dynamicDesktop.GetDomain(),
+						HostID: s.cfg.Heartbeat.HostUUID,
+						NonAD:  dynamicDesktop.NonAD(),
+						ScreenSize: &types.Resolution{
+							Width:  width,
+							Height: height,
+						},
+					})
+					if err != nil {
+						s.cfg.Logger.ErrorContext(ctx, "Can't create desktop resource", "error", err)
+						return
+					}
+					newResources[dynamicDesktop.GetName()] = desktop
+				}
+				if err := reconciler.Reconcile(ctx); err != nil {
+					s.cfg.Logger.WarnContext(ctx, "Reconciliation failed, will retry", "error", err)
+					continue
+				}
+				currentResources = newResources
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return watcher, nil
 }
 
 func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {

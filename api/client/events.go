@@ -235,6 +235,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_WindowsDesktop{
 			WindowsDesktop: r,
 		}
+	case *types.DynamicWindowsDesktopV1:
+		out.Resource = &proto.Event_DynamicWindowsDesktop{
+			DynamicWindowsDesktop: r,
+		}
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
 			Installer: r,

@@ -254,6 +254,71 @@ func (f *DynamicWindowsDesktopFilter) Match(req DynamicWindowsDesktop) bool {
 	return true
 }
 
+// DynamicWindowsDesktops represents a list of Windows desktops.
+type DynamicWindowsDesktops []DynamicWindowsDesktop
+
+// Len returns the slice length.
+func (s DynamicWindowsDesktops) Len() int { return len(s) }
+
+// Less compares desktops by name and host ID.
+func (s DynamicWindowsDesktops) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two windows desktops.
+func (s DynamicWindowsDesktops) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s DynamicWindowsDesktops) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDynamicWindowsDesktop)
+	}
+
+	return nil
+}
+
+// AsResources returns dynamic windows desktops as type resources with labels.
+func (s DynamicWindowsDesktops) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s DynamicWindowsDesktops) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDynamicWindowsDesktop)
+	}
+
+	return vals, nil
+}
+
 // WindowsDesktop represents a Windows desktop host.
 type WindowsDesktop interface {
 	// ResourceWithLabels provides common resource methods.

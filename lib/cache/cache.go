@@ -159,6 +159,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindLock},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -227,6 +228,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -383,6 +385,7 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
+		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
 	return cfg
@@ -2733,6 +2736,32 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 	defer rg.Release()
 	return rg.reader.ListWindowsDesktopServices(ctx, req)
+}
+
+// GetDynamicWindowsDesktops returns all registered dynamic Windows desktop hosts.
+func (c *Cache) GetDynamicWindowsDesktops(ctx context.Context, filter types.DynamicWindowsDesktopFilter) ([]types.DynamicWindowsDesktop, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDynamicWindowsDesktops")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetDynamicWindowsDesktops(ctx, filter)
+}
+
+// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop hosts.
+func (c *Cache) ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListDynamicWindowsDesktops")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.dynamicWindowsDesktops)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.ListDynamicWindowsDesktops(ctx, req)
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.

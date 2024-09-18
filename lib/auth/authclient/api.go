@@ -677,6 +677,9 @@ type ReadWindowsDesktopAccessPoint interface {
 	// GetWindowsDesktops returns windows desktop hosts.
 	GetWindowsDesktops(ctx context.Context, filter types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 
+	// GetDynamicWindowsDesktops returns dynamic windows desktop hosts.
+	GetDynamicWindowsDesktops(ctx context.Context, filter types.DynamicWindowsDesktopFilter) ([]types.DynamicWindowsDesktop, error)
+
 	// GetWindowsDesktopServices returns windows desktop hosts.
 	GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error)
 

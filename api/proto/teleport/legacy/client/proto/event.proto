@@ -184,5 +184,7 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
     // StaticHostUserV2 is a resource for static host users.
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
+    // DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
+    types.DynamicWindowsDesktopV1 DynamicWindowsDesktop = 67;
   }
 }

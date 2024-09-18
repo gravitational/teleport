@@ -1660,6 +1660,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("windows desktop service %q has been deleted\n", rc.ref.Name)
+	case types.KindDynamicWindowsDesktop:
+		if err = client.DeleteDynamicWindowsDesktop(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("dynamic windows desktop %q has been deleted\n", rc.ref.Name)
 	case types.KindWindowsDesktop:
 		desktops, err := client.GetWindowsDesktops(ctx,
 			types.WindowsDesktopFilter{Name: rc.ref.Name})
