@@ -5649,6 +5649,9 @@ func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) 
 	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
 		return trace.Wrap(err)
 	}
+	if _, err := a.desktopsLimitExceeded(ctx); err != nil {
+		log.Warnf("Can't check OSS non-AD desktops limit: %v", err)
+	}
 	return nil
 }
 
