@@ -14,10 +14,12 @@ import (
 
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -199,7 +201,14 @@ func NewTestEntityDescriptor(entityID, acsURL string) string {
 
 // CreateCA creates a new CA with preset "test-cluster" value as cluster name.
 func CreateCA(t *testing.T) types.CertAuthority {
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-cluster"}, nil, time.Hour)
+	// SAML IdP only supports RSA CA, and TestRotateCertAuthority requires that
+	// this doesn't just use the same key fixture every time, actually generate
+	// an RSA key here.
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	require.NoError(t, err)
+	keyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(t, err)
+	cert, err := tlsca.GenerateSelfSignedCAWithSigner(signer, pkix.Name{CommonName: "test-cluster"}, nil, time.Hour)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -208,7 +217,7 @@ func CreateCA(t *testing.T) types.CertAuthority {
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
-				Key:  key,
+				Key:  keyPEM,
 			}},
 		},
 	})
