@@ -2,6 +2,7 @@
 
 ## 15.4.19 (09/17/24)
 
+* Fixed a bug in Kubernetes access that causes the error `expected *metav1.PartialObjectMetadata object` when trying to list resources. [#46695](https://github.com/gravitational/teleport/pull/46695)
 * Fixed an issue that prevented host user creation when the username was also listed in `host_groups`. [#46638](https://github.com/gravitational/teleport/pull/46638)
 * Allow the cluster wide ssh dial timeout to be set via auth_service.ssh_dial_timeout in the Teleport config file. [#46508](https://github.com/gravitational/teleport/pull/46508)
 * Allow all audit events to be trimmed if necessary. [#46504](https://github.com/gravitational/teleport/pull/46504)
