@@ -184,9 +184,9 @@ func convertLDAPError(err error) error {
 			return trace.ConnectionProblem(err, "network error")
 		case ldap.LDAPResultOperationsError:
 			if strings.Contains(err.Error(), "successful bind must be completed") {
-				return trace.AccessDenied(
-					"the LDAP server did not accept Teleport's client certificate, " +
-						"has the Teleport CA been imported correctly?")
+				return trace.NewAggregate(trace.AccessDenied(
+					"the LDAP server did not accept Teleport's client certificate, "+
+						"has the Teleport CA been imported correctly?"), err)
 			}
 		case ldap.LDAPResultEntryAlreadyExists:
 			return trace.AlreadyExists("LDAP object already exists: %v", err)
