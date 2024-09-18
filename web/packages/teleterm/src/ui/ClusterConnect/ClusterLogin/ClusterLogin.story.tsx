@@ -45,6 +45,7 @@ function makeProps(): ClusterLoginPresentationProps {
       status: '',
       statusText: '',
     } as Attempt<void>,
+    init: () => null,
     initAttempt: {
       status: 'success',
       statusText: '',

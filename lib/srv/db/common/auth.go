@@ -51,12 +51,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -101,6 +102,9 @@ type Auth interface {
 	// GetAWSIAMCreds returns the AWS IAM credentials, including access key,
 	// secret access key and session token.
 	GetAWSIAMCreds(ctx context.Context, database types.Database, databaseUser string) (string, string, string, error)
+	// GenerateDatabaseClientKey generates a cryptographic key appropriate for
+	// database client connections.
+	GenerateDatabaseClientKey(context.Context) (*keys.PrivateKey, error)
 	// WithLogger returns a new instance of Auth with updated logger.
 	// The callback function receives the current logger and returns a new one.
 	WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) Auth
@@ -988,7 +992,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUser string) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateKey, err := native.GeneratePrivateKey()
+	privateKey, err := a.GenerateDatabaseClientKey(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1017,6 +1021,21 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUs
 		return nil, nil, trace.Wrap(err)
 	}
 	return &clientCert, resp.CACerts, nil
+}
+
+// GenerateDatabaseClientKey generates a cryptographic key appropriate for
+// database client connections.
+func (a *dbAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKey, error) {
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.DatabaseClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := keys.NewSoftwarePrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return privateKey, nil
 }
 
 // GetAuthPreference returns the cluster authentication config.

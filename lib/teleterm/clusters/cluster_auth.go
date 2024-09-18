@@ -222,11 +222,16 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
+				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+				TLSPubKey:         tlsPub,
 				TTL:               c.clusterClient.KeyTTL,
 				Insecure:          c.clusterClient.InsecureSkipVerify,
 				Compatibility:     c.clusterClient.CertificateFormat,
@@ -245,11 +250,16 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 }
 
 func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
+				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+				TLSPubKey:         tlsPub,
 				TTL:               c.clusterClient.KeyTTL,
 				Insecure:          c.clusterClient.InsecureSkipVerify,
 				Compatibility:     c.clusterClient.CertificateFormat,
@@ -267,11 +277,16 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 }
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
+				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+				TLSPubKey:         tlsPub,
 				TTL:               c.clusterClient.KeyTTL,
 				Insecure:          c.clusterClient.InsecureSkipVerify,
 				Compatibility:     c.clusterClient.CertificateFormat,
@@ -290,11 +305,16 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				PubKey:            priv.MarshalSSHPublicKey(),
+				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+				TLSPubKey:         tlsPub,
 				TTL:               c.clusterClient.KeyTTL,
 				Insecure:          c.clusterClient.InsecureSkipVerify,
 				Compatibility:     c.clusterClient.CertificateFormat,

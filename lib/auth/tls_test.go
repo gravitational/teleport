@@ -438,7 +438,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -458,7 +458,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance((gracePeriod*2)/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -481,7 +481,7 @@ func TestAutoRotation(t *testing.T) {
 
 	// complete rotation - advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 	ca, err = testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: testSrv.ClusterName(),
@@ -540,7 +540,7 @@ func TestAutoFallback(t *testing.T) {
 
 	// advance rotation by clock
 	clock.Advance(gracePeriod/3 + time.Minute)
-	err = testSrv.Auth().autoRotateCertAuthorities(ctx)
+	err = testSrv.Auth().AutoRotateCertAuthorities(ctx)
 	require.NoError(t, err)
 
 	ca, err := testSrv.Auth().GetCertAuthority(ctx, types.CertAuthID{
@@ -3498,14 +3498,6 @@ func TestRegisterCAPin(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
 	require.NoError(t, err)
@@ -3524,8 +3516,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{caPin},
 		Clock:                clock,
 	})
@@ -3542,8 +3532,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", caPin},
 		Clock:                clock,
 	})
@@ -3559,8 +3547,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123"},
 		Clock:                clock,
 	})
@@ -3576,8 +3562,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               []string{"sha256:123", "sha256:456"},
 		Clock:                clock,
 	})
@@ -3612,8 +3596,6 @@ func TestRegisterCAPin(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPins:               caPins,
 		Clock:                clock,
 	})
@@ -3639,16 +3621,8 @@ func TestRegisterCAPath(t *testing.T) {
 		testSrv.Auth(),
 	)
 
-	// Generate public and private keys for node.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-	privateKey, err := ssh.ParseRawPrivateKey(priv)
-	require.NoError(t, err)
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	require.NoError(t, err)
-
 	// Attempt to register with nothing at the CA path, should work.
-	_, err = join.Register(ctx, join.RegisterParams{
+	_, err := join.Register(ctx, join.RegisterParams{
 		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
 		Token:       token,
 		ID: state.IdentityID{
@@ -3657,8 +3631,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		Clock:                clock,
 	})
 	require.NoError(t, err)
@@ -3686,8 +3658,6 @@ func TestRegisterCAPath(t *testing.T) {
 			Role:     types.RoleProxy,
 		},
 		AdditionalPrincipals: []string{"example.com"},
-		PublicSSHKey:         pub,
-		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
 		Clock:                clock,
 	})

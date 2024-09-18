@@ -173,10 +173,12 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req types.RotateReques
 	return nil
 }
 
-// autoRotateCertAuthorities automatically rotates cert authorities,
-// does nothing if no rotation parameters were set up
-// or it is too early to rotate per schedule
-func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
+// AutoRotateCertAuthorities automatically rotates cert authorities, does
+// nothing if no rotation parameters were set up or it is too early to rotate
+// per schedule. It will also set up a cluster alert if the cert authorities are
+// not usable because the auth server is configured to use HSMs that aren't
+// currently trusted.
+func (a *Server) AutoRotateCertAuthorities(ctx context.Context) error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -586,7 +588,7 @@ func (a *Server) syncUsableKeysAlert(ctx context.Context, usableKeysResults map[
 	alertOptions := []types.AlertOption{
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		// This is called by a.runPeriodicOperations via
-		// a.autoRotateCertAuthorities on a random period between 1-2x
+		// a.AutoRotateCertAuthorities on a random period between 1-2x
 		// defaults.HighResPollingPeriod, the alert will be renewed before it
 		// expires if it's still relevant.
 		types.WithAlertExpires(a.clock.Now().Add(defaults.HighResPollingPeriod * 3)),

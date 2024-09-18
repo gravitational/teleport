@@ -29,9 +29,11 @@ import (
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -122,14 +124,20 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	clusterName := facade.Get().ClusterName
 
 	// generate a keypair
-	keyRing, err := client.GenerateRSAKeyRing()
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(s.botAuthClient),
+		cryptosuites.HostSSH)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	privKey, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
-		Key:         keyRing.PrivateKey.MarshalSSHPublicKey(),
+		Key:         privKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
 		Principals:  s.cfg.Principals,
@@ -141,7 +149,10 @@ func (s *SSHHostOutputService) generate(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	keyRing.Cert = res.SshCertificate
+	keyRing := &client.KeyRing{
+		SSHPrivateKey: privKey,
+		Cert:          res.SshCertificate,
+	}
 
 	cfg := identityfile.WriteConfig{
 		OutputPath: config.SSHHostCertPath,

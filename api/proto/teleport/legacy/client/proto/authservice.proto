@@ -457,6 +457,8 @@ message PingResponse {
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
+  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
+  types.SignatureAlgorithmSuite signature_algorithm_suite = 9;
 
   reserved 6; // LicenseWarnings, jsontag "license_warnings"
   reserved "LicenseWarnings";
@@ -2464,6 +2466,10 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
+  // DatabaseServer is a complete db server spec to be heartbeated.
+  types.DatabaseServerV3 DatabaseServer = 3;
+  // KubeServer is a complete kube server spec to be heartbeated.
+  types.KubernetesServerV3 KubernetesServer = 4;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

@@ -21,7 +21,6 @@ package reversetunnelclient
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"net"
 
 	"github.com/gravitational/trace"
@@ -55,16 +54,16 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
-	// ClusterCAs contains cluster CAs.
-	ClusterCAs *x509.CertPool
+	// GetClusterCAs contains cluster CAs.
+	GetClusterCAs client.GetClusterCAsFunc
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	if c.Resolver == nil {
 		return trace.BadParameter("missing tunnel address resolver")
 	}
-	if c.ClusterCAs == nil {
-		return trace.BadParameter("missing cluster CAs")
+	if c.GetClusterCAs == nil {
+		return trace.BadParameter("missing cluster CA getter")
 	}
 	return nil
 }
@@ -99,7 +98,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
 			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify),
-			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
+			GetClusterCAs:           t.GetClusterCAs,
 		}))
 	}
 

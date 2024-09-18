@@ -20,6 +20,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/rsa"
 	"strings"
 	"sync"
 	"time"
@@ -34,28 +35,32 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
 type certificateCache struct {
 	mu sync.Mutex
 
-	cache      *ttlmap.TTLMap
-	authClient authclient.ClientI
+	cache       *ttlmap.TTLMap
+	authClient  authclient.ClientI
+	suiteGetter cryptosuites.GetSuiteFunc
 }
 
 // newHostCertificateCache creates a shared host certificate cache that is
-// used by the forwarding server.
-func newHostCertificateCache(authClient authclient.ClientI) (*certificateCache, error) {
-	native.PrecomputeKeys() // ensure native package is set to precompute keys
+// used by the forwarding server. [authPrefGetter] technically offers only a
+// subset of [authClient], but it allows for using a cached view of the auth
+// preference.
+func newHostCertificateCache(authClient authclient.ClientI, authPrefGetter cryptosuites.AuthPreferenceGetter) (*certificateCache, error) {
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &certificateCache{
-		cache:      cache,
-		authClient: authClient,
+		cache:       cache,
+		authClient:  authClient,
+		suiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(authPrefGetter),
 	}, nil
 }
 
@@ -130,10 +135,25 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	// Generate public/private keypair.
-	privBytes, pubBytes, err := native.GenerateKeyPair()
+	hostKey, err := cryptosuites.GenerateKey(ctx, c.suiteGetter, cryptosuites.HostSSH)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if _, isRSA := hostKey.Public().(*rsa.PublicKey); isRSA {
+		// Ensure the native package is precomputing RSA keys if we ever
+		// generate one. [native.PrecomputeKeys] is idempotent.
+		// Doing this lazily easily handles changing signature algorithm suites
+		// and won't start precomputing keys if they are never needed (a major
+		// benefit in tests).
+		native.PrecomputeKeys()
+	}
+
+	sshPub, err := ssh.NewPublicKey(hostKey.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubBytes := ssh.MarshalAuthorizedKey(sshPub)
 
 	// Generate a SSH host certificate.
 	clusterName, err := c.authClient.GetDomainName(context.TODO())
@@ -141,6 +161,8 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(nklaassen): request only an SSH cert, we don't need TLS here.
+	// GenerateHostCert needs support for this.
 	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
 		Key:         pubBytes,
 		HostId:      principals[0],
@@ -156,7 +178,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	certBytes := res.SshCertificate
 
 	// create a *ssh.Certificate
-	privateKey, err := ssh.ParsePrivateKey(privBytes)
+	sshSigner, err := ssh.NewSignerFromSigner(hostKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,7 +188,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	// return a ssh.Signer
-	s, err := ssh.NewCertSigner(cert, privateKey)
+	s, err := ssh.NewCertSigner(cert, sshSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
