@@ -1,0 +1,19 @@
+#!/bin/sh
+
+#
+# the directory where Teleport binaries will be located
+#
+BINDIR=/usr/local/bin
+
+#
+# the directory where Teleport Plugins store their data files
+# and certificates
+#
+DATADIR=/var/lib/teleport/plugins/incidentio
+
+[ ! $(id -u) != "0" ] || { echo "ERROR: You must be root"; exit 1; }
+cd $(dirname $0)
+mkdir -p $BINDIR $DATADIR || exit 1
+cp -f teleport-incidentio $BINDIR/ || exit 1
+
+echo "Teleport incident.io binaries have been copied to $BINDIR"

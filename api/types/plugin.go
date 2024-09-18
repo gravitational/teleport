@@ -72,6 +72,8 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeIncidentio is the incident.io access request plugin
+	PluginTypeIncidentio = "incidentio"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
