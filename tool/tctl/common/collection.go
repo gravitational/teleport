@@ -1558,22 +1558,23 @@ type pluginResourceWrapper struct {
 func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 
 	const (
-		credOauth2AccessToken     = "oauth2_access_token"
-		credBearerToken           = "bearer_token"
-		credIdSecret              = "id_secret"
-		credStaticCredentialsRef  = "static_credentials_ref"
-		settingsSlackAccessPlugin = "slack_access_plugin"
-		settingsOpsgenie          = "opsgenie"
-		settingsOpenAI            = "openai"
-		settingsOkta              = "okta"
-		settingsJamf              = "jamf"
-		settingsPagerDuty         = "pager_duty"
-		settingsMattermost        = "mattermost"
-		settingsJira              = "jira"
-		settingsDiscord           = "discord"
-		settingsServiceNow        = "serviceNow"
-		settingsGitlab            = "gitlab"
-		settingsEntraID           = "entra_id"
+		credOauth2AccessToken             = "oauth2_access_token"
+		credBearerToken                   = "bearer_token"
+		credIdSecret                      = "id_secret"
+		credStaticCredentialsRef          = "static_credentials_ref"
+		settingsSlackAccessPlugin         = "slack_access_plugin"
+		settingsOpsgenie                  = "opsgenie"
+		settingsOpenAI                    = "openai"
+		settingsOkta                      = "okta"
+		settingsJamf                      = "jamf"
+		settingsPagerDuty                 = "pager_duty"
+		settingsMattermost                = "mattermost"
+		settingsJira                      = "jira"
+		settingsDiscord                   = "discord"
+		settingsServiceNow                = "serviceNow"
+		settingsGitlab                    = "gitlab"
+		settingsEntraID                   = "entra_id"
+		settingsDatadogIncidentManagement = "datadog_incident_management"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1641,6 +1642,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Gitlab{}
 		case settingsEntraID:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_EntraId{}
+		case settingsDatadogIncidentManagement:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Datadog{}
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)
 		}
