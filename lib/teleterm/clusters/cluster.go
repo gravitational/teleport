@@ -58,6 +58,9 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+	// If not empty, it means that there was a problem with reading the cluster status.
+	// The caller should try to sync the cluster again.
+	ConnectionProblemError error
 }
 
 type ClusterWithDetails struct {

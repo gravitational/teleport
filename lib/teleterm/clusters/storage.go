@@ -233,6 +233,21 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 
 	status, err := s.loadProfileStatusAndClusterKey(clusterClient, clusterNameForKey)
 	if err != nil {
+		// This may happen, for example, when a user logged previously with a hardware key,
+		// but the key is no longer connected.
+		// Instead of failing the entire call, we can set the error for the particular cluster.
+		if trace.IsConnectionProblem(err) {
+			return &Cluster{
+				URI:                    clusterURI,
+				Name:                   clusterClient.SiteName,
+				ProfileName:            profileName,
+				clusterClient:          clusterClient,
+				dir:                    s.Dir,
+				clock:                  s.Clock,
+				Log:                    s.Log.WithField("cluster", clusterURI),
+				ConnectionProblemError: err,
+			}, clusterClient, nil
+		}
 		return nil, nil, trace.Wrap(err)
 	}
 

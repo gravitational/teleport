@@ -107,6 +107,10 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 		},
 	}
 
+	if cluster.ConnectionProblemError != nil {
+		apiCluster.ConnectionProblemError = cluster.ConnectionProblemError.Error()
+	}
+
 	return apiCluster
 }
 

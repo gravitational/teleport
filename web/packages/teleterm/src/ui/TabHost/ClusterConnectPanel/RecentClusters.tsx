@@ -18,7 +18,11 @@
 
 import React from 'react';
 
-import { Box, ButtonBorder, Card, Text } from 'design';
+import { Box, ButtonBorder, Card, Text, Flex } from 'design';
+
+import { P } from 'design/Text/Text';
+
+import { WarningCircle } from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
@@ -37,11 +41,18 @@ export function RecentClusters() {
         userName: cluster.loggedInUser?.name,
         clusterName: cluster.name,
       }),
+      connectionProblemError: cluster.connectionProblemError,
       uri: cluster.uri,
     }));
 
-  function connect(clusterUri: RootClusterUri): void {
-    ctx.workspacesService.setActiveWorkspace(clusterUri);
+  async function connect(clusterUri: RootClusterUri): Promise<void> {
+    if (ctx.clustersService.findCluster(clusterUri).connectionProblemError) {
+      await ctx.clustersService.syncRootCluster(clusterUri);
+    }
+    if (ctx.clustersService.findCluster(clusterUri).connectionProblemError) {
+      return;
+    }
+    await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
   if (!rootClusters.length) {
@@ -49,7 +60,7 @@ export function RecentClusters() {
   }
 
   return (
-    <Card p={3} maxWidth="480px" m="auto">
+    <Card p={3} maxWidth="580px" m="auto">
       <Text bold fontSize={3} mb={1}>
         Recent clusters
       </Text>
@@ -64,16 +75,24 @@ export function RecentClusters() {
               justify-content: space-between;
             `}
           >
-            <Text
-              color="text.main"
-              mr={2}
-              title={cluster.userWithClusterName}
-              css={`
-                white-space: nowrap;
-              `}
-            >
-              {cluster.userWithClusterName}
-            </Text>
+            <Flex flexDirection="column">
+              <Text
+                color="text.main"
+                mr={2}
+                title={cluster.userWithClusterName}
+                css={`
+                  white-space: nowrap;
+                `}
+              >
+                {cluster.userWithClusterName}
+              </Text>
+              {cluster.connectionProblemError && (
+                <P typography="subtitle3">
+                  <WarningCircle size="small" mr={1} />
+                  {cluster.connectionProblemError}
+                </P>
+              )}
+            </Flex>
             <ButtonBorder
               size="small"
               onClick={() => connect(cluster.uri)}

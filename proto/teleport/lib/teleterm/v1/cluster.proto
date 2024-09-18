@@ -61,6 +61,7 @@ message Cluster {
   // show_resources tells if the cluster can show requestable resources on the resources page.
   // Controlled by the cluster config.
   ShowResources show_resources = 11;
+  string connection_problem_error = 12;
 }
 
 // ShowResources tells if the cluster can show requestable resources on the resources page.
