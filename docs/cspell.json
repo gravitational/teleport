@@ -836,6 +836,7 @@
     "scrollback",
     "seccomp",
     "secretname",
+    "secretless",
     "selectnongalleryapp",
     "selectsaml",
     "selfhosted",
