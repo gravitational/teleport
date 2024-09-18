@@ -200,7 +200,7 @@ const cfg = {
 
   api: {
     appSession: '/v1/webapi/sessions/app',
-    appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
+    appDetailsPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
@@ -406,8 +406,8 @@ const cfg = {
     });
   },
 
-  getAppFqdnUrl(params: UrlAppParams) {
-    return generatePath(cfg.api.appFqdnPath, { ...params });
+  getAppDetailsUrl(params: UrlAppParams) {
+    return generatePath(cfg.api.appDetailsPath, { ...params });
   },
 
   getClusterAlertsUrl(clusterId: string) {

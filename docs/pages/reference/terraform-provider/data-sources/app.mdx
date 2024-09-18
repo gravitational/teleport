@@ -46,6 +46,7 @@ Optional:
 - `insecure_skip_verify` (Boolean) InsecureSkipVerify disables app's TLS certificate verification.
 - `integration` (String) Integration is the integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.
 - `public_addr` (String) PublicAddr is the public address the application is accessible at.
+- `required_app_names` (List of String) RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.
 - `rewrite` (Attributes) Rewrite is a list of rewriting rules to apply to requests and responses. (see [below for nested schema](#nested-schema-for-specrewrite))
 - `uri` (String) URI is the web app endpoint.
 - `user_groups` (List of String) UserGroups are a list of user group IDs that this app is associated with.

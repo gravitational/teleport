@@ -5748,6 +5748,7 @@ func (process *TeleportProcess) initApps() {
 				Rewrite:            rewrite,
 				AWS:                aws,
 				Cloud:              app.Cloud,
+				RequiredAppNames:   app.RequiredAppNames,
 			})
 			if err != nil {
 				return trace.Wrap(err)
