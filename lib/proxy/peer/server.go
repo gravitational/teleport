@@ -47,11 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const (
-	peerKeepAlive = time.Second * 10
-	peerTimeout   = time.Second * 20
-)
-
 // ServerConfig configures a Server instance.
 type ServerConfig struct {
 	Log           logrus.FieldLogger

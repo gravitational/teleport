@@ -5251,7 +5251,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(process.ExitContext(), minimalWebServer.Close(), logger)
 			}
 			if peerClient != nil {
-				warnOnErr(process.ExitContext(), peerClient.Stop(), logger)
+				warnOnErr(process.ExitContext(), peerClient.Close(), logger)
 			}
 			warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
 			sshGRPCServer.Stop()

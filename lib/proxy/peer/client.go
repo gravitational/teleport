@@ -21,29 +21,29 @@ package peer
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"math/rand"
 	"net"
+	"net/http"
+	"slices"
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/keepalive"
+	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	peerv0 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0"
+	"github.com/gravitational/teleport/gen/proto/go/teleport/lib/proxy/peer/v0/peerv0connect"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -74,9 +74,6 @@ type ClientConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to control connection monitoring ticker.
 	Clock clockwork.Clock
-	// GracefulShutdownTimout is used set the graceful shutdown
-	// duration limit.
-	GracefulShutdownTimeout time.Duration
 	// ClusterName is the name of the cluster.
 	ClusterName string
 
@@ -108,7 +105,7 @@ func noopConnShuffler() connShuffler {
 // checkAndSetDefaults checks and sets default values
 func (c *ClientConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = logrus.StandardLogger()
 	}
 
 	c.Log = c.Log.WithField(
@@ -122,10 +119,6 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 	if c.Context == nil {
 		c.Context = context.Background()
-	}
-
-	if c.GracefulShutdownTimeout == 0 {
-		c.GracefulShutdownTimeout = defaults.DefaultGracefulShutdownTimeout
 	}
 
 	if c.ID == "" {
@@ -160,7 +153,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 
 // clientConn hold info about a dialed grpc connection
 type clientConn struct {
-	*grpc.ClientConn
+	connCtx context.Context
+	cancel  context.CancelFunc
+	hc      *http.Client
+	sc      peerv0connect.ProxyServiceClient
 
 	id   string
 	addr string
@@ -195,7 +191,8 @@ func (c *clientConn) maybeAcquire() (release func()) {
 // Shutdown closes the clientConn after all connections through it are closed,
 // or after the context is done.
 func (c *clientConn) Shutdown(ctx context.Context) {
-	defer c.Close()
+	defer c.hc.CloseIdleConnections()
+	defer c.cancel()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,16 +211,20 @@ func (c *clientConn) Shutdown(ctx context.Context) {
 	}
 }
 
+func (c *clientConn) Close() error {
+	c.cancel()
+	c.hc.CloseIdleConnections()
+	return nil
+}
+
 // Client is a peer proxy service client using grpc and tls.
 type Client struct {
-	sync.RWMutex
+	mu     sync.RWMutex
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	config   ClientConfig
-	conns    map[string]*clientConn
-	metrics  *clientMetrics
-	reporter *reporter
+	config ClientConfig
+	conns  map[string]*clientConn
 }
 
 // NewClient creats a new peer proxy client.
@@ -233,25 +234,14 @@ func NewClient(config ClientConfig) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	metrics, err := newClientMetrics()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reporter := newReporter(metrics)
-
 	closeContext, cancel := context.WithCancel(config.Context)
 
 	c := &Client{
-		config:   config,
-		ctx:      closeContext,
-		cancel:   cancel,
-		conns:    make(map[string]*clientConn),
-		metrics:  metrics,
-		reporter: reporter,
+		config: config,
+		ctx:    closeContext,
+		cancel: cancel,
+		conns:  make(map[string]*clientConn),
 	}
-
-	go c.monitor()
 
 	if c.config.sync != nil {
 		go c.config.sync()
@@ -260,36 +250,6 @@ func NewClient(config ClientConfig) (*Client, error) {
 	}
 
 	return c, nil
-}
-
-// monitor monitors the status of peer proxy grpc connections.
-func (c *Client) monitor() {
-	ticker := c.config.Clock.NewTicker(defaults.ResyncInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.Chan():
-			c.RLock()
-			c.reporter.resetConnections()
-			for _, conn := range c.conns {
-				switch conn.GetState() {
-				case connectivity.Idle:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Idle.String())
-				case connectivity.Connecting:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Connecting.String())
-				case connectivity.Ready:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Ready.String())
-				case connectivity.TransientFailure:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.TransientFailure.String())
-				case connectivity.Shutdown:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Shutdown.String())
-				}
-			}
-			c.RUnlock()
-		}
-	}
 }
 
 // sync runs the peer proxy watcher functionality.
@@ -327,7 +287,7 @@ func (c *Client) sync() {
 }
 
 func (c *Client) updateConnections(proxies []types.Server) error {
-	c.RLock()
+	c.mu.RLock()
 
 	toDial := make(map[string]types.Server)
 	for _, proxy := range proxies {
@@ -369,7 +329,6 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		// establish new connections
 		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
-			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.Debugf("Error dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
@@ -377,10 +336,10 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 		toKeep[id] = conn
 	}
-	c.RUnlock()
+	c.mu.RUnlock()
 
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	for _, id := range toDelete {
 		if conn, ok := c.conns[id]; ok {
@@ -429,7 +388,7 @@ func (c *Client) DialNode(
 type clientFrameStream struct {
 	stream interface {
 		Send(*peerv0.DialNodeRequest) error
-		Recv() (*peerv0.DialNodeResponse, error)
+		Receive() (*peerv0.DialNodeResponse, error)
 	}
 	cancel context.CancelFunc
 }
@@ -441,7 +400,7 @@ func (s *clientFrameStream) Send(p []byte) error {
 }
 
 func (s *clientFrameStream) Recv() ([]byte, error) {
-	frame, err := s.stream.Recv()
+	frame, err := s.stream.Receive()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -460,8 +419,8 @@ func (s *clientFrameStream) Close() error {
 
 // Shutdown gracefully shuts down all existing client connections.
 func (c *Client) Shutdown(ctx context.Context) {
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	var wg sync.WaitGroup
 	for _, conn := range c.conns {
@@ -475,10 +434,10 @@ func (c *Client) Shutdown(ctx context.Context) {
 	c.cancel()
 }
 
-// Stop closes all existing client connections.
-func (c *Client) Stop() error {
-	c.Lock()
-	defer c.Unlock()
+// Close closes all existing client connections.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	var errs []error
 	for _, conn := range c.conns {
@@ -491,8 +450,8 @@ func (c *Client) Stop() error {
 }
 
 func (c *Client) GetConnectionsCount() int {
-	c.RLock()
-	defer c.RUnlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return len(c.conns)
 }
 
@@ -511,22 +470,14 @@ func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clie
 	for _, conn := range conns {
 		release := conn.maybeAcquire()
 		if release == nil {
-			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
 			errs = append(errs, trace.ConnectionProblem(nil, "error starting stream: connection is shutting down"))
 			continue
 		}
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(conn.connCtx)
 		context.AfterFunc(ctx, release)
 
-		stream, err := peerv0.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
-		if err != nil {
-			cancel()
-			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
-			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
-			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
-			continue
-		}
+		stream := conn.sc.DialNode(ctx)
 
 		err = stream.Send(&peerv0.DialNodeRequest{
 			Message: &peerv0.DialNodeRequest_DialRequest{DialRequest: dialRequest},
@@ -536,7 +487,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clie
 			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
 			continue
 		}
-		msg, err := stream.Recv()
+		msg, err := stream.Receive()
 		if err != nil {
 			cancel()
 			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
@@ -557,12 +508,11 @@ func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clie
 	return nil, false, trace.NewAggregate(errs...)
 }
 
-// getConnections returns connections to the supplied proxy ids.
-// it tries to find an existing grpc.ClientConn or initializes a new one
-// otherwise.
-// The boolean returned in the second argument is intended for testing purposes,
-// to indicates whether the connection was cached or newly established.
-func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) {
+// getConnections returns connections to the supplied proxy ids. it tries to
+// find an existing [clientConn] or initializes a new one otherwise. The boolean
+// returned in the second argument is intended for testing purposes, to
+// indicates whether the connection was cached or newly established.
+func (c *Client) getConnections(proxyIDs []string) (_ []*clientConn, existing bool, _ error) {
 	if len(proxyIDs) == 0 {
 		return nil, false, trace.BadParameter("failed to dial: no proxy ids given")
 	}
@@ -571,7 +521,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 	var conns []*clientConn
 
 	// look for existing matching connections.
-	c.RLock()
+	c.mu.RLock()
 	for _, id := range proxyIDs {
 		ids[id] = struct{}{}
 
@@ -582,19 +532,16 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 		conns = append(conns, conn)
 	}
-	c.RUnlock()
+	c.mu.RUnlock()
 
 	if len(conns) != 0 {
 		c.config.connShuffler(conns)
 		return conns, true, nil
 	}
 
-	c.metrics.reportTunnelError(errorProxyPeerTunnelNotFound)
-
 	// try to establish new connections otherwise.
 	proxies, err := c.config.AuthClient.GetProxies()
 	if err != nil {
-		c.metrics.reportTunnelError(errorProxyPeerFetchProxies)
 		return nil, false, trace.Wrap(err)
 	}
 
@@ -607,7 +554,6 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 
 		conn, err := c.connect(id, proxy.GetPeerAddr())
 		if err != nil {
-			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.Debugf("Error direct dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
 			errs = append(errs, err)
 			continue
@@ -617,12 +563,11 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 	}
 
 	if len(conns) == 0 {
-		c.metrics.reportTunnelError(errorProxyPeerProxiesUnreachable)
 		return nil, false, trace.ConnectionProblem(trace.NewAggregate(errs...), "Error dialing all proxies")
 	}
 
-	c.Lock()
-	defer c.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	for _, conn := range conns {
 		c.conns[conn.id] = conn
@@ -636,38 +581,102 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
+	tlsConfig.NextProtos = []string{"h2"}
+
+	getClientCertificate := c.config.GetTLSCertificate
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		tlsCert, err := c.config.GetTLSCertificate()
+		tlsCert, err := getClientCertificate()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return tlsCert, nil
 	}
-	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
 	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
+	tlsConfig.VerifyPeerCertificate = verifyPeerCertificateIsSpecificProxy(expectedPeer)
 
-	conn, err := grpc.Dial(
-		peerAddr,
-		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
-		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
-		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, interceptors.GRPCClientStreamErrorInterceptor),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                peerKeepAlive,
-			Timeout:             peerTimeout,
-			PermitWithoutStream: true,
-		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
-	)
+	getRootCAs := c.config.GetTLSRoots
+	ht, err := http2.ConfigureTransports(&http.Transport{DisableKeepAlives: true})
 	if err != nil {
-		return nil, trace.Wrap(err, "Error dialing proxy %q", peerID)
+		panic(err)
+	}
+	// ht := &http2.Transport{
+	// 	DialTLSContext:
+	ht.DialTLSContext = func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+		rootCAs, err := getRootCAs()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig := tlsConfig.Clone()
+		tlsConfig.RootCAs = rootCAs
+
+		nc, err := new(net.Dialer).DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tc := tls.Client(nc, tlsConfig)
+		if err := tc.HandshakeContext(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return tc, nil
+	}
+	//,
+	ht.IdleConnTimeout = 5 * time.Minute
+	ht.ReadIdleTimeout = time.Minute
+	ht.ConnPool = nil
+
+	// 	IdleConnTimeout: 5 * time.Minute,
+	// 	ReadIdleTimeout: time.Minute,
+	// }
+
+	hc := &http.Client{
+		Transport: ht,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
+	clientOptions := connect.WithClientOptions(
+		connect.WithAcceptCompression("gzip", nil, nil),
+		connect.WithInterceptors(addVersionInterceptor{}, traceErrorsInterceptor{}),
+		connect.WithGRPC(),
+	)
+	sc := peerv0connect.NewProxyServiceClient(hc, "https://"+peerAddr, clientOptions)
+
+	connCtx, cancel := context.WithCancel(c.config.Context)
+
 	return &clientConn{
-		ClientConn: conn,
+		connCtx: connCtx,
+		cancel:  cancel,
+
+		hc: hc,
+		sc: sc,
 
 		id:   peerID,
 		addr: peerAddr,
 	}, nil
+}
+
+func verifyPeerCertificateIsSpecificProxy(peer string) func([][]byte, [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
+		if len(verifiedChains) < 1 {
+			return trace.AccessDenied("missing server certificate (this is a bug)")
+		}
+
+		serverCert := verifiedChains[0][0]
+		serverIdentity, err := tlsca.FromSubject(serverCert.Subject, serverCert.NotAfter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !slices.Contains(serverIdentity.Groups, string(types.RoleProxy)) {
+			return trace.AccessDenied("expected Proxy client credentials")
+		}
+
+		if serverIdentity.Username != peer {
+			return trace.AccessDenied("expected Proxy %v, got %q", peer, serverIdentity.Username)
+		}
+
+		return nil
+	}
 }

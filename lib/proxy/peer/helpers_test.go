@@ -186,15 +186,14 @@ func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.P
 			pool.AddCert(ca.Cert)
 			return pool, nil
 		},
-		Clock:                   clockwork.NewFakeClock(),
-		GracefulShutdownTimeout: time.Second,
-		sync:                    func() {},
-		connShuffler:            noopConnShuffler(),
-		ClusterName:             "test",
+		Clock:        clockwork.NewFakeClock(),
+		sync:         func() {},
+		connShuffler: noopConnShuffler(),
+		ClusterName:  "test",
 	})
 	require.NoError(t, err)
 
-	t.Cleanup(func() { client.Stop() })
+	t.Cleanup(func() { client.Close() })
 
 	return client
 }
