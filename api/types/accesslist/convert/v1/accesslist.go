@@ -68,14 +68,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		owners[i] = accesslist.Owner{
-			Name:        owner.Name,
-			Description: owner.Description,
-			// Set it to empty as default.
-			// Must provide as options to set it with the provided value.
-			IneligibleStatus: "",
-			MembershipKind:   owner.MembershipKind.String(),
-		}
+		owners[i] = FromOwnerProto(owner)
 	}
 
 	var ownerGrants accesslist.Grants
@@ -147,22 +140,7 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	owners := make([]*accesslistv1.AccessListOwner, len(accessList.Spec.Owners))
 	for i, owner := range accessList.Spec.Owners {
-		var ineligibleStatus accesslistv1.IneligibleStatus
-		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
-			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
-		}
-
-		var kind accesslistv1.MembershipKind
-		if enumVal, ok := accesslistv1.MembershipKind_value[owner.MembershipKind]; ok {
-			kind = accesslistv1.MembershipKind(enumVal)
-		}
-
-		owners[i] = &accesslistv1.AccessListOwner{
-			Name:             owner.Name,
-			Description:      owner.Description,
-			IneligibleStatus: ineligibleStatus,
-			MembershipKind:   kind,
-		}
+		owners[i] = ToOwnerProto(owner)
 	}
 
 	var ownerGrants *accesslistv1.AccessListGrants
@@ -231,6 +209,39 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			MemberCount:     memberCount,
 			MemberListCount: memberListCount,
 		},
+	}
+}
+
+func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
+	var ineligibleStatus accesslistv1.IneligibleStatus
+	if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
+		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+	}
+
+	var kind accesslistv1.MembershipKind
+	if enumVal, ok := accesslistv1.MembershipKind_value[owner.MembershipKind]; ok {
+		kind = accesslistv1.MembershipKind(enumVal)
+	}
+
+	return &accesslistv1.AccessListOwner{
+		Name:             owner.Name,
+		Description:      owner.Description,
+		IneligibleStatus: ineligibleStatus,
+		MembershipKind:   kind,
+	}
+}
+
+func FromOwnerProto(protoOwner *accesslistv1.AccessListOwner) accesslist.Owner {
+	ineligibleStatus := ""
+	if protoOwner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {
+		ineligibleStatus = protoOwner.IneligibleStatus.String()
+	}
+
+	return accesslist.Owner{
+		Name:             protoOwner.Name,
+		Description:      protoOwner.Description,
+		IneligibleStatus: ineligibleStatus,
+		MembershipKind:   protoOwner.MembershipKind.String(),
 	}
 }
 

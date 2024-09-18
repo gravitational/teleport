@@ -319,6 +319,73 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 	return member, trace.Wrap(err)
 }
 
+// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists as owners.
+func (a *AccessListService) GetAccessListNestedOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	seen := map[string]struct{}{}
+	type queueItem struct {
+		name  string
+		depth int
+	}
+	queue := []queueItem{{name: accessListName, depth: 0}}
+	var allOwners []*accesslist.Owner
+
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+
+		if item.depth > accesslist.MaxAllowedDepth {
+			a.log.Errorf("exceeded maximum depth of %d while gathering nested owners for access list %s", accesslist.MaxAllowedDepth, accessListName)
+			continue
+		}
+
+		accessList, err := a.GetAccessList(ctx, item.name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Owners are inherited from members of nested lists.
+		// So, on l0, we want to grab all the owners from the provided accessListName,
+		// while > l0, we want to fetch members of the nested lists.
+		if item.name == accessListName {
+			for _, owner := range accessList.GetOwners() {
+				if owner.MembershipKind == accesslist.MembershipKindList {
+					if _, ok := seen[owner.Name]; ok {
+						continue
+					}
+					seen[owner.Name] = struct{}{}
+					queue = append(queue, queueItem{name: owner.Name, depth: item.depth + 1})
+				} else {
+					allOwners = append(allOwners, &owner)
+				}
+			}
+		} else {
+			members, _, err := a.ListAccessListMembers(ctx, item.name, 0, "")
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, member := range members {
+				if member.Spec.MembershipKind == accesslist.MembershipKindList {
+					if _, ok := seen[member.GetName()]; ok {
+						continue
+					}
+					seen[member.GetName()] = struct{}{}
+					queue = append(queue, queueItem{name: member.GetName(), depth: item.depth + 1})
+				} else {
+					allOwners = append(allOwners, &accesslist.Owner{
+						Name:             member.GetName(),
+						Description:      member.Metadata.Description,
+						MembershipKind:   member.Spec.MembershipKind,
+						IneligibleStatus: member.Spec.IneligibleStatus,
+					})
+				}
+			}
+		}
+	}
+
+	return allOwners, nil
+}
+
 // UpsertAccessListMember creates or updates an access list member resource.
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	var upserted *accesslist.AccessListMember

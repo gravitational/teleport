@@ -237,6 +237,26 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 	return member, trace.Wrap(err)
 }
 
+// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+//
+// Owners returned here are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListNestedOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	resp, err := c.grpcClient.GetAccessListNestedOwners(ctx, &accesslistv1.GetAccessListNestedOwnersRequest{
+		AccessList: accessListName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	owners := make([]*accesslist.Owner, 0, len(resp.Owners))
+	for _, owner := range resp.Owners {
+		ownerProto := conv.FromOwnerProto(owner)
+		owners = append(owners, &ownerProto)
+	}
+
+	return owners, nil
+}
+
 // UpsertAccessListMember creates or updates an access list member resource.
 func (c *Client) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	resp, err := c.grpcClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{

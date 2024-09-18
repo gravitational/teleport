@@ -38,6 +38,8 @@ import { DeleteAllAccessListMembersForAccessListRequest } from "./accesslist_ser
 import { DeleteAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpdateAccessListMemberRequest } from "./accesslist_service_pb";
 import { UpsertAccessListMemberRequest } from "./accesslist_service_pb";
+import { GetAccessListNestedOwnersResponse } from "./accesslist_service_pb";
+import { GetAccessListNestedOwnersRequest } from "./accesslist_service_pb";
 import { Member } from "./accesslist_pb";
 import { GetAccessListMemberRequest } from "./accesslist_service_pb";
 import { ListAllAccessListMembersResponse } from "./accesslist_service_pb";
@@ -141,6 +143,12 @@ export interface IAccessListService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: GetAccessListMember(teleport.accesslist.v1.GetAccessListMemberRequest) returns (teleport.accesslist.v1.Member);
      */
     getAccessListMember: grpc.handleUnaryCall<GetAccessListMemberRequest, Member>;
+    /**
+     * GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+     *
+     * @generated from protobuf rpc: GetAccessListNestedOwners(teleport.accesslist.v1.GetAccessListNestedOwnersRequest) returns (teleport.accesslist.v1.GetAccessListNestedOwnersResponse);
+     */
+    getAccessListNestedOwners: grpc.handleUnaryCall<GetAccessListNestedOwnersRequest, GetAccessListNestedOwnersResponse>;
     /**
      * UpsertAccessListMember creates or updates an access list member resource.
      *
@@ -359,6 +367,16 @@ export const accessListServiceDefinition: grpc.ServiceDefinition<IAccessListServ
         requestDeserialize: bytes => GetAccessListMemberRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Member.toBinary(value)),
         requestSerialize: value => Buffer.from(GetAccessListMemberRequest.toBinary(value))
+    },
+    getAccessListNestedOwners: {
+        path: "/teleport.accesslist.v1.AccessListService/GetAccessListNestedOwners",
+        originalName: "GetAccessListNestedOwners",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetAccessListNestedOwnersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetAccessListNestedOwnersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetAccessListNestedOwnersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetAccessListNestedOwnersRequest.toBinary(value))
     },
     upsertAccessListMember: {
         path: "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember",

@@ -162,6 +162,8 @@ type AccessListMembersGetter interface {
 	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+	GetAccessListNestedOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
 }
 
 // AccessListMembers defines an interface for managing AccessListMembers.
@@ -278,6 +280,7 @@ func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListsAn
 	}
 }
 
+// getAccessListDynamicMembers returns a list of all dynamic members (nested lists) for a given Access List.
 func getAccessListDynamicMembers(ctx context.Context, clt AccessListsAndMembersGetter, entry string) ([]string, error) {
 	var pageToken string
 	var dynamicMembers []string
