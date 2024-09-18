@@ -14,19 +14,19 @@
 
 syntax = "proto3";
 
-package teleport.userintegrationtasks.v1;
+package teleport.usertasks.v1;
 
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userintegrationtasks/v1;userintegrationtasksv1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1;usertasksv1";
 
-// UserIntegrationTask is a resource that represents an action to be completed by the user.
-// UserIntegrationTasks are a unit of work for users to act upon issues related to integrations.
+// UserTask is a resource that represents an action to be completed by the user.
+// UserTasks are a unit of work for users to act upon issues related to other resources.
 // As an example, when auto-enrolling EC2 instances using the Discovery Service
-// a UserIntegrationTask is created to let the user know that something failed on a set of instances.
+// a UserTask is created to let the user know that something failed on a set of instances.
 // The user can then mark the task as resolved after following the recommendation/fixing steps.
-message UserIntegrationTask {
+message UserTask {
   // The kind of resource represented.
   string kind = 1;
   // Mandatory field for all resources. Not populated for this resource type.
@@ -35,12 +35,12 @@ message UserIntegrationTask {
   string version = 3;
   // Common metadata that all resources share.
   teleport.header.v1.Metadata metadata = 4;
-  // The configured properties of UserIntegrationTask.
-  UserIntegrationTaskSpec spec = 5;
+  // The configured properties of UserTask.
+  UserTaskSpec spec = 5;
 }
 
-// UserIntegrationTaskSpec contains the properties of the UserIntegrationTask.
-message UserIntegrationTaskSpec {
+// UserTaskSpec contains the properties of the UserTask.
+message UserTaskSpec {
   // Integration is the integration name that originated this task.
   string integration = 1;
   // TaskType indicates the type of task.

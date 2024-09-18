@@ -29,9 +29,9 @@ import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
-import "teleport/userintegrationtasks/v1/user_integration_tasks.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
+import "teleport/usertasks/v1/user_tasks.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -185,7 +185,7 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
     // StaticHostUserV2 is a resource for static host users.
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
-    // UserIntegrationTask is a resource for user integration task.
-    teleport.userintegrationtasks.v1.UserIntegrationTask UserIntegrationTask = 67;
+    // UsernTask is a resource for user task.
+    teleport.usertasks.v1.UserTask UserTask = 67;
   }
 }
