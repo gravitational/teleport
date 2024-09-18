@@ -46,13 +46,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -311,53 +310,6 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	}
 }
 
-// KeyPair is a private/public key pair
-type KeyPair struct {
-	// PrivateKey is a private key in PEM format
-	PrivateKey []byte
-	// PublicSSHKey is a public key in SSH format
-	PublicSSHKey []byte
-	// PublicTLSKey is a public key in X509 format
-	PublicTLSKey []byte
-}
-
-func (process *TeleportProcess) deleteKeyPair(role types.SystemRole, reason string) {
-	process.keyMutex.Lock()
-	defer process.keyMutex.Unlock()
-	process.logger.DebugContext(process.ExitContext(), "Deleted generated key pair.", "identity", role, "reason", reason)
-	delete(process.keyPairs, keyPairKey{role: role, reason: reason})
-}
-
-func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason string) (*KeyPair, error) {
-	process.keyMutex.Lock()
-	defer process.keyMutex.Unlock()
-
-	mapKey := keyPairKey{role: role, reason: reason}
-	keyPair, ok := process.keyPairs[mapKey]
-	if ok {
-		process.logger.DebugContext(process.ExitContext(), "Returning existing key pair for.", "identity", role, "reason", reason)
-		return &keyPair, nil
-	}
-	process.logger.DebugContext(process.ExitContext(), "Generating new key pair.", "identity", role, "reason", reason)
-	privPEM, pubSSH, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	privateKey, err := ssh.ParseRawPrivateKey(privPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keyPair = KeyPair{PrivateKey: privPEM, PublicSSHKey: pubSSH, PublicTLSKey: pubTLS}
-	process.keyPairs[mapKey] = keyPair
-
-	return &keyPair, nil
-}
-
 // newWatcher returns a new watcher,
 // either using local auth server connection or remote client
 func (process *TeleportProcess) newWatcher(conn *Connector, watch types.Watch) (types.Watcher, error) {
@@ -392,17 +344,9 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleAdmin || id.Role == types.RoleAuth {
 		return auth.GenerateIdentity(process.localAuth, id, additionalPrincipals, dnsNames)
 	}
-	const reason = "re-register"
-	keyPair, err := process.generateKeyPair(id.Role, reason)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
-	defer cancel()
 
 	var clt auth.ReRegisterClient = conn.Client
 	var remoteAddr string
-
 	if srv := process.getLocalAuth(); srv != nil {
 		clt = srv
 		// auth server typically extracts remote addr from conn. since we're using the local auth
@@ -412,13 +356,12 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 		remoteAddr = cmp.Or(process.Config.AdvertiseIP, defaults.Localhost)
 	}
 
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
 	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:                clt,
 		ID:                    id,
 		AdditionalPrincipals:  additionalPrincipals,
-		PrivateKey:            keyPair.PrivateKey,
-		PublicTLSKey:          keyPair.PublicTLSKey,
-		PublicSSHKey:          keyPair.PublicSSHKey,
 		DNSNames:              dnsNames,
 		RemoteAddr:            remoteAddr,
 		Rotation:              rotation,
@@ -428,7 +371,6 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.deleteKeyPair(id.Role, reason)
 	return identity, nil
 }
 
@@ -465,12 +407,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-		const reason = "first-time-connect"
-		keyPair, err := process.generateKeyPair(role, reason)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		token, err := process.Config.Token()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -488,8 +424,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ProxyServer:          process.Config.ProxyServer,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicTLSKey:         keyPair.PublicTLSKey,
-			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
 			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(dataDir, defaults.CACertFile),
@@ -508,7 +442,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			}
 		}
 
-		certs, err := join.Register(process.ExitContext(), registerParams)
+		result, err := join.Register(process.ExitContext(), registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
@@ -516,12 +450,15 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = state.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		process.deleteKeyPair(role, reason)
+		identity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	process.logger.InfoContext(process.ExitContext(), "Successfully obtained credentials to connect to the cluster.", "identity", role)

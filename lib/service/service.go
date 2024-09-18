@@ -626,12 +626,6 @@ type TeleportProcess struct {
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
 
-	// keyPairs holds private/public key pairs used
-	// to get signed host certificates from auth server
-	keyPairs map[keyPairKey]KeyPair
-	// keyMutex is a mutex to serialize key generation
-	keyMutex sync.Mutex
-
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
 
@@ -655,11 +649,6 @@ type TeleportProcess struct {
 	// resolver is used to identify the reverse tunnel address when connecting via
 	// the proxy.
 	resolver reversetunnelclient.Resolver
-}
-
-type keyPairKey struct {
-	role   types.SystemRole
-	reason string
 }
 
 // processIndex is an internal process index
@@ -1165,7 +1154,6 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		id:                     processID,
 		log:                    cfg.Log,
 		logger:                 cfg.Logger,
-		keyPairs:               make(map[keyPairKey]KeyPair),
 		cloudLabels:            cloudLabels,
 		TracingProvider:        tracing.NoopProvider(),
 	}
@@ -2063,6 +2051,7 @@ func (process *TeleportProcess) initAuthService() error {
 			VersionStorage:          process.storage,
 			Authority:               cfg.Keygen,
 			ClusterConfiguration:    cfg.ClusterConfiguration,
+			AutoUpdateService:       cfg.AutoUpdateService,
 			ClusterAuditConfig:      cfg.Auth.AuditConfig,
 			ClusterNetworkingConfig: cfg.Auth.NetworkingConfig,
 			SessionRecordingConfig:  cfg.Auth.SessionRecordingConfig,
