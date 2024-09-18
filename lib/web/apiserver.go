@@ -2153,6 +2153,8 @@ type AuthParams struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	MFAToken string
 }
 
 // ConstructSSHResponse creates a special SSH response for SSH login method
@@ -2167,6 +2169,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		Cert:        response.Cert,
 		TLSCert:     response.TLSCert,
 		HostSigners: authclient.AuthoritiesToTrustedCerts(response.HostSigners),
+		MFAToken:    response.MFAToken,
 	}
 	out, err := json.Marshal(consoleResponse)
 	if err != nil {
@@ -5029,6 +5032,8 @@ type SSOCallbackResponse struct {
 	// ClientRedirectURL is the URL to redirect back to on completion of
 	// the SSO login process.
 	ClientRedirectURL string
+	// MFAToken is an SSO MFA token used in SSOChallengeResponse.
+	MFAToken string
 }
 
 // SSOSetWebSessionAndRedirectURL validates the CSRF token in the response
