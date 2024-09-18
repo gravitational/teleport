@@ -26,8 +26,8 @@ import (
 //   - hardware_key_touch: 9c
 //   - hardware_key_pin: 9d
 //   - hardware_key_touch_pin: 9e
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
-	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
+func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, prompt HardwareKeyPrompt) (*PrivateKey, error) {
+	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot, prompt)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
 	}

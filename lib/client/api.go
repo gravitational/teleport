@@ -488,6 +488,11 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
+	// HardwareKeyPrompt is a custom hardware key prompt to use when asking
+	// for the hardware key PIN, touch, etc.
+	// If empty, a default keys.CLIPrompt is used.
+	HardwareKeyPrompt keys.HardwareKeyPrompt
+
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
@@ -1218,7 +1223,11 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 			// Initialize empty client store to prevent panics.
 			tc.ClientStore = NewMemClientStore()
 		} else {
-			tc.ClientStore = NewFSClientStore(c.KeysDir)
+			if c.HardwareKeyPrompt != nil {
+				tc.ClientStore = NewFSClientStoreWithPrompt(c.KeysDir, c.HardwareKeyPrompt)
+			} else {
+				tc.ClientStore = NewFSClientStore(c.KeysDir)
+			}
 			if c.AddKeysToAgent == AddKeysToAgentOnly {
 				// Store client keys in memory, but still save trusted certs and profile to disk.
 				tc.ClientStore.KeyStore = NewMemKeyStore()
@@ -3835,7 +3844,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 		if tc.PIVSlot != "" {
 			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
 		}
-		priv, err := keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot)
+		priv, err := keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot, tc.HardwareKeyPrompt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

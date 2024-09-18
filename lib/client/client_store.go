@@ -48,6 +48,19 @@ type Store struct {
 	ProfileStore
 }
 
+// NewFSClientStore initializes an FS backed client store with the given base dir.
+func NewFSClientStoreWithPrompt(dirPath string, prompt keys.HardwareKeyPrompt) *Store {
+	dirPath = profile.FullProfilePath(dirPath)
+	fd := NewFSKeyStore(dirPath)
+	fd.HardwareKeyPrompt = prompt
+	return &Store{
+		log:               logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
+		KeyStore:          fd,
+		TrustedCertsStore: NewFSTrustedCertsStore(dirPath),
+		ProfileStore:      NewFSProfileStore(dirPath),
+	}
+}
+
 // NewMemClientStore initializes an FS backed client store with the given base dir.
 func NewFSClientStore(dirPath string) *Store {
 	dirPath = profile.FullProfilePath(dirPath)

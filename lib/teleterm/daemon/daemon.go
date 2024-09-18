@@ -878,9 +878,13 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	s.importantModalSemaphore = newWaitSemaphore(maxConcurrentImportantModals, imporantModalWaitDuraiton)
 
 	// Resume headless watchers for any active login sessions.
-	if err := s.StartHeadlessWatchers(); err != nil {
-		return trace.Wrap(err)
-	}
+	//TODO(gzdunek): Headless watchers should start after the app finishes initialization,
+	// now we get th error: "Server method handler threw error tshd events context bridge service has not been set up yet".
+	// That's because it wants to show a hardware key prompt, but the app hasn't finished the initialization yet.
+	// It should be started by a new RPC.
+	//if err := s.StartHeadlessWatchers(); err != nil {
+	//	return trace.Wrap(err)
+	//}
 
 	return nil
 }

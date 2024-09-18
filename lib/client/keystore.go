@@ -93,7 +93,8 @@ type FSKeyStore struct {
 	log logrus.FieldLogger
 
 	// KeyDir is the directory where all keys are stored.
-	KeyDir string
+	KeyDir            string
+	HardwareKeyPrompt keys.HardwareKeyPrompt
 }
 
 // NewFSKeyStore initializes a new FSClientStore.
@@ -278,12 +279,12 @@ func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath s
 	return nil
 }
 
-func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+func readTLSCredentialWithPrompt(keyPath, certPath string, prompt keys.HardwareKeyPrompt) (TLSCredential, error) {
 	keyPEM, certPEM, err := readTLSCredentialFiles(keyPath, certPath)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
-	key, err := keys.ParsePrivateKey(keyPEM)
+	key, err := keys.ParsePrivateKeyWithPrompt(keyPEM, prompt)
 	if err != nil {
 		return TLSCredential{}, trace.Wrap(err)
 	}
@@ -291,6 +292,11 @@ func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
 		PrivateKey: key,
 		Cert:       certPEM,
 	}, nil
+}
+
+func readTLSCredential(keyPath, certPath string) (TLSCredential, error) {
+	cred, err := readTLSCredentialWithPrompt(keyPath, certPath, nil)
+	return cred, trace.Wrap(err)
 }
 
 func readTLSCredentialFiles(keyPath, certPath string) ([]byte, []byte, error) {
@@ -498,12 +504,12 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing
 		return nil, trace.Wrap(err, "no session keys for %+v", idx)
 	}
 
-	tlsCred, err := readTLSCredential(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx))
+	tlsCred, err := readTLSCredentialWithPrompt(fs.userTLSKeyPath(idx), fs.tlsCertPath(idx), fs.HardwareKeyPrompt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx))
+	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), fs.HardwareKeyPrompt)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
