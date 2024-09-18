@@ -410,7 +410,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := s.startReconciler(ctx); err != nil {
+	if _, err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -428,9 +428,9 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	return s, nil
 }
 
-// startReconciler starts resource watcher and reconciler that registers/unregisters windows desktops
+// startDynamicReconciler starts resource watcher and reconciler that registers/unregisters windows desktops
 // according to the up-to-date list of dynamic windows desktops resources.
-func (s *WindowsService) startReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
+func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.DynamicWindowsDesktopWatcher, error) {
 	if len(s.cfg.ResourceMatchers) == 0 {
 		s.cfg.Logger.DebugContext(ctx, "Not starting dynamic desktop resource watcher.")
 		return nil, nil

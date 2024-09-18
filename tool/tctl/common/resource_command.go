@@ -889,6 +889,8 @@ func (rc *ResourceCommand) createDynamicWindowsDesktop(ctx context.Context, clie
 		return trace.Wrap(err)
 	}
 
+	fmt.Printf("labels %q", wd.GetAllLabels())
+
 	if err := client.UpsertDynamicWindowsDesktop(ctx, wd); err != nil {
 		return trace.Wrap(err)
 	}
