@@ -194,9 +194,10 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.Auth == nil {
 		c.Auth, err = common.NewAuth(common.AuthConfig{
-			AuthClient: c.AuthClient,
-			Clock:      c.Clock,
-			Clients:    c.CloudClients,
+			AuthClient:  c.AuthClient,
+			AccessPoint: c.AccessPoint,
+			Clock:       c.Clock,
+			Clients:     c.CloudClients,
 		})
 		if err != nil {
 			return trace.Wrap(err)
