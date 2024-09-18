@@ -296,6 +296,10 @@ func (s *Storage) makeDefaultClientConfig(rootClusterURI uri.ResourceURI) *clien
 	cfg := client.MakeDefaultConfig()
 
 	cfg.HomePath = s.Dir
+	cfg.DialOpts = append(cfg.DialOpts,
+		// By default, MinConnectTimeout is 20 seconds, increase it to 30.
+		grpc.WithConnectParams(grpc.ConnectParams{MinConnectTimeout: defaults.DefaultIOTimeout}),
+	)
 	cfg.KeysDir = s.Dir
 	cfg.InsecureSkipVerify = s.InsecureSkipVerify
 	cfg.WebauthnLogin = s.WebauthnLogin
