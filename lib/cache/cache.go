@@ -496,7 +496,7 @@ type Cache struct {
 
 	trustCache                   services.Trust
 	clusterConfigCache           services.ClusterConfiguration
-	autoupdateCache              *local.AutoUpdateService
+	autoUpdateCache              *local.AutoUpdateService
 	provisionerCache             services.Provisioner
 	usersCache                   services.UsersService
 	accessCache                  services.Access
@@ -645,8 +645,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
-	// AutoupdateService is an autoupdate service.
-	AutoupdateService services.AutoUpdateServiceGetter
+	// AutoUpdateService is an autoupdate service.
+	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
 	Provisioner services.Provisioner
 	// Users is a users service
@@ -926,7 +926,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateCache, err := local.NewAutoUpdateService(config.Backend)
+	autoUpdateCache, err := local.NewAutoUpdateService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -970,7 +970,7 @@ func New(config Config) (*Cache, error) {
 		fnCache:                      fnCache,
 		trustCache:                   local.NewCAService(config.Backend),
 		clusterConfigCache:           clusterConfigCache,
-		autoupdateCache:              autoupdateCache,
+		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
 		usersCache:                   local.NewIdentityService(config.Backend),
 		accessCache:                  local.NewAccessService(config.Backend),
@@ -1907,7 +1907,7 @@ func (c *Cache) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdate
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateConfig")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoupdateConfigs)
+	rg, err := readCollectionCache(c, c.collections.autoUpdateConfigs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1930,7 +1930,7 @@ func (c *Cache) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAutoUpdateVersion")
 	defer span.End()
 
-	rg, err := readCollectionCache(c, c.collections.autoupdateVersions)
+	rg, err := readCollectionCache(c, c.collections.autoUpdateVersions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

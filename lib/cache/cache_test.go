@@ -133,7 +133,7 @@ type testPack struct {
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
-	autoupdateService       services.AutoUpdateService
+	autoUpdateService       services.AutoUpdateService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -363,7 +363,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.staticHostUsers = staticHostUserService
 
-	p.autoupdateService, err = local.NewAutoUpdateService(p.backend)
+	p.autoUpdateService, err = local.NewAutoUpdateService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -416,7 +416,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoupdateService:       p.autoupdateService,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -823,7 +823,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseObjects:         p.databaseObjects,
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
-			AutoupdateService:       p.autoupdateService,
+			AutoUpdateService:       p.autoUpdateService,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -903,7 +903,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoupdateService:       p.autoupdateService,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1109,7 +1109,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoupdateService:       p.autoupdateService,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1200,7 +1200,7 @@ func initStrategy(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
-		AutoupdateService:       p.autoupdateService,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2674,9 +2674,9 @@ func TestDatabaseObjects(t *testing.T) {
 	})
 }
 
-// TestAutoupdateConfig tests that CRUD operations on autoupdate config resource is
+// TestAutoUpdateConfig tests that CRUD operations on AutoUpdateConfig resources are
 // replicated from the backend to the cache.
-func TestAutoupdateConfig(t *testing.T) {
+func TestAutoUpdateConfig(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPack(t, ForAuth)
@@ -2687,11 +2687,11 @@ func TestAutoupdateConfig(t *testing.T) {
 			return newAutoUpdateConfig(t), nil
 		},
 		create: func(ctx context.Context, item *autoupdate.AutoUpdateConfig) error {
-			_, err := p.autoupdateService.UpsertAutoUpdateConfig(ctx, item)
+			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
-			item, err := p.autoupdateService.GetAutoUpdateConfig(ctx)
+			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdate.AutoUpdateConfig{}, nil
 			}
@@ -2705,12 +2705,12 @@ func TestAutoupdateConfig(t *testing.T) {
 			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
 		},
 		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoupdateService.DeleteAutoUpdateConfig(ctx))
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
 		},
 	})
 }
 
-// TestAutoUpdateVersion tests that CRUD operations on autoupdate version resource is
+// TestAutoUpdateVersion tests that CRUD operations on AutoUpdateVersion resource are
 // replicated from the backend to the cache.
 func TestAutoUpdateVersion(t *testing.T) {
 	t.Parallel()
@@ -2723,11 +2723,11 @@ func TestAutoUpdateVersion(t *testing.T) {
 			return newAutoUpdateVersion(t), nil
 		},
 		create: func(ctx context.Context, item *autoupdate.AutoUpdateVersion) error {
-			_, err := p.autoupdateService.UpsertAutoUpdateVersion(ctx, item)
+			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateVersion, error) {
-			item, err := p.autoupdateService.GetAutoUpdateVersion(ctx)
+			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
 			if trace.IsNotFound(err) {
 				return []*autoupdate.AutoUpdateVersion{}, nil
 			}
@@ -2741,7 +2741,7 @@ func TestAutoUpdateVersion(t *testing.T) {
 			return []*autoupdate.AutoUpdateVersion{item}, trace.Wrap(err)
 		},
 		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoupdateService.DeleteAutoUpdateVersion(ctx))
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateVersion(ctx))
 		},
 	})
 }

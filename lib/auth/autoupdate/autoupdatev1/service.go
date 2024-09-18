@@ -206,8 +206,8 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
 // UpdateAutoUpdateVersion updates autoupdate version singleton.
@@ -225,8 +225,8 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
 // UpsertAutoUpdateVersion updates or creates autoupdate version singleton.
@@ -244,8 +244,8 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
 // DeleteAutoUpdateVersion deletes autoupdate version singleton.
