@@ -120,11 +120,11 @@ func (s *DatadogSuiteOSS) TestIncidentCreation() {
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0
 	})
-	require.Equal(t, len(pluginData.SentMessages), 1)
+	require.Len(t, pluginData.SentMessages, 1)
 
 	incident, err := s.fakeDatadog.CheckNewIncident(ctx)
 	require.NoError(t, err, "no new incidents stored")
-	require.Equal(t, len(incident.Data.Attributes.NotificationHandles), 1)
+	require.Len(t, incident.Data.Attributes.NotificationHandles, 1)
 
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
 	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer1UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
@@ -417,7 +417,7 @@ func (s *DatadogSuiteEnterprise) TestReviewNotes() {
 	pluginData := s.checkPluginData(ctx, req.GetName(), func(data accessrequest.PluginData) bool {
 		return len(data.SentMessages) > 0 && data.ReviewsCount == 2
 	})
-	assert.Equal(t, len(pluginData.SentMessages), 1)
+	assert.Len(t, pluginData.SentMessages, 1)
 
 	note, err := s.fakeDatadog.CheckNewIncidentNote(ctx)
 	require.NoError(t, err)
