@@ -81,6 +81,25 @@ func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p h
 	}, nil
 }
 
+// clusterKubeResourcesGet returns supported requested kubernetes subresources eg: pods, namespaces, secrets etc.
+func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), r.URL.Query().Get("kind"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeKubeResources(resp.Resources, r.URL.Query().Get("kubeCluster")),
+		StartKey:   resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
+}
+
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
 func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)

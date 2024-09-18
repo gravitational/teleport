@@ -38,6 +38,7 @@ import type { WebauthnAssertionResponse } from './services/auth';
 import type { PluginKind, Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
+import type { KubeResourceKind } from './services/kube/types';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -251,6 +252,8 @@ const cfg = {
     sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    kubernetesResourcesPath:
+      '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
 
     usersPath: '/v1/webapi/users',
     userWithUsernamePath: '/v1/webapi/users/:username',
@@ -887,6 +890,13 @@ const cfg = {
     });
   },
 
+  getKubernetesResourcesUrl(clusterId: string, params: UrlKubeResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getAuthnChallengeWithTokenUrl(tokenId: string) {
     return generatePath(cfg.api.mfaAuthnChallengeWithTokenPath, {
       tokenId,
@@ -1237,6 +1247,18 @@ export interface UrlResourcesParams {
   includedResourceMode?: IncludedResourceMode;
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
+}
+
+export interface UrlKubeResourcesParams {
+  query?: string;
+  search?: string;
+  sort?: SortType;
+  limit?: number;
+  startKey?: string;
+  searchAsRoles?: 'yes' | '';
+  kubeNamespace?: string;
+  kubeCluster: string;
+  kind: KubeResourceKind;
 }
 
 export interface UrlDeployServiceIamConfigureScriptParams {

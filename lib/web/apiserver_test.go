@@ -4250,6 +4250,113 @@ func TestClusterKubesGet(t *testing.T) {
 	}
 }
 
+func TestClusterKubeResourcesGet(t *testing.T) {
+	t.Parallel()
+	kubeClusterName := "kube_cluster"
+
+	roleWithFullAccess := func(username string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:       []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				KubeGroups: []string{"groups"},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+					{
+						Kind: types.KindKubeNamespace,
+						Name: types.Wildcard,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, roleWithFullAccess)
+
+	env := newWebPack(t, 1)
+
+	type testResponse struct {
+		Items      []ui.KubeResource `json:"items"`
+		TotalCount int               `json:"totalCount"`
+	}
+
+	tt := []struct {
+		name             string
+		user             string
+		kind             string
+		expectedResponse []ui.KubeResource
+	}{
+		{
+			name: "get pods from gRPC server",
+			user: "test-user@example.com",
+			kind: types.KindKubePod,
+			expectedResponse: []ui.KubeResource{
+				{
+					Kind:        types.KindKubePod,
+					Name:        "test-pod",
+					Namespace:   "default",
+					Labels:      []ui.Label{{Name: "app", Value: "test"}},
+					KubeCluster: kubeClusterName,
+				},
+				{
+					Kind:        types.KindKubePod,
+					Name:        "test-pod2",
+					Namespace:   "default",
+					Labels:      []ui.Label{{Name: "app", Value: "test2"}},
+					KubeCluster: kubeClusterName,
+				},
+			},
+		},
+		{
+			name: "get namespaces",
+			user: "test-user2@example.com",
+			kind: types.KindKubeNamespace,
+			expectedResponse: []ui.KubeResource{
+				{
+					Kind:        types.KindKubeNamespace,
+					Name:        "default",
+					Namespace:   "",
+					Labels:      []ui.Label{{Name: "app", Value: "test"}},
+					KubeCluster: kubeClusterName,
+				},
+			},
+		},
+	}
+	proxy := env.proxies[0]
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	// Init fake gRPC Kube service.
+	initGRPCServer(t, env, listener)
+	addr := utils.MustParseAddr(listener.Addr().String())
+	proxy.handler.handler.cfg.ProxyWebAddr = *addr
+
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
+			params := url.Values{}
+			params.Add("kubeCluster", kubeClusterName)
+			params.Add("kind", tc.kind)
+			re, err := pack.clt.Get(context.Background(), endpoint, params)
+			require.NoError(t, err)
+
+			resp := testResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+		})
+	}
+}
+
 func TestClusterKubePodsGet(t *testing.T) {
 	t.Parallel()
 	kubeClusterName := "kube_cluster"
@@ -9484,35 +9591,59 @@ type fakeKubeService struct {
 }
 
 func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	return &kubeproto.ListKubernetesResourcesResponse{
-		Resources: []*types.KubernetesResourceV1{
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod",
-					Labels: map[string]string{
-						"app": "test",
+	switch req.GetResourceType() {
+	case types.KindKubePod:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
+					},
+					{
+						Kind: types.KindKubePod,
+						Metadata: types.Metadata{
+							Name: "test-pod2",
+							Labels: map[string]string{
+								"app": "test2",
+							},
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "default",
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-			{
-				Kind: types.KindKubePod,
-				Metadata: types.Metadata{
-					Name: "test-pod2",
-					Labels: map[string]string{
-						"app": "test2",
+				TotalCount: 2,
+			}, nil
+		}
+	case types.KindKubeNamespace:
+		{
+			return &kubeproto.ListKubernetesResourcesResponse{
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: types.KindNamespace,
+						Metadata: types.Metadata{
+							Name: "default",
+							Labels: map[string]string{
+								"app": "test",
+							},
+						},
 					},
 				},
-				Spec: types.KubernetesResourceSpecV1{
-					Namespace: "default",
-				},
-			},
-		},
-		TotalCount: 2,
-	}, nil
+				TotalCount: 1,
+			}, nil
+		}
+	default:
+		return nil, trace.BadParameter("kubernetes resource kind %q is not mocked", req.GetResourceType())
+	}
 }
 
 func TestWebSocketAuthenticateRequest(t *testing.T) {
