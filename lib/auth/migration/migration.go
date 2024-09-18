@@ -81,7 +81,6 @@ func Apply(ctx context.Context, b backend.Backend, opts ...func(c *applyConfig))
 	cfg := applyConfig{
 		migrations: []migration{
 			createDBAuthority{},
-			migrateFirestoreKeys{},
 		},
 	}
 

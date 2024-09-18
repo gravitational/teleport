@@ -414,6 +414,10 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 		go RetryingAsyncFunctionRunner(b.clientContext, linearConfig, b.Logger, b.purgeExpiredDocuments, "purgeExpiredDocuments")
 	}
 
+	// Migrate incorrect key types to the correct type.
+	// Start the migration after a delay to allow the backend to start up and won't be affected by the migration.
+	_ = b.clock.AfterFunc(5*time.Minute, b.migrateIncorrectKeyTypes)
+
 	l.Info("Backend created.")
 	return b, nil
 }
@@ -479,11 +483,28 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	legacyDocs, err := b.svc.Collection(b.CollectionName).
+		Where(keyDocProperty, ">=", startKey.String()).
+		Where(keyDocProperty, "<=", endKey.String()).
+		Limit(limit).
+		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	brokenDocs, err := b.svc.Collection(b.CollectionName).
+		Where(keyDocProperty, ">=", startKey).
+		Where(keyDocProperty, "<=", endKey).
+		Limit(limit).
+		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	if len(docs) >= backend.DefaultRangeLimit {
+	allDocs := append(append(docs, legacyDocs...), brokenDocs...)
+	if len(allDocs) >= backend.DefaultRangeLimit {
 		b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
 	}
-	return docs, nil
+	return allDocs, nil
 }
 
 // GetRange returns range of elements

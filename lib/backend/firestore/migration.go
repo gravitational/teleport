@@ -20,53 +20,90 @@ package firestore
 
 import (
 	"context"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/backend"
 )
 
-// MigrateIncorrectKeyTypes migrates incorrect key types (backend.Key and string) to the correct type (bytes)
+// migrateIncorrectKeyTypes migrates incorrect key types (backend.Key and string) to the correct type (bytes)
 // in the backend. This is necessary because the backend was incorrectly storing keys as strings and backend.Key
 // types and Firestore clients mapped them to different database types. This forces calling ReadRange 3 times.
 // This migration will fix the issue by converting all keys to the correct type (bytes).
-// TODO(tigrato|rosstimothy): DELETE In 18.0.0: Remove this migration in the next major release.
-func MigrateIncorrectKeyTypes(ctx context.Context, b backend.Backend) error {
-	firestore, ok := b.(*Backend)
-	if !ok {
-		return trace.BadParameter("expected firestore backend")
-	}
+// TODO(tigrato|rosstimothy): DELETE In 19.0.0: Remove this migration in 19.0.0.
+func (b *Backend) migrateIncorrectKeyTypes() {
+	var (
+		numberOfDocsMigrated int
+		duration             time.Duration
+	)
+	err := backend.RunWhileLocked(
+		b.clientContext,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				LockName:      "firestore_migrate_incorrect_key_types",
+				Backend:       b,
+				TTL:           5 * time.Minute,
+				RetryInterval: time.Minute,
+			},
+			ReleaseCtxTimeout:   10 * time.Second,
+			RefreshLockInterval: time.Minute,
+		},
+		func(ctx context.Context) error {
+			start := time.Now()
+			defer func() {
+				duration = time.Since(start)
+			}()
+			// backend.Key is converted to array of ints when sending to the db.
+			toArray := func(key []byte) []any {
+				arrKey := make([]any, len(key))
+				for i, b := range key {
+					arrKey[i] = int(b)
+				}
+				return arrKey
+			}
+			nDocs, err := migrateKeyType[[]any](ctx, b, toArray)
+			numberOfDocsMigrated += nDocs
+			if err != nil {
+				return trace.Wrap(err, "failed to migrate backend key")
+			}
 
-	// backend.Key is converted to array of ints when sending to the db.
-	toArray := func(key []byte) []any {
-		arrKey := make([]any, len(key))
-		for i, b := range key {
-			arrKey[i] = int(b)
-		}
-		return arrKey
-	}
+			stringKey := func(key []byte) string {
+				return string(key)
+			}
+			nDocs, err = migrateKeyType[string](ctx, b, stringKey)
+			numberOfDocsMigrated += nDocs
+			if err != nil {
+				return trace.Wrap(err, "failed to migrate legacy key")
+			}
+			return nil
+		})
 
-	if err := migrateKeyType[[]any](ctx, firestore, toArray); err != nil {
-		return trace.Wrap(err, "failed to migrate backend key")
+	entry := b.Entry.WithFields(logrus.Fields{
+		"duration": duration,
+		"migrated": numberOfDocsMigrated,
+	})
+	if err != nil {
+		entry.WithError(err).Error("Failed to migrate incorrect key types.")
+		return
 	}
-
-	stringKey := func(key []byte) string {
-		return string(key)
-	}
-	if err := migrateKeyType[string](ctx, firestore, stringKey); err != nil {
-		return trace.Wrap(err, "failed to migrate legacy key")
-	}
-	return nil
+	entry.Infof("Migrated %d incorrect key types", numberOfDocsMigrated)
 }
 
-func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) T) error {
-	limit := 200
+func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) T) (int, error) {
+	limit := 300
 	startKey := newKey([]byte("/"))
 
 	bulkWriter := b.svc.BulkWriter(b.clientContext)
 	defer bulkWriter.End()
-	for {
+
+	nDocs := 0
+	// handle the migration in batches of 300 documents per second
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	for range t.C {
 		docs, err := b.svc.Collection(b.CollectionName).
 			// passing the key type here forces the client to map the key to the underlying type
 			// and return all the keys in that share the same underlying type.
@@ -78,42 +115,45 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 			Limit(limit).
 			Documents(ctx).GetAll()
 		if err != nil {
-			return trace.Wrap(err)
+			return nDocs, trace.Wrap(err)
 		}
 
 		jobs := make([]*firestore.BulkWriterJob, len(docs))
 		for i, dbDoc := range docs {
 			newDoc, err := newRecordFromDoc(dbDoc)
 			if err != nil {
-				return trace.Wrap(err, "failed to convert document")
+				return nDocs, trace.Wrap(err, "failed to convert document")
 			}
 
-			jobs[i], err = bulkWriter.Set(
+			// use conditional update to ensure that the document has not been updated since the read
+			jobs[i], err = bulkWriter.Update(
 				b.svc.Collection(b.CollectionName).
 					Doc(b.keyToDocumentID(newDoc.Key)),
-				newDoc,
+				newDoc.updates(),
+				firestore.LastUpdateTime(dbDoc.UpdateTime),
 			)
 			if err != nil {
-				return trace.Wrap(err, "failed stream bulk action")
+				return nDocs, trace.Wrap(err, "failed stream bulk action")
 			}
 
 			startKey = newKey(newDoc.Key) // update start key
 		}
 
 		bulkWriter.Flush() // flush the buffer
-		var errs []error
+
 		for _, job := range jobs {
 			if _, err := job.Results(); err != nil {
-				errs = append(errs, err)
+				// log the error and continue
+				b.Entry.WithError(err).Error("failed to write bulk action")
 			}
 		}
-		if err := trace.NewAggregate(errs...); err != nil {
-			return trace.Wrap(err, "failed to write bulk actions")
-		}
 
+		nDocs += len(docs)
 		if len(docs) < limit {
 			break
 		}
+
+		t.Reset(time.Second)
 	}
-	return nil
+	return nDocs, nil
 }
