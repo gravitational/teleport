@@ -420,6 +420,7 @@ func (o *SAMLConnectorV2) WithMFASettings() error {
 
 	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
 	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.ForceAuthn = !o.Spec.MFASettings.NoForceAuthn
 	return nil
 }
 
