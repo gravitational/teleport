@@ -798,6 +798,9 @@ type Auth struct {
 	// CaseInsensitiveRouting causes proxies to use case-insensitive hostname matching.
 	CaseInsensitiveRouting bool `yaml:"case_insensitive_routing,omitempty"`
 
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout types.Duration `yaml:"ssh_dial_timeout,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -848,7 +851,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval
+		a.ProxyPingInterval != empty.ProxyPingInterval ||
+		a.SSHDialTimeout != empty.SSHDialTimeout
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -1996,6 +2000,10 @@ type App struct {
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string `yaml:"cloud,omitempty"`
+
+	// RequiredApps is a list of app names that are required for this app to function. Any app listed here will
+	// be part of the authentication redirect flow and authenticate along side this app.
+	RequiredApps []string `yaml:"required_apps,omitempty"`
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

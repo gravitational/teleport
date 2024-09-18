@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=16.2.2
+VERSION=16.3.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -795,20 +795,20 @@ helmunit/installed:
 .PHONY: test-helm
 test-helm: helmunit/installed
 	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 examples/chart/teleport-kube-agent
-	helm unittest -3 examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 examples/chart/access/*
-	helm unittest -3 examples/chart/event-handler
-	helm unittest -3 examples/chart/tbot
+	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 --with-subchart=false examples/chart/access/*
+	helm unittest -3 --with-subchart=false examples/chart/event-handler
+	helm unittest -3 --with-subchart=false examples/chart/tbot
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
 	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 -u examples/chart/teleport-kube-agent
-	helm unittest -3 -u examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 -u examples/chart/access/*
-	helm unittest -3 -u examples/chart/event-handler
-	helm unittest -3 -u examples/chart/tbot
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
+	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
+	helm unittest -3 -u --with-subchart=false examples/chart/access/*
+	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
+	helm unittest -3 -u --with-subchart=false examples/chart/tbot
 
 #
 # Runs all Go tests except integration, called by CI/CD.

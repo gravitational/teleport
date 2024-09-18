@@ -146,21 +146,28 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}, nil
 }
 
-type GetAppFQDNRequest ResolveAppParams
+type GetAppDetailsRequest ResolveAppParams
 
-type GetAppFQDNResponse struct {
+type GetAppDetailsResponse struct {
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
+	// RequiredAppFQDNs is a list of required app fqdn
+	RequiredAppFQDNs []string `json:"requiredAppFQDNs"`
 }
 
-// getAppFQDN resolves the input params to a known application and returns
-// its valid FQDN.
+// getAppDetails resolves the input params to a known application and returns
+// its app details.
 //
 // GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
-func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	req := GetAppFQDNRequest{
+func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	values := r.URL.Query()
+
+	isRedirectFlow := values.Get("required-apps") != ""
+	clusterName := p.ByName("clusterName")
+
+	req := GetAppDetailsRequest{
 		FQDNHint:    p.ByName("fqdnHint"),
-		ClusterName: p.ByName("clusterName"),
+		ClusterName: clusterName,
 		PublicAddr:  p.ByName("publicAddr"),
 	}
 
@@ -171,9 +178,26 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
-	return &GetAppFQDNResponse{
+	resp := &GetAppDetailsResponse{
 		FQDN: result.FQDN,
-	}, nil
+	}
+
+	requiredAppNames := result.App.GetRequiredAppNames()
+
+	if !isRedirectFlow {
+		for _, required := range requiredAppNames {
+			res, err := h.resolveApp(r.Context(), ctx, ResolveAppParams{ClusterName: clusterName, AppName: required})
+			if err != nil {
+				h.log.Errorf("Error getting app details for %s, a required app for %s", required, result.App.GetName())
+				continue
+			}
+			resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, res.App.GetPublicAddr())
+		}
+		// append self to end of required apps so that it can be the final entry in the redirect "chain".
+		resp.RequiredAppFQDNs = append(resp.RequiredAppFQDNs, result.App.GetPublicAddr())
+	}
+
+	return resp, nil
 }
 
 // CreateAppSessionResponse is a request to POST /v1/webapi/sessions/app
@@ -280,6 +304,9 @@ type ResolveAppParams struct {
 
 	// ClusterName is the cluster within which this application is running.
 	ClusterName string `json:"cluster_name,omitempty"`
+
+	// AppName is the name of the application
+	AppName string `json:"app_name,omitempty"`
 }
 
 type resolveAppResult struct {
@@ -318,6 +345,8 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
+	case params.AppName != "" && params.ClusterName != "":
+		server, appClusterName, err = h.resolveAppByName(ctx, proxy, params.AppName, params.ClusterName)
 	case params.PublicAddr != "" && params.ClusterName != "":
 		server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
@@ -337,6 +366,31 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 		ClusterName: appClusterName,
 		App:         server.GetApp(),
 	}, nil
+}
+
+// resolveAppByName will take an application name and cluster name and exactly resolves
+// the application and the server on which it is running.
+func (h *Handler) resolveAppByName(ctx context.Context, proxy reversetunnelclient.Tunnel, appName string, clusterName string) (types.AppServer, string, error) {
+	clusterClient, err := proxy.GetSite(clusterName)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	authClient, err := clusterClient.GetClient()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers, err := app.Match(ctx, authClient, app.MatchName(appName))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if len(servers) == 0 {
+		return nil, "", trace.NotFound("failed to match applications with name %s", appName)
+	}
+
+	return servers[0], clusterName, nil
 }
 
 // resolveDirect takes a public address and cluster name and exactly resolves

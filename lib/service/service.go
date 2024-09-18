@@ -2423,6 +2423,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.SecReports = services.SecReports
 	cfg.SnowflakeSession = services.Identity
 	cfg.SPIFFEFederations = services.SPIFFEFederations
+	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
 	cfg.UserLoginStates = services.UserLoginStates
@@ -2465,6 +2466,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.SAMLIdPSession = client
 	cfg.SecReports = client.SecReportsClient()
 	cfg.SnowflakeSession = client
+	cfg.StaticHostUsers = client.StaticHostUserClient()
 	cfg.Trust = client
 	cfg.UserGroups = client
 	cfg.UserLoginStates = client.UserLoginStateClient()
@@ -2884,6 +2886,22 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 		defer func() { warnOnErr(process.ExitContext(), s.Close(), logger) }()
+
+		if s.GetCreateHostUser() {
+			staticHostUserReconciler, err := srv.NewStaticHostUserHandler(srv.StaticHostUserHandlerConfig{
+				Events:         conn.Client,
+				StaticHostUser: conn.Client.StaticHostUserClient(),
+				Server:         s,
+				Users:          s.GetHostUsers(),
+				Sudoers:        s.GetHostSudoers(),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			go func() {
+				warnOnErr(process.ExitContext(), staticHostUserReconciler.Run(process.ExitContext()), logger)
+			}()
+		}
 
 		var resumableServer *resumption.SSHServerWrapper
 		if os.Getenv("TELEPORT_UNSTABLE_DISABLE_SSH_RESUMPTION") == "" {
@@ -5730,6 +5748,7 @@ func (process *TeleportProcess) initApps() {
 				Rewrite:            rewrite,
 				AWS:                aws,
 				Cloud:              app.Cloud,
+				RequiredAppNames:   app.RequiredAppNames,
 			})
 			if err != nil {
 				return trace.Wrap(err)

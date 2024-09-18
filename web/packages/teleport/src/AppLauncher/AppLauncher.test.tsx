@@ -83,7 +83,7 @@ describe('app launcher path is properly formed', () => {
     global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
     jest.spyOn(api, 'get').mockResolvedValue({});
     jest.spyOn(api, 'post').mockResolvedValue({});
-    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'grafana.localhost',
     });
     jest.spyOn(service, 'createAppSession').mockResolvedValue({
@@ -279,7 +279,7 @@ describe('fqdn is matched', () => {
       expectedPublicAddr,
       expectedArn,
     }) => {
-      jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+      jest.spyOn(service, 'getAppDetails').mockResolvedValue({
         fqdn: returnedFqdn,
       });
       jest.spyOn(service, 'createAppSession');
@@ -307,7 +307,7 @@ describe('fqdn is matched', () => {
   );
 
   test('not matching FQDN throws error', async () => {
-    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'different.fqdn',
     });
 
@@ -333,7 +333,7 @@ describe('fqdn is matched', () => {
   });
 
   test('invalid URL when constructing a new URL with a malformed FQDN', async () => {
-    jest.spyOn(service, 'getAppFqdn').mockResolvedValue({
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
     });
 

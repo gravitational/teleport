@@ -1908,6 +1908,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted an integration [${name}]`;
     },
   },
+  [eventCodes.STATIC_HOST_USER_CREATE]: {
+    type: 'static_host_user.create',
+    desc: 'Static Host User Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_UPDATE]: {
+    type: 'static_host_user.update',
+    desc: 'Static Host User Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a static host user [${name}]`;
+    },
+  },
+  [eventCodes.STATIC_HOST_USER_DELETE]: {
+    type: 'static_host_user.delete',
+    desc: 'Static Host User Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a static host user [${name}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

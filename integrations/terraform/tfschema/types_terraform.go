@@ -871,6 +871,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
+				"required_app_names": {
+					Description: "RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate along side this app.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+				},
 				"rewrite": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"headers": {
@@ -2323,6 +2328,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"create_desktop_user": GenSchemaBoolOption(ctx),
 						"create_host_user":    GenSchemaBoolOption(ctx),
+						"create_host_user_default_shell": {
+							Description: "CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"create_host_user_mode": {
 							Description: "CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is \"unspecified\"; 1 is \"off\"; 2 is \"drop\" (removed for v15 and above), 3 is \"keep\"; 4 is \"insecure-drop\".",
 							Optional:    true,
@@ -9917,6 +9927,33 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["required_app_names"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"AppV3.Spec.RequiredAppNames"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.RequiredAppNames", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+							} else {
+								obj.RequiredAppNames = make([]string, len(v.Elems))
+								if !v.Null && !v.Unknown {
+									for k, a := range v.Elems {
+										v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											diags.Append(attrReadConversionFailureDiag{"AppV3.Spec.RequiredAppNames", "github_com_hashicorp_terraform_plugin_framework_types.String"})
+										} else {
+											var t string
+											if !v.Null && !v.Unknown {
+												t = string(v.Value)
+											}
+											obj.RequiredAppNames[k] = t
+										}
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -10791,6 +10828,59 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 							v.Value = string(obj.Integration)
 							v.Unknown = false
 							tf.Attrs["integration"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["required_app_names"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"AppV3.Spec.RequiredAppNames"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.RequiredAppNames", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+							} else {
+								c, ok := tf.Attrs["required_app_names"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+								if !ok {
+									c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+										ElemType: o.ElemType,
+										Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RequiredAppNames)),
+										Null:     true,
+									}
+								} else {
+									if c.Elems == nil {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RequiredAppNames))
+									}
+								}
+								if obj.RequiredAppNames != nil {
+									t := o.ElemType
+									if len(obj.RequiredAppNames) != len(c.Elems) {
+										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.RequiredAppNames))
+									}
+									for k, a := range obj.RequiredAppNames {
+										v, ok := tf.Attrs["required_app_names"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										if !ok {
+											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+											if err != nil {
+												diags.Append(attrWriteGeneralError{"AppV3.Spec.RequiredAppNames", err})
+											}
+											v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.RequiredAppNames", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
+											v.Null = string(a) == ""
+										}
+										v.Value = string(a)
+										v.Unknown = false
+										c.Elems[k] = v
+									}
+									if len(obj.RequiredAppNames) > 0 {
+										c.Null = false
+									}
+								}
+								c.Unknown = false
+								tf.Attrs["required_app_names"] = c
+							}
 						}
 					}
 				}
@@ -15234,6 +15324,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 													t = time.Duration(v.Value)
 												}
 												obj.MFAVerificationInterval = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.CreateHostUserDefaultShell = t
 											}
 										}
 									}
@@ -19993,6 +20100,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = time.Duration(obj.MFAVerificationInterval)
 											v.Unknown = false
 											tf.Attrs["mfa_verification_interval"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := tf.Attrs["create_host_user_default_shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Options.CreateHostUserDefaultShell", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.CreateHostUserDefaultShell) == ""
+											}
+											v.Value = string(obj.CreateHostUserDefaultShell)
+											v.Unknown = false
+											tf.Attrs["create_host_user_default_shell"] = v
 										}
 									}
 								}

@@ -144,8 +144,9 @@ const (
 	OSSDesktopsAlertMessage = "Your cluster is beyond its allocation of 5 non-Active Directory Windows desktops. " +
 		"Reach out for unlimited desktops with Teleport Enterprise."
 
-	OSSDesktopAlertLink = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
-	OSSDesktopsLimit    = 5
+	OSSDesktopsAlertLink     = "https://goteleport.com/r/upgrade-community?utm_campaign=CTA_windows_local"
+	OSSDesktopsAlertLinkText = "Contact Sales"
+	OSSDesktopsLimit         = 5
 )
 
 const (
@@ -391,6 +392,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	if cfg.StaticHostUsers == nil {
+		cfg.StaticHostUsers, err = local.NewStaticHostUserService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	services := &Services{
 		TrustInternal:             cfg.Trust,
@@ -430,6 +438,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		CrownJewels:               cfg.CrownJewels,
 		BotInstance:               cfg.BotInstance,
 		SPIFFEFederations:         cfg.SPIFFEFederations,
+		StaticHostUser:            cfg.StaticHostUsers,
 	}
 
 	as := Server{
@@ -627,6 +636,7 @@ type Services struct {
 	services.AccessGraphSecretsGetter
 	services.DevicesGetter
 	services.BotInstance
+	services.StaticHostUser
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1337,6 +1347,14 @@ func (a *Server) runPeriodicOperations() {
 		go a.periodicSyncUpgradeWindowStartHour()
 	}
 
+	// disable periodics that are not required for cloud dashboard tenants
+	if services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		releaseCheck.Stop()
+		localReleaseCheck.Stop()
+		heartbeatCheckTicker.Stop()
+		dynamicLabelsCheck.Stop()
+	}
+
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -1482,7 +1500,7 @@ const (
 )
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
-// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
@@ -5555,7 +5573,8 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertPermitAll, "yes"),
-		types.WithAlertLabel(types.AlertLink, OSSDesktopAlertLink),
+		types.WithAlertLabel(types.AlertLink, OSSDesktopsAlertLink),
+		types.WithAlertLabel(types.AlertLinkText, OSSDesktopsAlertLinkText),
 		types.WithAlertExpires(time.Now().Add(OSSDesktopsCheckPeriod)))
 	if err != nil {
 		log.Warnf("Can't create OSS non-AD desktops limit alert: %v", err)

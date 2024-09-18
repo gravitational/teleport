@@ -350,7 +350,7 @@ func (c *TerraformCommand) useBotToObtainIdentity(ctx context.Context, addr util
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving cluster name")
 	}
-	knownHosts, err := ssh.GenerateKnownHosts(ctx, clt, []string{clusterName.GetClusterName()}, addr.Host())
+	knownHosts, _, err := ssh.GenerateKnownHosts(ctx, clt, []string{clusterName.GetClusterName()}, addr.Host())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "retrieving SSH Host CA")
 	}

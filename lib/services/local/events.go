@@ -33,6 +33,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -224,6 +225,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
+		case types.KindStaticHostUser:
+			parser = newStaticHostUserParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -2173,6 +2176,35 @@ func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return instance, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newStaticHostUserParser() *staticHostUserParser {
+	return &staticHostUserParser{
+		baseParser: newBaseParser(backend.NewKey(staticHostUserPrefix)),
+	}
+}
+
+type staticHostUserParser struct {
+	baseParser
+}
+
+func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindStaticHostUser, types.V2, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

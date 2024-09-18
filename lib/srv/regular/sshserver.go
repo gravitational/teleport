@@ -1095,7 +1095,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	return srv
 }
 
-func (s *Server) getServerInfo() *types.ServerV2 {
+func (s *Server) getServerInfo(context.Context) (*types.ServerV2, error) {
 	server := s.getBasicInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -1110,11 +1110,11 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 	server.SetPeerAddr(s.peerAddr)
-	return server
+	return server, nil
 }
 
 func (s *Server) getServerResource() (types.Resource, error) {
-	return s.getServerInfo(), nil
+	return s.getServerInfo(s.ctx)
 }
 
 // getDirectTCPIPForwarder sets up a connection-level subprocess that handles forwarding connections. Subsequent
@@ -1452,20 +1452,22 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	// Create host user.
-	created, userCloser, err := s.termHandlers.SessionRegistry.TryCreateHostUser(identityContext)
+	created, userCloser, err := s.termHandlers.SessionRegistry.UpsertHostUser(identityContext)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		log.Infof("error while creating host users: %s", err)
 	}
+
 	// Indicate that the user was created by Teleport.
 	ccx.UserCreatedByTeleport = created
 	if userCloser != nil {
 		ccx.AddCloser(userCloser)
 	}
 
-	sudoersCloser, err := s.termHandlers.SessionRegistry.TryWriteSudoersFile(identityContext)
+	sudoersCloser, err := s.termHandlers.SessionRegistry.WriteSudoersFile(identityContext)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		log.Warnf("error while writing sudoers: %s", err)
 	}
+
 	if sudoersCloser != nil {
 		ccx.AddCloser(sudoersCloser)
 	}

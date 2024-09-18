@@ -78,7 +78,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -678,6 +678,11 @@ func (c *Client) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdat
 // CrownJewelsClient returns a client for managing Crown Jewel resources.
 func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
+}
+
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -1712,6 +1717,11 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
+
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
