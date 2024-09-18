@@ -1257,6 +1257,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 	return s.generateCredentials(ctx, generateCredentialsRequest{
 		username:           username,
 		domain:             desktop.GetDomain(),
+		ad:                 !desktop.NonAD(),
 		ttl:                ttl,
 		activeDirectorySID: activeDirectorySID,
 		createUser:         createUsers,
@@ -1270,6 +1271,8 @@ type generateCredentialsRequest struct {
 	username string
 	// domain is the Windows domain
 	domain string
+	// ad
+	ad bool
 	// ttl for the certificate
 	ttl time.Duration
 	// activeDirectorySID is the SID of the Windows user
@@ -1300,6 +1303,7 @@ func (s *WindowsService) generateCredentials(ctx context.Context, request genera
 		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
+		AD:                 request.ad,
 		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
 		ActiveDirectorySID: request.activeDirectorySID,
