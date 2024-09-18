@@ -93,7 +93,7 @@ func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
 	}
 	_, err := w.Write(modeCtrl.Bytes())
 	if err != nil {
-		return fmt.Errorf("Could not write bytes: %v", err)
+		return fmt.Errorf("could not write bytes: %w", err)
 	}
 	return nil
 }
