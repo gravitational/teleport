@@ -697,16 +697,33 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 		}
 	}
 
-	s.client.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
-		Svids: []*machineidv1pb.JWTSVIDRequest{
-			{
-				Audiences: req.Audience,
-				Ttl:       durationpb.New(time.Minute * 30), // TODO: This should be configurable.
-			},
-		},
+	reqs := make([]*machineidv1pb.JWTSVIDRequest, 0, len(svidReqs))
+	for _, svidReq := range svidReqs {
+		reqs = append(reqs, &machineidv1pb.JWTSVIDRequest{
+			Audiences: req.Audience,
+			Ttl:       durationpb.New(time.Minute * 30), // TODO: This should be configurable.
+			Hint:      svidReq.Hint,
+		})
+	}
+
+	res, err := s.client.WorkloadIdentityServiceClient().SignJWTSVIDs(ctx, &machineidv1pb.SignJWTSVIDsRequest{
+		Svids: reqs,
 	})
-	// JWT functionality currently not implemented in Teleport Workload Identity.
-	return nil, trace.NotImplemented("method not implemented")
+	if err != nil {
+		return nil, trace.Wrap(err, "requesting signed JWT-SVIDs from Teleport")
+	}
+
+	out := &workloadpb.JWTSVIDResponse{}
+	for _, resSVID := range res.Svids {
+		out.Svids = append(out.Svids, &workloadpb.JWTSVID{
+			SpiffeId: resSVID.SpiffeId,
+			Svid:     resSVID.Jwt,
+			Hint:     resSVID.Hint,
+		})
+		// TODO: Audit style log message
+	}
+
+	return out, nil
 }
 
 // FetchJWTBundles implements the SPIFFE Workload API FetchJWTBundles method.
