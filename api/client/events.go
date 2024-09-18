@@ -429,6 +429,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetWindowsDesktop(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetDynamicWindowsDesktop(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetKubernetesServer(); r != nil {
 		out.Resource = r
 		return &out, nil
