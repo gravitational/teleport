@@ -26,7 +26,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/require"
@@ -41,6 +41,7 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 			ProxyPublicURL:  "https://proxy.example.com",
 			ClusterName:     "my-cluster",
 			IntegrationName: "my-integration",
+			AccountID:       "123456789012",
 		}
 	}
 
@@ -62,6 +63,7 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 				ProxyPublicURL:              "https://proxy.example.com",
 				ClusterName:                 "my-cluster",
 				IntegrationName:             "my-integration",
+				AccountID:                   "123456789012",
 			},
 		},
 		{
@@ -118,6 +120,24 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 			},
 			errCheck: badParameterCheck,
 		},
+		{
+			name: "missing account id is ok",
+			req: func() EC2SSMIAMConfigureRequest {
+				req := baseReq()
+				req.AccountID = ""
+				return req
+			},
+			errCheck: require.NoError,
+			expected: EC2SSMIAMConfigureRequest{
+				Region:                      "us-east-1",
+				IntegrationRole:             "integrationrole",
+				IntegrationRoleEC2SSMPolicy: "EC2DiscoverWithSSM",
+				SSMDocumentName:             "MyDoc",
+				ProxyPublicURL:              "https://proxy.example.com",
+				ClusterName:                 "my-cluster",
+				IntegrationName:             "my-integration",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.req()
@@ -142,11 +162,13 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 			ProxyPublicURL:  "https://proxy.example.com",
 			ClusterName:     "my-cluster",
 			IntegrationName: "my-integration",
+			AccountID:       "123456789012",
 		}
 	}
 
 	for _, tt := range []struct {
 		name                string
+		mockAccountID       string
 		mockExistingRoles   []string
 		mockExistingSSMDocs []string
 		req                 func() EC2SSMIAMConfigureRequest
@@ -155,12 +177,14 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 		{
 			name:                "valid",
 			req:                 baseReq,
+			mockAccountID:       "123456789012",
 			mockExistingRoles:   []string{"integrationrole"},
 			mockExistingSSMDocs: []string{},
 			errCheck:            require.NoError,
 		},
 		{
 			name:                "integration role does not exist",
+			mockAccountID:       "123456789012",
 			mockExistingRoles:   []string{},
 			mockExistingSSMDocs: []string{},
 			req:                 baseReq,
@@ -168,15 +192,25 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 		},
 		{
 			name:                "ssm document already exists",
+			mockAccountID:       "123456789012",
 			mockExistingRoles:   []string{},
 			mockExistingSSMDocs: []string{"MyDoc"},
 			req:                 baseReq,
 			errCheck:            require.Error,
 		},
+		{
+			name:                "account does not match expected account",
+			req:                 baseReq,
+			mockAccountID:       "222222222222",
+			mockExistingRoles:   []string{"integrationrole"},
+			mockExistingSSMDocs: []string{},
+			errCheck:            badParameterCheck,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEC2SSMIAMConfigClient{
-				existingRoles: tt.mockExistingRoles,
+				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureEC2SSM(ctx, &clt, tt.req())
@@ -194,6 +228,7 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 }
 
 type mockEC2SSMIAMConfigClient struct {
+	callerIdentityGetter
 	existingRoles []string
 	existingDocs  map[string][]ssmtypes.Tag
 }
@@ -202,7 +237,7 @@ type mockEC2SSMIAMConfigClient struct {
 func (m *mockEC2SSMIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	if !slices.Contains(m.existingRoles, *params.RoleName) {
 		noSuchEntityMessage := fmt.Sprintf("role %q does not exist.", *params.RoleName)
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &noSuchEntityMessage,
 		}
 	}

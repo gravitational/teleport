@@ -111,6 +111,7 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			Origin:            u.Desktop.Origin,
 			WindowsDomain:     a.AnonymizeString(u.Desktop.WindowsDomain),
 			AllowUserCreation: u.Desktop.AllowUserCreation,
+			Nla:               u.Desktop.Nla,
 		}
 	}
 	return prehogv1a.SubmitEventRequest{
@@ -949,6 +950,79 @@ func (e *TagExecuteQueryEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEve
 	}
 }
 
+// AccessGraphGitlabScanEvent is emitted when a user scans a GitLab repository
+type AccessGraphGitlabScanEvent prehogv1a.AccessGraphGitlabScanEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphGitlabScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphGitlabScan{
+			AccessGraphGitlabScan: &prehogv1a.AccessGraphGitlabScanEvent{
+				TotalProjects: e.TotalProjects,
+				TotalUsers:    e.TotalUsers,
+				TotalGroups:   e.TotalGroups,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanAuthorizedKeysEvent is emitted when hosts report authorized keys.
+// This event is used to track the number of authorized keys reported by hosts. Keys are
+// refreshed periodically.
+type AccessGraphSecretsScanAuthorizedKeysEvent prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanAuthorizedKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanAuthorizedKeys{
+			AccessGraphSecretsScanAuthorizedKeys: &prehogv1a.AccessGraphSecretsScanAuthorizedKeysEvent{
+				HostId:    a.AnonymizeString(e.HostId),
+				TotalKeys: e.TotalKeys,
+			},
+		},
+	}
+}
+
+// AccessGraphSecretsScanSSHPrivateKeysEvent is emitted when devices report private keys.
+type AccessGraphSecretsScanSSHPrivateKeysEvent prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphSecretsScanSSHPrivateKeysEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphSecretsScanSshPrivateKeys{
+			AccessGraphSecretsScanSshPrivateKeys: &prehogv1a.AccessGraphSecretsScanSSHPrivateKeysEvent{
+				DeviceId:     a.AnonymizeString(e.DeviceId),
+				TotalKeys:    e.TotalKeys,
+				DeviceOsType: e.DeviceOsType,
+			},
+		},
+	}
+}
+
+// AccessGraphAWSScanEvent is emitted when a user scans an AWS account
+type AccessGraphAWSScanEvent prehogv1a.AccessGraphAWSScanEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphAWSScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphAwsScan{
+			AccessGraphAwsScan: &prehogv1a.AccessGraphAWSScanEvent{
+				TotalEc2Instances:  e.TotalEc2Instances,
+				TotalUsers:         e.TotalUsers,
+				TotalGroups:        e.TotalGroups,
+				TotalRoles:         e.TotalRoles,
+				TotalPolicies:      e.TotalPolicies,
+				TotalEksClusters:   e.TotalEksClusters,
+				TotalRdsInstances:  e.TotalRdsInstances,
+				TotalS3Buckets:     e.TotalS3Buckets,
+				TotalSamlProviders: e.TotalSamlProviders,
+				TotalOidcProviders: e.TotalOidcProviders,
+				TotalAccounts:      e.TotalAccounts,
+			},
+		},
+	}
+}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1589,7 +1663,21 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			ResourceType:  e.DiscoveryFetchEvent.ResourceType,
 		}
 		return ret, nil
-
+	case *usageeventsv1.UsageEventOneOf_AccessGraphAwsScanEvent:
+		ret := &AccessGraphAWSScanEvent{
+			TotalEc2Instances:  e.AccessGraphAwsScanEvent.TotalEc2Instances,
+			TotalUsers:         e.AccessGraphAwsScanEvent.TotalUsers,
+			TotalGroups:        e.AccessGraphAwsScanEvent.TotalGroups,
+			TotalRoles:         e.AccessGraphAwsScanEvent.TotalRoles,
+			TotalPolicies:      e.AccessGraphAwsScanEvent.TotalPolicies,
+			TotalEksClusters:   e.AccessGraphAwsScanEvent.TotalEksClusters,
+			TotalRdsInstances:  e.AccessGraphAwsScanEvent.TotalRdsInstances,
+			TotalS3Buckets:     e.AccessGraphAwsScanEvent.TotalS3Buckets,
+			TotalSamlProviders: e.AccessGraphAwsScanEvent.TotalSamlProviders,
+			TotalOidcProviders: e.AccessGraphAwsScanEvent.TotalOidcProviders,
+			TotalAccounts:      e.AccessGraphAwsScanEvent.TotalAccounts,
+		}
+		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}

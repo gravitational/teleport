@@ -333,8 +333,10 @@ type HeadlessRequest struct {
 type SSHLogin struct {
 	// ProxyAddr is the target proxy address
 	ProxyAddr string
-	// PubKey is SSH public key to sign
-	PubKey []byte
+	// SSHPubKey is SSH public key to sign
+	SSHPubKey []byte
+	// TLSPubKey is TLS public key to sign
+	TLSPubKey []byte
 	// TTL is requested TTL of the client certificates
 	TTL time.Duration
 	// Insecure turns off verification for x509 target proxy
@@ -349,8 +351,10 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement.
-	AttestationStatement *keys.AttestationStatement
+	// SSHAttestationStatement is an attestation statement for SSHPubKey.
+	SSHAttestationStatement *keys.AttestationStatement
+	// TLSAttestationStatement is an attestation statement for TLSPubKey.
+	TLSAttestationStatement *keys.AttestationStatement
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
 }
@@ -575,8 +579,10 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLo
 		Password: login.Password,
 		OTPToken: login.OTPToken,
 		UserPublicKeys: UserPublicKeys{
-			PubKey:               login.PubKey,
-			AttestationStatement: login.AttestationStatement,
+			SSHPubKey:               login.SSHPubKey,
+			TLSPubKey:               login.TLSPubKey,
+			SSHAttestationStatement: login.SSHAttestationStatement,
+			TLSAttestationStatement: login.TLSAttestationStatement,
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
@@ -644,8 +650,10 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
 		UserPublicKeys: UserPublicKeys{
-			PubKey:               login.PubKey,
-			AttestationStatement: login.AttestationStatement,
+			SSHPubKey:               login.SSHPubKey,
+			TLSPubKey:               login.TLSPubKey,
+			SSHAttestationStatement: login.SSHAttestationStatement,
+			TLSAttestationStatement: login.TLSAttestationStatement,
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,
@@ -725,8 +733,10 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			User:                      "", // User carried on WebAuthn assertion.
 			WebauthnChallengeResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
 			UserPublicKeys: UserPublicKeys{
-				PubKey:               login.PubKey,
-				AttestationStatement: login.AttestationStatement,
+				SSHPubKey:               login.SSHPubKey,
+				TLSPubKey:               login.TLSPubKey,
+				SSHAttestationStatement: login.SSHAttestationStatement,
+				TLSAttestationStatement: login.TLSAttestationStatement,
 			},
 			TTL:               login.TTL,
 			Compatibility:     login.Compatibility,
@@ -791,8 +801,10 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		User:     login.User,
 		Password: login.Password,
 		UserPublicKeys: UserPublicKeys{
-			PubKey:               login.PubKey,
-			AttestationStatement: login.AttestationStatement,
+			SSHPubKey:               login.SSHPubKey,
+			TLSPubKey:               login.TLSPubKey,
+			SSHAttestationStatement: login.SSHAttestationStatement,
+			TLSAttestationStatement: login.TLSAttestationStatement,
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,

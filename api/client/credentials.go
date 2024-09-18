@@ -424,7 +424,7 @@ func configureTLS(c *tls.Config) *tls.Config {
 	// This logic still appears to be necessary to force client to always send
 	// a certificate regardless of the server setting. Otherwise the client may pick
 	// not to send the client certificate by looking at certificate request.
-	if len(tlsConfig.Certificates) > 0 {
+	if len(tlsConfig.Certificates) > 0 && tlsConfig.GetClientCertificate == nil {
 		cert := tlsConfig.Certificates[0]
 		tlsConfig.Certificates = nil
 		tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {

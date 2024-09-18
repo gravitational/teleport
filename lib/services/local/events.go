@@ -2221,7 +2221,7 @@ type staticHostUserParser struct {
 func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindStaticHostUser, types.V1, 0)
+		return resourceHeader(event, types.KindStaticHostUser, types.V2, 0)
 	case types.OpPut:
 		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
 			event.Item.Value,

@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -198,7 +197,7 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	action := updateAccessList
 	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
 		action = func() error {
-			err := a.service.RunWhileLocked(ctx, createAccessListLimitLockName, accessListLockTTL,
+			err := a.service.RunWhileLocked(ctx, []string{createAccessListLimitLockName}, accessListLockTTL,
 				func(ctx context.Context, _ backend.Backend) error {
 					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
 						return trace.Wrap(err)
@@ -466,7 +465,7 @@ func (a *AccessListService) UpsertAccessListWithMembers(ctx context.Context, acc
 	action := reconcileMembers
 	if !modules.GetModules().Features().GetEntitlement(entitlements.Identity).Enabled {
 		action = func() error {
-			return a.service.RunWhileLocked(ctx, createAccessListLimitLockName, 2*accessListLockTTL,
+			return a.service.RunWhileLocked(ctx, []string{createAccessListLimitLockName}, 2*accessListLockTTL,
 				func(ctx context.Context, _ backend.Backend) error {
 					if err := a.VerifyAccessListCreateLimit(ctx, accessList.GetName()); err != nil {
 						return trace.Wrap(err)
@@ -651,8 +650,8 @@ func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) erro
 	return trace.Wrap(a.reviewService.DeleteAllResources(ctx))
 }
 
-func lockName(accessListName string) string {
-	return strings.Join([]string{"access_list", accessListName}, string(backend.Separator))
+func lockName(accessListName string) []string {
+	return []string{"access_list", accessListName}
 }
 
 // VerifyAccessListCreateLimit ensures creating access list is limited to no more than 1 (updating is allowed).

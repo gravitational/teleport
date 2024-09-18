@@ -53,6 +53,8 @@ message Matcher {
   int64 uid = 5;
   // gid is the new user's gid.
   int64 gid = 6;
+  // default_shell is the new user's default shell
+  string default_shell = 7;
 }
 
 // StaticHostUserSpec is the static host user spec.
