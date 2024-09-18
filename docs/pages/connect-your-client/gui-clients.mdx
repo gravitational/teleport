@@ -144,6 +144,15 @@ Proxy Service's web endpoint.
 
 ![MongoDB Compass more options](../../img/database-access/compass-more-options@2x.png)
 
+The following fields in the More Options tab must correspond to paths printed by
+the `tsh proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Certificate Authority|`ca_file`|
+|Client Certificate|`cert_file`|
+|Client Private Key|`key_file`|
+
 Click on the "Connect" button.
 
 ## MySQL DBeaver
@@ -191,6 +200,15 @@ paths to your CA, certificate, and private key files (see
 [Get connection information](./gui-clients.mdx#get-connection-information)):
 
 ![MySQL Workbench SSL](../../img/database-access/workbench-ssl@2x.png)
+
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|SSL Key File|`key_file`|
+|SSL CERT File|`cert_file`|
+|SSL CA File|`ca_file`|
 
 Optionally, click "Test Connection" to verify connectivity:
 
@@ -270,6 +288,15 @@ certificate, key and root certificate from the configuration above:
 
 ![pgAdmin SSL](../../img/database-access/pgadmin-ssl@2x.png)
 
+The following fields in the SSL tab must correspond to paths printed by the `tsh
+proxy db` command you ran earlier:
+
+|Field|Path|
+|---|---|
+|Client certificate|`cert_file`|
+|Client certificate key|`key_file`|
+|Root certificate|`ca_file`|
+
 Click "Save", and pgAdmin should immediately connect. If pgAdmin prompts you
 for password, leave the password field empty and click OK.
 
@@ -317,8 +344,16 @@ Provide your Redis username as `Username` and password as `Password`.
 
 ![Redis Insight Configuration](../../img/database-access/guides/redis/redisinsight-add-config.png)
 
-Next, check the `Use TLS` and `Verify TLS Certificates` boxes and copy the CA certificate returned by `tsh proxy db`.
-Copy the private key and certificate to corresponding fields.
+Next, check the `Use TLS` and `Verify TLS Certificates` boxes. Copy the contents
+of the files at the paths returned by the `tsh proxy db` command you ran earlier
+and paste them into their corresponding fields. See the table below for the
+Redis Insight fields that correspond to each path:
+
+|Field|Path|
+|---|---|
+|CA Certificate|`ca_file`|
+|Client Certificate|`cert_file`|
+|Private Key|`key_file`|
 
 Click `Add Redis Database`.
 
@@ -478,3 +513,32 @@ Now copy the JDBC URL that was output by `tsh proxy db` and paste it:
 Click "Proceed", then click "Finish".
 
 (!docs/pages/includes/database-access/gui-clients/spanner-reuse-port-note.mdx!)
+
+## Oracle SQL Developer
+
+The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
+```
+tsh proxy db --tunnel --port 1521 --db-user=<user> --db-name=<db-name> oracle
+```
+
+<Notice type="tip">
+This command uses the local port 1521, but you can choose any port, or let
+`tsh` pick a local port at random if you omit the `--port` flag.
+You should specify a port to avoid the need to reconfigure your GUI client again
+later.
+</Notice>
+
+In "Connections" click the "+" button for a new database connection:
+
+![Oracle SQL Developer Add Database Connection](../../img/database-access/guides/oracle/oracle-sql-developer-add-database.png)
+
+Next, set the name and username from the `--db-user` parameter. Set connection type to "Custom JDBC" and 
+set the "Custom JDBC URL" from the `tsh proxy db` command.
+
+![Oracle SQL Developer](../../img/database-access/guides/oracle/oracle-sql-developer-general.png)
+
+Now you can click "Test" to check your configuration.
+
+![Oracle SQL Developer Success](../../img/database-access/guides/oracle/oracle-sql-developer-success.png)
+
+Congratulations! You have just connected to your Oracle instance.

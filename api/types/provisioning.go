@@ -71,6 +71,9 @@ const (
 	// JoinMethodTPM indicates that the node will join with the TPM join method.
 	// The core implementation of this join method can be found in lib/tpm.
 	JoinMethodTPM JoinMethod = "tpm"
+	// JoinMethodTerraformCloud indicates that the node will join using the Terraform
+	// join method. See lib/terraformcloud for more.
+	JoinMethodTerraformCloud JoinMethod = "terraform_cloud"
 )
 
 var JoinMethods = []JoinMethod{
@@ -85,6 +88,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodSpacelift,
 	JoinMethodToken,
 	JoinMethodTPM,
+	JoinMethodTerraformCloud,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -347,6 +351,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		}
 		if err := providerCfg.validate(); err != nil {
 			return trace.Wrap(err, "spec.tpm: failed validation")
+		}
+	case JoinMethodTerraformCloud:
+		providerCfg := p.Spec.TerraformCloud
+		if providerCfg == nil {
+			return trace.BadParameter(
+				"spec.terraform_cloud: must be configured for the join method %q",
+				JoinMethodTerraformCloud,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "spec.terraform_cloud: failed validation")
 		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
@@ -815,5 +830,35 @@ func (a *ProvisionTokenSpecV2TPM) validate() error {
 			)
 		}
 	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2TerraformCloud) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodTerraformCloud)
+	}
+
+	// Note: an empty audience will fall back to the cluster name.
+
+	for i, allowRule := range a.Allow {
+		orgSet := allowRule.OrganizationID != "" || allowRule.OrganizationName != ""
+		projectSet := allowRule.ProjectID != "" || allowRule.ProjectName != ""
+		workspaceSet := allowRule.WorkspaceID != "" || allowRule.WorkspaceName != ""
+
+		if !orgSet {
+			return trace.BadParameter(
+				"allow[%d]: one of ['organization_id', 'organization_name'] must be set",
+				i,
+			)
+		}
+
+		if !projectSet && !workspaceSet {
+			return trace.BadParameter(
+				"allow[%d]: at least one of ['project_id', 'project_name', 'workspace_id', 'workspace_name'] must be set",
+				i,
+			)
+		}
+	}
+
 	return nil
 }

@@ -1018,6 +1018,41 @@ func TestValidateRole(t *testing.T) {
 				"unsupported function: email.localz",
 			},
 		},
+
+		{
+			name: "unsupported syntax in kubernetes_resources",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: "{{external.namespace",
+							Name:      "{{email.localz(external.email)}}",
+							Verbs:     []string{"{{external.verbs"},
+						},
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesResources: []types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Namespace: "{{external.namespace",
+							Name:      "{{email.localz(external.email)}}",
+							Verbs:     []string{"{{external.verbs"},
+						},
+					},
+				},
+			},
+			expectWarnings: []string{
+				"parsing allow.kubernetes_resources.namespace expression",
+				"parsing allow.kubernetes_resources.name expression",
+				"parsing allow.kubernetes_resources.verbs expression",
+				"parsing deny.kubernetes_resources.namespace expression",
+				"parsing deny.kubernetes_resources.name expression",
+				"parsing deny.kubernetes_resources.verbs expression",
+				"unsupported function: email.localz",
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1028,7 +1063,7 @@ func TestValidateRole(t *testing.T) {
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Version: types.V3,
+				Version: types.V7,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err
@@ -2815,6 +2850,7 @@ func TestApplyTraits(t *testing.T) {
 		inKubeLabels            types.Labels
 		outKubeLabels           types.Labels
 		inKubeGroups            []string
+		inKubeResources         []types.KubernetesResource
 		outKubeGroups           []string
 		inKubeUsers             []string
 		outKubeUsers            []string
@@ -2836,6 +2872,7 @@ func TestApplyTraits(t *testing.T) {
 		outImpersonate          types.ImpersonateConditions
 		inSudoers               []string
 		outSudoers              []string
+		outKubeResources        []types.KubernetesResource
 	}
 	tests := []struct {
 		comment  string
@@ -3404,6 +3441,117 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "kubernetes namespaces preservation",
+			inTraits: map[string][]string{
+				"users": {"alice", "bob"},
+			},
+			allow: rule{
+				inKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "default",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+				},
+				outKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "default",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+				},
+			},
+		},
+		{
+			comment: "kubernetes namespaces replace rules",
+			inTraits: map[string][]string{
+				"namespace": {"kubens1", "kubens2"},
+			},
+			allow: rule{
+				inKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "default",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+					{
+						Namespace: "{{external.namespace}}",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+				},
+				outKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "default",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+					{
+						Namespace: "kubens1",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+					{
+						Namespace: "kubens2",
+						Kind:      "*",
+						Name:      "name-*",
+						Verbs:     []string{"get", "list"},
+					},
+				},
+			},
+		},
+		{
+			comment: "full kubernetes resources replace rules",
+			inTraits: map[string][]string{
+				"namespace": {"kubens1", "kubens2"},
+				"names":     {"kubepod1", "kubepod2"},
+				"verbs":     {"update", "delete"},
+			},
+			allow: rule{
+				inKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "{{external.namespace}}",
+						Kind:      "pod",
+						Name:      "{{external.names}}",
+						Verbs:     []string{"{{external.verbs}}", "list"},
+					},
+				},
+				outKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "kubens1",
+						Kind:      "pod",
+						Name:      "kubepod1",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+					{
+						Namespace: "kubens1",
+						Kind:      "pod",
+						Name:      "kubepod2",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+
+					{
+						Namespace: "kubens2",
+						Kind:      "pod",
+						Name:      "kubepod1",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+					{
+						Namespace: "kubens2",
+						Kind:      "pod",
+						Name:      "kubepod2",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+				},
+			},
+		},
+		{
 			// See comment in ApplyValueTraits for why we allow this.
 			comment: "explicitly allow internal traits referenced via external namespace",
 			inTraits: map[string][]string{
@@ -3448,8 +3596,52 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
-	}
 
+		{
+			comment: "full deny kubernetes resources replace rules",
+			inTraits: map[string][]string{
+				"namespace": {"kubens1", "kubens2"},
+				"names":     {"kubepod1", "kubepod2"},
+				"verbs":     {"update", "delete"},
+			},
+			deny: rule{
+				inKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "{{external.namespace}}",
+						Kind:      "pod",
+						Name:      "{{external.names}}",
+						Verbs:     []string{"{{external.verbs}}", "list"},
+					},
+				},
+				outKubeResources: []types.KubernetesResource{
+					{
+						Namespace: "kubens1",
+						Kind:      "pod",
+						Name:      "kubepod1",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+					{
+						Namespace: "kubens1",
+						Kind:      "pod",
+						Name:      "kubepod2",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+					{
+						Namespace: "kubens2",
+						Kind:      "pod",
+						Name:      "kubepod1",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+					{
+						Namespace: "kubens2",
+						Kind:      "pod",
+						Name:      "kubepod2",
+						Verbs:     []string{"update", "delete", "list"},
+					},
+				},
+			},
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
 			role := &types.RoleV6{
@@ -3479,6 +3671,7 @@ func TestApplyTraits(t *testing.T) {
 						WindowsDesktopLabels: tt.allow.inWindowsDesktopLabels,
 						Impersonate:          &tt.allow.inImpersonate,
 						HostSudoers:          tt.allow.inSudoers,
+						KubernetesResources:  tt.allow.inKubeResources,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3499,6 +3692,7 @@ func TestApplyTraits(t *testing.T) {
 						WindowsDesktopLabels: tt.deny.inWindowsDesktopLabels,
 						Impersonate:          &tt.deny.inImpersonate,
 						HostSudoers:          tt.deny.outSudoers,
+						KubernetesResources:  tt.deny.inKubeResources,
 					},
 				},
 			}
@@ -3531,6 +3725,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outWindowsDesktopLabels, outRole.GetWindowsDesktopLabels(rule.condition))
 				require.Equal(t, rule.spec.outImpersonate, outRole.GetImpersonateConditions(rule.condition))
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
+				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
 			}
 		})
 	}
@@ -8005,7 +8200,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			info, err := accessChecker.HostUsers(tc.server)
 			require.Equal(t, tc.canCreate, err == nil && info != nil)
 			if tc.canCreate {
-				require.Equal(t, tc.expectedMode, info.Mode)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
 			}
 		})
 	}

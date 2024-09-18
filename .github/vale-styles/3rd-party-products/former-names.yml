@@ -1,0 +1,11 @@
+extends: substitution
+scope:
+  - heading
+  - table
+  - list
+  - paragraph
+message: Use '%s' instead of '%s', which is an outdated product name.
+level: warning
+swap:
+  Azure AD: Microsoft Entra ID
+  Azure Active Directory: Microsoft Entra ID

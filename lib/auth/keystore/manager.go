@@ -22,6 +22,10 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -102,21 +106,7 @@ type Manager struct {
 	// the first element.
 	usableSigningBackends []backend
 
-	authPrefGetter cryptosuites.AuthPreferenceGetter
-}
-
-// rsaKeyOptions configure options for RSA key generation.
-type rsaKeyOptions struct {
-	digestAlgorithm crypto.Hash
-}
-
-// rsaKeyOption is a functional option for RSA key generation.
-type rsaKeyOption func(*rsaKeyOptions)
-
-func withRSADigestAlgorithm(alg crypto.Hash) rsaKeyOption {
-	return func(opts *rsaKeyOptions) {
-		opts.digestAlgorithm = alg
-	}
+	currentSuiteGetter cryptosuites.GetSuiteFunc
 }
 
 // backend is an interface that holds private keys and provides signing
@@ -124,7 +114,7 @@ func withRSADigestAlgorithm(alg crypto.Hash) rsaKeyOption {
 type backend interface {
 	// generateRSA creates a new key pair and returns its identifier and a crypto.Signer. The returned
 	// identifier can be passed to getSigner later to get an equivalent crypto.Signer.
-	generateKey(context.Context, cryptosuites.Algorithm, ...rsaKeyOption) (keyID []byte, signer crypto.Signer, err error)
+	generateKey(context.Context, cryptosuites.Algorithm) (keyID []byte, signer crypto.Signer, err error)
 
 	// getSigner returns a crypto.Signer for the given key identifier, if it is found.
 	// The public key is passed as well so that it does not need to be fetched
@@ -237,7 +227,7 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	return &Manager{
 		backendForNewKeys:     backendForNewKeys,
 		usableSigningBackends: usableSigningBackends,
-		authPrefGetter:        opts.AuthPreferenceGetter,
+		currentSuiteGetter:    cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 	}, nil
 }
 
@@ -294,14 +284,7 @@ func (m *Manager) getSSHSigner(ctx context.Context, keySet types.CAKeySet) (ssh.
 				return nil, trace.Wrap(err)
 			}
 			signer = &cryptoCountSigner{Signer: signer, keyType: keyTypeSSH, store: backend.name()}
-			sshSigner, err := ssh.NewSignerFromSigner(signer)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if sshSigner.PublicKey().Type() == ssh.KeyAlgoRSA {
-				// SHA-512 to match NewSSHKeyPair.
-				sshSigner = toRSASHA512Signer(sshSigner)
-			}
+			sshSigner, err := sshSignerFromCryptoSigner(signer)
 			return sshSigner, trace.Wrap(err)
 		}
 	}
@@ -320,22 +303,74 @@ func publicKeyFromSSHAuthorizedKey(sshAuthorizedKey []byte) (crypto.PublicKey, e
 	return cryptoPublicKey.CryptoPublicKey(), nil
 }
 
-// toRSASHA512Signer forces an ssh.MultiAlgorithmSigner into using
-// "rsa-sha2-sha512" (instead of its SHA256 default).
-func toRSASHA512Signer(signer ssh.Signer) ssh.Signer {
-	ss, ok := signer.(ssh.MultiAlgorithmSigner)
-	if !ok {
-		return signer
+func sshSignerFromCryptoSigner(cryptoSigner crypto.Signer) (ssh.Signer, error) {
+	sshSigner, err := ssh.NewSignerFromSigner(cryptoSigner)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return rsaSHA512Signer{MultiAlgorithmSigner: ss}
-}
-
-type rsaSHA512Signer struct {
-	ssh.MultiAlgorithmSigner
-}
-
-func (s rsaSHA512Signer) Algorithms() []string {
-	return []string{ssh.KeyAlgoRSASHA512}
+	// [ssh.NewSignerFromSigner] currently always returns an [ssh.AlgorithmSigner].
+	algorithmSigner, ok := sshSigner.(ssh.AlgorithmSigner)
+	if !ok {
+		return nil, trace.BadParameter("SSH CA: unsupported key type: %s", sshSigner.PublicKey().Type())
+	}
+	// Note: we don't actually create keys with all the algorithms supported
+	// below, but customers have been known to import their own existing keys.
+	switch pub := cryptoSigner.Public().(type) {
+	case *rsa.PublicKey:
+		// The current default hash used in ssh.(*Certificate).SignCert for an
+		// RSA signer created via ssh.NewSignerFromSigner is always SHA256,
+		// irrespective of the key size.
+		// This was a change in golang.org/x/crypto 0.14.0, prior to that the
+		// default was always SHA512.
+		//
+		// Due to the historical SHA512 default that existed at a time when
+		// hash algorithm selection was much more difficult, there are many
+		// existing GCP KMS keys that were created as 4096-bit keys using a
+		// SHA512 hash. GCP KMS is very particular about RSA hash algorithms:
+		// - 2048-bit or 3072-bit keys *must* use SHA256
+		// - 4096-bit keys *must* use SHA256 or SHA512
+		// - the hash length must be set *when the key is created* and can't be
+		//   changed.
+		//
+		// The chosen signature algorithms below are necessary to support
+		// existing GCP KMS keys, but they are also reasonable defaults for keys
+		// outside of GCP KMS.
+		//
+		// [rsa.PublicKey.Size()] returns 256 for a 2048-bit key; more generally
+		// it always returns the bit length divided by 8.
+		keySize := pub.Size()
+		switch {
+		case keySize < 256:
+			return nil, trace.BadParameter("SSH CA: RSA key size (%d) is too small", keySize)
+		case keySize < 512:
+			// This case matches 2048 and 3072 bit GCP KMS keys which *must* use SHA256.
+			return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoRSASHA256})
+		default:
+			// This case matches existing 4096 bit GCP KMS keys which *must* use SHA512
+			return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoRSASHA512})
+		}
+	case *ecdsa.PublicKey:
+		// These are all the current defaults, but let's set them explicitly so
+		// golang.org/x/crypto/ssh can't change them in an update and break some
+		// HSM or KMS that wouldn't support the new default.
+		switch pub.Curve {
+		case elliptic.P256():
+			return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoECDSA256})
+		case elliptic.P384():
+			return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoECDSA384})
+		case elliptic.P521():
+			return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoECDSA521})
+		default:
+			return nil, trace.BadParameter("SSH CA: ECDSA curve: %s", pub.Curve.Params().Name)
+		}
+	case ed25519.PublicKey:
+		// This is the current default, but let's set it explicitly so
+		// golang.org/x/crypto/ssh can't change it in an update and break some
+		// HSM or KMS that wouldn't support the new default.
+		return ssh.NewSignerWithAlgorithms(algorithmSigner, []string{ssh.KeyAlgoED25519})
+	default:
+		return nil, trace.BadParameter("SSH CA: unsupported key type: %s", sshSigner.PublicKey().Type())
+	}
 }
 
 // GetTLSCertAndSigner selects a usable TLS keypair from the given CA
@@ -423,7 +458,7 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 
 // NewSSHKeyPair generates a new SSH keypair in the keystore backend and returns it.
 func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.SSHKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -437,18 +472,16 @@ func (m *Manager) NewSSHKeyPair(ctx context.Context, purpose cryptosuites.KeyPur
 }
 
 func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm) (*types.SSHKeyPair, error) {
-	// The default hash length for SSH signers is 512 bits.
-	sshKey, cryptoSigner, err := m.backendForNewKeys.generateKey(ctx, alg, withRSADigestAlgorithm(crypto.SHA512))
+	sshKey, signer, err := m.backendForNewKeys.generateKey(ctx, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshSigner, err := ssh.NewSignerFromSigner(cryptoSigner)
+	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey := ssh.MarshalAuthorizedKey(sshSigner.PublicKey())
 	return &types.SSHKeyPair{
-		PublicKey:      publicKey,
+		PublicKey:      ssh.MarshalAuthorizedKey(sshPub),
 		PrivateKey:     sshKey,
 		PrivateKeyType: keyType(sshKey),
 	}, nil
@@ -456,7 +489,7 @@ func (m *Manager) newSSHKeyPair(ctx context.Context, alg cryptosuites.Algorithm)
 
 // NewTLSKeyPair creates a new TLS keypair in the keystore backend and returns it.
 func (m *Manager) NewTLSKeyPair(ctx context.Context, clusterName string, purpose cryptosuites.KeyPurpose) (*types.TLSKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,7 +526,7 @@ func (m *Manager) newTLSKeyPair(ctx context.Context, clusterName string, alg cry
 // New JWTKeyPair create a new JWT keypair in the keystore backend and returns
 // it.
 func (m *Manager) NewJWTKeyPair(ctx context.Context, purpose cryptosuites.KeyPurpose) (*types.JWTKeyPair, error) {
-	alg, err := cryptosuites.AlgorithmForKey(ctx, m.authPrefGetter, purpose)
+	alg, err := cryptosuites.AlgorithmForKey(ctx, m.currentSuiteGetter, purpose)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

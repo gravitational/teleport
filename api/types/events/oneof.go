@@ -725,6 +725,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_PluginDelete{
 			PluginDelete: e,
 		}
+	case *StaticHostUserCreate:
+		out.Event = &OneOf_StaticHostUserCreate{
+			StaticHostUserCreate: e,
+		}
+	case *StaticHostUserUpdate:
+		out.Event = &OneOf_StaticHostUserUpdate{
+			StaticHostUserUpdate: e,
+		}
+	case *StaticHostUserDelete:
+		out.Event = &OneOf_StaticHostUserDelete{
+			StaticHostUserDelete: e,
+		}
 	case *GitCommand:
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,

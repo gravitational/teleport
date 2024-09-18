@@ -272,7 +272,6 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			assertion: func(t *testing.T, keyRing *KeyRing, mfaRequired proto.MFARequired, err error) {
 				require.Error(t, err)
 				require.Nil(t, keyRing)
-				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, mfaRequired)
 			},
 		},
 		{

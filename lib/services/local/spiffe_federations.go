@@ -42,12 +42,15 @@ type SPIFFEFederationService struct {
 func NewSPIFFEFederationService(
 	backend backend.Backend,
 ) (*SPIFFEFederationService, error) {
-	service, err := generic.NewServiceWrapper(backend,
-		types.KindSPIFFEFederation,
-		spiffeFederationPrefix,
-		services.MarshalSPIFFEFederation,
-		services.UnmarshalSPIFFEFederation,
-	)
+	service, err := generic.NewServiceWrapper(
+		generic.ServiceWrapperConfig[*machineidv1.SPIFFEFederation]{
+			Backend:       backend,
+			ResourceKind:  types.KindSPIFFEFederation,
+			BackendPrefix: spiffeFederationPrefix,
+			MarshalFunc:   services.MarshalSPIFFEFederation,
+			UnmarshalFunc: services.UnmarshalSPIFFEFederation,
+			ValidateFunc:  services.ValidateSPIFFEFederation,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,9 +63,6 @@ func NewSPIFFEFederationService(
 func (b *SPIFFEFederationService) CreateSPIFFEFederation(
 	ctx context.Context, federation *machineidv1.SPIFFEFederation,
 ) (*machineidv1.SPIFFEFederation, error) {
-	if err := services.ValidateSPIFFEFederation(federation); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	created, err := b.service.CreateResource(ctx, federation)
 	return created, trace.Wrap(err)
 }
@@ -104,9 +104,14 @@ func (b *SPIFFEFederationService) DeleteAllSPIFFEFederations(
 func (b *SPIFFEFederationService) UpsertSPIFFEFederation(
 	ctx context.Context, federation *machineidv1.SPIFFEFederation,
 ) (*machineidv1.SPIFFEFederation, error) {
-	if err := services.ValidateSPIFFEFederation(federation); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	upserted, err := b.service.UpsertResource(ctx, federation)
 	return upserted, trace.Wrap(err)
+}
+
+// UpdateSPIFFEFederation updates a specific SPIFFEFederation.
+func (b *SPIFFEFederationService) UpdateSPIFFEFederation(
+	ctx context.Context, federation *machineidv1.SPIFFEFederation,
+) (*machineidv1.SPIFFEFederation, error) {
+	updated, err := b.service.ConditionalUpdateResource(ctx, federation)
+	return updated, trace.Wrap(err)
 }
