@@ -230,7 +230,7 @@ func Test_renderSSHConfig(t *testing.T) {
 
 			// TODO(noah): In v17, we can move these assertions into the main
 			// block as the legacy proxycommand mode will be removed.
-			if tc.Env[sshConfigProxyModeEnv] != "legacy" {
+			if tc.Env[sshConfigProxyModeEnv] == "new" {
 				for clusterType, clusterName := range map[string]string{
 					"local":  mockClusterName,
 					"remote": mockRemoteClusterName,
