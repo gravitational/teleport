@@ -8,7 +8,7 @@ HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER) -e MAKEFLAGS="$(MAKEFLAGS)"
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new -e GITHUB_REPOSITORY_OWNER=$(GITHUB_REPOSITORY_OWNER)"
 # Teleport version - some targets require this to be set
 VERSION ?= $(shell egrep ^VERSION ../Makefile | cut -d= -f2)
 
@@ -484,7 +484,7 @@ BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
 .PHONY:release
 release: $(BUILDBOX_TARGET)
 	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) -e MAKEFLAGS $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make $(RELEASE_TARGET) -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 #
@@ -511,7 +511,7 @@ release-fips: buildbox-centos7-fips webassets
 .PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
 	$(REQUIRE_HOST_ARCH)
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
+	docker run $(DOCKERFLAGS) -e MAKEFLAGS -i $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/scl enable $(DEVTOOLSET) 'make release-unix-preserving-webassets -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
@@ -524,7 +524,7 @@ release-centos7: buildbox-centos7 webassets
 #
 .PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
+	docker run $(DOCKERFLAGS) -e MAKEFLAGS -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
 #
