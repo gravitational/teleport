@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,6 +68,62 @@ func (a *Server) beginSSOMFAChallenge(ctx context.Context, user string, sso *typ
 	}
 
 	return chal, nil
+}
+
+// verifySSOMFASession verifies that the given sso mfa token matches an existing MFA session
+// for the user and session ID. It also checks the required extensions, and finishes by deleting
+// the MFA session if reuse is not allowed.
+func (a *Server) verifySSOMFASession(ctx context.Context, username, sessionID, token string, requiredExtensions *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	mfaSess, err := a.GetSSOMFASessionData(ctx, sessionID)
+	if trace.IsNotFound(err) {
+		return nil, trace.AccessDenied("mfa sso session data not found")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Verify the user's name and sso device matches.
+	if mfaSess.Username != username {
+		return nil, trace.AccessDenied("mfa sso session data not found")
+	}
+
+	devs, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	groupedDevs := groupByDeviceType(devs, false /*groupWebauthn*/)
+	if groupedDevs.SSO == nil {
+		return nil, trace.BadParameter("invalid sso mfa session data; non-sso user")
+	} else if groupedDevs.SSO.GetSso().ConnectorId != mfaSess.ConnectorID || groupedDevs.SSO.GetSso().ConnectorType != mfaSess.ConnectorType {
+		return nil, trace.BadParameter("invalid sso mfa session data; mismatched sso auth connector")
+	}
+
+	// Verify the token matches.
+	if mfaSess.Token != token {
+		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
+	}
+
+	// Check if the given scope is satisfied by the challenge scope.
+	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
+		return nil, trace.AccessDenied("required scope %q is not satisfied by the given sso mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
+	}
+
+	// If this session is reusable, but this login forbids reusable sessions, return an error.
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given sso mfa session allows reuse, but reuse is not permitted in this context")
+	}
+
+	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		if err := a.DeleteSSOMFASessionData(ctx, sessionID); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &authz.MFAAuthData{
+		Device:     groupedDevs.SSO,
+		User:       username,
+		AllowReuse: mfaSess.ChallengeExtensions.AllowReuse,
+	}, nil
 }
 
 // upsertSSOMFASession upserts a new unverified SSO MFA session for the given username,
