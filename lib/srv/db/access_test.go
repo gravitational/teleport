@@ -2524,9 +2524,10 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	// Create test database auth tokens generator.
 	testAuth, err := newTestAuth(common.AuthConfig{
-		AuthClient: c.authClient,
-		Clients:    &clients.TestCloudClients{},
-		Clock:      c.clock,
+		AuthClient:  c.authClient,
+		AccessPoint: c.authClient,
+		Clients:     &clients.TestCloudClients{},
+		Clock:       c.clock,
 	})
 	require.NoError(t, err)
 
