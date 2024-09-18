@@ -44,6 +44,22 @@ service TshdEventsService {
   // code.
   rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 
+  // PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+  // provide the hardware key PIN.
+  rpc PromptHardwareKeyPIN(PromptHardwareKeyPINRequest) returns (PromptHardwareKeyPINResponse);
+
+  // PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
+  // provide the hardware key touch.
+  rpc PromptHardwareKeyTouch(PromptHardwareKeyTouchRequest) returns (PromptHardwareKeyTouchResponse);
+
+  // PromptHardwareKeyChangePIN notifies the Electron app that the daemon is waiting for the user to
+  // change the hardware key PIN.
+  rpc PromptHardwareKeyChangePIN(PromptHardwareKeyChangePINRequest) returns (PromptHardwareKeyChangePINResponse);
+
+  // PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
+  // confirm overwriting a slot.
+  rpc PromptHardwareKeySlotOverwrite(PromptHardwareKeySlotOverwriteRequest) returns (PromptHardwareKeySlotOverwriteResponse);
+
   // GetUsageReportingSettings returns the current state of usage reporting.
   // At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
   // with the only exception being the first start of the app when they're prompted about telemetry.
@@ -144,6 +160,48 @@ message PromptMFARequest {
 // Response for PromptMFA.
 message PromptMFAResponse {
   string totp_code = 1;
+}
+
+// Request for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINRequest {
+  string root_cluster_uri = 1;
+  string question = 2;
+}
+
+// Response for PromptHardwareKeyPIN.
+message PromptHardwareKeyPINResponse {
+  string pin = 1;
+}
+
+// Request for PromptHardwareKeyTouchRequest.
+message PromptHardwareKeyTouchRequest {
+  string root_cluster_uri = 1;
+  string hint = 2;
+}
+
+// Response for PromptHardwareKeyTouch.
+message PromptHardwareKeyTouchResponse {}
+
+// Response for PromptHardwareKeyChangePIN.
+message PromptHardwareKeyChangePINRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeyChangePIN.
+message PromptHardwareKeyChangePINResponse {
+  string pin = 1;
+  string puk = 2;
+  bool changed_puk = 3;
+}
+
+// Request for PromptHardwareKeySlotOverwrite.
+message PromptHardwareKeySlotOverwriteRequest {
+  string root_cluster_uri = 1;
+}
+
+// Response for PromptHardwareKeySlotOverwrite.
+message PromptHardwareKeySlotOverwriteResponse {
+  bool confirmed = 1;
 }
 
 // Request for GetUsageReportingSettings.

@@ -101,5 +101,82 @@ export function createTshdEventsContextBridgeService(
       }
       return {};
     },
+
+    promptHardwareKeyPIN: async ({ request, onRequestCancelled }) => {
+      ctx.mainProcessClient.forceFocusWindow();
+      const { pin, hasCanceledModal } = await new Promise<{
+        pin: string;
+        hasCanceledModal: boolean;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-pin',
+          req: request,
+          onConfirm: pin => resolve({ hasCanceledModal: false, pin }),
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+              pin: undefined,
+            }),
+        });
+
+        // If Webauthn is available, tshd starts two goroutines – one that sends this request and
+        // one that starts listening for a hardware key tap. When a tap is detected, tshd cancels
+        // this request.
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        // Throwing an object here instead of an error to future-proof this code in case we need to
+        // return more than just the error name and message.
+        // Refer to processEvent in the preload part of tshd events service for more details.
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key PIN modal closed by user',
+        };
+      }
+
+      return { pin: pin };
+    },
+
+    promptHardwareKeyTouch: async ({ request, onRequestCancelled }) => {
+      ctx.mainProcessClient.forceFocusWindow();
+      const { hasCanceledModal } = await new Promise<{
+        hasCanceledModal: boolean;
+      }>(resolve => {
+        const { closeDialog } = ctx.modalsService.openImportantDialog({
+          kind: 'hardware-key-touch',
+          req: request,
+          onCancel: () =>
+            resolve({
+              hasCanceledModal: true,
+            }),
+        });
+
+        // When a tap is detected, tshd cancels this request.
+        onRequestCancelled(closeDialog);
+      });
+
+      if (hasCanceledModal) {
+        // Throwing an object here instead of an error to future-proof this code in case we need to
+        // return more than just the error name and message.
+        // Refer to processEvent in the preload part of tshd events service for more details.
+        throw {
+          isCrossContextError: true,
+          name: 'AbortError',
+          message: 'hardware key touch modal closed by user',
+        };
+      }
+
+      return {};
+    },
+
+    promptHardwareKeyChangePIN: async () => {
+      throw new Error('UI not implemented');
+    },
+
+    promptHardwareKeySlotOverwrite: async () => {
+      throw new Error('UI not implemented');
+    },
   };
 }

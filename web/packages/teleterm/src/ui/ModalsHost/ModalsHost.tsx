@@ -25,6 +25,9 @@ import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
 import { Dialog } from 'teleterm/ui/services/modals';
 import { HeadlessAuthentication } from 'teleterm/ui/HeadlessAuthn';
 
+import { HardwareKeyPin } from 'teleterm/ui/ModalsHost/modals/HardwareKeyPin/HardwareKeyPin';
+import { HardwareKeyTouch } from 'teleterm/ui/ModalsHost/modals/HardwareKeyTouch/HardwareKeyTouch';
+
 import { ClusterLogout } from '../ClusterLogout';
 import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
 import { assertUnreachable } from '../utils';
@@ -195,6 +198,32 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
             handleClose();
             dialog.onConfirm();
           }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-pin': {
+      return (
+        <HardwareKeyPin
+          req={dialog.req}
+          onSuccess={res => {
+            handleClose();
+            dialog.onConfirm(res);
+          }}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+    case 'hardware-key-touch': {
+      return (
+        <HardwareKeyTouch
+          req={dialog.req}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

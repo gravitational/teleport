@@ -40,6 +40,10 @@ const (
 	TshdEventsService_SendNotification_FullMethodName                  = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
 	TshdEventsService_SendPendingHeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendPendingHeadlessAuthentication"
 	TshdEventsService_PromptMFA_FullMethodName                         = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
+	TshdEventsService_PromptHardwareKeyPIN_FullMethodName              = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyPIN"
+	TshdEventsService_PromptHardwareKeyTouch_FullMethodName            = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyTouch"
+	TshdEventsService_PromptHardwareKeyChangePIN_FullMethodName        = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeyChangePIN"
+	TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName    = "/teleport.lib.teleterm.v1.TshdEventsService/PromptHardwareKeySlotOverwrite"
 	TshdEventsService_GetUsageReportingSettings_FullMethodName         = "/teleport.lib.teleterm.v1.TshdEventsService/GetUsageReportingSettings"
 	TshdEventsService_ReportUnexpectedVnetShutdown_FullMethodName      = "/teleport.lib.teleterm.v1.TshdEventsService/ReportUnexpectedVnetShutdown"
 )
@@ -66,6 +70,18 @@ type TshdEventsServiceClient interface {
 	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
 	// code.
 	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
+	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+	// provide the hardware key PIN.
+	PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error)
+	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
+	// provide the hardware key touch.
+	PromptHardwareKeyTouch(ctx context.Context, in *PromptHardwareKeyTouchRequest, opts ...grpc.CallOption) (*PromptHardwareKeyTouchResponse, error)
+	// PromptHardwareKeyChangePIN notifies the Electron app that the daemon is waiting for the user to
+	// change the hardware key PIN.
+	PromptHardwareKeyChangePIN(ctx context.Context, in *PromptHardwareKeyChangePINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyChangePINResponse, error)
+	// PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
+	// confirm overwriting a slot.
+	PromptHardwareKeySlotOverwrite(ctx context.Context, in *PromptHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*PromptHardwareKeySlotOverwriteResponse, error)
 	// GetUsageReportingSettings returns the current state of usage reporting.
 	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
 	// with the only exception being the first start of the app when they're prompted about telemetry.
@@ -125,6 +141,46 @@ func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARe
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) PromptHardwareKeyPIN(ctx context.Context, in *PromptHardwareKeyPINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyPINResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromptHardwareKeyPINResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyPIN_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tshdEventsServiceClient) PromptHardwareKeyTouch(ctx context.Context, in *PromptHardwareKeyTouchRequest, opts ...grpc.CallOption) (*PromptHardwareKeyTouchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromptHardwareKeyTouchResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyTouch_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tshdEventsServiceClient) PromptHardwareKeyChangePIN(ctx context.Context, in *PromptHardwareKeyChangePINRequest, opts ...grpc.CallOption) (*PromptHardwareKeyChangePINResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromptHardwareKeyChangePINResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeyChangePIN_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tshdEventsServiceClient) PromptHardwareKeySlotOverwrite(ctx context.Context, in *PromptHardwareKeySlotOverwriteRequest, opts ...grpc.CallOption) (*PromptHardwareKeySlotOverwriteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromptHardwareKeySlotOverwriteResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *tshdEventsServiceClient) GetUsageReportingSettings(ctx context.Context, in *GetUsageReportingSettingsRequest, opts ...grpc.CallOption) (*GetUsageReportingSettingsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetUsageReportingSettingsResponse)
@@ -167,6 +223,18 @@ type TshdEventsServiceServer interface {
 	// If TOTP is supported, tsh daemon expects that the Electron app responds to this RPC with the
 	// code.
 	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
+	// PromptHardwareKeyPIN notifies the Electron app that the daemon is waiting for the user to
+	// provide the hardware key PIN.
+	PromptHardwareKeyPIN(context.Context, *PromptHardwareKeyPINRequest) (*PromptHardwareKeyPINResponse, error)
+	// PromptHardwareKeyTouch notifies the Electron app that the daemon is waiting for the user to
+	// provide the hardware key touch.
+	PromptHardwareKeyTouch(context.Context, *PromptHardwareKeyTouchRequest) (*PromptHardwareKeyTouchResponse, error)
+	// PromptHardwareKeyChangePIN notifies the Electron app that the daemon is waiting for the user to
+	// change the hardware key PIN.
+	PromptHardwareKeyChangePIN(context.Context, *PromptHardwareKeyChangePINRequest) (*PromptHardwareKeyChangePINResponse, error)
+	// PromptHardwareKeySlotOverwrite notifies the Electron app that the daemon is waiting for the user to
+	// confirm overwriting a slot.
+	PromptHardwareKeySlotOverwrite(context.Context, *PromptHardwareKeySlotOverwriteRequest) (*PromptHardwareKeySlotOverwriteResponse, error)
 	// GetUsageReportingSettings returns the current state of usage reporting.
 	// At the moment, the user cannot toggle usage reporting on and off without shutting down the app,
 	// with the only exception being the first start of the app when they're prompted about telemetry.
@@ -197,6 +265,18 @@ func (UnimplementedTshdEventsServiceServer) SendPendingHeadlessAuthentication(co
 }
 func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyPIN(context.Context, *PromptHardwareKeyPINRequest) (*PromptHardwareKeyPINResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyPIN not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyTouch(context.Context, *PromptHardwareKeyTouchRequest) (*PromptHardwareKeyTouchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyTouch not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptHardwareKeyChangePIN(context.Context, *PromptHardwareKeyChangePINRequest) (*PromptHardwareKeyChangePINResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeyChangePIN not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptHardwareKeySlotOverwrite(context.Context, *PromptHardwareKeySlotOverwriteRequest) (*PromptHardwareKeySlotOverwriteResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptHardwareKeySlotOverwrite not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) GetUsageReportingSettings(context.Context, *GetUsageReportingSettingsRequest) (*GetUsageReportingSettingsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUsageReportingSettings not implemented")
@@ -297,6 +377,78 @@ func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_PromptHardwareKeyPIN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptHardwareKeyPINRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyPIN(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptHardwareKeyPIN_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyPIN(ctx, req.(*PromptHardwareKeyPINRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TshdEventsService_PromptHardwareKeyTouch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptHardwareKeyTouchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyTouch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptHardwareKeyTouch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyTouch(ctx, req.(*PromptHardwareKeyTouchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TshdEventsService_PromptHardwareKeyChangePIN_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptHardwareKeyChangePINRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyChangePIN(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptHardwareKeyChangePIN_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeyChangePIN(ctx, req.(*PromptHardwareKeyChangePINRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TshdEventsService_PromptHardwareKeySlotOverwrite_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptHardwareKeySlotOverwriteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeySlotOverwrite(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptHardwareKeySlotOverwrite_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptHardwareKeySlotOverwrite(ctx, req.(*PromptHardwareKeySlotOverwriteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _TshdEventsService_GetUsageReportingSettings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetUsageReportingSettingsRequest)
 	if err := dec(in); err != nil {
@@ -355,6 +507,22 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PromptMFA",
 			Handler:    _TshdEventsService_PromptMFA_Handler,
+		},
+		{
+			MethodName: "PromptHardwareKeyPIN",
+			Handler:    _TshdEventsService_PromptHardwareKeyPIN_Handler,
+		},
+		{
+			MethodName: "PromptHardwareKeyTouch",
+			Handler:    _TshdEventsService_PromptHardwareKeyTouch_Handler,
+		},
+		{
+			MethodName: "PromptHardwareKeyChangePIN",
+			Handler:    _TshdEventsService_PromptHardwareKeyChangePIN_Handler,
+		},
+		{
+			MethodName: "PromptHardwareKeySlotOverwrite",
+			Handler:    _TshdEventsService_PromptHardwareKeySlotOverwrite_Handler,
 		},
 		{
 			MethodName: "GetUsageReportingSettings",
