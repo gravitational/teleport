@@ -20,7 +20,9 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -226,6 +228,9 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 // CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
 // to load relevant resources.
 func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt RequestValidatorGetter, identity tlsca.Identity, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	slog.Warn(">>>> CalculateAccessCapabilities")
+	defer slog.Warn("<<<< CalculateAccessCapabilities")
+
 	shouldFilter, err := shouldFilterRequestableRolesByResource(clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -234,17 +239,22 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		req.ResourceIDs = nil
 	}
 
+	slog.Warn("---- Creating request validator")
+
 	var caps types.AccessCapabilities
 	// all capabilities require use of a request validator.  calculating suggested reviewers
 	// requires that the validator be configured for variable expansion.
 	v, err := NewRequestValidator(ctx, clock, clt, req.User, ExpandVars(req.SuggestedReviewers))
 	if err != nil {
+		slog.Error("Failed creating request validator", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
+		slog.Warn("---- Searching for applicable roles")
 		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, req.ResourceIDs, req.Login)
 		if err != nil {
+			slog.Error("Failed search-as role search", "error", err)
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -254,8 +264,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		if req.FilterRequestableRolesByResource {
 			resourceIDs = req.ResourceIDs
 		}
+		slog.Warn("---- Searching for requestable roles")
 		caps.RequestableRoles, err = v.GetRequestableRoles(ctx, identity, resourceIDs, req.Login)
 		if err != nil {
+			slog.Error("Failed requestable role search", "error", err)
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -274,6 +286,9 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 // applicableSearchAsRoles prunes the search_as_roles and only returns those
 // applications for the given list of resourceIDs.
 func (m *RequestValidator) applicableSearchAsRoles(ctx context.Context, resourceIDs []types.ResourceID, loginHint string) ([]string, error) {
+	slog.Warn(">>>> RequestValidator.applicableSearchAsRoles()")
+	defer slog.Warn("<<<< RequestValidator.applicableSearchAsRoles()")
+
 	// First, collect all possible search_as_roles.
 	var rolesToRequest []string
 	for _, roleName := range m.Roles.AllowSearch {
@@ -1892,6 +1907,9 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	loginHint string,
 	roles []string,
 ) ([]string, error) {
+	slog.Warn(">>>> RequestValidator.pruneResourceRequestRoles()")
+	defer slog.Warn("<<<< RequestValidator.pruneResourceRequestRoles()")
+
 	if len(resourceIDs) == 0 {
 		// This is not a resource request, nothing to do
 		return roles, nil
@@ -1933,11 +1951,19 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		var extraMatchers []RoleMatcher
 		if len(kubernetesResources) > 0 {
-			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
+			extraMatchers = append(extraMatchers, NewKubeResourcesMatcher(kubernetesResources))
 		}
+
+		// extraMatchers, err = appendIdentityCenterMatchers(extraMatchers, resource)
+		// if err != nil {
+		// 	return nil, trace.Wrap(err)
+		// }
+
+		slog.Warn("Checking roles", "count", len(allRoles))
 		for _, role := range allRoles {
-			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, extraMatchers...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1992,6 +2018,75 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	return prunedRoles, nil
 }
 
+func appendIdentityCenterMatchers(matchers []RoleMatcher, resource types.ResourceWithLabels) ([]RoleMatcher, error) {
+	if resource.GetKind() != types.KindIdentityCenterAccountAssignment {
+		return matchers, nil
+	}
+
+	asmt, ok := resource.(Resource153Adapter[IdentityCenterAccountAssignment])
+	if !ok {
+		slog.
+			With("kind", resource.GetKind(), "name", resource.GetName()).
+			Error("Unexpected underlying resource type",
+				"type", fmt.Sprintf("%T", resource))
+		return matchers, trace.BadParameter("Unexpected resource type %T", resource)
+	}
+
+	matchers = append(matchers, newIdentityCenterMatcher(asmt.Inner))
+
+	return matchers, nil
+}
+
+type awsIcMatcher struct {
+	account       string
+	permissionSet string
+}
+
+func (m *awsIcMatcher) Match(role types.Role, rct types.RoleConditionType) (bool, error) {
+	log := slog.With("role", role.GetName(), "condition", rct)
+	log.Warn("Checking role access")
+
+	roleAssignments := role.GetAccountAssignments(rct)
+	for _, roleAssignment := range roleAssignments {
+		// TODO(tcsc): work out how to cache regexes for matching. Possibly use
+		//             label matcher as a guide.
+
+		log.Warn("Checking against role account assignment",
+			"role_account", roleAssignment.AccountID,
+			"role_permission_set", roleAssignment.AccountID,
+		)
+
+		matches, err := regexp.MatchString(utils.GlobToRegexp(roleAssignment.AccountID), m.account)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if !matches {
+			continue
+		}
+
+		matches, err = regexp.MatchString(utils.GlobToRegexp(roleAssignment.PermissionSet), m.permissionSet)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		if matches {
+			log.Warn("match! 😀")
+			return true, nil
+		}
+	}
+
+	log.Info("no match")
+	return false, nil
+}
+
+func newIdentityCenterMatcher(asmt IdentityCenterAccountAssignment) *awsIcMatcher {
+	return &awsIcMatcher{
+		account:       asmt.Spec.AccountId,
+		permissionSet: asmt.Spec.PermissionSet.Arn,
+	}
+}
+
 func fewestLogins(roles []types.Role) []types.Role {
 	if len(roles) == 0 {
 		return roles
@@ -2024,6 +2119,10 @@ func (m *RequestValidator) roleAllowsResource(
 	loginHint string,
 	extraMatchers ...RoleMatcher,
 ) (bool, error) {
+	log := slog.With("role", role.GetName())
+	log.Warn(">>>> RequestValidator.roleAllowsResource()")
+	defer log.Warn("<<<< RequestValidator.roleAllowsResource()")
+
 	roleSet := RoleSet{role}
 	var matchers []RoleMatcher
 	if len(loginHint) > 0 {

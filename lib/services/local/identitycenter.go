@@ -82,10 +82,11 @@ func (cfg *IdentityCenterServiceConfig) CheckAndSetDefaults() error {
 // IdentityCenterService handles low-level CRUD operations for the identity-
 // center related resources
 type IdentityCenterService struct {
-	accounts       *generic.ServiceWrapper[*identitycenterv1.Account]
-	permissionSets *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
-	assignments    *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
-	mode           IdentityServiceMode
+	accounts             *generic.ServiceWrapper[*identitycenterv1.Account]
+	permissionSets       *generic.ServiceWrapper[*identitycenterv1.PermissionSet]
+	principalAssignments *generic.ServiceWrapper[*identitycenterv1.PrincipalAssignment]
+	accountAssignments   *generic.ServiceWrapper[*identitycenterv1.AccountAssignment]
+	mode                 IdentityServiceMode
 }
 
 var _ services.IdentityCenter = (*IdentityCenterService)(nil)
@@ -119,23 +120,34 @@ func NewIdentityCenterService(cfg IdentityCenterServiceConfig) (*IdentityCenterS
 		return nil, trace.Wrap(err, "creating permission sets service")
 	}
 
-	assignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
+	principalsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.PrincipalAssignment]{
 		Backend:       cfg.Backend,
 		ResourceKind:  types.KindIdentityCenterPrincipalAssignment,
 		BackendPrefix: awsPrincipalAssignmentPrefix,
 		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.PrincipalAssignment],
 		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.PrincipalAssignment],
 	})
-
 	if err != nil {
-		return nil, trace.Wrap(err, "creating assignments service")
+		return nil, trace.Wrap(err, "creating principal assignments service")
+	}
+
+	accountAssignmentsSvc, err := generic.NewServiceWrapper(generic.ServiceWrapperConfig[*identitycenterv1.AccountAssignment]{
+		Backend:       cfg.Backend,
+		ResourceKind:  types.KindIdentityCenterAccountAssignment,
+		BackendPrefix: awsAccountAssignmentPrefix,
+		MarshalFunc:   services.MarshalProtoResource[*identitycenterv1.AccountAssignment],
+		UnmarshalFunc: services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment],
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating account assignments service")
 	}
 
 	svc := &IdentityCenterService{
-		mode:           cfg.Mode,
-		accounts:       accountsSvc,
-		permissionSets: permissionSetSvc,
-		assignments:    assignmentsSvc,
+		mode:                 cfg.Mode,
+		accounts:             accountsSvc,
+		permissionSets:       permissionSetSvc,
+		principalAssignments: principalsSvc,
+		accountAssignments:   accountAssignmentsSvc,
 	}
 
 	return svc, nil
@@ -202,7 +214,7 @@ func (svc *IdentityCenterService) DeleteAllIdentityCenterAccounts(ctx context.Co
 }
 
 func (svc *IdentityCenterService) ListPrincipalAssignments(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.PrincipalAssignment, pagination.NextPageToken, error) {
-	resp, nextPage, err := svc.assignments.ListResources(ctx, identityCenterPageSize, string(page))
+	resp, nextPage, err := svc.principalAssignments.ListResources(ctx, identityCenterPageSize, string(page))
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing identity center assignment records")
 	}
@@ -210,7 +222,7 @@ func (svc *IdentityCenterService) ListPrincipalAssignments(ctx context.Context, 
 }
 
 func (svc *IdentityCenterService) CreatePrincipalAssignment(ctx context.Context, asmt *identitycenterv1.PrincipalAssignment) (*identitycenterv1.PrincipalAssignment, error) {
-	created, err := svc.assignments.CreateResource(ctx, asmt)
+	created, err := svc.principalAssignments.CreateResource(ctx, asmt)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating principal assignment")
 	}
@@ -218,7 +230,7 @@ func (svc *IdentityCenterService) CreatePrincipalAssignment(ctx context.Context,
 }
 
 func (svc *IdentityCenterService) GetPrincipalAssignment(ctx context.Context, name services.PrincipalAssignmentID) (*identitycenterv1.PrincipalAssignment, error) {
-	state, err := svc.assignments.GetResource(ctx, string(name))
+	state, err := svc.principalAssignments.GetResource(ctx, string(name))
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching principal assignment")
 	}
@@ -231,10 +243,10 @@ func (svc *IdentityCenterService) UpdatePrincipalAssignment(ctx context.Context,
 
 	switch svc.mode {
 	case IdentityCenterServiceModeStrict:
-		updatedAssignment, err = svc.assignments.ConditionalUpdateResource(ctx, asmt)
+		updatedAssignment, err = svc.principalAssignments.ConditionalUpdateResource(ctx, asmt)
 
 	case IdentityCenterServiceModeRelaxed:
-		updatedAssignment, err = svc.assignments.UpdateResource(ctx, asmt)
+		updatedAssignment, err = svc.principalAssignments.UpdateResource(ctx, asmt)
 
 	default:
 		return nil, trace.BadParameter("invalid service mode: %v", svc.mode)
@@ -247,11 +259,11 @@ func (svc *IdentityCenterService) UpdatePrincipalAssignment(ctx context.Context,
 }
 
 func (svc *IdentityCenterService) DeletePrincipalAssignment(ctx context.Context, name services.PrincipalAssignmentID) error {
-	return trace.Wrap(svc.assignments.DeleteResource(ctx, string(name)))
+	return trace.Wrap(svc.principalAssignments.DeleteResource(ctx, string(name)))
 }
 
 func (svc *IdentityCenterService) DeleteAllPrincipalAssignments(ctx context.Context) error {
-	return trace.Wrap(svc.assignments.DeleteAllResources(ctx))
+	return trace.Wrap(svc.principalAssignments.DeleteAllResources(ctx))
 }
 
 func (svc *IdentityCenterService) ListPermissionSets(ctx context.Context, page pagination.PageRequestToken) ([]*identitycenterv1.PermissionSet, pagination.NextPageToken, error) {
@@ -301,4 +313,63 @@ func (svc *IdentityCenterService) UpdatePermissionSet(ctx context.Context, asmt 
 
 func (svc *IdentityCenterService) DeletePermissionSet(ctx context.Context, name services.PermissionSetID) error {
 	return trace.Wrap(svc.permissionSets.DeleteResource(ctx, string(name)))
+}
+
+func (svc *IdentityCenterService) ListAccountAssignments(ctx context.Context, page pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error) {
+	assignments, nextPage, err := svc.accountAssignments.ListResources(ctx, identityCenterPageSize, string(page))
+	if err != nil {
+		return nil, "", trace.Wrap(err, "listing identity center assignment records")
+	}
+
+	result := make([]services.IdentityCenterAccountAssignment, len(assignments))
+	for i, asmt := range assignments {
+		result[i] = services.IdentityCenterAccountAssignment{AccountAssignment: asmt}
+	}
+
+	return result, pagination.NextPageToken(nextPage), nil
+}
+
+func (svc *IdentityCenterService) CreateAccountAssignment(ctx context.Context, asmt services.IdentityCenterAccountAssignment) (services.IdentityCenterAccountAssignment, error) {
+	created, err := svc.accountAssignments.CreateResource(ctx, asmt.AccountAssignment)
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err, "creating principal assignment")
+	}
+	return services.IdentityCenterAccountAssignment{AccountAssignment: created}, nil
+}
+
+func (svc *IdentityCenterService) GetAccountAssignment(ctx context.Context, name services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error) {
+	asmt, err := svc.accountAssignments.GetResource(ctx, string(name))
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err, "fetching principal assignment")
+	}
+	return services.IdentityCenterAccountAssignment{AccountAssignment: asmt}, nil
+}
+
+func (svc *IdentityCenterService) UpdateAccountAssignment(ctx context.Context, asmt services.IdentityCenterAccountAssignment) (services.IdentityCenterAccountAssignment, error) {
+	var updatedAssignment *identitycenterv1.AccountAssignment
+	var err error
+
+	switch svc.mode {
+	case IdentityCenterServiceModeStrict:
+		updatedAssignment, err = svc.accountAssignments.ConditionalUpdateResource(ctx, asmt.AccountAssignment)
+
+	case IdentityCenterServiceModeRelaxed:
+		updatedAssignment, err = svc.accountAssignments.UpdateResource(ctx, asmt.AccountAssignment)
+
+	default:
+		return services.IdentityCenterAccountAssignment{}, trace.BadParameter("invalid service mode: %v", svc.mode)
+	}
+
+	if err != nil {
+		return services.IdentityCenterAccountAssignment{}, trace.Wrap(err, "updating principal assignment record")
+	}
+	return services.IdentityCenterAccountAssignment{AccountAssignment: updatedAssignment}, nil
+}
+
+func (svc *IdentityCenterService) DeleteAccountAssignment(ctx context.Context, name services.IdentityCenterAccountAssignmentID) error {
+	return trace.Wrap(svc.accountAssignments.DeleteResource(ctx, string(name)))
+}
+
+func (svc *IdentityCenterService) DeleteAllAccountAssignments(ctx context.Context) error {
+	return trace.Wrap(svc.accountAssignments.DeleteAllResources(ctx))
 }

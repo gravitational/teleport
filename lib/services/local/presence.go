@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -1314,10 +1315,10 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		unmarshalItemFunc = backendItemToUserGroup
 	case types.KindIdentityCenterAccount:
 		keyPrefix = []string{awsAccountPrefix}
-		unmarshalItemFunc = backendItemToAWSIAMICAccount
+		unmarshalItemFunc = backendItemToIdentityCenterAccount
 	case types.KindIdentityCenterAccountAssignment:
 		keyPrefix = []string{awsAccountAssignmentPrefix}
-		unmarshalItemFunc = backendItemToAWSIAMICAccount
+		unmarshalItemFunc = backendItemToIdentityCenterAccountAssignment
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1331,6 +1332,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}
 
 	if req.PredicateExpression != "" {
+		slog.Warn("Predicate expression set", "expression", req.PredicateExpression)
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1712,7 +1714,7 @@ func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error)
 	)
 }
 
-func backendItemToAWSIAMICAccount(item backend.Item) (types.ResourceWithLabels, error) {
+func backendItemToIdentityCenterAccount(item backend.Item) (types.ResourceWithLabels, error) {
 	awsicac, err := services.UnmarshalProtoResource[*identitycenterv1.Account](
 		item.Value,
 		services.WithExpires(item.Expires),
@@ -1725,8 +1727,8 @@ func backendItemToAWSIAMICAccount(item backend.Item) (types.ResourceWithLabels, 
 	return services.Resource153Adapter[services.IdentityCenterAccount]{Inner: wrappedAccount}, nil
 }
 
-func backendItemToAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
-	asmt, err := services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment](
+func backendItemToIdentityCenterAccountAssignment(item backend.Item) (types.ResourceWithLabels, error) {
+	assignment, err := services.UnmarshalProtoResource[*identitycenterv1.AccountAssignment](
 		item.Value,
 		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
@@ -1734,7 +1736,12 @@ func backendItemToAccountAssignment(item backend.Item) (types.ResourceWithLabels
 	if err != nil {
 		return nil, err
 	}
-	return services.Resource153Adapter[services.IdentityCenterAccount]{Inner: asmt}, nil
+	wrappedAssignment := services.IdentityCenterAccountAssignment{
+		AccountAssignment: assignment,
+	}
+	return services.Resource153Adapter[services.IdentityCenterAccountAssignment]{
+		Inner: wrappedAssignment,
+	}, nil
 }
 
 const (

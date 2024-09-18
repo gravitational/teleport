@@ -5449,6 +5449,9 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	slog.Warn(">>>> Server.GetAccessCapabilities()")
+	defer slog.Warn("<<<< Server.GetAccessCapabilities()")
+
 	user, err := authz.UserFromContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

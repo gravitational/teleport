@@ -161,6 +161,7 @@ type cacheCollections struct {
 	spiffeFederations        collectionReader[SPIFFEFederationReader]
 	identityCenterAccounts   collectionReader[identityCenterAccountGetter]
 	principalAssignments     collectionReader[principalAssignmentGetter]
+	accountAssignments       collectionReader[accountAssignmentGetter]
 }
 
 // setupCollections returns a registry of collections.
@@ -705,6 +706,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.principalAssignments
+
+		case types.KindIdentityCenterAccountAssignment:
+			if c.IdentityCenter == nil {
+				return nil, trace.BadParameter("missing parameter IdentityCenter")
+			}
+			collections.accountAssignments = &genericCollection[services.IdentityCenterAccountAssignment, accountAssignmentGetter, accountAssignmentExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.identityCenterAccounts
 
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)

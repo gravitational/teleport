@@ -187,6 +187,10 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 	case types.KindIdentityCenterAccount:
 		specResource = resource
+
+	case types.KindIdentityCenterAccountAssignment:
+		specResource = resource
+
 	default:
 		// We check if the resource kind is a Kubernetes resource kind to reduce the amount of
 		// of cases we need to handle. If the resource type didn't match any arm before
@@ -226,6 +230,7 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	log := logrus.WithFields(logrus.Fields{
 		"resource_kind": resource.GetKind(),
 		"resource":      resource.GetName(),
+		"filter_kind":   filter.ResourceKind,
 	})
 
 	if !types.MatchKinds(resource, filter.Kinds) {

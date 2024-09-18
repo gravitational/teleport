@@ -273,6 +273,8 @@ type Role interface {
 	GetSPIFFEConditions(rct RoleConditionType) []*SPIFFERoleCondition
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
+
+	GetAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 }
 
 // NewRole constructs new standard V7 role.
@@ -938,6 +940,13 @@ func (r *RoleV6) SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCo
 	} else {
 		r.Spec.Deny.SPIFFE = cond
 	}
+}
+
+func (r *RoleV6) GetAccountAssignments(rct RoleConditionType) []IdentityCenterAccountAssignment {
+	if rct == Allow {
+		return r.Spec.Allow.AccountAssignments
+	}
+	return r.Spec.Deny.AccountAssignments
 }
 
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
@@ -1857,6 +1866,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	case KindIdentityCenterAccountAssignment:
+		return LabelMatchers{cond.AccountAssignmentLabels, ""}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }

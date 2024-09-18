@@ -135,3 +135,65 @@ func (principalAssignmentExecutor) getReader(cache *Cache, cacheOK bool) princip
 func (principalAssignmentExecutor) isSingleton() bool {
 	return false
 }
+
+type accountAssignmentGetter interface {
+	GetAccountAssignment(context.Context, services.IdentityCenterAccountAssignmentID) (services.IdentityCenterAccountAssignment, error)
+	ListAccountAssignments(context.Context, pagination.PageRequestToken) ([]services.IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+}
+
+type accountAssignmentExecutor struct{}
+
+func (accountAssignmentExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]services.IdentityCenterAccountAssignment, error) {
+	var page pagination.PageRequestToken
+	var resources []services.IdentityCenterAccountAssignment
+	for {
+		if cache == nil {
+			panic("Cache is nil")
+		}
+
+		if cache.ProvisioningStates == nil {
+			panic("Cache ProvisioningStates is nil")
+		}
+
+		resourcesPage, nextPage, err := cache.IdentityCenter.ListAccountAssignments(ctx, page)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, resourcesPage...)
+
+		if nextPage == pagination.EndOfList {
+			break
+		}
+		page = pagination.PageRequestToken(nextPage)
+	}
+	return resources, nil
+}
+
+func (accountAssignmentExecutor) upsert(ctx context.Context, cache *Cache, resource services.IdentityCenterAccountAssignment) error {
+	_, err := cache.identityCenterCache.CreateAccountAssignment(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.identityCenterCache.UpdateAccountAssignment(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (accountAssignmentExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return trace.Wrap(cache.identityCenterCache.DeleteAccountAssignment(ctx,
+		services.IdentityCenterAccountAssignmentID(resource.GetName())))
+}
+
+func (accountAssignmentExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return trace.Wrap(cache.identityCenterCache.DeleteAllIdentityCenterAccounts(ctx))
+}
+
+func (accountAssignmentExecutor) getReader(cache *Cache, cacheOK bool) accountAssignmentGetter {
+	if cacheOK {
+		return cache.identityCenterCache
+	}
+	return cache.Config.IdentityCenter
+}
+
+func (accountAssignmentExecutor) isSingleton() bool {
+	return false
+}

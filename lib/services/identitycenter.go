@@ -111,14 +111,59 @@ type IdentityCenterPermissionSets interface {
 	DeletePermissionSet(context.Context, PermissionSetID) error
 }
 
-// MarshalPermissionSet marshals the assignment state object into a JSON byte array.
-func MarshalPermissionSet(object *identitycenterv1.PermissionSet, opts ...MarshalOption) ([]byte, error) {
-	return MarshalProtoResource(object, opts...)
+// IdentityCenterAccountAssignment wraps a raw identity center record in a new
+// type to allow it to implement some custom interfaces. IdentityCenterAccountAssignment
+// is a reference type that wraps a pointer to the underlying account record.
+// Copies of an IdentityCenterAccountAssignment will point to the same record.
+type IdentityCenterAccountAssignment struct {
+	*identitycenterv1.AccountAssignment
 }
 
-// UnmarshalPermissionSet un-marshals the User State  object from a JSON byte array.
-func UnmarshalPermissionSet(data []byte, opts ...MarshalOption) (*identitycenterv1.PermissionSet, error) {
-	return UnmarshalProtoResource[*identitycenterv1.PermissionSet](data, opts...)
+// CloneResource creates a deep copy of the underlying account resource
+func (a IdentityCenterAccountAssignment) CloneResource() IdentityCenterAccountAssignment {
+	var expiry *timestamppb.Timestamp
+	if a.Metadata.Expires != nil {
+		expiry = &timestamppb.Timestamp{
+			Seconds: a.Metadata.Expires.Seconds,
+			Nanos:   a.Metadata.Expires.Nanos,
+		}
+	}
+
+	return IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:    a.Kind,
+			SubKind: a.SubKind,
+			Version: a.Version,
+			Metadata: &headerv1.Metadata{
+				Name:        a.Metadata.Name,
+				Namespace:   a.Metadata.Namespace,
+				Description: a.Metadata.Description,
+				Labels:      maps.Clone(a.Metadata.Labels),
+				Expires:     expiry,
+				Revision:    a.Metadata.Revision,
+			},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				Display:     a.Spec.Display,
+				AccountId:   a.Spec.AccountId,
+				AccountName: a.Spec.AccountName,
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn:  a.Spec.PermissionSet.Arn,
+					Name: a.Spec.PermissionSet.Name,
+				},
+			},
+		},
+	}
+}
+
+type IdentityCenterAccountAssignmentID string
+
+type IdentityCenterAccountAssignments interface {
+	ListAccountAssignments(context.Context, pagination.PageRequestToken) ([]IdentityCenterAccountAssignment, pagination.NextPageToken, error)
+	CreateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
+	GetAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) (IdentityCenterAccountAssignment, error)
+	UpdateAccountAssignment(context.Context, IdentityCenterAccountAssignment) (IdentityCenterAccountAssignment, error)
+	DeleteAccountAssignment(context.Context, IdentityCenterAccountAssignmentID) error
+	DeleteAllAccountAssignments(context.Context) error
 }
 
 // IdentityCenter combines all the resource managers used by the Identity Center plugin
@@ -126,4 +171,5 @@ type IdentityCenter interface {
 	IdentityCenterAccounts
 	IdentityCenterPermissionSets
 	IdentityCenterPrincipalAssignments
+	IdentityCenterAccountAssignments
 }

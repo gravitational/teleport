@@ -1366,7 +1366,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.PredicateExpression != "" {
-		fmt.Printf("Parsing predicate expression: [%s]\n", req.PredicateExpression)
+		slog.Warn("Predicate expression set", "expression", req.PredicateExpression)
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1769,6 +1769,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	if req.PredicateExpression != "" {
+		slog.Warn("Predicate expression set", "expression", req.PredicateExpression)
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1884,6 +1885,7 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 
 	case services.AccessCheckable:
+		log.Warnf("Checking access generically on resource type %T", rr)
 		return r.CheckAccess(rr, state)
 	}
 
@@ -2612,7 +2614,12 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 	return rsp, trace.Wrap(err)
 }
 
-func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
+func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (ar types.AccessRequest, overallErr error) {
+	defer func() {
+		if overallErr != nil {
+			log.WithError(overallErr).Error("CreateAccessRequestV2 failed")
+		}
+	}()
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
 		// An exception is made to allow users to create *pending* access requests
 		// for themselves unless the create verb was explicitly denied.

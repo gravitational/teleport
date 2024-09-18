@@ -2202,6 +2202,7 @@ func (m RoleMatchers) MatchAll(role types.Role, condition types.RoleConditionTyp
 // If the result is true, returns matcher that matched.
 func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionType) (bool, RoleMatcher, error) {
 	for _, matcher := range m {
+		fmt.Printf("Checking matcher %T, #%v\n", matcher, matcher)
 		match, err := matcher.Match(role, condition)
 		if err != nil {
 			return false, nil, trace.Wrap(err)
@@ -2583,9 +2584,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindIdentityCenterAccountAssignment:
+		additionalDeniedMessage = "Confirm Identity Center configuration."
 	}
 
 	// Check deny rules.
+	debugf("Checking %d DENY rules...", len(set))
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
 		if !matchNamespace {
@@ -2602,6 +2606,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
+
+		debugf("Checking role %s against %d custom matcher DENY rules", role.GetName(), len(matchers))
 
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
@@ -2626,6 +2632,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	var errs []error
 	allowed := false
 	// Check allow rules.
+	debugf("Checking %d ALLOW rules...", len(set))
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
@@ -2636,18 +2643,23 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			continue
 		}
 
+		//if r.GetKind() != types.KindIdentityCenterAccountAssignment {
 		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
 		if err != nil {
+			debugf("Label match failed: %s", err)
 			return trace.Wrap(err)
 		}
 
 		if !matchLabels {
+			debugf("Labels don't match: %s", labelsMessage)
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
 					role.GetName(), labelsMessage))
 			}
 			continue
 		}
+		//}
+		debugf("Checking %d custom matcher ALLOW rules", len(matchers))
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.

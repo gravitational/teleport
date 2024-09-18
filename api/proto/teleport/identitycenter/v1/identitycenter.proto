@@ -30,6 +30,10 @@ message PermissionSetInfo {
 
   // Title is the human-readable name of the permission set
   string name = 2;
+
+  // Role is an optional ARN indicating role provisioned to this account. May be
+  // empty if the permission set is not provisioned or is not relevant in the
+  string role = 3;
 }
 
 // AccountStatus represents holds any commonly-changing data about an Identity
@@ -105,7 +109,7 @@ message AccountAssignment {
   string sub_kind = 2;
   string version = 3;
   teleport.header.v1.Metadata metadata = 4;
-  AccountAssignment spec = 5;
+  AccountAssignmentSpec spec = 5;
 }
 
 // AccountAssignmentSpec...
@@ -161,13 +165,24 @@ enum State {
 }
 
 // AccountAssignmentRef is a minimal link between an AWS Account and a
-// permission set
+// permission set. Optionally contains human-readable metadata describing the
+// target AWS Account and Permission Set.
 message AccountAssignmentRef {
-  // AccountId holds the AWS account ID for the target account
+  // AccountId holds the AWS account ID for the target AWS account. This will
+  // always be set
   string account_id = 1;
 
-  // PermissionSetArn holds the Permission Set ARN
+  // AccountName optionally holds the heman-readable name of the target AwS
+  // account
+  string account_name = 2;
+
+  // PermissionSetArn holds the target Permission Set ARN. This will always be
+  // set.
   string permission_set_arn = 3;
+
+  // PermissionSetName optionally holds the human-readable name of the target
+  // AWS Permission Set.
+  string permission_set_name = 4;
 }
 
 // PrincipalAssignmentAssignmentStatus
