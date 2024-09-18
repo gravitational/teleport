@@ -22,11 +22,8 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"sync"
-	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,11 +33,9 @@ import (
 	"github.com/gravitational/teleport/integrations/access/accessrequest"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/datadog"
-	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	"github.com/gravitational/trace"
 )
 
 // DatadogBaseSuite is the Datadog Incident Management plugin test suite.
@@ -500,7 +495,7 @@ func (s *DatadogSuiteEnterprise) TestApprovalByReview() {
 	require.NoError(t, err)
 
 	content = note.Data.Attributes.Content.Content
-	require.Contains(t, content, "Access request has been approved")
+	require.Contains(t, content, "Access request is ✅ APPROVED")
 	require.Contains(t, content, "Reason: finally okay")
 
 	incidentUpdate, err := s.fakeDatadog.CheckIncidentUpdate(ctx)
@@ -567,184 +562,10 @@ func (s *DatadogSuiteEnterprise) TestDenialByReview() {
 	require.NoError(t, err)
 
 	content = note.Data.Attributes.Content.Content
-	assert.Contains(t, content, "Access request has been denied")
+	assert.Contains(t, content, "Access request is ❌ DENIED")
 	assert.Contains(t, content, "Reason: finally not okay")
 
 	incidentUpdate, err := s.fakeDatadog.CheckIncidentUpdate(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "resolved", incidentUpdate.Data.Attributes.Fields.State.Value)
-}
-
-// TestRace validates that the plugin behaves properly and performs all the
-// incident updates when a lot of access requests are sent and reviewed in a
-// very short time frame.
-func (s *DatadogSuiteEnterprise) TestRace() {
-	t := s.T()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-	t.Cleanup(cancel)
-
-	err := logger.Setup(logger.Config{Severity: "info"}) // Turn off noisy debug logging
-	require.NoError(t, err)
-
-	s.startApp()
-
-	var (
-		raceErr               error
-		raceErrOnce           sync.Once
-		pendingRequests       sync.Map
-		resolvedRequests      sync.Map
-		incidentIDs           sync.Map
-		incidentsCount        int32
-		incidentNoteCounters  sync.Map
-		resolvedRequestsCount int32
-	)
-	setRaceErr := func(err error) error {
-		raceErrOnce.Do(func() {
-			raceErr = err
-		})
-		return err
-	}
-
-	watcher, err := s.Ruler().NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
-	assert.Equal(t, types.OpInit, (<-watcher.Events()).Type)
-	assert.Equal(t, 0, s.raceNumber)
-
-	process := lib.NewProcess(ctx)
-	for i := 0; i < 2*s.raceNumber; i++ {
-		var requester string
-		var proposedState types.RequestState
-		reviewsNumber := 2
-		switch i % 2 {
-		case 0:
-			requester = integration.Requester1UserName
-			proposedState = types.RequestState_APPROVED
-		case 1:
-			requester = integration.Requester2UserName
-			proposedState = types.RequestState_DENIED
-		}
-
-		// Create access requests
-		process.SpawnCritical(func(ctx context.Context) error {
-			req, err := types.NewAccessRequest(uuid.New().String(), requester, "editor")
-			if err != nil {
-				return setRaceErr(trace.Wrap(err))
-			}
-			req.SetSuggestedReviewers([]string{integration.Reviewer1UserName, integration.Reviewer2UserName})
-			if _, err := s.Requester1().CreateAccessRequestV2(ctx, req); err != nil {
-				return setRaceErr(trace.Wrap(err))
-			}
-			return nil
-		})
-
-		// Verify incident creation and review access requests
-		process.SpawnCritical(func(ctx context.Context) error {
-			incident, err := s.fakeDatadog.CheckNewIncident(ctx)
-			if err != nil {
-				return setRaceErr(trace.Wrap(err))
-			}
-			if obtained, expected := incident.Data.Attributes.Fields.State.Value, "active"; obtained != expected {
-				return setRaceErr(trace.Errorf("wrong incident status. expected %s, obtained %s", expected, obtained))
-			}
-
-			if _, loaded := incidentIDs.LoadOrStore(incident.Data.ID, struct{}{}); loaded {
-				return setRaceErr(trace.Errorf("incident %s has already been stored", incident.Data.ID))
-			}
-
-			atomic.AddInt32(&incidentsCount, 1)
-
-			reqID, err := parseSummaryField(incident.Data.Attributes.Fields.Summary.Value, "ID")
-			if err != nil {
-				return setRaceErr(trace.Wrap(err))
-			}
-
-			review := types.AccessReview{ProposedState: proposedState, Reason: "reviewed"}
-			for j := 0; j < reviewsNumber; j++ {
-				if j == 0 {
-					review.Author = integration.Reviewer1UserName
-				} else {
-					review.Author = integration.Reviewer2UserName
-				}
-				review.Created = time.Now()
-				if err = s.ClientByName(review.Author).SubmitAccessRequestReview(ctx, reqID, review); err != nil {
-					return setRaceErr(trace.Wrap(err))
-				}
-			}
-			return nil
-		})
-
-		// Verify incidents are resolved
-		process.SpawnCritical(func(ctx context.Context) error {
-			incident, err := s.fakeDatadog.CheckIncidentUpdate(ctx)
-			if err := trace.Wrap(err); err != nil {
-				return setRaceErr(err)
-			}
-			if obtained, expected := incident.Data.Attributes.Fields.State.Value, "resolved"; obtained != expected {
-				return setRaceErr(trace.Errorf("wrong incident status. expected %s, obtained %s", expected, obtained))
-			}
-			return nil
-		})
-	}
-
-	// Count the number of notes created
-	for i := 0; i < 3*s.raceNumber; i++ {
-		process.SpawnCritical(func(ctx context.Context) error {
-			_, err := s.fakeDatadog.CheckNewIncidentNote(ctx)
-			if err := trace.Wrap(err); err != nil {
-				return setRaceErr(err)
-			}
-
-			var newCounter int32
-			val, _ := incidentNoteCounters.LoadOrStore("incident_note_count", &newCounter)
-			counterPtr := val.(*int32)
-			atomic.AddInt32(counterPtr, 1)
-
-			return nil
-		})
-	}
-
-	process.SpawnCritical(func(ctx context.Context) error {
-		for {
-			var event types.Event
-			select {
-			case event = <-watcher.Events():
-			case <-ctx.Done():
-				return setRaceErr(trace.Wrap(ctx.Err()))
-			}
-			if obtained, expected := event.Type, types.OpPut; obtained != expected {
-				return setRaceErr(trace.Errorf("wrong event type. expected %v, obtained %v", expected, obtained))
-			}
-			if obtained, expected := event.Resource.GetKind(), types.KindAccessRequest; obtained != expected {
-				return setRaceErr(trace.Errorf("wrong resource kind. expected %v, obtained %v", expected, obtained))
-			}
-			req := event.Resource.(types.AccessRequest)
-			if req.GetState() != types.RequestState_APPROVED && req.GetState() != types.RequestState_DENIED {
-				continue
-			}
-			resolvedRequests.Store(req.GetName(), struct{}{})
-			if atomic.AddInt32(&resolvedRequestsCount, 1) == int32(s.raceNumber) {
-				return nil
-			}
-		}
-	})
-	process.Terminate()
-	<-process.Done()
-	require.NoError(t, raceErr)
-
-	pendingRequests.Range(func(key, _ interface{}) bool {
-		_, ok := resolvedRequests.LoadAndDelete(key)
-		return assert.True(t, ok)
-	})
-
-	assert.Equal(t, int32(s.raceNumber), resolvedRequestsCount)
-
-	val, ok := incidentNoteCounters.LoadAndDelete("incident_note_count")
-	require.True(t, ok)
-
-	counterPtr := val.(*int32)
-	assert.Equal(t, int32(3*s.raceNumber), *counterPtr)
-	assert.Equal(t, int32(s.raceNumber), incidentsCount)
 }

@@ -113,10 +113,13 @@ func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequ
 func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, incidents accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
 
-	state := "active"
 	switch reqData.ResolutionTag {
 	case pd.ResolvedApproved, pd.ResolvedDenied, pd.ResolvedExpired:
-		state = "resolved"
+	default:
+		// If the incident is not resolved, we don't need to post any resolution message
+		// Nor to change its state. Un-resolving an access request should be impossible.
+		// We can return immediately, nothing to update in the incident.
+		return nil
 	}
 
 	note, err := buildResolutionNoteBody(reqData)
@@ -128,7 +131,7 @@ func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.Access
 			errors = append(errors, trace.Wrap(err))
 			continue
 		}
-		err := b.datadog.ResolveIncident(ctx, incident.ChannelID, state)
+		err := b.datadog.ResolveIncident(ctx, incident.ChannelID, "resolved")
 		errors = append(errors, trace.Wrap(err))
 	}
 	return trace.NewAggregate(errors...)
