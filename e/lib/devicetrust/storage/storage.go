@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
@@ -360,7 +359,7 @@ func (s *S) updateDeviceRefsIndex(
 	dedupMatchingOS bool,
 ) error {
 	logger := s.logger.With(
-		"key", string(key),
+		"key", key.String(),
 		"device_id", ref.DeviceID,
 		"os_type", ref.OSType,
 	)
@@ -1156,7 +1155,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 			s.logger.ErrorContext(ctx,
 				"Failed to unmarshal device, stored value may be invalid or corrupted",
 				"error", err,
-				"key", string(item.Key),
+				"key", item.Key.String(),
 			)
 			continue
 		}
@@ -1984,8 +1983,8 @@ func (s *S) getWebAuthnAttempt(
 }
 
 func deviceIDFromKey(key backend.Key) string {
-	idx := bytes.LastIndexByte(key, backend.Separator)
-	return string(key[idx+1:])
+	components := key.Components()
+	return string(components[len(components)-1])
 }
 
 func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceView) *devicepb.Device {

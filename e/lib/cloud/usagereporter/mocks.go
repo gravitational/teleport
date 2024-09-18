@@ -24,14 +24,14 @@ func NewMockedBackendGetter() *MockedBackendGetter {
 }
 
 func (m *MockedBackendGetter) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	if item, ok := m.items[string(key)]; ok {
+	if item, ok := m.items[key.String()]; ok {
 		return &item, nil
 	}
-	return nil, trace.NotFound("item %q not found", string(key))
+	return nil, trace.NotFound("item %q not found", key.String())
 }
 
 func (m *MockedBackendGetter) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	m.items[string(i.Key)] = i
+	m.items[i.Key.String()] = i
 	return &backend.Lease{
 		Key: i.Key,
 	}, nil

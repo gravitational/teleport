@@ -204,7 +204,7 @@ func unmarshalFromItem(item *backend.Item) (*loginrulepb.LoginRule, error) {
 }
 
 func ruleNameFromKey(key backend.Key) string {
-	return string(key.TrimPrefix(loginRuleKey("")))
+	return key.TrimPrefix(loginRuleKey("")).String()
 }
 
 func loginRuleKey(name string) backend.Key {
