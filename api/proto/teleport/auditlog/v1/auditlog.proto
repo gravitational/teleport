@@ -29,6 +29,12 @@ service AuditLogService {
   // GetUnstructuredEvents gets events from the audit log in an unstructured format.
   // This endpoint is used by the event handler to retrieve the events as JSON.
   rpc GetUnstructuredEvents(GetUnstructuredEventsRequest) returns (EventsUnstructured);
+  // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
+  // performance over ordering and filtering, and is intended for bulk export of events.
+  rpc ExportUnstructuredEvents(ExportUnstructuredEventsRequest) returns (stream ExportEventUnstructured);
+  // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
+  // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
+  rpc GetEventExportChunks(GetEventExportChunksRequest) returns (stream EventExportChunk);
 }
 
 // StreamUnstructuredSessionEventsRequest is a request containing data needed to fetch a session recording.
@@ -77,6 +83,25 @@ message EventsUnstructured {
   string last_key = 2;
 }
 
+// ExportUnstructuredEventsRequest is a request with the needed data to export events.
+message ExportUnstructuredEventsRequest {
+  // date is the target date from which to export events. note that only the UTC date of the
+  // timestamp value is used. use of a specific local timestamp may produce confusing results.
+  google.protobuf.Timestamp date = 1;
+  // chunk is the chunk to export events from.
+  string chunk = 2;
+  // cursor is an optional mechanism to resume interrupted streams for a given chunk.
+  string cursor = 3;
+}
+
+// ExportEventUnstructured is the stream item of the ExportUnstructuredEvents method.
+message ExportEventUnstructured {
+  // event is the unstructured representation of the event payload.
+  EventUnstructured event = 1;
+  // cursor is the cursor to resume the stream after this point.
+  string cursor = 2;
+}
+
 // EventUnstructured represents a single events.AuditEvent in an unstructured format.
 message EventUnstructured {
   // type is the type of the event.
@@ -91,4 +116,16 @@ message EventUnstructured {
   int64 index = 4;
   // unstructured is the unstructured representation of the event payload.
   google.protobuf.Struct unstructured = 5;
+}
+
+// GetEventExportChunksRequest is used to request the next set of event chunks to export.
+message GetEventExportChunksRequest {
+  // date is the date for which to list export shards.
+  google.protobuf.Timestamp date = 1;
+}
+
+// EventExportChunk represents a chunk of events to export.
+message EventExportChunk {
+  // chunk is the chunk to export.
+  string chunk = 1;
 }
