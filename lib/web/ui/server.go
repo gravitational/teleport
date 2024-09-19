@@ -107,7 +107,7 @@ func (s sortedLabels) Swap(i, j int) {
 func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	serverLabels := server.GetStaticLabels()
 	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+	uiLabels := MakeUILabelsWithoutInternalPrefixes(serverLabels, transformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
@@ -167,7 +167,7 @@ type KubeCluster struct {
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
 	staticLabels := cluster.GetStaticLabels()
 	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+	uiLabels := MakeUILabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -188,8 +188,8 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 			Name:       cluster.Name,
 			Region:     cluster.Region,
 			Arn:        cluster.Arn,
-			Labels:     makeLabels(cluster.Labels),
-			JoinLabels: makeLabels(cluster.JoinLabels),
+			Labels:     MakeUILabelsWithoutInternalPrefixes(cluster.Labels),
+			JoinLabels: MakeUILabelsWithoutInternalPrefixes(cluster.JoinLabels),
 			Status:     cluster.Status,
 		})
 	}
@@ -202,7 +202,7 @@ func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.Acces
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+		uiLabels := MakeUILabelsWithoutInternalPrefixes(staticLabels, transformCommandLabels(dynamicLabels))
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -237,7 +237,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 	uiKubeResources := make([]KubeResource, 0, len(resources))
 	for _, resource := range resources {
 		staticLabels := resource.GetStaticLabels()
-		uiLabels := makeLabels(staticLabels)
+		uiLabels := MakeUILabelsWithoutInternalPrefixes(staticLabels)
 
 		uiKubeResources = append(uiKubeResources,
 			KubeResource{
@@ -356,7 +356,7 @@ const (
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
-	uiLabels := makeLabels(database.GetAllLabels())
+	uiLabels := MakeUILabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
 		Kind:            database.GetKind(),
@@ -455,7 +455,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 		return addr
 	}
 
-	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
+	uiLabels := MakeUILabelsWithoutInternalPrefixes(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		Kind:            windowsDesktop.GetKind(),
@@ -483,7 +483,7 @@ type DesktopService struct {
 
 // MakeDesktopService converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	uiLabels := makeLabels(desktopService.GetAllLabels())
+	uiLabels := MakeUILabelsWithoutInternalPrefixes(desktopService.GetAllLabels())
 
 	return DesktopService{
 		Name:     desktopService.GetName(),

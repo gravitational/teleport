@@ -37,7 +37,7 @@ type Notification struct {
 
 // MakeNotification creates a notification object for the WebUI.
 func MakeNotification(notification *notificationsv1.Notification) Notification {
-	labels := makeLabels(notification.Metadata.Labels)
+	labels := MakeUILabelsWithoutInternalPrefixes(notification.Metadata.Labels)
 
 	clicked := notification.Metadata.GetLabels()[types.NotificationClickedLabel] == "true"
 
