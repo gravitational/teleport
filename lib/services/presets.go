@@ -181,6 +181,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindSPIFFEFederation, RW()),
 					types.NewRule(types.KindNotification, RW()),
 					types.NewRule(types.KindStaticHostUser, RW()),
+					types.NewRule(types.KindUserTask, RW()),
 				},
 			},
 		},
