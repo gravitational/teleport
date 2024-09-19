@@ -262,6 +262,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentDynamicWindowsDesktop is a Windows desktop access server.
+	ComponentDynamicWindowsDesktop = "dynamic_windows_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 

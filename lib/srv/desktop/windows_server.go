@@ -210,6 +210,7 @@ type WindowsServiceConfig struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	Labels               map[string]string
+	ResourceMatchers     []services.ResourceMatcher
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -406,6 +407,10 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	}
 
 	if err := s.startStaticHostHeartbeats(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := s.startDynamicReconciler(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -755,9 +760,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
-		log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
-		sendTDPError("Teleport failed to find the requested desktop in its database.")
-		return
+		desktops, err = s.cfg.AccessPoint.GetWindowsDesktops(ctx,
+			types.WindowsDesktopFilter{HostID: "auto", Name: desktopName})
+		if err != nil {
+			log.WarnContext(ctx, "Failed to fetch desktop by name", "error", err)
+			sendTDPError("Teleport failed to find the requested desktop in its database.")
+			return
+		}
 	}
 	if len(desktops) == 0 {
 		log.ErrorContext(ctx, "desktop not found", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
@@ -765,6 +774,12 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	desktop := desktops[0]
+
+	if desktop.GetHostID() == "auto" && !services.MatchResourceLabels(s.cfg.ResourceMatchers, desktop.GetAllLabels()) {
+		log.ErrorContext(ctx, "desktop not matching host", "host_uuid", s.cfg.Heartbeat.HostUUID, "name", desktopName)
+		sendTDPError(fmt.Sprintf("Selected Windows Desktop Service can't handle desktop %v.", desktopName))
+		return
+	}
 
 	log = log.With("desktop_addr", desktop.GetAddr())
 	log.DebugContext(ctx, "Connecting to Windows desktop")
