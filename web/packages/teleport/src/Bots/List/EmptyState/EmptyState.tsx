@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Link } from 'react-router-dom';
 import { GitHubIcon, SpaceliftIcon, AnsibleIcon } from 'design/SVGIcon';
 import { ResourceIcon } from 'design/ResourceIcon';
-import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import {
   Description,
   DetailsTab,
@@ -28,7 +27,7 @@ import argoCD from './argocd.png';
 
 const maxWidth = '1204px';
 
-export function EmptyState({ theme }: { theme: Theme }) {
+export function EmptyState() {
   const [currIndex, setCurrIndex] = useState(0);
   const [intervalId, setIntervalId] = useState<any>();
 
@@ -47,7 +46,7 @@ export function EmptyState({ theme }: { theme: Theme }) {
   }, []);
 
   return (
-    <Box mt={4}>
+    <Box mt={4} data-testid="bots-empty-state">
       <Box mb={3}>
         <H1 mb={3}>What are Bots?</H1>
         <Text css={{ maxWidth }}>
@@ -85,8 +84,8 @@ export function EmptyState({ theme }: { theme: Theme }) {
           />
         </Box>
         <Box mt={-2} height={330}>
-          {currIndex === 0 && <EliminateSecretsPreview theme={theme} />}
-          {currIndex === 1 && <ControlWorkflowsPreview theme={theme} />}
+          {currIndex === 0 && <EliminateSecretsPreview />}
+          {currIndex === 1 && <ControlWorkflowsPreview />}
           {currIndex === 2 && <BotTiles />}
         </Box>
       </FeatureContainer>
@@ -124,27 +123,29 @@ export const EliminateSecrets = ({
 };
 
 const eliminateSecretsImages = {
-  [Theme.LIGHT]: elimiateSecretsLightImage,
-  [Theme.DARK]: elimiateSecretsImage,
+  light: elimiateSecretsLightImage,
+  dark: elimiateSecretsImage,
 };
 
-export const EliminateSecretsPreview = ({ theme }: { theme: Theme }) => {
+export const EliminateSecretsPreview = () => {
+  const theme = useTheme();
   return (
     <PreviewBox>
-      <Image maxHeight="100%" src={eliminateSecretsImages[theme]} />
+      <Image maxHeight="100%" src={eliminateSecretsImages[theme.type]} />
     </PreviewBox>
   );
 };
 
 const controlWorkflowsImages = {
-  [Theme.LIGHT]: controlWorkflowsLightImage,
-  [Theme.DARK]: controlWorkflowsImage,
+  light: controlWorkflowsLightImage,
+  dark: controlWorkflowsImage,
 };
 
-export const ControlWorkflowsPreview = ({ theme }: { theme: Theme }) => {
+export const ControlWorkflowsPreview = () => {
+  const theme = useTheme();
   return (
     <PreviewBox>
-      <Image maxHeight="100%" src={controlWorkflowsImages[theme]} />
+      <Image maxHeight="100%" src={controlWorkflowsImages[theme.type]} />
     </PreviewBox>
   );
 };

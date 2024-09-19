@@ -17,12 +17,23 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
 
+import { EmptyState } from './EmptyState/EmptyState';
+
 export default {
   title: 'Teleport/Bots',
+};
+
+export const Empty = () => {
+  return (
+    <MemoryRouter>
+      <EmptyState />
+    </MemoryRouter>
+  );
 };
 
 export const List = () => {
