@@ -1390,10 +1390,6 @@ const (
 )
 
 const (
-	// DatadogOrgLabel is the label used by Datadog-managed resources to indicate
-	// the upstream Datadog organization that they come from.
-	DatadogOrgLabel = "datadog/org"
-
 	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
 	// to indiciate credential type.
 	DatadogCredentialLabel = "datadog/credential"
