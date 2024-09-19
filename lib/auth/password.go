@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -381,24 +380,8 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 
 func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUserAuthenticationRequest, token types.UserToken) error {
 	username := token.GetUser()
-	cap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	switch sf := cap.GetSecondFactor(); {
-	case sf == constants.SecondFactorOff:
-		return nil
-	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
-		// Optional second factor does not enforce users to add a MFA device.
-		// No need to check if a user already has registered devices since we expect
-		// users to have no devices at this point.
-		//
-		// The ChangeUserAuthenticationRequest is made with a reset or invite token
-		// where a reset token would've reset the users' MFA devices, and an invite
-		// token is a new user with no devices.
-		return nil
-	case req.GetNewMFARegisterResponse() == nil:
+	if req.GetNewMFARegisterResponse() == nil {
 		return trace.BadParameter("no second factor sent during user %q password reset", username)
 	}
 
@@ -424,7 +407,7 @@ func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
 	}
 
-	_, err = a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
+	_, err := a.verifyMFARespAndAddDevice(ctx, &newMFADeviceFields{
 		username:      token.GetUser(),
 		newDeviceName: deviceName,
 		tokenID:       token.GetName(),

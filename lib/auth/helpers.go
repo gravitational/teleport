@@ -117,7 +117,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.AuthPreferenceSpec == nil {
 		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOff,
+			SecondFactor: constants.SecondFactorWebauthn,
 		}
 	}
 	return nil

@@ -194,8 +194,6 @@ var SystemConnectors = []string{
 type SecondFactorType string
 
 const (
-	// SecondFactorOff means no second factor.
-	SecondFactorOff = SecondFactorType("off") // todo(lxea): DELETE IN 17
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
@@ -210,9 +208,6 @@ const (
 	// SecondFactorOn means that all 2FA protocols are supported and 2FA is
 	// required for all users.
 	SecondFactorOn = SecondFactorType("on")
-	// SecondFactorOptional means that all 2FA protocols are supported and 2FA
-	// is required only for users that have MFA devices registered.
-	SecondFactorOptional = SecondFactorType("optional") // todo(lxea): DELETE IN 17
 )
 
 // UnmarshalYAML supports parsing off|on into string on SecondFactorType.
@@ -223,13 +218,13 @@ func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) er
 	}
 	switch v := tmp.(type) {
 	case string:
-		*sft = SecondFactorType(v)
-	case bool:
-		if v {
+		if v == "off" || v == "optional" {
 			*sft = SecondFactorOn
 		} else {
-			*sft = SecondFactorOff
+			*sft = SecondFactorType(v)
 		}
+	case bool:
+		*sft = SecondFactorOn
 	default:
 		return trace.BadParameter("SecondFactorType invalid type %T", v)
 	}
@@ -244,13 +239,14 @@ func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
 	}
 	switch v := tmp.(type) {
 	case string:
-		*sft = SecondFactorType(v)
-	case bool:
-		if v {
+		if v == "off" || v == "optional" {
 			*sft = SecondFactorOn
 		} else {
-			*sft = SecondFactorOff
+			*sft = SecondFactorType(v)
 		}
+		*sft = SecondFactorType(v)
+	case bool:
+		*sft = SecondFactorOn
 	default:
 		return trace.BadParameter("SecondFactorType invalid type %T", v)
 	}

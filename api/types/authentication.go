@@ -324,11 +324,9 @@ func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 
 func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 	switch sf := c.GetSecondFactor(); sf {
-	case constants.SecondFactorOff:
-		return "" // Nothing to suggest.
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
 		return sf // Single method.
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOn:
 		// In order of preference:
 		// 1. WebAuthn (public-key based)
 		// 2. OTP
@@ -344,13 +342,12 @@ func (c *AuthPreferenceV2) GetPreferredLocalMFA() constants.SecondFactorType {
 
 // IsSecondFactorEnforced checks if second factor is enforced (not disabled or set to optional).
 func (c *AuthPreferenceV2) IsSecondFactorEnforced() bool {
-	return c.Spec.SecondFactor != constants.SecondFactorOff && c.Spec.SecondFactor != constants.SecondFactorOptional
+	return true
 }
 
 // IsSecondFactorTOTPAllowed checks if users are allowed to register TOTP devices.
 func (c *AuthPreferenceV2) IsSecondFactorTOTPAllowed() bool {
 	return c.Spec.SecondFactor == constants.SecondFactorOTP ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
@@ -368,7 +365,6 @@ func (c *AuthPreferenceV2) IsSecondFactorWebauthnAllowed() bool {
 
 	// Are second factor settings in accordance?
 	return c.Spec.SecondFactor == constants.SecondFactorWebauthn ||
-		c.Spec.SecondFactor == constants.SecondFactorOptional ||
 		c.Spec.SecondFactor == constants.SecondFactorOn
 }
 
@@ -688,7 +684,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	// Make sure second factor makes sense.
 	sf := c.Spec.SecondFactor
 	switch sf {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorOTP:
 	case constants.SecondFactorWebauthn:
 		// If U2F is present validate it, we can derive Webauthn from it.
 		if c.Spec.U2F != nil {
@@ -706,7 +702,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOn:
 		// The following scenarios are allowed for "on" and "optional":
 		// - Webauthn is configured (preferred)
 		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
@@ -736,8 +732,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
 	hasWebauthn := sf == constants.SecondFactorWebauthn ||
-		sf == constants.SecondFactorOn ||
-		sf == constants.SecondFactorOptional
+		sf == constants.SecondFactorOn
 	switch {
 	case c.Spec.AllowPasswordless == nil:
 		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)

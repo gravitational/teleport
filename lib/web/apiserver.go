@@ -1667,7 +1667,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		h.log.WithError(err).Error("Cannot retrieve AuthPreferences.")
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:        authProviders,
-			SecondFactor:     constants.SecondFactorOff,
+			SecondFactor:     constants.SecondFactorOn,
 			LocalAuthEnabled: true,
 			AuthType:         constants.Local,
 		}
@@ -2283,16 +2283,8 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 
 	var webSession types.WebSession
 	switch cap.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
 	case constants.SecondFactorOTP, constants.SecondFactorOn:
 		webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
-	case constants.SecondFactorOptional:
-		if req.SecondFactorToken == "" {
-			webSession, err = h.auth.AuthWithoutOTP(r.Context(), req.User, req.Pass, clientMeta)
-		} else {
-			webSession, err = h.auth.AuthWithOTP(r.Context(), req.User, req.Pass, req.SecondFactorToken, clientMeta)
-		}
 	default:
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
@@ -4086,11 +4078,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 
 	authClient := h.cfg.ProxyClient
 
-	cap, err := authClient.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
@@ -4134,18 +4121,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return loginResp, nil
 	}
 
-	switch cap.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		authSSHUserReq.AuthenticateUserRequest.Pass = &authclient.PassCreds{
-			Password: []byte(req.Password),
-		}
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
-			Password: []byte(req.Password),
-			Token:    req.OTPToken,
-		}
-	default:
-		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
+	authSSHUserReq.AuthenticateUserRequest.OTP = &authclient.OTPCreds{
+		Password: []byte(req.Password),
+		Token:    req.OTPToken,
 	}
 
 	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)

@@ -98,11 +98,11 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 
 	var sshLoginFunc client.SSHLoginFunc
 	switch pingResp.Auth.SecondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorOTP:
 		sshLoginFunc = c.localLogin(user, password, otpToken)
 	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
 		sshLoginFunc = c.localMFALogin(user, password)
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorOn:
 		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
 		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
 		// bails out to stdin to ask them for it.

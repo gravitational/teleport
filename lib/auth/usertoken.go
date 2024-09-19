@@ -30,7 +30,6 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -375,18 +374,6 @@ func (a *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	authPref, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// For a user to add a device, second factor must be enabled.
-	// A nil request will be interpreted as a user who has second factor enabled
-	// but does not have any MFA registered, as can be the case with second factor optional.
-	if authPref.GetSecondFactor() == constants.SecondFactorOff {
-		return nil, trace.AccessDenied("second factor must be enabled")
 	}
 
 	tokenKind := authclient.UserTokenTypePrivilege

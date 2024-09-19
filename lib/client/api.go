@@ -3619,10 +3619,10 @@ func (tc *TeleportClient) localLoginWeb(ctx context.Context, keyRing *KeyRing, s
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
 	// deprecate the direct login endpoint.
 	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorOTP:
 		clt, session, err := tc.directLoginWeb(ctx, secondFactor, keyRing)
 		return clt, session, trace.Wrap(err)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn:
 		clt, session, err := tc.mfaLocalLoginWeb(ctx, keyRing)
 		return clt, session, trace.Wrap(err)
 	default:
@@ -3927,12 +3927,12 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, seco
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
 	// deprecate the direct login endpoint.
 	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
+	case constants.SecondFactorOTP:
 		response, err = tc.directLogin(ctx, secondFactor, keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn:
 		response, err = tc.mfaLocalLogin(ctx, keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)

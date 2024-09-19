@@ -3873,7 +3873,6 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	// Prevent users from deleting their last device for clusters that require second factors.
 	const minDevices = 1
 	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
 		if knownDevices <= minDevices {
 			return nil, trace.BadParameter(
@@ -3916,7 +3915,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		// Whether we take TOTPs into consideration or not depends on whether it's
 		// enabled.
 		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+		case constants.SecondFactorOTP, constants.SecondFactorOn:
 			if sfToCount[constants.SecondFactorOTP] >= 1 {
 				return true, nil
 			}
@@ -4030,16 +4029,8 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.BadParameter("device name must be %v characters or less", mfaDeviceNameMaxLen)
 	}
 
-	cap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cap.GetSecondFactor() == constants.SecondFactorOff {
-		return nil, trace.BadParameter("second factor disabled by cluster configuration")
-	}
-
 	var dev *types.MFADevice
+	var err error
 	switch req.deviceResp.GetResponse().(type) {
 	case *proto.MFARegisterResponse_TOTP:
 		dev, err = a.registerTOTPDevice(ctx, req.deviceResp, req)

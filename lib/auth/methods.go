@@ -399,46 +399,11 @@ func (a *Server) authenticateUserInternal(
 		return nil, "", trace.AccessDenied("unsupported authentication method")
 	}
 
-	authPreference, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// When using password only make sure that auth preference does not require
-	// second factor, otherwise users could bypass it.
-	switch authPreference.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		// No 2FA required, check password only.
-	case constants.SecondFactorOptional:
-		// 2FA is optional. Make sure that a user does not have MFA devices
-		// registered.
-		devs, err := a.Services.GetMFADevices(ctx, user, false /* withSecrets */)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, "", trace.Wrap(err)
-		}
-		if len(devs) != 0 {
-			log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-			return nil, "", trace.AccessDenied("missing second factor authentication")
-		}
-	default:
-		// Some form of MFA is required but none provided. Either client is
-		// buggy (didn't send MFA response) or someone is trying to bypass
-		// MFA.
-		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-		return nil, "", trace.AccessDenied("missing second factor")
-	}
-	if err = a.WithUserLock(ctx, user, func() error {
-		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)
-	}); err != nil {
-		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
-			return nil, "", trace.Wrap(fieldErr)
-		}
-		// provide obscure message on purpose, while logging the real
-		// error server side
-		log.Debugf("User %v failed to authenticate: %v.", user, err)
-		return nil, "", trace.Wrap(authclient.InvalidUserPassError)
-	}
-	return nil, user, nil
+	// Some form of MFA is required but none provided. Either client is
+	// buggy (didn't send MFA response) or someone is trying to bypass
+	// MFA.
+	log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+	return nil, "", trace.AccessDenied("missing second factor")
 }
 
 func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.AuthenticateUserRequest) (*types.MFADevice, string, error) {

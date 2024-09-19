@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -770,14 +769,12 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		}
 
 		if !shouldReplace {
-			if os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "true" {
-				err := modules.ValidateResource(storedAuthPref)
-				if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-					return trace.Wrap(err, secondFactorUpgradeInstructions)
-				}
-				if err != nil {
-					return trace.Wrap(err)
-				}
+			err := modules.ValidateResource(storedAuthPref)
+			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
+				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			}
+			if err != nil {
+				return trace.Wrap(err)
 			}
 			return nil
 		}
