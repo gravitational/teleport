@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"log/slog"
 	"math/big"
 	"net"
 	"net/url"
@@ -31,9 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -52,7 +51,7 @@ const spiffeScheme = "spiffe"
 type WorkloadIdentityServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      WorkloadIdentityCacher
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
 	Clock      clockwork.Clock
@@ -84,11 +83,10 @@ func NewWorkloadIdentityService(
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.KeyStore == nil:
 		return nil, trace.BadParameter("keyStore is required")
+	case cfg.Logger == nil:
+		return nil, trace.BadParameter("logger is required")
 	}
 
-	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "workload-identity.service")
-	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
@@ -112,7 +110,7 @@ type WorkloadIdentityService struct {
 	cache      WorkloadIdentityCacher
 	authorizer authz.Authorizer
 	keyStorer  KeyStorer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
 	clock      clockwork.Clock
@@ -239,8 +237,8 @@ func (wis *WorkloadIdentityService) signX509SVID(
 			evt.SPIFFEID = spiffeID.String()
 		}
 		if emitErr := wis.emitter.EmitAuditEvent(ctx, evt); emitErr != nil {
-			wis.logger.WithError(emitErr).Warn(
-				"Failed to emit SPIFFE SVID issued event.",
+			wis.logger.WarnContext(
+				ctx, "Failed to emit SPIFFE SVID issued event", "error", err,
 			)
 		}
 	}()
