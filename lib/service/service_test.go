@@ -1302,12 +1302,13 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 	// Secure gRPC server.
 	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
-		limiter:     limiter,
-		conn:        testConnector,
-		listener:    secureListener,
-		accessPoint: testConnector.Client,
-		lockWatcher: proxyLockWatcher,
-		emitter:     testConnector.Client,
+		limiter:       limiter,
+		conn:          testConnector,
+		listener:      secureListener,
+		kubeProxyAddr: *utils.MustParseAddr(secureListener.Addr().String()),
+		accessPoint:   testConnector.Client,
+		lockWatcher:   proxyLockWatcher,
+		emitter:       testConnector.Client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(secureGRPC.GracefulStop)
