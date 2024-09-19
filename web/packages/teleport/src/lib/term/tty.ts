@@ -286,7 +286,7 @@ export type DbConnectData = {
   serviceName: string;
   dbName: string;
   dbUser: string;
-  dbRoles: string;
+  dbRoles: string[];
 };
 
 export default Tty;

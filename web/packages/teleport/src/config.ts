@@ -167,7 +167,7 @@ const cfg = {
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
     kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
-    dbConnect: '/web/cluster/:clusterId/console/db/connect/:name/:dbName/:dbUser/:dbRoles?',
+    dbConnect: '/web/cluster/:clusterId/console/db/connect/:name',
     dbExec: '/web/cluster/:clusterId/console/db/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
     login: '/web/login',
@@ -1284,9 +1284,6 @@ export interface UrlNotificationParams {
 export interface UrlDBConnectParams {
   clusterId: string;
   name: string;
-  dbUser: string;
-  dbRoles?: string;
-  dbName: string;
 }
 
 export default cfg;

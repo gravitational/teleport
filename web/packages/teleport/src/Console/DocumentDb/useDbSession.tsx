@@ -33,7 +33,7 @@ import type { Session, SessionMetadata, } from 'teleport/services/session';
 const tracer = trace.getTracer('TTY');
 
 export default function useDbSession(doc: DocumentDb) {
-  const { clusterId, sid, name, dbUser, dbRoles, dbName } = doc;
+  const { clusterId, sid, name } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
@@ -42,6 +42,18 @@ export default function useDbSession(doc: DocumentDb) {
 
   function closeDocument() {
     ctx.closeTab(doc);
+  }
+
+  function sendConnectData(
+    dbName: string,
+    dbUser: string,
+    dbRoles: string[],
+  ) {
+    tty.sendDbConnectData({ serviceName: name, dbUser, dbRoles, dbName })
+    ctx.updateDbDocument(doc.id, {
+      title: `${dbUser}@${name}`,
+    });
+    setStatus('initialized');
   }
 
   React.useEffect(() => {
@@ -57,11 +69,6 @@ export default function useDbSession(doc: DocumentDb) {
       context.active(),
       span => {
         const tty = ctx.createTty(session);
-
-        tty.on('open', () => {
-          console.log("=====>>> SENDING INITIAL MESSAGE?", name, dbUser, dbRoles, dbName)
-          tty.sendDbConnectData({ serviceName: name, dbUser, dbRoles, dbName })
-        });
 
         // subscribe to tty events to handle connect/disconnects events
         tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
@@ -81,7 +88,7 @@ export default function useDbSession(doc: DocumentDb) {
         // assign tty reference so it can be passed down to xterm
         ttyRef.current = tty;
         setSession(session);
-        setStatus('initialized');
+        setStatus('waiting');
         span.end();
       }
     );
@@ -98,6 +105,7 @@ export default function useDbSession(doc: DocumentDb) {
     status,
     session,
     closeDocument,
+    sendConnectData,
   };
 }
 
@@ -123,5 +131,6 @@ function handleTtyConnect(
 
 export type Status =
   | 'loading'
+  | 'waiting'
   | 'initialized'
   | 'disconnected';

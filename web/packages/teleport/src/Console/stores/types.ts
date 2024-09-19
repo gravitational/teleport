@@ -69,9 +69,8 @@ export interface DocumentDb extends DocumentBase {
   kind: 'db';
   sid?: string;
   name: string;
-  dbName: string;
-  dbUser: string;
-  dbRoles: string;
+  dbName?: string;
+  dbUser?: string;
 }
 
 export type Document =

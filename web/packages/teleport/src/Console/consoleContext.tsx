@@ -161,21 +161,16 @@ export default class ConsoleContext {
   }
 
   addDbDocument(params: UrlDBConnectParams) {
-    const title =`${params.dbUser}@${params.name}`;
     const url = this.getDbConnectUrl(params);
 
     return this.storeDocs.add({
       kind: 'db',
       status: 'disconnected',
       clusterId: params.clusterId,
-      title,
+      title: params.name,
       url,
       created: new Date(),
-
       name: params.name,
-      dbName: params.dbName,
-      dbRoles: params.dbRoles,
-      dbUser: params.dbUser,
     });
   }
 

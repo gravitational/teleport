@@ -431,7 +431,7 @@ func (h *Handler) dbConnect(
 
 		var netError net.Error
 		if errors.As(trace.Unwrap(err), &netError) && netError.Timeout() {
-			return nil, trace.BadParameter("timed out waiting for pod exec request data on websocket connection")
+			return nil, trace.BadParameter("timed out waiting for database connect request data on websocket connection")
 		}
 
 		return nil, trace.Wrap(err)
@@ -681,7 +681,7 @@ type DatabaseSessionRequest struct {
 	DatabaseUser string `json:"dbUser"`
 	// DatabaseRoles are ratabase roles that will be attached to the user when
 	// connecting to the database.
-	DatabaseRoles string `json:"dbRoles"`
+	DatabaseRoles []string `json:"dbRoles"`
 }
 
 const databaseConnectionRequestWaitTimeout = defaults.HeadlessLoginTimeout

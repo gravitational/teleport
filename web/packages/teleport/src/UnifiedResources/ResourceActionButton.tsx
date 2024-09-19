@@ -284,9 +284,6 @@ function DatabaseConnect({ database }: { database: Database }) {
           onClose={() => setOpen(false)}
           authType={authType}
           accessRequestId={accessRequestId}
-          dbNames={names}
-          dbUsers={users}
-          dbRoles={roles}
           supportsInteractive={supportsInteractive}
         />
       )}
