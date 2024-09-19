@@ -1929,7 +1929,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		return trace.AccessDenied("The requested session is not active")
 	}
 
-	if len(s.parties) == 0 {
+	sessInitiator := len(s.parties) == 0
+	if sessInitiator {
 		canStart, _, err := s.checkIfStart()
 		if err != nil {
 			return trace.Wrap(err)
@@ -1962,7 +1963,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.io.AddWriter(string(p.id), p)
 
 	// Send the participant mode and controls to the additional participant
-	if s.login != p.login {
+	if !sessInitiator {
 		err := MsgParticipantCtrls(p.ch, mode)
 		if err != nil {
 			s.log.Errorf("Could not send intro message to participant: %v", err)
@@ -2019,7 +2020,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
-	if scx.Identity.TeleportUser != s.initiator {
+	sessInitiator := len(s.parties) == 0
+	if !sessInitiator {
 		accessContext := auth.SessionAccessContext{
 			Username: scx.Identity.TeleportUser,
 			Roles:    scx.Identity.AccessChecker.Roles(),
@@ -2055,8 +2057,10 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		return trace.Wrap(err)
 	}
 
-	// Emit session join event to the Audit Log
-	s.emitSessionJoinEvent(p.ctx)
+	// Emit session join event to the audit log for additional parties
+	if !sessInitiator {
+		s.emitSessionJoinEvent(p.ctx)
+	}
 
 	return nil
 }
