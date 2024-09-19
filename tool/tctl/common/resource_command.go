@@ -3432,15 +3432,10 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 		return trace.Wrap(err)
 	}
 
-	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
 	if rc.IsForced() {
-		_, err = serviceClient.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-			Config: config,
-		})
+		_, err = client.UpsertAutoUpdateConfig(ctx, config)
 	} else {
-		_, err = serviceClient.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-			Config: config,
-		})
+		_, err = client.CreateAutoUpdateConfig(ctx, config)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3455,10 +3450,7 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
-	if _, err := serviceClient.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-		Config: config,
-	}); err != nil {
+	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_config has been updated")
@@ -3471,15 +3463,10 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 		return trace.Wrap(err)
 	}
 
-	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
 	if rc.IsForced() {
-		_, err = serviceClient.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-			Version: version,
-		})
+		_, err = client.UpsertAutoUpdateVersion(ctx, version)
 	} else {
-		_, err = serviceClient.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-			Version: version,
-		})
+		_, err = client.CreateAutoUpdateVersion(ctx, version)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3494,10 +3481,7 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
-	if _, err := serviceClient.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-		Version: version,
-	}); err != nil {
+	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")
