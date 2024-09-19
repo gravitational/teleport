@@ -794,3 +794,86 @@ func TestListReverseTunnels(t *testing.T) {
 		)
 	})
 }
+
+// TestDeleteRemoteCluster is an integration test that uses a real gRPC client/server.
+func TestDeleteReverseTunnel(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"rt-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindReverseTunnel},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+
+	unprivilegedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	rt, err := types.NewReverseTunnel("example.com", []string{"example.com:443"})
+	require.NoError(t, err)
+	rt, err = srv.Auth().UpsertReverseTunnelV2(ctx, rt)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		user                  string
+		req                   *presencev1pb.DeleteReverseTunnelRequest
+		assertError           require.ErrorAssertionFunc
+		checkResourcesDeleted bool
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteReverseTunnelRequest{
+				Name: rt.GetName(),
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.DeleteReverseTunnelRequest{
+				Name: rt.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "non existent",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteReverseTunnelRequest{
+				Name: rt.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			_, err = client.PresenceServiceClient().DeleteReverseTunnel(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.checkResourcesDeleted {
+				_, err := srv.Auth().GetReverseTunnel(ctx, tt.req.Name)
+				require.True(t, trace.IsNotFound(err), "rt should be deleted")
+			}
+		})
+	}
+}
