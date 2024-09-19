@@ -638,8 +638,8 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 	}
 }
 
-// teleport-keep can be included explicitly in the Groups slice in order to flag an
-// existing user as being managed by teleport
+// teleport-keep can be included explicitly in the Groups slice, or TakeOwnership can be set on HostUsersInfo,
+// in order to flag an existing user as being managed by teleport.
 func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	t.Parallel()
 
@@ -647,6 +647,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	users, backend := initBackend(t, allGroups)
 
 	assert.NoError(t, backend.CreateUser("alice-keep", []string{}, host.UserOpts{}))
+	assert.NoError(t, backend.CreateUser("alice-static", []string{}, host.UserOpts{}))
 	assert.NoError(t, backend.CreateUser("alice-drop", []string{}, host.UserOpts{}))
 	userinfo := services.HostUsersInfo{
 		Groups: slices.Clone(allGroups),
@@ -662,12 +663,25 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.ElementsMatch(t, allGroups[:2], backend.users["alice-keep"])
 	assert.NotContains(t, backend.users["alice-keep"], types.TeleportDropGroup)
 
+	// Take ownership of existing user when in STATIC mode
+	userinfo.Mode = services.HostUserModeStatic
+	userinfo.TakeOwnership = true
+	closer, err = users.UpsertUser("alice-static", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
+	assert.Contains(t, backend.users["alice-static"], "foo")
+	assert.Contains(t, backend.users["alice-static"], types.TeleportStaticGroup)
+	assert.NotContains(t, backend.users["alice-static"], types.TeleportKeepGroup)
+	assert.NotContains(t, backend.users["alice-static"], types.TeleportDropGroup)
+
 	// Don't take ownership of existing user when in DROP mode
 	userinfo.Mode = services.HostUserModeDrop
+	userinfo.TakeOwnership = false
 	closer, err = users.UpsertUser("alice-drop", userinfo)
 	assert.ErrorIs(t, err, unmanagedUserErr)
 	assert.Equal(t, nil, closer)
-	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.Empty(t, backend.users["alice-drop"])
 
 	// Don't assign teleport-keep to users created in DROP mode
@@ -675,7 +689,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	closer, err = users.UpsertUser("bob", userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
-	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, []string{"foo", types.TeleportDropGroup}, backend.users["bob"])
 	assert.NotContains(t, backend.users["bob"], types.TeleportKeepGroup)
 }

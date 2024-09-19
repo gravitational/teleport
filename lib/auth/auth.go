@@ -5918,7 +5918,6 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 		// If this notification state is for a notification which doesn't exist in either the non-expired global notifications map or
 		// the non-expired user notifications map, then delete it.
 		if nonExpiredGlobalNotificationsByID[id] == nil && nonExpiredUserNotificationsByID[id] == nil {
-			fmt.Printf("\n\nTHIS IS RUN\n\n")
 			select {
 			case <-notificationsDeleteLimiter.C:
 			case <-ctx.Done():
