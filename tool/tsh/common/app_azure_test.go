@@ -34,28 +34,41 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAzure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
 	user, azureRole := makeUserWithAzureRole(t)
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, azureRole))
-	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
-		Name:  "azure-api",
-		Cloud: types.CloudAzure,
-	})
+	authProcess := testserver.MakeTestServer(
+		t,
+		testserver.WithClusterName(t, "localhost"),
+		testserver.WithBootstrap(connector, user, azureRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name:  "azure-api",
+					Cloud: types.CloudAzure,
+				},
+			}
+		}),
+	)
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	proxyAddr, err := authProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
 	// helper function
