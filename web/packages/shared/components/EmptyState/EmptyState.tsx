@@ -87,7 +87,7 @@ export const Title = styled(Text)`
 `;
 
 export const Description = styled(Text)`
-  font-size: ${p => p.theme.fontSizes[1]};
+  font-size: ${p => p.theme.fontSizes[1]}px;
 `;
 
 export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
