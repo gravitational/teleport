@@ -609,6 +609,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindBot,
 							types.KindInstaller,
 							types.KindAccessMonitoringRule,
+							types.KindStaticHostUser,
 						},
 						Verbs: RW(),
 					},
