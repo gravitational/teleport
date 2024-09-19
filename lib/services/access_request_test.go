@@ -2155,6 +2155,42 @@ func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName s
 	return nil, trace.NotFound("remote cluster %q was not found", clusterName)
 }
 
+func TestValidateDuplicateRequestedResources(t *testing.T) {
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: "someCluster",
+	}
+	testRole, err := types.NewRole("testRole", types.RoleSpecV6{})
+	require.NoError(t, err)
+	g.roles[testRole.GetName()] = testRole
+	user := g.user(t, testRole.GetName())
+
+	clock := clockwork.NewFakeClock()
+	identity := tlsca.Identity{
+		Expires: clock.Now().UTC().Add(8 * time.Hour),
+	}
+
+	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
+		[]types.ResourceID{
+			{ClusterName: "someCluster", Kind: "node", Name: "resource1"},
+			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a true duplicate
+			{ClusterName: "someCluster", Kind: "app", Name: "resource1"},  // not a duplicate
+		})
+	require.NoError(t, err)
+
+	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity))
+	require.Len(t, req.GetRequestedResourceIDs(), 2)
+	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
+	require.Equal(t, "/someCluster/app/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+}
+
 func TestValidateAccessRequestClusterNames(t *testing.T) {
 	for _, tc := range []struct {
 		name               string
