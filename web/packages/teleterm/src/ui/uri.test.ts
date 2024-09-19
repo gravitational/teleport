@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Params, routing } from './uri';
+import { KubeResourceParam, Params, routing } from './uri';
 
 describe('getServerUri', () => {
   const tests: Array<
@@ -61,6 +61,41 @@ describe('getServerUri', () => {
     } else {
       expect(routing.getServerUri(input)).toEqual(output);
     }
+  });
+  /* eslint-enable jest/no-conditional-expect */
+});
+
+describe('getKubeResourceUri', () => {
+  const tests: Array<
+    { name: string; input: KubeResourceParam } & { output: string }
+  > = [
+    {
+      name: 'returns a kube resource URI for a root cluster',
+      input: {
+        rootClusterId: 'foo',
+        kubeId: 'kubeClusterName',
+        kubeResourceId: 'kubeResourceName',
+        kubeResourceKind: 'namespace',
+      },
+      output: '/clusters/foo/namespace/kubeClusterName/kubeResourceName',
+    },
+    {
+      name: 'returns a kube resource URI for a leaf cluster',
+      input: {
+        rootClusterId: 'foo',
+        leafClusterId: 'bar',
+        kubeId: 'kubeClusterName',
+        kubeResourceId: 'kubeResourceName',
+        kubeResourceKind: 'namespace',
+      },
+      output:
+        '/clusters/foo/leaves/bar/namespace/kubeClusterName/kubeResourceName',
+    },
+  ];
+
+  /* eslint-disable jest/no-conditional-expect */
+  test.each(tests)('$name', ({ input, output }) => {
+    expect(routing.getKubeResourceUri(input)).toEqual(output);
   });
   /* eslint-enable jest/no-conditional-expect */
 });

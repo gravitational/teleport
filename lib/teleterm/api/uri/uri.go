@@ -189,6 +189,14 @@ func (r ResourceURI) AppendKube(name string) ResourceURI {
 	return r
 }
 
+// AppendKubeResource appends kube resource segment to the URI.
+// Modeled after how access request constructs the resource ID:
+// <teleport-cluster-name>/<subresource kind>/<kube_cluster name>/<subresource name>
+func (r ResourceURI) AppendKubeResource(kubeResourceKind string, kubeClusterName string, kubeResourceName string) ResourceURI {
+	r.path = fmt.Sprintf("%v/%v/%v/%v", r.path, kubeResourceKind, kubeClusterName, kubeResourceName)
+	return r
+}
+
 // AppendDB appends database segment to the URI
 func (r ResourceURI) AppendDB(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/dbs/%v", r.path, name)
