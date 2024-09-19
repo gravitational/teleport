@@ -3,15 +3,22 @@ package web
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/gravitational/roundtrip"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -310,4 +317,95 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 	resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 	require.NoError(t, err)
 	require.JSONEq(t, expectedListIntegrationsResponse, string(resp.Bytes()))
+}
+
+func TestAccessGraphSettings(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+				entitlements.Policy:   {Enabled: true},
+			},
+		},
+	})
+
+	unmarshal := func(t require.TestingT, resp *roundtrip.Response) accessgraphui.AccessGraphSettings {
+		var got accessgraphui.AccessGraphSettings
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+		return got
+	}
+
+	tests := []struct {
+		name         string
+		change       bool
+		initialValue clusterconfigpb.AccessGraphSecretsScanConfig
+		want         accessgraphui.AccessGraphSettings
+	}{
+		{
+			name:         "enable secrets scan",
+			change:       true,
+			initialValue: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
+			want: accessgraphui.AccessGraphSettings{
+				EnableSecretsScan: true,
+			},
+		},
+		{
+			name:         "disable secrets scan",
+			initialValue: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
+			change:       false,
+			want: accessgraphui.AccessGraphSettings{
+				EnableSecretsScan: false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newWebSuite(t)
+			_, err := s.testAuthServer.Auth().UpsertAccessGraphSettings(s.ctx, &clusterconfigpb.AccessGraphSettings{
+				Kind:    types.KindAccessGraphSettings,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: types.MetaNameAccessGraphSettings,
+				},
+				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+					SecretsScanConfig: tt.initialValue,
+				},
+			})
+			require.NoError(t, err)
+
+			webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
+				Resources: []string{types.KindAccessGraphSettings},
+				Verbs:     []string{types.VerbRead, types.VerbUpdate},
+			}))
+			endpoint := webPack.clt.Endpoint("enterprise", "accessgraphsettings")
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
+				assert.NoError(t, err)
+
+				got := unmarshal(t, resp)
+				expectedValue := tt.initialValue == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+				assert.Equal(t, expectedValue, got.EnableSecretsScan)
+			}, 5*time.Second, 1*time.Second)
+
+			resp, err := webPack.clt.PostJSON(s.ctx, endpoint, accessgraphui.AccessGraphSettings{
+				EnableSecretsScan: tt.change,
+			})
+			require.NoError(t, err)
+
+			got := unmarshal(t, resp)
+			require.Equal(t, tt.want, got)
+
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+				assert.NoError(t, err)
+
+				got = unmarshal(t, resp)
+				assert.Equal(t, tt.want, got)
+
+			}, 5*time.Second, 1*time.Second)
+		})
+	}
 }

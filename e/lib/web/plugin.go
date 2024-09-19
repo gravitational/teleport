@@ -395,6 +395,8 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	// Access graph
 	h.GET("/enterprise/accessgraph/*path", p.accessGraphHandler(h))
+	h.GET("/enterprise/accessgraphsettings", h.WithAuth(p.getAccessGraphSettings))
+	h.POST("/enterprise/accessgraphsettings", h.WithAuth(p.updateAccessGraphSettings))
 
 	h.GET(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())
 	h.POST(fmt.Sprintf("%s/*unused", samlidp.IdPRoute), p.withSAMLAuth())

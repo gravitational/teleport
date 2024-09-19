@@ -16,8 +16,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	accessgraphui "github.com/gravitational/teleport/e/lib/web/ui/access_graph"
@@ -379,4 +381,68 @@ func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) (
 
 	}
 	return allPlugins, nil
+}
+
+// getAccessGraphSettings is the handler for GET /v1/enterprise/accessgraphsettings.
+func (p *Plugin) getAccessGraphSettings(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessGraphSettings, err := clt.ClusterConfigClient().
+		GetAccessGraphSettings(
+			r.Context(),
+			&clusterconfigpb.GetAccessGraphSettingsRequest{},
+		)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings), nil
+}
+
+// updateAccessGraphSettings is the handler for POST /v1/enterprise/accessgraphsettings.
+func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req accessgraphui.AccessGraphSettings
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterConfigClient := clt.ClusterConfigClient()
+
+	getAccessGraphSettings := func() (*clusterconfigpb.AccessGraphSettings, error) {
+		// Remove the MFA resp from the context before getting the access list.
+		// Otherwise, it will be consumed before the Upsert which actually
+		// requires the MFA.
+		// TODO(Joerger): Explicitly provide MFA response only where it is
+		// needed instead of removing it like this.
+		accessGraphSettings, err := clusterConfigClient.
+			GetAccessGraphSettings(
+				mfa.ContextWithMFAResponse(r.Context(), nil),
+				&clusterconfigpb.GetAccessGraphSettingsRequest{},
+			)
+		return accessGraphSettings, trace.Wrap(err)
+	}
+
+	accessGraphSettings, err := getAccessGraphSettings()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessGraphSettings, err = clusterConfigClient.UpdateAccessGraphSettings(
+		r.Context(),
+		&clusterconfigpb.UpdateAccessGraphSettingsRequest{
+			AccessGraphSettings: req.UpdateProto(accessGraphSettings),
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessgraphui.FromProtoAccessGraphSettings(accessGraphSettings), nil
 }
