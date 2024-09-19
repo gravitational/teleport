@@ -4902,16 +4902,16 @@ func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClien
 }
 
 // UpdateRemoteCluster updates remote cluster from the specified value.
-// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
-// on the presence service client.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	rcV3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
 	}
 
-	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
-	return trace.Wrap(err)
+	res, err := c.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
+		RemoteCluster: rcV3,
+	})
+	return res, trace.Wrap(err)
 }
 
 // ListRemoteClusters returns a page of remote clusters.
@@ -4944,4 +4944,22 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 		Name: name,
 	})
 	return rc, trace.Wrap(err)
+}
+
+// GetRemoteClusters returns all remote clusters.
+// Deprecated: use ListRemoteClusters instead.
+func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	var rcs []types.RemoteCluster
+	pageToken := ""
+	for {
+		page, nextToken, err := c.ListRemoteClusters(ctx, 0, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rcs = append(rcs, page...)
+		if nextToken == "" {
+			return rcs, nil
+		}
+		pageToken = nextToken
+	}
 }

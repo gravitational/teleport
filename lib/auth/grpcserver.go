@@ -1016,7 +1016,7 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAccessRequestClusterNames(auth, req); err != nil {
+	if err := services.ValidateAccessRequestClusterNames(g.AuthServer, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2038,17 +2038,6 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
-	return &emptypb.Empty{}, nil
-}
-
-// UpdateRemoteCluster updates remote cluster
-// Deprecated: use [presencev1.PresenceService.UpdateRemoteCluster] instead.
-// TODO(noah): DELETE IN 17.0.0
-func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
-	_, err := g.presenceService.UpdateRemoteCluster(ctx, &presencev1pb.UpdateRemoteClusterRequest{RemoteCluster: req})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &emptypb.Empty{}, nil
 }
 
