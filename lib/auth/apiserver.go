@@ -728,7 +728,13 @@ func (s *APIServer) getSessionChunk(auth *ServerWithRoles, w http.ResponseWriter
 	if err != nil || offsetBytes < 0 {
 		offsetBytes = 0
 	}
-	log.Debugf("apiserver.GetSessionChunk(%v, %v, offset=%d)", namespace, *sid, offsetBytes)
+	s.AuthServer.logger.DebugContext(
+		r.Context(), "apiserver.GetSessionChunk called",
+		"namespace", namespace,
+		"sid", sid,
+		"offset", offsetBytes,
+	)
+
 	w.Header().Set("Content-Type", "text/plain")
 
 	buffer, err := auth.GetSessionChunk(namespace, *sid, offsetBytes, max)
