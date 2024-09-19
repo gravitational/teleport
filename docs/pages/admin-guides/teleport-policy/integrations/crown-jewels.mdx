@@ -65,8 +65,15 @@ kind: role
 metadata:
   name: crown-jewels-admin
 spec:
-  resources:
-  - kind: crown-jewel
-    name: '*'
-    action: ['create', 'read', 'update', 'delete']
+  allow:
+    rules:
+    - resources:
+      - crown_jewel
+      verbs:
+      - list
+      - read
+      - create
+      - delete
+      - update
+version: v7
 ```
