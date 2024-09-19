@@ -40,11 +40,15 @@ webhook run by the plugin, which modifies the Access Request in Teleport.
     environment must support services of this type.
 
 - A means of providing TLS credentials for the Jira webhook run by the plugin.
+  **TLS certificates must not be self signed.** For example, you can obtain TLS
+  credentials for the webhook with Let's Encrypt by using an [ACME
+  client](https://letsencrypt.org/docs/client-options/).
 
   - If you run the plugin on a Linux server, you must provide TLS credentials to
     a directory available to the plugin. 
   - If you run the plugin on Kubernetes, you must write these credentials to a
-    secret that the plugin can read.
+    secret that the plugin can read. This guide assumes that the name of the
+    secret is `teleport-plugin-jira-tls`.
 
 - (!docs/pages/includes/tctl.mdx!)
 
@@ -272,9 +276,9 @@ earlier in the guide, you can leave this option unset.
 added to the DNS A record you created earlier.
 
 **https_key_file** and **https_cert_file** correspond to the private key and
-certificate you generated earlier via Caddy. Use the following values, assigning
-<Var name="example.com" /> to the domain name you created for the plugin
-earlier:
+certificate you obtained before following this guide. Use the following values,
+assigning <Var name="example.com" /> to the domain name you created for the
+plugin earlier:
 
 - **https_key_file:** 
 
@@ -314,8 +318,7 @@ you created for your webhook. (We will create a DNS record for this domain name
 later.)
 
 **tlsFromSecret:** The name of a Kubernetes secret containing TLS credentials
-for the webhook. Use `teleport-plugin-jira-tls`. We will create a `Certificate`
-resource later that populates this secret with TLS credentials.
+for the webhook. Use `teleport-plugin-jira-tls`.
 
 </TabItem>
 </Tabs>
