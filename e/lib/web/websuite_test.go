@@ -7,6 +7,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -22,7 +23,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -332,7 +332,7 @@ func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) authcli
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{utils.FromAddr(s.testAuthServer.TLS.Addr())},
-		Log:                  logrus.StandardLogger(),
+		Log:                  slog.Default(),
 		CircuitBreakerConfig: breaker.Config{},
 	}
 

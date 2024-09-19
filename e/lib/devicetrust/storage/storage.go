@@ -1315,10 +1315,10 @@ func (s *S) EnrollDevice(
 		completeEnrollFn = func() error {
 			return backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:       s.backend,
-					LockName:      "devicesEnrollLock",
-					TTL:           5 * time.Second,
-					RetryInterval: 100 * time.Millisecond,
+					Backend:            s.backend,
+					LockNameComponents: []string{"devicesEnrollLock"},
+					TTL:                5 * time.Second,
+					RetryInterval:      100 * time.Millisecond,
 				},
 			}, func(ctx context.Context) error {
 				if err := s.VerifyEnrolledDevicesLimit(ctx); err != nil {

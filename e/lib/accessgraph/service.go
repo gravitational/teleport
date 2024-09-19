@@ -251,10 +251,10 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 					ctx,
 					backend.RunWhileLockedConfig{
 						LockConfiguration: backend.LockConfiguration{
-							LockName:      "accessGraphCASync",
-							Backend:       bk,
-							TTL:           5 * time.Minute,
-							RetryInterval: time.Minute,
+							LockNameComponents: []string{"accessGraphCASync"},
+							Backend:            bk,
+							TTL:                5 * time.Minute,
+							RetryInterval:      time.Minute,
 						},
 						ReleaseCtxTimeout:   10 * time.Second,
 						RefreshLockInterval: time.Minute,

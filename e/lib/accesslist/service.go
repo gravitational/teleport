@@ -1942,10 +1942,10 @@ func (s *Service) runAccessListIneligibleReconciler(ctx context.Context) error {
 			ctx,
 			backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					LockName:      accessListIneligibleReconciler,
-					Backend:       s.backend,
-					TTL:           60 * time.Second,
-					RetryInterval: 30 * time.Second,
+					LockNameComponents: []string{accessListIneligibleReconciler},
+					Backend:            s.backend,
+					TTL:                60 * time.Second,
+					RetryInterval:      30 * time.Second,
 				},
 				ReleaseCtxTimeout:   60 * time.Second,
 				RefreshLockInterval: 30 * time.Second,

@@ -237,10 +237,10 @@ func (s *Service) Init(ctx context.Context) error {
 func (s *Service) initPrebuiltReports(ctx context.Context) error {
 	err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 		LockConfiguration: backend.LockConfiguration{
-			Backend:       s.backend,
-			LockName:      "security_report_init_prebuilt_lock",
-			TTL:           time.Second * 30,
-			RetryInterval: time.Millisecond * 200,
+			Backend:            s.backend,
+			LockNameComponents: []string{"security_report_init_prebuilt_lock"},
+			TTL:                time.Second * 30,
+			RetryInterval:      time.Millisecond * 200,
 		},
 	}, func(ctx context.Context) error {
 		for _, report := range reports.PrebuiltReports {
@@ -442,10 +442,10 @@ func (s *Service) runPredictablyOnSingleAuth(ctx context.Context, call func(cont
 			s.log.Debug("Acquiring auth lock for reports scheduler.")
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:       s.backend,
-					LockName:      lockName,
-					TTL:           time.Hour,
-					RetryInterval: time.Minute,
+					Backend:            s.backend,
+					LockNameComponents: []string{lockName},
+					TTL:                time.Hour,
+					RetryInterval:      time.Minute,
 				},
 			}, func(ctx context.Context) error {
 				if err := call(ctx); err != nil {

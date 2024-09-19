@@ -55,10 +55,10 @@ func initializeAndWatchAccessGraph(ctx context.Context, log *slog.Logger, config
 		ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				LockName:      "accessGraphClient",
-				Backend:       bk,
-				TTL:           10 * time.Second,
-				RetryInterval: 5 * time.Second,
+				LockNameComponents: []string{"accessGraphClient"},
+				Backend:            bk,
+				TTL:                10 * time.Second,
+				RetryInterval:      5 * time.Second,
 			},
 			ReleaseCtxTimeout:   5 * time.Second,
 			RefreshLockInterval: 1 * time.Second,
