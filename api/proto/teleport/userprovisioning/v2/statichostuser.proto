@@ -55,6 +55,8 @@ message Matcher {
   int64 gid = 6;
   // default_shell is the new user's default shell
   string default_shell = 7;
+  // take_ownership_if_user_exists will take ownership of existing, unmanaged users
+  bool take_ownership_if_user_exists = 8;
 }
 
 // StaticHostUserSpec is the static host user spec.
