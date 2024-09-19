@@ -36,6 +36,10 @@ const (
 	// AWS SignedHeaders will always be lowercase
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html#sigv4-auth-header-overview
 	challengeHeaderKey = "x-teleport-challenge"
+	// usEast1Region is the fallback region that is used for AWS STS
+	// requests when a FIPS endpoint is to be used but the local region
+	// doesn't have a FIPS endpoint.
+	usEast1Region = "us-east-1"
 )
 
 type stsIdentityRequestConfig struct {
@@ -95,6 +99,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 	}
 
 	stsClient := sts.New(sess)
+	var stsRegion string
 
 	if slices.Contains(GlobalSTSEndpoints(), strings.TrimPrefix(stsClient.Endpoint, "https://")) {
 		// If the caller wants to use the regional endpoint but it was not resolved
@@ -104,7 +109,7 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 			if err != nil {
 				return nil, trace.Wrap(err, "failed to resolve local AWS region from environment or IMDS")
 			}
-			stsClient = sts.New(sess, awssdk.NewConfig().WithRegion(region))
+			stsRegion = region
 		} else {
 			const msg = "Attempting to use the global STS endpoint for the IAM join method. " +
 				"This will probably fail in non-default AWS partitions such as China or GovCloud, or if FIPS mode is enabled. " +
@@ -124,7 +129,22 @@ func newSTSClient(ctx context.Context, cfg *stsIdentityRequestConfig) (*sts.STS,
 		const msg = "AWS SDK resolved invalid FIPS STS endpoint. " +
 			"Attempting to use the FIPS STS endpoint for us-east-1."
 		slog.InfoContext(ctx, msg, "resolved", stsClient.Endpoint)
-		stsClient = sts.New(sess, awssdk.NewConfig().WithRegion("us-east-1"))
+		stsRegion = usEast1Region
+	}
+
+	// If the region was changed above, rebuild the client with a new
+	// session. This is necessary because the config in the session takes
+	// priority over configs passed to sts.New.
+	if stsRegion != "" {
+		awsConfig.Region = awssdk.String(stsRegion)
+		sess, err = session.NewSessionWithOptions(session.Options{
+			SharedConfigState: session.SharedConfigEnable,
+			Config:            awsConfig,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		stsClient = sts.New(sess)
 	}
 
 	return stsClient, nil
