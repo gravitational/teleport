@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -298,6 +299,12 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
@@ -1138,6 +1145,12 @@ type Cache interface {
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
+
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
+	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
+
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
+	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
 type NodeWrapper struct {

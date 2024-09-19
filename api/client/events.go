@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -55,6 +56,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *kubewaitingcontainerpb.KubernetesWaitingContainer:
 			out.Resource = &proto.Event_KubernetesWaitingContainer{
 				KubernetesWaitingContainer: r,
+			}
+		case *autoupdate.AutoUpdateConfig:
+			out.Resource = &proto.Event_AutoUpdateConfig{
+				AutoUpdateConfig: r,
+			}
+		case *autoupdate.AutoUpdateVersion:
+			out.Resource = &proto.Event_AutoUpdateVersion{
+				AutoUpdateVersion: r,
 			}
 		}
 	case *types.ResourceHeader:
@@ -468,6 +477,12 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		}
 		return &out, nil
 	} else if r := in.GetKubernetesWaitingContainer(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateConfig(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetAutoUpdateVersion(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {
