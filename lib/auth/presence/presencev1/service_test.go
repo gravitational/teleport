@@ -795,7 +795,7 @@ func TestListReverseTunnels(t *testing.T) {
 	})
 }
 
-// TestDeleteRemoteCluster is an integration test that uses a real gRPC client/server.
+// TestDeleteReverseTunnel is an integration test that uses a real gRPC client/server.
 func TestDeleteReverseTunnel(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -812,7 +812,6 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			},
 		})
 	require.NoError(t, err)
-
 	unprivilegedUser, _, err := auth.CreateUserAndRole(
 		srv.Auth(),
 		"no-perms",
@@ -876,4 +875,103 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpsertReverseTunnel(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"rt-upserter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindReverseTunnel},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	unprivilegedUser, _, err := auth.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+
+	rt, err := types.NewReverseTunnel("example.com", []string{"example.com:443"})
+	require.NoError(t, err)
+
+	invalid, err := types.NewReverseTunnel("example.com", []string{"!!://///example.com:44/./3!!!"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		user        string
+		req         *presencev1pb.UpsertReverseTunnelRequest
+		assertError require.ErrorAssertionFunc
+		want        *types.ReverseTunnelV2
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.UpsertReverseTunnelRequest{
+				ReverseTunnel: rt.(*types.ReverseTunnelV2),
+			},
+			assertError: require.NoError,
+			want:        rt.(*types.ReverseTunnelV2),
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.UpsertReverseTunnelRequest{
+				ReverseTunnel: rt.(*types.ReverseTunnelV2),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "no value",
+			user: user.GetName(),
+			req: &presencev1pb.UpsertReverseTunnelRequest{
+				ReverseTunnel: nil,
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation - invalid",
+			user: user.GetName(),
+			req: &presencev1pb.UpsertReverseTunnelRequest{
+				ReverseTunnel: invalid.(*types.ReverseTunnelV2),
+			},
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "failed to parse")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(auth.TestUser(tt.user))
+			require.NoError(t, err)
+
+			got, err := client.PresenceServiceClient().UpsertReverseTunnel(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.want != nil {
+				// Check that the returned rt matches
+				require.Empty(
+					t,
+					cmp.Diff(
+						tt.want,
+						got,
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					),
+				)
+			}
+		})
+	}
+
 }
