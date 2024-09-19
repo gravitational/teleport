@@ -262,24 +262,7 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 }
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
-			SSHLogin:    sshLogin,
-			ConnectorID: providerName,
-			Protocol:    providerType,
-			BindAddr:    c.clusterClient.BindAddr,
-			Browser:     c.clusterClient.Browser,
-		}, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return response, nil
-	}
+	return c.clusterClient.SSOLoginFn(providerName, providerName, providerType)
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {

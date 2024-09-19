@@ -3540,19 +3540,13 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 		}
 	case constants.OIDC:
 		oidc := pr.Auth.OIDC
-		return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, keyRing, oidc.Name, oidc.Display, constants.OIDC)
-		}, nil
+		return tc.SSOLoginFn(oidc.Name, oidc.Display, constants.OIDC), nil
 	case constants.SAML:
 		saml := pr.Auth.SAML
-		return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, keyRing, saml.Name, saml.Display, constants.SAML)
-		}, nil
+		return tc.SSOLoginFn(saml.Name, saml.Display, constants.SAML), nil
 	case constants.Github:
 		github := pr.Auth.Github
-		return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, keyRing, github.Name, github.Display, constants.Github)
-		}, nil
+		return tc.SSOLoginFn(github.Name, github.Display, constants.Github), nil
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
@@ -4079,41 +4073,45 @@ func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
 	}
 }
 
-// samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, keyRing *KeyRing, connectorID, connectorName, protocol string) (*authclient.SSHLoginResponse, error) {
-	if tc.MockSSOLogin != nil {
-		// sso login response is being mocked for testing purposes
-		return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
-	}
+// SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
+// for the user to authenticate through SSO. On completion they will be redirected to a success
+// page and the resulting login session will be captured and returned.
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+		if tc.MockSSOLogin != nil {
+			// sso login response is being mocked for testing purposes
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
+		}
 
-	sshLogin, err := tc.NewSSHLogin(keyRing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		sshLogin, err := tc.NewSSHLogin(keyRing)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	pr, err := tc.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxyVersion := semver.New(pr.ServerVersion)
+		pr, err := tc.Ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		proxyVersion := semver.New(pr.ServerVersion)
 
-	if protocol == constants.SAML && pr.Auth.SAML != nil {
-		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
-	}
+		if protocol == constants.SAML && pr.Auth.SAML != nil {
+			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+		}
 
-	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:                      sshLogin,
-		ConnectorID:                   connectorID,
-		ConnectorName:                 connectorName,
-		Protocol:                      protocol,
-		BindAddr:                      tc.BindAddr,
-		CallbackAddr:                  tc.CallbackAddr,
-		Browser:                       tc.Browser,
-		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-	}, nil)
-	return response, trace.Wrap(err)
+		// ask the CA (via proxy) to sign our public key:
+		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
+			SSHLogin:                      sshLogin,
+			ConnectorID:                   connectorID,
+			ConnectorName:                 connectorName,
+			Protocol:                      protocol,
+			BindAddr:                      tc.BindAddr,
+			CallbackAddr:                  tc.CallbackAddr,
+			Browser:                       tc.Browser,
+			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
+		}, nil)
+		return response, trace.Wrap(err)
+	}
 }
 
 func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
