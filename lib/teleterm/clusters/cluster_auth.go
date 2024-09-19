@@ -223,21 +223,13 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-				TLSPubKey:         tlsPub,
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin:  sshLogin,
 			User:      user,
 			Password:  password,
 			PromptMFA: c.clusterClient.NewMFAPrompt(),
@@ -251,20 +243,13 @@ func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
 
 func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		response, err := client.SSHAgentLogin(ctx, client.SSHLoginDirect{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-				TLSPubKey:         tlsPub,
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin: sshLogin,
 			User:     user,
 			Password: password,
 			OTPToken: otpToken,
@@ -278,20 +263,13 @@ func (c *Cluster) localLogin(user, password, otpToken string) client.SSHLoginFun
 
 func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		response, err := client.SSHAgentSSOLogin(ctx, client.SSHLoginSSO{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-				TLSPubKey:         tlsPub,
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin:    sshLogin,
 			ConnectorID: providerName,
 			Protocol:    providerType,
 			BindAddr:    c.clusterClient.BindAddr,
@@ -306,21 +284,13 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
 	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
-		tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
-			SSHLogin: client.SSHLogin{
-				ProxyAddr:         c.clusterClient.WebProxyAddr,
-				SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-				TLSPubKey:         tlsPub,
-				TTL:               c.clusterClient.KeyTTL,
-				Insecure:          c.clusterClient.InsecureSkipVerify,
-				Compatibility:     c.clusterClient.CertificateFormat,
-				RouteToCluster:    c.clusterClient.SiteName,
-				KubernetesCluster: c.clusterClient.KubernetesCluster,
-			},
+			SSHLogin:                sshLogin,
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
 			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
 			WebauthnLogin:           c.clusterClient.WebauthnLogin,

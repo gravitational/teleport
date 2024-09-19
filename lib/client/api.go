@@ -3606,7 +3606,7 @@ func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, keyRing *KeyRing)
 		user = tc.Username
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3654,7 +3654,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 		}
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3676,7 +3676,7 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3875,7 +3875,7 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 }
 
 // new SSHLogin generates a new SSHLogin using the given login KeyRing.
-func (tc *TeleportClient) newSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
+func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
 	if err != nil {
 		return SSHLogin{}, trace.Wrap(err)
@@ -3911,7 +3911,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 		user = tc.Username
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3977,7 +3977,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 		}
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4007,7 +4007,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (
 		return nil, trace.Wrap(err)
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4086,7 +4086,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, keyRing *KeyRing, connec
 		return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
 	}
 
-	sshLogin, err := tc.newSSHLogin(keyRing)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
