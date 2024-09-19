@@ -7,7 +7,8 @@ state: draft
 
 # Required Approvers
 
-- Engineering: @r0mant (roman) && @tigrato (tiago)
+- Engineering: @r0mant && @tigrato
+- Product: @klizhentas || @xinding33
 
 # What
 
@@ -40,15 +41,15 @@ If a request came in for a subresource `namespace` for a `kube_cluster` instead,
 
 The reviewer is more likely to understand what access is being granted.
 
-This RFD proposes a new request option that will enforce users to request for Kubernetes subresources instead.
+This RFD proposes a new role request option that will enforce users to request for Kubernetes subresources instead.
 
 # User Scenarios
 
 Listing use cases from most permissive to most restrictive:
 
-## As an admin, I don't care what kind of kubernetes resources a user requests
+## As an admin, I don't care what kind of Kubernetes resources a user requests
 
-As a requester, this means I can request for any supported kubernetes resources (`kube_cluster` and its subresources).
+As a requester, this means I can request for any supported Kubernetes resources (`kube_cluster` and its subresources).
 
 This will be the default behavior if no request options are specified. This will also be the default behavior of existing roles unless modified.
 
@@ -78,69 +79,68 @@ spec:
 
 Requesting for namespace not in this list is denied.
 
-## As an admin, I want to limit Kubernetes resource requesting to pods and namespaces only
+## As an admin, I want to limit namespaces using role templates and traits
 
-Currently, users can request any of [these supported Kubernetes subresources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
-
-Admins can specify in a role, a request Kubernetes allow list that limits request to just `pod` and `namespace` kind:
+Trait interpolation will be supported in [v17](https://github.com/gravitational/teleport/pull/45277) for `kubernetes_resources` field:
 
 ```yaml
-kind: role
+kind: user
 metadata:
-  name: requester
+  name: lisa@goteleport.com
 spec:
-  allow:
-    request:
-      # Only allows requesting for kube_cluster's pod and namespace resource
-      kubernetes:
-        allow: ['pod', 'namespace']
-```
+  created_by:
+    connector:
+      id: okta-integration
+  roles:
+  - requester
+  # Attributes from Okta
+  traits:
+    searchable_kube_namespaces:
+    - pumpkin-*
 
-User requesting any other Kubernetes kind will get denied.
+----
 
-## As an admin, I want to require users to only request namespaces
-
-Admins can specify in a role, a request Kubernetes allow list that only defines `namespace`.
-
-```yaml
-kind: role
-metadata:
-  name: requester
-spec:
-  allow:
-    request:
-      # Only allows requesting for kube_cluster's namespace resources
-      kubernetes:
-        allow: ['namespace']
-```
-
-## As an admin, I want to require users to specify a namespace from select few namespaces
-
-Admin's can combine the use of request kuberenetes allow list and `kubernetes_resources` field to customize what users can request to:
-
-```yaml
 kind: role
 metadata:
   name: kube-access-request
 spec:
   allow:
-    request:
-      # Only allows requesting for kube_cluster's namespace resources
-      kubernetes:
-        allow: ['namespace']
-    # Only lists namespaces starting with "pumpkin-" prefixes
     kubernetes_resources:
+      # Only lists namespaces starting with "pumpkin-" prefixes
       - kind: namespace
-        name: pumpkin-*
+        # Inserts user's trait value
+        name: '{{external.searchable_kube_namespaces}}'
         verbs:
           - list
+    kubernetes_groups:
+      - '{{internal.kubernetes_groups}}'
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_users:
+      - '{{internal.kubernetes_users}}'
+```
+
+## As an admin, I want to require users to request for Kubernetes subresources instead of the whole Kubernetes cluster
+
+Admins can specify in a role, a Kubernetes request mode option that requires users to select [Kubernetes subresources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
+
+```yaml
+kind: role
+metadata:
+  name: requester
+spec:
+  allow:
+    request:
+      # Disables requesting whole Kubernetes cluster
+      kubernetes:
+        request_mode: 'resource'
 ```
 
 # Details
 
 ## New request field for role spec
 
-We will introduce a new role option under the `request` field `kuberenetes.allow` that holds a list of supported [Kubernetes resource kinds](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
+We will introduce a new role option under the `request` field `kubernetes.request_mode`:
 
 ```yaml
 kind: role
@@ -150,39 +150,38 @@ spec:
   allow:
     request:
       kubernetes:
-        allow: <list of supported Kubernetes resource strings>
+        request_mode: cluster | resource | both
 ```
 
-This allow list will be validated upon role create or update, to only allow `kube_cluster` or [its subresources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233).
+| Request Modes |                             Explanation                             |
+| ------------- | :-----------------------------------------------------------------: |
+| cluster       |     requires users to request for the whole Kubernetes cluster      |
+| resource      |        requires users to request for Kubernetes subresources        |
+| both          | users can request for either Kubernetes cluster or its subresources |
 
-If this field is not defined, that means any Kubernetes resource can be requested (which is how it works today).
+The request_mode will be validated for expected value upon role create or update.
 
-If defined, it limits users to what kind of Kubernetes resources they can request.
-
-This is particularly useful for the web UI. We can pre-fetch the request options (as a [dry run](https://github.com/gravitational/teleport/blob/fd6cc06ea7e766c5d0ab7d113a5ecd04114aca34/api/types/access_request.go#L129)), and render only the options that is defined in the allow list.
+If `request_mode` field is not defined, that means any Kubernetes resource can be requested.
 
 ## Validation
 
-During the request creation flow is where we will validate/enforce the requestable kind.
+During the request creation flow is where we will validate/enforce the `kubernetes.request_mode`.
 
-1. We will determine if requested `kind` is among the list of supported Kubernetes resources, similarly done [here](https://github.com/gravitational/teleport/blob/3310dfcba358e761c8be42fcb62b4ed27e43737d/api/types/resource_ids.go#L28)
-1. We will determine if the requested kind is in the `request.kubernetes.allow` list (gathered from all the static roles assigned to user, similar to how we get a list of [suggested reviewers](https://github.com/gravitational/teleport/blob/3310dfcba358e761c8be42fcb62b4ed27e43737d/lib/services/access_request.go#L1191)).
-1. Allow creation if request meets request specs, otherwise reject creation with error message: `Your role does not allow requesting for Kubernetes resource "<kind>". Allowed Kubernetes resources: [list of kinds].`
+1. We will determine if requested `kind` is allowed:
+   - request mode `cluster`: will only accept request kind `kube_cluster`
+   - request mode `resource`: will only accept supported Kubernetes resource kinds, check similarly done [here](https://github.com/gravitational/teleport/blob/3310dfcba358e761c8be42fcb62b4ed27e43737d/api/types/resource_ids.go#L28)
+1. Allow creation if request meets request specs, otherwise reject creation with error message: `Your role requires you to request for Kubernetes <cluster | subresources (eg: namespace, pods)>`
 
 ## New proto field in AccessRequestSpecV3
 
-The web UI currently does `dry runs` of access request to get info like `max duration`, `suggested reviewers`, `requestable roles`, etc, that determines what to render for the user. The dry run response will also need to include a field to hold `allowed Kubernetes kind` to determine what Kubernetes options to render for the user:
+The web UI currently does `dry runs` of access request to get info like `max duration`, `suggested reviewers`, `requestable roles`, etc, that determines what to render for the user. The dry run response will also need to include a field to hold `kubernetes.request.mode` to determine what Kubernetes options to render for the user:
 
 In the [AccessRequestSpecV3](https://github.com/gravitational/teleport/blob/fd6cc06ea7e766c5d0ab7d113a5ecd04114aca34/api/proto/teleport/legacy/types/types.proto#L2462) proto type, we will add another field:
 
 ```proto
-message AccessRequestRequestableKinds {
-    string kubernetes = 1;
-}
-
 message AccessRequestSpecV3 {
     ...other existing fields
-    AccessRequestRequestableKinds requestable_kinds = 22;
+    string kubernetes_request_mode = 22;
 }
 ```
 
@@ -192,34 +191,14 @@ This field will only be set during dry runs.
 
 The web UI currently only supports requesting for kind `kube_cluster`. With this RFD implementation, we will add support for selecting `namespaces` as well. See [figma design](https://www.figma.com/design/CzxaBHF8hirrYv2bTVa4Rw/Identity?node-id=2220-50559&node-type=frame&t=sPqQkrRd0mRRXlzO-0) for namespace selecting.
 
-These are the current states the web UI can take regarding Kubernetes resources depending on `request.kubernetes.allow` list:
+These are the current states the web UI can take regarding Kubernetes resources depending on `kubernetes.request_mode` list:
 
-- if list is empty, the UI will render whatever UI options we support, which is currently just allowing user to either select `kube_cluster` or `namespace`
-- if list contains only `kube_cluster`, the UI will not render options for selecting namespaces
-- if list contains only `namespace`, the UI will prevent user from clicking `submit` button until user has selected at least one namespace for the selected `kube_cluster`
-- if list contains kinds not supported by the web UI, the UI will prevent user from clicking `submit` button, with a disabled message `Your role requires requesting Kubernetes resource <kind>'s, but the web UI does not support this request yet. Use "tsh request create --resource /<teleport-cluster-name>/<subresource kind>/<kube-cluster-name>/<subresource-name>" instead`
+- if request mode is `both` or empty, the UI will render whatever UI options we support, which is currently just allowing user to either select `kube_cluster` or `namespace`
+- if request mode is `cluster`, the UI will not render options for selecting subresources (namespace)
+- if request mode is `resource`, the UI will prevent user from clicking `submit` button until user has selected at least one subresource (namespace) for the selected `kube_cluster`
 
 ## CLI
 
 tsh already has support for requesting [all these resources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1201).
 
 There is nothing to add to the CLI, we will just let it error out upon request creation validation.
-
-# Alternative
-
-We could make everything simpler, if instead of an `allow list`, we use a `boolean` instead, so something like:
-
-```yaml
-kind: role
-metadata:
-  name: kube-access-request
-spec:
-  allow:
-    request:
-      kubernetes:
-        force_subresource_request: true
-```
-
-This means, when true, users are not allowed to just request for a `kube_cluster`, but choose which [subresources](https://github.com/gravitational/teleport/blob/110b23aefb3c4b91c9d8cca594041b93f0e078dd/api/types/constants.go#L1233) to request.
-
-This also simplifies the web UI where we just render all the subresource options the web UI supports at the moment.
