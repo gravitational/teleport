@@ -178,6 +178,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindUserTask:
+			parser = newUserTaskParser()
 		case types.KindDiscoveryConfig:
 			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
@@ -1691,6 +1693,34 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserTaskParser() *userTaskParser {
+	return &userTaskParser{
+		baseParser: newBaseParser(backend.NewKey(userTasksKey)),
+	}
+}
+
+type userTaskParser struct {
+	baseParser
+}
+
+func (p *userTaskParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserTask, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalUserTask(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
