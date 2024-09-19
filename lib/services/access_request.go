@@ -75,6 +75,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
+	// TODO: consider enforcing a maximum number of requested resources in a single request
 	return nil
 }
 
@@ -1106,11 +1107,23 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
+	// deduplicate requested resource IDs
+	var deduplicated []types.ResourceID
+	seen := make(map[string]struct{})
+	for _, resource := range req.GetRequestedResourceIDs() {
+		id := types.ResourceIDToString(resource)
+		if _, isDuplicate := seen[id]; isDuplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduplicated = append(deduplicated, resource)
+	}
+	req.SetRequestedResourceIDs(deduplicated)
+
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.
 	if r := req.GetRoles(); len(r) == 1 && r[0] == types.Wildcard {
-
 		if !req.GetState().IsPending() {
 			// expansion is only permitted in pending requests.  once resolved,
 			// a request's role list must be immutable.
