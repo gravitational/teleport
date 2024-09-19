@@ -86,6 +86,10 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *CORSPolicy
+	// GetPorts returns port ranges supported by the app to which connections can be forwarded to.
+	GetPorts() []*PortRange
+	// SetPorts sets port ranges to which connections can be forwarded to.
+	SetPorts([]*PortRange)
 }
 
 // NewAppV3 creates a new app resource.
@@ -304,6 +308,16 @@ func (a *AppV3) GetUserGroups() []string {
 // SetUserGroups will set the list of user group IDs associated with the application.
 func (a *AppV3) SetUserGroups(userGroups []string) {
 	a.Spec.UserGroups = userGroups
+}
+
+// GetPorts returns port ranges supported by the app to which connections can be forwarded to.
+func (a *AppV3) GetPorts() []*PortRange {
+	return a.Spec.Ports
+}
+
+// SetPorts sets port ranges to which connections can be forwarded to.
+func (a *AppV3) SetPorts(ports []*PortRange) {
+	a.Spec.Ports = ports
 }
 
 // GetIntegration will return the Integration.
