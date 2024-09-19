@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -43,6 +44,10 @@ func TestString(t *testing.T) {
 		{
 			uri.NewClusterURI("teleport.sh").AppendDB("dbhost1"),
 			"/clusters/teleport.sh/dbs/dbhost1",
+		},
+		{
+			uri.NewClusterURI("teleport.sh").AppendKubeResource(types.KindKubeNamespace, "kube-cluster-name", "namespace-name"),
+			"/clusters/teleport.sh/namespace/kube-cluster-name/namespace-name",
 		},
 	}
 
