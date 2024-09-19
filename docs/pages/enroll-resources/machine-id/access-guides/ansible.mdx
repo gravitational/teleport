@@ -242,14 +242,13 @@ Edit your `/etc/teleport.yaml` config file on all servers running the Teleport `
 
 ```yaml
 auth_service:
-  authentication:
-    case_insensitive_routing: true
+  case_insensitive_routing: true
 ```
 
 </TabItem>
 <TabItem label="Managed Teleport Enterprise/Cloud">
 
-Run `tctl edit cluster_auth_preference` to add the following specification, then save and exit.
+Run `tctl edit cluster_networking_config` to add the following specification, then save and exit.
 
 ```yaml
 spec:
