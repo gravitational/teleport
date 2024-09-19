@@ -47,8 +47,8 @@ resource "aws_autoscaling_group" "auth" {
     content {
       strategy = "Rolling"
       preferences {
-        auto_rollback          = true
-        min_healthy_percentage = 50
+        auto_rollback          = false
+        min_healthy_percentage = 0
       }
     }
   }
