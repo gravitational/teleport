@@ -951,9 +951,8 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 }
 
 // join attempts to connect a party to the session.
-func (s *session) join(p *party) error {
-	additionalParty := p.Ctx.User.GetName() != s.ctx.User.GetName()
-	if additionalParty {
+func (s *session) join(p *party, emitJoinEvent bool) error {
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
@@ -985,7 +984,7 @@ func (s *session) join(p *party) error {
 	// We only want to emit the session.join when someone tries to join a session via
 	// tsh kube join and not when the original session owner terminal streams are
 	// connected to the Kubernetes session.
-	if additionalParty {
+	if emitJoinEvent {
 		s.emitSessionJoinEvent(p)
 	}
 
@@ -1021,7 +1020,7 @@ func (s *session) join(p *party) error {
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
 
 	// Send the participant mode and controls to the additional participant
-	if additionalParty {
+	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
 		err := srv.MsgParticipantCtrls(p.Client.stdoutStream(), p.Mode)
 		if err != nil {
 			s.log.Errorf("Could not send intro message to participant: %v", err)

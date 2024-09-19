@@ -1207,7 +1207,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party)
+		err = session.join(party, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1681,7 +1681,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(party); err != nil {
+			if err = session.join(party, true); err != nil {
 				return trace.Wrap(err)
 			}
 

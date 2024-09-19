@@ -2027,6 +2027,7 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 		modes := s.access.CanJoin(accessContext)
 		if !slices.Contains(modes, mode) {
+			s.log.Infof("MODES ALLOWED: %v, MODE REQUESTED: %s, ROLES: %v", modes, mode, accessContext.Roles)
 			return trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
 
@@ -2055,7 +2056,8 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		return trace.Wrap(err)
 	}
 
-	// Emit session join event to the Audit Log
+	// Emit session join event to both the Audit Log as well as over the
+	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionJoinEvent(p.ctx)
 
 	return nil
