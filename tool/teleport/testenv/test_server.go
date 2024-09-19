@@ -673,7 +673,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = utils.NewLogger()
+	authConfig.Log = cfg.Logger
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)
