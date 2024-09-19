@@ -3069,15 +3069,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &staticHostUserCollection{items: hostUsers}, nil
 	case types.KindAutoUpdateConfig:
-		serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
-		config, err := serviceClient.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+		config, err := client.GetAutoUpdateConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateConfigCollection{config}, nil
 	case types.KindAutoUpdateVersion:
-		serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(client.GetConnection())
-		version, err := serviceClient.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+		version, err := client.GetAutoUpdateVersion(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
