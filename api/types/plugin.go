@@ -62,7 +62,7 @@ const (
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
-	// PluginTypeMattermost is the PagerDuty access plugin
+	// PluginTypeMattermost is the Mattermost access plugin
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
@@ -72,6 +72,8 @@ const (
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
+	PluginTypeDatadog = "datadog"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
