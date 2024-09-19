@@ -1,4 +1,4 @@
-.version: &version "16.4.0-dev.capnspacehook.iam-fips-webidentity.2"
+.version: &version "16.4.0-dev.capnspacehook.iam-fips.1"
 
 name: teleport-kube-agent
 apiVersion: v2

@@ -3,6 +3,6 @@ package api
 
 import "github.com/coreos/go-semver/semver"
 
-const Version = "16.4.0-dev.capnspacehook.iam-fips-webidentity.2"
+const Version = "16.4.0-dev.capnspacehook.iam-fips.1"
 
 var SemVersion = semver.New(Version)
