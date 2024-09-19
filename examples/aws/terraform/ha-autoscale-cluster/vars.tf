@@ -251,7 +251,7 @@ variable "default_tags" {
 // the launch template or resource tags change.
 variable "enable_auth_asg_instance_refresh" {
   type    = bool
-  default = true
+  default = false
 }
 
 // Whether to trigger instance refresh rollout for Teleport Proxy servers when
