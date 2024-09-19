@@ -7,7 +7,7 @@ should be possible to override volume name (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -22,7 +22,7 @@ should be possible to override volume name (smtp on):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -34,7 +34,7 @@ should be possible to override volume name (smtp on):
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-email
             ports:
@@ -75,7 +75,7 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -90,7 +90,7 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -136,7 +136,7 @@ should match the snapshot (mailgun on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -151,7 +151,7 @@ should match the snapshot (mailgun on):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -163,7 +163,7 @@ should match the snapshot (mailgun on):
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-email
             ports:
@@ -204,7 +204,7 @@ should match the snapshot (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -219,7 +219,7 @@ should match the snapshot (smtp on):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -231,7 +231,7 @@ should match the snapshot (smtp on):
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-email
             ports:
@@ -272,7 +272,7 @@ should mount external secret (mailgun on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -287,7 +287,7 @@ should mount external secret (mailgun on):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -299,7 +299,7 @@ should mount external secret (mailgun on):
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-email
             ports:
@@ -340,7 +340,7 @@ should mount external secret (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+        app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
         helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
       name: RELEASE-NAME-teleport-plugin-email
     spec:
@@ -355,7 +355,7 @@ should mount external secret (smtp on):
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-email
-            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            app.kubernetes.io/version: 16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             helm.sh/chart: teleport-plugin-email-16.4.0-dev.capnspacehook.iam-fips-webiden
         spec:
           containers:
@@ -367,7 +367,7 @@ should mount external secret (smtp on):
             env:
             - name: TELEPORT_PLUGIN_FAIL_FAST
               value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.1
+            image: public.ecr.aws/gravitational/teleport-plugin-email:16.4.0-dev.capnspacehook.iam-fips-webidentity.2
             imagePullPolicy: IfNotPresent
             name: teleport-plugin-email
             ports:
