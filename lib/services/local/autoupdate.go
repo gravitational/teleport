@@ -36,7 +36,7 @@ const (
 	autoUpdateVersionPrefix = "auto_update_version"
 )
 
-// AutoUpdateService is responsible for managing auto update configuration and version.
+// AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
 type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
@@ -81,7 +81,7 @@ func NewAutoUpdateService(backend backend.Backend) (*AutoUpdateService, error) {
 	}, nil
 }
 
-// CreateAutoUpdateConfig creates an auto update configuration singleton.
+// CreateAutoUpdateConfig creates the AutoUpdateConfig singleton resource.
 func (s *AutoUpdateService) CreateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
@@ -90,7 +90,7 @@ func (s *AutoUpdateService) CreateAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateConfig updates an auto update configuration singleton.
+// UpdateAutoUpdateConfig updates the AutoUpdateConfig singleton resource.
 func (s *AutoUpdateService) UpdateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
@@ -99,7 +99,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateConfig sets an auto update configuration.
+// UpsertAutoUpdateConfig sets the AutoUpdateConfig singleton resource.
 func (s *AutoUpdateService) UpsertAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
@@ -108,18 +108,18 @@ func (s *AutoUpdateService) UpsertAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// GetAutoUpdateConfig gets the auto update configuration from the backend.
+// GetAutoUpdateConfig gets the AutoUpdateConfig singleton resource.
 func (s *AutoUpdateService) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 	config, err := s.config.GetResource(ctx, types.MetaNameAutoUpdateConfig)
 	return config, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateConfig deletes the auto update configuration from the backend.
+// DeleteAutoUpdateConfig deletes the AutoUpdateConfig singleton resource.
 func (s *AutoUpdateService) DeleteAutoUpdateConfig(ctx context.Context) error {
 	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoUpdateConfig))
 }
 
-// CreateAutoUpdateVersion creates an autoupdate version resource.
+// CreateAutoUpdateVersion creates the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) CreateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
@@ -128,7 +128,7 @@ func (s *AutoUpdateService) CreateAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateVersion updates an autoupdate version resource.
+// UpdateAutoUpdateVersion updates the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
@@ -137,7 +137,7 @@ func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateVersion sets autoupdate version resource.
+// UpsertAutoUpdateVersion sets the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) UpsertAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
@@ -146,13 +146,13 @@ func (s *AutoUpdateService) UpsertAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// GetAutoUpdateVersion gets the auto update version from the backend.
+// GetAutoUpdateVersion gets the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 	version, err := s.version.GetResource(ctx, types.MetaNameAutoUpdateVersion)
 	return version, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateVersion deletes the auto update version from the backend.
+// DeleteAutoUpdateVersion deletes the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoUpdateVersion))
 }
