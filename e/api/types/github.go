@@ -112,16 +112,16 @@ func UnmarshalGithubConnector(bytes []byte, opts ...services.MarshalOption) (typ
 
 // MarshalGithubConnector marshals the enterprise GithubConnector resource to JSON.
 func MarshalGithubConnector(connector types.GithubConnector, opts ...services.MarshalOption) ([]byte, error) {
-	githubConnector, ok := connector.(*GithubConnector)
-	if !ok {
-		return nil, trace.BadParameter("unrecognized github connector version %T", connector)
+	if githubConnector, ok := connector.(*GithubConnector); ok {
+		// check connector settings as enterprise connector so using
+		// endpoint_url isn't an error
+		if err := githubConnector.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		connector = githubConnector.GithubConnectorV3
 	}
 
-	// check connector settings as enterprise connector so using
-	// endpoint_url isn't an error
-	if err := githubConnector.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return services.MarshalOSSGithubConnector(githubConnector.GithubConnectorV3, opts...)
+	out, err := services.MarshalOSSGithubConnector(connector, opts...)
+	return out, trace.Wrap(err)
 }
