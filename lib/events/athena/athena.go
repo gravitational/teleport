@@ -20,6 +20,7 @@ package athena
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/url"
 	"regexp"
@@ -125,6 +126,12 @@ type Config struct {
 	BatchMaxItems int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
+	// ConsumerLockName defines a name of a SQS consumer lock (optional).
+	// If provided, it will be prefixed with "athena_" to avoid accidental
+	// collision with existing locks.
+	ConsumerLockName string
+	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
+	ConsumerDisabled bool
 
 	// Clock is a clock interface, used in tests.
 	Clock clockwork.Clock
@@ -248,6 +255,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		// no-one should use that short interval, so it's easier to check here.
 		// For high load operation, BatchMaxItems will happen first.
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
+	}
+
+	if cfg.ConsumerLockName == "" {
+		cfg.ConsumerLockName = "athena_lock"
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
@@ -417,6 +428,17 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxInterval = dur
 	}
+	consumerLockName := url.Query().Get("consumerLockName")
+	if consumerLockName != "" {
+		cfg.ConsumerLockName = fmt.Sprintf("athena_%s", consumerLockName)
+	}
+	if val := url.Query().Get("consumerDisabled"); val != "" {
+		boolVal, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter("invalid consumerDisabled value: %v", err)
+		}
+		cfg.ConsumerDisabled = boolVal
+	}
 
 	return nil
 }
@@ -497,7 +519,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		consumerCloser: consumer,
 	}
 
-	go consumer.run(consumerCtx)
+	if !cfg.ConsumerDisabled {
+		go consumer.run(consumerCtx)
+	}
 
 	return l, nil
 }
