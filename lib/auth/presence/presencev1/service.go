@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -42,7 +43,7 @@ type Backend interface {
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
 
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
+	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 }
 
@@ -352,7 +353,25 @@ func (s *Service) UpsertReverseTunnel(
 	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.NotImplemented("not implemented")
+
+	if req.ReverseTunnel == nil {
+		return nil, trace.BadParameter("reverse_tunnel: must not be nil")
+	}
+
+	if err := services.ValidateReverseTunnel(req.ReverseTunnel); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := s.backend.UpsertReverseTunnelV2(ctx, req.ReverseTunnel)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	concrete, ok := res.(*types.ReverseTunnelV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected reverse tunnel type %T", res)
+	}
+
+	return concrete, nil
 }
 
 // DeleteReverseTunnel deletes a reverse tunnel.
@@ -366,5 +385,10 @@ func (s *Service) DeleteReverseTunnel(
 	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.NotImplemented("not implemented")
+
+	if req.Name == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.Name))
 }

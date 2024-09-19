@@ -423,23 +423,37 @@ func (s *PresenceService) DeleteAllReverseTunnels(ctx context.Context) error {
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
+// UpsertReverseTunnel upserts reverse tunnel entry
 func (s *PresenceService) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
+	_, err := s.UpsertReverseTunnelV2(ctx, tunnel)
+	return trace.Wrap(err)
+}
+
+// UpsertReverseTunnelV2 upserts reverse tunnel entry and returns the upserted
+// value.
+// TODO(noah): In v18, we can rename this to UpsertReverseTunnel and remove the
+// version which does not return the upserted value.
+func (s *PresenceService) UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error) {
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	rev := tunnel.GetRevision()
 	value, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(reverseTunnelsPrefix, tunnel.GetName()),
 		Value:    value,
 		Expires:  tunnel.Expiry(),
 		Revision: rev,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tunnel.SetRevision(lease.Revision)
+	return tunnel, nil
 }
 
 // GetReverseTunnel returns reverse tunnel by name

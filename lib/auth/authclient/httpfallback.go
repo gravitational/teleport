@@ -227,7 +227,7 @@ func (c *Client) getReverseTunnelsLegacy(ctx context.Context) ([]types.ReverseTu
 // UpsertReverseTunnel upserts a reverse tunnel
 // TODO: DELETE IN 18.0.0
 func (c *Client) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
-	err := c.APIClient.UpsertReverseTunnel(ctx, tunnel)
+	_, err := c.APIClient.UpsertReverseTunnel(ctx, tunnel)
 	if err == nil {
 		return nil
 	}

@@ -1333,3 +1333,28 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, pageToken)
 	require.Len(t, rcs, 10)
 }
+
+func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceService := NewPresenceService(bk)
+
+	rt, err := types.NewReverseTunnel("my-tunnel", []string{"example.com:443"})
+	require.NoError(t, err)
+
+	// Upsert a reverse tunnel
+	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
+	require.NoError(t, err)
+	// Check that the returned resource is the same as the one we upserted
+	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	// Do a get to check revision matches
+	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(got, fetched))
+}
