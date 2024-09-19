@@ -48,7 +48,7 @@ type ApplicationAndFriendlyName struct {
 func MakeUserGroups(userGroups []types.UserGroup, userGroupsToApps map[string]types.Apps) ([]UserGroup, error) {
 	uiUserGroups := []UserGroup{}
 	for _, userGroup := range userGroups {
-		uiLabels := makeLabels(userGroup.GetStaticLabels())
+		uiLabels := MakeUILabelsWithoutInternalPrefixes(userGroup.GetStaticLabels())
 
 		apps := userGroupsToApps[userGroup.GetName()]
 		appsAndFriendlyNames := make([]ApplicationAndFriendlyName, len(apps))

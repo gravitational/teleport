@@ -138,7 +138,7 @@ func TestMakeLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			labels := makeLabels(tc.labelMaps...)
+			labels := MakeUILabelsWithoutInternalPrefixes(tc.labelMaps...)
 
 			require.Equal(t, tc.expected, labels)
 		})
