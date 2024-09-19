@@ -4292,12 +4292,14 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 		name             string
 		user             string
 		kind             string
+		kubeCluster      string
 		expectedResponse []ui.KubeResource
+		wantErr          bool
 	}{
 		{
-			name: "get pods from gRPC server",
-			user: "test-user@example.com",
-			kind: types.KindKubePod,
+			name:        "get pods from gRPC server",
+			kind:        types.KindKubePod,
+			kubeCluster: kubeClusterName,
 			expectedResponse: []ui.KubeResource{
 				{
 					Kind:        types.KindKubePod,
@@ -4316,9 +4318,9 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 			},
 		},
 		{
-			name: "get namespaces",
-			user: "test-user2@example.com",
-			kind: types.KindKubeNamespace,
+			name:        "get namespaces",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: kubeClusterName,
 			expectedResponse: []ui.KubeResource{
 				{
 					Kind:        types.KindKubeNamespace,
@@ -4329,92 +4331,23 @@ func TestClusterKubeResourcesGet(t *testing.T) {
 				},
 			},
 		},
-	}
-	proxy := env.proxies[0]
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	// Init fake gRPC Kube service.
-	initGRPCServer(t, env, listener)
-	addr := utils.MustParseAddr(listener.Addr().String())
-	proxy.handler.handler.cfg.ProxyWebAddr = *addr
-
-	for _, tc := range tt {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
-			params := url.Values{}
-			params.Add("kubeCluster", kubeClusterName)
-			params.Add("kind", tc.kind)
-			re, err := pack.clt.Get(context.Background(), endpoint, params)
-			require.NoError(t, err)
-
-			resp := testResponse{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
-		})
-	}
-}
-
-func TestClusterKubePodsGet(t *testing.T) {
-	t.Parallel()
-	kubeClusterName := "kube_cluster"
-
-	roleWithFullAccess := func(username string) []types.Role {
-		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Namespaces:       []string{apidefaults.Namespace},
-				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				Rules: []types.Rule{
-					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
-				},
-				KubeGroups: []string{"groups"},
-				KubernetesResources: []types.KubernetesResource{
-					{
-						Kind:      types.KindKubePod,
-						Namespace: types.Wildcard,
-						Name:      types.Wildcard,
-					},
-				},
-			},
-		})
-		require.NoError(t, err)
-		return []types.Role{ret}
-	}
-	require.NotNil(t, roleWithFullAccess)
-
-	env := newWebPack(t, 1)
-
-	type testResponse struct {
-		Items      []ui.KubeResource `json:"items"`
-		TotalCount int               `json:"totalCount"`
-	}
-
-	tt := []struct {
-		name             string
-		user             string
-		expectedResponse []ui.KubeResource
-	}{
 		{
-			name: "get pods from gRPC server",
-			user: "test-user@example.com",
-			expectedResponse: []ui.KubeResource{
-				{
-					Kind:        types.KindKubePod,
-					Name:        "test-pod",
-					Namespace:   "default",
-					Labels:      []ui.Label{{Name: "app", Value: "test"}},
-					KubeCluster: kubeClusterName,
-				},
-				{
-					Kind:        types.KindKubePod,
-					Name:        "test-pod2",
-					Namespace:   "default",
-					Labels:      []ui.Label{{Name: "app", Value: "test2"}},
-					KubeCluster: kubeClusterName,
-				},
-			},
+			name:        "missing kind",
+			kind:        "",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "invalid kind",
+			kind:        "invalid-kind",
+			kubeCluster: kubeClusterName,
+			wantErr:     true,
+		},
+		{
+			name:        "missing kube cluster",
+			kind:        types.KindKubeNamespace,
+			kubeCluster: "",
+			wantErr:     true,
 		},
 	}
 	proxy := env.proxies[0]
@@ -4425,22 +4358,27 @@ func TestClusterKubePodsGet(t *testing.T) {
 	addr := utils.MustParseAddr(listener.Addr().String())
 	proxy.handler.handler.cfg.ProxyWebAddr = *addr
 
+	user := "test-user@example.com"
+	pack := proxy.authPack(t, user, roleWithFullAccess(user))
+
 	for _, tc := range tt {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
-
-			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "pods")
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "kubernetes", "resources")
 			params := url.Values{}
-			params.Add("kubeCluster", kubeClusterName)
+			params.Add("kubeCluster", tc.kubeCluster)
+			params.Add("kind", tc.kind)
 			re, err := pack.clt.Get(context.Background(), endpoint, params)
-			require.NoError(t, err)
 
-			resp := testResponse{}
-			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.Len(t, resp.Items, 2)
-			require.Equal(t, 2, resp.TotalCount)
-			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			if tc.wantErr {
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				resp := testResponse{}
+				require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+				require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+			}
+
 		})
 	}
 }
