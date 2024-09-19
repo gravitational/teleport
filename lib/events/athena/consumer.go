@@ -157,7 +157,14 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
-			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
+			// use uuidv7 to give approximate time order to files. this isn't strictly necessary
+			// but it assists in bulk event export roughly progressing in time order through a given
+			// day which is what folks tend to expect.
+			id, err := uuid.NewV7()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
 			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256

@@ -23,6 +23,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,6 +61,14 @@ func (w *WriterLog) Close() error {
 // show up sorted by date (newest first)
 func (w *WriterLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
 	return nil, "", trace.NotImplemented(writerCannotRead)
+}
+
+func (w *WriterLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented(writerCannotRead))
+}
+
+func (w *WriterLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented(writerCannotRead))
 }
 
 // SearchSessionEvents is a flexible way to find session events.
