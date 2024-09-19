@@ -1516,7 +1516,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return webclient.PingResponse{
+	response := webclient.PingResponse{
 		Auth: webclient.AuthenticationSettings{
 			// Nodes need the signature algorithm suite when joining to generate
 			// keys with the correct algorithm.
@@ -1526,7 +1526,23 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
-	}, nil
+	}
+
+	autoUpdateConfig, err := h.GetAccessPoint().GetAutoUpdateConfig(r.Context())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	} else if err == nil {
+		response.ToolsAutoupdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+	}
+
+	autoUpdateVersion, err := h.GetAccessPoint().GetAutoUpdateVersion(r.Context())
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	} else if err == nil {
+		response.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+	}
+
+	return response, nil
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
