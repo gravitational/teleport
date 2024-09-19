@@ -49,19 +49,21 @@ export function Scim({
               ]}
             />
           </Flex>
-          <ExternalLink
-            target="_blank"
-            href={generateOktaScimSettingsUrl({
-              orgUrl,
-              appId,
-              appName,
-            })}
-          >
-            <Flex gap={1}>
-              Open SCIM Settings in Okta
-              <NewTab size={16} />
-            </Flex>
-          </ExternalLink>
+          {appName && (
+            <ExternalLink
+              target="_blank"
+              href={generateOktaScimSettingsUrl({
+                orgUrl,
+                appId,
+                appName,
+              })}
+            >
+              <Flex gap={1}>
+                Open SCIM Settings in Okta
+                <NewTab size={16} />
+              </Flex>
+            </ExternalLink>
+          )}
         </>
       )}
       {!hasScim && (

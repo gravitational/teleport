@@ -102,6 +102,75 @@ WithAllFeaturesEnabled.parameters = {
   },
 };
 
+export const WithAllFeaturesEnabledWithoutAppName = () => {
+  cfg.oss.entitlements.AccessLists = { enabled: true, limit: 0 };
+  cfg.oss.entitlements.OktaSCIM = { enabled: true, limit: 0 };
+  cfg.oss.entitlements.OktaUserSync = { enabled: true, limit: 0 };
+  return render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
+};
+WithAllFeaturesEnabledWithoutAppName.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.api.pluginPath, () =>
+        HttpResponse.json({
+          name: 'plugin-name',
+          statusCode: 1, // running
+          type: 'okta',
+          spec: {
+            teleportSsoConnector: 'okta-integration',
+            orgUrl: 'https://dev-testing.okta.com',
+            defaultOwners: [
+              'foo@goteleport.com',
+              'george.washington.the.first@cloud.gravitational.io',
+            ],
+          },
+          status: {
+            details: {
+              okta: {
+                sso_details: {
+                  enabled: true,
+                  app_id: 'some-app-id-george-washington-long-app-id',
+                  app_name: '',
+                },
+                app_group_sync_details: {
+                  last_successful: null,
+                  last_failed: new Date(),
+                  num_apps_synced: 324,
+                  num_groups_synced: 212,
+                },
+                users_sync_details: {
+                  enabled: true,
+                  last_successful: null,
+                  last_failed: null,
+                  numUsers: 130,
+                },
+                access_lists_sync_details: {
+                  app_filters: [
+                    'app*',
+                    'application-1',
+                    'application-2',
+                    'application-3',
+                    'app4',
+                    'app5',
+                    'app6',
+                  ],
+                  group_filters: ['group*', 'some-group-1'],
+                  enabled: true,
+                  last_successful: new Date(),
+                  last_failed: new Date(),
+                  num_apps_synced: 30,
+                  num_groups_synced: 2,
+                },
+                scim_details: { enabled: true },
+              },
+            },
+          },
+        })
+      ),
+    ],
+  },
+};
+
 export const Loading = () =>
   render(cfg.oss.getIntegrationStatusRoute('okta', 'some-id'));
 Loading.parameters = {

@@ -45,30 +45,41 @@ export function SsoDetails({
       <Flex gap={2} height="100%">
         {hasSsoAccess && (
           <VerticallyCenteredFlex as={InternalLink} to={cfg.routes.sso}>
-            <Text>View</Text>
-            <Text>Teleport's Connector</Text>
-            <Text>
-              <Mark>{teleportSsoConnector}</Mark>
-            </Text>
+            {spec.appName ? (
+              <>
+                <Text>View</Text>
+                <Text>Teleport's Connector</Text>
+                <Text>
+                  <Mark>{teleportSsoConnector}</Mark>
+                </Text>
+              </>
+            ) : (
+              <Text>
+                Click to view Teleport's Connector named{' '}
+                <Mark>{teleportSsoConnector}</Mark>
+              </Text>
+            )}
           </VerticallyCenteredFlex>
         )}
-        <VerticallyCenteredFlex
-          as={ExternalLink}
-          href={generateOktaSamlAppUrl({
-            orgUrl,
-            appId: spec.appId,
-            appName: spec.appName,
-          })}
-          target="_blank"
-        >
-          <Flex justifyContent="space-between" alignItems="center">
-            <Box>
-              <Text>Open</Text>
-              <Text>Okta's SAML App</Text>
-            </Box>
-            <NewTab />
-          </Flex>
-        </VerticallyCenteredFlex>
+        {spec.appName && (
+          <VerticallyCenteredFlex
+            as={ExternalLink}
+            href={generateOktaSamlAppUrl({
+              orgUrl,
+              appId: spec.appId,
+              appName: spec.appName,
+            })}
+            target="_blank"
+          >
+            <Flex justifyContent="space-between" alignItems="center">
+              <Box>
+                <Text>Open</Text>
+                <Text>Okta's SAML App</Text>
+              </Box>
+              <NewTab />
+            </Flex>
+          </VerticallyCenteredFlex>
+        )}
       </Flex>
     </Panel>
   );
