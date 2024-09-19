@@ -72,7 +72,7 @@ TF_VAR_use_tls_routing ?= false
 TF_VAR_teleport_auth_type ?= "local"
 
 # (optional) AWS tags applied to all resources.
-TF_VAR_default_tags ?=
+TF_VAR_default_tags ?= {}
 
 # (optional) Whether to trigger instance refresh rollout for Teleport Auth
 # servers when the launch template or configuration changes.
