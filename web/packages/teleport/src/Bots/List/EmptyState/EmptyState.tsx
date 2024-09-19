@@ -130,7 +130,7 @@ const eliminateSecretsImages = {
 export const EliminateSecretsPreview = () => {
   const theme = useTheme();
   return (
-    <PreviewBox>
+    <PreviewBox includeShadow>
       <Image maxHeight="100%" src={eliminateSecretsImages[theme.type]} />
     </PreviewBox>
   );
@@ -144,7 +144,7 @@ const controlWorkflowsImages = {
 export const ControlWorkflowsPreview = () => {
   const theme = useTheme();
   return (
-    <PreviewBox>
+    <PreviewBox includeShadow>
       <Image maxHeight="100%" src={controlWorkflowsImages[theme.type]} />
     </PreviewBox>
   );
@@ -201,7 +201,10 @@ export const BotTiles = () => {
   );
 };
 
-const PreviewBox = styled(Box)`
+const PreviewBox = styled(Box)<{ includeShadow?: boolean }>`
   margin-left: ${p => p.theme.space[5]}px;
   max-height: 330px;
+  box-shadow: ${p => {
+    return p.includeShadow ? p.theme.boxShadow[1] : 'none';
+  }};
 `;
