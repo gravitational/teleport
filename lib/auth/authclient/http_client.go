@@ -323,6 +323,8 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
 func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

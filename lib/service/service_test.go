@@ -1305,7 +1305,7 @@ func TestProxyGRPCServers(t *testing.T) {
 		limiter:       limiter,
 		conn:          testConnector,
 		listener:      secureListener,
-		kubeProxyAddr: *utils.MustParseAddr(secureListener.Addr().String()),
+		kubeProxyAddr: utils.FromAddr(secureListener.Addr()),
 		accessPoint:   testConnector.Client,
 		lockWatcher:   proxyLockWatcher,
 		emitter:       testConnector.Client,
