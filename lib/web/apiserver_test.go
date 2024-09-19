@@ -2582,7 +2582,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOff,
+		SecondFactor:   constants.SecondFactorOn,
 		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 	})
 	require.NoError(t, err)
@@ -2616,7 +2616,7 @@ func TestLogin(t *testing.T) {
 	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+		SecondFactor: constants.SecondFactorOn,
 	})
 	require.NoError(t, err)
 	_, err = s.server.Auth().UpsertAuthPreference(s.ctx, ap)
@@ -4566,7 +4566,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
-		SecondFactor:  constants.SecondFactorOptional,
+		SecondFactor:  constants.SecondFactorOn,
 		ConnectorName: constants.PasswordlessConnector,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -4593,7 +4593,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Providers: []webclient.WebConfigAuthProvider{{
 				Name:      "test-github",
 				Type:      constants.Github,
@@ -4766,7 +4766,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor:     constants.SecondFactorOff,
+			SecondFactor:     constants.SecondFactorOn,
 			LocalAuthEnabled: true,
 			AuthType:         constants.Local,
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
@@ -4860,7 +4860,7 @@ func TestAddMFADevice(t *testing.T) {
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -5026,7 +5026,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: env.server.ClusterName(),
 		},

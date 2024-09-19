@@ -3475,7 +3475,7 @@ func TestIsMFARequired_databaseProtocols(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "teleport",
 				},

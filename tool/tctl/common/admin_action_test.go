@@ -1118,10 +1118,9 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 		require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
 	})
 
-	t.Run("OK mfa off", func(t *testing.T) {
-		// turn MFA off, admin actions should not require MFA now.
+	t.Run("OK OTP", func(t *testing.T) {
 		authPref := types.DefaultAuthPreference()
-		authPref.SetSecondFactor(constants.SecondFactorOff)
+		authPref.SetSecondFactor(constants.SecondFactorOTP)
 		originalAuthPref, err := s.authServer.GetAuthPreference(ctx)
 		require.NoError(t, err)
 

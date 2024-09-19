@@ -1207,7 +1207,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		return &types.AuthPreferenceV2{
 			Spec: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: cluster,
 				},
@@ -1367,7 +1367,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1395,7 +1395,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1420,7 +1420,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1440,7 +1440,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1512,7 +1512,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1537,7 +1537,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -1561,7 +1561,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -2869,7 +2869,7 @@ func TestSSHHeadless(t *testing.T) {
 	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: "127.0.0.1",
 			},
@@ -2973,7 +2973,7 @@ func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
 	_, err = rootAuth.GetAuthServer().UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: "127.0.0.1",
 			},

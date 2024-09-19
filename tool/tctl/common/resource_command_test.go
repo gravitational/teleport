@@ -797,17 +797,17 @@ spec:
   type: local
 version: v2`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+			expectSecondFactor: requireEqual(constants.SecondFactorOTP)},
 		{desc: "handle off without quotes", input: `
 kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factor: otp
   type: local
 version: v2`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+			expectSecondFactor: requireEqual(constants.SecondFactorOTP)},
 		{desc: "handle on without quotes", input: `
 kind: cluster_auth_preference
 metadata:
@@ -1852,8 +1852,8 @@ version: v2
 	var expected types.AuthPreferenceV2
 	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
 
-	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+	require.NotEqual(t, constants.SecondFactorOn, initial.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOn, expected.GetSecondFactor())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.

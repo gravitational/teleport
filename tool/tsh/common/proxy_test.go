@@ -303,7 +303,7 @@ func TestWithRsync(t *testing.T) {
 				_, err = asrv.UpsertAuthPreference(ctx, &types.AuthPreferenceV2{
 					Spec: types.AuthPreferenceSpecV2{
 						Type:         constants.Local,
-						SecondFactor: constants.SecondFactorOptional,
+						SecondFactor: constants.SecondFactorOn,
 						Webauthn: &types.Webauthn{
 							RPID: "root",
 						},

@@ -593,7 +593,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 			clusterAuthPref: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},

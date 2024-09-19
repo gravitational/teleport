@@ -139,7 +139,7 @@ func TestPasswordLengthChange(t *testing.T) {
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+		SecondFactor: constants.SecondFactorOn,
 	})
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func TestChangePassword(t *testing.T) {
 	ctx := context.Background()
 
 	s := setupPasswordSuite(t)
-	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOff)
+	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOn)
 	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClock()
@@ -502,7 +502,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOff,
+					SecondFactor: constants.SecondFactorOn,
 				})
 				require.NoError(t, err)
 				_, err = authServer.UpsertAuthPreference(ctx, authPreference)
@@ -682,7 +682,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
+					SecondFactor: constants.SecondFactorOn,
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
@@ -783,7 +783,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			secondFactor: constants.SecondFactorOff,
+			secondFactor: constants.SecondFactorOn,
 			desc:         "invalid tokenID value",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     "what_token",
@@ -791,7 +791,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 			},
 		},
 		{
-			secondFactor: constants.SecondFactorOff,
+			secondFactor: constants.SecondFactorOn,
 			desc:         "invalid password",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     validTokenID,
@@ -829,7 +829,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 		require.Error(t, err, "test case %q", tc.desc)
 	}
 
-	authPreference.SetSecondFactor(constants.SecondFactorOff)
+	authPreference.SetSecondFactor(constants.SecondFactorOn)
 	_, err = s.a.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 

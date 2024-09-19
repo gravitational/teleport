@@ -163,7 +163,7 @@ func TestTeleterm(t *testing.T) {
 			helpers.UpsertAuthPrefAndWaitForCache(t, context.Background(), authServer, &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOff,
+					SecondFactor: constants.SecondFactorOn,
 				},
 			})
 			require.NoError(t, err)

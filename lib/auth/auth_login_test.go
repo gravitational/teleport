@@ -92,7 +92,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			name: "OK second_factor:off",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOff,
+				SecondFactor: constants.SecondFactorOn,
 			},
 			createReq: reqUserPassword,
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
@@ -159,7 +159,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 			name: "OK second_factor:optional",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
@@ -770,7 +770,7 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 
 	initialPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional, // most permissive setting
+		SecondFactor: constants.SecondFactorOn, // most permissive setting
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -1145,7 +1145,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -1533,7 +1533,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 				// Disable second factors.
 				authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOff,
+					SecondFactor: constants.SecondFactorOn,
 				})
 				require.NoError(t, err, "NewAuthPreference failed")
 				_, err = authServer.UpsertAuthPreference(ctx, authPref)
@@ -1914,7 +1914,7 @@ type configureMFAResp struct {
 func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},

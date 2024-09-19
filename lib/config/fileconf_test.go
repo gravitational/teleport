@@ -497,7 +497,7 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+			expectSecondFactor: requireEqual(constants.SecondFactorOn),
 		},
 		{
 			desc: "handle off without quotes", input: `
@@ -511,7 +511,7 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+			expectSecondFactor: requireEqual(constants.SecondFactorOn),
 		},
 		{
 			desc: "handle on without quotes", input: `

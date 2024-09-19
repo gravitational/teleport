@@ -489,7 +489,7 @@ func TestAuthPreference(t *testing.T) {
 		},
 		setDynamic: func(t *testing.T, authServer *Server) {
 			dynamically, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				SecondFactor: constants.SecondFactorOff,
+				SecondFactor: constants.SecondFactorOn,
 			})
 			require.NoError(t, err)
 			_, err = authServer.UpsertAuthPreference(ctx, dynamically)
@@ -511,7 +511,7 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
 		conf := setupConfig(t)
 		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
+			SecondFactor: constants.SecondFactorOn,
 		})
 		require.NoError(t, err)
 
@@ -525,7 +525,7 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 		s, err := Init(ctx, conf)
 		require.NoError(t, err)
 		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOff,
+			SecondFactor: constants.SecondFactorOn,
 		})
 		require.NoError(t, err)
 		_, err = s.UpsertAuthPreference(ctx, authpref)

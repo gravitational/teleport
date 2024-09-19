@@ -641,7 +641,7 @@ func requireSessionMFAAuthPref(ctx context.Context, t *testing.T, authServer *au
 	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: rpid,
 			},
@@ -657,7 +657,7 @@ func requireSessionMFARole(ctx context.Context, t *testing.T, authServer *auth.S
 	helpers.UpsertAuthPrefAndWaitForCache(t, ctx, authServer, &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: rpid,
 			},

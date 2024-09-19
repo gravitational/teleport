@@ -614,7 +614,7 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 		rpID := pack.server.TLS.ClusterName()
 		mfaResp := configureClusterForMFA(t, pack, &types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: rpID,
 			},

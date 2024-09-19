@@ -167,7 +167,7 @@ func newTestPack(
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+		SecondFactor: constants.SecondFactorOn,
 	})
 	if err != nil {
 		return p, trace.Wrap(err)
@@ -880,7 +880,7 @@ func TestAuthenticateUser_mfaDeviceLocked(t *testing.T) {
 	// Configure auth preferences.
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference")
-	authPref.SetSecondFactor(constants.SecondFactorOptional) // good enough
+	authPref.SetSecondFactor(constants.SecondFactorOn) // good enough
 	authPref.SetWebauthn(&types.Webauthn{
 		RPID: "localhost",
 	})
@@ -3105,7 +3105,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional, // "optional" lets all user devices be deleted.
+		SecondFactor: constants.SecondFactorOn, // "optional" lets all user devices be deleted.
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -3251,7 +3251,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	const origin = "localhost"
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: origin,
 		},
@@ -3449,7 +3449,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 
 	// Make sure only one device is left, then attempt deletion with
 	// second_factor=on.
-	setSecondFactor(t, constants.SecondFactorOptional)
+	setSecondFactor(t, constants.SecondFactorOn)
 	require.NoError(t,
 		deleteDevice(userClient, webDev),
 		"Second-to-last device deletion failed",
@@ -3696,7 +3696,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -3780,7 +3780,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},

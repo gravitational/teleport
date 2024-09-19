@@ -54,7 +54,7 @@ func TestPing(t *testing.T) {
 			name: "OK local auth",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				U2F: &types.U2F{
 					AppID: "https://example.com",
 				},
@@ -92,7 +92,7 @@ func TestPing(t *testing.T) {
 			name: "OK passwordless connector",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},
@@ -108,7 +108,7 @@ func TestPing(t *testing.T) {
 			name: "OK headless connector",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},
@@ -127,7 +127,7 @@ func TestPing(t *testing.T) {
 				// Configuration is unimportant, what counts here is that the build
 				// is OSS.
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},
@@ -141,7 +141,7 @@ func TestPing(t *testing.T) {
 			buildType: modules.BuildEnterprise,
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},
@@ -158,7 +158,7 @@ func TestPing(t *testing.T) {
 			buildType: modules.BuildEnterprise,
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "example.com",
 				},

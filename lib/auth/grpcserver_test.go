@@ -89,7 +89,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
@@ -516,7 +516,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			// Enable MFA support.
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOptional,
+				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
 					RPID: "localhost",
 				},
@@ -928,7 +928,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	const rpID = "localhost"
 	const origin = "https://" + rpID + ":3080" // matches RPID.
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactor(constants.SecondFactorOn)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -1137,7 +1137,7 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 	// Enable webauthn
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactor(constants.SecondFactorOn)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -2085,7 +2085,7 @@ func TestIsMFARequired(t *testing.T) {
 		t.Run(fmt.Sprintf("authPref=%v", authPrefRequireMFAType.String()), func(t *testing.T) {
 			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				Type:           constants.Local,
-				SecondFactor:   constants.SecondFactorOptional,
+				SecondFactor:   constants.SecondFactorOn,
 				RequireMFAType: authPrefRequireMFAType,
 				Webauthn: &types.Webauthn{
 					RPID: "teleport",
@@ -2157,7 +2157,7 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 	// Enable MFA support.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "teleport",
 		},
@@ -2426,7 +2426,7 @@ func TestIsMFARequired_App(t *testing.T) {
 		// Update auth pref mfa type
 		authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
-			SecondFactor:   constants.SecondFactorOptional,
+			SecondFactor:   constants.SecondFactorOn,
 			RequireMFAType: tc.authPrefMFAType,
 			Webauthn: &types.Webauthn{
 				RPID: "teleport",

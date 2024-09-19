@@ -170,28 +170,28 @@ func TestTeleportClient_Login_local(t *testing.T) {
 	}{
 		{
 			name:             "OTP device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
+			secondFactor:     constants.SecondFactorOTP,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
 			solveWebauthn:    noopWebauthnFn,
 			allowStdinHijack: true,
 		},
 		{
 			name:             "Webauthn device login with hijack",
-			secondFactor:     constants.SecondFactorOptional,
+			secondFactor:     constants.SecondFactorOn,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn),
 			solveWebauthn:    solveWebauthn,
 			allowStdinHijack: true,
 		},
 		{
 			name:             "Webauthn device with PIN and hijack", // a bit hypothetical, but _could_ happen.
-			secondFactor:     constants.SecondFactorOptional,
+			secondFactor:     constants.SecondFactorOn,
 			inputReader:      prompt.NewFakeReader().AddString(password).AddReply(waitForCancelFn).AddReply(userPINFn),
 			solveWebauthn:    solvePIN,
 			allowStdinHijack: true,
 		},
 		{
 			name:         "OTP preferred",
-			secondFactor: constants.SecondFactorOptional,
+			secondFactor: constants.SecondFactorOn,
 			inputReader:  prompt.NewFakeReader().AddString(password).AddReply(solveOTP),
 			solveWebauthn: func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
 				panic("this should not be called")
@@ -200,7 +200,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		},
 		{
 			name:         "Webauthn device login",
-			secondFactor: constants.SecondFactorOptional,
+			secondFactor: constants.SecondFactorOn,
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -210,21 +210,21 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		},
 		{
 			name:          "passwordless login",
-			secondFactor:  constants.SecondFactorOptional,
+			secondFactor:  constants.SecondFactorOn,
 			inputReader:   prompt.NewFakeReader(), // no inputs
 			solveWebauthn: solvePwdless,
 			authConnector: constants.PasswordlessConnector,
 		},
 		{
 			name:                  "default to passwordless if registered",
-			secondFactor:          constants.SecondFactorOptional,
+			secondFactor:          constants.SecondFactorOn,
 			inputReader:           prompt.NewFakeReader(), // no inputs
 			solveWebauthn:         solvePwdless,
 			hasTouchIDCredentials: true,
 		},
 		{
 			name:         "cross-platform attachment doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			secondFactor: constants.SecondFactorOn,
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -236,7 +236,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		},
 		{
 			name:         "local connector doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			secondFactor: constants.SecondFactorOn,
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(func(ctx context.Context) (string, error) {
@@ -248,7 +248,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		},
 		{
 			name:         "OTP preferred doesn't default to passwordless",
-			secondFactor: constants.SecondFactorOptional,
+			secondFactor: constants.SecondFactorOn,
 			inputReader: prompt.NewFakeReader().
 				AddString(password).
 				AddReply(solveOTP),
@@ -313,7 +313,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference failed")
 	authPref.SetType(constants.Local)
-	authPref.SetSecondFactor(constants.SecondFactorOff)
+	authPref.SetSecondFactor(constants.SecondFactorOn)
 	authPref.SetAllowPasswordless(false)
 	authPref.SetAllowHeadless(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
@@ -539,7 +539,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.SetAuthServerAddress(randomAddr) // must be present
 	cfg.Auth.Preference, err = types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOptional,
+		SecondFactor: constants.SecondFactorOn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
