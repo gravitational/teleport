@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -318,6 +319,9 @@ type InitConfig struct {
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
+
+	// Logger is the logger instance for the auth service to use.
+	Logger *slog.Logger
 }
 
 // Init instantiates and configures an instance of AuthServer
