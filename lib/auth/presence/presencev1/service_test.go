@@ -899,6 +899,7 @@ func TestUpsertReverseTunnel(t *testing.T) {
 		[]string{},
 		[]types.Rule{},
 	)
+	require.NoError(t, err)
 
 	rt, err := types.NewReverseTunnel("example.com", []string{"example.com:443"})
 	require.NoError(t, err)
