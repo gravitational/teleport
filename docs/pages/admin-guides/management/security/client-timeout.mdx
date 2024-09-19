@@ -29,19 +29,6 @@ auth_service:
 ```
 This example configures a global client idle timeout of **15 minutes**. After 15 minutes of client inactivity, the session will be terminated.
 
-### Per-role configuration (applies to specific users or groups)
-
-You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: admin-role
-spec:
-  options:
-    client_idle_timeout: 10m
-```
 
 If you are a cloud customer, you will need to modify these settings using dynamic configuration.
 
@@ -79,6 +66,20 @@ You should then see the following output:
 
 ```code
 $ cluster auth preference has been created
+```
+
+### Per-role configuration (applies to specific users or groups)
+
+You can also specify the timeout on a per-role basis, allowing different users or groups to have different timeout settings. For example, you might want a shorter timeout for higher-privileged roles.
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: admin-role
+spec:
+  options:
+    client_idle_timeout: 10m
 ```
 
 ## Default behavior
