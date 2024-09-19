@@ -327,6 +327,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
 			ad:               C.bool(c.cfg.AD),
+			nla:              C.bool(c.cfg.NLA),
 			go_addr:          addr,
 			go_computer_name: computerName,
 			go_kdc_addr:      kdcAddr,

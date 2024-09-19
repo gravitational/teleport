@@ -60,7 +60,6 @@ use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, TokioStream};
 use log::debug;
 use rand::{Rng, SeedableRng};
-use std::env;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -1413,17 +1412,14 @@ fn create_config(params: &ConnectParams, pin: String) -> Config {
             height: params.screen_height,
         },
         enable_tls: true,
-        // For now, NLA is opt-in via an environment variable.
-        // We'll make it the default behavior in a future release.
-        enable_credssp: params.ad
-            && env::var("TELEPORT_ENABLE_RDP_NLA").unwrap_or_default() == "yes",
+        enable_credssp: params.ad && params.nla,
         credentials: Credentials::SmartCard {
             config: params.ad.then(|| {
                 SmartCardIdentity {
-                    certificate: params.cert_der.clone(),
+                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
                     reader_name: "Teleport".to_string(),
                     container_name: "".to_string(),
-                    csp_name: "Microsoft Base Smart Card Crypto Provider".to_string(),
+                    certificate: params.cert_der.clone(),
                     private_key: params.key_der.clone(),
                 }
                 .into()
@@ -1479,6 +1475,7 @@ pub struct ConnectParams {
     pub allow_directory_sharing: bool,
     pub show_desktop_wallpaper: bool,
     pub ad: bool,
+    pub nla: bool,
 }
 
 #[derive(Debug)]

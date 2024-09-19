@@ -32,8 +32,10 @@ const (
 	PKIXPublicKeyType = "PUBLIC KEY"
 )
 
-// MarshalPublicKey returns a PEM encoding of the given public key. Encodes RSA keys in PKCS1 format for
-// backward compatibility. Only supports *rsa.PublicKey, *ecdsa.PublicKey, and ed25519.PublicKey.
+// MarshalPublicKey returns a PEM encoding of the given public key. Encodes RSA
+// keys in PKCS1 format for backward compatibility. All other key types are
+// encoded in PKIX, ASN.1 DER form. Only supports *rsa.PublicKey,
+// *ecdsa.PublicKey, and ed25519.PublicKey.
 func MarshalPublicKey(pub crypto.PublicKey) ([]byte, error) {
 	switch pubKey := pub.(type) {
 	case *rsa.PublicKey:
@@ -66,24 +68,26 @@ func ParsePublicKey(keyPEM []byte) (crypto.PublicKey, error) {
 	}
 
 	switch block.Type {
-	case PKCS1PublicKeyType:
-		pub, pkcs1Err := x509.ParsePKCS1PublicKey(block.Bytes)
-		if pkcs1Err != nil {
-			// Failed to parse as PKCS#1. We have been known to stuff PKIX DER encoded RSA public keys into
-			// "RSA PUBLIC KEY" PEM blocks, so try to parse as PKIX.
-			pub, pkixErr := x509.ParsePKIXPublicKey(block.Bytes)
-			if pkixErr != nil {
-				// Parsing as both formats failed. We really should expect PKCS#1 in this PEM block, so return
-				// that error.
-				return nil, trace.Wrap(pkcs1Err)
-			}
-			return pub, nil
-		}
-		return pub, nil
-	case PKIXPublicKeyType:
-		pub, err := x509.ParsePKIXPublicKey(block.Bytes)
-		return pub, trace.Wrap(err)
+	case PKCS1PublicKeyType, PKIXPublicKeyType:
 	default:
 		return nil, trace.BadParameter("unsupported public key type %q", block.Type)
 	}
+
+	// We have been known to stuff PKIX DER encoded RSA public keys into
+	// "RSA PUBLIC KEY" PEM blocks, so just try to parse either.
+	var preferredErr error
+	if pub, err := x509.ParsePKIXPublicKey(block.Bytes); err == nil {
+		return pub, nil
+	} else if block.Type == PKIXPublicKeyType {
+		preferredErr = err
+	}
+	if pub, err := x509.ParsePKCS1PublicKey(block.Bytes); err == nil {
+		return pub, nil
+	} else if block.Type == PKCS1PublicKeyType {
+		preferredErr = err
+	}
+	// If both parse functions returned an error, preferedErr is guaranteed to
+	// be set to the error from the parse function that usually matches the PEM
+	// block type.
+	return nil, trace.Wrap(preferredErr, "parsing public key PEM")
 }

@@ -40,17 +40,18 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -446,10 +447,14 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	priv, pub, err := native.GenerateKeyPair()
+	sshSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	require.NoError(t, err)
+	sshKey, err := keys.NewSoftwarePrivateKey(sshSigner)
+	require.NoError(t, err)
+	sshKeyPEM, err := sshKey.MarshalSSHPrivateKey()
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
+	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -457,13 +462,13 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     priv,
+				PrivateKey:     sshKeyPEM,
 				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      pub,
+				PublicKey:      sshKey.MarshalSSHPublicKey(),
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
-				Key:  key,
+				Key:  tlsKey,
 			}},
 		},
 	})

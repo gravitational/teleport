@@ -20,6 +20,7 @@ package helpers
 
 import (
 	"context"
+	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -44,6 +45,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -52,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud/imds"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -189,12 +192,26 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 }
 
 func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
-	keyRing, err := client.GenerateRSAKeyRing()
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
 	require.NoError(t, err)
+	return mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
+}
+
+func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	require.NoError(t, err)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
+	require.NoError(t, err)
+	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
 	keyRing.ClusterName = tc.Secrets.SiteName
 
+	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
+	require.NoError(t, err)
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		Key:            keyRing.PrivateKey.MarshalSSHPublicKey(),
+		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		TLSPubKey:      tlsPub,
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -212,10 +229,16 @@ func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl 
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	keyRing := MustCreateUserKeyRing(t, tc, username, ttl)
+	key, err := cryptosuites.GenerateKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	}, cryptosuites.UserTLS)
+	require.NoError(t, err)
+	// Identity files must use the same key for SSH and TLS.
+	sshKey, tlsKey := key, key
+	keyRing := mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		KeyRing:    keyRing,
 		Format:     identityfile.FormatFile,

@@ -36,8 +36,9 @@ type Props = {
   modalCss?: StyleFunction<any>;
 
   /**
-   * The child must be a single HTML element, as Modal calls methods such as focus and setAttribute
-   * on it.
+   * The child must be a single HTML element. Modal used to call methods such as focus and
+   * setAttribute on the outermost element. This is no longer the case, so technically this type can
+   * be adjusted if needed.
    */
   children?: React.ReactElement;
 
@@ -47,27 +48,9 @@ type Props = {
   BackdropProps?: BackdropProps;
 
   /**
-   * If `true`, the modal will not automatically shift focus to itself when it opens, and
-   * replace it to the last focused element when it closes.
-   * This also works correctly with any modal children that have the `disableAutoFocus` prop.
-   *
-   * Generally this should never be set to `true` as it makes the modal less
-   * accessible to assistive technologies, like screen readers.
-   */
-  disableAutoFocus?: boolean;
-
-  /**
    * If `true`, clicking the backdrop will not fire any callback.
    */
   disableBackdropClick?: boolean;
-
-  /**
-   * If `true`, the modal will not prevent focus from leaving the modal while open.
-   *
-   * Generally this should never be set to `true` as it makes the modal less
-   * accessible to assistive technologies, like screen readers.
-   */
-  disableEnforceFocus?: boolean;
 
   /**
    * If `true`, hitting escape will not fire any callback.
@@ -151,7 +134,6 @@ export default class Modal extends React.Component<Props> {
 
   handleOpen = () => {
     document.addEventListener('keydown', this.handleDocumentKeyDown);
-    document.addEventListener('focus', this.enforceFocus, true);
 
     if (this.dialogEl()) {
       this.handleOpened();
@@ -159,14 +141,12 @@ export default class Modal extends React.Component<Props> {
   };
 
   handleOpened = () => {
-    this.autoFocus();
     // Fix a bug on Chrome where the scroll isn't initially 0.
     this.modalRef.current.scrollTop = 0;
   };
 
   handleClose = () => {
     document.removeEventListener('keydown', this.handleDocumentKeyDown);
-    document.removeEventListener('focus', this.enforceFocus, true);
 
     this.restoreLastFocus();
   };
@@ -201,38 +181,6 @@ export default class Modal extends React.Component<Props> {
       this.props.onClose(event, 'escapeKeyDown');
     }
   };
-
-  enforceFocus = () => {
-    // The Modal might not already be mounted.
-    if (this.props.disableEnforceFocus || !this.mounted || !this.dialogEl()) {
-      return;
-    }
-
-    const currentActiveElement = document.activeElement;
-
-    if (!this.dialogEl().contains(currentActiveElement)) {
-      // Technically, dialogEl can be something else than an HTML element with the focus method.
-      this.dialogEl()['focus']?.();
-    }
-  };
-
-  autoFocus() {
-    // We might render an empty child.
-    if (this.props.disableAutoFocus || !this.dialogEl()) {
-      return;
-    }
-
-    const currentActiveElement = document.activeElement as HTMLElement;
-
-    if (!this.dialogEl().contains(currentActiveElement)) {
-      if (!this.dialogEl().hasAttribute('tabIndex')) {
-        this.dialogEl().setAttribute('tabIndex', '-1');
-      }
-
-      this.lastFocus = currentActiveElement;
-      this.dialogEl()['focus']?.();
-    }
-  }
 
   restoreLastFocus() {
     if (this.props.disableRestoreFocus || !this.lastFocus) {

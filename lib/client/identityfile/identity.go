@@ -226,13 +226,20 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
+		// Identity files only hold a single private key, and all certs are
+		// associated with that key. All callers should provide a
+		// [client.KeyRing] where [KeyRing.SSHPrivateKey] and
+		// [KeyRing.TLSPrivateKey] are equal. Assert that here.
+		if !bytes.Equal(cfg.KeyRing.SSHPrivateKey.MarshalSSHPublicKey(), cfg.KeyRing.TLSPrivateKey.MarshalSSHPublicKey()) {
+			return nil, trace.BadParameter("identity files don't support mismatched SSH and TLS keys, this is a bug")
+		}
 		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		idFile := &identityfile.IdentityFile{
-			PrivateKey: cfg.KeyRing.PrivateKey.PrivateKeyPEM(),
+			PrivateKey: cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(),
 			Certs: identityfile.Certs{
 				SSH: cfg.KeyRing.Cert,
 				TLS: cfg.KeyRing.TLSCert,
@@ -279,7 +286,11 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.KeyRing.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		sshPrivateKeyPEM, err := cfg.KeyRing.SSHPrivateKey.MarshalSSHPrivateKey()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = writer.WriteFile(keyPath, sshPrivateKeyPEM, identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -316,7 +327,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.KeyRing.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -356,7 +367,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 
-		err = writer.WriteFile(keyPath, cfg.KeyRing.PrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
+		err = writer.WriteFile(keyPath, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM(), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -379,7 +390,7 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		if err := checkOverwrite(ctx, writer, cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		err = writer.WriteFile(certPath, append(cfg.KeyRing.TLSCert, cfg.KeyRing.PrivateKey.PrivateKeyPEM()...), identityfile.FilePermissions)
+		err = writer.WriteFile(certPath, append(cfg.KeyRing.TLSCert, cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM()...), identityfile.FilePermissions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -519,7 +530,7 @@ func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyK, err := keys.ParsePrivateKey(cfg.KeyRing.PrivateKey.PrivateKeyPEM())
+	keyK, err := keys.ParsePrivateKey(cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -662,7 +673,7 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 
 func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 	certBlock, _ := pem.Decode(cfg.KeyRing.TLSCert)
-	privBlock, _ := pem.Decode(cfg.KeyRing.PrivateKey.PrivateKeyPEM())
+	privBlock, _ := pem.Decode(cfg.KeyRing.TLSPrivateKey.PrivateKeyPEM())
 
 	privKey, err := x509.ParsePKCS1PrivateKey(privBlock.Bytes)
 	if err != nil {
@@ -741,7 +752,8 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing := client.NewKeyRing(priv)
+	// Identity file uses same private key for SSH and TLS.
+	keyRing := client.NewKeyRing(priv, priv)
 	keyRing.Cert = ident.Certs.SSH
 	keyRing.TLSCert = ident.Certs.TLS
 	keyRing.KeyRingIndex = client.KeyRingIndex{
@@ -871,7 +883,7 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 			WebProxyAddr:          proxyAddr,
 			SiteName:              keyRing.ClusterName,
 			Username:              keyRing.Username,
-			PrivateKeyPolicy:      keyRing.PrivateKey.GetPrivateKeyPolicy(),
+			PrivateKeyPolicy:      keyRing.TLSPrivateKey.GetPrivateKeyPolicy(),
 		}
 		if err := store.SaveProfile(profile, true); err != nil {
 			return trace.Wrap(err)

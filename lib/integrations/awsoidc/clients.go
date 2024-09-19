@@ -176,3 +176,26 @@ type IdentityToken string
 func (j IdentityToken) GetIdentityToken() ([]byte, error) {
 	return []byte(j), nil
 }
+
+type callerIdentityGetter interface {
+	// GetCallerIdentity returns information about the caller identity.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+// checkAccountID is a helper func that check if the current caller account ID
+// matches the expected account ID, in order to check that the command was run
+// in the expected AWS account.
+func checkAccountID(ctx context.Context, clt callerIdentityGetter, wantAccountID string) error {
+	if wantAccountID == "" {
+		return nil
+	}
+	callerIdentity, err := clt.GetCallerIdentity(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	currentAccountID := aws.ToString(callerIdentity.Account)
+	if wantAccountID != currentAccountID {
+		return trace.BadParameter("expected account ID %s but current account ID is %s", wantAccountID, currentAccountID)
+	}
+	return nil
+}

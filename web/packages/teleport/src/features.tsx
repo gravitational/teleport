@@ -55,7 +55,6 @@ import { UnifiedResources } from './UnifiedResources';
 import { AccountPage } from './Account';
 import { Support } from './Support';
 import { Clusters } from './Clusters';
-import { Nodes } from './Nodes';
 import { TrustedClusters } from './TrustedClusters';
 import { Users } from './Users';
 import { RolesContainer as Roles } from './Roles';
@@ -99,31 +98,6 @@ class AccessRequests implements TeleportFeature {
   topMenuItem = this.navigationItem;
 }
 
-export class FeatureNodes implements TeleportFeature {
-  route = {
-    title: 'Servers',
-    path: cfg.routes.nodes,
-    exact: true,
-    component: Nodes,
-  };
-
-  navigationItem = {
-    title: NavTitle.Servers,
-    icon: Server,
-    exact: true,
-    getLink(clusterId: string) {
-      return cfg.getNodesRoute(clusterId);
-    },
-  };
-
-  category = NavigationCategory.Resources;
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.nodes;
-  }
-}
-
-// TODO (avatus) add navigationItem when ready to release
 export class FeatureJoinTokens implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
@@ -215,7 +189,7 @@ export class FeatureUsers implements TeleportFeature {
     title: 'Manage Users',
     path: cfg.routes.users,
     exact: true,
-    component: () => <Users />,
+    component: Users,
   };
 
   hasAccess(flags: FeatureFlags): boolean {

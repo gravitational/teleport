@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -115,7 +115,9 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		defer clusterClient.Close()
 
 		// Generate keypair to use in SVID
-		privateKey, err := native.GenerateRSAPrivateKey()
+		privateKey, err := cryptosuites.GenerateKey(ctx,
+			tc.GetCurrentSignatureAlgorithmSuite,
+			cryptosuites.BotSVID)
 		if err != nil {
 			return trace.Wrap(err)
 		}

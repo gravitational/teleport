@@ -945,6 +945,22 @@ message AppV3 {
   ];
 }
 
+// CORSPolicy defines the CORS policy for AppSpecV3
+message CORSPolicy {
+  // allowed_origins specifies which origins are allowed to access the app.
+  repeated string allowed_origins = 1 [(gogoproto.jsontag) = "allowed_origins,omitempty"];
+  // allowed_methods specifies which methods are allowed when accessing the app.
+  repeated string allowed_methods = 2 [(gogoproto.jsontag) = "allowed_methods,omitempty"];
+  // allowed_headers specifies which headers can be used when accessing the app.
+  repeated string allowed_headers = 3 [(gogoproto.jsontag) = "allowed_headers,omitempty"];
+  // allow_credentials indicates whether credentials are allowed.
+  bool allow_credentials = 4 [(gogoproto.jsontag) = "allow_credentials,omitempty"];
+  // max_age indicates how long (in seconds) the results of a preflight request can be cached.
+  uint32 max_age = 5 [(gogoproto.jsontag) = "max_age,omitempty"];
+  // exposed_headers indicates which headers are made available to scripts via the browser.
+  repeated string exposed_headers = 6 [(gogoproto.jsontag) = "exposed_headers,omitempty"];
+}
+
 // AppSpecV3 is the AppV3 resource spec.
 message AppSpecV3 {
   // URI is the web app endpoint.
@@ -973,6 +989,8 @@ message AppSpecV3 {
   // RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will
   // be part of the authentication redirect flow and authenticate along side this app.
   repeated string RequiredAppNames = 10 [(gogoproto.jsontag) = "required_app_names,omitempty"];
+  // CORSPolicy defines the Cross-Origin Resource Sharing settings for the app.
+  CORSPolicy CORS = 11 [(gogoproto.jsontag) = "cors,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
@@ -1632,6 +1650,13 @@ message ProvisionTokenSpecV2TerraformCloud {
   // Terraform Cloud, this value should be `foo`. If the variable is set to
   // match the cluster name, it does not need to be set here.
   string Audience = 2 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // Hostname is the hostname of the Terraform Enterprise instance expected to
+  // issue JWTs allowed by this token. This may be unset for regular Terraform
+  // Cloud use, in which case it will be assumed to be `app.terraform.io`.
+  // Otherwise, it must both match the `iss` (issuer) field included in JWTs,
+  // and provide standard JWKS endpoints.
+  string Hostname = 3 [(gogoproto.jsontag) = "hostname,omitempty"];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.
@@ -2986,6 +3011,9 @@ message RoleOptions {
     (gogoproto.nullable) = false,
     (gogoproto.stdduration) = true
   ];
+
+  // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
+  string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
 }
 
 message RecordSession {
@@ -6677,6 +6705,17 @@ message SAMLIdPServiceProviderSpecV1 {
   // The value can contain service provider specific redirect URL, static state token etc.
   // The value is only applied in the IdP initiated SSO flow.
   string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
+  // LaunchURLs is used to configure custom landing URLs for service provider. It is useful in
+  // the following scenarios:
+  // 1. If a service provider does not support IdP initiated authentication, launch url can be
+  //    configured to launch users directly into the service provider authentication endpoint.
+  // 2. If a service provider does support IdP initiated authentication, it can be useful if
+  //    that service provider acts as a master authentication service provider for internal services.
+  //    In such case, Teleport administrator can configure launch URL, that lets user pick a specific
+  //    internal service URL from the Log In tile in the UI, which would take them to that particular
+  //    service for authentication instead of directly launching to the master service provider.
+  // Each launch URL value must be an HTTPs endpoint.
+  repeated string LaunchURLs = 7 [(gogoproto.jsontag) = "launch_urls"];
 }
 
 // SAMLAttributeMapping represents SAML service provider requested attribute

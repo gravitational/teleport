@@ -252,7 +252,7 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 
 		// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to
 		// use hardware private keys for kube credentials (if possible)
-		keyPEM, err := v.Credentials.PrivateKey.SoftwarePrivateKeyPEM()
+		keyPEM, err := v.Credentials.TLSPrivateKey.SoftwarePrivateKeyPEM()
 		if err == nil {
 			if len(v.Credentials.TLSCert) == 0 {
 				return trace.BadParameter("TLS certificate missing in provided credentials")

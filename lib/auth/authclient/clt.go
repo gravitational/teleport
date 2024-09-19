@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -79,7 +80,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+		Message: "MFA is required to access this resource but user has no MFA devices; see Account Settings in the Web UI or use 'tsh mfa add' to register MFA devices",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -156,7 +157,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithInsecureSkipVerify(cfg.InsecureAddressDiscovery),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
@@ -660,6 +661,11 @@ func (c *Client) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.Secret
 
 func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
+}
+
+// UserTasksClient returns a client for managing User Task resources.
+func (c *Client) UserTasksClient() services.UserTasks {
+	return c.APIClient.UserTasksServiceClient()
 }
 
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
@@ -1570,6 +1576,7 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1604,6 +1611,9 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// UserTasksServiceClient returns an User Task service client.
+	UserTasksServiceClient() *usertask.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

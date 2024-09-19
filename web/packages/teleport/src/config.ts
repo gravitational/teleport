@@ -308,13 +308,13 @@ const cfg = {
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
-      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
-      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
     awsRdsDbDeployServicesPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
@@ -334,10 +334,10 @@ const cfg = {
     awsAppAccessPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
     awsConfigureIamAppAccessPath:
-      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
     awsConfigureIamEc2AutoDiscoverWithSsmPath:
-      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName',
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName&awsAccountID=:accountID',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -557,8 +557,7 @@ const cfg = {
   },
 
   getUsersRoute() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.users, { clusterId });
+    return cfg.routes.users;
   },
 
   getBotsRoute() {
@@ -1238,6 +1237,7 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+  accountID: string;
 }
 
 export interface UrlAwsOidcConfigureIdp {
@@ -1250,6 +1250,7 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+  accountID: string;
 }
 
 export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
@@ -1257,6 +1258,7 @@ export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   iamRoleName: string;
   ssmDocument: string;
   integrationName: string;
+  accountID: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

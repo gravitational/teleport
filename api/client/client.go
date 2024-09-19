@@ -61,11 +61,13 @@ import (
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
 	"github.com/gravitational/teleport/api/client/userloginstate"
+	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -89,6 +91,7 @@ import (
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -2863,6 +2866,26 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
+// GetAutoUpdateConfig gets AutoUpdateConfig resource.
+func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+// GetAutoUpdateVersion gets AutoUpdateVersion resource.
+func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
+	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
+	resp, err := client.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -4667,6 +4690,14 @@ func (c *Client) UserLoginStateClient() *userloginstate.Client {
 	return userloginstate.NewClient(userloginstatev1.NewUserLoginStateServiceClient(c.conn))
 }
 
+// UserTasksServiceClient returns a UserTask client.
+// Clients connecting to older Teleport versions, still get a UserTask client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) UserTasksServiceClient() *usertaskapi.Client {
+	return usertaskapi.NewClient(usertaskv1.NewUserTaskServiceClient(c.conn))
+}
+
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
@@ -4871,16 +4902,16 @@ func (c *Client) ResourceUsageClient() resourceusagepb.ResourceUsageServiceClien
 }
 
 // UpdateRemoteCluster updates remote cluster from the specified value.
-// TODO(noah): In v17.0.0 this method should switch to call UpdateRemoteCluster
-// on the presence service client.
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) error {
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	rcV3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
 	}
 
-	_, err := c.grpc.UpdateRemoteCluster(ctx, rcV3)
-	return trace.Wrap(err)
+	res, err := c.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
+		RemoteCluster: rcV3,
+	})
+	return res, trace.Wrap(err)
 }
 
 // ListRemoteClusters returns a page of remote clusters.
@@ -4913,4 +4944,22 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 		Name: name,
 	})
 	return rc, trace.Wrap(err)
+}
+
+// GetRemoteClusters returns all remote clusters.
+// Deprecated: use ListRemoteClusters instead.
+func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	var rcs []types.RemoteCluster
+	pageToken := ""
+	for {
+		page, nextToken, err := c.ListRemoteClusters(ctx, 0, pageToken)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rcs = append(rcs, page...)
+		if nextToken == "" {
+			return rcs, nil
+		}
+		pageToken = nextToken
+	}
 }

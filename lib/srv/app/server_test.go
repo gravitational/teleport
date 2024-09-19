@@ -400,8 +400,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	for _, app := range apps {
 		select {
 		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
 			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
-				AppServer: s.appServer.getServerInfo(app),
+				AppServer: appServer,
 			}))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")

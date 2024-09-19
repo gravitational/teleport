@@ -725,8 +725,18 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			}
 			// A single event is larger than the max page size - the best we can
 			// do is try to trim it.
-			if t, ok := event.(trimmableEvent); ok {
-				event = t.TrimToMaxSize(events.MaxEventBytesInResponse)
+			event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+			// Check to make sure the trimmed event is small enough.
+			fields, err = events.ToEventFields(event)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			marshalledEvent, err := utils.FastMarshal(&fields)
+			if err != nil {
+				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
+			}
+			if len(marshalledEvent)+rb.totalSize <= events.MaxEventBytesInResponse {
 				events.MetricQueriedTrimmedEvents.Inc()
 				// Exact rb.totalSize doesn't really matter since the response is
 				// already size limited.
@@ -734,6 +744,7 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 				rb.output = append(rb.output, event)
 				return true, nil
 			}
+
 			// Failed to trim the event to size. The only options are to return
 			// a response with 0 events, skip this event, or return an error.
 			//

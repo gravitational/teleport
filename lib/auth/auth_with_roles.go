@@ -61,7 +61,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -5159,60 +5158,6 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllTunnelConnections()
-}
-
-// Deprecated: use [presencev1.PresenceService.GetRemoteCluster]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
-	if err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
-		return nil, utils.OpaqueAccessDenied(err)
-	}
-	return cluster, nil
-}
-
-// Deprecated: use [presencev1.PresenceService.ListRemoteClusters]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	remoteClusters, err := a.authServer.GetRemoteClusters(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.filterRemoteClustersForUser(remoteClusters)
-}
-
-// filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.RemoteCluster) ([]types.RemoteCluster, error) {
-	filteredClusters := make([]types.RemoteCluster, 0, len(remoteClusters))
-	for _, rc := range remoteClusters {
-		if err := a.context.Checker.CheckAccessToRemoteCluster(rc); err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
-		filteredClusters = append(filteredClusters, rc)
-	}
-	return filteredClusters, nil
-}
-
-// Deprecated: use [presencev1.PresenceService.DeleteRemoteCluster]
-// TODO(noah): DELETE IN 17.0.0
-func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
-	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

@@ -184,6 +184,7 @@ export default function useClusterLogin(props: Props) {
     onAbort,
     loginAttempt,
     initAttempt,
+    init,
     clearLoginAttempt,
   };
 }
