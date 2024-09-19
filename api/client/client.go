@@ -4961,13 +4961,16 @@ func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
 }
 
 // UpsertReverseTunnel creates or updates reverse tunnel resource
-func (c *Client) UpsertReverseTunnel(ctx context.Context, rt types.ReverseTunnel) error {
+func (c *Client) UpsertReverseTunnel(ctx context.Context, rt types.ReverseTunnel) (types.ReverseTunnel, error) {
 	rtV3, ok := rt.(*types.ReverseTunnelV2)
 	if !ok {
-		return trace.BadParameter("unsupported reverse tunnel type %T", rt)
+		return nil, trace.BadParameter("unsupported reverse tunnel type %T", rt)
 	}
-	_, err := c.PresenceServiceClient().UpsertReverseTunnel(ctx, &presencepb.UpsertReverseTunnelRequest{
+	res, err := c.PresenceServiceClient().UpsertReverseTunnel(ctx, &presencepb.UpsertReverseTunnelRequest{
 		ReverseTunnel: rtV3,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return res, nil
 }
