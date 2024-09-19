@@ -72,10 +72,10 @@ func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "missing Backend",
 		},
 		{
-			name: "missing lock name",
+			name: "missing lock components",
 			in: LockConfiguration{
-				Backend:  mockBackend{},
-				LockName: "",
+				Backend:            mockBackend{},
+				LockNameComponents: nil,
 			},
 			wantErr: "missing LockName",
 		},
@@ -143,7 +143,6 @@ func TestRunWhileLockedConfigCheckAndSetDefaults(t *testing.T) {
 			name: "errors from LockConfiguration is passed",
 			input: func() RunWhileLockedConfig {
 				cfg := minimumValidConfig
-				cfg.LockName = ""
 				cfg.LockNameComponents = nil
 				return cfg
 			},
