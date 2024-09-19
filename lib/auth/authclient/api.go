@@ -951,6 +951,9 @@ type Cache interface {
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
+	// ListReverseTunnels returns a paginated list of reverse tunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
+
 	// GetClusterName returns cluster name
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
