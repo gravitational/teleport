@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -189,7 +188,7 @@ type mockAuthClient struct {
 	reverseTunnelsErr error
 }
 
-func (c mockAuthClient) GetReverseTunnels(context.Context, ...services.MarshalOption) ([]types.ReverseTunnel, error) {
+func (c mockAuthClient) GetReverseTunnels(context.Context) ([]types.ReverseTunnel, error) {
 	return c.reverseTunnels, c.reverseTunnelsErr
 }
 

@@ -179,7 +179,6 @@ type GRPCServer struct {
 
 	// presenceService is used to forward requests to deprecated presence RPCs
 	// to the new service.
-	// TODO(noah) DELETE IN 17.0.0
 	presenceService *presencev1.Service
 
 	// TraceServiceServer exposes the exporter server so that the auth server may

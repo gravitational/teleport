@@ -294,7 +294,7 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive)
 }
 
 // GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
@@ -376,7 +376,7 @@ func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 }
 
 // DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
+func (c *Client) DeleteAllReverseTunnels(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 

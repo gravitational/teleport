@@ -39,6 +39,9 @@ const (
 	PresenceService_ListRemoteClusters_FullMethodName  = "/teleport.presence.v1.PresenceService/ListRemoteClusters"
 	PresenceService_UpdateRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/UpdateRemoteCluster"
 	PresenceService_DeleteRemoteCluster_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteRemoteCluster"
+	PresenceService_ListReverseTunnels_FullMethodName  = "/teleport.presence.v1.PresenceService/ListReverseTunnels"
+	PresenceService_UpsertReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/UpsertReverseTunnel"
+	PresenceService_DeleteReverseTunnel_FullMethodName = "/teleport.presence.v1.PresenceService/DeleteReverseTunnel"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -55,6 +58,12 @@ type PresenceServiceClient interface {
 	UpdateRemoteCluster(ctx context.Context, in *UpdateRemoteClusterRequest, opts ...grpc.CallOption) (*types.RemoteClusterV3, error)
 	// DeleteRemoteCluster removes an existing RemoteCluster by name.
 	DeleteRemoteCluster(ctx context.Context, in *DeleteRemoteClusterRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListReverseTunnels retrieves a page of ReverseTunnels.
+	ListReverseTunnels(ctx context.Context, in *ListReverseTunnelsRequest, opts ...grpc.CallOption) (*ListReverseTunnelsResponse, error)
+	// UpsertReverseTunnel upserts a ReverseTunnel.
+	UpsertReverseTunnel(ctx context.Context, in *UpsertReverseTunnelRequest, opts ...grpc.CallOption) (*types.ReverseTunnelV2, error)
+	// DeleteReverseTunnel removes an existing ReverseTunnel by name.
+	DeleteReverseTunnel(ctx context.Context, in *DeleteReverseTunnelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type presenceServiceClient struct {
@@ -105,6 +114,36 @@ func (c *presenceServiceClient) DeleteRemoteCluster(ctx context.Context, in *Del
 	return out, nil
 }
 
+func (c *presenceServiceClient) ListReverseTunnels(ctx context.Context, in *ListReverseTunnelsRequest, opts ...grpc.CallOption) (*ListReverseTunnelsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListReverseTunnelsResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListReverseTunnels_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) UpsertReverseTunnel(ctx context.Context, in *UpsertReverseTunnelRequest, opts ...grpc.CallOption) (*types.ReverseTunnelV2, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(types.ReverseTunnelV2)
+	err := c.cc.Invoke(ctx, PresenceService_UpsertReverseTunnel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) DeleteReverseTunnel(ctx context.Context, in *DeleteReverseTunnelRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteReverseTunnel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -119,6 +158,12 @@ type PresenceServiceServer interface {
 	UpdateRemoteCluster(context.Context, *UpdateRemoteClusterRequest) (*types.RemoteClusterV3, error)
 	// DeleteRemoteCluster removes an existing RemoteCluster by name.
 	DeleteRemoteCluster(context.Context, *DeleteRemoteClusterRequest) (*emptypb.Empty, error)
+	// ListReverseTunnels retrieves a page of ReverseTunnels.
+	ListReverseTunnels(context.Context, *ListReverseTunnelsRequest) (*ListReverseTunnelsResponse, error)
+	// UpsertReverseTunnel upserts a ReverseTunnel.
+	UpsertReverseTunnel(context.Context, *UpsertReverseTunnelRequest) (*types.ReverseTunnelV2, error)
+	// DeleteReverseTunnel removes an existing ReverseTunnel by name.
+	DeleteReverseTunnel(context.Context, *DeleteReverseTunnelRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -140,6 +185,15 @@ func (UnimplementedPresenceServiceServer) UpdateRemoteCluster(context.Context, *
 }
 func (UnimplementedPresenceServiceServer) DeleteRemoteCluster(context.Context, *DeleteRemoteClusterRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteRemoteCluster not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListReverseTunnels(context.Context, *ListReverseTunnelsRequest) (*ListReverseTunnelsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListReverseTunnels not implemented")
+}
+func (UnimplementedPresenceServiceServer) UpsertReverseTunnel(context.Context, *UpsertReverseTunnelRequest) (*types.ReverseTunnelV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertReverseTunnel not implemented")
+}
+func (UnimplementedPresenceServiceServer) DeleteReverseTunnel(context.Context, *DeleteReverseTunnelRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteReverseTunnel not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -234,6 +288,60 @@ func _PresenceService_DeleteRemoteCluster_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_ListReverseTunnels_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListReverseTunnelsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListReverseTunnels(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListReverseTunnels_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListReverseTunnels(ctx, req.(*ListReverseTunnelsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_UpsertReverseTunnel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertReverseTunnelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).UpsertReverseTunnel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_UpsertReverseTunnel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).UpsertReverseTunnel(ctx, req.(*UpsertReverseTunnelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_DeleteReverseTunnel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteReverseTunnelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).DeleteReverseTunnel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_DeleteReverseTunnel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).DeleteReverseTunnel(ctx, req.(*DeleteReverseTunnelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -256,6 +364,18 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteRemoteCluster",
 			Handler:    _PresenceService_DeleteRemoteCluster_Handler,
+		},
+		{
+			MethodName: "ListReverseTunnels",
+			Handler:    _PresenceService_ListReverseTunnels_Handler,
+		},
+		{
+			MethodName: "UpsertReverseTunnel",
+			Handler:    _PresenceService_UpsertReverseTunnel_Handler,
+		},
+		{
+			MethodName: "DeleteReverseTunnel",
+			Handler:    _PresenceService_DeleteReverseTunnel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -41,6 +41,13 @@ type Backend interface {
 	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
+
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
+	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
+}
+
+type Cache interface {
+	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
 }
 
 type AuthServer interface {
@@ -56,6 +63,7 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	AuthServer AuthServer
 	Backend    Backend
+	Cache      Cache
 	Logger     logrus.FieldLogger
 	Emitter    apievents.Emitter
 	Reporter   usagereporter.UsageReporter
@@ -69,6 +77,7 @@ type Service struct {
 	authorizer authz.Authorizer
 	authServer AuthServer
 	backend    Backend
+	cache      Cache
 	logger     logrus.FieldLogger
 	emitter    apievents.Emitter
 	reporter   usagereporter.UsageReporter
@@ -88,6 +97,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("auth server is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
 
 	if cfg.Logger == nil {
@@ -102,9 +113,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		authServer: cfg.AuthServer,
 		backend:    cfg.Backend,
-		emitter:    cfg.Emitter,
-		reporter:   cfg.Reporter,
-		clock:      cfg.Clock,
+		cache:      cfg.Cache,
+
+		emitter:  cfg.Emitter,
+		reporter: cfg.Reporter,
+		clock:    cfg.Clock,
 	}, nil
 }
 
@@ -290,4 +303,68 @@ func (s *Service) DeleteRemoteCluster(
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ListReverseTunnels returns a page of reverse tunnels.
+func (s *Service) ListReverseTunnels(
+	ctx context.Context, req *presencepb.ListReverseTunnelsRequest,
+) (*presencepb.ListReverseTunnelsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, nextToken, err := s.cache.ListReverseTunnels(
+		ctx, int(req.PageSize), req.PageToken,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert the reverse tunnels to the concrete type
+	concretePage := make([]*types.ReverseTunnelV2, 0, len(page))
+	for _, rc := range page {
+		v3, ok := rc.(*types.ReverseTunnelV2)
+		if !ok {
+			s.logger.Warnf("expected type ReverseTunnelV2, got %T for %q", rc, rc.GetName())
+			continue
+		}
+		concretePage = append(concretePage, v3)
+	}
+
+	return &presencepb.ListReverseTunnelsResponse{
+		ReverseTunnels: concretePage,
+		NextPageToken:  nextToken,
+	}, nil
+}
+
+// UpsertReverseTunnel upserts a reverse tunnel.
+func (s *Service) UpsertReverseTunnel(
+	ctx context.Context, req *presencepb.UpsertReverseTunnelRequest,
+) (*types.ReverseTunnelV2, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.NotImplemented("not implemented")
+}
+
+// DeleteReverseTunnel deletes a reverse tunnel.
+func (s *Service) DeleteReverseTunnel(
+	ctx context.Context, req *presencepb.DeleteReverseTunnelRequest,
+) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.NotImplemented("not implemented")
 }

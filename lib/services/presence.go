@@ -108,19 +108,22 @@ type Presence interface {
 	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(tunnel types.ReverseTunnel) error
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
 
 	// GetReverseTunnel returns reverse tunnel by name
-	GetReverseTunnel(name string, opts ...MarshalOption) (types.ReverseTunnel, error)
+	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
-	GetReverseTunnels(ctx context.Context, opts ...MarshalOption) ([]types.ReverseTunnel, error)
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
-	DeleteReverseTunnel(domainName string) error
+	DeleteReverseTunnel(ctx context.Context, domainName string) error
 
 	// DeleteAllReverseTunnels deletes all reverse tunnels
-	DeleteAllReverseTunnels() error
+	DeleteAllReverseTunnels(ctx context.Context) error
+
+	// ListReverseTunnels returns a page of ReverseTunnels.
+	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetNamespaces returns a list of namespaces
 	GetNamespaces() ([]types.Namespace, error)
