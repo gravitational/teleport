@@ -50,6 +50,8 @@ type PromptConfig struct {
 	DeviceType DeviceDescriptor
 	// Quiet suppresses users prompts.
 	Quiet bool
+	// SSOMFACeremony is an SSO MFA ceremony.
+	SSOMFACeremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".
@@ -90,5 +92,12 @@ func WithPromptReasonSessionMFA(serviceType, serviceName string) PromptOpt {
 func WithPromptDeviceType(deviceType DeviceDescriptor) PromptOpt {
 	return func(cfg *PromptConfig) {
 		cfg.DeviceType = deviceType
+	}
+}
+
+// withSSOMFACeremony sets the SSO MFA ceremony for the MFA prompt.
+func withSSOMFACeremony(ssoMFACeremony SSOMFACeremony) PromptOpt {
+	return func(cfg *PromptConfig) {
+		cfg.SSOMFACeremony = ssoMFACeremony
 	}
 }
