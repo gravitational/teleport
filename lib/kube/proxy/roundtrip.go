@@ -259,23 +259,7 @@ func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connec
 	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
 	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
 	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
-		defer resp.Body.Close()
-		responseError := ""
-		responseErrorBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			responseError = "unable to read error from server response"
-		} else {
-			// TODO: I don't belong here, I should be abstracted from this class
-			if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
-				if status, ok := obj.(*metav1.Status); ok {
-					return nil, &apierrors.StatusError{ErrStatus: *status}
-				}
-			}
-			responseError = string(responseErrorBytes)
-			responseError = strings.TrimSpace(responseError)
-		}
-
-		return nil, fmt.Errorf("unable to upgrade connection: %s", responseError)
+		return nil, trace.Wrap(extractKubeAPIStatusFromReq(resp))
 	}
 
 	return streamspdy.NewClientConnectionWithPings(s.conn, s.pingPeriod)
@@ -291,4 +275,25 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+// extractKubeAPIStatusFromReq extracts the status from the response body and returns it as an error.
+func extractKubeAPIStatusFromReq(rsp *http.Response) error {
+	defer func() {
+		_ = rsp.Body.Close()
+	}()
+	responseError := ""
+	responseErrorBytes, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		responseError = "unable to read error from server response"
+	} else {
+		if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
+			if status, ok := obj.(*metav1.Status); ok {
+				return &apierrors.StatusError{ErrStatus: *status}
+			}
+		}
+		responseError = string(responseErrorBytes)
+		responseError = strings.TrimSpace(responseError)
+	}
+	return fmt.Errorf("unable to upgrade connection: %s", responseError)
 }

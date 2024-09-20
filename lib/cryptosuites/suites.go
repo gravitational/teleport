@@ -107,6 +107,9 @@ const (
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
+
+	// OktaCAJWT represents the JWT key for the Okta CA.
+	OktaCAJWT
 )
 
 // Algorithm represents a cryptographic signature algorithm.
@@ -172,6 +175,7 @@ var (
 		ProxyToDatabaseAgent: RSA2048,
 		ProxyKubeClient:      RSA2048,
 		// TODO(nklaassen): define remaining key purposes.
+		OktaCAJWT: RSA2048,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -186,7 +190,7 @@ var (
 		DatabaseClientCATLS:     RSA2048,
 		OpenSSHCASSH:            Ed25519,
 		JWTCAJWT:                ECDSAP256,
-		OIDCIdPCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
 		SPIFFECAJWT:             ECDSAP256,
@@ -200,6 +204,7 @@ var (
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
+		OktaCAJWT: ECDSAP256,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -214,7 +219,7 @@ var (
 		DatabaseClientCATLS:     RSA2048,
 		OpenSSHCASSH:            ECDSAP256,
 		JWTCAJWT:                ECDSAP256,
-		OIDCIdPCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
 		SPIFFECAJWT:             ECDSAP256,
@@ -227,6 +232,7 @@ var (
 		BotSVID:                 ECDSAP256,
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
+		OktaCAJWT:               ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 
@@ -244,7 +250,7 @@ var (
 		DatabaseClientCATLS:     RSA2048,
 		OpenSSHCASSH:            ECDSAP256,
 		JWTCAJWT:                ECDSAP256,
-		OIDCIdPCAJWT:            ECDSAP256,
+		OIDCIdPCAJWT:            RSA2048,
 		SAMLIdPCATLS:            RSA2048,
 		SPIFFECATLS:             ECDSAP256,
 		SPIFFECAJWT:             ECDSAP256,
@@ -257,6 +263,7 @@ var (
 		BotSVID:                 ECDSAP256,
 		ProxyToDatabaseAgent:    ECDSAP256,
 		ProxyKubeClient:         ECDSAP256,
+		OktaCAJWT:               ECDSAP256,
 		// TODO(nklaassen): define remaining key purposes.
 	}
 

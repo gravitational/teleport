@@ -229,6 +229,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	StaticHostUserCreateEvent:                   &apievents.StaticHostUserCreate{},
 	StaticHostUserUpdateEvent:                   &apievents.StaticHostUserUpdate{},
 	StaticHostUserDeleteEvent:                   &apievents.StaticHostUserDelete{},
+	CrownJewelCreateEvent:                       &apievents.CrownJewelCreate{},
+	CrownJewelUpdateEvent:                       &apievents.CrownJewelUpdate{},
+	CrownJewelDeleteEvent:                       &apievents.CrownJewelDelete{},
 }
 
 // TestJSON tests JSON marshal events

@@ -34,6 +34,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
@@ -454,4 +455,147 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			eventsLock.Unlock()
 		})
 	}
+}
+
+func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
+	t.Parallel()
+
+	const (
+		errorMessage = "pods \"api-1\" is forbidden: User \"bar\" cannot %s resource " +
+			"\"pods/exec\" in API group \"\" in the namespace \"ns\""
+	)
+
+	const errorCode = http.StatusForbidden
+
+	kubeMock, err := testingkubemock.NewKubeAPIMock(
+		testingkubemock.WithExecError(
+			metav1.Status{
+				Status:  metav1.StatusFailure,
+				Message: fmt.Sprintf(errorMessage, "get"),
+				Reason:  metav1.StatusReasonForbidden,
+				Code:    errorCode,
+			},
+		),
+		testingkubemock.WithVersion(
+			&apimachineryversion.Info{
+				Major:      "1",
+				Minor:      "31",
+				GitVersion: "v1.31.0",
+			}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.EqualValues(t, 0, kubeMock.KubeExecRequests.SPDY.Load(), "expected no SPDY requests")
+		require.EqualValues(t, 2, kubeMock.KubeExecRequests.Websocket.Load(), "expected one websocket request")
+		kubeMock.Close()
+	})
+	var (
+		execEvent  *apievents.Exec
+		eventsLock sync.Mutex
+	)
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			OnEvent: func(evt apievents.AuditEvent) {
+				eventsLock.Lock()
+				defer eventsLock.Unlock()
+				if exec, ok := evt.(*apievents.Exec); ok {
+					execEvent = exec
+				}
+			},
+		},
+	)
+
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		username,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+		})
+
+	// generate a kube client with user certs for auth
+	_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
+		t,
+		user.GetName(),
+		kubeCluster,
+	)
+
+	tests := []struct {
+		name        string
+		interactive bool
+	}{
+		{
+			name: "error propagation in non-interactive session",
+		},
+		{
+			name:        "error propgation in interactive session",
+			interactive: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var streamOpts remotecommand.StreamOptions
+			if !tt.interactive {
+				streamOpts = remotecommand.StreamOptions{
+					Stdin:  nil,
+					Stdout: &bytes.Buffer{},
+					Stderr: &bytes.Buffer{},
+					Tty:    false,
+				}
+			} else {
+				stdinReader, _ := io.Pipe()
+				t.Cleanup(func() { stdinReader.Close() })
+				streamOpts = remotecommand.StreamOptions{
+					Stdin:  stdinReader,
+					Stdout: &bytes.Buffer{},
+					Stderr: nil,
+					Tty:    true,
+				}
+			}
+			req, err := generateExecRequest(
+				generateExecRequestConfig{
+					addr:          testCtx.KubeProxyAddress(),
+					podName:       podName,
+					podNamespace:  podNamespace,
+					containerName: podContainerName,
+					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+					options:       streamOpts,
+				},
+			)
+			require.NoError(t, err)
+
+			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
+			require.NoError(t, err)
+			err = exec.StreamWithContext(context.Background(), streamOpts)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
+
+			require.Eventually(t, func() bool {
+				eventsLock.Lock()
+				defer eventsLock.Unlock()
+				return execEvent != nil
+			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
+
+			eventsLock.Lock()
+			require.Equal(t, events.ExecFailureCode, execEvent.Code)
+			require.Equal(t, "403", execEvent.ExitCode)
+			require.NotEmpty(t, execEvent.Error)
+			eventsLock.Unlock()
+
+		})
+	}
+
 }
