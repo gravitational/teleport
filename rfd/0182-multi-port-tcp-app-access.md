@@ -241,6 +241,31 @@ With multi-port, VNet needs to create a local proxy at a later step, [in `vnet.N
 where it can read the port used by the connection (`req.ID().LocalPort`). It needs to maintain a map
 of port numbers to local proxies to avoid creating a new proxy and a cert on each connection.
 
+The final strategy to select an app and a port looks like this:
+
+1. The client sends an A or AAAA query to VNet's DNS server.
+1. VNet queries the cluster for an app spec where the hostname from the DNS query matches
+   `public_addr`. It caches the app spec for later use. It responds to the DNS query with a
+   virtual IP address.
+1. The client creates a TCP connection to that address.
+1. VNet receives the connection through the TUN device. At this point, VNet knows which port the
+   client wants to use. VNet verifies if the port number is included in the port ranges in the
+   cached app spec. If the port is not included, VNet closes the connection and shows an error in
+   Connect.
+1. If the port validation passes, VNet requests an app cert with said port in
+   `RouteToApp.TargetPort` and starts a local proxy with this cert. VNet forwards the connection to
+   the local proxy.
+
+The next time a connection comes in on the same hostname and port, VNet reuses the cached app
+spec and the local proxy to forward the connection to the proxy service, without having to perform
+any extra queries to the cluster.
+
+The initial implementation is not going to refresh the cached app spec, requiring the user to stop
+and start VNet to refresh it. We assume that outside of the initial setup, app specs change rarely
+enough where this behavior will be acceptable for early adopters. Later we might consider refreshing
+the app spec whenever we get a connection on a port that's not in the spec or invalidating the cache
+after refreshing an app cert in a local proxy.
+
 ### Configuration
 
 ```yaml
