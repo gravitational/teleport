@@ -2297,6 +2297,27 @@ export interface AccessGraphAWSScanEvent {
  */
 export interface AccessGraphAccessPathChangedEvent {
     /**
+     * affected_resource_source is the source of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_source = 1;
+     */
+    affectedResourceSource: string;
+    /**
+     * affected_resource_type is the type of the affected resource.
+     *
+     * @generated from protobuf field: string affected_resource_type = 2;
+     */
+    affectedResourceType: string;
+}
+/**
+ * UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+ *
+ * @generated from protobuf message prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+ */
+export interface UIAccessGraphCrownJewelDiffViewEvent {
+    /**
+     * affected_resource_source is the source of the affected resource.
+     *
      * @generated from protobuf field: string affected_resource_source = 1;
      */
     affectedResourceSource: string;
@@ -3066,6 +3087,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
          */
         accessGraphCrownJewelCreate: AccessGraphCrownJewelCreateEvent;
+    } | {
+        oneofKind: "uiAccessGraphCrownJewelDiffView";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
+         */
+        uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent;
     } | {
         oneofKind: undefined;
     };
@@ -9082,6 +9109,61 @@ class AccessGraphAccessPathChangedEvent$Type extends MessageType<AccessGraphAcce
  */
 export const AccessGraphAccessPathChangedEvent = new AccessGraphAccessPathChangedEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIAccessGraphCrownJewelDiffViewEvent$Type extends MessageType<UIAccessGraphCrownJewelDiffViewEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent", [
+            { no: 1, name: "affected_resource_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "affected_resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UIAccessGraphCrownJewelDiffViewEvent>): UIAccessGraphCrownJewelDiffViewEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.affectedResourceSource = "";
+        message.affectedResourceType = "";
+        if (value !== undefined)
+            reflectionMergePartial<UIAccessGraphCrownJewelDiffViewEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessGraphCrownJewelDiffViewEvent): UIAccessGraphCrownJewelDiffViewEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string affected_resource_source */ 1:
+                    message.affectedResourceSource = reader.string();
+                    break;
+                case /* string affected_resource_type */ 2:
+                    message.affectedResourceType = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UIAccessGraphCrownJewelDiffViewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string affected_resource_source = 1; */
+        if (message.affectedResourceSource !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.affectedResourceSource);
+        /* string affected_resource_type = 2; */
+        if (message.affectedResourceType !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.affectedResourceType);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent
+ */
+export const UIAccessGraphCrownJewelDiffViewEvent = new UIAccessGraphCrownJewelDiffViewEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class AccessGraphCrownJewelCreateEvent$Type extends MessageType<AccessGraphCrownJewelCreateEvent> {
     constructor() {
         super("prehog.v1alpha.AccessGraphCrownJewelCreateEvent", []);
@@ -9632,7 +9714,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 88, name: "access_graph_secrets_scan_ssh_private_keys", kind: "message", oneof: "event", T: () => AccessGraphSecretsScanSSHPrivateKeysEvent },
             { no: 89, name: "access_graph_aws_scan", kind: "message", oneof: "event", T: () => AccessGraphAWSScanEvent },
             { no: 90, name: "access_graph_access_path_changed", kind: "message", oneof: "event", T: () => AccessGraphAccessPathChangedEvent },
-            { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent }
+            { no: 91, name: "access_graph_crown_jewel_create", kind: "message", oneof: "event", T: () => AccessGraphCrownJewelCreateEvent },
+            { no: 92, name: "ui_access_graph_crown_jewel_diff_view", kind: "message", oneof: "event", T: () => UIAccessGraphCrownJewelDiffViewEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -10182,6 +10265,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         accessGraphCrownJewelCreate: AccessGraphCrownJewelCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessGraphCrownJewelCreate)
                     };
                     break;
+                case /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view */ 92:
+                    message.event = {
+                        oneofKind: "uiAccessGraphCrownJewelDiffView",
+                        uiAccessGraphCrownJewelDiffView: UIAccessGraphCrownJewelDiffViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessGraphCrownJewelDiffView)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -10464,6 +10553,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91; */
         if (message.event.oneofKind === "accessGraphCrownJewelCreate")
             AccessGraphCrownJewelCreateEvent.internalBinaryWrite(message.event.accessGraphCrownJewelCreate, writer.tag(91, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92; */
+        if (message.event.oneofKind === "uiAccessGraphCrownJewelDiffView")
+            UIAccessGraphCrownJewelDiffViewEvent.internalBinaryWrite(message.event.uiAccessGraphCrownJewelDiffView, writer.tag(92, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
