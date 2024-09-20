@@ -140,6 +140,14 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'datadog',
+    details: '',
+    kind: 'datadog',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
