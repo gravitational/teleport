@@ -212,7 +212,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		PluginMetadata: apievents.PluginMetadata{
 			PluginType:     string(plugin.GetType()),
 			HasCredentials: staticCreds != nil,
-			Plugin:         out,
+			PluginData:     s.pluginToProtobufStruct(ctx, plugin),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
@@ -222,6 +222,21 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	s.logger.InfoContext(ctx, "Plugin created.", logPluginAttr(req.Plugin)...)
 
 	return &emptypb.Empty{}, nil
+}
+
+func (s *Service) pluginToProtobufStruct(ctx context.Context, plugin types.Plugin) *apievents.Struct {
+	out, err := services.MarshalPlugin(plugin)
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to marshal plugin.", "error", err)
+		return nil
+	}
+
+	var str apievents.Struct
+	if err := str.UnmarshalJSON(out); err != nil {
+		s.logger.WarnContext(ctx, "Failed to unmarshal plugin.", "error", err)
+		return nil
+	}
+	return &str
 }
 
 // UpdatePlugin updates the specified plugin instance.
@@ -283,7 +298,7 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 			PluginType:        string(out.GetType()),
 			HasCredentials:    inPlugin.Credentials != nil,
 			ReusesCredentials: inPlugin.Credentials == nil,
-			Plugin:            out,
+			PluginData:        s.pluginToProtobufStruct(ctx, out),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
@@ -537,7 +552,7 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 		PluginMetadata: apievents.PluginMetadata{
 			PluginType:     string(plugin.GetType()),
 			HasCredentials: staticCredsRef != nil,
-			Plugin:         out,
+			PluginData:     s.pluginToProtobufStruct(ctx, out),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
