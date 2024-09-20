@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -33,6 +34,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc/codes"
@@ -100,6 +103,9 @@ type Server struct {
 
 	tlsConfig *tls.Config
 	server    *http.Server
+
+	dtlsConfig *tls.Config
+	server3    *http3.Server
 }
 
 // NewServer creates a new proxy server instance.
@@ -129,6 +135,11 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		// initialize or refresh tickets prior to cloning, workaround for
+		// https://github.com/golang/go/issues/60506
+		_, _ = tlsConfig.DecryptTicket(nil, tls.ConnectionState{})
+
 		c := tlsConfig.Clone()
 		c.ClientCAs = clientCAs
 		return c, nil
@@ -148,6 +159,41 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	dtlsConfig := tlsConfig.Clone()
+	dtlsConfig.NextProtos = []string{"h3"}
+	dtlsConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+		clientCAs, err := getClientCAs(chi)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// initialize or refresh tickets prior to cloning, workaround for
+		// https://github.com/golang/go/issues/60506
+		_, _ = dtlsConfig.DecryptTicket(nil, tls.ConnectionState{})
+
+		c := dtlsConfig.Clone()
+		c.ClientCAs = clientCAs
+		return c, nil
+	}
+
+	cfgLog := cfg.Log
+	server3 := &http3.Server{
+		Handler: mux,
+		Logger:  slog.Default(),
+
+		IdleTimeout: 5 * time.Minute,
+
+		ConnContext: func(ctx context.Context, conn quic.Connection) context.Context {
+			context.AfterFunc(conn.Context(), func() {
+				cfgLog.Errorf("==== DROPPED SERVER CONNECTION: %v", context.Cause(conn.Context()))
+			})
+			return ctx
+		},
+
+		MaxHeaderBytes:  math.MaxInt,
+		EnableDatagrams: true,
+	}
+
 	return &Server{
 		log: cfg.Log,
 
@@ -155,6 +201,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 		tlsConfig: tlsConfig,
 		server:    server,
+
+		dtlsConfig: dtlsConfig,
+		server3:    server3,
 	}, nil
 }
 
@@ -185,15 +234,45 @@ func (s *Server) Serve(l net.Listener) error {
 	return trace.Wrap(err)
 }
 
+func (s *Server) ServeQUIC(t *quic.Transport) error {
+	el, err := t.ListenEarly(s.dtlsConfig, &quic.Config{
+		MaxIdleTimeout: 30 * time.Second,
+
+		MaxIncomingStreams:    1 << 60,
+		MaxIncomingUniStreams: 1 << 60,
+		KeepAlivePeriod:       10 * time.Second,
+
+		MaxStreamReceiveWindow:     20 * 1024 * 1024,
+		MaxConnectionReceiveWindow: 100 * 1024 * 1024,
+
+		InitialPacketSize:       1200,
+		DisablePathMTUDiscovery: true,
+
+		EnableDatagrams: true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.server3.ServeListener(el)
+	if errors.Is(err, http.ErrServerClosed) ||
+		utils.IsUseOfClosedNetworkError(err) {
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
 // Close closes the proxy server immediately.
 func (s *Server) Close() error {
 	_ = s.server.Close()
+	_ = s.server3.Close()
 	return nil
 }
 
 // Shutdown does a graceful shutdown of the proxy server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	_ = s.server.Shutdown(ctx)
+	_ = s.server3.Close()
 	return nil
 }
 

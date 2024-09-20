@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/attribute"
@@ -3816,6 +3817,7 @@ type proxyListeners struct {
 	// listener.
 	reverseTunnelALPN net.Listener
 	proxyPeer         net.Listener
+	proxyPeerUDP      net.PacketConn
 	// grpcPublic receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCInsecure. This
 	// listener does not enforce mTLS authentication since it's used to handle cluster join requests.
 	grpcPublic net.Listener
@@ -3865,6 +3867,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.proxyPeer != nil {
 		l.proxyPeer.Close()
+	}
+	if l.proxyPeerUDP != nil {
+		l.proxyPeerUDP.Close()
 	}
 	if l.grpcPublic != nil {
 		l.grpcPublic.Close()
@@ -4016,6 +4021,12 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 
 		listeners.proxyPeer = listener
+
+		// peerUDP, err := net.ListenPacket("udp", addr.String())
+		// if err != nil {
+		// 	return nil, trace.Wrap(err)
+		// }
+		// listeners.proxyPeerUDP = peerUDP
 	}
 
 	switch {
@@ -4300,6 +4311,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	var peerQuicTransport *quic.Transport
+	if listeners.proxyPeerUDP != nil {
+		resetKey := new(quic.StatelessResetKey)
+		if _, err := rand.Read(resetKey[:]); err != nil {
+			return trace.Wrap(err)
+		}
+		peerQuicTransport = &quic.Transport{
+			Conn:              listeners.proxyPeerUDP,
+			StatelessResetKey: resetKey,
+		}
+	}
+
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
 	var tsrv reversetunnelclient.Server
@@ -4318,6 +4341,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Log:               process.log,
 				Clock:             process.Clock,
 				ClusterName:       clusterName,
+				QUICTransport:     peerQuicTransport,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4711,6 +4735,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			return nil
 		})
+		if peerQuicTransport != nil {
+			process.RegisterCriticalFunc("proxy.peer.quic", func() error {
+				if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
+					logger.DebugContext(process.ExitContext(), "Process exiting: failed to start peer proxy service waiting for reverse tunnel server")
+					return nil
+				}
+
+				logger.InfoContext(process.ExitContext(), "Starting peer proxy QUIC service", "local_addr", logutils.StringerAttr(listeners.proxyPeerUDP.LocalAddr()))
+				err := peerServer.ServeQUIC(peerQuicTransport)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				return nil
+			})
+		}
 	}
 
 	staticLabels := make(map[string]string, 2)
@@ -5253,6 +5293,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if peerClient != nil {
 				warnOnErr(process.ExitContext(), peerClient.Close(), logger)
 			}
+			if peerQuicTransport != nil {
+				peerQuicTransport.Close()
+			}
 			warnOnErr(process.ExitContext(), sshProxy.Close(), logger)
 			sshGRPCServer.Stop()
 			if kubeServer != nil {
@@ -5297,6 +5340,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if peerClient != nil {
 				peerClient.Shutdown(ctx)
+			}
+			if peerQuicTransport != nil {
+				peerQuicTransport.Close()
 			}
 			if kubeServer != nil {
 				warnOnErr(ctx, kubeServer.Shutdown(ctx), logger)

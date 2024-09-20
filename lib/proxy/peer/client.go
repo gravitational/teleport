@@ -22,9 +22,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"sync"
 	"time"
@@ -32,6 +34,8 @@ import (
 	"connectrpc.com/connect"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/http3"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
 
@@ -76,6 +80,8 @@ type ClientConfig struct {
 	Clock clockwork.Clock
 	// ClusterName is the name of the cluster.
 	ClusterName string
+
+	QUICTransport *quic.Transport
 
 	// connShuffler determines the order client connections will be used.
 	connShuffler connShuffler
@@ -479,6 +485,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clie
 
 		stream := conn.sc.DialNode(ctx)
 
+		dialTimeout := time.AfterFunc(10*time.Second, cancel)
 		err = stream.Send(&peerv0.DialNodeRequest{
 			Message: &peerv0.DialNodeRequest_DialRequest{DialRequest: dialRequest},
 		})
@@ -496,6 +503,11 @@ func (c *Client) dial(proxyIDs []string, dialRequest *peerv0.DialRequest) (*clie
 		if msg.GetConnectionEstablished() == nil {
 			cancel()
 			errs = append(errs, trace.ConnectionProblem(nil, "received malformed connection established frame"))
+			continue
+		}
+		if !dialTimeout.Stop() {
+			<-ctx.Done()
+			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
 			continue
 		}
 
@@ -595,39 +607,34 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 	expectedPeer := authclient.HostFQDN(peerID, c.config.ClusterName)
 	tlsConfig.VerifyPeerCertificate = verifyPeerCertificateIsSpecificProxy(expectedPeer)
 
+	dtlsConfig := tlsConfig.Clone()
+	dtlsConfig.NextProtos = []string{"h3"}
+
 	getRootCAs := c.config.GetTLSRoots
-	ht, err := http2.ConfigureTransports(&http.Transport{DisableKeepAlives: true})
-	if err != nil {
-		panic(err)
-	}
-	// ht := &http2.Transport{
-	// 	DialTLSContext:
-	ht.DialTLSContext = func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-		rootCAs, err := getRootCAs()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsConfig := tlsConfig.Clone()
-		tlsConfig.RootCAs = rootCAs
+	ht := &http2.Transport{
+		DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+			rootCAs, err := getRootCAs()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-		nc, err := new(net.Dialer).DialContext(ctx, network, addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tc := tls.Client(nc, tlsConfig)
-		if err := tc.HandshakeContext(ctx); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return tc, nil
-	}
-	//,
-	ht.IdleConnTimeout = 5 * time.Minute
-	ht.ReadIdleTimeout = time.Minute
-	ht.ConnPool = nil
+			tlsConfig := tlsConfig.Clone()
+			tlsConfig.RootCAs = rootCAs
 
-	// 	IdleConnTimeout: 5 * time.Minute,
-	// 	ReadIdleTimeout: time.Minute,
-	// }
+			nc, err := new(net.Dialer).DialContext(ctx, network, addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			tc := tls.Client(nc, tlsConfig)
+			if err := tc.HandshakeContext(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return tc, nil
+		},
+
+		IdleConnTimeout: 5 * time.Minute,
+		ReadIdleTimeout: time.Minute,
+	}
 
 	hc := &http.Client{
 		Transport: ht,
@@ -636,14 +643,61 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		},
 	}
 
+	connCtx, cancel := context.WithCancel(c.config.Context)
+
+	grpcOption := connect.WithGRPC()
+	if quicTransport := c.config.QUICTransport; quicTransport != nil {
+		grpcOption = connect.WithClientOptions(nil...)
+		h3t := &http3.RoundTripper{
+			EnableDatagrams:        true,
+			MaxResponseHeaderBytes: math.MaxInt64,
+			QUICConfig: &quic.Config{
+				MaxIdleTimeout: 30 * time.Second,
+
+				MaxIncomingStreams:    1 << 60,
+				MaxIncomingUniStreams: 1 << 60,
+				KeepAlivePeriod:       10 * time.Second,
+
+				InitialPacketSize:       1200,
+				DisablePathMTUDiscovery: true,
+
+				EnableDatagrams: true,
+			},
+			Dial: func(ctx context.Context, addr string, _ *tls.Config, cfg *quic.Config) (quic.EarlyConnection, error) {
+				c.config.Log.Errorf("== NEW DIAL IN HTTP3 ROUNDTRIPPER")
+				rootCAs, err := getRootCAs()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				tlsConfig := tlsConfig.Clone()
+				tlsConfig.RootCAs = rootCAs
+				tlsConfig.NextProtos = []string{"h3"}
+
+				ap, err := netip.ParseAddrPort(addr)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				conn, err := quicTransport.DialEarly(ctx, net.UDPAddrFromAddrPort(ap), tlsConfig, cfg)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				context.AfterFunc(conn.Context(), func() {
+					c.config.Log.Errorf("== CONNECTION LOST: %v", context.Cause(conn.Context()))
+				})
+				return conn, nil
+			},
+		}
+		hc.Transport = h3t
+		context.AfterFunc(connCtx, func() { _ = h3t.Close() })
+	}
+
 	clientOptions := connect.WithClientOptions(
 		connect.WithAcceptCompression("gzip", nil, nil),
 		connect.WithInterceptors(addVersionInterceptor{}, traceErrorsInterceptor{}),
-		connect.WithGRPC(),
+		grpcOption,
 	)
 	sc := peerv0connect.NewProxyServiceClient(hc, "https://"+peerAddr, clientOptions)
-
-	connCtx, cancel := context.WithCancel(c.config.Context)
 
 	return &clientConn{
 		connCtx: connCtx,
