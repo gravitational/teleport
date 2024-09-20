@@ -79,7 +79,7 @@ type consumer struct {
 	storeLocationBucket string
 	batchMaxItems       int
 	batchMaxInterval    time.Duration
-	consumerLockName    string
+	consumerLockName    []string
 
 	// perDateFileParquetWriter returns file writer per date.
 	// Added in config to allow testing.
@@ -260,7 +260,7 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
 					Backend:            c.backend,
-					LockNameComponents: []string{c.consumerLockName},
+					LockNameComponents: c.consumerLockName,
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

@@ -20,7 +20,6 @@ package athena
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"regexp"
@@ -129,7 +128,7 @@ type Config struct {
 	// ConsumerLockName defines a name of a SQS consumer lock (optional).
 	// If provided, it will be prefixed with "athena_" to avoid accidental
 	// collision with existing locks.
-	ConsumerLockName string
+	ConsumerLockName []string
 	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
 	ConsumerDisabled bool
 
@@ -257,8 +256,8 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
 	}
 
-	if cfg.ConsumerLockName == "" {
-		cfg.ConsumerLockName = "athena_lock"
+	if len(cfg.ConsumerLockName) == 0 {
+		cfg.ConsumerLockName = []string{"athena_lock"}
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
@@ -429,7 +428,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		cfg.BatchMaxInterval = dur
 	}
 	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
-		cfg.ConsumerLockName = fmt.Sprintf("athena_%s", consumerLockName)
+		cfg.ConsumerLockName = []string{"athena", consumerLockName}
 	}
 	if val := url.Query().Get("consumerDisabled"); val != "" {
 		boolVal, err := strconv.ParseBool(val)
