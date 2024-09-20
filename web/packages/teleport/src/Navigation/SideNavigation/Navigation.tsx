@@ -34,9 +34,9 @@ import {
   STANDALONE_CATEGORIES,
 } from './categories';
 import { CategoryIcon } from './CategoryIcon';
+import { Search, SearchNavItem } from './Search';
 
 import type * as history from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
 
 export const zIndexMap = {
@@ -61,7 +61,7 @@ const SideNavContainer = styled(Flex).attrs({
   overflow-y: auto;
 `;
 
-const verticalPadding = '12px';
+export const verticalPadding = '12px';
 
 const rightPanelWidth = '236px';
 
@@ -99,19 +99,20 @@ const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
   }
 `;
 
-type NavigationSection = {
+export type NavigationSection = {
   category: NavigationCategory;
   subsections: NavigationSubsection[];
   standalone?: boolean;
 };
 
-type NavigationSubsection = {
+export type NavigationSubsection = {
   category: NavigationCategory;
   title: string;
   route: string;
   exact: boolean;
   icon: (props) => JSX.Element;
   parent?: TeleportFeature;
+  searchableTags?: string[];
 };
 
 function getNavigationSections(
@@ -144,6 +145,7 @@ function getSubsectionsForCategory(
       route: feature.navigationItem.getLink(cfg.proxyCluster),
       exact: feature.navigationItem.exact,
       icon: feature.navigationItem.icon,
+      searchableTags: feature.navigationItem.searchableTags,
     };
   });
 }
@@ -171,6 +173,7 @@ function getNavSubsectionForRoute(
     route: feature.navigationItem.getLink(cfg.proxyCluster),
     exact: feature.navigationItem.exact,
     icon: feature.navigationItem.icon,
+    searchableTags: feature.navigationItem.searchableTags,
   };
 }
 
@@ -182,6 +185,7 @@ export function Navigation() {
   const [expandedSectionIndex, setExpandedSectionIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>();
   const [drawerHeight, setDrawerHeight] = useState('');
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
 
   const useResizeObserver = (ref, callback) => {
     useEffect(() => {
@@ -215,7 +219,9 @@ export function Navigation() {
   );
 
   const sectionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const subsectionRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+  const subsectionRefs = useRef<
+    Array<HTMLAnchorElement | HTMLInputElement | null>
+  >([]);
 
   const handleKeyDown = useCallback(
     (
@@ -260,6 +266,7 @@ export function Navigation() {
 
   const handleSetExpandedSection = useCallback(
     (section: NavigationSection, index: number) => {
+      setIsSearchExpanded(false);
       setExpandedSection(section);
       setExpandedSectionIndex(index);
     },
@@ -276,11 +283,30 @@ export function Navigation() {
 
   return (
     <Box
-      onMouseLeave={() => setExpandedSection(null)}
-      onKeyUp={e => e.key === 'Escape' && setExpandedSection(null)}
+      onMouseLeave={() => {
+        setExpandedSection(null);
+        setIsSearchExpanded(false);
+      }}
+      onKeyUp={e => {
+        if (e.key === 'Escape') {
+          setExpandedSection(null);
+          setIsSearchExpanded(false);
+        }
+      }}
       css={'height: 100%;'}
     >
       <SideNavContainer ref={containerRef}>
+        <SearchNavItem
+          key="search"
+          setExpandedSection={() => {
+            setExpandedSection(null);
+            setExpandedSectionIndex(-1);
+            setIsSearchExpanded(true);
+          }}
+          onClick={() => null}
+          onKeyDown={e => handleKeyDown(e, -1, true, null)}
+          expanded={isSearchExpanded}
+        />
         {navSections.map((section, index) => (
           <Section
             key={section.category}
@@ -299,47 +325,53 @@ export function Navigation() {
         ))}
       </SideNavContainer>
       <RightPanel
-        isVisible={!!expandedSection && !expandedSection.standalone}
+        isVisible={
+          (!!expandedSection && !expandedSection.standalone) || isSearchExpanded
+        }
         id={`panel-${expandedSection?.category}`}
         css={`
           height: ${drawerHeight};
         `}
       >
-        <Flex
-          flexDirection="column"
-          justifyContent="space-between"
-          height="100%"
-        >
-          <Box
-            css={`
-              overflow-y: scroll;
-              padding: 3px;
-            `}
+        {isSearchExpanded ? (
+          <Search navigationSections={navSections} />
+        ) : (
+          <Flex
+            flexDirection="column"
+            justifyContent="space-between"
+            height="100%"
           >
-            <Flex py={verticalPadding} px={3}>
-              <Text typography="h2" color="text.slightlyMuted">
-                {expandedSection?.category}
-              </Text>
-            </Flex>
-            {expandedSection?.subsections.map((section, idx) => (
-              <SubsectionItem
-                ref={el => (subsectionRefs.current[idx] = el)}
-                $active={currentView?.route === section.route}
-                to={section.route}
-                exact={section.exact}
-                key={section.title}
-                tabIndex={0}
-                role="button"
-                onKeyDown={e => handleKeyDown(e, idx, true, null)}
-              >
-                <section.icon size={16} />
-                <Text typography="body2">{section.title}</Text>
-              </SubsectionItem>
-            ))}
-          </Box>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
-        </Flex>
+            <Box
+              css={`
+                overflow-y: scroll;
+                padding: 3px;
+              `}
+            >
+              <Flex py={verticalPadding} px={3}>
+                <Text typography="h2" color="text.slightlyMuted">
+                  {expandedSection?.category}
+                </Text>
+              </Flex>
+              {expandedSection?.subsections.map((section, idx) => (
+                <SubsectionItem
+                  ref={el => (subsectionRefs.current[idx] = el)}
+                  $active={currentView?.route === section.route}
+                  to={section.route}
+                  exact={section.exact}
+                  key={section.title}
+                  tabIndex={0}
+                  role="button"
+                  onKeyDown={e => handleKeyDown(e, idx, true, null)}
+                >
+                  <section.icon size={16} />
+                  <Text typography="body2">{section.title}</Text>
+                </SubsectionItem>
+              ))}
+            </Box>
+            {cfg.edition === 'oss' && <AGPLFooter />}
+            {cfg.edition === 'community' && <CommunityFooter />}
+          </Flex>
+        )}
       </RightPanel>
     </Box>
   );
@@ -420,7 +452,7 @@ const CategoryButton = styled.button<{ $active: boolean }>`
   ${props => getCategoryStyles(props.theme, props.$active)}
 `;
 
-function getCategoryStyles(theme: Theme, active: boolean) {
+export function getCategoryStyles(theme: Theme, active: boolean) {
   if (active) {
     return css`
       color: ${theme.colors.brand};

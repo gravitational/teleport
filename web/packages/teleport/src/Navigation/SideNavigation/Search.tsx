@@ -1,0 +1,203 @@
+/**
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import React, { useState, useRef, useEffect } from 'react';
+import { NavLink } from 'react-router-dom';
+import styled from 'styled-components';
+
+import { Magnifier } from 'design/Icon';
+
+import { Box, Flex, Text } from 'design';
+import { height, space, color } from 'design/system';
+
+import {
+  getCategoryStyles,
+  NavigationSection,
+  NavigationSubsection,
+  verticalPadding,
+} from './Navigation';
+import { CategoryIcon } from './CategoryIcon';
+
+export function Search({
+  navigationSections,
+}: {
+  navigationSections: NavigationSection[];
+}) {
+  const [searchInput, setSearchInput] = useState('');
+  const [results, setResults] = useState<NavigationSubsection[]>([]);
+  const inputRef = useRef<HTMLInputElement>();
+
+  useEffect(() => {
+    inputRef.current.focus();
+  }, []);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const lowerCaseInput = e.target.value.toLowerCase();
+    setSearchInput(lowerCaseInput);
+
+    if (lowerCaseInput.length > 0) {
+      const searchResults = navigationSections.flatMap(section =>
+        section.subsections.filter(subsection =>
+          subsection.searchableTags?.some(tag =>
+            tag.toLowerCase().includes(lowerCaseInput)
+          )
+        )
+      );
+      setResults(searchResults);
+    } else {
+      setResults([]);
+    }
+  };
+
+  return (
+    <Flex flexDirection="column">
+      <Flex py={verticalPadding} px={3}>
+        <Text typography="h2" color="text.slightlyMuted">
+          Search
+        </Text>
+      </Flex>
+      <Flex alignItems="center" flexDirection="column">
+        <SearchInput
+          type="text"
+          onChange={handleSearch}
+          value={searchInput}
+          ref={inputRef}
+          placeholder="Search for a page..."
+        />
+        {results.length > 0 && (
+          <Flex flexDirection="column" mt={2} width="100%">
+            {results.map((subsection, index) => (
+              <SearchResult key={index} subsection={subsection} />
+            ))}
+          </Flex>
+        )}
+      </Flex>
+    </Flex>
+  );
+}
+
+export function SearchResult({
+  subsection,
+}: {
+  subsection: NavigationSubsection;
+}) {
+  return (
+    <Box
+      css={`
+        padding: ${props => props.theme.space[2]}px
+          ${props => props.theme.space[3]}px;
+        text-decoration: none;
+        user-select: none;
+        border-radius: ${props => props.theme.radii[2]}px;
+        &:focus {
+          outline: 2px solid ${props => props.theme.colors.text.muted};
+        }
+        &:hover {
+          background: ${props =>
+            props.theme.colors.interactive.tonal.neutral[0]};
+          color: ${props => props.theme.colors.text.main};
+        }
+      `}
+      as={NavLink}
+      to={subsection.route}
+    >
+      <Flex width="100%" gap={2} alignItems="start">
+        <Box pt={1}>
+          <CategoryIcon
+            category={subsection.category}
+            size={20}
+            color="text.slightlyMuted"
+          />
+        </Box>
+        <Flex flexDirection="column" alignItems="start">
+          <Text typography="body2" color="text.slightlyMuted">
+            {subsection.title}
+          </Text>
+          <Text typography="body3" color="text.muted">
+            {subsection.category}
+          </Text>
+        </Flex>
+      </Flex>
+    </Box>
+  );
+}
+
+export const SearchNavItem = React.forwardRef<
+  HTMLButtonElement,
+  {
+    setExpandedSection: () => void;
+    onKeyDown: (event: React.KeyboardEvent) => void;
+    onClick: (event: React.MouseEvent) => void;
+    expanded: boolean;
+  }
+>(({ setExpandedSection, onKeyDown, onClick, expanded }, ref) => {
+  return (
+    <SearchButton
+      ref={ref}
+      onMouseEnter={setExpandedSection}
+      onFocus={setExpandedSection}
+      onKeyDown={onKeyDown}
+      onClick={onClick}
+      expanded={expanded}
+    >
+      <Magnifier />
+      Search
+    </SearchButton>
+  );
+});
+
+const SearchButton = styled.button<{ expanded: boolean }>`
+  height: 60px;
+  width: 60px;
+  cursor: pointer;
+  outline: hidden;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: ${props => props.theme.radii[2]}px;
+
+  font-size: ${props => props.theme.typography.body4.fontSize};
+  font-weight: ${props => props.theme.typography.body4.fontWeight};
+  letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
+  line-height: ${props => props.theme.typography.body4.lineHeight};
+
+  ${props => getCategoryStyles(props.theme, false)}
+
+  ${props =>
+    props.expanded
+      ? `background: ${props.theme.colors.spotBackground[0]};`
+      : ''}
+`;
+
+const SearchInput = styled.input`
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  font-size: ${props => props.theme.fontSizes[2]}px;
+  height: 32px;
+  width: 192px;
+  ${color}
+  ${space}
+  ${height}
+  color: ${props => props.theme.colors.text.main};
+  background: ${props => props.theme.colors.spotBackground[0]};
+  padding: ${props => props.theme.space[3]}px;
+  border-radius: 29px;
+`;

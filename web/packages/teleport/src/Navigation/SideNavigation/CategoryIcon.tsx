@@ -22,20 +22,28 @@ import * as Icons from 'design/Icon';
 
 import { NavigationCategory } from './categories';
 
-export function CategoryIcon({ category }: { category: NavigationCategory }) {
+export function CategoryIcon({
+  category,
+  size,
+  color,
+}: {
+  category: NavigationCategory;
+  size?: number;
+  color?: string;
+}) {
   switch (category) {
     case NavigationCategory.Resources:
-      return <Icons.Server />;
+      return <Icons.Server size={size} color={color} />;
     case NavigationCategory.Access:
-      return <Icons.Lock />;
+      return <Icons.Lock size={size} color={color} />;
     case NavigationCategory.Identity:
-      return <Icons.FingerprintSimple />;
+      return <Icons.FingerprintSimple size={size} color={color} />;
     case NavigationCategory.Policy:
-      return <Icons.ShieldCheck />;
+      return <Icons.ShieldCheck size={size} color={color} />;
     case NavigationCategory.Audit:
-      return <Icons.ListMagnifyingGlass />;
+      return <Icons.ListMagnifyingGlass size={size} color={color} />;
     case NavigationCategory.AddNew:
-      return <Icons.AddCircle />;
+      return <Icons.AddCircle size={size} color={color} />;
     default:
       return null;
   }
