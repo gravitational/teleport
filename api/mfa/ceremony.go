@@ -25,32 +25,34 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
-// MFACeremonyClient is a client that can perform an MFA ceremony, from retrieving
-// the MFA challenge to prompting for an MFA response from the user.
-type MFACeremonyClient interface {
-	// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
-	CreateAuthenticateChallenge(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
-	// PromptMFA prompts the user for MFA.
-	PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
+// Ceremony is an MFA ceremony.
+type Ceremony struct {
+	CreateAuthenticateChallenge func(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	SolveAuthenticateChallenge  func(ctx context.Context, in *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	NewPrompt                   PromptConstructor
 }
 
-// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
-// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
-// an MFA challenge response for the user.
-func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	if challengeRequest == nil {
-		return nil, trace.BadParameter("missing challenge request")
+// Run runs the MFA ceremony.
+func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+	if c.CreateAuthenticateChallenge == nil {
+		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
 	}
 
-	if challengeRequest.ChallengeExtensions == nil {
-		return nil, trace.BadParameter("missing challenge extensions")
+	if c.SolveAuthenticateChallenge == nil && c.NewPrompt == nil {
+		return nil, trace.BadParameter("mfa ceremony must have SolveAuthenticateChallenge or NewPrompt set in order to succeed")
 	}
 
-	if challengeRequest.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-		return nil, trace.BadParameter("mfa challenge scope must be specified")
+	if req != nil {
+		if req.ChallengeExtensions == nil {
+			return nil, trace.BadParameter("missing challenge extensions")
+		}
+
+		if req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
+			return nil, trace.BadParameter("mfa challenge scope must be specified")
+		}
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(ctx, challengeRequest)
+	chal, err := c.CreateAuthenticateChallenge(ctx, req)
 	if err != nil {
 		// CreateAuthenticateChallenge returns a bad parameter error when the client
 		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
@@ -67,21 +69,25 @@ func PerformMFACeremony(ctx context.Context, clt MFACeremonyClient, challengeReq
 		return nil, &ErrMFANotRequired
 	}
 
-	return clt.PromptMFA(ctx, chal, promptOpts...)
+	if c.SolveAuthenticateChallenge != nil {
+		return c.SolveAuthenticateChallenge(ctx, chal)
+	}
+
+	return c.NewPrompt(promptOpts...).Run(ctx, chal)
 }
 
-type MFACeremony func(ctx context.Context, challengeRequest *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
+// CeremonyFn is a function that will carry out an MFA ceremony.
+type CeremonyFn func(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error)
 
 // PerformAdminActionMFACeremony retrieves an MFA challenge from the server for an admin
 // action, prompts the user to answer the challenge, and returns the resulting MFA response.
-func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony MFACeremony, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
+func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, allowReuse bool) (*proto.MFAAuthenticateResponse, error) {
 	allowReuseExt := mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
 	if allowReuse {
 		allowReuseExt = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
 	challengeRequest := &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
 		MFARequiredCheck: &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_AdminAction{
 				AdminAction: &proto.AdminAction{},
@@ -93,5 +99,6 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony MFACeremony,
 		},
 	}
 
-	return mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
+	resp, err := mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
+	return resp, trace.Wrap(err)
 }

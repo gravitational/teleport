@@ -87,7 +87,13 @@ func TestPerformMFACeremony(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := mfa.PerformMFACeremony(ctx, tt.ceremonyClient, &proto.CreateAuthenticateChallengeRequest{
+			ceremony := mfa.Ceremony{
+				CreateAuthenticateChallenge: tt.ceremonyClient.CreateAuthenticateChallenge,
+				NewPrompt: func(po ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(tt.ceremonyClient.PromptMFA)
+				},
+			}
+			resp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
@@ -121,7 +127,7 @@ func (c *fakeMFACeremonyClient) CreateAuthenticateChallenge(ctx context.Context,
 	return chal, nil
 }
 
-func (c *fakeMFACeremonyClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptOpts ...mfa.PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+func (c *fakeMFACeremonyClient) PromptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	if c.promptMFAErr != nil {
 		return nil, c.promptMFAErr
 	}
