@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -401,9 +400,8 @@ type SSHLoginDirect struct {
 // SSHLoginMFA contains SSH login parameters for MFA login.
 type SSHLoginMFA struct {
 	SSHLogin
-	// PromptMFA is a customizable MFA prompt function.
-	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA mfa.Prompt
+	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
+	MFAPromptConstructor mfa.PromptConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -764,35 +762,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -812,7 +782,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		KubernetesCluster: login.KubernetesCluster,
 	}
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
@@ -828,6 +798,37 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 
 	loginResp := &authclient.SSHLoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
+}
+
+func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			beginReq := MFAChallengeRequest{
+				User: login.User,
+				Pass: login.Password,
+			}
+			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challenge := &MFAAuthenticateChallenge{}
+			if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Convert to auth gRPC proto challenge.
+			chal := &proto.MFAAuthenticateChallenge{}
+			if challenge.TOTPChallenge {
+				chal.TOTP = &proto.TOTPChallenge{}
+			}
+			if challenge.WebauthnChallenge != nil {
+				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+			}
+			return chal, nil
+		},
+		NewPrompt: login.MFAPromptConstructor,
+	}
 }
 
 // HostCredentials is used to fetch host credentials for a node.
@@ -966,35 +967,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1003,7 +976,7 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		User: login.User,
 	}
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
 	default:

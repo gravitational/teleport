@@ -27,8 +27,8 @@ import (
 
 // Ceremony is an MFA ceremony.
 type Ceremony struct {
-	CreateAuthenticateChallenge func(ctx context.Context, in *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
-	SolveAuthenticateChallenge  func(ctx context.Context, in *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	CreateAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
+	SolveAuthenticateChallenge  func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	NewPrompt                   PromptConstructor
 }
 
