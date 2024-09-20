@@ -814,12 +814,6 @@ const (
 // a new event name here.
 
 const (
-	// MaxChunkBytes defines the maximum size of a session stream chunk that
-	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
-	MaxChunkBytes = 1024 * 1024 * 5
-)
-
-const (
 	// V1 is the V1 version of slice chunks API,
 	// it is 0 because it was not defined before
 	V1 = 0

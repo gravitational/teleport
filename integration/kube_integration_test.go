@@ -69,9 +69,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
@@ -343,10 +343,26 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := teleport.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
+	evtCh, errCh := teleport.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
 	require.NoError(t, err)
+	capturedStream := &bytes.Buffer{}
+readLoop:
+	for {
+		select {
+		case evt := <-evtCh:
+			if evt == nil {
+				break readLoop
+			}
+			if evt.GetType() != events.SessionPrintEvent {
+				continue
+			}
+			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
+		case err := <-errCh:
+			require.NoError(t, err)
+		}
+	}
 
-	require.Equal(t, sessionStream, string(capturedStream))
+	require.Equal(t, sessionStream, capturedStream.String())
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -778,10 +794,26 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
+	evtCh, errCh := main.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
 	require.NoError(t, err)
+	capturedStream := &bytes.Buffer{}
+readLoop:
+	for {
+		select {
+		case evt := <-evtCh:
+			if evt == nil {
+				break readLoop
+			}
+			if evt.GetType() != events.SessionPrintEvent {
+				continue
+			}
+			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
+		case err := <-errCh:
+			require.NoError(t, err)
+		}
+	}
 
-	require.Equal(t, sessionStream, string(capturedStream))
+	require.Equal(t, sessionStream, capturedStream.String())
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -1052,10 +1084,26 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
+	evtCh, errCh := main.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
 	require.NoError(t, err)
+	capturedStream := &bytes.Buffer{}
+readLoop:
+	for {
+		select {
+		case evt := <-evtCh:
+			if evt == nil {
+				break readLoop
+			}
+			if evt.GetType() != events.SessionPrintEvent {
+				continue
+			}
+			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
+		case err := <-errCh:
+			require.NoError(t, err)
+		}
+	}
 
-	require.Equal(t, sessionStream, string(capturedStream))
+	require.Equal(t, sessionStream, capturedStream.String())
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
