@@ -74,9 +74,7 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAut
 		var mfaResponse *proto.MFAAuthenticateResponse
 		var err error
 		if state == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
-			mfaCeremony := c.clusterClient.NewMFACeremony()
-			mfaCeremony.CreateAuthenticateChallenge = rootAuthClient.CreateAuthenticateChallenge
-			mfaResponse, err = mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+			mfaResponse, err = c.clusterClient.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 				},

@@ -452,13 +452,10 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
 	}
 
-	mfaCeremony := c.tc.NewMFACeremony()
-	mfaCeremony.CreateAuthenticateChallenge = c.AuthClient.CreateAuthenticateChallenge
-
 	keyRing, _, err = PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFACeremony:       mfaCeremony,
+		MFACeremony:       c.tc.NewMFACeremony(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{

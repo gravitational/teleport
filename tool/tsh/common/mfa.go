@@ -343,9 +343,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		defer wanwin.ResetPromptPlatformMessage()
 		wanwin.PromptPlatformMessage = registeredMsg
 
-		mfaCeremony := tc.NewMFACeremony()
-		mfaCeremony.CreateAuthenticateChallenge = rootAuthClient.CreateAuthenticateChallenge
-		mfaResp, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
@@ -590,9 +588,7 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.NotFound("device %q not found", c.name)
 		}
 
-		mfaCeremony := tc.NewMFACeremony()
-		mfaCeremony.CreateAuthenticateChallenge = rootAuthClient.CreateAuthenticateChallenge
-		mfaResponse, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		mfaResponse, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},

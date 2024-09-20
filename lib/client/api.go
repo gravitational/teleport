@@ -5184,9 +5184,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	mfaCeremony := tc.NewMFACeremony()
-	mfaCeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
-	mfaResp, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+	mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
