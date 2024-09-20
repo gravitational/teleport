@@ -5,10 +5,15 @@ title: "Teleport X Docs Test Plan"
 labels: testplan
 ---
 
-Perform the following checks on the Teleport documentation whenever we release a
-new major version of Teleport:
+Perform the following checks on the Teleport documentation whenever we roll out
+a new major version of Teleport on Teleport Cloud. Use `/docs/upcoming-releases`
+to determine the rollout date.
 
 ## Is the docs site configuration accurate?
+
+> [!IMPORTANT] 
+> **Do not merge the new docs site configuration** before we roll out a new
+> major version to Teleport Enterprise (Cloud).
 
 - [ ] Verify the latest version in `gravitational/docs/config.json`
 
