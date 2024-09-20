@@ -3,10 +3,10 @@ title: See permission changes with Teleport Policy Crown Jewels
 description: Describes how to use Teleport Policy Crown Jewels to see permission changes in Teleport.
 ---
 
-With Teleport Policy's Access Graph, you can see change to users and resources permissions.
+With Access Graph's Crown Jewel, you can see changes in user and resource permissions.
 Crown Jewels allow you to mark resources and users as critical and see changes to them.
-Each time access for those resources or users changes, Teleport Policy will log the change and generate
-before and after snapshots of the permissions. This can help you identify when users get access to sensitive
+Each time access for those resources or users changes, Teleport Policy will create an event in Teleport's audit log
+and generate before and after snapshots of the permissions. This can help you identify when users access sensitive
 resources or when permissions are changed unexpectedly.
 
 This guide shows you how to configure Crown Jewels, how to mark resources as Crown Jewels, and how to see permission changes for these resources.
@@ -42,8 +42,9 @@ Pick a name for the Crown Jewel and click "Create".
 
 ![Create Matcher Name](../../../../img/access-graph/crown-jewels/create-matcher-name.png)
 
-The Crown Jewel will now be created, and you will see it in the list of Crown
-Jewels. Access Graph will now log changes to matched resource/user.
+The Crown Jewel will now be created, and you will see it in the list of Crown Jewels. Access Graph will now create
+audit events in Teleport's audit log and new entries in the "Access Changes" tab in the "Crown Jewels" menu whenever
+access path to a resource or a user changes.
 
 ## Viewing permission changes
 
