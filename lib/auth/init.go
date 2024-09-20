@@ -43,6 +43,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
@@ -741,25 +742,12 @@ func generateAuthority(ctx context.Context, asrv *Server, caID types.CertAuthID)
 	return ca, nil
 }
 
-var secondFactorUpgradeInstructions = `
-Teleport requires second factor authentication for local users.
-The auth_service configuration should be updated to enable it.
-
-auth_service:
-  authentication:
-    second_factor: on
-    webauthn:
-      rp_id: example.com
-
-For more information:
-- https://goteleport.com/docs/access-controls/guides/webauthn/
-`
-
 func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.AuthPreference) error {
 	const iterationLimit = 3
 	for i := 0; i < iterationLimit; i++ {
 		storedAuthPref, err := asrv.Services.GetAuthPreference(ctx)
-		if err != nil && !trace.IsNotFound(err) {
+		disabled := errors.Is(err, constants.ErrSecondFactorDisabled)
+		if err != nil && !trace.IsNotFound(err) && !disabled {
 			return trace.Wrap(err)
 		}
 
@@ -770,13 +758,10 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if !shouldReplace {
 			err := modules.ValidateResource(storedAuthPref)
-			if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-				return trace.Wrap(err, secondFactorUpgradeInstructions)
+			if errors.Is(err, constants.ErrSecondFactorDisabled) {
+				return trace.Wrap(err, services.SecondFactorUpgradeInstructions)
 			}
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
+			return trace.Wrap(err)
 		}
 
 		if storedAuthPref == nil {
@@ -790,12 +775,21 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 				})
 			}
 
-			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
-			if trace.IsAlreadyExists(err) {
-				continue
+			var err error
+			if disabled {
+				_, err = asrv.UpsertAuthPreference(ctx, newAuthPref)
+			} else {
+				_, err = asrv.CreateAuthPreference(ctx, newAuthPref)
 			}
 
-			return trace.Wrap(err)
+			switch {
+			case trace.IsAlreadyExists(err):
+				continue
+			case errors.Is(err, constants.ErrSecondFactorDisabled):
+				return trace.Wrap(err, services.SecondFactorUpgradeInstructions)
+			default:
+				return trace.Wrap(err)
+			}
 		}
 
 		if newAuthPref.Origin() == types.OriginDefaults {
@@ -808,14 +802,14 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())
 		_, err = asrv.UpdateAuthPreference(ctx, newAuthPref)
-		if trace.IsCompareFailed(err) {
+		switch {
+		case trace.IsCompareFailed(err):
 			continue
+		case errors.Is(err, constants.ErrSecondFactorDisabled):
+			return trace.Wrap(err, services.SecondFactorUpgradeInstructions)
+		default:
+			return trace.Wrap(err)
 		}
-		if errors.Is(err, modules.ErrCannotDisableSecondFactor) {
-			return trace.Wrap(err, secondFactorUpgradeInstructions)
-		}
-
-		return trace.Wrap(err)
 	}
 
 	return trace.LimitExceeded("failed to initialize auth preference in %v iterations", iterationLimit)

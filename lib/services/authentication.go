@@ -21,12 +21,14 @@
 package services
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -95,6 +97,20 @@ func validateTOTPDevice(d *types.TOTPDevice) error {
 	return nil
 }
 
+var SecondFactorUpgradeInstructions = `
+Teleport requires second factor authentication for local users.
+The auth_service configuration should be updated to enable it.
+
+auth_service:
+  authentication:
+    second_factor: on
+    webauthn:
+      rp_id: example.com
+
+For more information:
+- https://goteleport.com/docs/access-controls/guides/webauthn/
+`
+
 // UnmarshalAuthPreference unmarshals the AuthPreference resource from JSON.
 func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPreference, error) {
 	var authPreference types.AuthPreferenceV2
@@ -109,6 +125,10 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 	}
 
 	if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
+		errorString := err.Error()
+		if strings.Contains(errorString, constants.ErrSecondFactorDisabled.Error()) {
+			return nil, trace.Wrap(constants.ErrSecondFactorDisabled, SecondFactorUpgradeInstructions)
+		}
 		return nil, trace.BadParameter(err.Error())
 	}
 	if err := authPreference.CheckAndSetDefaults(); err != nil {

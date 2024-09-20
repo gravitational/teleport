@@ -136,8 +136,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				constants.SecondFactorOTP,
 				// constants.SecondFactorU2F excluded.
 				constants.SecondFactorWebauthn,
-				constants.SecondFactorOn,
-				constants.SecondFactorOn,
 			},
 			spec: types.AuthPreferenceSpecV2{
 				Webauthn: minimalWeb,
@@ -154,9 +152,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
 				// Did we derive the WebAuthn config from U2F?
-				if sf := got.GetSecondFactor(); sf == constants.SecondFactorWebauthn ||
-					sf == constants.SecondFactorOn ||
-					sf == constants.SecondFactorOn {
+				if sf := got.GetSecondFactor(); sf == constants.SecondFactorWebauthn || sf == constants.SecondFactorOn {
 					wantWeb := &types.Webauthn{
 						RPID:                  "example.com",
 						AttestationAllowedCAs: []string{yubicoU2FCA},

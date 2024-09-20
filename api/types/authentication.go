@@ -726,6 +726,8 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
+	case "off", "optional":
+		return trace.Wrap(constants.ErrSecondFactorDisabled)
 	default:
 		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}

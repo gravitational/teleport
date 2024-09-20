@@ -210,6 +210,8 @@ const (
 	SecondFactorOn = SecondFactorType("on")
 )
 
+var ErrSecondFactorDisabled = &trace.BadParameterError{Message: "cannot disable multi-factor authentication"}
+
 // UnmarshalYAML supports parsing off|on into string on SecondFactorType.
 func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var tmp interface{}
@@ -219,11 +221,14 @@ func (sft *SecondFactorType) UnmarshalYAML(unmarshal func(interface{}) error) er
 	switch v := tmp.(type) {
 	case string:
 		if v == "off" || v == "optional" {
-			*sft = SecondFactorOn
+			return trace.Wrap(ErrSecondFactorDisabled)
 		} else {
 			*sft = SecondFactorType(v)
 		}
 	case bool:
+		if v == false {
+			return trace.Wrap(ErrSecondFactorDisabled)
+		}
 		*sft = SecondFactorOn
 	default:
 		return trace.BadParameter("SecondFactorType invalid type %T", v)
@@ -240,12 +245,15 @@ func (sft *SecondFactorType) UnmarshalJSON(data []byte) error {
 	switch v := tmp.(type) {
 	case string:
 		if v == "off" || v == "optional" {
-			*sft = SecondFactorOn
+			return trace.Wrap(ErrSecondFactorDisabled)
 		} else {
 			*sft = SecondFactorType(v)
 		}
 		*sft = SecondFactorType(v)
 	case bool:
+		if v == false {
+			return trace.Wrap(ErrSecondFactorDisabled)
+		}
 		*sft = SecondFactorOn
 	default:
 		return trace.BadParameter("SecondFactorType invalid type %T", v)

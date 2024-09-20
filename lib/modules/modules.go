@@ -23,7 +23,6 @@ package modules
 import (
 	"context"
 	"crypto"
-	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -315,10 +315,16 @@ func GetModules() Modules {
 	return modules
 }
 
-var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authentication")
-
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
+	switch r := res.(type) {
+	case types.AuthPreference:
+		switch r.GetSecondFactor() {
+		case "off", "optional":
+			return trace.Wrap(constants.ErrSecondFactorDisabled)
+		}
+	}
+
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil

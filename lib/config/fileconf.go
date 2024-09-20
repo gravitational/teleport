@@ -142,6 +142,11 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	var fc FileConfig
 
 	if err := yaml.UnmarshalStrict(bytes, &fc); err != nil {
+		if errors.Is(err, constants.ErrSecondFactorDisabled) {
+			return nil, trace.BadParameter("failed parsing the config file: " + services.SecondFactorUpgradeInstructions)
+
+		}
+
 		// Remove all newlines in the YAML error, to avoid escaping when printing.
 		return nil, trace.BadParameter("failed parsing the config file: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
