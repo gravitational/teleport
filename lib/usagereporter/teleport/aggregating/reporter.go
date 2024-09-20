@@ -44,7 +44,8 @@ const (
 	rollbackGrace                 = time.Minute
 	reportTTL                     = 60 * 24 * time.Hour
 
-	checkInterval = time.Minute
+	checkInterval                   = time.Minute
+	anonymizationKeyRefreshInterval = 5 * time.Minute
 )
 
 // ReporterConfig contains the configuration for a [Reporter].
@@ -63,8 +64,8 @@ type ReporterConfig struct {
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
-	AnonymizationKey string
+	// GetAnonymizationKey returns the key used to anonymize data user or resource names. Required.
+	GetAnonymizationKey func(context.Context) (string, error)
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -86,8 +87,8 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.AnonymizationKey == "" {
-		return trace.BadParameter("missing AnonymizationKey")
+	if cfg.GetAnonymizationKey == nil {
+		return trace.BadParameter("missing GetAnonymizationKey")
 	}
 	return nil
 }
@@ -100,7 +101,12 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
+	anonymizationKey, err := cfg.GetAnonymizationKey(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	anonymizer, err := utils.NewHMACAnonymizer(anonymizationKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +126,8 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
 		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
 
-		baseCancel: baseCancel,
+		baseCancel:          baseCancel,
+		getAnonymizationKey: cfg.GetAnonymizationKey,
 	}
 
 	go r.run(baseCtx)
@@ -156,6 +163,8 @@ type Reporter struct {
 	// ingested, if non-nil, received events after being added to the aggregated
 	// data. Used in tests.
 	ingested chan usagereporter.Anonymizable
+	// getAnonymizationKey returns the key used to anonymize data user or resource names. Required.
+	getAnonymizationKey func(context.Context) (string, error)
 }
 
 var _ usagereporter.GracefulStopper = (*Reporter)(nil)
@@ -235,6 +244,9 @@ func (r *Reporter) run(ctx context.Context) {
 	ticker := r.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 
+	anonymizationKeyChecker := r.clock.NewTicker(anonymizationKeyRefreshInterval)
+	defer anonymizationKeyChecker.Stop()
+
 	userActivityStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
 	userActivityWindowStart := userActivityStartTime.Add(-rollbackGrace)
 	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
@@ -303,6 +315,19 @@ Ingest:
 		select {
 		case <-ticker.Chan():
 		case ae = <-r.ingest:
+		case <-anonymizationKeyChecker.Chan():
+			updatedKey, err := r.getAnonymizationKey(ctx)
+			if err != nil {
+				r.log.Warnf("Failed to get anonymization key: %v", err)
+				continue
+			}
+
+			anonymizer, err := utils.NewHMACAnonymizer(updatedKey)
+			if err != nil {
+				r.log.Warnf("Failed to create anonymizer: %v", err)
+				continue
+			}
+			r.anonymizer = anonymizer
 
 		case <-ctx.Done():
 			r.closingOnce.Do(func() { close(r.closing) })
