@@ -4016,11 +4016,6 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
-		sshLogin, err := tc.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName, connectorType)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -4032,38 +4027,48 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 		}
 		defer rd.Close()
 
-		// initiate SSO login through the Proxy.
-		req := SSOLoginConsoleReq{
-			RedirectURL: rd.ClientCallbackURL,
-			SSOUserPublicKeys: SSOUserPublicKeys{
-				SSHPubKey:               sshLogin.SSHPubKey,
-				TLSPubKey:               sshLogin.TLSPubKey,
-				SSHAttestationStatement: sshLogin.SSHAttestationStatement,
-				TLSAttestationStatement: sshLogin.TLSAttestationStatement,
-			},
-			CertTTL:           sshLogin.TTL,
-			ConnectorID:       connectorID,
-			Compatibility:     sshLogin.Compatibility,
-			RouteToCluster:    sshLogin.RouteToCluster,
-			KubernetesCluster: sshLogin.KubernetesCluster,
+		ceremony := sso.NewCLICeremony(rd)
+		ceremony.InitRequest = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
+			sshLogin, err := tc.NewSSHLogin(keyRing)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			// initiate SSO login through the Proxy.
+			req := SSOLoginConsoleReq{
+				RedirectURL: clientCallbackURL,
+				SSOUserPublicKeys: SSOUserPublicKeys{
+					SSHPubKey:               sshLogin.SSHPubKey,
+					TLSPubKey:               sshLogin.TLSPubKey,
+					SSHAttestationStatement: sshLogin.SSHAttestationStatement,
+					TLSAttestationStatement: sshLogin.TLSAttestationStatement,
+				},
+				CertTTL:           sshLogin.TTL,
+				ConnectorID:       connectorID,
+				Compatibility:     sshLogin.Compatibility,
+				RouteToCluster:    sshLogin.RouteToCluster,
+				KubernetesCluster: sshLogin.KubernetesCluster,
+			}
+
+			clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			var re SSOLoginConsoleResponse
+			if err := json.Unmarshal(out.Bytes(), &re); err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			return re.RedirectURL, nil
 		}
 
-		clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		var re SSOLoginConsoleResponse
-		if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := rd.SSOCeremony(ctx, re.RedirectURL)
+		resp, err := ceremony.Run(ctx)
 		return resp, trace.Wrap(err)
 	}
 }

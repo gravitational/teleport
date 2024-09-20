@@ -21,17 +21,23 @@ package sso
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -227,13 +233,86 @@ func (rd *Redirector) startServer() error {
 	return nil
 }
 
-// SSOCeremony carries out an SSO login ceremony.
-func (rd *Redirector) SSOCeremony(ctx context.Context, redirectURL string) (*authclient.SSHLoginResponse, error) {
-	rd.PromptRedirect(redirectURL)
-	resp, err := rd.WaitForResponse(ctx)
-	return resp, trace.Wrap(err)
+// OpenRedirect opens the redirect URL in a new browser window.
+func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) error {
+	clickableURL := rd.clickableURL(redirectURL)
+
+	// If a command was found to launch the browser, create and start it.
+	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
+	}
+
+	// Print the URL to the screen, in case the command that launches the browser did not run.
+	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
+	if rd.Browser == teleport.BrowserNone {
+		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+	} else {
+		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
+		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
+	}
+
+	return nil
 }
 
+// clickableURL returns a short, clickable URL that will redirect
+// the browser to the SSO redirect URL.
+func (rd *Redirector) clickableURL(redirectURL string) string {
+	// shortPath is a link-shortener path presented to the user
+	// it is used to open up the browser window, notice
+	// that redirectURL will be set later
+	shortPath := "/" + uuid.New().String()
+
+	// short path is a link-shortener style URL
+	// that will redirect to the Teleport-Proxy supplied address
+	rd.mux.HandleFunc(shortPath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+	})
+
+	return utils.ClickableURL(rd.baseURL() + shortPath)
+}
+
+func (rd *Redirector) baseURL() string {
+	if rd.CallbackAddr != "" {
+		return rd.CallbackAddr
+	}
+	return rd.server.URL
+}
+
+// OpenURLInBrowser opens a URL in a web browser.
+func OpenURLInBrowser(browser string, URL string) error {
+	var execCmd *exec.Cmd
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case constants.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		// Windows.
+		case constants.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		}
+	}
+	if execCmd != nil {
+		if err := execCmd.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// WaitForResponse waits for a response from the callback handler.
 func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLoginResponse, error) {
 	logrus.Infof("Waiting for response at: %v.", rd.server.URL)
 	select {
@@ -256,29 +335,6 @@ func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLogin
 // or parent context is closed
 func (rd *Redirector) Done() <-chan struct{} {
 	return rd.context.Done()
-}
-
-// ClickableURL returns a short clickable redirect URL
-func (rd *Redirector) ClickableURL(redirectURL string) string {
-	// shortPath is a link-shortener path presented to the user
-	// it is used to open up the browser window, notice
-	// that redirectURL will be set later
-	shortPath := "/" + uuid.New().String()
-
-	// short path is a link-shortener style URL
-	// that will redirect to the Teleport-Proxy supplied address
-	rd.mux.HandleFunc(shortPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-	})
-
-	return utils.ClickableURL(rd.baseURL() + shortPath)
-}
-
-func (rd *Redirector) baseURL() string {
-	if rd.CallbackAddr != "" {
-		return rd.CallbackAddr
-	}
-	return rd.server.URL
 }
 
 // ResponseC returns a channel with response
