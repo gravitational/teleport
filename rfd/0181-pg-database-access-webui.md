@@ -44,18 +44,23 @@ on the resources list. After locating it, she clicks on the "Connect" button.
 
 ![PostgreSQL instance resource card with connect button](assets/0181-connect-pg.png)
 
-After clicking, a modal window with connection information is presented. In that
-window, she needs to select which database and database user she'll be using.
-Teleport already fills this information based on her permissions, so she doesn't
-need to find this information somewhere else or ask someone. Also, this will
-prevent her from inputting the information incorrectly and being unable to
-connect.
+After clicking, she is presented with a connect modal with options to connect
+using Teleport's CLI or through Web UI.
 
-![PostgreSQL connect modal](assets/0181-connect-dialog.png)
+![PostgreSQL connect dialog with connect button option](assets/0181-select-connect-webui.png)
 
-After selecting the required information, she's redirected to a new tab
-containing an interactive shell, similar to `psql`, where she can type
-her queries.
+After clicking the "Connect" button on the modal, a new tab opens with a form
+containing connection information. In that modal, she needs to select which
+database and database user she'll be using. Teleport already fills this
+information based on her permissions, so she doesn't need to find this
+information somewhere else or ask someone. Also, this will prevent her from
+inputting the information incorrectly and being unable to connect.
+
+![PostgreSQL connection form modal](assets/0181-connect-dialog.png)
+
+After selecting the required information and clicking on the "Connect" button,
+the modal closes, and the terminal is focused with an interactive shell, similar
+to `psql`, where she can type her queries.
 
 ![PostgreSQL interactive shell](assets/0181-pg-shell.png)
 
@@ -66,9 +71,10 @@ session ends.
 
 This is the same scenario, but the PostgreSQL instance was configured with user
 provisioning enabled. This change implies which information Alice sees on the
-connect modal. She doesn’t need to select the database user, as it will default
-to her username. The select is then disabled, and a new now select will be
-presented where she can select database roles attached to their user.
+connection information modal. She doesn't need to select the database user, as
+it will default to her username. The select is then disabled, and a new now
+select will be presented where she can select database roles attached to their
+user.
 
 ![PostgreSQL connect modal with database roles](assets/0181-connect-dialog-roles.png)
 
@@ -83,12 +89,13 @@ connect to multiple PostgreSQL databases. The role he'll be using has a short
 session TTL.
 
 He logs into Teleport web UI, searches for the desired database, and clicks
-"Connect". He’s presented with a pre-filled form containing his connection
-information: database name, database roles, and database user. He confirms the
-values and clicks "Connect" to start a new session. He's then presented with a
-tab browser tab with the PostgreSQL interactive shell.
+"Connect". He's presented with a connect modal with options to connect using
+Teleport's CLI or Web UI. After clicking on the "Connect" button, a new tab
+opens with the connection information form with the information: database name,
+database roles, and database user pre-filled. He confirms the values and clicks
+"Connect" to start a new session.
 
-In the new tab, he's prompted with the MFA modal (the same as SSH
+The modal closes, and he's prompted with the MFA modal (the same as SSH
 sessions). After completing the authentication, he starts performing multiple
 queries using the interactive shell, but after some time, he exceeds his session
 TTL, the connection is dropped, and he is redirected to the login page. His
