@@ -190,7 +190,7 @@ func newRecord(from backend.Item, clock clockwork.Clock) record {
 	return r
 }
 
-// TODO(tigrato|rosstimothy): Simplify this function by removing the brokenRecord and legacyRecord struct
+// TODO(tigrato|rosstimothy): Simplify this function by removing the brokenRecord and legacyRecord struct in 19.0.0
 func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 	k, err := doc.DataAt(keyDocProperty)
 	if err != nil {
