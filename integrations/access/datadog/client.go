@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -61,13 +62,17 @@ type Datadog struct {
 
 // NewDatadogClient creates a new Datadog client for managing incidents.
 func NewDatadogClient(conf DatadogConfig, webProxyAddr string, statusSink common.StatusSink) (*Datadog, error) {
+	apiEndpoint, err := url.JoinPath(conf.APIEndpoint, APIVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	client := resty.NewWithClient(&http.Client{
 		Timeout: datadogHTTPTimeout,
 		Transport: &http.Transport{
 			MaxConnsPerHost:     datadogMaxConns,
 			MaxIdleConnsPerHost: datadogMaxConns,
 		}}).
-		SetBaseURL(conf.APIEndpoint).
+		SetBaseURL(apiEndpoint).
 		SetHeader("Accept", "application/json").
 		SetHeader("Content-Type", "application/json").
 		SetHeader("DD-API-KEY", conf.APIKey).

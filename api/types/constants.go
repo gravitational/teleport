@@ -1385,3 +1385,17 @@ const (
 	// interacting with a plugin via SCIM. Useful for diagnostic display.
 	SCIMBaseURLLabel = TeleportNamespace + "/scim-base-url"
 )
+
+const (
+	// DatadogCredentialLabel is used by Datadog-managed PluginStaticCredentials
+	// to indiciate credential type.
+	DatadogCredentialLabel = "datadog/credential"
+
+	// DatadogCredentialAPIKey indicates that the credential is used as a
+	// Datadog API key.
+	DatadogCredentialAPIKey = "datadog-api-key"
+
+	// DatadogCredentialApplicationKey indicates that the credential is used as
+	// a Datadog Application key.
+	DatadogCredentialApplicationKey = "datadog-application-key"
+)
