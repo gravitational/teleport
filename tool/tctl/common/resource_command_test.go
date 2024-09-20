@@ -2306,19 +2306,18 @@ version: v1
 	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]autoupdate.AutoUpdateConfig](t, buf)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
 	require.Len(t, resources, 1)
-
-	// Compare with baseline
-	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "expires"),
-		protocmp.Transform(),
-	}
 
 	var expected autoupdate.AutoUpdateConfig
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateConfig{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 }
 
 func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
@@ -2342,19 +2341,18 @@ version: v1
 	// Get the resource
 	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
 	require.NoError(t, err)
-	resources := mustDecodeJSON[[]autoupdate.AutoUpdateVersion](t, buf)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
 	require.Len(t, resources, 1)
-
-	// Compare with baseline
-	cmpOpts := []cmp.Option{
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "expires"),
-		protocmp.Transform(),
-	}
 
 	var expected autoupdate.AutoUpdateVersion
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateVersion{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {
