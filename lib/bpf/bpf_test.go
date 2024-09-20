@@ -496,7 +496,7 @@ func TestRootLargeCommands(t *testing.T) {
 			for {
 				select {
 				case eventBytes := <-execsnoop.events():
-					var event rawExecEvent
+					var event commandDataT
 					err := unmarshalEvent(eventBytes, &event)
 					require.NoError(t, err)
 
