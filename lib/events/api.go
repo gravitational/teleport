@@ -808,6 +808,13 @@ const (
 	StaticHostUserUpdateEvent = "static_host_user.update"
 	// StaticHostUserDeleteEvent is emitted when a static host user resource is deleted.
 	StaticHostUserDeleteEvent = "static_host_user.delete"
+
+	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
+	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
+	//CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
+	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
+	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
+	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add

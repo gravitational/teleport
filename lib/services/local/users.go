@@ -63,30 +63,61 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	log        logrus.FieldLogger
-	bcryptCost int
+	log              logrus.FieldLogger
+	bcryptCost       int
+	notificationsSvc *NotificationsService
 }
 
+// TODO(rudream): Rename to NewIdentityService.
+// NewIdentityServiceV2 returns a new instance of IdentityService object
+func NewIdentityServiceV2(backend backend.Backend) (*IdentityService, error) {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &IdentityService{
+		Backend:          backend,
+		log:              logrus.WithField(teleport.ComponentKey, "identity"),
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
+	}, nil
+}
+
+// TODO(rudream): Remove once NewIdentityServiceV2 is merged.
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+
+	log := logrus.WithField(teleport.ComponentKey, "identity")
+	if err != nil {
+		log.Warnf("error initializing notifications service with identity service: %v", err)
+	}
+
 	return &IdentityService{
-		Backend:    backend,
-		log:        logrus.WithField(teleport.ComponentKey, "identity"),
-		bcryptCost: bcrypt.DefaultCost,
+		Backend:          backend,
+		log:              log,
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
 	}
 }
 
 // NewTestIdentityService returns a new instance of IdentityService object to be
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
-func NewTestIdentityService(backend backend.Backend) *IdentityService {
+func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
 	if !testing.Testing() {
 		// Don't allow using weak cryptography in production.
 		panic("Attempted to create a test identity service outside of a test")
 	}
-	s := NewIdentityService(backend)
+
+	s, err := NewIdentityServiceV2(backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.bcryptCost = bcrypt.MinCost
-	return s
+	return s, nil
 }
 
 // DeleteAllUsers deletes all users
@@ -670,8 +701,22 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
-	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
+	if err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete notification objects associated with this user.
+	var notifErrors []error
+	// Delete all user-specific notifications for this user.
+	if err := s.notificationsSvc.DeleteAllUserNotificationsForUser(ctx, user); err != nil {
+		notifErrors = append(notifErrors, trace.Wrap(err, "failed to delete notifications for user %s", user))
+	}
+	// Delete all user notification states for this user.
+	if err := s.notificationsSvc.DeleteAllUserNotificationStatesForUser(ctx, user); err != nil {
+		notifErrors = append(notifErrors, trace.Wrap(err, "failed to delete notification states for user %s", user))
+	}
+
+	return trace.NewAggregate(notifErrors...)
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {

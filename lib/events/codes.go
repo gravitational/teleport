@@ -657,6 +657,13 @@ const (
 	// StaticHostUserDeleteCode is the static host user resource delete event code.
 	StaticHostUserDeleteCode = "SHU003I"
 
+	// CrownJewelCreateCode is the crown jewel create event code.
+	CrownJewelCreateCode = "CJ001I"
+	// CrownJewelUpdateCode is the crown jewel update event code.
+	CrownJewelUpdateCode = "CJ002I"
+	// CrownJewelDeleteCode is the crown jewel delete event code.
+	CrownJewelDeleteCode = "CJ003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )
