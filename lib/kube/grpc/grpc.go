@@ -59,9 +59,13 @@ func New(cfg Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sni, addr, err := getWebAddrAndKubeSNI(cfg.KubeProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var sni, addr string
+	var err error
+	if cfg.KubeProxyAddr != "" {
+		sni, addr, err = getWebAddrAndKubeSNI(cfg.KubeProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	s := &Server{cfg: cfg, proxyAddress: addr, kubeProxySNI: sni}
@@ -127,9 +131,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
-	if c.KubeProxyAddr == "" {
-		return trace.BadParameter("missing parameter KubeProxyAddr")
-	}
+
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
@@ -146,6 +148,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // ListKubernetesResources returns the list of resources available for the user for
 // the specified Resource kind, Kubernetes cluster and namespace.
 func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKubernetesResourcesRequest) (*proto.ListKubernetesResourcesResponse, error) {
+	if s.proxyAddress == "" {
+		return nil, trail.ToGRPC(trace.ConnectionProblem(nil, "Kubernetes API is disabled"))
+	}
 	userContext, err := s.authorize(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)

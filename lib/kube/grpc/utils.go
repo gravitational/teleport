@@ -46,13 +46,9 @@ func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	ip := net.ParseIP(addr)
-	if ip == nil {
-		return "", "", trace.BadParameter("proxy address %q must be have address:port format", proxyAddr)
-	}
 	sni := client.GetKubeTLSServerName(addr)
-	// if the proxy is a unspecified address (0.0.0.0, ::), use localhost.
-	if ip.IsUnspecified() {
+	// if the proxy is an unspecified address (0.0.0.0, ::), use localhost.
+	if ip := net.ParseIP(addr); ip != nil && ip.IsUnspecified() {
 		addr = string(teleport.PrincipalLocalhost)
 	}
 	return sni, "https://" + net.JoinHostPort(addr, port), nil
