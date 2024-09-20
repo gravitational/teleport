@@ -4,12 +4,12 @@ description: Describes how to use Teleport Policy Crown Jewels to see permission
 ---
 
 With Teleport Policy's Access Graph, you can see change to users and resources permissions.
-Crown Jewels is a feature that allows you to mark resources and users as critical and see changes to them.
+Crown Jewels allow you to mark resources and users as critical and see changes to them.
 Each time access for those resources or users changes, Teleport Policy will log the change and generate
 before and after snapshots of the permissions. This can help you identify when users get access to sensitive
 resources or when permissions are changed unexpectedly.
 
-This guide shows you how to configure Crown Jewels, how to mark resource and how to see permission changes.
+This guide shows you how to configure Crown Jewels, how to mark resources as Crown Jewels, and how to see permission changes for these resources.
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ The generated changes have a diff format showing removed nodes with "-" and adde
 Every time a change is made to a Crown Jewel, a new entry will be added to the list and an audit event
 will be generated in the Teleport Audit Log.
 
-### Required RBAC permissions
+## Required RBAC permissions
 
 To create and view Crown Jewels, you need the following RBAC permissions:
 
@@ -70,10 +70,6 @@ spec:
     - resources:
       - crown_jewel
       verbs:
-      - list
-      - read
-      - create
-      - delete
-      - update
+      - *
 version: v7
 ```
