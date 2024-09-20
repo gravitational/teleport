@@ -1528,18 +1528,20 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		ClusterName:      h.auth.clusterName,
 	}
 
-	autoUpdateConfig, err := h.GetAccessPoint().GetAutoUpdateConfig(r.Context())
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
+	// TODO(vapopov) DELETE IN v18.0.0
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
 	} else if err == nil {
-		response.ToolsAutoupdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+		response.AutoUpdate.ToolsAutoupdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
 	}
 
-	autoUpdateVersion, err := h.GetAccessPoint().GetAutoUpdateVersion(r.Context())
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
+	// TODO(vapopov) DELETE IN v18.0.0
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
 	} else if err == nil {
-		response.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
 	}
 
 	return response, nil
