@@ -638,7 +638,7 @@ readLoop:
 			if evt == nil {
 				break readLoop
 			}
-			if evt.GetType() != events.SessionPrintEvent {
+			if evt.GetType() == events.SessionPrintEvent {
 				capturedStream.Write(evt.(*apievents.SessionPrint).Data)
 			}
 			evts = append(evts, evt)
