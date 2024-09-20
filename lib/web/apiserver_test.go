@@ -7734,10 +7734,6 @@ func (mock authProviderMock) GetNode(ctx context.Context, namespace, name string
 	return &mock.server, nil
 }
 
-func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int) ([]events.EventFields, error) {
-	return []events.EventFields{}, nil
-}
-
 func (mock authProviderMock) GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error) {
 	return nil, trace.NotFound("foo")
 }

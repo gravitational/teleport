@@ -20,7 +20,6 @@ package events
 
 import (
 	"bufio"
-	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -667,31 +666,6 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	return nil
 }
 
-// GetSessionChunk returns a reader which console and web clients request
-// to receive a live stream of a given session. The reader allows access to a
-// session stream range from offsetBytes to offsetBytes+maxBytes
-func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := l.downloadSession(namespace, sid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var data []byte
-	for {
-		out, err := l.getSessionChunk(namespace, sid, offsetBytes, maxBytes)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return data, nil
-			}
-			return nil, trace.Wrap(err)
-		}
-		data = append(data, out...)
-		if len(data) == maxBytes || len(out) == 0 {
-			return data, nil
-		}
-		maxBytes = maxBytes - len(out)
-		offsetBytes = offsetBytes + len(out)
-	}
-}
-
 func (l *AuditLog) cleanupOldPlaybacks() error {
 	// scan the log directory and clean files last
 	// accessed after an hour
@@ -783,107 +757,6 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 	}
 	l.log.Debugf("Uncompressed %v into %v in %v", fileName, unpackedFile, l.Clock.Now().Sub(start))
 	return dest, nil
-}
-
-func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-	idx, err := l.readSessionIndex(namespace, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fileName, fileOffset, err := idx.chunksFile(int64(offsetBytes))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reader, err := l.unpackFile(fileName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer reader.Close()
-
-	// seek to 'offset' from the beginning
-	if _, err := reader.Seek(int64(offsetBytes)-fileOffset, 0); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// copy up to maxBytes from the offset position:
-	var buff bytes.Buffer
-	_, err = io.Copy(&buff, io.LimitReader(reader, int64(maxBytes)))
-	return buff.Bytes(), err
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// Can be filtered by 'after' (cursor value to return events newer than)
-func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
-	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
-	if namespace == "" {
-		return nil, trace.BadParameter("missing parameter namespace")
-	}
-
-	// If code has to fetch print events (for playback) it has to download
-	// the playback from external storage first
-	if err := l.downloadSession(namespace, sid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	idx, err := l.readSessionIndex(namespace, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fileIndex, err := idx.eventsFile(afterN)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	events := make([]EventFields, 0, 256)
-	for i := fileIndex; i < len(idx.events); i++ {
-		skip := 0
-		if i == fileIndex {
-			skip = afterN
-		}
-		out, err := l.fetchSessionEvents(idx.eventsFileName(i), skip)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		events = append(events, out...)
-	}
-	return events, nil
-}
-
-func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventFields, error) {
-	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0o640)
-	if err != nil {
-		// no file found? this means no events have been logged yet
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, trace.Wrap(err)
-	}
-	defer logFile.Close()
-	reader, err := gzip.NewReader(logFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer reader.Close()
-
-	retval := make([]EventFields, 0, 256)
-	// read line by line:
-	scanner := bufio.NewScanner(reader)
-	for lineNo := 0; scanner.Scan(); lineNo++ {
-		if lineNo < afterN {
-			continue
-		}
-		var fields EventFields
-		if err = json.Unmarshal(scanner.Bytes(), &fields); err != nil {
-			log.Error(err)
-			return nil, trace.Wrap(err)
-		}
-		fields[EventCursor] = lineNo
-		retval = append(retval, fields)
-	}
-	return retval, nil
 }
 
 // EmitAuditEvent adds a new event to the local file log
