@@ -784,12 +784,29 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+
+			if newAuthPref.Origin() == types.OriginDefaults {
+				// Set a default signature algorithm suite for a new cluster.
+				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+					FIPS:          asrv.fips,
+					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				})
+			}
+
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
 
 			return trace.Wrap(err)
+		}
+
+		if newAuthPref.Origin() == types.OriginDefaults {
+			// Never overwrite a stored signature algorithm suite with a default
+			// signature algorithm suite. This prevents the suite from being
+			// "upgraded" by a Teleport version upgrade alone, even if defaults
+			// are used on both versions.
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())

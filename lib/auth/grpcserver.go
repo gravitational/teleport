@@ -5370,6 +5370,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},
 		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+		SignatureAlgorithmSuiteParams: types.SignatureAlgorithmSuiteParams{
+			FIPS:          cfg.AuthServer.fips,
+			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -2548,6 +2548,13 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		}
 	}
 
+	if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          clf.FIPS,
+		UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// apply --skip-version-check flag.
 	if clf.SkipVersionCheck {
 		cfg.SkipVersionCheck = clf.SkipVersionCheck
