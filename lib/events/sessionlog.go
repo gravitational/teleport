@@ -56,11 +56,10 @@ func chunksFileName(dataDir string, sessionID session.ID, offset int64) string {
 }
 
 type indexEntry struct {
-	FileName   string `json:"file_name"`
-	Type       string `json:"type"`
-	Index      int64  `json:"index"`
-	Offset     int64  `json:"offset,"`
-	authServer string
+	FileName string `json:"file_name"`
+	Type     string `json:"type"`
+	Index    int64  `json:"index"`
+	Offset   int64  `json:"offset,"`
 }
 
 // gzipWriter wraps file, on close close both gzip writer and file

@@ -3852,8 +3852,6 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
-const maxStreamBytes = 5 * 1024 * 1024
-
 func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, error) {
 	el := make([]events.EventFields, 0, len(rawEvents))
 	for _, event := range rawEvents {
