@@ -172,12 +172,12 @@ const (
 	// SAMLACSInputStrictFilter indicates ValidateAndFilterEntityDescriptor to return an error on
 	// any instance of unsupported ACS value.
 	SAMLACSInputStrictFilter SAMLACSInputFilteringThreshold = "SAMLACSInputStrictFilter"
-	// SAMLACSInputStrictFilter indicates ValidateAndFilterEntityDescriptor to ignore an error on
+	// SAMLACSInputPermissiveFilter indicates ValidateAndFilterEntityDescriptor to ignore an error on
 	// any instance of unsupported ACS value.
 	SAMLACSInputPermissiveFilter SAMLACSInputFilteringThreshold = "SAMLACSInputPermissiveFilter"
 )
 
-// ValidateAndFilterEntityDescriptor validates entity id and ACS value. It specifically does:
+// ValidateAndFilterEntityDescriptor validates entity id and ACS value. It specifically:
 //   - checks for a valid entity descriptor XML format.
 //   - checks for a matching entity ID field in both the entity_id field and entity ID contained in the value of
 //     entity_descriptor field.
