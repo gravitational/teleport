@@ -57,6 +57,29 @@ The generated changes have a diff format showing removed nodes with "-" and adde
 Every time a change is made to a Crown Jewel, a new entry will be added to the list and an audit event
 will be generated in the Teleport Audit Log.
 
+## Audit events
+
+Every time a change is made to a Crown Jewel, an audit event is generated in the Teleport Audit Log.
+Here is what an example audit event looks like:
+
+```json
+{
+  "affected_resource_name": "bob",
+  "affected_resource_source": "TELEPORT",
+  "affected_resource_type": "teleport_node",
+  "change_id": "0110b3c4-d0b5-4af9-8585-aa49a064c85d",
+  "cluster_name": "ssh-node",
+  "code": "TAG001I",
+  "ei": 0,
+  "event": "access_graph.access_path_changed",
+  "time": "2024-09-20T19:50:38.194Z",
+  "uid": "5447d050-699a-4009-a901-ab8ed2614bc2"
+}
+```
+
+You can export the audit event using the event handler.
+The setup is described [here](../../management/export-audit-events.mdx).
+
 ## Required RBAC permissions
 
 To create and view Crown Jewels, you need the following RBAC permissions:
