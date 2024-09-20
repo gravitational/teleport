@@ -34,6 +34,8 @@ import (
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
 func (a *Server) ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error) {
 	ctx := context.TODO()
 	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
