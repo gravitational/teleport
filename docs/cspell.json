@@ -895,6 +895,7 @@
     "teleportdevname",
     "teleportdevprotocol",
     "teleporters",
+    "teleportgithubconnector",
     "teleportinfra",
     "teleportopensshserverv",
     "teleportproxy",
