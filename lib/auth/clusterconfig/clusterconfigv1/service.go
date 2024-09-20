@@ -132,7 +132,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ReadOnlyCache = readOnlyCache
 	}
 
-	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph, readOnlyCache: cfg.ReadOnlyCache, signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams}, nil
+	return &Service{
+		cache:                         cfg.Cache,
+		backend:                       cfg.Backend,
+		authorizer:                    cfg.Authorizer,
+		emitter:                       cfg.Emitter,
+		accessGraph:                   cfg.AccessGraph,
+		readOnlyCache:                 cfg.ReadOnlyCache,
+		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
+	}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.

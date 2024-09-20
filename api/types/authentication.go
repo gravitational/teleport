@@ -609,7 +609,7 @@ func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlg
 
 var (
 	errNonFIPSSignatureAlgorithmSuite = &trace.BadParameterError{Message: `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`}
-	errNonHSMSignatureAlgorithmSuite  = &trace.BadParameterError{Message: fmt.Sprintf(`configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: %v`, []string{"hsm-v1", "fips-v1", "legacy"})}
+	errNonHSMSignatureAlgorithmSuite  = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
 )
 
 // CheckSignatureAlgorithmSuite returns an error if the current signature
@@ -622,7 +622,7 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 		// legacy, fips-v1, and unspecified are always valid.
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
 		if params.FIPS {
-			return errNonFIPSSignatureAlgorithmSuite
+			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
 		}
 	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
 		if params.FIPS {
@@ -632,7 +632,7 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 			return trace.Wrap(errNonHSMSignatureAlgorithmSuite)
 		}
 	default:
-		return trace.Errorf("unhandled signature_algorithm_suite: this is a bug")
+		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
 	}
 	return nil
 }
