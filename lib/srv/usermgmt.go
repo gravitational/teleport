@@ -254,18 +254,21 @@ func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) 
 
 	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
 	// the teleport-keep group
-	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup) && ui.Mode == services.HostUserModeKeep
+	migrateStaticUser := ui.TakeOwnership && ui.Mode == services.HostUserModeStatic
 
 	_, hasDropGroup := currentGroups[types.TeleportDropGroup]
 	_, hasKeepGroup := currentGroups[types.TeleportKeepGroup]
 	_, hasStaticGroup := currentGroups[types.TeleportStaticGroup]
-	if !(hasDropGroup || hasKeepGroup || hasStaticGroup || migrateKeepUser) {
+	isManagedUser := hasDropGroup || hasKeepGroup || hasStaticGroup
+	if !(isManagedUser || migrateKeepUser || migrateStaticUser) {
 		return nil, trace.Errorf("%q %w", name, unmanagedUserErr)
 	}
 
 	// Do not convert/update groups from static to non-static user, and vice versa.
-	isStaticUser := ui.Mode == services.HostUserModeStatic
-	if hasStaticGroup != isStaticUser {
+	isStaticMode := ui.Mode == services.HostUserModeStatic
+	managedStaticConversion := isManagedUser && (hasStaticGroup != isStaticMode)
+	if managedStaticConversion {
 		slog.DebugContext(context.Background(),
 			"Aborting host user creation, can't convert between auto-provisioned and static host users.",
 			"login", name)
@@ -430,10 +433,10 @@ func (u *HostUserManagement) ensureGroupsExist(groups ...string) error {
 func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
 	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
 	// the teleport-keep group
-	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
-	skipKeepGroup := migrateKeepUser && ui.Mode != services.HostUserModeKeep
+	hasKeepGroup := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+	migrateKeepUser := hasKeepGroup && ui.Mode == services.HostUserModeKeep
 
-	if skipKeepGroup {
+	if hasKeepGroup && !migrateKeepUser {
 		log.Warnf("explicit assignment of %q group is not possible in 'insecure-drop' mode", types.TeleportKeepGroup)
 	}
 
@@ -445,7 +448,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		case types.TeleportDropGroup, types.TeleportStaticGroup:
 			continue
 		case types.TeleportKeepGroup:
-			if skipKeepGroup {
+			if !migrateKeepUser {
 				continue
 			}
 		}
