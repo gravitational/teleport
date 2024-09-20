@@ -4699,6 +4699,13 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		}
 	}
 
+	if err := newAuthPref.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.authServer.fips,
+		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := dtconfig.ValidateConfigAgainstModules(newAuthPref.GetDeviceTrust()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4752,6 +4759,10 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 	}
 
 	defaultAuthPref := types.DefaultAuthPreference()
+	defaultAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          a.authServer.fips,
+		UsingHSMOrKMS: a.authServer.keyStore.UsingHSMOrKMS(),
+	})
 	_, err = a.authServer.UpsertAuthPreference(ctx, defaultAuthPref)
 
 	var msg string

@@ -68,6 +68,11 @@ func (p *PluginStaticCredentialsService) GetPluginStaticCredentials(ctx context.
 	return creds, trace.Wrap(err)
 }
 
+func (p *PluginStaticCredentialsService) UpdatePluginStaticCredentials(ctx context.Context, item types.PluginStaticCredentials) (types.PluginStaticCredentials, error) {
+	creds, err := p.svc.ConditionalUpdateResource(ctx, item)
+	return creds, trace.Wrap(err)
+}
+
 // GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 func (p *PluginStaticCredentialsService) GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error) {
 	creds, err := p.svc.GetResources(ctx)
