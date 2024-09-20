@@ -110,6 +110,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
+	promptSSO := chal.SSOChallenge != nil
 
 	// No prompt to run, no-op.
 	if !promptOTP && !promptWebauthn {
@@ -123,6 +124,11 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		if !promptOTP {
 			return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
 		}
+	}
+
+	if promptSSO && c.cfg.SSOMFACeremony == nil {
+		promptSSO = false
+		slog.DebugContext(ctx, "SSO MFA not supported by this client, this is likely a bug")
 	}
 
 	// Prefer whatever method is requested by the client.
@@ -156,6 +162,9 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return resp, trace.Wrap(err)
 	case promptWebauthn:
 		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
+		return resp, trace.Wrap(err)
+	case promptSSO:
+		resp, err := c.promptSSO(ctx, chal)
 		return resp, trace.Wrap(err)
 	case promptOTP:
 		resp, err := c.promptOTP(ctx, c.cfg.Quiet)
@@ -314,4 +323,24 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 	w.cancelOTP()
 
 	return w.LoginPrompt.PromptPIN()
+}
+
+func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if err := c.cfg.SSOMFACeremony.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaToken, err := c.cfg.SSOMFACeremony.GetCallbackMFAToken(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: chal.SSOChallenge.RequestId,
+				Token:     mfaToken,
+			},
+		},
+	}, nil
 }
