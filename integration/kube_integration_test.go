@@ -71,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -343,26 +341,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	evtCh, errCh := teleport.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
-	require.NoError(t, err)
-	capturedStream := &bytes.Buffer{}
-readLoop:
-	for {
-		select {
-		case evt := <-evtCh:
-			if evt == nil {
-				break readLoop
-			}
-			if evt.GetType() != events.SessionPrintEvent {
-				continue
-			}
-			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
-		case err := <-errCh:
-			require.NoError(t, err)
-		}
-	}
-
-	require.Equal(t, sessionStream, capturedStream.String())
+	capturedStream, _ := streamSession(ctx, t, teleport.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -794,26 +774,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	evtCh, errCh := main.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
-	require.NoError(t, err)
-	capturedStream := &bytes.Buffer{}
-readLoop:
-	for {
-		select {
-		case evt := <-evtCh:
-			if evt == nil {
-				break readLoop
-			}
-			if evt.GetType() != events.SessionPrintEvent {
-				continue
-			}
-			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
-		case err := <-errCh:
-			require.NoError(t, err)
-		}
-	}
-
-	require.Equal(t, sessionStream, capturedStream.String())
+	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -1084,26 +1046,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	evtCh, errCh := main.Process.GetAuthServer().StreamSessionEvents(ctx, session.ID(sessionID), 0)
-	require.NoError(t, err)
-	capturedStream := &bytes.Buffer{}
-readLoop:
-	for {
-		select {
-		case evt := <-evtCh:
-			if evt == nil {
-				break readLoop
-			}
-			if evt.GetType() != events.SessionPrintEvent {
-				continue
-			}
-			capturedStream.Write(evt.(*apievents.SessionPrint).Data)
-		case err := <-errCh:
-			require.NoError(t, err)
-		}
-	}
-
-	require.Equal(t, sessionStream, capturedStream.String())
+	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty

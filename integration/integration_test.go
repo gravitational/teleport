@@ -546,20 +546,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// Stream all the session events into a slice to make them easier
 			// to work with.
-			evtCh, errCh := site.StreamSessionEvents(ctx, session.ID(tracker.GetSessionID()), 0)
-			sessionEvents := make([]apievents.AuditEvent, 0)
-		readLoop:
-			for {
-				select {
-				case evt := <-evtCh:
-					if evt == nil {
-						break readLoop
-					}
-					sessionEvents = append(sessionEvents, evt)
-				case err := <-errCh:
-					require.NoError(t, err)
-				}
-			}
+			capturedStream, sessionEvents := streamSession(ctx, t, site, sessionID)
 
 			var hasStart bool
 			var hasEnd bool
@@ -628,18 +615,38 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			}
 
 			// Check data was recorded properly
-			out := &bytes.Buffer{}
-			for _, e := range sessionEvents {
-				if e.GetType() != events.SessionPrintEvent {
-					continue
-				}
-				out.Write(e.(*apievents.SessionPrint).Data)
-			}
-			recorded := replaceNewlines(out.String())
+			recorded := replaceNewlines(capturedStream)
 			require.Regexp(t, ".*exit.*", recorded)
 			require.Regexp(t, ".*echo hi.*", recorded)
 		})
 	}
+}
+
+func streamSession(
+	ctx context.Context,
+	t *testing.T,
+	streamer events.SessionStreamer,
+	sessionID string,
+) (string, []apievents.AuditEvent) {
+	evtCh, errCh := streamer.StreamSessionEvents(ctx, session.ID(sessionID), 0)
+	capturedStream := &bytes.Buffer{}
+	evts := make([]apievents.AuditEvent, 0)
+readLoop:
+	for {
+		select {
+		case evt := <-evtCh:
+			if evt == nil {
+				break readLoop
+			}
+			if evt.GetType() != events.SessionPrintEvent {
+				capturedStream.Write(evt.(*apievents.SessionPrint).Data)
+			}
+			evts = append(evts, evt)
+		case err := <-errCh:
+			require.NoError(t, err)
+		}
+	}
+	return capturedStream.String(), evts
 }
 
 // testInteroperability checks if Teleport and OpenSSH behave in the same way
