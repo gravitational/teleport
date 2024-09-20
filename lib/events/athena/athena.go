@@ -425,8 +425,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.BatchMaxInterval = dur
 	}
-	consumerLockName := url.Query().Get("consumerLockName")
-	if consumerLockName != "" {
+	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
 		cfg.ConsumerLockName = fmt.Sprintf("athena_%s", consumerLockName)
 	}
 	if val := url.Query().Get("consumerDisabled"); val != "" {
