@@ -47,6 +47,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/ghodss/yaml"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -688,6 +689,42 @@ func initLogger(cf *CLIConf) {
 	}
 }
 
+// transformArgs performs OpenSSH transformation on the passed in CLI args.
+func transformArgs(args []string) ([]string, error) {
+	var cmdline []string
+
+	// If the executable name is "ssh" or "scp" transform args to "tsh ssh ..."
+	// or "tsh scp ...".
+	switch filepath.Base(os.Args[0]) {
+	case "ssh":
+		cmdline = append([]string{"ssh"}, args...)
+	case "scp":
+		cmdline = append([]string{"scp"}, args...)
+	default:
+		cmdline = args
+	}
+
+	// The following flags are OpenSSH compatibility flags. They are used for
+	// people that alias "ssh" to "tsh ssh." The following OpenSSH flags are
+	// implemented. From "man 1 ssh":
+	//
+	// * "-V Display the version number and exit."
+	// * "-T Disable pseudo-terminal allocation."
+	if slices.Contains(cmdline, "-V") {
+		modules.GetModules().PrintVersion()
+
+		return nil, &common.ExitCodeError{
+			Code: 0,
+		}
+	}
+	i := slices.Index(cmdline, "-T")
+	if i > 0 {
+		cmdline = slices.Replace(cmdline, i, i+1, []string{"--no-tty"}...)
+	}
+
+	return cmdline, nil
+}
+
 // Run executes TSH client. same as main() but easier to test. Note that this
 // function modifies global state in `tsh` (e.g. the system logger), and WILL
 // ALSO MODIFY EXTERNAL SHARED STATE in its default configuration (e.g. the
@@ -695,6 +732,13 @@ func initLogger(cf *CLIConf) {
 //
 // DO NOT RUN TESTS that call Run() in parallel (unless you taken precautions).
 func Run(ctx context.Context, args []string, opts ...CliOption) error {
+	// Before parsing CLI flags, transform any arguments for OpenSSH
+	// compatibility.
+	args, err := transformArgs(args)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	cf := CLIConf{
 		Context:            ctx,
 		TracingProvider:    tracing.NoopProvider(),
@@ -801,6 +845,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command").Default("true").BoolVar(&cf.Relogin)
+	// The following flags are OpenSSH compatibility flags. They are not
+	// implemented in Kingpin but are registered here to inform developers that
+	// they are being used. Their behavior is implemented in 000000.
+	ssh.Flag(uuid.New().String(), "").Hidden().Short('T').StringVar(nil)
+	ssh.Flag(uuid.New().String(), "").Hidden().Short('V').StringVar(nil)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
@@ -1213,8 +1262,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
-
-	var err error
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {
