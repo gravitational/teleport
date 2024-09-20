@@ -241,14 +241,19 @@ func (p *podHandler) handler(r *http.Request) error {
 		Usage:             clientproto.UserCertsRequest_Kubernetes,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformMFACeremonyParams{
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: p.sctx.cfg.RootClient.CreateAuthenticateChallenge,
+		SolveAuthenticateChallenge: func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
+			assertion, err := mfaPrompt(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
+			return assertion, trace.Wrap(err)
+		},
+	}
+
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
 		CurrentAuthClient: p.userClient,
 		RootAuthClient:    p.sctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *clientproto.MFAAuthenticateChallenge) (*clientproto.MFAAuthenticateResponse, error) {
-			assertion, err := promptMFAChallenge(stream.WSStream, protobufMFACodec{}).Run(ctx, chal)
-			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: p.sctx.cfg.RootClusterName == p.teleportCluster,
+		MFACeremony:       mfaCeremony,
+		MFAAgainstRoot:    p.sctx.cfg.RootClusterName == p.teleportCluster,
 		MFARequiredReq: &clientproto.IsMFARequiredRequest{
 			Target: &clientproto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.req.KubeCluster},
 		},

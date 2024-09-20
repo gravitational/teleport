@@ -320,7 +320,6 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			MFACheck:       target.MFACheck,
 		},
 		keyRing,
-		c.tc.NewMFAPrompt(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -430,7 +429,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 
 // performSessionMFACeremony runs the mfa ceremony to completion.
 // If successful the returned [KeyRing] will be authorized to connect to the target.
-func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing, mfaPrompt mfa.Prompt) (*KeyRing, error) {
+func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, keyRing *KeyRing) (*KeyRing, error) {
 	newUserKeys, certsReq, err := rootClient.prepareUserCertsRequest(ctx, params, keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -440,10 +439,26 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyRing, _, err = PerformSessionMFACeremony(ctx, PerformMFACeremonyParams{
+
+	var promptOpts []mfa.PromptOpt
+	switch {
+	case params.NodeName != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+	case params.KubernetesCluster != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+	case params.RouteToDatabase.ServiceName != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+	case params.RouteToApp.Name != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+	}
+
+	mfaCeremony := c.tc.NewMFACeremony()
+	mfaCeremony.CreateAuthenticateChallenge = c.AuthClient.CreateAuthenticateChallenge
+
+	keyRing, _, err = PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFAPrompt:         mfaPrompt,
+		MFACeremony:       mfaCeremony,
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
@@ -452,13 +467,13 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		CertsReq:    certsReq,
 		KeyRing:     keyRing,
 		newUserKeys: newUserKeys,
-	})
+	}, promptOpts...)
 	return keyRing, trace.Wrap(err)
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
-func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*KeyRing, proto.MFARequired, error) {
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*KeyRing, proto.MFARequired, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -558,7 +573,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	}
 
 	// Perform the MFA ceremony and add the new credential to the KeyRing.
-	keyRing, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing, mfaPrompt)
+	keyRing, err := c.performSessionMFACeremony(ctx, certClient, params, keyRing)
 	if err != nil {
 		return nil, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
 	}
@@ -567,30 +582,30 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	return keyRing, proto.MFARequired_MFA_REQUIRED_YES, nil
 }
 
-// PerformMFARootClient is a subset of Auth methods required for MFA.
+// PerformSessionMFARootClient is a subset of Auth methods required for MFA.
 // Used by [PerformSessionMFACeremony].
-type PerformMFARootClient interface {
+type PerformSessionMFARootClient interface {
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 }
 
-// PerformMFACurrentClient is a subset of Auth methods required for MFA.
+// PerformSessionMFACurrentClient is a subset of Auth methods required for MFA.
 // Used by [PerformSessionMFACeremony].
-type PerformMFACurrentClient interface {
+type PerformSessionMFACurrentClient interface {
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 }
 
-// PerformMFACeremonyParams are the input parameters for [PerformSessionMFACeremony].
-type PerformMFACeremonyParams struct {
+// PerformSessionMFACeremonyParams are the input parameters for [PerformSessionMFACeremony].
+type PerformSessionMFACeremonyParams struct {
 	// CurrentAuthClient is the Auth client for the target cluster.
 	// Unused if MFAAgainstRoot is true.
-	CurrentAuthClient PerformMFACurrentClient
+	CurrentAuthClient PerformSessionMFACurrentClient
 	// RootAuthClient is the Auth client for the root cluster.
 	// This is the client used to acquire the authn challenge and issue the user
 	// certificates.
-	RootAuthClient PerformMFARootClient
-	// MFAPrompt is used to prompt the user for an MFA solution.
-	MFAPrompt mfa.Prompt
+	RootAuthClient PerformSessionMFARootClient
+	// MFACeremony handles the MFA ceremony.
+	MFACeremony *mfa.Ceremony
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
@@ -632,7 +647,7 @@ type newUserKeys struct {
 //  4. Call RootAuthClient.GenerateUserCerts
 //
 // Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
-func PerformSessionMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*KeyRing, *proto.Certs, error) {
+func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*KeyRing, *proto.Certs, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
 
@@ -653,12 +668,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformMFACeremonyPar
 		mfaRequiredReq = nil // Already checked, don't check again at root.
 	}
 
-	mfaCeremony := mfa.Ceremony{
-		CreateAuthenticateChallenge: rootClient.CreateAuthenticateChallenge,
-		SolveAuthenticateChallenge:  params.MFAPrompt.Run,
-	}
-
-	mfaResp, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -666,7 +676,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformMFACeremonyPar
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
-	})
+	}, promptOpts...)
 	if errors.Is(err, &mfa.ErrMFANotRequired) {
 		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	} else if err != nil {
