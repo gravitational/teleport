@@ -417,7 +417,7 @@ func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
 	defer backend.Close()
 
 	batchInterval := 20 * time.Millisecond
-	lockName := "athena_lock"
+	lockName := []string{"athena_lock"}
 
 	c1 := consumer{
 		logger:           log,
