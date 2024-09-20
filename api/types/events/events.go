@@ -214,3 +214,15 @@ func computeEventID(evt AuditEvent, payload []byte) string {
 	hash := sha256.Sum256(payload)
 	return hex.EncodeToString(hash[:])
 }
+
+func (m *CrownJewelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CrownJewelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CrownJewelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
