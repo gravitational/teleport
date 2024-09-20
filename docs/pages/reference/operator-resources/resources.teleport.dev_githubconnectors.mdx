@@ -29,7 +29,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |api_endpoint_url|string|APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.|
 |client_id|string|ClientID is the Github OAuth app client ID.|
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
-|client_secret|string|ClientSecret is the Github OAuth app client secret.|
+|client_secret|string|ClientSecret is the Github OAuth app client secret. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the connector display name.|
 |endpoint_url|string|EndpointURL is the URL of the GitHub instance this connector is for.|
 |redirect_url|string|RedirectURL is the authorization callback URL.|
