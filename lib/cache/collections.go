@@ -1306,6 +1306,8 @@ type clusterNameGetter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
+var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
+
 type autoUpdateConfigExecutor struct{}
 
 func (autoUpdateConfigExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*autoupdate.AutoUpdateConfig, error) {
