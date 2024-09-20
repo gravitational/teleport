@@ -122,7 +122,7 @@ function FormPassword(props: Props) {
             placeholder="Password"
           />
           {mfaEnabled && (
-            <Flex alignItems="flex-end" mb={4}>
+            <Flex alignItems="flex-start" mb={4}>
               <Box width="60%" data-testid="mfa-select">
                 <FieldSelect
                   label="Two-factor Type"
