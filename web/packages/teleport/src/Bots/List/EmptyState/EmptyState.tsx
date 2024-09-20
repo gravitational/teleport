@@ -51,7 +51,7 @@ export function EmptyState() {
         <H1 mb={3}>What are Bots?</H1>
         <Text css={{ maxWidth }}>
           Static keys and API keys in your automated workflows are the target of
-          hackers and are one of the key sources of security breaches.
+          hackers and are one of the primary sources of security breaches.
           <br />
           Teleport Machine ID replaces shared credentials and secrets with
           short-lived x.509 or SSH certificates and gives you a unified plan to
