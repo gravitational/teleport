@@ -110,6 +110,8 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   // TODO(rudream): Delete category field above and rename sideNavCategory field to category once old nav is removed.
   sideNavCategory?: SideNavigationCategory;
+  /** standalone is whether this feature has no subsections */
+  standalone?: boolean;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
   // logoOnlyTopbar is used to optionally hide the elements in the topbar from view except for the logo.

@@ -369,6 +369,7 @@ export class FeatureDiscover implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
   sideNavCategory = SideNavigationCategory.AddNew;
+  standalone = true;
 
   route = {
     title: 'Enroll New Resource',

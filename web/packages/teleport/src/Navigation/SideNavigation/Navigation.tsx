@@ -28,7 +28,11 @@ import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { zIndexMap } from 'teleport/Main';
 
-import { NavigationCategory, NAVIGATION_CATEGORIES } from './categories';
+import {
+  NavigationCategory,
+  NAVIGATION_CATEGORIES,
+  STANDALONE_CATEGORIES,
+} from './categories';
 import { CategoryIcon } from './CategoryIcon';
 
 import type * as history from 'history';
@@ -93,6 +97,7 @@ const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
 type NavigationSection = {
   category: NavigationCategory;
   subsections: NavigationSubsection[];
+  standalone?: boolean;
 };
 
 type NavigationSubsection = {
@@ -110,6 +115,7 @@ function getNavigationSections(
   const navigationSections = NAVIGATION_CATEGORIES.map(category => ({
     category,
     subsections: getSubsectionsForCategory(category, features),
+    standalone: STANDALONE_CATEGORIES.indexOf(category) !== -1,
   }));
 
   return navigationSections;
@@ -151,7 +157,6 @@ function getNavSubsectionForRoute(
     );
 
   if (!feature || !feature.sideNavCategory) {
-    console.log('TRUE');
     return;
   }
 
@@ -181,7 +186,12 @@ export function Navigation() {
   const subsectionRefs = useRef<Array<HTMLAnchorElement | null>>([]);
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent, index: number, isSubsection: boolean) => {
+    (
+      event: React.KeyboardEvent,
+      index: number,
+      isSubsection: boolean,
+      section: NavigationSection
+    ) => {
       if (event.key === 'Tab') {
         if (!isSubsection) return;
 
@@ -203,8 +213,13 @@ export function Navigation() {
           sectionRefs.current[nextSectionIndex]?.focus();
         }
       } else if (event.key === 'Enter' && !isSubsection) {
-        event.preventDefault();
-        subsectionRefs.current[0]?.focus();
+        if (section?.standalone) {
+          event.preventDefault();
+          history.push(section.subsections[0].route);
+        } else {
+          event.preventDefault();
+          subsectionRefs.current[0]?.focus();
+        }
       }
     },
     [expandedSection, expandedSectionIndex, navSections.length]
@@ -241,12 +256,17 @@ export function Navigation() {
             setExpandedSection={() => handleSetExpandedSection(section, index)}
             aria-controls={`panel-${expandedSection?.category}`}
             ref={el => (sectionRefs.current[index] = el)}
-            onKeyDown={e => handleKeyDown(e, index, false)}
+            onKeyDown={e => handleKeyDown(e, index, false, section)}
+            onClick={() => {
+              if (section.standalone) {
+                history.push(section.subsections[0].route);
+              }
+            }}
           />
         ))}
       </SideNavContainer>
       <RightPanel
-        isVisible={!!expandedSection}
+        isVisible={!!expandedSection && !expandedSection.standalone}
         id={`panel-${expandedSection?.category}`}
       >
         <Flex py={verticalPadding} px={3}>
@@ -263,7 +283,7 @@ export function Navigation() {
             key={section.title}
             tabIndex={0}
             role="button"
-            onKeyDown={e => handleKeyDown(e, idx, true)}
+            onKeyDown={e => handleKeyDown(e, idx, true, null)}
           >
             <section.icon size={16} />
             <Text typography="body2">{section.title}</Text>
@@ -311,8 +331,9 @@ const Section = React.forwardRef<
     active: boolean;
     setExpandedSection: () => void;
     onKeyDown: (event: React.KeyboardEvent) => void;
+    onClick: (event: React.MouseEvent) => void;
   }
->(({ section, active, setExpandedSection, onKeyDown }, ref) => {
+>(({ section, active, setExpandedSection, onKeyDown, onClick }, ref) => {
   return (
     <CategoryButton
       ref={ref}
@@ -320,6 +341,7 @@ const Section = React.forwardRef<
       onMouseEnter={setExpandedSection}
       onFocus={setExpandedSection}
       onKeyDown={onKeyDown}
+      onClick={onClick}
     >
       <CategoryIcon category={section.category} />
       {section.category}

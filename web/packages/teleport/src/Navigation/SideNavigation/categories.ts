@@ -31,4 +31,7 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Identity,
   NavigationCategory.Policy,
   NavigationCategory.Audit,
+  NavigationCategory.AddNew,
 ];
+
+export const STANDALONE_CATEGORIES = [NavigationCategory.AddNew];

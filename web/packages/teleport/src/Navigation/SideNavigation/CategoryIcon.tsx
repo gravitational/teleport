@@ -34,6 +34,8 @@ export function CategoryIcon({ category }: { category: NavigationCategory }) {
       return <Icons.ShieldCheck />;
     case NavigationCategory.Audit:
       return <Icons.ListMagnifyingGlass />;
+    case NavigationCategory.AddNew:
+      return <Icons.AddCircle />;
     default:
       return null;
   }
