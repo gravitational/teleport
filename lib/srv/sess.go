@@ -2027,7 +2027,6 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 		modes := s.access.CanJoin(accessContext)
 		if !slices.Contains(modes, mode) {
-			s.log.Infof("MODES ALLOWED: %v, MODE REQUESTED: %s, ROLES: %v", modes, mode, accessContext.Roles)
 			return trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
 
