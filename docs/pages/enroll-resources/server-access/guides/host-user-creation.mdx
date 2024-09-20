@@ -332,6 +332,9 @@ spec:
       # gid: 1234
       # Default shell for the created user. Optional.
       # default_shell: /bin/bash
+      # Whether or not static host user provisioning should automatically take ownership of existing users
+      # created outside of Teleport. Optional.
+      # take_ownership_if_user_exists: true
 
     # Add additional matchers if needed to configure nginxrestarter differently
     # on different servers.
@@ -342,7 +345,8 @@ spec:
 The name of the static host user resource must match the login of the user to
 be created. A server will only provision the user if a single defined matcher is
 satisfied. If there are multiple matches for a single static host user resource,
-then the server will refuse to provision the user.
+or if the user already exists and `take_ownership_if_user_exists` is not set to
+`true`, then the server will refuse to provision the user. 
 
 Create the static host user:
 
@@ -401,10 +405,19 @@ will be cleaned up at the next Teleport restart.
 
 ## Migrating unmanaged users
 
+### `keep` mode users from previous versions of Teleport
 Automatic host users created with `create_host_user_mode: keep` prior to `v14.3.24`, `v15.4.16`, and `v16.1.8`
 will not be managed by later versions of Teleport. In order to migrate these users automatically on their next
 session, you can add `teleport-keep` to your role's `host_groups`. Host users can also be migrated manually by adding
 them to the `teleport-keep` group directly on the hosts you wish to migrate.
+
+### Static host users
+By default, static host user provisioning will not take ownership of any existing users created outside of Teleport.
+In order to configure Teleport to automatically take ownership of any unmanaged users that collide with a static host
+user, the `take_ownership_if_user_exists` flag can be set to `true` on the static host user resource. This will bring
+the existing user under Teleport's management and override the groups assigned to that user. Similar to migrating
+`teleport-keep` users, it is possible to migrate users manually by adding them to the `teleport-static` group directly
+on the hosts.
 
 ## Next steps
 
