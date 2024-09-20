@@ -146,7 +146,8 @@ export interface AccessListOwner {
      */
     ineligibleStatus: IneligibleStatus;
     /**
-     * membership_kind is the type of owner, either a user or an access list.
+     * membership_kind describes the type of membership, either
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 4;
      */
@@ -326,7 +327,8 @@ export interface MemberSpec {
      */
     ineligibleStatus: IneligibleStatus;
     /**
-     * membership_kind is the type of member, either a user or an access list.
+     * membership_kind describes the type of membership, either
+     * `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
      *
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 9;
      */
@@ -500,20 +502,19 @@ export enum ReviewDayOfMonth {
 export enum MembershipKind {
     /**
      * MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
-     * unknown membership kind, defaulting to _USER
+     * unknown membership kind, defaulting to being treated as type USER
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_UNSPECIFIED = 0;
      */
     UNSPECIFIED = 0,
     /**
-     * MEMBERSHIP_KIND_USER represents list members that are normal
-     * users
+     * MEMBERSHIP_KIND_USER represents list members that are normal users
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_USER = 1;
      */
     USER = 1,
     /**
-     * MEMBERSHIP_KIND_LIST represents a list member that is another list
+     * MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
      *
      * @generated from protobuf enum value: MEMBERSHIP_KIND_LIST = 2;
      */

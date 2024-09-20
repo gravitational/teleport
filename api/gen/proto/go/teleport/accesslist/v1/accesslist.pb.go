@@ -152,12 +152,11 @@ type MembershipKind int32
 
 const (
 	// MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
-	// unknown membership kind, defaulting to _USER
+	// unknown membership kind, defaulting to being treated as type USER
 	MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED MembershipKind = 0
-	// MEMBERSHIP_KIND_USER represents list members that are normal
-	// users
+	// MEMBERSHIP_KIND_USER represents list members that are normal users
 	MembershipKind_MEMBERSHIP_KIND_USER MembershipKind = 1
-	// MEMBERSHIP_KIND_LIST represents a list member that is another list
+	// MEMBERSHIP_KIND_LIST represents list members that are nested Access Lists
 	MembershipKind_MEMBERSHIP_KIND_LIST MembershipKind = 2
 )
 
@@ -464,7 +463,8 @@ type AccessListOwner struct {
 	// ineligible_status describes if this owner is eligible or not
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,3,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
-	// membership_kind is the type of owner, either a user or an access list.
+	// membership_kind describes the type of membership, either
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 	MembershipKind MembershipKind `protobuf:"varint,4,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 }
 
@@ -893,7 +893,8 @@ type MemberSpec struct {
 	// ineligible_status describes if this member is eligible or not
 	// and if not, describes how they're lacking eligibility.
 	IneligibleStatus IneligibleStatus `protobuf:"varint,7,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus" json:"ineligible_status,omitempty"`
-	// membership_kind is the type of member, either a user or an access list.
+	// membership_kind describes the type of membership, either
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 	MembershipKind MembershipKind `protobuf:"varint,9,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 }
 

@@ -46,7 +46,7 @@ const (
 	AccessListService_ListAccessListMembers_FullMethodName                   = "/teleport.accesslist.v1.AccessListService/ListAccessListMembers"
 	AccessListService_ListAllAccessListMembers_FullMethodName                = "/teleport.accesslist.v1.AccessListService/ListAllAccessListMembers"
 	AccessListService_GetAccessListMember_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListMember"
-	AccessListService_GetAccessListNestedOwners_FullMethodName               = "/teleport.accesslist.v1.AccessListService/GetAccessListNestedOwners"
+	AccessListService_GetAccessListOwners_FullMethodName                     = "/teleport.accesslist.v1.AccessListService/GetAccessListOwners"
 	AccessListService_UpsertAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpsertAccessListMember"
 	AccessListService_UpdateAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/UpdateAccessListMember"
 	AccessListService_DeleteAccessListMember_FullMethodName                  = "/teleport.accesslist.v1.AccessListService/DeleteAccessListMember"
@@ -95,8 +95,9 @@ type AccessListServiceClient interface {
 	ListAllAccessListMembers(ctx context.Context, in *ListAllAccessListMembersRequest, opts ...grpc.CallOption) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, in *GetAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
-	// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
-	GetAccessListNestedOwners(ctx context.Context, in *GetAccessListNestedOwnersRequest, opts ...grpc.CallOption) (*GetAccessListNestedOwnersResponse, error)
+	// GetAccessListOwners returns a list of all owners in an Access List,
+	// including those inherited from nested Access Lists.
+	GetAccessListOwners(ctx context.Context, in *GetAccessListOwnersRequest, opts ...grpc.CallOption) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(ctx context.Context, in *UpsertAccessListMemberRequest, opts ...grpc.CallOption) (*Member, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
@@ -261,10 +262,10 @@ func (c *accessListServiceClient) GetAccessListMember(ctx context.Context, in *G
 	return out, nil
 }
 
-func (c *accessListServiceClient) GetAccessListNestedOwners(ctx context.Context, in *GetAccessListNestedOwnersRequest, opts ...grpc.CallOption) (*GetAccessListNestedOwnersResponse, error) {
+func (c *accessListServiceClient) GetAccessListOwners(ctx context.Context, in *GetAccessListOwnersRequest, opts ...grpc.CallOption) (*GetAccessListOwnersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAccessListNestedOwnersResponse)
-	err := c.cc.Invoke(ctx, AccessListService_GetAccessListNestedOwners_FullMethodName, in, out, cOpts...)
+	out := new(GetAccessListOwnersResponse)
+	err := c.cc.Invoke(ctx, AccessListService_GetAccessListOwners_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -434,8 +435,9 @@ type AccessListServiceServer interface {
 	ListAllAccessListMembers(context.Context, *ListAllAccessListMembersRequest) (*ListAllAccessListMembersResponse, error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error)
-	// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
-	GetAccessListNestedOwners(context.Context, *GetAccessListNestedOwnersRequest) (*GetAccessListNestedOwnersResponse, error)
+	// GetAccessListOwners returns a list of all owners in an Access List,
+	// including those inherited from nested Access Lists.
+	GetAccessListOwners(context.Context, *GetAccessListOwnersRequest) (*GetAccessListOwnersResponse, error)
 	// UpsertAccessListMember creates or updates an access list member resource.
 	UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
@@ -516,8 +518,8 @@ func (UnimplementedAccessListServiceServer) ListAllAccessListMembers(context.Con
 func (UnimplementedAccessListServiceServer) GetAccessListMember(context.Context, *GetAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListMember not implemented")
 }
-func (UnimplementedAccessListServiceServer) GetAccessListNestedOwners(context.Context, *GetAccessListNestedOwnersRequest) (*GetAccessListNestedOwnersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListNestedOwners not implemented")
+func (UnimplementedAccessListServiceServer) GetAccessListOwners(context.Context, *GetAccessListOwnersRequest) (*GetAccessListOwnersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccessListOwners not implemented")
 }
 func (UnimplementedAccessListServiceServer) UpsertAccessListMember(context.Context, *UpsertAccessListMemberRequest) (*Member, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessListMember not implemented")
@@ -795,20 +797,20 @@ func _AccessListService_GetAccessListMember_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccessListService_GetAccessListNestedOwners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAccessListNestedOwnersRequest)
+func _AccessListService_GetAccessListOwners_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAccessListOwnersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccessListServiceServer).GetAccessListNestedOwners(ctx, in)
+		return srv.(AccessListServiceServer).GetAccessListOwners(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccessListService_GetAccessListNestedOwners_FullMethodName,
+		FullMethod: AccessListService_GetAccessListOwners_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccessListServiceServer).GetAccessListNestedOwners(ctx, req.(*GetAccessListNestedOwnersRequest))
+		return srv.(AccessListServiceServer).GetAccessListOwners(ctx, req.(*GetAccessListOwnersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1103,8 +1105,8 @@ var AccessListService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccessListService_GetAccessListMember_Handler,
 		},
 		{
-			MethodName: "GetAccessListNestedOwners",
-			Handler:    _AccessListService_GetAccessListNestedOwners_Handler,
+			MethodName: "GetAccessListOwners",
+			Handler:    _AccessListService_GetAccessListOwners_Handler,
 		},
 		{
 			MethodName: "UpsertAccessListMember",

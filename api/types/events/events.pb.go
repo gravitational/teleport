@@ -1036,7 +1036,8 @@ type AccessListMember struct {
 	Reason string `protobuf:"bytes,3,opt,name=Reason,proto3" json:"reason,omitempty"`
 	// MemberName is the name of the member.
 	MemberName string `protobuf:"bytes,4,opt,name=MemberName,proto3" json:"member_name,omitempty"`
-	// MembershipKind is the type of member (user or list).
+	// MembershipKind describes the kind of membership, either
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 	MembershipKind       v1.MembershipKind `protobuf:"varint,5,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind" json:"membership_kind,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`

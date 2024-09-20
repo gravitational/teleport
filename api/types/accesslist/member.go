@@ -62,7 +62,8 @@ type AccessListMemberSpec struct {
 	// IneligibleStatus describes the reason why this member is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
-	// MembershipKind is the type of the membership in parent, either "user", or "list"
+	// MembershipKind describes the kind of membership,
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 

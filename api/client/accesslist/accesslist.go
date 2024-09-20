@@ -114,7 +114,7 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 	return accessLists, nil
 }
 
-// GetInheritedGrants returns grants inherited from parent access lists.
+// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
 func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
 	resp, err := c.grpcClient.GetInheritedGrants(ctx, &accesslistv1.GetInheritedGrantsRequest{
 		AccessListId: accessListID,
@@ -167,7 +167,7 @@ func (c *Client) DeleteAllAccessLists(ctx context.Context) error {
 }
 
 // CountAccessListMembers will count all access list members.
-func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
+func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
 		AccessListName: accessListName,
 	})
@@ -237,11 +237,11 @@ func (c *Client) GetAccessListMember(ctx context.Context, accessList string, mem
 	return member, trace.Wrap(err)
 }
 
-// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
 //
-// Owners returned here are not validated for ownership requirements – use `IsAccessListOwner` for validation.
-func (c *Client) GetAccessListNestedOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
-	resp, err := c.grpcClient.GetAccessListNestedOwners(ctx, &accesslistv1.GetAccessListNestedOwnersRequest{
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	resp, err := c.grpcClient.GetAccessListOwners(ctx, &accesslistv1.GetAccessListOwnersRequest{
 		AccessList: accessListName,
 	})
 	if err != nil {

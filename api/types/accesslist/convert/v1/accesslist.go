@@ -69,6 +69,9 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
 		owners[i] = FromOwnerProto(owner)
+		// Set IneligibleStatus to empty as default.
+		// Must provide as options to set it with the provided value.
+		owners[i].IneligibleStatus = ""
 	}
 
 	var ownerGrants accesslist.Grants
@@ -214,8 +217,12 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 
 func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
 	var ineligibleStatus accesslistv1.IneligibleStatus
-	if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
-		ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+	if owner.IneligibleStatus != "" {
+		if enumVal, ok := accesslistv1.IneligibleStatus_value[owner.IneligibleStatus]; ok {
+			ineligibleStatus = accesslistv1.IneligibleStatus(enumVal)
+		}
+	} else {
+		ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED
 	}
 
 	var kind accesslistv1.MembershipKind

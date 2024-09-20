@@ -138,7 +138,8 @@ func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.A
 	return accessLists, trace.Wrap(err)
 }
 
-// GetInheritedGrants returns grants inherited from parent access lists. This is not implemented in the local service.
+// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
+// This is not implemented in the local service.
 func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
@@ -253,10 +254,10 @@ func (a *AccessListService) GetSuggestedAccessLists(ctx context.Context, accessR
 }
 
 // CountAccessListMembers will count all access list members.
-func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (uint32, uint32, error) {
+func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	count := uint(0)
 	listCount := uint(0)
-	err := a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+	err = a.service.RunWhileLocked(ctx, lockName(accessListName), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		var err error
 		members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
 		if err != nil {
@@ -319,8 +320,10 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 	return member, trace.Wrap(err)
 }
 
-// GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists as owners.
-func (a *AccessListService) GetAccessListNestedOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
 	seen := map[string]struct{}{}
 	type queueItem struct {
 		name  string
@@ -334,7 +337,7 @@ func (a *AccessListService) GetAccessListNestedOwners(ctx context.Context, acces
 		queue = queue[1:]
 
 		if item.depth > accesslist.MaxAllowedDepth {
-			a.log.Errorf("exceeded maximum depth of %d while gathering nested owners for access list %s", accesslist.MaxAllowedDepth, accessListName)
+			a.log.Warnf("Exceeded maximum depth of %d while gathering nested owners for access list %s", accesslist.MaxAllowedDepth, accessListName)
 			continue
 		}
 
@@ -359,9 +362,18 @@ func (a *AccessListService) GetAccessListNestedOwners(ctx context.Context, acces
 				}
 			}
 		} else {
-			members, _, err := a.ListAccessListMembers(ctx, item.name, 0, "")
-			if err != nil {
-				return nil, trace.Wrap(err)
+			var pageToken string
+			var members []*accesslist.AccessListMember
+
+			for {
+				fetchedMembers, pageToken, err := a.ListAccessListMembers(ctx, item.name, 0, pageToken)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				members = append(members, fetchedMembers...)
+				if pageToken == "" {
+					break
+				}
 			}
 
 			for _, member := range members {

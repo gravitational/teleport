@@ -183,7 +183,8 @@ type Owner struct {
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
-	// MembershipKind is the kind of owner, either list or user
+	// MembershipKind describes the kind of ownership,
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
@@ -336,7 +337,7 @@ func (a *AccessList) GetOwners() []Owner {
 	return a.Spec.Owners
 }
 
-// GetOwners returns the list of owners from the access list.
+// SetOwners sets the owners of the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
 }

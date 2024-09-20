@@ -306,8 +306,9 @@ func TestIsAccessListOwner(t *testing.T) {
 			}
 
 			getter := &testMembersAndLockGetter{members: memberMap, lists: aclMap}
+			checker := NewAccessListMembershipChecker(clockwork.NewFakeClockAt(time.Now()), getter, nil)
 
-			_, err := IsAccessListOwner(ctx, getter, test.identity, test.accessListsAndMembers.ListToUse)
+			_, err := checker.IsAccessListOwner(ctx, test.identity, test.accessListsAndMembers.ListToUse)
 			test.errAssertionFunc(t, err)
 		})
 	}
@@ -499,7 +500,7 @@ func TestIsAccessListMemberChecker(t *testing.T) {
 			},
 			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.AccessDenied("user %s is currently locked", member1))
+				require.ErrorIs(t, err, trace.AccessDenied("User '%s' is currently locked.", member1))
 			},
 		},
 		{

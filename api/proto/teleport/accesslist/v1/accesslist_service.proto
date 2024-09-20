@@ -53,8 +53,9 @@ service AccessListService {
   rpc ListAllAccessListMembers(ListAllAccessListMembersRequest) returns (ListAllAccessListMembersResponse);
   // GetAccessListMember returns the specified access list member resource.
   rpc GetAccessListMember(GetAccessListMemberRequest) returns (Member);
-  // GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
-  rpc GetAccessListNestedOwners(GetAccessListNestedOwnersRequest) returns (GetAccessListNestedOwnersResponse);
+  // GetAccessListOwners returns a list of all owners in an Access List,
+  // including those inherited from nested Access Lists.
+  rpc GetAccessListOwners(GetAccessListOwnersRequest) returns (GetAccessListOwnersResponse);
   // UpsertAccessListMember creates or updates an access list member resource.
   rpc UpsertAccessListMember(UpsertAccessListMemberRequest) returns (Member);
   // UpdateAccessListMember conditionally updates an access list member resource.
@@ -256,17 +257,18 @@ message GetAccessListMemberRequest {
   string member_name = 2;
 }
 
-// GetAccessListNestedOwnersRequest is the request for getting all owners in an
-// Access List with nested Access Lists.
-message GetAccessListNestedOwnersRequest {
+// GetAccessListOwnersRequest is the request for getting a list of all owners
+// in an Access List, including those inherited from nested Access Lists.
+message GetAccessListOwnersRequest {
   // access_list is the name of the access list.
   string access_list = 1;
 }
 
-// GetAccessListNestedOwnersResponse is the response for getting all owners in
-// an Access List with nested Access Lists.
-message GetAccessListNestedOwnersResponse {
-  // owners is the list of all owners in the Access List with nested Access Lists.
+// GetAccessListOwnersResponse is the response for getting a list of all
+// owners in an Access List, including those inherited from nested Access Lists.
+message GetAccessListOwnersResponse {
+  // owners is the list of all owners in the Access List, including those
+  // inherited from nested Access Lists.
   repeated accesslist.v1.AccessListOwner owners = 1;
 }
 

@@ -41,8 +41,8 @@ import type { DeleteAllAccessListMembersForAccessListRequest } from "./accesslis
 import type { DeleteAccessListMemberRequest } from "./accesslist_service_pb";
 import type { UpdateAccessListMemberRequest } from "./accesslist_service_pb";
 import type { UpsertAccessListMemberRequest } from "./accesslist_service_pb";
-import type { GetAccessListNestedOwnersResponse } from "./accesslist_service_pb";
-import type { GetAccessListNestedOwnersRequest } from "./accesslist_service_pb";
+import type { GetAccessListOwnersResponse } from "./accesslist_service_pb";
+import type { GetAccessListOwnersRequest } from "./accesslist_service_pb";
 import type { Member } from "./accesslist_pb";
 import type { GetAccessListMemberRequest } from "./accesslist_service_pb";
 import type { ListAllAccessListMembersResponse } from "./accesslist_service_pb";
@@ -149,11 +149,12 @@ export interface IAccessListServiceClient {
      */
     getAccessListMember(input: GetAccessListMemberRequest, options?: RpcOptions): UnaryCall<GetAccessListMemberRequest, Member>;
     /**
-     * GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+     * GetAccessListOwners returns a list of all owners in an Access List,
+     * including those inherited from nested Access Lists.
      *
-     * @generated from protobuf rpc: GetAccessListNestedOwners(teleport.accesslist.v1.GetAccessListNestedOwnersRequest) returns (teleport.accesslist.v1.GetAccessListNestedOwnersResponse);
+     * @generated from protobuf rpc: GetAccessListOwners(teleport.accesslist.v1.GetAccessListOwnersRequest) returns (teleport.accesslist.v1.GetAccessListOwnersResponse);
      */
-    getAccessListNestedOwners(input: GetAccessListNestedOwnersRequest, options?: RpcOptions): UnaryCall<GetAccessListNestedOwnersRequest, GetAccessListNestedOwnersResponse>;
+    getAccessListOwners(input: GetAccessListOwnersRequest, options?: RpcOptions): UnaryCall<GetAccessListOwnersRequest, GetAccessListOwnersResponse>;
     /**
      * UpsertAccessListMember creates or updates an access list member resource.
      *
@@ -364,13 +365,14 @@ export class AccessListServiceClient implements IAccessListServiceClient, Servic
         return stackIntercept<GetAccessListMemberRequest, Member>("unary", this._transport, method, opt, input);
     }
     /**
-     * GetAccessListNestedOwners returns a list of all owners in an Access List with nested Access Lists.
+     * GetAccessListOwners returns a list of all owners in an Access List,
+     * including those inherited from nested Access Lists.
      *
-     * @generated from protobuf rpc: GetAccessListNestedOwners(teleport.accesslist.v1.GetAccessListNestedOwnersRequest) returns (teleport.accesslist.v1.GetAccessListNestedOwnersResponse);
+     * @generated from protobuf rpc: GetAccessListOwners(teleport.accesslist.v1.GetAccessListOwnersRequest) returns (teleport.accesslist.v1.GetAccessListOwnersResponse);
      */
-    getAccessListNestedOwners(input: GetAccessListNestedOwnersRequest, options?: RpcOptions): UnaryCall<GetAccessListNestedOwnersRequest, GetAccessListNestedOwnersResponse> {
+    getAccessListOwners(input: GetAccessListOwnersRequest, options?: RpcOptions): UnaryCall<GetAccessListOwnersRequest, GetAccessListOwnersResponse> {
         const method = this.methods[12], opt = this._transport.mergeOptions(options);
-        return stackIntercept<GetAccessListNestedOwnersRequest, GetAccessListNestedOwnersResponse>("unary", this._transport, method, opt, input);
+        return stackIntercept<GetAccessListOwnersRequest, GetAccessListOwnersResponse>("unary", this._transport, method, opt, input);
     }
     /**
      * UpsertAccessListMember creates or updates an access list member resource.

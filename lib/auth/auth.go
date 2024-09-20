@@ -5237,7 +5237,7 @@ func updateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.A
 
 	// Iterate through the promotions, adding the owners of the corresponding access lists as reviewers.
 	for _, promotion := range promotions.Promotions {
-		allOwners, err := accessLists.GetAccessListNestedOwners(ctx, promotion.AccessListName)
+		allOwners, err := accessLists.GetAccessListOwners(ctx, promotion.AccessListName)
 		if err != nil {
 			log.WithError(err).Warnf("Failed to get nested access list owners for %v, skipping additional reviewers", promotion.AccessListName)
 			break

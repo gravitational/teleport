@@ -251,9 +251,9 @@ func (a *App) fetchRecipients(ctx context.Context, accessList *accesslist.Access
 
 	var allOwners []*accesslist.Owner
 
-	allOwners, err := a.apiClient.GetAccessListNestedOwners(ctx, accessList.GetName())
+	allOwners, err := a.apiClient.GetAccessListOwners(ctx, accessList.GetName())
 	if err != nil {
-		// TODO(kiosion): Remove in v18; protecting against server not having `GetAccessListNestedOwners` func.
+		// TODO(kiosion): Remove in v18; protecting against server not having `GetAccessListOwners` func.
 		log.WithError(err).Warnf("Error getting nested owners for access list %v, continuing with only explicit owners", accessList.GetName())
 		for _, owner := range accessList.Spec.Owners {
 			allOwners = append(allOwners, &owner)
