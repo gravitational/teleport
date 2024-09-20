@@ -628,6 +628,7 @@ func streamSession(
 	streamer events.SessionStreamer,
 	sessionID string,
 ) (string, []apievents.AuditEvent) {
+	t.Helper()
 	evtCh, errCh := streamer.StreamSessionEvents(ctx, session.ID(sessionID), 0)
 	capturedStream := &bytes.Buffer{}
 	evts := make([]apievents.AuditEvent, 0)
