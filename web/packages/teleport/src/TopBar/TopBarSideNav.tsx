@@ -32,6 +32,7 @@ import { useLayout } from 'teleport/Main/LayoutContext';
 import { logos } from 'teleport/components/LogoHero/LogoHero';
 
 import { Notifications } from 'teleport/Notifications';
+import { zIndexMap } from 'teleport/Main';
 
 export function TopBar({ CustomLogo }: TopBarProps) {
   const ctx = useTeleport();
@@ -41,16 +42,15 @@ export function TopBar({ CustomLogo }: TopBarProps) {
   const theme: Theme = useTheme();
 
   // find active feature
-  const feature = features
-    .filter(feature => Boolean(feature.route))
-    .find(f =>
+  const feature = features.find(
+    f =>
+      f.route &&
       matchPath(history.location.pathname, {
         path: f.route.path,
         exact: f.route.exact ?? false,
       })
-    );
+  );
 
-  history?.location?.pathname === cfg.routes.downloadCenter;
   const iconSize =
     currentWidth >= theme.breakpoints.medium
       ? navigationIconSizeMedium
@@ -78,7 +78,7 @@ export const TopBarContainer = styled(TopNav)`
   overflow-y: initial;
   overflow-x: none;
   flex-shrink: 0;
-  z-index: 23;
+  z-index: ${zIndexMap.topBar};
   border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[1]};
 
   height: ${p => p.theme.topBarHeight[0]}px;

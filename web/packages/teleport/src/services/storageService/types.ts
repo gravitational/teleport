@@ -38,7 +38,7 @@ export const KeysEnum = {
   LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
 
   //TODO(rudream): Remove once sidenav implementation is complete.
-  USE_SIDENAV: 'grv_teleport_use_sidenav',
+  USE_TOP_BAR: 'grv_teleport_use_topbar',
 };
 
 // SurveyRequest is the request for sending data to the back end

@@ -82,9 +82,9 @@ export function Main(props: MainProps) {
 
   const { preferences } = useUser();
 
-  const useSideNav = storageService.getUseSideNav();
-  const TopBarComponent = useSideNav ? TopBarSideNav : TopBar;
-  const NavigationComponent = useSideNav ? SideNavigation : Navigation;
+  const isTopBarView = storageService.getIsTopBarView();
+  const TopBarComponent = isTopBarView ? TopBar : TopBarSideNav;
+  const NavigationComponent = isTopBarView ? Navigation : SideNavigation;
 
   useEffect(() => {
     if (ctx.storeUser.state) {
@@ -365,5 +365,5 @@ const Wrapper = styled(Box)`
   display: flex;
   height: 100vh;
   flex-direction: column;
-  width: 100vw;
+  max-width: 100vw;
 `;

@@ -26,6 +26,7 @@ import { Theme } from 'design/theme/themes/types';
 import cfg from 'teleport/config';
 
 import { useFeatures } from 'teleport/FeaturesContext';
+import { zIndexMap } from 'teleport/Main';
 
 import { NavigationCategory, NAVIGATION_CATEGORIES } from './categories';
 import { CategoryIcon } from './CategoryIcon';
@@ -33,11 +34,6 @@ import { CategoryIcon } from './CategoryIcon';
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
-
-const zIndexMap = {
-  sideNavContainer: 21,
-  sideNavExpandedPanel: 20,
-};
 
 const SideNavContainer = styled(Flex).attrs({
   gap: 2,
@@ -52,10 +48,12 @@ const SideNavContainer = styled(Flex).attrs({
   position: relative;
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
   z-index: ${zIndexMap.sideNavContainer};
-  overflow-y: hidden;
+  overflow-y: auto;
 `;
 
 const verticalPadding = '12px';
+
+const rightPanelWidth = '224px';
 
 const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
   isVisible: boolean;
@@ -64,8 +62,9 @@ const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
   top: 0;
   left: var(--sidenav-width);
   height: 100%;
-  overflow: clip;
-  width: 224px;
+  scrollbar-gutter: auto;
+  overflow-y: auto;
+  width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
   border-right: 1px solid ${p => p.theme.colors.spotBackground[1]};
@@ -83,7 +82,7 @@ const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
       `}
 
   padding-top: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
     padding-top: ${p => p.theme.topBarHeight[1]}px;
   }
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
@@ -181,6 +180,7 @@ export function Navigation() {
     <Box
       onMouseLeave={() => setExpandedSection(null)}
       onKeyUp={e => e.key === 'Escape' && setExpandedSection(null)}
+      css={'height: 100%;'}
     >
       <SideNavContainer>
         {navSections.map(section => (
@@ -331,7 +331,7 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
       color: ${theme.colors.brand};
       background: ${theme.colors.interactive.tonal.primary[0].background};
       &:focus {
-        border: 2px solid
+        outline: 2px solid
           ${theme.colors.interactive.solid.primary.default.background};
       }
       &:hover {
@@ -348,7 +348,7 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
   return css`
     color: ${props => props.theme.colors.text.slightlyMuted};
     &:focus {
-      border: 2px solid ${theme.colors.text.muted};
+      outline: 2px solid ${theme.colors.text.muted};
     }
     &:hover {
       background: ${props => props.theme.colors.interactive.tonal.neutral[0]};

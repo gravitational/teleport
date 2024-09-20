@@ -261,7 +261,7 @@ export const storageService = {
     );
   },
 
-  getUseSideNav(): boolean {
-    return this.getParsedJSONValue(KeysEnum.USE_SIDENAV, false);
+  getIsTopBarView(): boolean {
+    return this.getParsedJSONValue(KeysEnum.USE_TOP_BAR, false);
   },
 };

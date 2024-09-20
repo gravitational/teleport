@@ -26,7 +26,6 @@ import styled from 'styled-components';
 export const MainContainer = styled.div`
   display: flex;
   flex: 1;
-  min-height: 0;
   --sidebar-width: 256px;
   --sidenav-width: 76px;
   --sidenav-panel-width: 224px;
