@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"maps"
 	"reflect"
 	"strings"
 	"sync"
@@ -947,12 +948,12 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 					Spec: types.AppServerSpecV3{
 						App: &types.AppV3{
 							Kind:    types.KindApp,
-							SubKind: "SubKindIdentityCenterAccount",
+							SubKind: types.AppSubKindIdentityCenterAccount,
 							Version: types.V3,
 							Metadata: types.Metadata{
 								Name:        acct.Spec.Name,
 								Description: acct.Spec.Description,
-								Labels:      acct.Metadata.Labels,
+								Labels:      maps.Clone(acct.Metadata.Labels),
 							},
 							Spec: types.AppSpecV3{
 								URI:        acct.Spec.StartUrl,
@@ -961,10 +962,37 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 									ExternalID: acct.Spec.Id,
 								},
 								IdentityCenter: &types.AppIdentityCenter{
+									AccountID:      acct.Spec.Id,
 									PermissionSets: pss,
 								},
 							},
 						},
+					},
+				},
+			},
+			RequiresRequest: requiresRequest,
+		}
+
+	case types.KindIdentityCenterAccountAssignment:
+		unwrapper, ok := resource.(Resource153Adapter[IdentityCenterAccountAssignment])
+		if !ok {
+			return nil, trace.BadParameter("%s has invalid type %T", resourceKind, resource)
+		}
+		asmt := unwrapper.Unwrap().AccountAssignment
+		protoResource = &proto.PaginatedResource{
+			Resource: &proto.PaginatedResource_IdentityCenterAccountAssignment{
+				IdentityCenterAccountAssignment: &proto.IdentityCenterAccountAssignment{
+					Kind:        types.KindIdentityCenterAccountAssignment,
+					Version:     types.V1,
+					Metadata:    resource.GetMetadata(),
+					DisplayName: asmt.Spec.Display,
+					Account: &proto.IdentityCenterAccount{
+						AccountName: asmt.Spec.AccountName,
+						ID:          asmt.Spec.AccountId,
+					},
+					PermissionSet: &proto.IdentityCenterPermissionSet{
+						ARN:  asmt.Spec.PermissionSet.Arn,
+						Name: asmt.Spec.PermissionSet.Name,
 					},
 				},
 			},
@@ -979,10 +1007,10 @@ func MakePaginatedResource(ctx context.Context, requestType string, r types.Reso
 }
 
 // MakePaginatedResources converts a list of resources into a list of paginated proto representations.
-func MakePaginatedResources(ctx context.Context, requestType string, resources []types.ResourceWithLabels, requestableMap map[string]struct{}) ([]*proto.PaginatedResource, error) {
+func MakePaginatedResources(ctx context.Context, requestType string, resources []types.ResourceWithLabels, requestableSet utils.Set[string]) ([]*proto.PaginatedResource, error) {
 	paginatedResources := make([]*proto.PaginatedResource, 0, len(resources))
 	for _, r := range resources {
-		_, requiresRequest := requestableMap[r.GetName()]
+		requiresRequest := requestableSet.Contains(r.GetName())
 		protoResource, err := MakePaginatedResource(ctx, requestType, r, requiresRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)

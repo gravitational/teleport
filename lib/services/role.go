@@ -2202,7 +2202,6 @@ func (m RoleMatchers) MatchAll(role types.Role, condition types.RoleConditionTyp
 // If the result is true, returns matcher that matched.
 func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionType) (bool, RoleMatcher, error) {
 	for _, matcher := range m {
-		fmt.Printf("Checking matcher %T, #%v\n", matcher, matcher)
 		match, err := matcher.Match(role, condition)
 		if err != nil {
 			return false, nil, trace.Wrap(err)
@@ -2565,6 +2564,10 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
+	// log := slog.With(slog.Group("resource", "kind", r.GetKind(), "name", r.GetName()))
+	// log.Debug(">>>> RoleSet.checkAccess()")
+	// defer log.Debug("<<<< RoleSet.checkAccess()")
+
 	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
@@ -2589,7 +2592,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	}
 
 	// Check deny rules.
-	debugf("Checking %d DENY rules...", len(set))
+	//	log.Debug("---- Checking DENY rules", "role_count", len(set))
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Deny), namespace)
 		if !matchNamespace {
@@ -2632,7 +2635,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	var errs []error
 	allowed := false
 	// Check allow rules.
-	debugf("Checking %d ALLOW rules...", len(set))
+	debugf("Checking %d role ALLOW rules", len(set))
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
@@ -2643,7 +2646,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			continue
 		}
 
-		//if r.GetKind() != types.KindIdentityCenterAccountAssignment {
 		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
 		if err != nil {
 			debugf("Label match failed: %s", err)
@@ -2651,15 +2653,14 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		}
 
 		if !matchLabels {
-			debugf("Labels don't match: %s", labelsMessage)
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
 					role.GetName(), labelsMessage))
 			}
 			continue
 		}
-		//}
-		debugf("Checking %d custom matcher ALLOW rules", len(matchers))
+
+		debugf("Checking role %s against %d custom matcher ALLOW rules", role.GetName(), len(matchers))
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.

@@ -686,8 +686,15 @@ func FriendlyName(resource ResourceWithLabels) string {
 		return resource.GetMetadata().Description
 	}
 
-	if hn, ok := resource.(interface{ GetHostname() string }); ok {
-		return hn.GetHostname()
+	switch rr := resource.(type) {
+	case interface{ GetFriendlyName() string }:
+		return rr.GetFriendlyName()
+
+	case interface{ GetDisplayName() string }:
+		return rr.GetDisplayName()
+
+	case interface{ GetHostname() string }:
+		rr.GetHostname()
 	}
 
 	return ""

@@ -40,7 +40,6 @@ package typical
 
 import (
 	"fmt"
-	"log/slog"
 	"reflect"
 
 	"github.com/gravitational/trace"
@@ -928,9 +927,6 @@ func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 			if err != nil {
 				return false, trace.Wrap(err, "evaluating rhs of (==) operator")
 			}
-
-			slog.Error("Evaluating equality expression", "lhs", lhs, "rhs", rhs, "result", lhs == rhs)
-
 			return lhs == rhs, nil
 		},
 	}.buildExpression

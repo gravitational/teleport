@@ -4204,6 +4204,11 @@ func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListU
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+	g.Logger.Info(">>>> GRPCServer.ListResources()")
+	defer g.Logger.Info("<<<< GRPCServer.ListResources()")
+	g.Logger.Debugf("---- Include Preview-As roles: %t", req.UsePreviewAsRoles)
+	g.Logger.Debugf("---- Include Search-As roles:  %t", req.UseSearchAsRoles)
+
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4218,6 +4223,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated resources")
 	}
+
 	protoResp := &authpb.ListResourcesResponse{
 		NextKey:    resp.NextKey,
 		Resources:  paginatedResources,

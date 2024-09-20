@@ -1002,7 +1002,8 @@ message IdentityCenterPermissionSet {
 }
 
 message AppIdentityCenter {
-  repeated IdentityCenterPermissionSet PermissionSets = 1 [(gogoproto.jsontag) = "permission_sets,omitempty"];
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id,omitempty"];
+  repeated IdentityCenterPermissionSet PermissionSets = 2 [(gogoproto.jsontag) = "permission_sets,omitempty"];
 }
 
 // AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).

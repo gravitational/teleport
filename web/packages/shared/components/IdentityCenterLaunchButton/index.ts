@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024 Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,28 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ResourceIdKind } from 'teleport/services/agents';
-
-
-/**
- * Maps a resource ID (usually agent name) to resource description (usually the
- * same, but not necessarily).
- */
-export type ResourceMap = {
-  [K in ResourceIdKind | 'role']: Record<string, string>;
-};
-
-export function getEmptyResourceState(): ResourceMap {
-  return {
-    node: {},
-    db: {},
-    app: {},
-    kube_cluster: {},
-    user_group: {},
-    windows_desktop: {},
-    role: {},
-    saml_idp_service_provider: {},
-    aws_iam_ic_account: {},
-    aws_iam_ic_account_assignment: {},
-  };
-}
+export { IdentityCenterLaunchButton } from './IdentityCenterLaunchButton';

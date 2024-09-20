@@ -73,6 +73,8 @@ import type {
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
 
+import { getPrettyResourceKind } from '../../Shared';
+
 export interface RequestViewProps {
   user: string;
   getFlags(accessRequest: AccessRequest): RequestFlags;
@@ -476,8 +478,9 @@ function Comment({
         >
           <StyledTable
             data={resources.map(resource => ({
-              ...resource.id,
-              ...resource.details,
+              clusterName: resource.id.clusterName,              
+              kind: getPrettyResourceKind(resource.id.kind),
+              friendlyName: resource.details.friendlyName,
               name: resource.details?.friendlyName || formattedName(resource),
             }))}
             columns={[

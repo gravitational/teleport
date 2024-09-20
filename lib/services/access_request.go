@@ -20,9 +20,7 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
-	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -2018,75 +2016,6 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 	return prunedRoles, nil
 }
 
-func appendIdentityCenterMatchers(matchers []RoleMatcher, resource types.ResourceWithLabels) ([]RoleMatcher, error) {
-	if resource.GetKind() != types.KindIdentityCenterAccountAssignment {
-		return matchers, nil
-	}
-
-	asmt, ok := resource.(Resource153Adapter[IdentityCenterAccountAssignment])
-	if !ok {
-		slog.
-			With("kind", resource.GetKind(), "name", resource.GetName()).
-			Error("Unexpected underlying resource type",
-				"type", fmt.Sprintf("%T", resource))
-		return matchers, trace.BadParameter("Unexpected resource type %T", resource)
-	}
-
-	matchers = append(matchers, newIdentityCenterMatcher(asmt.Inner))
-
-	return matchers, nil
-}
-
-type awsIcMatcher struct {
-	account       string
-	permissionSet string
-}
-
-func (m *awsIcMatcher) Match(role types.Role, rct types.RoleConditionType) (bool, error) {
-	log := slog.With("role", role.GetName(), "condition", rct)
-	log.Warn("Checking role access")
-
-	roleAssignments := role.GetAccountAssignments(rct)
-	for _, roleAssignment := range roleAssignments {
-		// TODO(tcsc): work out how to cache regexes for matching. Possibly use
-		//             label matcher as a guide.
-
-		log.Warn("Checking against role account assignment",
-			"role_account", roleAssignment.AccountID,
-			"role_permission_set", roleAssignment.AccountID,
-		)
-
-		matches, err := regexp.MatchString(utils.GlobToRegexp(roleAssignment.AccountID), m.account)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		if !matches {
-			continue
-		}
-
-		matches, err = regexp.MatchString(utils.GlobToRegexp(roleAssignment.PermissionSet), m.permissionSet)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		if matches {
-			log.Warn("match! 😀")
-			return true, nil
-		}
-	}
-
-	log.Info("no match")
-	return false, nil
-}
-
-func newIdentityCenterMatcher(asmt IdentityCenterAccountAssignment) *awsIcMatcher {
-	return &awsIcMatcher{
-		account:       asmt.Spec.AccountId,
-		permissionSet: asmt.Spec.PermissionSet.Arn,
-	}
-}
-
 func fewestLogins(roles []types.Role) []types.Role {
 	if len(roles) == 0 {
 		return roles
@@ -2119,7 +2048,12 @@ func (m *RequestValidator) roleAllowsResource(
 	loginHint string,
 	extraMatchers ...RoleMatcher,
 ) (bool, error) {
-	log := slog.With("role", role.GetName())
+	log := slog.With(
+		"role", role.GetName(),
+		"resource_kind",
+		resource.GetKind(),
+		"resource_name",
+		resource.GetName())
 	log.Warn(">>>> RequestValidator.roleAllowsResource()")
 	defer log.Warn("<<<< RequestValidator.roleAllowsResource()")
 

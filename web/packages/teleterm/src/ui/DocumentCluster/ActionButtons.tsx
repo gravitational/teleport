@@ -226,23 +226,6 @@ function AppButton(props: {
   onLaunchUrl(): void;
   isVnetSupported: boolean;
 }) {
-  if (props.app.permissionSets) {
-    return (
-      <IdentityCenterLaunchButton
-        permissionSets={props.app.permissionSets}
-        getLaunchUrl={arn =>
-          getAwsAppLaunchUrl({
-            app: props.app,
-            rootCluster: props.rootCluster,
-            cluster: props.cluster,
-            arn,
-          })
-        }
-        onLaunchUrl={props.onLaunchUrl}
-      />
-    );
-  }
-
   if (props.app.awsConsole) {
     return (
       <AwsLaunchButton

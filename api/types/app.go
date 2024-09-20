@@ -419,6 +419,10 @@ func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
 	return a.Spec.IdentityCenter
 }
 
+func (a *AppV3) GetFriendlyName() string {
+	return a.Metadata.Name
+}
+
 // DeduplicateApps deduplicates apps by combination of app name and public address.
 // Apps can have the same name but also could have different addresses.
 func DeduplicateApps(apps []Application) (result []Application) {

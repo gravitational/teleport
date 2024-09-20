@@ -66,6 +66,8 @@ import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
 import type { ResourceKind } from '../resource';
 
+import { getPrettyResourceKind } from '../../Shared';
+
 export function RequestCheckoutWithSlider<
   T extends PendingListItem = PendingListItem,
 >({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
@@ -665,36 +667,6 @@ function TextBox({
       />
     </LabelInput>
   );
-}
-
-function getPrettyResourceKind(kind: ResourceKind): string {
-  switch (kind) {
-    case 'role':
-      return 'Role';
-    case 'app':
-      return 'Application';
-    case 'node':
-      return 'Server';
-    case 'resource':
-      return 'Resource';
-    case 'db':
-      return 'Database';
-    case 'kube_cluster':
-      return 'Kubernetes';
-    case 'user_group':
-      return 'User Group';
-    case 'windows_desktop':
-      return 'Desktop';
-    case 'saml_idp_service_provider':
-      return 'SAML Application';
-    case 'aws_iam_ic_account':
-      return 'AWS Identity Center Account';
-    case 'aws_iam_ic_account_assignment':
-     return 'AWS Account Assignment';
-    default:
-      kind satisfies never;
-      return kind;
-  }
 }
 
 const requireText = (value: string, requireReason: boolean) => () => {

@@ -33,6 +33,7 @@ require (
 )
 
 require (
+	github.com/aws/aws-sdk-go-v2 v1.30.5 // indirect
 	github.com/beevik/etree v1.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

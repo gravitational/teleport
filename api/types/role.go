@@ -274,6 +274,7 @@ type Role interface {
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
 
+	SetAccountAssignmentLabels(RoleConditionType, Labels)
 	GetAccountAssignments(RoleConditionType) []IdentityCenterAccountAssignment
 }
 
@@ -311,6 +312,17 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+func (rct RoleConditionType) String() string {
+	switch rct {
+	case Allow:
+		return "allow"
+	case Deny:
+		return "deny"
+	default:
+		panic("Boolean logic is broken")
+	}
+}
 
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {
@@ -947,6 +959,14 @@ func (r *RoleV6) GetAccountAssignments(rct RoleConditionType) []IdentityCenterAc
 		return r.Spec.Allow.AccountAssignments
 	}
 	return r.Spec.Deny.AccountAssignments
+}
+
+func (r *RoleV6) SetAccountAssignmentLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.AccountAssignmentLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.AccountAssignmentLabels = labels.Clone()
+	}
 }
 
 // GetPrivateKeyPolicy returns the private key policy enforced for this role.
@@ -1851,7 +1871,7 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
 	case KindKubernetesCluster:
 		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
-	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterAccount, KindIdentityCenterPermissionSet:
+	case KindApp, KindSAMLIdPServiceProvider, KindIdentityCenterPermissionSet: //KindIdentityCenterAccount,
 		// app_labels will be applied to both app and saml_idp_service_provider resources.
 		// Access to the saml_idp_service_provider can be controlled by the both
 		// app_labels and verbs targeting saml_idp_service_provider resource.
@@ -1866,7 +1886,7 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
-	case KindIdentityCenterAccountAssignment:
+	case KindIdentityCenterAccount, KindIdentityCenterAccountAssignment:
 		return LabelMatchers{cond.AccountAssignmentLabels, ""}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)

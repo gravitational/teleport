@@ -914,15 +914,16 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		labelMatchers, err := role.GetLabelMatchers(types.Allow, types.KindRemoteCluster)
-		if err != nil {
-			return trace.Wrap(err)
+
+		if isDebugEnabled {
+			labelMatchers, err := role.GetLabelMatchers(types.Allow, types.KindRemoteCluster)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+				role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, labelMatchers, rcLabels)
 		}
-		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
-			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, labelMatchers, rcLabels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
 		if matchLabels {
 			return nil
 		}

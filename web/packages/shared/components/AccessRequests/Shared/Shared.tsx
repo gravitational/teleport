@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import { ButtonPrimary, Text, Box, ButtonIcon, Menu } from 'design';
 import { Info } from 'design/Icon';
 import { format } from 'date-fns';
-
+import { ResourceIdKind } from 'teleport/services/agents';
 import { HoverTooltip } from 'shared/components/ToolTip';
 import cfg from 'shared/config';
 
@@ -139,3 +139,37 @@ export const BlockedByStartTimeButton = ({
     </HoverTooltip>
   );
 };
+
+/** Available request kinds for resource-based and role-based access requests. */
+export type ResourceKind = ResourceIdKind | 'role' | 'resource';
+
+
+export function getPrettyResourceKind(kind: ResourceKind): string {
+  switch (kind) {
+    case 'role':
+      return 'Role';
+    case 'app':
+      return 'Application';
+    case 'node':
+      return 'Server';
+    case 'resource':
+      return 'Resource';
+    case 'db':
+      return 'Database';
+    case 'kube_cluster':
+      return 'Kubernetes';
+    case 'user_group':
+      return 'User Group';
+    case 'windows_desktop':
+      return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
+    case 'aws_iam_ic_account':
+      return 'AWS Identity Center Account';
+    case 'aws_iam_ic_account_assignment':
+     return 'AWS Account Assignment';
+    default:
+      kind satisfies never;
+      return kind;
+  }
+}

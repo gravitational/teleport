@@ -1317,6 +1317,7 @@ func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionReco
 						types.NewRule(types.KindAccessListMember, services.RO()),
 						types.NewRule(types.KindProvisioningState, services.RW()),
 						types.NewRule(types.KindIdentityCenterPrincipalAssignment, services.RW()),
+						types.NewRule(types.KindAccessRequest, services.RO()),
 					},
 				},
 			})

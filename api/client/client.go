@@ -3608,6 +3608,12 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServerOrSAMLIdPServiceProvider()
 		case types.KindSAMLIdPServiceProvider:
 			resources[i] = respResource.GetSAMLIdPServiceProvider()
+		case types.KindIdentityCenterAccount:
+			// For the purposes of making a PoC, we pretend that Identity Ceneter
+			// accounts are Apps. They may become their own resource type in time
+			resources[i] = respResource.GetAppServer()
+		case types.KindIdentityCenterAccountAssignment:
+			resources[i] = respResource.GetIdentityCenterAccountAssignment()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}

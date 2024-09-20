@@ -173,6 +173,8 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	AppSubKindIdentityCenterAccount = "IdentityCenterAccount"
+
 	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
 	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
 	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
@@ -697,6 +699,7 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSAccountIDLabel = TeleportNamespace + "/account-id"
+
 	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.

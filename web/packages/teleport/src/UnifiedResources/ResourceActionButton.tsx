@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
+import { IdentityCenterLaunchButton } from 'shared/components/IdentityCenterLaunchButton';
 
 import { UnifiedResource } from 'teleport/services/agents';
 import cfg from 'teleport/config';
@@ -172,6 +173,17 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         })
       }
   }
+
+  if (permission_sets.length > 0) {
+    return (
+      <IdentityCenterLaunchButton
+        width="123px"
+        permissionSets={permission_sets}
+        portalURL={launchUrl}
+      />
+    );
+  }
+
   if (awsConsole) {
     return (
       <AwsLaunchButton

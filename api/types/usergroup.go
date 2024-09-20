@@ -114,6 +114,23 @@ func (g UserGroups) AsResources() []ResourceWithLabels {
 	return resources
 }
 
+func userGroupSortKey(g UserGroup) string {
+	if g.Origin() == OriginOkta {
+		if appName, ok := g.GetLabel(OktaAppNameLabel); ok {
+			return appName
+		}
+
+		if groupName, ok := g.GetLabel(OktaGroupNameLabel); ok {
+			return groupName
+		}
+
+		if roleName, ok := g.GetLabel(OktaRoleNameLabel); ok {
+			return roleName
+		}
+	}
+	return g.GetName()
+}
+
 // SortByCustom custom sorts by given sort criteria.
 func (g UserGroups) SortByCustom(sortBy SortBy) error {
 	if sortBy.Field == "" {
@@ -127,8 +144,8 @@ func (g UserGroups) SortByCustom(sortBy SortBy) error {
 			groupA := g[i]
 			groupB := g[j]
 
-			groupAName := FriendlyName(groupA)
-			groupBName := FriendlyName(groupB)
+			groupAName := userGroupSortKey(groupA)
+			groupBName := userGroupSortKey(groupB)
 
 			if groupAName == "" {
 				groupAName = groupA.GetName()

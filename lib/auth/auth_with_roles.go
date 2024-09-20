@@ -135,11 +135,11 @@ func (c actionConfig) action(namespace, resource string, verbs ...string) error 
 func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) error {
 	err := a.withOptions().action(namespace, resource, verbs...)
 
-	if err != nil {
-		slog.Default().
-			With("user", a.context.User.GetName()).
-			Error(err.Error())
-	}
+	// if err != nil {
+	// 	slog.Default().
+	// 		With("user", a.context.User.GetName()).
+	// 		Error(err.Error())
+	// }
 
 	return err
 }
@@ -1283,7 +1283,7 @@ type resourceAccess struct {
 	kindAccessMap map[string]error
 	// requestableMap is used to track if a resource matches a filter but is only
 	// available after an access request. This map is of Resource.GetName()
-	requestableMap map[string]struct{}
+	requestableSet utils.Set[string]
 }
 
 func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter services.MatchResourceFilter) (bool, error) {
@@ -1295,7 +1295,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	resourceKind := resource.GetKind()
 
 	if canAccessErr := c.kindAccessMap[resourceKind]; canAccessErr != nil {
-		log.WithField("error", canAccessErr).Debug("Access denied by access map")
+		log.WithField("error", canAccessErr.Error()).Debug("Access denied by access map")
 
 		// skip access denied error. It is expected that resources won't be available
 		// to some users and we want to keep iterating until we've reached the request limit
@@ -1309,7 +1309,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// Filter first and only check RBAC if there is a match to improve perf.
 	match, err := services.MatchResourceByFilters(resource, filter, nil)
 	if err != nil {
-		log.WithField("error", err).
+		log.WithField("error", err.Error()).
 			Warn("Unable to determine access to resource, matching with filter failed")
 		return false, nil
 	}
@@ -1320,8 +1320,9 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 
 	// check access normally if base checker doesn't exist
 	if c.baseAuthChecker == nil {
+		log.Debug("Checking access with normal access checker")
 		if err := c.accessChecker.CanAccess(resource); err != nil {
-			log.WithField("error", err).Debug("Access denied by access checker")
+			log.WithField("error", err.Error).Debug("Access denied by access checker")
 			if trace.IsAccessDenied(err) {
 				return false, nil
 			}
@@ -1334,16 +1335,18 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 	// if true, we should check with the base auth checker first and if that returns false, check the extended context
 	// so we know if a resource is being matched because they have access to it currently, or only to be added
 	// to an access request
+
 	if err := c.baseAuthChecker.CanAccess(resource); err != nil {
-		log.WithField("error", err).Debug("Access denied by base access checker")
+		log.WithField("error", err.Error()).Debug("Access denied by base access checker")
 		if !trace.IsAccessDenied(err) {
 			return false, trace.Wrap(err)
 		}
 
 		// user does not have access with their base context
 		// check if they would have access with the extended context
+		log.Debug("Checking if resource is requestable with extended access checker")
 		if err := c.accessChecker.CanAccess(resource); err != nil {
-			log.WithField("error", err).Debug("Access denied be extended access checker")
+			log.WithField("error", err.Error()).Debug("Access denied by extended access checker")
 			if trace.IsAccessDenied(err) {
 				return false, nil
 			}
@@ -1351,7 +1354,7 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		}
 
 		log.Debug("Adding to requestable set")
-		c.requestableMap[resource.GetName()] = struct{}{}
+		c.requestableSet.Add(resource.GetName())
 	}
 
 	return true, nil
@@ -1359,6 +1362,13 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 
 // ListUnifiedResources returns a paginated list of unified resources filtered by user access.
 func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	log.Info(">>>> ServerWithRoles.ListUnifiedResources()")
+	defer log.Info("<<<< ServerWithRoles.ListUnifiedResources()")
+
+	log.Infof("Include Preview-As roles:      %t", req.UsePreviewAsRoles)
+	log.Infof("Include Search-As roles:       %t", req.UseSearchAsRoles)
+	log.Infof("Include Requestable resources: %t", req.IncludeRequestable)
+
 	filter := services.MatchResourceFilter{
 		Labels:         req.Labels,
 		SearchKeywords: req.SearchKeywords,
@@ -1366,7 +1376,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.PredicateExpression != "" {
-		slog.Warn("Predicate expression set", "expression", req.PredicateExpression)
+		log.WithField("predicate", req.PredicateExpression).Warn("Predicate expression set")
 		expression, err := services.NewResourceExpression(req.PredicateExpression)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1381,7 +1391,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		kindAccessMap: make(map[string]error, len(services.UnifiedResourceKinds)),
 		// requestableMap is populated with resources that are being returned but can only
 		// be accessed to the user via an access request
-		requestableMap: make(map[string]struct{}),
+		requestableSet: utils.NewSet[string](),
 	}
 
 	for _, kind := range services.UnifiedResourceKinds {
@@ -1412,10 +1422,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	fmt.Printf("---- RBAC ERRORS: %#v\n", rbacErrors)
+	log.WithField("error_count", rbacErrors).Warn("---- RBAC ERRORS")
 
 	if rbacErrors == len(requested) {
-		fmt.Printf("---- No access, bailing out\n")
+		log.Error("---- No access to *anything*. Bailing out.")
 		return nil, trace.AccessDenied("User does not have access to any of the requested kinds: %v", requested)
 	}
 
@@ -1451,7 +1461,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}()
 	}
 
-	fmt.Printf("---- Creating Access Checker\n")
+	log.Debug("---- Creating Access Checker")
 
 	checker, err := a.newResourceAccessChecker(types.KindUnifiedResource)
 	if err != nil {
@@ -1465,11 +1475,12 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		nextKey          string
 	)
 	if req.PinnedOnly {
-		fmt.Printf("---- Requesting Pinned Resources\n")
+		log.Info("---- Requesting Pinned Resources")
 
 		prefs, err := a.authServer.GetUserPreferences(ctx, a.context.User.GetName())
 		if err != nil {
-			fmt.Printf("---- failed getting user prefs\n")
+			log.WithField("error", err.Error()).
+				Error("---- failed getting user prefs")
 			return nil, trace.Wrap(err, "getting user preferences")
 		}
 		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
@@ -1477,10 +1488,11 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 		resIDs := prefs.ClusterPreferences.PinnedResources.GetResourceIds()
 
-		fmt.Printf("---- Resource IDs: %#v\n", resIDs)
+		log.Debugf("---- Resource IDs: %#v", resIDs)
 
 		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, resIDs, func(resource types.ResourceWithLabels) (bool, error) {
-			fmt.Printf("---- Checking Resource %s/%s\n", resource.GetKind(), resource.GetName())
+			log.WithField("resource", resource.GetKind()+resource.GetName()).
+				Debug("---- Checking Resource")
 			match, err := resourceAccess.checkAccess(resource, filter)
 			return match, trace.Wrap(err)
 		})
@@ -1495,12 +1507,17 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			}
 		}
 	} else {
-		fmt.Printf("---- Searching Unified Resources\n")
+		log.Info("---- Searching Unified Resources")
 
 		unifiedResources, nextKey, err = a.authServer.UnifiedResourceCache.IterateUnifiedResources(ctx, func(resource types.ResourceWithLabels) (bool, error) {
-			fmt.Printf("---- Filtering Resource %s/%s\n", resource.GetKind(), resource.GetName())
+			log := log.WithField("resource", resource.GetKind()+"/"+resource.GetName())
+			log.Debug("---- Checking resource access")
 			match, err := resourceAccess.checkAccess(resource, filter)
-			fmt.Printf("---- Access result %v %v\n", match, err)
+			errmsg := "<nil>"
+			if err != nil {
+				errmsg = err.Error()
+			}
+			log.WithField("error", errmsg).Debug("---- Checking access check result")
 			return match, trace.Wrap(err)
 		}, req)
 		if err != nil {
@@ -1508,7 +1525,7 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		}
 	}
 
-	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceAccess.requestableMap)
+	paginatedResources, err := services.MakePaginatedResources(ctx, types.KindUnifiedResource, unifiedResources, resourceAccess.requestableSet)
 	if err != nil {
 		return nil, trace.Wrap(err, "making paginated unified resources")
 	}
@@ -1525,7 +1542,9 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 			} else if d := r.GetWindowsDesktop(); d != nil {
 				logins, err := checker.GetAllowedLoginsForResource(d)
 				if err != nil {
-					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
+					log.WithField("error", err.Error()).
+						WithField("resource", d.GetName()).
+						Warn("Unable to determine logins for desktop")
 					continue
 				}
 				r.Logins = logins
@@ -1718,6 +1737,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// we will be making unnecessary trips and doing needless work of deserializing every
 	// item for every subset.
 	if req.RequiresFakePagination() {
+		fmt.Println("------ Fake pagination required")
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1749,7 +1769,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		types.KindWindowsDesktop,
 		types.KindWindowsDesktopService,
 		types.KindUserGroup,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1883,7 +1905,12 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		}
 	case types.SAMLIdPServiceProvider:
 		return r.CheckAccess(rr, state)
-
+	// case services.Resource153Adapter[services.IdentityCenterAccount]:
+	// 	matchers, err := services.AppendIdentityCenterMatchers(nil, rr)
+	// 	if err != nil {
+	// 		return trace.Wrap(err)
+	// 	}
+	// 	return r.CheckAccess(rr, state, matchers...)
 	case services.AccessCheckable:
 		log.Warnf("Checking access generically on resource type %T", rr)
 		return r.CheckAccess(rr, state)
@@ -1904,7 +1931,9 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 		types.KindKubeServer,
 		types.KindUserGroup,
 		types.KindUnifiedResource,
-		types.KindSAMLIdPServiceProvider:
+		types.KindSAMLIdPServiceProvider,
+		types.KindIdentityCenterAccount,
+		types.KindIdentityCenterAccountAssignment:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -2615,11 +2644,11 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (ar types.AccessRequest, overallErr error) {
-	defer func() {
-		if overallErr != nil {
-			log.WithError(overallErr).Error("CreateAccessRequestV2 failed")
-		}
-	}()
+	// defer func() {
+	// 	if overallErr != nil {
+	// 		log.WithError(overallErr).Error("CreateAccessRequestV2 failed")
+	// 	}
+	// }()
 	if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbCreate); err != nil {
 		// An exception is made to allow users to create *pending* access requests
 		// for themselves unless the create verb was explicitly denied.
