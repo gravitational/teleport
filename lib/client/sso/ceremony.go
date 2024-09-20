@@ -52,6 +52,20 @@ func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error
 	return resp, trace.Wrap(err)
 }
 
+// GetCallbackMFAResponse returns an SSO MFA auth response once the callback is complete.
+func (c *Ceremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
+	loginResp, err := c.GetCallbackResponse(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if loginResp.MFAToken == "" {
+		return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+	}
+
+	return loginResp.MFAToken, nil
+}
+
 // NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
 func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 	return &Ceremony{
