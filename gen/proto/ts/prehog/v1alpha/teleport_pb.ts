@@ -3435,7 +3435,11 @@ export enum CTA {
     /**
      * @generated from protobuf enum value: CTA_ENTRA_ID = 12;
      */
-    CTA_ENTRA_ID = 12
+    CTA_ENTRA_ID = 12,
+    /**
+     * @generated from protobuf enum value: CTA_OKTA_SCIM = 13;
+     */
+    CTA_OKTA_SCIM = 13
 }
 /**
  * IntegrationEnrollKind represents the types of integration that
