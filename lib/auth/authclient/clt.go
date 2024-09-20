@@ -816,6 +816,11 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
+func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
