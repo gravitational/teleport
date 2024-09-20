@@ -608,6 +608,23 @@ func TestConvertUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "discover kube eks enroll",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceType:   "ssh",
+					AffectedResourceSource: "TELEPORT",
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &prehogv1a.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceType:   "ssh",
+					AffectedResourceSource: "TELEPORT",
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
