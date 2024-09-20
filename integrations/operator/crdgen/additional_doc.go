@@ -18,7 +18,7 @@
 
 package crdgen
 
-const supportsSecretLookupDescription = `This field supports secret lookup. See [the operator documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/teleport-operator/secret-lookup/) for more details.`
+const supportsSecretLookupDescription = `This field supports secret lookup. See the operator documentation for more details.`
 
 // additionalDescription contains additional description we want to add to select fields.
 // This is used to document operator-specific behaviors, such as the secret lookup.
