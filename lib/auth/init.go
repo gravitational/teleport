@@ -785,11 +785,13 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
 
-			// Set a default signature algorithm suite for a new cluster.
-			newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
-				FIPS:          asrv.fips,
-				UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
-			})
+			if newAuthPref.Origin() == types.OriginDefaults {
+				// Set a default signature algorithm suite for a new cluster.
+				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+					FIPS:          asrv.fips,
+					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				})
+			}
 
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
