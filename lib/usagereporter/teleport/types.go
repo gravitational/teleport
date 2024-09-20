@@ -20,6 +20,7 @@ package usagereporter
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -1023,6 +1024,48 @@ func (e *AccessGraphAWSScanEvent) Anonymize(_ utils.Anonymizer) prehogv1a.Submit
 	}
 }
 
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews a diff of a Crown Jewel change.
+type UIAccessGraphCrownJewelDiffViewEvent prehogv1a.UIAccessGraphCrownJewelDiffViewEvent
+
+// Anonymize anonymizes the event.
+func (e *UIAccessGraphCrownJewelDiffViewEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiAccessGraphCrownJewelDiffView{
+			UiAccessGraphCrownJewelDiffView: &prehogv1a.UIAccessGraphCrownJewelDiffViewEvent{
+				AffectedResourceSource: e.AffectedResourceSource,
+				AffectedResourceType:   e.AffectedResourceType,
+			},
+		},
+	}
+}
+
+// AccessGraphAccessPathChangedEvent is emitted when a Crown Jewel Access Path changes.
+type AccessGraphAccessPathChangedEvent prehogv1a.AccessGraphAccessPathChangedEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphAccessPathChangedEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphAccessPathChanged{
+			AccessGraphAccessPathChanged: &prehogv1a.AccessGraphAccessPathChangedEvent{
+				AffectedResourceType:   strings.ToLower(e.AffectedResourceType),
+				AffectedResourceSource: strings.ToLower(e.AffectedResourceSource),
+			},
+		},
+	}
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates a crown jewel object in Teleport.
+type AccessGraphCrownJewelCreateEvent prehogv1a.AccessGraphCrownJewelCreateEvent
+
+// Anonymize anonymizes the event.
+func (e *AccessGraphCrownJewelCreateEvent) Anonymize(_ utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AccessGraphCrownJewelCreate{
+			AccessGraphCrownJewelCreate: &prehogv1a.AccessGraphCrownJewelCreateEvent{},
+		},
+	}
+}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1676,6 +1719,19 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalSamlProviders: e.AccessGraphAwsScanEvent.TotalSamlProviders,
 			TotalOidcProviders: e.AccessGraphAwsScanEvent.TotalOidcProviders,
 			TotalAccounts:      e.AccessGraphAwsScanEvent.TotalAccounts,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView:
+		data := e.UiAccessGraphCrownJewelDiffView
+		if data.AffectedResourceType == "" {
+			return nil, trace.BadParameter("affected resource type is empty")
+		}
+		if data.AffectedResourceSource == "" {
+			return nil, trace.BadParameter("affected resource source is empty")
+		}
+		ret := &UIAccessGraphCrownJewelDiffViewEvent{
+			AffectedResourceSource: data.AffectedResourceSource,
+			AffectedResourceType:   data.AffectedResourceType,
 		}
 		return ret, nil
 	default:
