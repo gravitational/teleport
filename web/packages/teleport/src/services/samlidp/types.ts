@@ -39,7 +39,7 @@ export type SamlIdpServiceProviderSpec = {
   attribute_mapping: AttributeMapping[];
   entity_descriptor: string;
   entity_id: string;
-  preset: string;
+  preset: SamlServiceProviderPreset;
   relay_state: string;
 };
 
@@ -71,7 +71,6 @@ export enum SamlServiceProviderPreset {
  * preserved throughout the flow.
  */
 export type SamlGcpWorkforce = {
-  isAutoConfig: boolean;
   orgId: string;
   poolName: string;
   poolProviderName: string;
