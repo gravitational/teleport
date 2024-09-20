@@ -179,7 +179,6 @@ func handleReexec() {
 			}
 		}
 
-		fmt.Printf("--> types.HomeEnvVar: %v\n", os.Getenv(types.HomeEnvVar))
 		err := Run(context.Background(), os.Args[1:], runOpts...)
 		if err != nil {
 			var exitError *common.ExitCodeError
@@ -6172,16 +6171,21 @@ func TestCompatibilityFlags(t *testing.T) {
 	//})
 	//fmt.Printf("--> buf: %q\n", buf.String())
 
+	//  -T      Disable pseudo-terminal allocation.
+
+	//  -t      Force pseudo-terminal allocation.  This can be used to execute arbitrary screen-based programs on a remote machine, which can be very useful, e.g. when implementing menu
+	//          services.  Multiple -t options force tty allocation, even if ssh has no local tty.
+
 	t.Setenv(types.HomeEnvVar, home)
 	t.Setenv(tshBinRunTestEnv, "1")
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
 	fmt.Printf("--> trying to run command\n")
-	cmd := exec.Command(testExecutable, "ssh", "-tt", "foo", "tty")
+	cmd := exec.Command(testExecutable, "ssh", "-t", "foo", "tty")
 	cmd.Stdin = os.Stdin
 	output, err := cmd.CombinedOutput()
 	//require.NoError(t, err)
-	fmt.Printf("--> output: %q\n", string(output))
+	fmt.Printf("\n\n--> output: %q\n", string(output))
 	//require.NotContains(t, string(output), "not a tty")
 
 	//testExecutable, err := os.Executable()

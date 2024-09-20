@@ -1273,7 +1273,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		}
 	}
 
-	fmt.Printf("--> cf.Interactive: %v\n", cf.Interactive)
+	//fmt.Printf("--> cf.Interactive: %v\n", cf.Interactive)
 
 	// Remove HTTPS:// in proxy parameter as https is automatically added
 	cf.Proxy = strings.TrimPrefix(cf.Proxy, "https://")

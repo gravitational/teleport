@@ -557,12 +557,14 @@ func (ns *NodeSession) runCommand(ctx context.Context, mode types.SessionPartici
 	)
 	defer span.End()
 
-	// If stdin is not a terminal, refuse to allocate terminal on the server and
-	// fallback to non-interactive mode
-	if interactive && !ns.terminal.IsAttached() {
-		interactive = false
-		fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
-	}
+	fmt.Printf("--> runCommand: interactive: %v\n", interactive)
+
+	//// If stdin is not a terminal, refuse to allocate terminal on the server and
+	//// fallback to non-interactive mode
+	//if interactive && !ns.terminal.IsAttached() {
+	//	interactive = false
+	//	fmt.Fprintf(ns.nodeClient.TC.Stderr, "TTY will not be allocated on the server because stdin is not a terminal\n")
+	//}
 
 	// Start a interactive session ("exec" request with a TTY).
 	//
