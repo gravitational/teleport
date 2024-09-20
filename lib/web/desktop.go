@@ -429,7 +429,7 @@ func (h *Handler) performMFACeremony(
 		return assertion, nil
 	})
 
-	_, newCerts, err := client.PerformMFACeremony(ctx, client.PerformMFACeremonyParams{
+	_, newCerts, err := client.PerformSessionMFACeremony(ctx, client.PerformMFACeremonyParams{
 		CurrentAuthClient: nil, // Only RootAuthClient is used.
 		RootAuthClient:    sctx.cfg.RootClient,
 		MFAPrompt:         promptMFA,

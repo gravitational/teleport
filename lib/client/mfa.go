@@ -26,7 +26,29 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/trace"
 )
+
+// NewMFACeremony returns a new MFA ceremony configured for this client.
+func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: tc.CreateAuthenticateChallenge,
+		NewPrompt:                   tc.NewMFAPrompt,
+	}
+}
+
+// CreateAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
+func (tc *TeleportClient) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.CreateAuthenticateChallenge(ctx, req)
+}
 
 // WebauthnLoginFunc matches the signature of [wancli.Login].
 type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)

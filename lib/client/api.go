@@ -5184,23 +5184,14 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
+	mfaCeremony := tc.NewMFACeremony()
+	mfaCeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
+	mfaResp, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	resp, err := tc.PromptMFA(ctx, chal)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
 }
