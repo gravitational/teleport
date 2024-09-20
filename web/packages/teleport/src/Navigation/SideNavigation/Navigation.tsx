@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import styled, { css } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
 import { NavLink } from 'react-router-dom';
@@ -150,7 +150,8 @@ function getNavSubsectionForRoute(
       })
     );
 
-  if (!feature) {
+  if (!feature || !feature.sideNavCategory) {
+    console.log('TRUE');
     return;
   }
 
@@ -166,15 +167,64 @@ function getNavSubsectionForRoute(
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
-  const firstSubsectionItemRef = useRef<HTMLElement>();
-  const [expandedSection, setExpandedSection] = useState<NavigationSection>();
+  const [expandedSection, setExpandedSection] =
+    useState<NavigationSection | null>(null);
+  const [expandedSectionIndex, setExpandedSectionIndex] = useState<number>(-1);
 
   const currentView = getNavSubsectionForRoute(features, history.location);
 
-  // TODO(rudream): Implement cloud dashboard view.
   const navSections = getNavigationSections(features).filter(
     section => section.subsections.length
   );
+
+  const sectionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const subsectionRefs = useRef<Array<HTMLAnchorElement | null>>([]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent, index: number, isSubsection: boolean) => {
+      if (event.key === 'Tab') {
+        if (!isSubsection) return;
+
+        // When the user presses shift+tab on first subsection item of a section.
+        if (event.shiftKey && index === 0) {
+          event.preventDefault();
+          const prevSectionIndex =
+            (expandedSectionIndex - 1 + navSections.length) %
+            navSections.length;
+          sectionRefs.current[prevSectionIndex]?.focus();
+        } else if (
+          !event.shiftKey &&
+          index === expandedSection.subsections.length - 1
+        ) {
+          // When the user presses tab on last subsection item of a section.
+          event.preventDefault();
+          const nextSectionIndex =
+            (expandedSectionIndex + 1) % navSections.length;
+          sectionRefs.current[nextSectionIndex]?.focus();
+        }
+      } else if (event.key === 'Enter' && !isSubsection) {
+        event.preventDefault();
+        subsectionRefs.current[0]?.focus();
+      }
+    },
+    [expandedSection, expandedSectionIndex, navSections.length]
+  );
+
+  const handleSetExpandedSection = useCallback(
+    (section: NavigationSection, index: number) => {
+      setExpandedSection(section);
+      setExpandedSectionIndex(index);
+    },
+    []
+  );
+
+  // Reset subsectionRefs when expanded section changes
+  useEffect(() => {
+    subsectionRefs.current = subsectionRefs.current.slice(
+      0,
+      expandedSection?.subsections.length || 0
+    );
+  }, [expandedSection]);
 
   return (
     <Box
@@ -183,18 +233,18 @@ export function Navigation() {
       css={'height: 100%;'}
     >
       <SideNavContainer>
-        {navSections.map(section => (
+        {navSections.map((section, index) => (
           <Section
-            section={section}
-            active={section.category === currentView.category}
             key={section.category}
-            setExpandedSection={setExpandedSection}
+            section={section}
+            active={section.category === currentView?.category}
+            setExpandedSection={() => handleSetExpandedSection(section, index)}
             aria-controls={`panel-${expandedSection?.category}`}
-            firstSubsectionItemRef={firstSubsectionItemRef}
+            ref={el => (sectionRefs.current[index] = el)}
+            onKeyDown={e => handleKeyDown(e, index, false)}
           />
         ))}
       </SideNavContainer>
-      {/* // TODO(rudream): Implement button to make panel sticky.*/}
       <RightPanel
         isVisible={!!expandedSection}
         id={`panel-${expandedSection?.category}`}
@@ -206,33 +256,38 @@ export function Navigation() {
         </Flex>
         {expandedSection?.subsections.map((section, idx) => (
           <SubsectionItem
-            ref={
-              idx === 0
-                ? (firstSubsectionItemRef as React.MutableRefObject<any>)
-                : null
-            }
-            active={currentView.route === section.route}
+            ref={el => (subsectionRefs.current[idx] = el)}
+            active={currentView?.route === section.route}
             to={section.route}
             exact={section.exact}
             key={section.title}
             tabIndex={0}
             role="button"
+            onKeyDown={e => handleKeyDown(e, idx, true)}
           >
             <section.icon size={16} />
             <Text typography="body2">{section.title}</Text>
           </SubsectionItem>
         ))}
       </RightPanel>
-      {/* TODO(rudream): Figure out best place for for license footers.
-        <Flex>
-          {cfg.edition === 'oss' && <AGPLFooter />}
-          {cfg.edition === 'community' && <CommunityFooter />}
-        </Flex> */}
     </Box>
   );
 }
 
-const SubsectionItem = styled(NavLink)<{ active: boolean }>`
+const SubsectionItem = React.forwardRef<
+  HTMLAnchorElement,
+  {
+    active: boolean;
+    to: string;
+    exact: boolean;
+    tabIndex: number;
+    role: string;
+    onKeyDown: (event: React.KeyboardEvent) => void;
+    children: React.ReactNode;
+  }
+>((props, ref) => <StyledSubsectionItem ref={ref} {...props} />);
+
+const StyledSubsectionItem = styled(NavLink)<{ active: boolean }>`
   display: flex;
   position: relative;
   color: ${props => props.theme.colors.text.slightlyMuted};
@@ -249,29 +304,28 @@ const SubsectionItem = styled(NavLink)<{ active: boolean }>`
   ${props => getSubsectionStyles(props.theme, props.active)}
 `;
 
-function Section({
-  section,
-  active,
-  setExpandedSection,
-  firstSubsectionItemRef,
-}: {
-  section: NavigationSection;
-  active: boolean;
-  setExpandedSection: (category: NavigationSection) => void;
-  firstSubsectionItemRef: React.MutableRefObject<HTMLElement>;
-}) {
+const Section = React.forwardRef<
+  HTMLButtonElement,
+  {
+    section: NavigationSection;
+    active: boolean;
+    setExpandedSection: () => void;
+    onKeyDown: (event: React.KeyboardEvent) => void;
+  }
+>(({ section, active, setExpandedSection, onKeyDown }, ref) => {
   return (
     <CategoryButton
+      ref={ref}
       active={active}
-      onMouseEnter={() => setExpandedSection(section)}
-      onFocus={() => setExpandedSection(section)}
-      onKeyUp={e => e.key === 'Enter' && firstSubsectionItemRef.current.focus()}
+      onMouseEnter={setExpandedSection}
+      onFocus={setExpandedSection}
+      onKeyDown={onKeyDown}
     >
       <CategoryIcon category={section.category} />
       {section.category}
     </CategoryButton>
   );
-}
+});
 
 const CategoryButton = styled.button<{ active: boolean }>`
   height: 60px;
