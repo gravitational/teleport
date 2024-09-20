@@ -55,10 +55,8 @@ proxy_service:
     # proxies behind a load balancer, this name must point to the load balancer
     # If application access is enabled, public_addr is used to write correct
     # redirects
-    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
     # If database access is enabled, Database clients will connect to the Proxy
     # over this hostname
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
