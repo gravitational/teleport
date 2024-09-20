@@ -504,20 +504,22 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	consumer, err := newConsumer(cfg, consumerCancel)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	l := &Log{
 		publisher:      newPublisherFromAthenaConfig(cfg),
 		querier:        querier,
-		consumerCloser: consumer,
+		consumerCloser: nil,
 	}
 
 	if !cfg.ConsumerDisabled {
+		consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+		consumer, err := newConsumer(cfg, consumerCancel)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		l.consumerCloser = consumer
+
 		go consumer.run(consumerCtx)
 	}
 
@@ -547,6 +549,10 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 
 func (l *Log) Close() error {
 	return trace.Wrap(l.consumerCloser.Close())
+}
+
+func (l *Log) IsConsumerDisabled() bool {
+	return l.consumerCloser == nil
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
