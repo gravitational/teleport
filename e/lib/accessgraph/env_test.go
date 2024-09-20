@@ -99,7 +99,8 @@ func setup(t *testing.T, ops ...option) env {
 
 	trustSvc := local.NewCAService(backend)
 	roleSvc := local.NewAccessService(backend)
-	userSvc := local.NewIdentityService(backend)
+	userSvc, err := local.NewIdentityServiceV2(backend)
+	require.NoError(t, err)
 
 	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)

@@ -4615,7 +4615,10 @@ func newEnv(opts ...opt) (*storageEnv, error) {
 		Level: slog.LevelError + 1, // Silence logging for tests.
 	}))
 
-	env.IdentityService = local.NewIdentityService(env.mem)
+	env.IdentityService, err = local.NewIdentityServiceV2(env.mem)
+	if err != nil {
+		return nil, err
+	}
 	env.S, err = storage.New(storage.Params{
 		Logger:             logger,
 		Backend:            env.mem,

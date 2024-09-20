@@ -190,7 +190,10 @@ func New(opts ...Opt) (*E, error) {
 	}))
 
 	e.AccessService = local.NewAccessService(mem)
-	e.IdentityService = local.NewIdentityService(mem)
+	e.IdentityService, err = local.NewIdentityServiceV2(mem)
+	if err != nil {
+		return nil, err
+	}
 	dtStorage, err := storage.New(storage.Params{
 		Logger:             logger,
 		Backend:            mem,

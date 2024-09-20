@@ -78,7 +78,8 @@ func TestEntraIDService(t *testing.T) {
 	clock := clockwork.NewRealClock()
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	identitySvc := local.NewIdentityService(backend)
+	identitySvc, err := local.NewIdentityServiceV2(backend)
+	require.NoError(t, err)
 	alSvc, err := local.NewAccessListService(backend, clock)
 	require.NoError(t, err)
 
