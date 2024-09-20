@@ -106,7 +106,7 @@ At the beginning of each session, we'll include an informative banner that will 
 
 ```shell
 Teleport PostgreSQL interactive shell (v16.2.0-dev)
-Connected to "pg" instance (16.2) as "alice" user (with roles "read-write").
+Connected to "pg" instance as "alice" user.
 Type "help" or \? for help.
 ```
 
@@ -124,12 +124,36 @@ General:
 
 Informational:
   \d              List tables, views, and sequences.
-  \d NAME         Describe table, view, sequence, or index.
-  \dt [PATTERN]   List tables.
 
 Connection/Session:
   \session   Display information about the current session, like user, roles, and database instance.
 ```
+
+Supported list of commands and output examples:
+
+* `\q`: No output. Terminates the session.
+
+* `\teleport`: Presents the shell information.
+  ```
+  postgres=> \teleport
+  Teleport PostgreSQL interactive shell (v16.2.0-dev)
+  ```
+
+* `\d`: Describes the tables, views and sequences.
+  ```
+  Schema Name             Type     Owner    
+  ------ ---------------- -------- -------- 
+  public employees        table    alice    
+  public employees_id_seq sequence alice    
+  public event            table    postgres 
+  public events           table    postgres 
+  ```
+
+* `\session`: Presents session information.
+  ```
+  Connected to "pg" instance as "alice" user.
+  ```
+
 
 ##### Limitations/Unpported commands
 
@@ -160,9 +184,41 @@ For long queries, execute it using `tsh db` commands.
 postgres=>
 ```
 
+### Product usage
+
+To track PostgreSQL databases access through Web UI, we need to differentiate
+them from direct sessions. To do so, we'll add a new field to the
+(`SessionStartDatabaseMetadata`](https://github.com/gravitational/teleport/blob/5e921b33b9173ccde8fe321d35534b04ebbd5d93/proto/prehog/v1alpha/teleport.proto#L223)
+event to include this information:
+
+```diff
+// SessionStartDatabaseMetadata contains additional information about database session.
+message SessionStartDatabaseMetadata {
+  // database type.
+  string db_type = 1;
+  // database protocol.
+  string db_protocol = 2;
+  // database origin source.
+  string db_origin = 3;
++ // access_through describes whether the database was accessed by speaking to
++ // the proxy service or using Web UI interactive shell.
++ string access_through = 4;
+}
+```
+
+Initially, the supported values for this field with be:
+- `proxy_service`: Database was accessed directly on the proxy services. This is
+  the current behavior for databases.
+- `webui`: Databases was accessed using the Web UI interactive shell.
+
+Older events without this new field should be considered the same as
+`proxy_service`.
+
 ### Implementation
 
 #### Web UI
+
+Note: UI changes won't affect Teleport Connect.
 
 All the new interactions will be done on the Web UI. First, the database
 resource returned by the API will include new fields:
@@ -182,9 +238,19 @@ type Database struct {
 ```
 
 These new fields are used to:
-- Change the "Connect" button behavior to present a connect modal when web UI
-  is supported.
+- Change the "Connect" button behavior to change the the connect modal when
+  Web UI is supported.
+- Fill the connect dialog options.
 - Present the available database roles when applicable.
+
+The connection options will be retrieved as the following (from Access checker):
+- `DatabaseRoles`: `CheckDatabaseRoles`.
+- `DatabaseNames`: `EnumerateDatabaseNames`.
+- `DatabaseUsers`: `EnumerateDatabaseUsers`.
+
+Note that the `DatabaseNames` and `DatabaseUsers` fields are currently filled
+with different functions. The main difference is that the enumerate functions
+consider auto-provisioning options instead of just relying on the roles.
 
 In addition, a new page will be added to handle the database session
 console/terminal (`/web/cluster/:clusterId/console/db/:sid`). This page will be
@@ -245,6 +311,13 @@ buffer and is accumulated until it is ready to be executed.
 The REPL will interact with the WebSocket connection using the existent
 `terminal` (`lib/web/terminal/terminal.go`) structs.
 
+A few other cases to consider:
+- Multiple semicolons on a single line: Multiple queries on a single line are
+  not supported. If this is provided, the REPL will return an error with the
+  appropriate error message.
+- Query mixed with backslash command (e.g., `SELECT \d 1;`). This execution
+  invalid SQL syntax errors (validate by the PostgreSQL instance).
+
 ##### Backslash commands
 
 Backslash commands are executed at the proxy, and results are forwarded to the
@@ -262,10 +335,14 @@ used at `psql`.
 ##### Command/Queries execution
 
 To execute commands and queries into the target PostgreSQL, the REPL will use a
-`pgx.Conn` instead of manually generating PostgreSQL protocol messages. This
-will simplify the protocol interaction and cover most use cases.
+`pgconn.PgConn` instead of manually generating PostgreSQL protocol messages.
+This will simplify the protocol interaction and cover most use cases.
 
-The `pgx.Conn` will be started during the REPL initialization process.
+The `pgconn.PgConn` will be started during the REPL initialization process.
+
+Query cancelation won't be covered in the initial version. The executions will
+use the session context, meaning that if the session is closed, the queries will
+get canceled.
 
 ##### Result formatting
 
@@ -276,14 +353,21 @@ and decide how to render it:
   using the result field descriptors.
 - For other commands: Display the command tag as it is received.
 
+We'll rely on the existent ASCII table package (`lib/asciitable`) to generate
+the tables. This reduces the amount of code necessary and avoids additional
+dependencies.
+
 ```shell
 postgres=# SELECT * FROM events;
 
-id | name
----+-------
- 1 | start 
- 2 | end 
-(2 rows)
+id   name        salary   
+--   ----------- -------- 
+1    John Doe    50000.00 
+2    Jane Smith  60000.00 
+3    Bob Johnson 55000.00 
+4    Alice Brown 65000.00 
+5    Mike Davis  58000.00 
+(5 rows affected)
 
 postgres=# INSERT INTO events (name) VALUES ('end');
 INSERT 0 1
@@ -309,9 +393,9 @@ The interactive shell will limit the command/query size regarding character
 count. It includes the shell internal buffer (used for multi-line commands) and
 the line reader.
 
-In addition, the command results might include large sets. `pgx` will handle
-this when reading a query's `Rows` results. The interactive shell will iterate
-over each row, avoiding loading all at once in memory.
+In addition, the command results might include large sets. `pgconn` will handle
+this when reading a query's results. The interactive shell will iterate over
+each row, avoiding loading all at once in memory.
 
 #### Obfuscating malicious activities
 
@@ -320,3 +404,32 @@ solutions from CLI access will apply to the newly introduced Web UI access.
 
 This is because the database server still handles all the auditing capabilities,
 and the Web UI interactive shell acts as a regular database client.
+
+### Future work
+
+#### Moderated sessions
+
+Given that the database connection and user's input is handled by the proxy,
+multiple users could connect using the same REPL instance. This would require
+proxy-peering to be enabled given that users might not be using the same proxy
+server.
+
+#### Advanced REPL features
+
+Depending on the REPL usage, we can introduce advanced features to enhance the
+user's experience. Here is a non-extensive list of what can be implemented
+using the current solution:
+- Auto-completion: This would require implementing queries to discover the
+  database schema and relying on a shell-like auto-completion system.
+- Cross-session history: Currently, REPL history is bounded only to the session.
+  Another feature would be to keep a user’s command history consistent across
+  different sessions (similar to what `psql` does).
+
+#### Usage for discover database enrollment flows
+
+Some discovered databases require additional setup within the database before
+the users can connect using Teleport. Given that the REPL is not specific to
+Teleport and internally uses a regular PostgreSQL connection, it is able to
+connect directly to databases. We could extend the REPL connection parameters
+to include the database address and credentials so that it can initialize the
+connection.
