@@ -42,7 +42,10 @@ available in the teleport.example.com cluster. She creates a new app and include
 apps:
 - name: "waldo"
   uri: "tcp://localhost"
-  ports: [4080-4090, 5095]
+  ports:
+  - port: 4080
+    end_port: 4090
+  - port: 5095
   labels:
     env: prod
 ```
@@ -98,14 +101,18 @@ an error in Connect.
 
 ###### Invalid app spec
 
-Alice wants to extend the app spec with another port, 6060, but she makes a mistake and forgets a
-comma:
+Alice wants to extend the app spec with another port, 6060, but she makes a mistake and provides a
+number bigger than 65535:
 
 ```yaml
 apps:
 - name: "waldo"
   uri: "tcp://localhost"
-  ports: [4080-4090, 50956060]
+  ports:
+  - port: 4080
+    end_port: 4090
+  - port: 5095
+  - port: 66060
   labels:
     env: prod
 ```
@@ -236,6 +243,18 @@ of port numbers to local proxies to avoid creating a new proxy and a cert on eac
 
 ### Configuration
 
+```yaml
+apps:
+- name: "waldo"
+  uri: "tcp://localhost"
+  ports:
+  - port: 4080
+    end_port: 4090
+  - port: 5095
+  labels:
+    env: prod
+```
+
 The ports are set through the `ports` field. The user is expected to not include the port number in
 the `uri` field. `tctl edit`, `tctl create` and other means of adding apps should be updated to
 prevent the user from including the port number in `uri` if the `ports` field is present.
@@ -245,11 +264,29 @@ in order to avoid introducing a breaking change – those apps are technically a
 That is, Teleport v16.2 lets you define an app with the URI set to `"tcp://localhost"` and it will
 only return an error during an actual connection attempt.
 
+Each port range is represented as a dictionary with `port` and `end_port` fields. `end_port` is
+optional if the user wants to specify just a single port. This was chosen over the initial idea of
+using something like `ports: [4080-4090, 5095]`. This is because we don't want to store short
+notation like this on the backend which would then require parsing it into proper structures. At the
+moment, we also don't have an established pattern for providing different marshalling for the
+backend vs clients like tctl. See [the Slack discussion](https://gravitational.slack.com/archives/C0DF0TPMY/p1726744724519649)
+about this.
+
 In order to keep the implementation simple, the user is allowed to duplicate port numbers and
-ranges. For example, these are all valid `ports` values: `[4080-4090, 4080-4090]`, `[4080-4090,
-4081-4087, 4082]`. The only validation in place is going to be that any given port number and port
+ranges. The only validation in place is going to be that any given port number and port
 range start and end must be within 1–65535 and that the start of a port range must be less than the
-end, rendering the following not valid: `4090-4080`, `1234-1234`.
+end, rendering the following not valid:
+
+```yaml
+apps:
+- name: "foo"
+  uri: "tcp://localhost"
+  ports:
+  - port: 1234
+    end_port: 1234
+  - port: 4090
+    end_port: 4080
+```
 
 #### Limitations
 
@@ -368,7 +405,10 @@ field to determine available ports:
 apps:
 - name: "waldo"
   uri: "tcp://localhost:4080"
-  extra_ports: [4081-4090, 5095]
+  extra_ports:
+  - port: 4081
+    end_port: 4090
+  - port: 5095
   labels:
     env: prod
 ```
@@ -455,19 +495,17 @@ Changes in `api/proto/teleport/legacy/types/types.proto`:
 +  // Only applicable to TCP App Access.
 +  // If this field is not empty, URI is expected to contain no port number and start with the tcp
 +  // protocol.
-+  // If a value within this field is a port range, the start of the range must be less than the end
-+  // of the range. Any individual port cannot fall outside of the 1-65535 range.
 +  repeated PortRange Ports = 10 [(gogoproto.jsontag) = "ports,omitempty"];
 +}
 +
 +// PortRange describes a port range used for in TCP apps. It can be used to describe a single port
-+// in which case the Start field is the port and the End field is 0.
++// in which case the Port field is the port and the EndPort field is 0.
 +message PortRange {
-+  // Start describes the start of the range. It must be between 1-65535.
-+  uint32 Start = 1 [(gogoproto.jsontag) = "start"];
-+  // End describes the end of the range, inclusive. It must be between 2-65535 and be greater than
-+  // Start when describing a port range. When describing a single port, it must be set to 0.
-+  uint32 End = 2 [(gogoproto.jsontag) = "end,omitempty"];
++  // Port describes the start of the range. It must be between 1-65535.
++  uint32 Port = 1 [(gogoproto.jsontag) = "port"];
++  // EndPort describes the end of the range, inclusive. It must be between 2-65535 and be greater
++  // than Port when describing a port range. When describing a single port, it must be left at 0.
++  uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
  }
 ```
 
