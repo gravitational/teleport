@@ -195,7 +195,7 @@ postgres=>
 
 To track PostgreSQL databases access through Web UI, we need to differentiate
 them from direct sessions. To do so, we'll add a new field to the
-(`SessionStartDatabaseMetadata`](https://github.com/gravitational/teleport/blob/5e921b33b9173ccde8fe321d35534b04ebbd5d93/proto/prehog/v1alpha/teleport.proto#L223)
+[`SessionStartDatabaseMetadata`](https://github.com/gravitational/teleport/blob/5e921b33b9173ccde8fe321d35534b04ebbd5d93/proto/prehog/v1alpha/teleport.proto#L223)
 event to include this information:
 
 ```diff
