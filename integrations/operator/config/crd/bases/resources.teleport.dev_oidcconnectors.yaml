@@ -90,8 +90,8 @@ spec:
                 type: object
               client_secret:
                 description: ClientSecret is used to authenticate the client. This
-                  field supports secret lookup. See the operator documentation for
-                  more details.
+                  field supports secret lookup. See [the operator documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/teleport-operator/secret-lookup/)
+                  for more details.
                 type: string
               display:
                 description: Display is the friendly name for this provider.
