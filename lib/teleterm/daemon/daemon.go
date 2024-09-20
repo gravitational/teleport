@@ -822,7 +822,12 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 		return nil, trace.Wrap(err)
 	}
 
-	proxyGRPCClient, err := tc.NewKubernetesServiceClient(ctx, cluster.Name)
+	var proxyGRPCClient kubeproto.KubeServiceClient
+
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyGRPCClient, err = tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -841,11 +846,7 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 			KubernetesNamespace: req.GetKubernetesNamespace(),
 			TeleportCluster:     cluster.Name,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
+		return trace.Wrap(err)
 	})
 
 	return resources, trace.Wrap(err)

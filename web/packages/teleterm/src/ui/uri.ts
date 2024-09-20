@@ -97,10 +97,10 @@ export const paths = {
     '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
-  kubeResource:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/:kubeResourceKind/:kubeId/:kubeResourceId',
-  kubeResourceLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId/:kubeResourceKind/:kubeId/:kubeResourceId',
+  kubeResourceNamespace:
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kube-resources/namespace/:kubeId/:namespaceId',
+  kubeResourceNamespaceLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/kube-resources/namespace/:kubeId/:namespaceId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
@@ -135,8 +135,8 @@ export const routing = {
     return routing.parseUri(uri, paths.kube);
   },
 
-  parseKubeResourceUri(uri: string) {
-    return routing.parseUri(uri, paths.kubeResource);
+  parseKubeResourceNamespaceUri(uri: string) {
+    return routing.parseUri(uri, paths.kubeResourceNamespace);
   },
 
   parseAppUri(uri: string) {
@@ -245,15 +245,18 @@ export const routing = {
     }
   },
 
-  getKubeResourceUri(params: KubeResourceParam) {
+  getKubeResourceUri(params: KubeResourceNamespaceParam) {
     if (params.leafClusterId) {
       // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
       // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
       //
       // If we used paths.kubeResource instead, then the /leaves/ part of the URI would be missing.
-      return generatePath(paths.kubeResourceLeaf, params as any) as string;
+      return generatePath(
+        paths.kubeResourceNamespaceLeaf,
+        params as any
+      ) as string;
     } else {
-      return generatePath(paths.kubeResource, params as any) as string;
+      return generatePath(paths.kubeResourceNamespace, params as any) as string;
     }
   },
 
@@ -314,8 +317,7 @@ export type Params = {
   leafClusterId?: string;
   serverId?: string;
   kubeId?: string;
-  kubeResourceId?: string;
-  kubeResourceKind?: string;
+  namespaceId?: string;
   dbId?: string;
   gatewayId?: string;
   tabId?: string;
@@ -324,5 +326,5 @@ export type Params = {
   appId?: string;
 };
 
-export type KubeResourceParam = Partial<Params> &
-  Required<Pick<Params, 'kubeId' | 'kubeResourceId' | 'kubeResourceKind'>>;
+export type KubeResourceNamespaceParam = Partial<Params> &
+  Required<Pick<Params, 'kubeId' | 'namespaceId'>>;

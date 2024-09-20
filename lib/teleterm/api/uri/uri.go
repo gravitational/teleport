@@ -32,6 +32,8 @@ var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
+var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kube-resources/namespace/:kubeName/:namespaceName")
+var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kube-resources/namespace/:kubeName/:namespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
 
@@ -122,6 +124,21 @@ func (r ResourceURI) GetKubeName() string {
 	return ""
 }
 
+// GetKubeResourceNamespace extracts the kube resource namespacefrom r. Returns an empty string if path is not a kube resource URI.
+func (r ResourceURI) GetKubeResourceNamespace() string {
+	result, ok := pathKubeResourceNamespace.Match(r.path)
+	if ok {
+		return result.Params["namespaceName"]
+	}
+
+	result, ok = pathLeafKubeResourceNamespace.Match(r.path)
+	if ok {
+		return result.Params["namespaceName"]
+	}
+
+	return ""
+}
+
 // GetAppName extracts the app name from r. Returns an empty string if the path is not an app URI.
 func (r ResourceURI) GetAppName() string {
 	result, ok := pathApps.Match(r.path)
@@ -189,11 +206,9 @@ func (r ResourceURI) AppendKube(name string) ResourceURI {
 	return r
 }
 
-// AppendKubeResource appends kube resource segment to the URI.
-// Modeled after how access request constructs the resource ID:
-// <teleport-cluster-name>/<subresource kind>/<kube_cluster name>/<subresource name>
-func (r ResourceURI) AppendKubeResource(kubeResourceKind string, kubeClusterName string, kubeResourceName string) ResourceURI {
-	r.path = fmt.Sprintf("%v/%v/%v/%v", r.path, kubeResourceKind, kubeClusterName, kubeResourceName)
+// AppendKubeResourceNamespace appends kube resource namespace segment to the URI.
+func (r ResourceURI) AppendKubeResourceNamespace(kubeClusterName string, namespaceName string) ResourceURI {
+	r.path = fmt.Sprintf("%v/kube-resources/namespace/%v/%v", r.path, kubeClusterName, namespaceName)
 	return r
 }
 

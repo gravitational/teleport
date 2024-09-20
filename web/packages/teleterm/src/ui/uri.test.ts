@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KubeResourceParam, Params, routing } from './uri';
+import { KubeResourceNamespaceParam, Params, routing } from './uri';
 
 describe('getServerUri', () => {
   const tests: Array<
@@ -67,29 +67,28 @@ describe('getServerUri', () => {
 
 describe('getKubeResourceUri', () => {
   const tests: Array<
-    { name: string; input: KubeResourceParam } & { output: string }
+    { name: string; input: KubeResourceNamespaceParam } & { output: string }
   > = [
     {
-      name: 'returns a kube resource URI for a root cluster',
+      name: 'returns a kube resource namespace URI for a root cluster',
       input: {
         rootClusterId: 'foo',
         kubeId: 'kubeClusterName',
-        kubeResourceId: 'kubeResourceName',
-        kubeResourceKind: 'namespace',
+        namespaceId: 'namespace',
       },
-      output: '/clusters/foo/namespace/kubeClusterName/kubeResourceName',
+      output:
+        '/clusters/foo/kube-resources/namespace/kubeClusterName/namespace',
     },
     {
-      name: 'returns a kube resource URI for a leaf cluster',
+      name: 'returns a kube resource namespace URI for a leaf cluster',
       input: {
         rootClusterId: 'foo',
         leafClusterId: 'bar',
         kubeId: 'kubeClusterName',
-        kubeResourceId: 'kubeResourceName',
-        kubeResourceKind: 'namespace',
+        namespaceId: 'namespace',
       },
       output:
-        '/clusters/foo/leaves/bar/namespace/kubeClusterName/kubeResourceName',
+        '/clusters/foo/leaves/bar/kube-resources/namespace/kubeClusterName/namespace',
     },
   ];
 
