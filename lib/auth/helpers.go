@@ -118,6 +118,9 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorWebauthn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
 		}
 	}
 	return nil

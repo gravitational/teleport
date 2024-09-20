@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -43,26 +44,44 @@ func TestOSSModules(t *testing.T) {
 	require.Equal(t, modules.BuildOSS, modules.GetModules().BuildType())
 }
 
-func TestValidateAuthPreferenceOnCloud(t *testing.T) {
+func TestValidateAuthPreference(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
 
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
+	t.Run("cloud", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud: true,
+			},
+		})
+
+		authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+		require.NoError(t, err)
+
+		authPref.SetSecondFactor("off")
+		_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+		require.ErrorIs(t, err, constants.ErrSecondFactorDisabled)
 	})
 
-	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
-	require.NoError(t, err)
+	t.Run("not cloud", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud: false,
+			},
+		})
 
-	authPref.SetSecondFactor("off")
-	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
-	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
+		authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+		require.NoError(t, err)
+
+		authPref.SetSecondFactor("off")
+		_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
+		require.ErrorIs(t, err, constants.ErrSecondFactorDisabled)
+	})
 }
 
 func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
