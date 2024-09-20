@@ -292,6 +292,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			out.NumTablesPermissions += entry.Counts[databaseobjectimportrule.ObjectKindTable]
 		}
 		return out
+	case *apievents.AccessPathChanged:
+		return &AccessGraphAccessPathChangedEvent{
+			AffectedResourceType:   e.AffectedResourceType,
+			AffectedResourceSource: e.AffectedResourceSource,
+		}
+	case *apievents.CrownJewelCreate:
+		return &AccessGraphCrownJewelCreateEvent{}
 	}
 
 	return nil
