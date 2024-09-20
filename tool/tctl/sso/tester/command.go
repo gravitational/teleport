@@ -198,34 +198,39 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 	}
 	defer rd.Close()
 
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPub, err := ssh.NewPublicKey(sshKey.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
+	ceremony := sso.NewCLICeremony(rd)
+	ceremony.InitRequest = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
+		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
+		if err != nil {
+			return "nil", trace.Wrap(err)
+		}
+		sshPub, err := ssh.NewPublicKey(sshKey.Public())
+		if err != nil {
+			return "nil", trace.Wrap(err)
+		}
+		tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
+		if err != nil {
+			return "nil", trace.Wrap(err)
+		}
+
+		req := client.SSOLoginConsoleReq{
+			ConnectorID: "-sso-test",
+			RedirectURL: clientCallbackURL,
+			SSOUserPublicKeys: client.SSOUserPublicKeys{
+				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
+				TLSPubKey: tlsPub,
+			},
+		}
+
+		initResp, err := initiateSSOLoginFn(req)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return initResp.RedirectURL, nil
 	}
 
-	req := client.SSOLoginConsoleReq{
-		ConnectorID: "-sso-test",
-		RedirectURL: rd.ClientCallbackURL,
-		SSOUserPublicKeys: client.SSOUserPublicKeys{
-			SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
-			TLSPubKey: tlsPub,
-		},
-	}
-
-	initResp, err := initiateSSOLoginFn(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := rd.SSOCeremony(ctx, initResp.RedirectURL)
+	resp, err := ceremony.Run(ctx)
 	return resp, trace.Wrap(err)
 }
 
