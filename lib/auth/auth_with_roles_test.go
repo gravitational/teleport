@@ -6741,6 +6741,189 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 	}
 }
 
+func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate)})
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:     "missing url scheme in acs input",
+			entityID: "sp",
+			acsURL:   "sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "http url scheme in acs",
+			entityID: "sp",
+			acsURL:   "http://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:     "unsupported scheme in acs",
+			entityID: "sp",
+			acsURL:   "gopher://sp",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid scheme")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:     "invalid character in acs",
+			entityID: "sp",
+			acsURL:   "https://sp>",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:       "invalid character in relay state",
+			entityID:   "sp",
+			acsURL:     "https://sp",
+			relayState: "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "test",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
+				ACSURL:           test.acsURL,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate, types.VerbUpdate)})
+	client, err := srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+		Name: "sp",
+	}, types.SAMLIdPServiceProviderSpecV1{
+		EntityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+	})
+	require.NoError(t, err)
+
+	err = client.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		entityDescriptor string
+		entityID         string
+		acsURL           string
+		relayState       string
+		errAssertion     require.ErrorAssertionFunc
+	}{
+		{
+			name:             "missing url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "http url scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "unsupported scheme for acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "invalid url scheme")
+			},
+		},
+		{
+			name:             "invalid character in acs in ed",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported ACS bindings")
+			},
+		},
+		{
+			name:             "invalid character in relay state",
+			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
+			relayState:       "default_state<b",
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "unsupported character")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name: "sp",
+			}, types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: test.entityDescriptor,
+				RelayState:       test.relayState,
+			})
+			require.NoError(t, err)
+
+			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
+			test.errAssertion(t, err)
+		})
+	}
+}
+
 func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)

@@ -7053,6 +7053,16 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
 	return trace.Wrap(err)
 }
@@ -7100,6 +7110,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
 		return trace.Wrap(err)
 	}
 
