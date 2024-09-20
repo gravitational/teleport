@@ -586,17 +586,22 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		SSHLogin:       tc.HostLogin,
 	}
 
-	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformMFACeremonyParams{
-		CurrentAuthClient: t.userAuthClient,
-		RootAuthClient:    t.ctx.cfg.RootClient,
-		MFAPrompt: mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: t.ctx.cfg.RootClient.CreateAuthenticateChallenge,
+		SolveAuthenticateChallenge: func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 			span.AddEvent("prompting user with mfa challenge")
-			assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{}).Run(ctx, chal)
+			assertion, err := mfaPrompt(wsStream, protobufMFACodec{}).Run(ctx, chal)
 			span.AddEvent("user completed mfa challenge")
 			return assertion, trace.Wrap(err)
-		}),
-		MFAAgainstRoot: t.ctx.cfg.RootClusterName == tc.SiteName,
-		MFARequiredReq: mfaRequiredReq,
+		},
+	}
+
+	_, certs, err := client.PerformSessionMFACeremony(ctx, client.PerformSessionMFACeremonyParams{
+		CurrentAuthClient: t.userAuthClient,
+		RootAuthClient:    t.ctx.cfg.RootClient,
+		MFACeremony:       mfaCeremony,
+		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
+		MFARequiredReq:    mfaRequiredReq,
 		ChallengeExtensions: mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
@@ -617,7 +622,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 	return []ssh.AuthMethod{am}, nil
 }
 
-func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
+func mfaPrompt(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
 	return mfa.PromptFunc(func(ctx context.Context, chal *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 		var challenge *client.MFAAuthenticateChallenge
 
@@ -638,6 +643,7 @@ func promptMFAChallenge(stream *terminal.WSStream, codec terminal.MFACodec) mfa.
 		resp, err := stream.ReadChallengeResponse(codec)
 		return resp, trace.Wrap(err)
 	})
+
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
@@ -795,7 +801,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})); err != nil {
+				if err := t.presenceChecker(ctx, out, t.userAuthClient, t.sessionData.ID.String(), mfaPrompt(t.stream.WSStream, protobufMFACodec{})); err != nil {
 					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
 					return
 				}

@@ -57,6 +57,7 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
 func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...PresenceOption) error {
+
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{
@@ -76,46 +77,58 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 		return trace.Wrap(err)
 	}
 
-	for {
-		select {
-		case <-ticker.Chan():
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, _ *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
 					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: sessionID},
 				},
 			}
 
-			err = stream.Send(req)
-			if err != nil {
-				return trace.Wrap(err)
+			if err := stream.Send(req); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
 			challenge, err := stream.Recv()
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-
-			fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
 
 			// This is here to enforce the usage of a MFA device.
 			// We don't support TOTP for live presence.
 			challenge.TOTP = nil
 
-			solution, err := mfaPrompt.Run(ctx, challenge)
+			return challenge, nil
+		},
+		SolveAuthenticateChallenge: func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
+
+			mfaResp, err := mfaPrompt.Run(ctx, chal)
 			if err != nil {
 				fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
+			return mfaResp, nil
+		},
+	}
 
-			req = &proto.PresenceMFAChallengeSend{
+	for {
+		select {
+		case <-ticker.Chan():
+			mfaResp, err := mfaCeremony.Run(ctx, nil)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			resp := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeResponse{
-					ChallengeResponse: solution,
+					ChallengeResponse: mfaResp,
 				},
 			}
 
-			err = stream.Send(req)
+			err = stream.Send(resp)
 			if err != nil {
 				return trace.Wrap(err)
 			}
