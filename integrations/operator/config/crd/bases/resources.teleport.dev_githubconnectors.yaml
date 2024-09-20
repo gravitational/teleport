@@ -65,8 +65,8 @@ spec:
                 type: object
               client_secret:
                 description: ClientSecret is the Github OAuth app client secret. This
-                  field supports secret lookup. See the operator documentation for
-                  more details.
+                  field supports secret lookup. See [the operator documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/teleport-operator/secret-lookup/)
+                  for more details.
                 type: string
               display:
                 description: Display is the connector display name.
