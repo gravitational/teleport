@@ -326,6 +326,7 @@ func (s *NotificationsService) UpsertUserNotificationState(ctx context.Context, 
 
 	state.Kind = types.KindUserNotificationState
 	state.Version = types.V1
+	state.Spec.Username = username
 
 	if state.Metadata == nil {
 		state.Metadata = &headerv1.Metadata{}
@@ -365,6 +366,16 @@ func (s *NotificationsService) ListUserNotificationStates(ctx context.Context, u
 	serviceWithPrefix := s.userNotificationStateService.WithPrefix(username)
 
 	states, nextToken, err := serviceWithPrefix.ListResources(ctx, pageSize, nextToken)
+	return states, nextToken, trace.Wrap(err)
+}
+
+// ListUserNotificationStates returns a page of user notification states for all users.
+func (s *NotificationsService) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	if pageSize < 1 {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	states, nextToken, err := s.userNotificationStateService.ListResources(ctx, pageSize, nextToken)
 	return states, nextToken, trace.Wrap(err)
 }
 

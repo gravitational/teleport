@@ -260,7 +260,10 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	access := local.NewAccessService(srv.Backend)
-	identity := local.NewTestIdentityService(srv.Backend)
+	identity, err := local.NewTestIdentityService(srv.Backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,

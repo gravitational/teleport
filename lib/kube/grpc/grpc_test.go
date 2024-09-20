@@ -21,6 +21,7 @@ package kubev1
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"testing"
 
@@ -539,10 +540,20 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
+	proxyTLSConfig, err := serverIdentity.TLSConfig(nil)
+	require.NoError(t, err)
+	require.Len(t, proxyTLSConfig.Certificates, 1)
+	require.NotNil(t, proxyTLSConfig.RootCAs)
+
 	server, err := New(
 		Config{
-			ClusterName:   testCtx.ClusterName,
-			Signer:        proxyAuthClient,
+			ClusterName: testCtx.ClusterName,
+			GetConnTLSCertificate: func() (*tls.Certificate, error) {
+				return &proxyTLSConfig.Certificates[0], nil
+			},
+			GetConnTLSRoots: func() (*x509.CertPool, error) {
+				return proxyTLSConfig.RootCAs, nil
+			},
 			AccessPoint:   proxyAuthClient,
 			Emitter:       testCtx.Emitter,
 			KubeProxyAddr: testCtx.KubeProxyAddress(),
