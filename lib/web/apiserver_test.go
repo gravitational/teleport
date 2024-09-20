@@ -7590,7 +7590,7 @@ func waitForOutput(r io.Reader, substr string) error {
 	timeoutCh := time.After(10 * time.Second)
 
 	var prev string
-	out := make([]byte, int64(len(substr)*2))
+	out := make([]byte, int64(len(substr)*3))
 	for {
 		select {
 		case <-timeoutCh:
@@ -9528,7 +9528,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerWS.Close()) })
 
-	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -9646,8 +9646,19 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		challenge, err := moderatorStream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
 
-		res, err := moderator.device.SolveAuthn(challenge)
-		require.NoError(t, err)
+	require.NoError(t, waitForOutput(peerTerm, "Teleport > User foo joined the session with participant mode: peer."), "waiting for peer to start session")
+
+	moderatorTerm, err := connectToHost(ctx, connectConfig{
+		pack:            moderator,
+		host:            s.node.ID(),
+		proxy:           s.webServer.Listener.Addr().String(),
+		sessionID:       peerTerm.GetSession().ID,
+		participantMode: types.SessionModeratorMode,
+		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
+			res, err := moderator.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
+				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
+			})
+			require.NoError(t, err)
 
 		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
 		require.NoError(t, err)
