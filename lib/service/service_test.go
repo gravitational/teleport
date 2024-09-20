@@ -542,7 +542,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 		},
 		{
 			name:          "valid athena config with disabled consumer",
-			uris:          []string{sampleAthenaURI + "&consumerDisabled=false"},
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
 			externalAudit: externalAuditStorageDisabled,
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
