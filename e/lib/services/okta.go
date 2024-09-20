@@ -148,12 +148,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		return trace.Wrap(err)
 	}
 
-	defer func() {
-		if err := conn.Close(); err != nil {
-			logger.WarnContext(ctx, "Error while closing connection", "error", err)
-		}
-	}()
-
 	accessPoint, cacheCleanup, err := newLocalCacheForOkta(process, conn.Client, []string{eteleport.ComponentOkta})
 	if err != nil {
 		return trace.Wrap(err)
@@ -258,6 +252,9 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 	var oktaServiceMu sync.Mutex
 
 	process.OnExit("okta.stop", func(payload interface{}) {
+		if err := conn.Close(); err != nil {
+			logger.WarnContext(ctx, "Error while closing connection", "error", err)
+		}
 		logger.InfoContext(process.ExitContext(), "Shutting down.")
 		if err := oktaLeader.Close(); err != nil {
 			logger.WarnContext(process.ExitContext(), "Error closing Okta leader", "error", err)
