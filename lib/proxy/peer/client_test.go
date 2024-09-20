@@ -138,10 +138,11 @@ func TestCAChange(t *testing.T) {
 	currentServerCA := newAtomicCA(serverCA)
 
 	client := setupClient(t, clientCA, currentServerCA, types.RoleProxy)
-	server, _ := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	server, ts := setupServer(t, "s1", serverCA, clientCA, types.RoleProxy)
+	t.Cleanup(func() { server.Close() })
 
 	// dial server and send a test data frame
-	conn, err := client.connect("s1", server.config.Listener.Addr().String())
+	conn, err := client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -153,11 +154,12 @@ func TestCAChange(t *testing.T) {
 	// rotate server ca
 	require.NoError(t, server.Close())
 	newServerCA := newSelfSignedCA(t)
-	server, _ = setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+	server2, ts := setupServer(t, "s1", newServerCA, clientCA, types.RoleProxy)
+	t.Cleanup(func() { server2.Close() })
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
@@ -168,7 +170,7 @@ func TestCAChange(t *testing.T) {
 	// RootCAs.
 	currentServerCA.Store(newServerCA)
 
-	conn, err = client.connect("s1", server.config.Listener.Addr().String())
+	conn, err = client.connect("s1", ts.GetPeerAddr())
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	stream, err = clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)

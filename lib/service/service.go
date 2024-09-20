@@ -4676,7 +4676,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var peerAddrString string
-	var proxyServer *peer.Server
+	var peerServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4684,25 +4684,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		peerAddrString = peerAddr.String()
 
-		// TODO(espadolini): once connectors are live updated we can get rid of
-		// this and just refer to the host CA pool in the connector instead
-		peerServerTLSConfig := serverTLSConfig.Clone()
-		peerServerTLSConfig.GetConfigForClient = func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
-			pool, _, err := authclient.ClientCertPool(chi.Context(), accessPoint, clusterName, types.HostCA)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			tlsConfig := peerServerTLSConfig.Clone()
-			tlsConfig.ClientCAs = pool
-			return tlsConfig, nil
-		}
-
-		proxyServer, err = peer.NewServer(peer.ServerConfig{
-			Listener:      listeners.proxyPeer,
-			TLSConfig:     peerServerTLSConfig,
+		peerServer, err = peer.NewServer(peer.ServerConfig{
+			Log:           process.log,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-			Log:           process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			ClusterName:   clusterName,
+			CipherSuites:  cfg.CipherSuites,
+			GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+				return conn.serverGetCertificate()
+			},
+			GetClientCAs: func(chi *tls.ClientHelloInfo) (*x509.CertPool, error) {
+				pool, _, err := authclient.ClientCertPool(chi.Context(), accessPoint, clusterName, types.HostCA)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return pool, nil
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4715,7 +4710,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 
 			logger.InfoContext(process.ExitContext(), "Starting peer proxy service", "listen_address", logutils.StringerAttr(listeners.proxyPeer.Addr()))
-			err := proxyServer.Serve()
+			err := peerServer.Serve(listeners.proxyPeer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5258,8 +5253,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(process.ExitContext(), tsrv.Close(), logger)
 			}
 			warnOnErr(process.ExitContext(), rcWatcher.Close(), logger)
-			if proxyServer != nil {
-				warnOnErr(process.ExitContext(), proxyServer.Close(), logger)
+			if peerServer != nil {
+				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
 			}
 			if webServer != nil {
 				warnOnErr(process.ExitContext(), webServer.Close(), logger)
@@ -5309,8 +5304,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(ctx, tsrv.Shutdown(ctx), logger)
 			}
 			warnOnErr(ctx, rcWatcher.Close(), logger)
-			if proxyServer != nil {
-				warnOnErr(ctx, proxyServer.Shutdown(), logger)
+			if peerServer != nil {
+				warnOnErr(ctx, peerServer.Shutdown(), logger)
 			}
 			if peerClient != nil {
 				peerClient.Shutdown(ctx)
