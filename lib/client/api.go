@@ -488,6 +488,9 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
+	// SSOCeremonyConstructor is a custom SSO ceremony constructor to use.
+	SSOCeremonyConstructor func() *sso.Ceremony
+
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 

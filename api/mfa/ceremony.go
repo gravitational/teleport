@@ -34,6 +34,17 @@ type Ceremony struct {
 	// SolveAuthenticateChallenge solves an authentication challenge. Used in non-interactive settings,
 	// such as the WebUI with layers abstracting user interaction, and tests.
 	SolveAuthenticateChallenge func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge. The provided
+	// context will be closed once the ceremony is complete.
+	SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
+}
+
+// SSOMFACeremony is an SSO MFA ceremony.
+type SSOMFACeremony interface {
+	GetClientCallbackURL() string
+	HandleRedirect(ctx context.Context, redirectURL string) error
+	GetCallbackMFAToken(ctx context.Context) (string, error)
 }
 
 // Run the MFA ceremony.
@@ -53,6 +64,15 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("missing challenge extensions")
 	case req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
 		return nil, trace.BadParameter("mfa challenge scope must be specified")
+	}
+
+	if c.SSOMFACeremonyConstructor != nil {
+		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to handle SSO MFA ceremony")
+		}
+		req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+		promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)

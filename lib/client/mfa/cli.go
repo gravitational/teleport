@@ -61,9 +61,12 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn && !runOpts.PromptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
+
+	// TODO: Rework prompt logic to display options and select one automatically. Login should still
+	// switch between OTP and WebAuthn, until we detect when webauthn key plugged in.
 
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
@@ -125,6 +128,17 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 				resp, err := c.promptWebauthn(ctx, chal, prompt)
 				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
+			}()
+		}
+
+		// Fire SSO goroutine.
+		if runOpts.PromptSSO {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				resp, err := c.promptSSO(ctx, chal)
+				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "SSO authentication failed")}
 			}()
 		}
 	}
@@ -212,5 +226,25 @@ func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) 
 		}
 
 		return trace.Wrap(err)
+	}, nil
+}
+
+func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if err := c.cfg.SSOMFACeremony.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaToken, err := c.cfg.SSOMFACeremony.GetCallbackMFAToken(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: chal.SSOChallenge.RequestId,
+				Token:     mfaToken,
+			},
+		},
 	}, nil
 }

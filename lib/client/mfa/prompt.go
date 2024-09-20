@@ -84,12 +84,16 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 type RunOpts struct {
 	PromptTOTP     bool
 	PromptWebauthn bool
+	PromptSSO      bool
 }
 
 // GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
 func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
 	promptTOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
+	promptSSO := chal.SSOChallenge != nil && c.SSOMFACeremony != nil
+
+	// TODO: rework preference logic for webauthn > SSO > OTP.
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
@@ -112,7 +116,7 @@ func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenti
 		promptTOTP = false
 	}
 
-	return RunOpts{promptTOTP, promptWebauthn}, nil
+	return RunOpts{promptTOTP, promptWebauthn, promptSSO}, nil
 }
 
 func (c PromptConfig) GetWebauthnOrigin() string {
