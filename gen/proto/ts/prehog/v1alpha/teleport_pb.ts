@@ -3604,7 +3604,11 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
      */
-    ENTRA_ID = 23
+    ENTRA_ID = 23,
+    /**
+     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_DATADOG_ACCESS = 24;
+     */
+    DATADOG_ACCESS = 24
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
