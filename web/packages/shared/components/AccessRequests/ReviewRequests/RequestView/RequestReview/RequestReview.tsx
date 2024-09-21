@@ -209,7 +209,6 @@ export default function RequestReview({
               mb={4}
               maxWidth="500px"
               textAreaCss={`
-                  font-size: 14px;
                   min-height: 100px;
                 `}
               onChange={e => setReason(e.target.value)}
