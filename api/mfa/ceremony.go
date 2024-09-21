@@ -29,7 +29,7 @@ import (
 type Ceremony struct {
 	CreateAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	SolveAuthenticateChallenge  func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	NewPrompt                   PromptConstructor
+	PromptConstructor           PromptConstructor
 }
 
 // Run runs the MFA ceremony.
@@ -38,8 +38,8 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
 	}
 
-	if c.SolveAuthenticateChallenge == nil && c.NewPrompt == nil {
-		return nil, trace.BadParameter("mfa ceremony must have SolveAuthenticateChallenge or NewPrompt set in order to succeed")
+	if c.SolveAuthenticateChallenge == nil && c.PromptConstructor == nil {
+		return nil, trace.BadParameter("mfa ceremony must have SolveAuthenticateChallenge or PromptConstructor set in order to succeed")
 	}
 
 	if req != nil {
@@ -73,7 +73,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return c.SolveAuthenticateChallenge(ctx, chal)
 	}
 
-	return c.NewPrompt(promptOpts...).Run(ctx, chal)
+	return c.PromptConstructor(promptOpts...).Run(ctx, chal)
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

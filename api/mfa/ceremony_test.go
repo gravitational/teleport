@@ -89,7 +89,7 @@ func TestPerformMFACeremony(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ceremony := mfa.Ceremony{
 				CreateAuthenticateChallenge: tt.ceremonyClient.CreateAuthenticateChallenge,
-				NewPrompt: func(_ ...mfa.PromptOpt) mfa.Prompt {
+				PromptConstructor: func(_ ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(tt.ceremonyClient.PromptMFA)
 				},
 			}
