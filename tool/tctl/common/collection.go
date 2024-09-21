@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1381,6 +1382,42 @@ func (c *accessRequestCollection) writeText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
 	}
 
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateConfigCollection struct {
+	config *autoupdatev1pb.AutoUpdateConfig
+}
+
+func (c *autoUpdateConfigCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.config)}
+}
+
+func (c *autoUpdateConfigCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
+	t.AddRow([]string{
+		c.config.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.config.GetSpec().GetToolsAutoupdate()),
+	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type autoUpdateVersionCollection struct {
+	version *autoupdatev1pb.AutoUpdateVersion
+}
+
+func (c *autoUpdateVersionCollection) resources() []types.Resource {
+	return []types.Resource{types.Resource153ToLegacy(c.version)}
+}
+
+func (c *autoUpdateVersionCollection) writeText(w io.Writer, verbose bool) error {
+	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
+	t.AddRow([]string{
+		c.version.GetMetadata().GetName(),
+		fmt.Sprintf("%v", c.version.GetSpec().GetToolsVersion()),
+	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
