@@ -240,6 +240,12 @@ type Grants struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
+// CombinedGrants contains the combined member and owner grants from an access list.
+type CombinedGrants struct {
+	MemberGrants Grants
+	OwnerGrants  Grants
+}
+
 // Status contains dynamic fields calculated during retrieval.
 type Status struct {
 	// MemberCount is the number of members in the access list.
@@ -355,6 +361,11 @@ func (a *AccessList) GetOwnershipRequires() Requires {
 // GetGrants returns the grants from the access list.
 func (a *AccessList) GetGrants() Grants {
 	return a.Spec.Grants
+}
+
+// GetOwnerGrants returns the owner grants from the access list.
+func (a *AccessList) GetOwnerGrants() Grants {
+	return a.Spec.OwnerGrants
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
