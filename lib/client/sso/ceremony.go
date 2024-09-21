@@ -52,8 +52,32 @@ func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error
 	return resp, trace.Wrap(err)
 }
 
+// NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
+func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
+	return &Ceremony{
+		clientCallbackURL:   rd.ClientCallbackURL,
+		Init:                init,
+		HandleRedirect:      rd.OpenRedirect,
+		GetCallbackResponse: rd.WaitForResponse,
+	}
+}
+
+type MFACeremony struct {
+	*Ceremony
+}
+
+// GetClientCallbackURL returns the SSO client callback URL.
+func (c *MFACeremony) GetClientCallbackURL() string {
+	return c.clientCallbackURL
+}
+
+// HandleRedirect handles redirect.
+func (c *MFACeremony) HandleRedirect(ctx context.Context, redirectURL string) error {
+	return c.Ceremony.HandleRedirect(ctx, redirectURL)
+}
+
 // GetCallbackMFAResponse returns an SSO MFA auth response once the callback is complete.
-func (c *Ceremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
+func (c *MFACeremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
 	loginResp, err := c.GetCallbackResponse(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -64,14 +88,4 @@ func (c *Ceremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
 	}
 
 	return loginResp.MFAToken, nil
-}
-
-// NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
-func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
-	return &Ceremony{
-		clientCallbackURL:   rd.ClientCallbackURL,
-		Init:                init,
-		HandleRedirect:      rd.OpenRedirect,
-		GetCallbackResponse: rd.WaitForResponse,
-	}
 }
