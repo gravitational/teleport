@@ -827,7 +827,7 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			}
 			return chal, nil
 		},
-		NewPrompt: login.MFAPromptConstructor,
+		PromptConstructor: login.MFAPromptConstructor,
 	}
 }
 

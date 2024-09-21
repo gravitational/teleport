@@ -33,7 +33,7 @@ import (
 func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.CreateAuthenticateChallenge,
-		NewPrompt:                   tc.NewMFAPrompt,
+		PromptConstructor:           tc.NewMFAPrompt,
 	}
 }
 
