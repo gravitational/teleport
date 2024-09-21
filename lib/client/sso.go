@@ -26,10 +26,26 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+func (tc *TeleportClient) newSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
+	rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rd, err := sso.NewRedirector(rdConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rd.Close()
+
+	return &sso.MFACeremony{Ceremony: sso.NewCLICeremony(rd, nil /*init*/)}, nil
+}
 
 // ssoRedirectorConfig returns a standard configured sso redirector for login.
 // A display name for the SSO connector can optionally be provided for minor UI improvements.

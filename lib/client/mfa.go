@@ -33,6 +33,7 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
+		SSOMFACeremonyConstructor:   tc.newSSOMFACeremony,
 	}
 }
 
