@@ -2514,7 +2514,7 @@ func TestService_deviceModeOff(t *testing.T) {
 	env := testenv.NewUsingT(t,
 		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOff, // unimportant
+			SecondFactor: constants.SecondFactorOTP, // unimportant
 			DeviceTrust: &types.DeviceTrust{
 				Mode: constants.DeviceTrustModeOff, // device authn disabled by default
 			},
