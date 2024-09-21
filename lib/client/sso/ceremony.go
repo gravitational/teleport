@@ -28,14 +28,17 @@ import (
 // Ceremony is a customizable SSO login ceremony.
 type Ceremony struct {
 	clientCallbackURL   string
-	InitRequest         func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error)
+	Init                CeremonyInit
 	HandleRedirect      func(ctx context.Context, redirectURL string) error
 	GetCallbackResponse func(ctx context.Context) (*authclient.SSHLoginResponse, error)
 }
 
+// CeremonyInit initializes an SSO login ceremony.
+type CeremonyInit func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error)
+
 // Run the SSO ceremony.
 func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error) {
-	redirectURL, err := c.InitRequest(ctx, c.clientCallbackURL)
+	redirectURL, err := c.Init(ctx, c.clientCallbackURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -47,7 +50,7 @@ func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error
 	return c.GetCallbackResponse(ctx)
 }
 
-// NewCLICeremony
+// NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
 func NewCLICeremony(rd *Redirector) *Ceremony {
 	return &Ceremony{
 		clientCallbackURL:   rd.ClientCallbackURL,
