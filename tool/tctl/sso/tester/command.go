@@ -199,7 +199,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 	defer rd.Close()
 
 	ceremony := sso.NewCLICeremony(rd)
-	ceremony.InitRequest = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
+	ceremony.Init = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
 		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
 		if err != nil {
 			return "nil", trace.Wrap(err)

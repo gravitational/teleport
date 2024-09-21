@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -4016,99 +4015,23 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
-		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName, connectorType)
+		// Set SAMLSingleLogoutEnabled from server settings.
+		pr, err := tc.Ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
+			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+		}
+
+		ssoCeremony, err := tc.NewSSOLoginCeremony(ctx, keyRing, connectorID, connectorName, connectorType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		rd, err := sso.NewRedirector(ctx, rdConfig)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer rd.Close()
-
-		ceremony := sso.NewCLICeremony(rd)
-		ceremony.InitRequest = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
-			sshLogin, err := tc.NewSSHLogin(keyRing)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			// initiate SSO login through the Proxy.
-			req := SSOLoginConsoleReq{
-				RedirectURL: clientCallbackURL,
-				SSOUserPublicKeys: SSOUserPublicKeys{
-					SSHPubKey:               sshLogin.SSHPubKey,
-					TLSPubKey:               sshLogin.TLSPubKey,
-					SSHAttestationStatement: sshLogin.SSHAttestationStatement,
-					TLSAttestationStatement: sshLogin.TLSAttestationStatement,
-				},
-				CertTTL:           sshLogin.TTL,
-				ConnectorID:       connectorID,
-				Compatibility:     sshLogin.Compatibility,
-				RouteToCluster:    sshLogin.RouteToCluster,
-				KubernetesCluster: sshLogin.KubernetesCluster,
-			}
-
-			clt, _, err := initClient(sshLogin.ProxyAddr, sshLogin.Insecure, sshLogin.Pool, sshLogin.ExtraHeaders)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			out, err := clt.PostJSON(ctx, clt.Endpoint("webapi", connectorType, "login", "console"), req)
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			var re SSOLoginConsoleResponse
-			if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			return re.RedirectURL, nil
-		}
-
-		resp, err := ceremony.Run(ctx)
+		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)
 	}
-}
-
-// ssoRedirectorConfig returns a standard configured sso redirector for login.
-func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorName, connectorType string) (sso.RedirectorConfig, error) {
-	pr, err := tc.Ping(ctx)
-	if err != nil {
-		return sso.RedirectorConfig{}, trace.Wrap(err)
-	}
-	proxyVersion := semver.New(pr.ServerVersion)
-
-	if connectorType == constants.SAML && pr.Auth.SAML != nil {
-		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
-	}
-
-	if tc.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
-		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
-			"the remote host. Make sure that you trust the provided callback host " +
-			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
-		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
-			fmt.Sprintf(callbackPrompt, tc.CallbackAddr, tc.BindAddr),
-		)
-		if err != nil {
-			return sso.RedirectorConfig{}, trace.Wrap(err)
-		}
-		if !ok {
-			return sso.RedirectorConfig{}, trace.BadParameter("Login canceled.")
-		}
-	}
-
-	return sso.RedirectorConfig{
-		ProxyAddr:                     tc.WebProxyAddr,
-		BindAddr:                      tc.BindAddr,
-		CallbackAddr:                  tc.CallbackAddr,
-		Browser:                       tc.Browser,
-		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		ConnectorDisplayName:          connectorName,
-	}, nil
 }
 
 func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {

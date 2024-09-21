@@ -100,10 +100,6 @@ type RedirectorConfig struct {
 	Browser string
 	// PrivateKeyPolicy is a key policy to follow during login.
 	PrivateKeyPolicy keys.PrivateKeyPolicy
-	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
-	// useful messages in the web UI if the proxy supports them.
-	// TODO(atburke): DELETE in v17.0.0
-	ProxySupportsKeyPolicyMessage bool
 	// ConnectorDisplayName is an optional display name which may be used in some
 	// redirect URL pages.
 	ConnectorDisplayName string
@@ -435,7 +431,7 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 			}
 			redirectURL := errorURL
 			// A second SSO login attempt will be initiated if a key policy requirement was not satisfied.
-			if requiredPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil && rd.ProxySupportsKeyPolicyMessage {
+			if requiredPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
 				switch requiredPolicy {
 				case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
 					// No user interaction required.
