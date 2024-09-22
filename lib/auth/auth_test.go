@@ -589,6 +589,7 @@ func TestAuthenticateWebUser_trustedDeviceRequirement(t *testing.T) {
 
 		require.NoError(t, err, "creating challenge")
 		chalResp, err := device.SolveAuthn(mfaChallenge)
+		require.NoError(t, err, "solving challenge")
 
 		return &authclient.AuthenticateUserRequest{
 			Username: user,

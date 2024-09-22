@@ -1646,7 +1646,6 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 	clusterName := "cluster"
 	kubeClusterName := "cluster"
 	clusterConf := suite.teleKubeConfig(Host)
-	clusterConf.Auth.Preference.SetSecondFactor("off") // So we can do web login.
 
 	cluster := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,

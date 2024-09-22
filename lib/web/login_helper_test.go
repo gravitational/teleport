@@ -100,6 +100,9 @@ func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *Draine
 
 	var code string
 	if params.otpSecret != "" {
+		if clock == nil {
+			return nil, nil, trace.BadParameter("clock is required to generate otp secret")
+		}
 		code, err = totp.GenerateCode(params.otpSecret, clock.Now())
 		if err != nil {
 			return nil, nil, trace.Wrap(err, "otp code generation")

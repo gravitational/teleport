@@ -2582,7 +2582,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOn,
+		SecondFactor:   constants.SecondFactorOTP,
 		RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
 	})
 	require.NoError(t, err)
@@ -2592,7 +2592,7 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 	// create user
 	const user = "user1"
 	const pass = "password1234"
-	s.createUser(t, user, "root", pass, "")
+	s.createUser(t, user, "root", pass, "testing")
 
 	clt := s.client(t)
 	ctx := context.Background()
@@ -2603,6 +2603,8 @@ func TestLogin_PrivateKeyEnabledError(t *testing.T) {
 		user:      user,
 		password:  pass,
 		userAgent: ua,
+		otpSecret: "testing",
+		clock:     clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
@@ -2616,7 +2618,7 @@ func TestLogin(t *testing.T) {
 	s := newWebSuite(t)
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
 	_, err = s.server.Auth().UpsertAuthPreference(s.ctx, ap)
@@ -2625,7 +2627,7 @@ func TestLogin(t *testing.T) {
 	// create user
 	const user = "user1"
 	const pass = "password1234"
-	s.createUser(t, user, "root", pass, "")
+	s.createUser(t, user, "root", pass, "testing")
 
 	clt := s.client(t)
 	ctx := context.Background()
@@ -2636,6 +2638,8 @@ func TestLogin(t *testing.T) {
 		user:      user,
 		password:  pass,
 		userAgent: ua,
+		otpSecret: "testing",
+		clock:     s.clock,
 	})
 
 	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
@@ -4766,10 +4770,12 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor:     constants.SecondFactorOn,
-			LocalAuthEnabled: true,
-			AuthType:         constants.Local,
-			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+			SecondFactor:      constants.SecondFactorOn,
+			LocalAuthEnabled:  true,
+			AuthType:          constants.Local,
+			PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
+			AllowPasswordless: true,
+			PreferredLocalMFA: constants.SecondFactorWebauthn,
 		},
 		CanJoinSessions:  true,
 		ProxyClusterName: env.server.ClusterName(),
@@ -5023,10 +5029,16 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	username := "llama"
 	proxy.createUser(ctx, t, username, "root", "password1234", "some-otp-secret", nil /* roles */)
 
+	// Add a second device to allow deleting one of the devices.
+	dev, err := services.NewTOTPDevice("otp-2", "test", proxy.clock.Now())
+	require.NoError(t, err)
+	err = proxy.auth.Auth().UpsertMFADevice(ctx, username, dev)
+	require.NoError(t, err)
+
 	// Enable second factor.
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
+		SecondFactor: constants.SecondFactorOTP,
 		Webauthn: &types.Webauthn{
 			RPID: env.server.ClusterName(),
 		},
@@ -5053,7 +5065,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 	var devices []ui.MFADevice
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
-	require.Len(t, devices, 1)
+	require.Len(t, devices, 2)
 
 	// Call the delete endpoint.
 	_, err = clt.Delete(ctx, clt.Endpoint("webapi", "mfa", "token", approvedToken.GetName(), "devices", devices[0].Name))
@@ -5065,7 +5077,7 @@ func TestGetAndDeleteMFADevices_WithRecoveryApprovedToken(t *testing.T) {
 
 	err = json.Unmarshal(res.Bytes(), &devices)
 	require.NoError(t, err)
-	require.Empty(t, devices)
+	require.Len(t, devices, 1)
 }
 
 func TestCreateAuthenticateChallenge(t *testing.T) {
@@ -8848,7 +8860,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			require.NoError(t, err)
 			resp := isMfaRequiredResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field")
+			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field.")
 		})
 	}
 }

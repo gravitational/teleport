@@ -273,6 +273,9 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			require.NoError(t, err)
 			if pref.GetSecondFactor() != test.secondFactor {
 				pref.SetSecondFactor(test.secondFactor)
+				if test.secondFactor == constants.SecondFactorOn {
+					pref.SetWebauthn(&types.Webauthn{RPID: "localhost"})
+				}
 				_, err = authServer.UpsertAuthPreference(ctx, pref)
 				require.NoError(t, err)
 			}
@@ -307,13 +310,12 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	username := sa.Username
 	password := sa.Password
 
-	// Disable MFA. It makes testing easier.
 	ctx := context.Background()
 	authServer := sa.Auth.GetAuthServer()
 	authPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err, "GetAuthPreference failed")
 	authPref.SetType(constants.Local)
-	authPref.SetSecondFactor(constants.SecondFactorOn)
+	authPref.SetSecondFactor(constants.SecondFactorOTP)
 	authPref.SetAllowPasswordless(false)
 	authPref.SetAllowHeadless(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)

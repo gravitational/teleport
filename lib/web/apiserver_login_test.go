@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -678,7 +679,7 @@ func TestCreateSSHCert(t *testing.T) {
 		user      = "alice"
 		login     = "root"
 		pass      = "password1234"
-		otpSecret = ""
+		otpSecret = "testing"
 	)
 	var roles []types.Role
 
@@ -734,9 +735,14 @@ func TestCreateSSHCert(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
+			proxy.clock.Advance(time.Hour)
+			code, err := totp.GenerateCode(otpSecret, proxy.clock.Now())
+			require.NoError(t, err)
+
 			req := &client.CreateSSHCertReq{
 				User:     user,
 				Password: pass,
+				OTPToken: code,
 				UserPublicKeys: client.UserPublicKeys{
 					PubKey:    tc.pubKey,
 					SSHPubKey: tc.sshPubKey,

@@ -800,6 +800,8 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+
 	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,

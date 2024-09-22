@@ -151,7 +151,6 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			cfg := suite.defaultServiceConfig()
 			cfg.Auth.Enabled = true
-			cfg.Auth.Preference.SetSecondFactor("off")
 			cfg.Auth.NoAudit = true
 			cfg.Auth.SessionRecordingConfig = recCfg
 			cfg.Proxy.Enabled = true

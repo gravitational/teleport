@@ -2114,7 +2114,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
 			UserCredentials: &proto.UserCredentials{
 				Username: user,
-				Password: []byte(pass),
+				Password: pass,
 			},
 		},
 		ChallengeExtensions: &mfav1.ChallengeExtensions{},

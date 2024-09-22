@@ -1826,13 +1826,12 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 
 	cap := mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
-	initial := cap[0]
 
 	const capYAML = `kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factor: otp
   type: local
 version: v2
 `
@@ -1852,8 +1851,7 @@ version: v2
 	var expected types.AuthPreferenceV2
 	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
 
-	require.NotEqual(t, constants.SecondFactorOn, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOn, expected.GetSecondFactor())
+	require.Equal(t, constants.SecondFactorOTP, expected.GetSecondFactor())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.

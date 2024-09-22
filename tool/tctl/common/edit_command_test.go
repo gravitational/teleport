@@ -282,7 +282,8 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		}
 
 		expected.SetRevision(initial.GetRevision())
-		expected.SetSecondFactor(constants.SecondFactorOTP)
+		expected.SetSecondFactor(constants.SecondFactorOn)
+		expected.SetWebauthn(&types.Webauthn{RPID: "locahost"})
 
 		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())

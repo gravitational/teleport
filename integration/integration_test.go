@@ -1788,7 +1788,6 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 			// Enable web service.
 			cfg := suite.defaultServiceConfig()
 			cfg.Auth.Enabled = true
-			cfg.Auth.Preference.SetSecondFactor("off")
 			cfg.Proxy.DisableWebService = false
 			cfg.Proxy.DisableWebInterface = true
 			cfg.Proxy.Enabled = true
@@ -6254,7 +6253,6 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 				tconf := suite.defaultServiceConfig()
 
 				// Configure Auth.
-				tconf.Auth.Preference.SetSecondFactor("off")
 				tconf.Auth.Enabled = true
 				tconf.Auth.SessionRecordingConfig = recConfig
 
@@ -6382,7 +6380,6 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 				tconf := suite.defaultServiceConfig()
 
 				// Configure Auth.
-				tconf.Auth.Preference.SetSecondFactor("off")
 				tconf.Auth.Enabled = true
 				tconf.Auth.SessionRecordingConfig = recConfig
 
@@ -6503,7 +6500,6 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 				tconf := suite.defaultServiceConfig()
 
 				// Configure Auth.
-				tconf.Auth.Preference.SetSecondFactor("off")
 				tconf.Auth.Enabled = true
 				tconf.Auth.NoAudit = true
 
@@ -6585,7 +6581,6 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 
 		// Configure Auth.
-		tconf.Auth.Preference.SetSecondFactor("off")
 		tconf.Auth.Enabled = true
 		tconf.Auth.SessionRecordingConfig = recConfig
 
@@ -7221,7 +7216,6 @@ func TestWebProxyInsecure(t *testing.T) {
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	// DisableTLS flag should turn off TLS termination and multiplexing.
@@ -7278,7 +7272,6 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = true
 	rcConf.Proxy.DisableWebInterface = true
@@ -7291,7 +7284,6 @@ func TestTraitsPropagation(t *testing.T) {
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
-	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.SSH.Enabled = true
@@ -8355,7 +8347,6 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 
 			rcConf := servicecfg.MakeDefaultConfig()
 			rcConf.DataDir = t.TempDir()
-			rcConf.Auth.Preference.SetSecondFactor("off")
 			rcConf.SSH.Enabled = false
 			rcConf.Proxy.DisableWebInterface = true
 			rcConf.Proxy.DisableTLS = false
@@ -8479,7 +8470,6 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			authCfg.Log = utils.NewLoggerForTests()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-			authCfg.Auth.Preference.SetSecondFactor("off")
 			authCfg.Auth.Enabled = true
 			authCfg.Auth.NoAudit = true
 			authCfg.Proxy.Enabled = false
@@ -8623,7 +8613,6 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	authCfg.Log = utils.NewLoggerForTests()
 	authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	authCfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	authCfg.Auth.Preference.SetSecondFactor("off")
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.NoAudit = true
 	authCfg.Proxy.Enabled = false
