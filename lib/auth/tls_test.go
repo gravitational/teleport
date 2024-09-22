@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1632,7 +1634,36 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	err = testSrv.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
 
-	// success with password set up
+	//  authentication attempt fails with no mfa devices
+	_, err = proxy.AuthenticateWebUser(ctx, req)
+	require.Error(t, err)
+
+	userClient, err := testSrv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
+	mfaChallenge, err := proxy.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: user,
+				Password: pass,
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
+
+	req.Webauthn = wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn())
+
+	// success with password and second factor set up
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 	require.NotEmpty(t, ws)
@@ -1709,6 +1740,15 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	err = testSrv.Auth().UpsertPassword(username, password)
 	require.NoError(t, err)
 
+	userClient, err := testSrv.NewClient(TestUser(username))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
 	// Set search_as_roles, user can request this role only with a resource
 	// access request.
 	resourceRequestRoleName := "resource-requestable"
@@ -1746,11 +1786,27 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	// Create a web session and client for the user.
 	proxyClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+
+	mfaChallenge, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: username,
+				Password: password,
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
+
 	baseWebSession, err := proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: username,
 		Pass: &authclient.PassCreds{
 			Password: password,
 		},
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 	})
 	require.NoError(t, err)
 	proxyClient.Close()
@@ -1903,8 +1959,34 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.Len(t, newUser.GetRoles(), 1)
 	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
 
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
 	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+
+	mfaChallenge, err := proxy.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: user,
+				Password: pass,
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
 
 	// Create a user to create a web session for.
 	req := authclient.AuthenticateUserRequest{
@@ -1912,10 +1994,8 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		Pass: &authclient.PassCreds{
 			Password: pass,
 		},
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 	}
-
-	err = testSrv.Auth().UpsertPassword(user, pass)
-	require.NoError(t, err)
 
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
@@ -2015,8 +2095,34 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, newUser.GetTraits())
 
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
 	proxy, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+
+	mfaChallenge, err := proxy.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: user,
+				Password: []byte(pass),
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
 
 	// Create user authn creds and web session.
 	req := authclient.AuthenticateUserRequest{
@@ -2024,9 +2130,9 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 		Pass: &authclient.PassCreds{
 			Password: pass,
 		},
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 	}
-	err = testSrv.Auth().UpsertPassword(user, pass)
-	require.NoError(t, err)
+
 	ws, err := proxy.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 	web, err := testSrv.NewClientFromWebSession(ws)
@@ -2087,8 +2193,34 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 	require.Len(t, newUser.GetRoles(), 1)
 	require.Empty(t, cmp.Diff(newUser.GetRoles(), []string{"user:user2"}))
 
+	err = testSrv.Auth().UpsertPassword(user, pass)
+	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
 	proxyRoleClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
+
+	mfaChallenge, err := proxyRoleClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: user,
+				Password: pass,
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
 
 	// Create a user to create a web session for.
 	req := authclient.AuthenticateUserRequest{
@@ -2096,15 +2228,13 @@ func TestExtendWebSessionWithMaxDuration(t *testing.T) {
 		Pass: &authclient.PassCreds{
 			Password: pass,
 		},
+		Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 	}
-
-	err = testSrv.Auth().UpsertPassword(user, pass)
-	require.NoError(t, err)
 
 	webSession, err := proxyRoleClient.AuthenticateWebUser(ctx, req)
 	require.NoError(t, err)
 
-	userClient, err := testSrv.NewClientFromWebSession(webSession)
+	userClient, err = testSrv.NewClientFromWebSession(webSession)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -2967,6 +3097,15 @@ func TestCertificateFormat(t *testing.T) {
 	err = testSrv.Auth().UpsertPassword(user.GetName(), pass)
 	require.NoError(t, err)
 
+	clt, err := testSrv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
 	tests := []struct {
 		inRoleCertificateFormat   string
 		inClientCertificateFormat string
@@ -2986,6 +3125,9 @@ func TestCertificateFormat(t *testing.T) {
 		},
 	}
 
+	proxyClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
 	for _, ts := range tests {
 		roleOptions := userRole.GetOptions()
 		roleOptions.CertificateFormat = ts.inRoleCertificateFormat
@@ -2993,8 +3135,19 @@ func TestCertificateFormat(t *testing.T) {
 		userRole, err = testSrv.Auth().UpsertRole(ctx, userRole)
 		require.NoError(t, err)
 
-		proxyClient, err := testSrv.NewClient(TestBuiltin(types.RoleProxy))
-		require.NoError(t, err)
+		mfaChallenge, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+			Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+				UserCredentials: &proto.UserCredentials{
+					Username: user.GetName(),
+					Password: pass,
+				},
+			},
+			ChallengeExtensions: &mfav1.ChallengeExtensions{},
+		})
+		require.NoError(t, err, "Failed to create passwordless challenge")
+
+		chalResp, err := webDev.SolveAuthn(mfaChallenge)
+		require.NoError(t, err, "SolveAuthn failed")
 
 		// authentication attempt fails with password auth only
 		re, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
@@ -3003,6 +3156,7 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &authclient.PassCreds{
 					Password: pass,
 				},
+				Webauthn:     wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 				SSHPublicKey: []byte(sshPubKey),
 				TLSPublicKey: []byte(tlsPubKey),
 			},
@@ -3192,10 +3346,39 @@ func TestLoginAttempts(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, loginAttempts, 1)
 
-	// try second time with wrong pass
+	// try second time with correct password but no second factor
 	req.Pass.Password = pass
 	_, err = proxy.AuthenticateWebUser(ctx, req)
+	require.True(t, trace.IsAccessDenied(err))
+
+	loginAttempts, err = testSrv.Auth().GetUserLoginAttempts(user)
 	require.NoError(t, err)
+	require.Len(t, loginAttempts, 2)
+
+	userClient, err := testSrv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	totpDev, err := RegisterTestDevice(ctx, userClient, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(testSrv.Clock()))
+	require.NoError(t, err)
+
+	webDev, err := RegisterTestDevice(ctx, userClient, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	require.NoError(t, err)
+
+	mfaChallenge, err := proxy.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: &proto.UserCredentials{
+				Username: user,
+				Password: pass,
+			},
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{},
+	})
+	require.NoError(t, err, "Failed to create challenge")
+
+	chalResp, err := webDev.SolveAuthn(mfaChallenge)
+	require.NoError(t, err, "SolveAuthn failed")
+
+	req.Webauthn = wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn())
 
 	// clears all failed attempts after success
 	loginAttempts, err = testSrv.Auth().GetUserLoginAttempts(user)

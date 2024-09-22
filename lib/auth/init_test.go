@@ -490,6 +490,7 @@ func TestAuthPreference(t *testing.T) {
 		setDynamic: func(t *testing.T, authServer *Server) {
 			dynamically, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
 			})
 			require.NoError(t, err)
 			_, err = authServer.UpsertAuthPreference(ctx, dynamically)
@@ -504,16 +505,15 @@ func TestAuthPreference(t *testing.T) {
 }
 
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
-	modules.SetInsecureTestMode(false)
-	defer modules.SetInsecureTestMode(true)
 	ctx := context.Background()
 
 	t.Run("starting with second_factor disabled fails", func(t *testing.T) {
 		conf := setupConfig(t)
 		authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOn,
+			SecondFactor: constants.SecondFactorOTP,
 		})
 		require.NoError(t, err)
+		authPref.SetSecondFactor("off")
 
 		conf.AuthPreference = authPref
 		_, err = Init(ctx, conf)
@@ -525,9 +525,10 @@ func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 		s, err := Init(ctx, conf)
 		require.NoError(t, err)
 		authpref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-			SecondFactor: constants.SecondFactorOn,
+			SecondFactor: constants.SecondFactorOTP,
 		})
 		require.NoError(t, err)
+		authpref.SetSecondFactor("off")
 		_, err = s.UpsertAuthPreference(ctx, authpref)
 		require.Error(t, err)
 	})
@@ -1623,7 +1624,7 @@ kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factor: otp
   type: local
 version: v2
 `

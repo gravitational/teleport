@@ -296,19 +296,6 @@ func TestCreatePrivilegeToken(t *testing.T) {
 	clt, err := srv.NewClient(TestUser(username))
 	require.NoError(t, err)
 
-	// Test a failure when second factor isn't enabled.
-	_, err = clt.CreatePrivilegeToken(ctx, &proto.CreatePrivilegeTokenRequest{})
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Enable second factor.
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
-	require.NoError(t, err)
-
 	tests := []struct {
 		name      string
 		tokenType string

@@ -117,7 +117,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.AuthPreferenceSpec == nil {
 		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorWebauthn,
+			SecondFactor: constants.SecondFactorOn,
 			Webauthn: &types.Webauthn{
 				RPID: "localhost",
 			},
@@ -658,6 +658,8 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			renewable:        identity.Renewable,
 			generation:       identity.Generation,
 			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
+			pinIP:            id.Identity.PinnedIP != "",
+			loginIP:          id.Identity.PinnedIP,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

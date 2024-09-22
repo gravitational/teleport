@@ -452,13 +452,13 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t,
 					err,
-					"last passwordless credential",
+					"cannot delete the last MFA device",
 					"Unexpected error deleting last passwordless device",
 				)
 			},
 		},
 		{
-			name: "succeeds when passwordless is off",
+			name: "fails when passwordless is off",
 			setup: func(t *testing.T, _ string, _ *authclient.Client, _ *TestDevice) {
 				authPref, err := authServer.GetAuthPreference(ctx)
 				require.NoError(t, err, "GetAuthPreference")
@@ -468,7 +468,7 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 				_, err = authServer.UpsertAuthPreference(ctx, authPref)
 				require.NoError(t, err, "UpsertAuthPreference")
 			},
-			checkErr: require.NoError,
+			checkErr: require.Error,
 		},
 		{
 			name: "succeeds when there is a password and other WebAuthn MFAs",

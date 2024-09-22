@@ -89,18 +89,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		assertChallenge func(*proto.MFAAuthenticateChallenge)
 	}{
 		{
-			name: "OK second_factor:off",
-			spec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-			},
-			createReq: reqUserPassword,
-			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
-				require.Empty(t, challenge.GetTOTP())
-				require.Empty(t, challenge.GetWebauthnChallenge())
-			},
-		},
-		{
 			name: "OK second_factor:otp",
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
@@ -903,10 +891,11 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	// authenticate function.
 	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
-			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
+			err := authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
 				Pass:     &authclient.PassCreds{Password: []byte("it's full of stars!")},
-			}))
+			})
+			require.ErrorIs(t, err, trace.AccessDenied("missing second factor"))
 		}
 	}
 	t.Run("ssh single key", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
@@ -1016,18 +1005,18 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
-	const username = "bowman"
-	const password = "it's full of stars!"
-	_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+	mfa := configureForMFA(t, testServer)
+
+	// Authentication happens through the Proxy identity.
+	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
-	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
 	// makeRun is used to test both SSH and Web login by switching the
 	// authenticate function.
 	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
-			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+			u, err := authServer.Identity.UpdateAndSwapUser(ctx, mfa.User, false, /* withSecrets */
 				func(u types.User) (bool, error) {
 					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 					return true, nil
@@ -1035,16 +1024,31 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSPECIFIED, u.GetPasswordState())
 
+			mfaChallenge, err := proxyClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+				Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+					UserCredentials: &proto.UserCredentials{
+						Username: mfa.User,
+						Password: []byte(mfa.Password),
+					},
+				},
+				ChallengeExtensions: &mfav1.ChallengeExtensions{},
+			})
+			require.NoError(t, err, "Failed to create passwordless challenge")
+
+			chalResp, err := mfa.WebDev.SolveAuthn(mfaChallenge)
+			require.NoError(t, err, "SolveAuthn failed")
+
 			// Finish login - either SSH or Web
 			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
-				Username: "bowman",
+				Username: mfa.User,
 				Pass: &authclient.PassCreds{
-					Password: []byte("it's full of stars!"),
+					Password: []byte(mfa.Password),
 				},
+				Webauthn: wantypes.CredentialAssertionResponseFromProto(chalResp.GetWebauthn()),
 			}))
 
 			// Verify that the password state has been changed.
-			u, err = authServer.GetUser(ctx, username, false /* withSecrets */)
+			u, err = authServer.GetUser(ctx, mfa.User, false /* withSecrets */)
 			require.NoError(t, err)
 			assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, u.GetPasswordState())
 		}
@@ -1522,33 +1526,6 @@ func TestSSOPasswordBypass(t *testing.T) {
 				// We only care about the error here, it's OK to swallow the session.
 				_, err := proxyClient.AuthenticateWebUser(ctx, req.AuthenticateUserRequest)
 				return nil, err
-			},
-		},
-		{
-			name: "password only",
-			setSecondFactor: func(t *testing.T, req *authclient.AuthenticateSSHRequest) {
-				beforePref, err := authServer.GetAuthPreference(ctx)
-				require.NoError(t, err, "GetAuthPreference")
-
-				// Disable second factors.
-				authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOn,
-				})
-				require.NoError(t, err, "NewAuthPreference failed")
-				_, err = authServer.UpsertAuthPreference(ctx, authPref)
-				require.NoError(t, err, "UpdateAuthPreference failed")
-
-				// Reset after test.
-				t.Cleanup(func() {
-					_, err := authServer.UpsertAuthPreference(ctx, beforePref)
-					assert.NoError(t, err, "UpsertAuthPreference failed, AuthPreference not restored")
-				})
-
-				// Password-only auth.
-				req.Pass = &authclient.PassCreds{
-					Password: []byte(mfa.Password),
-				}
 			},
 		},
 	}

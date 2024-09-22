@@ -38,14 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -139,7 +139,7 @@ func TestPasswordLengthChange(t *testing.T) {
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOn,
+		SecondFactor: constants.SecondFactorOTP,
 	})
 	require.NoError(t, err)
 
@@ -177,17 +177,7 @@ func TestChangePassword(t *testing.T) {
 	req.NewPassword = []byte("defceba654321")
 
 	err = s.a.ChangePassword(ctx, req)
-	require.NoError(t, err)
-	require.Equal(t, events.UserPasswordChangeEvent, s.mockEmitter.LastEvent().GetType())
-	require.Equal(t, "user1", s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
-	s.shouldLockAfterFailedAttempts(t, req)
-
-	// advance time and make sure we can login again
-	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
-	req.OldPassword = req.NewPassword
-	req.NewPassword = []byte("123456abcdef")
-	err = s.a.ChangePassword(ctx, req)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, trace.AccessDenied("missing second factor"))
 }
 
 func TestChangePasswordWithOTP(t *testing.T) {
@@ -498,24 +488,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 		getInvalidReq     func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest
 	}{
 		{
-			name: "with second factor off and password only",
-			setAuthPreference: func(t *testing.T) {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOn,
-				})
-				require.NoError(t, err)
-				_, err = authServer.UpsertAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:     resetTokenID,
-					NewPassword: []byte("password1357"),
-				}
-			},
-		},
-		{
 			name: "with second factor otp",
 			setAuthPreference: func(t *testing.T) {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -677,27 +649,6 @@ func TestChangeUserAuthentication(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "with second factor optional and no second factor",
-			setAuthPreference: func(t *testing.T) {
-				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOn,
-					Webauthn: &types.Webauthn{
-						RPID: "localhost",
-					},
-				})
-				require.NoError(t, err)
-				_, err = authServer.UpsertAuthPreference(ctx, authPreference)
-				require.NoError(t, err)
-			},
-			getReq: func(t *testing.T, resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				return &proto.ChangeUserAuthenticationRequest{
-					TokenID:     resetTokenID,
-					NewPassword: []byte("password5791"),
-				}
-			},
-		},
 	}
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
@@ -783,7 +734,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			secondFactor: constants.SecondFactorOn,
+			secondFactor: constants.SecondFactorOTP,
 			desc:         "invalid tokenID value",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     "what_token",
@@ -791,7 +742,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 			},
 		},
 		{
-			secondFactor: constants.SecondFactorOn,
+			secondFactor: constants.SecondFactorOTP,
 			desc:         "invalid password",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     validTokenID,
@@ -830,12 +781,33 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOn)
+	authPreference.SetWebauthn(&types.Webauthn{RPID: "localhost"})
 	_, err = s.a.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
+	// Configure user device.
+	origin := "https://localhost"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	res, err := s.a.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     validTokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
 	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -843,6 +815,11 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
+			},
+		},
 	})
 	require.Error(t, err)
 }
@@ -910,6 +887,7 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: secondFactorType,
+		Webauthn:     &types.Webauthn{RPID: "localhost"},
 	})
 	if err != nil {
 		return req, err
