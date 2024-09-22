@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -533,7 +534,7 @@ func (a *authorizer) isAdminActionAuthorizationRequired(ctx context.Context, aut
 	}
 
 	// Check if this cluster enforces MFA for admin actions.
-	if !authpref.IsAdminActionMFAEnforced() {
+	if !authpref.IsAdminActionMFAEnforced() || modules.IsInsecureTestMode() {
 		return false, nil
 	}
 

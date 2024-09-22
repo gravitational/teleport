@@ -450,7 +450,7 @@ var (
 )
 
 // SetInsecureTestMode is used to set insecure test mode on, to allow
-// second factor to be disabled
+// admin actions to be bypassed.
 func SetInsecureTestMode(m bool) {
 	flagLock.Lock()
 	defer flagLock.Unlock()
