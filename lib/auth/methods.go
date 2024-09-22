@@ -335,7 +335,12 @@ func (a *Server) authenticateUserInternal(
 	}
 
 	// Try 2nd-factor-enabled authentication schemes first.
-	var authenticateFn func() (*types.MFADevice, error)
+	missing2FAError := trace.AccessDenied("missing second factor")
+	authenticateFn := func() (*types.MFADevice, error) {
+		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+		return nil, missing2FAError
+	}
+
 	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
@@ -369,41 +374,34 @@ func (a *Server) authenticateUserInternal(
 			return res.mfaDev, nil
 		}
 		authErr = authclient.InvalidUserPass2FError
+	default:
+		// Some form of MFA is required but none provided. Either client is
+		// buggy (didn't send MFA response) or someone is trying to bypass
+		// MFA.
+		authErr = missing2FAError
 	}
-	if authenticateFn != nil {
-		err := a.WithUserLock(ctx, user, func() error {
-			var err error
-			mfaDev, err = authenticateFn()
-			return err
-		})
-		switch {
-		case err != nil:
-			log.Debugf("User %v failed to authenticate: %v.", user, err)
-			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
-				return nil, "", trace.Wrap(fieldErr)
-			}
 
-			return nil, "", trace.Wrap(authErr)
-		case mfaDev == nil:
-			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
-				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
-			return nil, "", trace.Wrap(authErr)
-		default:
-			return mfaDev, user, nil
+	err = a.WithUserLock(ctx, user, func() error {
+		var err error
+		mfaDev, err = authenticateFn()
+		return err
+	})
+	switch {
+	case err != nil:
+		log.Debugf("User %v failed to authenticate: %v.", user, err)
+		if fieldErr := getErrorByTraceField(err); fieldErr != nil {
+			return nil, "", trace.Wrap(fieldErr)
 		}
-	}
 
-	// Try password-only authentication last.
-	if req.Pass == nil {
-		return nil, "", trace.AccessDenied("unsupported authentication method")
+		return nil, "", trace.Wrap(authErr)
+	case mfaDev == nil:
+		log.Debugf(
+			"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
+			req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
+		return nil, "", trace.Wrap(authErr)
+	default:
+		return mfaDev, user, nil
 	}
-
-	// Some form of MFA is required but none provided. Either client is
-	// buggy (didn't send MFA response) or someone is trying to bypass
-	// MFA.
-	log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-	return nil, "", trace.AccessDenied("missing second factor")
 }
 
 func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.AuthenticateUserRequest) (*types.MFADevice, string, error) {
