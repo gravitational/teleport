@@ -46,26 +46,11 @@ To prepare a Windows computer:
    $ curl.exe -fo teleport.cer <Var name="https://teleport.example.com"/>/webapi/auth/export?type=windows
    ```
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Teleport Community Edition/Teleport Enterprise">
-
 3. Download the Teleport Windows Auth setup program:
 
 ```code
 $ curl.exe -fo teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe
 ```
-
-</TabItem>
-<TabItem label="Teleport Enterprise Cloud">
-
-3. Download the Teleport Windows Auth setup program:
-
-```code
-$ curl.exe -fo teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe https://cdn.teleport.dev/teleport-windows-auth-setup-v(=cloud.version=)-amd64.exe
-```
-
-</TabItem>
-</Tabs>
 
 4. Double-click the executable you downloaded to run the Teleport Windows Auth Setup program
 interactively and select the Teleport certificate that you exported when prompted.
@@ -85,7 +70,7 @@ If you want to automate the installation process, you can run the setup program 
 an administrative Command Prompt or PowerShell console with the following command:
 
 ```code
-$ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
+$ teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe install --cert=teleport.cer -r
 ```
 
 ## Step 2/4. Configure the Windows Desktop Service
