@@ -21,12 +21,12 @@ package kubernetes
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -172,7 +172,7 @@ func NewSharedWithClient(restClient kubernetes.Interface) (*Backend, error) {
 	ident := os.Getenv(ReleaseNameEnv)
 	if ident == "" {
 		ident = "teleport"
-		log.Warnf("Var %q is not set, falling back to default identifier %q for shared store.", ReleaseNameEnv, ident)
+		slog.WarnContext(context.Background(), "Var RELEASE_NAME is not set, falling back to default identifier teleport for shared store.")
 	}
 
 	return NewWithConfig(
