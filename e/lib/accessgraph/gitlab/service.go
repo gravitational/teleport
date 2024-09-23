@@ -320,6 +320,13 @@ func (s *Service) reconcileAccessGraph(ctx context.Context, currentTAGResources 
 		errPoll = &pollError{err: errPoll}
 	}
 
+	// if result is nil, it means Teleport couldn't retrieve the resources
+	// from Gitlab due to a connection problem or misconfiguration.
+	// If an error exists, we don't reconcile.
+	if result == nil {
+		return trace.Wrap(errPoll)
+	}
+
 	upsert, toDel := reconcileResults(currentTAGResources, result)
 	errPush := push(stream, upsert, toDel)
 	if errPush != nil {
