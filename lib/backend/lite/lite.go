@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/mattn/go-sqlite3"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -250,18 +250,18 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 	l := &Backend{
 		Config: cfg,
 		db:     db,
-		Entry:  log.WithFields(log.Fields{teleport.ComponentKey: BackendName}),
+		logger: slog.With(teleport.ComponentKey, BackendName),
 		clock:  cfg.Clock,
 		buf:    buf,
 		ctx:    closeCtx,
 		cancel: cancel,
 	}
-	l.Debugf("Connected to: %v, poll stream period: %v", connectionURI, cfg.PollStreamPeriod)
+	l.logger.DebugContext(ctx, "Connected to database", "database", connectionURI, "poll_stream_period", cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
 		return nil, trace.Wrap(err, "error creating schema: %v", connectionURI)
 	}
 	if err := l.showPragmas(); err != nil {
-		l.Warningf("Failed to show pragma settings: %v.", err)
+		l.logger.WarnContext(ctx, "Failed to show pragma settings", "error", err)
 	}
 	go l.runPeriodicOperations()
 	return l, nil
@@ -270,8 +270,8 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 // Backend uses SQLite to implement storage interfaces
 type Backend struct {
 	Config
-	*log.Entry
-	db *sql.DB
+	logger *slog.Logger
+	db     *sql.DB
 	// clock is used to generate time,
 	// could be swapped in tests for fixed time
 	clock clockwork.Clock
@@ -307,7 +307,7 @@ func (l *Backend) showPragmas() error {
 		if err := row.Scan(&busyTimeout); err != nil {
 			return trace.Wrap(err)
 		}
-		l.Debugf("journal_mode=%v, synchronous=%v, busy_timeout=%v", journalMode, synchronous, busyTimeout)
+		l.logger.DebugContext(l.ctx, "retrieved pragma values", "journal_mode", journalMode, "synchronous", synchronous, "busy_timeout", busyTimeout)
 		return nil
 	})
 }
@@ -340,14 +340,14 @@ func (l *Backend) createSchema() error {
 
 	for _, schema := range schemas {
 		if _, err := l.db.ExecContext(l.ctx, schema); err != nil {
-			l.Errorf("Failing schema step: %v, %v.", schema, err)
+			l.logger.ErrorContext(l.ctx, "Failed schema step", "step", schema, "error", err)
 			return trace.Wrap(err)
 		}
 	}
 
 	for table, column := range map[string]string{"kv": "revision", "events": "kv_revision"} {
 		if err := l.migrateRevision(table, column); err != nil {
-			l.Errorf("Failing schema step: %s.%s, %v.", table, column, err)
+			l.logger.WarnContext(l.ctx, "Failed schema migration", "table", table, "column", column, "error", err)
 			return trace.Wrap(err)
 		}
 	}
@@ -674,7 +674,7 @@ func (l *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 		return nil, trace.Wrap(err)
 	}
 	if len(result.Items) == backend.DefaultRangeLimit {
-		l.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+		l.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
 	return &result, nil
 }
@@ -943,7 +943,7 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	defer func() {
 		diff := time.Since(start)
 		if diff > slowTransactionThreshold {
-			l.Warningf("SLOW TRANSACTION: %v, %v.", diff, string(debug.Stack()))
+			l.logger.WarnContext(ctx, "SLOW TRANSACTION", "duration", diff, "stack", string(debug.Stack()))
 		}
 	}()
 	tx, err := l.db.BeginTx(ctx, nil)
@@ -958,10 +958,10 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			l.Errorf("Unexpected panic in inTransaction: %v, trying to rollback.", r)
+			l.logger.ErrorContext(ctx, "Unexpected panic in inTransaction, trying to rollback.", "error", r)
 			err = trace.BadParameter("panic: %v", r)
 			if e2 := rollback(); e2 != nil {
-				l.Errorf("Failed to rollback: %v.", e2)
+				l.logger.ErrorContext(ctx, "Failed to rollback", "error", e2)
 			}
 			return
 		}
@@ -981,10 +981,10 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 			}
 			if !l.isClosed() {
 				if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
-					l.Warningf("Unexpected error in inTransaction: %v, rolling back.", trace.DebugReport(err))
+					l.logger.WarnContext(ctx, "Unexpected error in inTransaction, rolling back.", "error", err)
 				}
 				if e2 := rollback(); e2 != nil {
-					l.Errorf("Failed to rollback too: %v.", e2)
+					l.logger.ErrorContext(ctx, "Failed to rollback too", "error", e2)
 				}
 			}
 			return
