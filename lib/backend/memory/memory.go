@@ -21,13 +21,13 @@ package memory
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -98,10 +98,8 @@ func New(cfg Config) (*Memory, error) {
 	)
 	buf.SetInit()
 	m := &Memory{
-		Mutex: &sync.Mutex{},
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentMemory,
-		}),
+		Mutex:  &sync.Mutex{},
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentMemory),
 		Config: cfg,
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
 			return a.Less(b)
@@ -117,7 +115,7 @@ func New(cfg Config) (*Memory, error) {
 // Memory is a memory B-Tree based backend
 type Memory struct {
 	*sync.Mutex
-	*log.Entry
+	logger *slog.Logger
 	Config
 	// tree is a BTree with items
 	tree *btree.BTreeG[*btreeItem]
@@ -308,7 +306,7 @@ func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, lim
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, limit)
 	if len(re.Items) == backend.DefaultRangeLimit {
-		m.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+		m.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
 	return &re, nil
 }
@@ -474,7 +472,7 @@ func (m *Memory) removeExpired() int {
 		}
 		m.heap.PopEl()
 		m.tree.Delete(item)
-		m.Debugf("Removed expired %v %v item.", string(item.Key), item.Expires)
+		m.logger.DebugContext(m.ctx, "Removed expired item.", "key", item.Key.String(), "epiry", item.Expires)
 		removed++
 
 		event := backend.Event{
@@ -488,7 +486,7 @@ func (m *Memory) removeExpired() int {
 		}
 	}
 	if removed > 0 {
-		m.Debugf("Removed %v expired items.", removed)
+		m.logger.DebugContext(m.ctx, "Removed expired items.", "num_expired", removed)
 	}
 	return removed
 }
