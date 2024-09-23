@@ -24,13 +24,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
 func TestMakeLabels(t *testing.T) {
 	type testCase struct {
 		name      string
 		labelMaps []map[string]string
-		expected  []Label
+		expected  []ui.Label
 	}
 
 	testCases := []testCase{
@@ -41,7 +42,7 @@ func TestMakeLabels(t *testing.T) {
 					"label1": "value1",
 				},
 			},
-			expected: []Label{
+			expected: []ui.Label{
 				{
 					Name:  "label1",
 					Value: "value1",
@@ -56,7 +57,7 @@ func TestMakeLabels(t *testing.T) {
 					"label2": "value2",
 				},
 			},
-			expected: []Label{
+			expected: []ui.Label{
 				{
 					Name:  "label1",
 					Value: "value1",
@@ -77,7 +78,7 @@ func TestMakeLabels(t *testing.T) {
 					"label2": "value2",
 				},
 			},
-			expected: []Label{
+			expected: []ui.Label{
 				{
 					Name:  "label1",
 					Value: "value1",
@@ -100,7 +101,7 @@ func TestMakeLabels(t *testing.T) {
 					"teleport.internal/label4": "value4",
 				},
 			},
-			expected: []Label{
+			expected: []ui.Label{
 				{
 					Name:  "label1",
 					Value: "value1",
@@ -123,7 +124,7 @@ func TestMakeLabels(t *testing.T) {
 					"teleport.hidden/label4": "value4",
 				},
 			},
-			expected: []Label{
+			expected: []ui.Label{
 				{
 					Name:  "label1",
 					Value: "value1",
@@ -138,7 +139,7 @@ func TestMakeLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			labels := MakeUILabelsWithoutInternalPrefixes(tc.labelMaps...)
+			labels := ui.MakeLabelsWithoutInternalPrefixes(tc.labelMaps...)
 
 			require.Equal(t, tc.expected, labels)
 		})

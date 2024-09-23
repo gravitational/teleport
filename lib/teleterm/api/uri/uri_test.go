@@ -46,7 +46,7 @@ func TestString(t *testing.T) {
 		},
 		{
 			uri.NewClusterURI("teleport.sh").AppendKubeResourceNamespace("kube-cluster-name", "namespace-name"),
-			"/clusters/teleport.sh/kube-resources/namespace/kube-cluster-name/namespace-name",
+			"/clusters/teleport.sh/kubes/kube-cluster-name/namespaces/namespace-name",
 		},
 	}
 

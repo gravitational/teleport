@@ -48,8 +48,7 @@ message KubeResource {
   // eg: the kube cluster that a namespace belongs to
   string cluster = 5;
   // namespace is the kube namespace where the resource is located
-  // note:
-  //  this field will be blank if this resource "kind" is "namespace",
-  //  refer to field "name" for the name of namespace
+  // note: this field will be blank if this resource "kind" is "namespace",
+  // refer to field "name" for the name of namespace
   string namespace = 6;
 }

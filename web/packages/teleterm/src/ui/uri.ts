@@ -98,9 +98,9 @@ export const paths = {
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
   kubeResourceNamespace:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kube-resources/namespace/:kubeId/:namespaceId',
+    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId/namespaces/:kubeNamespaceId',
   kubeResourceNamespaceLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId/kube-resources/namespace/:kubeId/:namespaceId',
+    '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId/namespaces/:kubeNamespaceId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   app: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/apps/:appId',
@@ -245,7 +245,7 @@ export const routing = {
     }
   },
 
-  getKubeResourceUri(params: KubeResourceNamespaceParam) {
+  getKubeResourceUri(params: Params) {
     if (params.leafClusterId) {
       // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
       // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
@@ -317,7 +317,7 @@ export type Params = {
   leafClusterId?: string;
   serverId?: string;
   kubeId?: string;
-  namespaceId?: string;
+  kubeNamespaceId?: string;
   dbId?: string;
   gatewayId?: string;
   tabId?: string;
@@ -325,6 +325,3 @@ export type Params = {
   docId?: string;
   appId?: string;
 };
-
-export type KubeResourceNamespaceParam = Partial<Params> &
-  Required<Pick<Params, 'kubeId' | 'namespaceId'>>;

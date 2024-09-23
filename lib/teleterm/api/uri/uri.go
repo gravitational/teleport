@@ -32,8 +32,8 @@ var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
 var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
-var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kube-resources/namespace/:kubeName/:namespaceName")
-var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kube-resources/namespace/:kubeName/:namespaceName")
+var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/namespaces/:kubeNamespaceName")
+var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
 
@@ -128,12 +128,12 @@ func (r ResourceURI) GetKubeName() string {
 func (r ResourceURI) GetKubeResourceNamespace() string {
 	result, ok := pathKubeResourceNamespace.Match(r.path)
 	if ok {
-		return result.Params["namespaceName"]
+		return result.Params["kubeNamespaceName"]
 	}
 
 	result, ok = pathLeafKubeResourceNamespace.Match(r.path)
 	if ok {
-		return result.Params["namespaceName"]
+		return result.Params["kubeNamespaceName"]
 	}
 
 	return ""
@@ -207,8 +207,8 @@ func (r ResourceURI) AppendKube(name string) ResourceURI {
 }
 
 // AppendKubeResourceNamespace appends kube resource namespace segment to the URI.
-func (r ResourceURI) AppendKubeResourceNamespace(kubeClusterName string, namespaceName string) ResourceURI {
-	r.path = fmt.Sprintf("%v/kube-resources/namespace/%v/%v", r.path, kubeClusterName, namespaceName)
+func (r ResourceURI) AppendKubeResourceNamespace(kubeClusterName string, kubeNamespaceName string) ResourceURI {
+	r.path = fmt.Sprintf("%v/kubes/%v/namespaces/%v", r.path, kubeClusterName, kubeNamespaceName)
 	return r
 }
 

@@ -823,22 +823,18 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	}
 
 	var proxyGRPCClient kubeproto.KubeServiceClient
-
-	err = clusters.AddMetadataToRetryableError(ctx, func() error {
-		proxyGRPCClient, err = tc.NewKubernetesServiceClient(ctx, cluster.Name)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	var resources *kubeproto.ListKubernetesResourcesResponse
 
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyGRPCClient, err = tc.NewKubernetesServiceClient(ctx, cluster.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		resources, err = proxyGRPCClient.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
 			ResourceType:        req.GetResourceType(),
 			Limit:               req.GetLimit(),
-			StartKey:            req.GetStartKey(),
+			StartKey:            req.GetNextKey(),
 			PredicateExpression: req.GetPredicateExpression(),
 			SearchKeywords:      client.ParseSearchKeywords(req.GetSearchKeywords(), ' '),
 			UseSearchAsRoles:    req.GetUseSearchAsRoles(),

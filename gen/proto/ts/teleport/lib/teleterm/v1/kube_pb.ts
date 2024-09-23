@@ -95,9 +95,8 @@ export interface KubeResource {
     cluster: string;
     /**
      * namespace is the kube namespace where the resource is located
-     * note:
-     *  this field will be blank if this resource "kind" is "namespace",
-     *  refer to field "name" for the name of namespace
+     * note: this field will be blank if this resource "kind" is "namespace",
+     * refer to field "name" for the name of namespace
      *
      * @generated from protobuf field: string namespace = 6;
      */

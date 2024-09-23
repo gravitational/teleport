@@ -366,13 +366,13 @@ export interface ListKubernetesResourcesRequest {
      */
     limit: number;
     /**
-     * StartKey is used to start listing resources from a specific spot. It
+     * NextKey is used to start listing resources from a specific spot. It
      * should be set to the previous NextKey value if using pagination, or
      * left empty.
      *
-     * @generated from protobuf field: string start_key = 4;
+     * @generated from protobuf field: string next_key = 4;
      */
-    startKey: string;
+    nextKey: string;
     /**
      * PredicateExpression defines boolean conditions that will be matched against the resource.
      *
@@ -411,13 +411,13 @@ export interface ListKubernetesResourcesRequest {
  */
 export interface ListKubernetesResourcesResponse {
     /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource items = 1;
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource resources = 1;
      */
-    items: KubeResource[];
+    resources: KubeResource[];
     /**
-     * @generated from protobuf field: string start_key = 2;
+     * @generated from protobuf field: string next_key = 2;
      */
-    startKey: string;
+    nextKey: string;
 }
 /**
  * CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -2493,7 +2493,7 @@ class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesReso
             { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 4, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 5, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "search_keywords", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
@@ -2506,7 +2506,7 @@ class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesReso
         message.clusterUri = "";
         message.resourceType = "";
         message.limit = 0;
-        message.startKey = "";
+        message.nextKey = "";
         message.predicateExpression = "";
         message.searchKeywords = "";
         message.useSearchAsRoles = false;
@@ -2530,8 +2530,8 @@ class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesReso
                 case /* int32 limit */ 3:
                     message.limit = reader.int32();
                     break;
-                case /* string start_key */ 4:
-                    message.startKey = reader.string();
+                case /* string next_key */ 4:
+                    message.nextKey = reader.string();
                     break;
                 case /* string predicate_expression */ 5:
                     message.predicateExpression = reader.string();
@@ -2569,9 +2569,9 @@ class ListKubernetesResourcesRequest$Type extends MessageType<ListKubernetesReso
         /* int32 limit = 3; */
         if (message.limit !== 0)
             writer.tag(3, WireType.Varint).int32(message.limit);
-        /* string start_key = 4; */
-        if (message.startKey !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.startKey);
+        /* string next_key = 4; */
+        if (message.nextKey !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.nextKey);
         /* string predicate_expression = 5; */
         if (message.predicateExpression !== "")
             writer.tag(5, WireType.LengthDelimited).string(message.predicateExpression);
@@ -2601,14 +2601,14 @@ export const ListKubernetesResourcesRequest = new ListKubernetesResourcesRequest
 class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesResourcesResponse> {
     constructor() {
         super("teleport.lib.teleterm.v1.ListKubernetesResourcesResponse", [
-            { no: 1, name: "items", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource },
-            { no: 2, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeResource },
+            { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<ListKubernetesResourcesResponse>): ListKubernetesResourcesResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.items = [];
-        message.startKey = "";
+        message.resources = [];
+        message.nextKey = "";
         if (value !== undefined)
             reflectionMergePartial<ListKubernetesResourcesResponse>(this, message, value);
         return message;
@@ -2618,11 +2618,11 @@ class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesRes
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.KubeResource items */ 1:
-                    message.items.push(KubeResource.internalBinaryRead(reader, reader.uint32(), options));
+                case /* repeated teleport.lib.teleterm.v1.KubeResource resources */ 1:
+                    message.resources.push(KubeResource.internalBinaryRead(reader, reader.uint32(), options));
                     break;
-                case /* string start_key */ 2:
-                    message.startKey = reader.string();
+                case /* string next_key */ 2:
+                    message.nextKey = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2636,12 +2636,12 @@ class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesRes
         return message;
     }
     internalBinaryWrite(message: ListKubernetesResourcesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.KubeResource items = 1; */
-        for (let i = 0; i < message.items.length; i++)
-            KubeResource.internalBinaryWrite(message.items[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* string start_key = 2; */
-        if (message.startKey !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.startKey);
+        /* repeated teleport.lib.teleterm.v1.KubeResource resources = 1; */
+        for (let i = 0; i < message.resources.length; i++)
+            KubeResource.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_key = 2; */
+        if (message.nextKey !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextKey);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
