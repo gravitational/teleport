@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"os"
 	"sort"
 	"strconv"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -149,8 +149,8 @@ var (
 )
 
 type EtcdBackend struct {
-	nodes []string
-	*log.Entry
+	nodes       []string
+	logger      *slog.Logger
 	cfg         *Config
 	clients     *utils.RoundRobin[*clientv3.Client]
 	cancelC     chan bool
@@ -278,7 +278,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	b := &EtcdBackend{
-		Entry:       log.WithFields(log.Fields{teleport.ComponentKey: GetName()}),
+		logger:      slog.With(teleport.ComponentKey, GetName()),
 		cfg:         cfg,
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),
@@ -433,7 +433,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	if b.clients != nil {
 		b.clients.ForEach(func(clt *clientv3.Client) {
 			if err := clt.Close(); err != nil {
-				b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+				b.logger.WarnContext(ctx, "Failed closing existing etcd client on reconnect.", "error", err)
 			}
 		})
 
@@ -509,7 +509,7 @@ WatchEvents:
 	for b.ctx.Err() == nil {
 		err = b.watchEvents(b.ctx)
 
-		b.Debugf("Watch exited: %v", err)
+		b.logger.DebugContext(b.ctx, "Watch exited", "error", err)
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
@@ -518,7 +518,7 @@ WatchEvents:
 			break WatchEvents
 		}
 	}
-	b.Debugf("Watch stopped: %v.", trace.NewAggregate(err, b.ctx.Err()))
+	b.logger.DebugContext(b.ctx, "Watch stopped", "error", trace.NewAggregate(err, b.ctx.Err()))
 }
 
 // eventResult is used to ferry the result of event processing
@@ -592,7 +592,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			select {
 			case r := <-q.Pop():
 				if r.err != nil {
-					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
+					b.logger.ErrorContext(ctx, "Failed to unmarshal event", "event", r.original, "error", r.err)
 					continue EmitEvents
 				}
 				b.buf.Emit(r.event)
@@ -627,7 +627,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 
 				// limit backlog warnings to once per minute to prevent log spam.
 				if now := time.Now(); now.After(lastBacklogWarning.Add(time.Minute)) {
-					b.Warnf("Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
+					b.logger.WarnContext(ctx, "Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
 					lastBacklogWarning = now
 				}
 
