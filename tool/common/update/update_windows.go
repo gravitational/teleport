@@ -26,7 +26,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -146,8 +145,8 @@ func lock(dir string) (func(), error) {
 }
 
 // sendInterrupt sends a Ctrl-Break event to the process.
-func sendInterrupt(cmd *exec.Cmd) error {
-	r, _, err := ctrlEvent.Call(uintptr(syscall.CTRL_BREAK_EVENT), uintptr(cmd.Process.Pid))
+func sendInterrupt(pid int) error {
+	r, _, err := ctrlEvent.Call(uintptr(syscall.CTRL_BREAK_EVENT), uintptr(pid))
 	if r == 0 {
 		return trace.Wrap(err)
 	}

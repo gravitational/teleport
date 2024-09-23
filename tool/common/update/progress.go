@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	ErrCancelled = fmt.Errorf("cancelled")
+	ErrCanceled = fmt.Errorf("canceled")
 )
 
 // cancelableTeeReader is a copy of TeeReader with ability to react on signal notifier
@@ -48,7 +48,7 @@ type teeReader struct {
 func (t *teeReader) Read(p []byte) (n int, err error) {
 	select {
 	case <-t.sigs:
-		return 0, ErrCancelled
+		return 0, ErrCanceled
 	default:
 		n, err = t.r.Read(p)
 		if n > 0 {

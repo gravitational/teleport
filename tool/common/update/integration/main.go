@@ -40,7 +40,7 @@ func main() {
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
 		err := update.Download(toolsVersion)
-		if errors.Is(err, update.ErrCancelled) {
+		if errors.Is(err, update.ErrCanceled) {
 			os.Exit(0)
 			return
 		}

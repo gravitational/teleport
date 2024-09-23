@@ -41,7 +41,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,6 +121,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	)
 	err = cmd.Start()
 	require.NoError(t, err, "failed to start updater")
+	pid := cmd.Process.Pid
 
 	errChan := make(chan error)
 	go func() {
@@ -142,7 +142,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		t.Errorf("failed to wait till the download is started")
 	case <-lock:
 		time.Sleep(100 * time.Millisecond)
-		require.NoError(t, sendInterrupt(cmd))
+		require.NoError(t, sendInterrupt(pid))
 		lock <- struct{}{}
 	}
 
@@ -257,6 +257,9 @@ func generateZipFile(filePath, destPath string) error {
 	defer zipWriter.Close()
 
 	return filepath.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if info.IsDir() {
 			return nil
 		}
@@ -292,6 +295,9 @@ func generateTarGzFile(filePath, destPath string) error {
 	defer tarWriter.Close()
 
 	return filepath.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if info.IsDir() {
 			return nil
 		}

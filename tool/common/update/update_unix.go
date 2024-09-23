@@ -4,14 +4,14 @@ package update
 
 import (
 	"context"
-	"golang.org/x/sys/unix"
+	"errors"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 )
 
 func lock(dir string) (func(), error) {
@@ -56,8 +56,12 @@ func lock(dir string) (func(), error) {
 }
 
 // sendInterrupt sends a SIGINT to the process.
-func sendInterrupt(cmd *exec.Cmd) error {
-	return trace.Wrap(cmd.Process.Signal(syscall.SIGINT))
+func sendInterrupt(pid int) error {
+	err := syscall.Kill(pid, syscall.SIGINT)
+	if errors.Is(err, syscall.ESRCH) {
+		return trace.BadParameter("can't find the process: %v", pid)
+	}
+	return trace.Wrap(err)
 }
 
 // freeDiskWithReserve returns the available disk space.

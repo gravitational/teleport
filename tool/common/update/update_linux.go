@@ -23,6 +23,7 @@ package update
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -53,7 +54,7 @@ func replace(path string, _ string) error {
 	tarReader := tar.NewReader(gzipReader)
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		// Skip over any files in the archive that are not {tsh, tctl}.

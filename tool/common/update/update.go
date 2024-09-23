@@ -77,6 +77,9 @@ func CheckLocal() (string, bool) {
 	// The user has turned off any form of automatic updates.
 	case requestedVersion == "off":
 		return "", false
+	// Requested version already the same as client version.
+	case teleport.Version == requestedVersion:
+		return requestedVersion, false
 	// The user has requested a specific version of client tools.
 	case requestedVersion != "" && requestedVersion != toolsVersion:
 		return requestedVersion, true
@@ -88,13 +91,6 @@ func CheckLocal() (string, bool) {
 // CheckRemote will check against Proxy Service if client tools need to be
 // updated.
 func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
-	// If a version of client tools has already been downloaded to
-	// $TELEPORT_HOME/bin, return that.
-	toolsVersion, err := version()
-	if err != nil {
-		return "", false, nil
-	}
-
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -109,20 +105,32 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 		return "", false, trace.Wrap(err)
 	}
 
+	// If a version of client tools has already been downloaded to
+	// $TELEPORT_HOME/bin, return that.
+	toolsVersion, err := version()
+	if err != nil {
+		return "", false, nil
+	}
+
 	requestedVersion := os.Getenv(teleportToolsVersion)
 	switch {
 	// The user has turned off any form of automatic updates.
 	case requestedVersion == "off":
 		return "", false, nil
+	// Requested version already the same as client version.
+	case teleport.Version == requestedVersion:
+		return requestedVersion, false, nil
 	case requestedVersion != "" && requestedVersion != toolsVersion:
 		return requestedVersion, true, nil
 	case !resp.ToolsAutoupdate || resp.ToolsVersion == "":
 		return "", false, nil
+	case teleport.Version == resp.ToolsVersion:
+		return resp.ToolsVersion, false, nil
 	case resp.ToolsVersion != toolsVersion:
 		return resp.ToolsVersion, true, nil
 	}
 
-	return "", false, nil
+	return toolsVersion, false, nil
 }
 
 // Download downloads requested version package, unarchive and replace existing one.
@@ -319,6 +327,8 @@ func Exec() (int, error) {
 
 	cmd := exec.Command(path, os.Args[1:]...)
 	cmd.Env = os.Environ()
+	// To prevent re-execution loop we have to disable update logic for re-execution.
+	cmd.Env = append(cmd.Env, teleportToolsVersion+"=off")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
