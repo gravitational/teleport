@@ -54,6 +54,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
@@ -1756,7 +1757,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := f.getSPDYDialer(sess, req)
+	dialer, err := f.getPortForwardDialer(sess, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2060,9 +2061,9 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 }
 
-func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
-	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
-
+// getWebsocketRestConfig builds a [*rest.Config] configuration to be
+// used when upgrading requests via websocket.
+func (f *Forwarder) getWebsocketRestConfig(sess *clusterSession, req *http.Request) (*rest.Config, error) {
 	tlsConfig, useImpersonation, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2101,7 +2102,15 @@ func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request
 			return rt
 		},
 	}
+	return cfg, nil
+}
 
+func (f *Forwarder) getWebsocketExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
+	f.log.Debugf("Creating websocket remote executor for request %s %s", req.Method, req.RequestURI)
+	cfg, err := f.getWebsocketRestConfig(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to create websocket executor")
+	}
 	return remotecommand.NewWebSocketExecutor(cfg, req.Method, req.URL.String())
 }
 
@@ -2111,7 +2120,7 @@ func isRelevantWebsocketError(err error) bool {
 
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	isWSSupported := false
-	if sess.noAuditEvents {
+	if !f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
 		// We're forwarding it to another Teleport kube_service,
 		// which supports the websocket protocol.
 		isWSSupported = true
@@ -2166,6 +2175,30 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
+func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+	isWSSupported := false
+	if !f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+		// We're forwarding it to another Teleport kube_service,
+		// which supports the websocket protocol.
+		isWSSupported = f.allServersSupportTunneledSPDY(sess)
+	} else {
+		if details, err := f.findKubeDetailsByClusterName(sess.kubeClusterName); err == nil {
+			// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
+			details.rwMu.RLock()
+			isWSSupported = kubernetesSupportsPortTunnedledSPDY(details.kubeClusterVersion)
+			details.rwMu.RUnlock()
+		}
+	}
+
+	if isWSSupported {
+		wsDialer, err := f.getWebsocketDialer(sess, req)
+		return wsDialer, trace.Wrap(err)
+	}
+
+	spdyDialer, err := f.getSPDYDialer(sess, req)
+	return spdyDialer, trace.Wrap(err)
+}
+
 // getSPDYDialer returns a dialer that can be used to upgrade the connection
 // to SPDY protocol.
 // SPDY is a deprecated protocol, but it is still used by kubectl to manage data streams.
@@ -2200,6 +2233,15 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+}
+
+func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
+	cfg, err := f.getWebsocketRestConfig(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
+	}
+	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
+	return dialer, trace.Wrap(err)
 }
 
 // createSPDYRequest modifies the passed request to remove

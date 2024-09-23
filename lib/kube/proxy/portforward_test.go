@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
@@ -407,4 +408,144 @@ func (f *fakeSPDYConnection) streamsClosed() bool {
 		}
 	}
 	return true
+}
+
+func TestPortForwardUnderlyingProtocol(t *testing.T) {
+	tests := []struct {
+		name         string
+		version      *version.Info
+		validateFunc func(*testing.T, *testingkubemock.KubeMockServer)
+	}{
+		{
+			name: "SPDY protocol, version < 1.31",
+			version: &version.Info{
+				GitVersion: "v1.30.0",
+			},
+			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
+				// forward used SPDY to kubernetes API
+				require.EqualValues(t, 1, kms.KubePortforward.SPDY.Load())
+				require.EqualValues(t, 0, kms.KubePortforward.Websocket.Load())
+			},
+		},
+		{
+			name: "Websocket protocol for clusters >=1.31",
+			version: &version.Info{
+				GitVersion: "v1.31.0",
+			},
+			validateFunc: func(t *testing.T, kms *testingkubemock.KubeMockServer) {
+				// forward used SPDY over websocket to kubernetes API
+				require.EqualValues(t, 0, kms.KubePortforward.SPDY.Load())
+				require.EqualValues(t, 1, kms.KubePortforward.Websocket.Load())
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			kubeMock, err := testingkubemock.NewKubeAPIMock(
+				testingkubemock.WithVersion(tt.version),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() { kubeMock.Close() })
+			t.Cleanup(func() {
+				tt.validateFunc(t, kubeMock)
+			})
+			// creates a Kubernetes service with a configured cluster pointing to mock api server
+			testCtx := SetupTestContext(
+				context.Background(),
+				t,
+				TestConfig{
+					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+				},
+			)
+
+			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+			user, _ := testCtx.CreateUserAndRole(
+				testCtx.Context,
+				t,
+				username,
+				RoleSpec{
+					Name:       roleName,
+					KubeUsers:  roleKubeUsers,
+					KubeGroups: roleKubeGroups,
+				})
+
+			// generate a kube client with user certs for auth
+			_, config := testCtx.GenTestKubeClientTLSCert(
+				t,
+				user.GetName(),
+				kubeCluster,
+			)
+			require.NoError(t, err)
+			// readyCh communicate when the port forward is ready to get traffic
+			readyCh := make(chan struct{})
+			// errCh receives a single error from ForwardPorts goroutine.
+			errCh := make(chan error)
+			t.Cleanup(func() { require.NoError(t, <-errCh) })
+			// stopCh control the port forwarding lifecycle. When it gets closed the
+			// port forward will terminate.
+			stopCh := make(chan struct{})
+			t.Cleanup(func() { close(stopCh) })
+
+			// allocate a port
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			localPort := listener.Addr().(*net.TCPAddr).Port
+			_ = listener.Close()
+
+			fw := spdyPortForwardClientBuilder(t, portForwardRequestConfig{
+				podName:      podName,
+				podNamespace: podNamespace,
+				restConfig:   config,
+				localPort:    localPort,
+				podPort:      80,
+				stopCh:       stopCh,
+				readyCh:      readyCh,
+			})
+			require.NoError(t, err)
+			t.Cleanup(fw.Close)
+			go func() {
+				defer close(errCh)
+				errCh <- trace.Wrap(fw.ForwardPorts())
+			}()
+
+			select {
+			case err := <-errCh:
+				// When we receive an error instead of a ready signal, it means that
+				// fw.ForwardPorts() setup failed.
+				// fw.ForwardPorts() setup creates a listener, a connection to the
+				// Teleport Kubernetes Service and upgrades the connection to SPDY
+				// or WebSocket. Either of these cases can return an error.
+				// After the setup finishes readyCh is notified, and fw.ForwardPorts()
+				// runs until the upstream server reports any error or fw.Close executes.
+				// fw.ForwardPorts() only returns err=nil if properly closed using
+				// fw.Close, otherwise err!=nil.
+				t.Fatalf("Received error on errCh instead of a ready signal: %v", err)
+			case <-readyCh:
+				// portforward creates a listener at localPort.
+				// Once client dials to localPort, portforward client will connect to
+				// the upstream (Teleport) and copy the data from the local connection
+				// into the upstream and from the upstream into the local connection.
+				// The connection is closed if the upstream reports any error and
+				// ForwardPorts returns it.
+				// Dial a connection to localPort.
+				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
+				require.NoError(t, err)
+				t.Cleanup(func() { conn.Close() })
+				_, err = conn.Write(stdinContent)
+				require.NoError(t, err)
+				p := make([]byte, 1024)
+				n, err := conn.Read(p)
+				require.NoError(t, err)
+				// Make sure we hit the upstream server and that the upstream received
+				// the contents written into the connection.
+				// Expected payload: testingkubemock.PortForwardPayload podName stdinContent
+				expected := fmt.Sprint(testingkubemock.PortForwardPayload, podName, string(stdinContent))
+				require.Equal(t, expected, string(p[:n]))
+			}
+		})
+	}
 }

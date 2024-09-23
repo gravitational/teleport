@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/coreos/go-semver/semver"
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -30,7 +31,9 @@ import (
 	"k8s.io/apimachinery/pkg/version"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // WebsocketRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -113,7 +116,10 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	return wsResp, nil
 }
 
-const kubernetesExecSubprotocolV5Version = "1.30.0"
+var kubeExecSubprotocolV5MinVersion = func() *versionUtil.Version {
+	const kubeExecSubprotocolV5Version = "1.30.0"
+	return versionUtil.MustParse(kubeExecSubprotocolV5Version)
+}()
 
 func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
 	if serverVersion == nil {
@@ -124,10 +130,83 @@ func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
 	if err != nil {
 		return false
 	}
-	requiredVersion, err := versionUtil.ParseSemantic(kubernetesExecSubprotocolV5Version)
+
+	return parsedVersion.AtLeast(kubeExecSubprotocolV5MinVersion)
+}
+
+var kubePortforwardSPDYOverWebsocket = func() *versionUtil.Version {
+	const kubePortforwardSPDYOverWebsocketVersion = "1.31.0"
+	return versionUtil.MustParse(kubePortforwardSPDYOverWebsocketVersion)
+}()
+
+func kubernetesSupportsPortTunnedledSPDY(serverVersion *version.Info) bool {
+	if serverVersion == nil {
+		return false
+	}
+	parsedVersion, err := versionUtil.ParseSemantic(serverVersion.GitVersion)
 	if err != nil {
 		return false
 	}
+	return parsedVersion.AtLeast(kubePortforwardSPDYOverWebsocket)
+}
 
-	return parsedVersion.AtLeast(requiredVersion)
+// versionWithTunneledSPDY is the version of Teleport that starts
+// supporting SPDY over Websockets for portforward.
+var versionWithTunneledSPDY = semver.New(utils.VersionBeforeAlpha("17.0.0"))
+
+// teleportVersionInterface is an interface that allows to get the Teleport version of
+// a kube server.
+// TODO(tigrato): DELETE IN 18.0.0
+type teleportVersionInterface interface {
+	GetTeleportVersion() string
+}
+
+// allServersSupportTunneledSPDY checks if all paths for this sessions support
+// SPDY over websocket subprotocol.
+// If all of them do and target kubernetes cluster supports it as well
+// we can use websocket dialer, otherwise we'll use the SPDY dialer.
+func (f *Forwarder) allServersSupportTunneledSPDY(sess *clusterSession) bool {
+	// If the cluster is remote, we need to check if all remote proxies
+	// support SPDY over websocket
+	if sess.teleportCluster.isRemote {
+		proxies, err := f.getRemoteClusterProxies(sess.teleportCluster.name)
+		return err == nil && allServersSupportTunneledSPDY(proxies)
+	}
+	// If the cluster is not remote, validate the kube services support of
+	// SPDY over websocket
+	return allServersSupportTunneledSPDY(sess.kubeServers)
+}
+
+// allServersSupportExecSubprotocolV5 returns true if all servers in the list
+// support SPDY over websockets.
+// TODO(tigrato): DELETE IN 18.0.0
+func allServersSupportTunneledSPDY[T teleportVersionInterface](servers []T) bool {
+	if len(servers) == 0 {
+		return false
+	}
+
+	for _, server := range servers {
+		serverVersion := server.GetTeleportVersion()
+		semVer, err := semver.NewVersion(serverVersion)
+		if err != nil || semVer.LessThan(*versionWithTunneledSPDY) {
+			return false
+		}
+	}
+	return true
+}
+
+// getRemoteClusterProxies returns a list of proxies registered at the remote cluster.
+// It's used to determine whether the remote cluster supports SPDY over websocket.
+func (f *Forwarder) getRemoteClusterProxies(clusterName string) ([]types.Server, error) {
+	targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Get the remote cluster's cache.
+	caching, err := targetCluster.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxies, err := caching.GetProxies()
+	return proxies, trace.Wrap(err)
 }

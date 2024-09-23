@@ -33,6 +33,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
@@ -44,9 +45,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
 	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
+	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -130,8 +133,8 @@ type deletedResource struct {
 	kind      string
 }
 
-// KubeExecRequests keeps track of the number of exec requests
-type KubeExecRequests struct {
+// KubeUpgradeRequests keeps track of the number of upgrade requests
+type KubeUpgradeRequests struct {
 	// SPDY is the number of SPDY exec requests
 	SPDY atomic.Int32
 	// Websocket is the number of Websocket exec requests
@@ -151,7 +154,8 @@ type KubeMockServer struct {
 	execPodError     *metav1.Status
 	mu               sync.Mutex
 	version          *apimachineryversion.Info
-	KubeExecRequests
+	KubeExecRequests KubeUpgradeRequests
+	KubePortforward  KubeUpgradeRequests
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -735,15 +739,44 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
-	_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	streamChan := make(chan httpstream.Stream)
 
-	upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
-	conn := upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
+	var err error
+	var conn httpstream.Connection
+	if wsstream.IsWebSocketRequestWithTunnelingProtocol(req) {
+		s.KubePortforward.Websocket.Add(1)
+		// Try to upgrade the websocket connection.
+		// Beyond this point, we don't need to write errors to the response.
+		upgrader := gwebsocket.Upgrader{
+			CheckOrigin:  func(r *http.Request) bool { return true },
+			Subprotocols: []string{portforwardconstants.WebsocketsSPDYTunnelingPortForwardV1},
+		}
+		wsConn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tunneledConn := portforward.NewTunnelingConnection("server", wsConn)
+
+		conn, err = spdystream.NewServerConnectionWithPings(
+			tunneledConn,
+			httpStreamReceived(req.Context(), streamChan),
+			defaults.HighResPollingPeriod,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "error upgrading connection")
+		}
+	} else {
+		s.KubePortforward.SPDY.Add(1)
+		_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		upgrader := spdystream.NewResponseUpgraderWithPings(defaults.HighResPollingPeriod)
+		conn = upgrader.UpgradeResponse(w, req, httpStreamReceived(req.Context(), streamChan))
+
+	}
+
 	if conn == nil {
 		err = trace.ConnectionProblem(nil, "unable to upgrade SPDY connection")
 		return nil, err
