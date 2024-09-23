@@ -185,7 +185,7 @@ export function Main(props: MainProps) {
     return 'danger';
   };
 
-  const banners: BannerType[] = alerts.map(alert => ({
+  const banners: BannerType[] = alerts.map((alert): BannerType => ({
     message: alert.spec.message,
     severity: mapSeverity(alert.spec.severity),
     linkDestination: alert.metadata.labels[LINK_DESTINATION_LABEL],
