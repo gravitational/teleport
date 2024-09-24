@@ -135,6 +135,21 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 
 // Download downloads requested version package, unarchive and replace existing one.
 func Download(toolsVersion string) error {
+	dir, err := toolsDir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Create $TELEPORT_HOME/bin if it does not exist.
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return trace.Wrap(err)
+	}
+	// Lock to allow multiple concurrent {tsh, tctl} to run.
+	unlock, err := lock(dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer unlock()
+
 	// If the version of the running binary or the version downloaded to
 	// $TELEPORT_HOME/bin is the same as the requested version of client tools,
 	// nothing to be done, exit early.
@@ -148,15 +163,6 @@ func Download(toolsVersion string) error {
 		return nil
 	}
 
-	// Create $TELEPORT_HOME/bin if it does not exist.
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Download and update {tsh, tctl} in $TELEPORT_HOME/bin.
 	if err := update(toolsVersion); err != nil {
 		return trace.Wrap(err)
@@ -166,17 +172,6 @@ func Download(toolsVersion string) error {
 }
 
 func update(toolsVersion string) error {
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Lock to allow multiple concurrent {tsh, tctl} to run.
-	unlock, err := lock(dir)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer unlock()
-
 	// Get platform specific download URLs.
 	archiveURL, hashURL, err := urls(toolsVersion)
 	if err != nil {
@@ -326,9 +321,8 @@ func Exec() (int, error) {
 	}
 
 	cmd := exec.Command(path, os.Args[1:]...)
-	cmd.Env = os.Environ()
 	// To prevent re-execution loop we have to disable update logic for re-execution.
-	cmd.Env = append(cmd.Env, teleportToolsVersion+"=off")
+	cmd.Env = append(os.Environ(), teleportToolsVersion+"=off")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

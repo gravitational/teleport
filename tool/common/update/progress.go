@@ -70,10 +70,10 @@ func (w *progressWriter) Write(p []byte) (int, error) {
 
 	n := int((w.n*100)/w.limit) / 10
 	bricks := strings.Repeat("▒", n) + strings.Repeat(" ", 10-n)
-	fmt.Printf("\rUpdate progress: [" + bricks + "] (Ctrl-C to cancel update)")
+	fmt.Print("\rUpdate progress: [" + bricks + "] (Ctrl-C to cancel update)")
 
 	if w.n == w.limit {
-		fmt.Printf("\n")
+		fmt.Print("\n")
 	}
 
 	return len(p), nil

@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,7 +96,7 @@ func TestLock(t *testing.T) {
 	case err := <-errChan:
 		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
-		t.Errorf("second lock is not released")
+		require.Fail(t, "second lock is not released")
 	}
 }
 
@@ -137,9 +138,9 @@ func TestUpdateInterruptSignal(t *testing.T) {
 
 	select {
 	case err := <-errChan:
-		require.NoError(t, err)
+		require.Fail(t, "we shouldn't receive any error", err)
 	case <-time.After(5 * time.Second):
-		t.Errorf("failed to wait till the download is started")
+		require.Fail(t, "failed to wait till the download is started")
 	case <-lock:
 		time.Sleep(100 * time.Millisecond)
 		require.NoError(t, sendInterrupt(pid))
@@ -150,13 +151,87 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	// bar in output content.
 	select {
 	case <-time.After(5 * time.Second):
-		t.Errorf("failed to wait till the process interrupted")
+		require.Fail(t, "failed to wait till the process interrupted")
 	case err := <-errChan:
 		require.NoError(t, err)
 	}
-	require.Contains(t, output.String(), "Update progress:")
+	assert.Contains(t, output.String(), "Update progress:")
 }
 
+// TestParallelUpdate launches multiple updater commands in parallel while defining a new version.
+// The first process should acquire a lock and block execution for the other processes. After the
+// first update is complete, other processes should acquire the lock one by one and re-execute
+// the command with the updated version without any new downloads.
+func TestParallelUpdate(t *testing.T) {
+	dir, err := toolsDir()
+	require.NoError(t, err, "failed to find tools directory")
+
+	err = os.MkdirAll(dir, 0755)
+	require.NoError(t, err, "failed to create tools directory")
+
+	// Initial fetch the updater binary un-archive and replace.
+	err = update(testVersions[0])
+	require.NoError(t, err)
+
+	// By setting the limit request next test http serving file going blocked until unlock is sent.
+	lock := make(chan struct{})
+	limitedWriter.SetLimitRequest(limitRequest{
+		limit: 1024,
+		lock:  lock,
+	})
+
+	var outputs [3]bytes.Buffer
+	errChan := make(chan error, cap(outputs))
+	for i := 0; i < cap(outputs); i++ {
+		cmd := exec.Command(filepath.Join(dir, "tsh"), "version")
+		cmd.Stdout = &outputs[i]
+		cmd.Stderr = &outputs[i]
+		cmd.Env = append(
+			os.Environ(),
+			fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
+		)
+		err = cmd.Start()
+		require.NoError(t, err, "failed to start updater")
+
+		go func() {
+			errChan <- cmd.Wait()
+		}()
+	}
+
+	select {
+	case err := <-errChan:
+		require.Fail(t, "we shouldn't receive any error", err)
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "failed to wait till the download is started")
+	case <-lock:
+		// Wait for a short period to allow other processes to launch and attempt to acquire the lock.
+		time.Sleep(100 * time.Millisecond)
+		lock <- struct{}{}
+	}
+
+	var progressCount int
+	for i := 0; i < cap(outputs); i++ {
+		// Wait till process finished with exit code 0, but we still should get progress
+		// bar in output content.
+		select {
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "failed to wait till the process is finished")
+		case err := <-errChan:
+			require.NoError(t, err)
+		}
+
+		matches := pattern.FindStringSubmatch(outputs[i].String())
+		require.Len(t, matches, 2)
+		assert.Equal(t, testVersions[1], matches[1])
+		if strings.Contains(outputs[i].String(), "Update progress:") {
+			progressCount++
+		}
+	}
+	assert.Equal(t, 1, progressCount, "we should have only one progress bar downloading new version")
+}
+
+// TestUpdate verifies base logic of update, we download lower version then request to
+// update it to newer version and expect that it is going to be re-executed with new version.
 func TestUpdate(t *testing.T) {
 	dir, err := toolsDir()
 	require.NoError(t, err, "failed to find tools directory")
