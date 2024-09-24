@@ -724,6 +724,7 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			skipBulk:        true,
 			resource:        originalAuthPref,
 			resourceCreate:  createAuthPref,
 			resourceCleanup: resetAuthPref,
@@ -856,6 +857,10 @@ type resourceCommandTestCase struct {
 	resourceCreate  func() error
 	resourceCleanup func() error
 
+	// skip bulk create tests. Used by cluster auth preference tests which
+	// would break down after the first creation.
+	skipBulk bool
+
 	// Tests get/list resource, for privileged resources
 	// like tokens that should require MFA to be seen.
 	testGetList bool
@@ -885,15 +890,17 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		})
 	})
 
-	require.NoError(t, utils.WriteYAML(f, []types.Resource{tc.resource, tc.resource, tc.resource}))
-	t.Run("tctl create -f with multiple resources", func(t *testing.T) {
-		s.testCommand(t, ctx, adminActionTestCase{
-			command:    fmt.Sprintf("create -f %v", f.Name()),
-			cliCommand: &tctl.ResourceCommand{},
-			setup:      tc.resourceCreate,
-			cleanup:    tc.resourceCleanup,
+	if !tc.skipBulk {
+		require.NoError(t, utils.WriteYAML(f, []types.Resource{tc.resource, tc.resource, tc.resource}))
+		t.Run("tctl create -f bulk", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("create -f %v", f.Name()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
 		})
-	})
+	}
 
 	t.Run("tctl rm", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
