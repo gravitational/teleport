@@ -45,11 +45,15 @@ var (
 	zipFiles = []string{"manifest.json", "outline.png", "color.png"}
 )
 
-// payload represents template payload
-type payload struct {
+// Payload represents template Payload used by the manifest and config templates.
+type Payload struct {
+	// AppID is the Microsoft application ID.
 	AppID      string
+	// AppSecret is the Microsoft application secret.
 	AppSecret  string
+	// TenantID is the Microsoft Azure tenant ID.
 	TenantID   string
+	// TeamsAppID is the Microsoft Teams application ID.
 	TeamsAppID string
 }
 
@@ -57,7 +61,7 @@ type payload struct {
 func Configure(targetDir, appID, appSecret, tenantID string) error {
 	var step byte = 1
 
-	p := payload{
+	p := Payload{
 		AppID:      appID,
 		AppSecret:  appSecret,
 		TenantID:   tenantID,
@@ -79,15 +83,42 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 
 	printStep(&step, "Created target directory: %s", targetDir)
 
-	if err := renderTemplateTo(confTpl, p, path.Join(targetDir, "teleport-msteams.toml")); err != nil {
+	configWriter, err := os.Create(path.Join(targetDir, "teleport-msteams.toml"))
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := renderTemplateTo(manifestTpl, p, path.Join(targetDir, "manifest.json")); err != nil {
+	defer configWriter.Close()
+	if err := renderTemplateTo(configWriter, confTpl, p); err != nil {
 		return trace.Wrap(err)
 	}
 
+	manifestWriter, err := os.Create(path.Join(targetDir, "manifest.json"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer manifestWriter.Close()
+	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
+		return trace.Wrap(err)
+	}
 	printStep(&step, "Generated configuration files")
 
+	copyAssets(targetDir)
+	printStep(&step, "Copied assets")
+
+	configureAppZip(targetDir, "app.zip")
+	printStep(&step, "Created app.zip")
+
+	fmt.Println()
+	fmt.Printf("TeamsAppID: %v\n", p.TeamsAppID)
+	fmt.Println()
+	fmt.Println("Follow-along with our getting started guide:")
+	fmt.Println()
+	fmt.Println(guideURL)
+
+	return nil
+}
+
+func copyAssets(targetDir string) error {
 	a, err := assets.ReadDir("_tpl")
 	if err != nil {
 		return trace.Wrap(err)
@@ -111,10 +142,11 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 			return trace.Wrap(err)
 		}
 	}
+	return nil
+}
 
-	printStep(&step, "Copied assets")
-
-	z, err := os.Create(path.Join(targetDir, "app.zip"))
+func configureAppZip(targetDir, fileName string) error {
+	z, err := os.Create(path.Join(targetDir, fileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,16 +171,6 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 			return trace.Wrap(err)
 		}
 	}
-
-	printStep(&step, "Created app.zip")
-
-	fmt.Println()
-	fmt.Printf("TeamsAppID: %v\n", p.TeamsAppID)
-	fmt.Println()
-	fmt.Println("Follow-along with our getting started guide:")
-	fmt.Println()
-	fmt.Println(guideURL)
-
 	return nil
 }
 
@@ -160,17 +182,11 @@ func printStep(step *byte, message string, args ...interface{}) {
 }
 
 // renderTemplateTo renders template from a string and writes file to targetPath
-func renderTemplateTo(content string, payload interface{}, targetPath string) error {
+func renderTemplateTo(w io.Writer, content string, payload interface{}) error {
 	tpl, err := template.New("template").Parse(content)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	w, err := os.Create(targetPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer w.Close()
 
 	err = tpl.ExecuteTemplate(w, "template", payload)
 	if err != nil {
