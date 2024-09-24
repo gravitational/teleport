@@ -348,6 +348,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if n := server.GetNamespace(); n != apidefaults.Namespace {
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
+
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
