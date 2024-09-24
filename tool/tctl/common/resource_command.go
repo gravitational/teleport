@@ -348,6 +348,14 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 
 // Create updates or inserts one or many resources
 func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client) (err error) {
+	// Prompt for admin action MFA if required, allowing reuse for multiple resource creations.
+	mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
+	if err == nil {
+		ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
+	} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
+		return trace.Wrap(err)
+	}
+
 	var reader io.Reader
 	if rc.filename == "" {
 		reader = os.Stdin
