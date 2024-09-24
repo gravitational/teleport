@@ -1,0 +1,51 @@
+"ec2-ssm-iam" will perform the following actions:
+
+1. Attach an inline IAM policy named "EC2DiscoverWithSSM" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ec2:DescribeInstances",
+                    "ssm:DescribeInstanceInformation",
+                    "ssm:GetCommandInvocation",
+                    "ssm:ListCommandInvocations",
+                    "ssm:SendCommand"
+                ],
+                "Resource": "*"
+            }
+        ]
+    },
+    "PolicyName": "EC2DiscoverWithSSM",
+    "RoleName": "integrationrole"
+}
+
+2. Create an AWS Systems Manager (SSM) Command document "MyDoc".
+CreateDocument: {
+    "Content": "\nschemaVersion: '2.2'\ndescription: aws:runShellScript\nparameters:\n  token:\n    type: String\n    description: \"(Required) The Teleport invite token to use when joining the cluster.\"\n  scriptName:\n    type: String\n    description: \"(Required) The Teleport installer script to use when joining the cluster.\"\nmainSteps:\n- action: aws:downloadContent\n  name: downloadContent\n  inputs:\n    sourceType: \"HTTP\"\n    destinationPath: \"/tmp/installTeleport.sh\"\n    sourceInfo:\n      url: \"https://proxy.example.com/webapi/scripts/installer/{{ scriptName }}\"\n- action: aws:runShellScript\n  name: runShellScript\n  inputs:\n    timeoutSeconds: '300'\n    runCommand:\n      - /bin/sh /tmp/installTeleport.sh \"{{ token }}\"\n",
+    "Name": "MyDoc",
+    "Attachments": null,
+    "DisplayName": null,
+    "DocumentFormat": "YAML",
+    "DocumentType": "Command",
+    "Requires": null,
+    "Tags": [
+        {
+            "Key": "teleport.dev/cluster",
+            "Value": "my-cluster"
+        },
+        {
+            "Key": "teleport.dev/integration",
+            "Value": "my-integration"
+        },
+        {
+            "Key": "teleport.dev/origin",
+            "Value": "integration_awsoidc"
+        }
+    ],
+    "TargetType": null,
+    "VersionName": null
+}
+
