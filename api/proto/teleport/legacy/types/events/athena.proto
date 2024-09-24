@@ -16,7 +16,10 @@ syntax = "proto3";
 
 package events;
 
+import "gogoproto/gogo.proto";
+
 option go_package = "github.com/gravitational/teleport/api/types/events";
+option (gogoproto.goproto_registration) = true;
 
 // AthenaS3EventPayload is used as payload for sending large events to SQS.
 message AthenaS3EventPayload {

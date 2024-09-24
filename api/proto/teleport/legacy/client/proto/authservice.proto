@@ -31,6 +31,7 @@ import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 option (gogoproto.goproto_getters_all) = true;
+option (gogoproto.goproto_registration) = true;
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 

@@ -7,6 +7,7 @@ require (
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/trace v1.4.0

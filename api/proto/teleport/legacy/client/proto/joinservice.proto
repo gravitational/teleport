@@ -16,10 +16,12 @@ syntax = "proto3";
 
 package proto;
 
+import "gogoproto/gogo.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
+option (gogoproto.goproto_registration) = true;
 
 // TODO(nklaassen): Document me.
 message RegisterUsingIAMMethodRequest {

@@ -16,7 +16,10 @@ syntax = "proto3";
 
 package teleport.usageevents.v1;
 
+import "gogoproto/gogo.proto";
+
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1;usageeventsv1";
+option (gogoproto.goproto_registration) = true;
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
 // banner is clicked.

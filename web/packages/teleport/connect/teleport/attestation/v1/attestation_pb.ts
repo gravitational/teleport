@@ -18,13 +18,14 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv1";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv1";
+import { file_gogoproto_gogo } from "../../../gogoproto/gogo_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file teleport/attestation/v1/attestation.proto.
  */
 export const file_teleport_attestation_v1_attestation: GenFile = /*@__PURE__*/
-  fileDesc("Cil0ZWxlcG9ydC9hdHRlc3RhdGlvbi92MS9hdHRlc3RhdGlvbi5wcm90bxIXdGVsZXBvcnQuYXR0ZXN0YXRpb24udjEijgEKFEF0dGVzdGF0aW9uU3RhdGVtZW50El0KHXl1YmlrZXlfYXR0ZXN0YXRpb25fc3RhdGVtZW50GAEgASgLMjQudGVsZXBvcnQuYXR0ZXN0YXRpb24udjEuWXViaUtleUF0dGVzdGF0aW9uU3RhdGVtZW50SABCFwoVYXR0ZXN0YXRpb25fc3RhdGVtZW50IkoKG1l1YmlLZXlBdHRlc3RhdGlvblN0YXRlbWVudBIRCglzbG90X2NlcnQYASABKAwSGAoQYXR0ZXN0YXRpb25fY2VydBgCIAEoDEJRWk9naXRodWIuY29tL2dyYXZpdGF0aW9uYWwvdGVsZXBvcnQvYXBpL2dlbi9wcm90by9nby9hdHRlc3RhdGlvbi92MTthdHRlc3RhdGlvbnYxYgZwcm90bzM");
+  fileDesc("Cil0ZWxlcG9ydC9hdHRlc3RhdGlvbi92MS9hdHRlc3RhdGlvbi5wcm90bxIXdGVsZXBvcnQuYXR0ZXN0YXRpb24udjEijgEKFEF0dGVzdGF0aW9uU3RhdGVtZW50El0KHXl1YmlrZXlfYXR0ZXN0YXRpb25fc3RhdGVtZW50GAEgASgLMjQudGVsZXBvcnQuYXR0ZXN0YXRpb24udjEuWXViaUtleUF0dGVzdGF0aW9uU3RhdGVtZW50SABCFwoVYXR0ZXN0YXRpb25fc3RhdGVtZW50IkoKG1l1YmlLZXlBdHRlc3RhdGlvblN0YXRlbWVudBIRCglzbG90X2NlcnQYASABKAwSGAoQYXR0ZXN0YXRpb25fY2VydBgCIAEoDEJVWk9naXRodWIuY29tL2dyYXZpdGF0aW9uYWwvdGVsZXBvcnQvYXBpL2dlbi9wcm90by9nby9hdHRlc3RhdGlvbi92MTthdHRlc3RhdGlvbnYxwOMeAWIGcHJvdG8z", [file_gogoproto_gogo]);
 
 /**
  * AttestationStatement is an attestation statement for a hardware private key.

@@ -18,13 +18,14 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv1";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv1";
+import { file_gogoproto_gogo } from "../../../../gogoproto/gogo_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file teleport/legacy/types/events/athena.proto.
  */
 export const file_teleport_legacy_types_events_athena: GenFile = /*@__PURE__*/
-  fileDesc("Cil0ZWxlcG9ydC9sZWdhY3kvdHlwZXMvZXZlbnRzL2F0aGVuYS5wcm90bxIGZXZlbnRzIkYKFEF0aGVuYVMzRXZlbnRQYXlsb2FkEgwKBHBhdGgYASABKAkSEgoKdmVyc2lvbl9pZBgCIAEoCRIMCgRja21zGAMgASgJQjRaMmdpdGh1Yi5jb20vZ3Jhdml0YXRpb25hbC90ZWxlcG9ydC9hcGkvdHlwZXMvZXZlbnRzYgZwcm90bzM");
+  fileDesc("Cil0ZWxlcG9ydC9sZWdhY3kvdHlwZXMvZXZlbnRzL2F0aGVuYS5wcm90bxIGZXZlbnRzIkYKFEF0aGVuYVMzRXZlbnRQYXlsb2FkEgwKBHBhdGgYASABKAkSEgoKdmVyc2lvbl9pZBgCIAEoCRIMCgRja21zGAMgASgJQjhaMmdpdGh1Yi5jb20vZ3Jhdml0YXRpb25hbC90ZWxlcG9ydC9hcGkvdHlwZXMvZXZlbnRzwOMeAWIGcHJvdG8z", [file_gogoproto_gogo]);
 
 /**
  * AthenaS3EventPayload is used as payload for sending large events to SQS.

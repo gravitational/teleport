@@ -21,13 +21,14 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv1";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv1";
+import { file_gogoproto_gogo } from "../../../../gogoproto/gogo_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file teleport/lib/web/terminal/envelope.proto.
  */
 export const file_teleport_lib_web_terminal_envelope: GenFile = /*@__PURE__*/
-  fileDesc("Cih0ZWxlcG9ydC9saWIvd2ViL3Rlcm1pbmFsL2VudmVsb3BlLnByb3RvEhB0ZWxlcG9ydC5saWIud2ViIjoKCEVudmVsb3BlEg8KB1ZlcnNpb24YASABKAkSDAoEVHlwZRgCIAEoCRIPCgdQYXlsb2FkGAMgASgJQjRaMmdpdGh1Yi5jb20vZ3Jhdml0YXRpb25hbC90ZWxlcG9ydC9saWIvd2ViL3Rlcm1pbmFsYgZwcm90bzM");
+  fileDesc("Cih0ZWxlcG9ydC9saWIvd2ViL3Rlcm1pbmFsL2VudmVsb3BlLnByb3RvEhB0ZWxlcG9ydC5saWIud2ViIjoKCEVudmVsb3BlEg8KB1ZlcnNpb24YASABKAkSDAoEVHlwZRgCIAEoCRIPCgdQYXlsb2FkGAMgASgJQjhaMmdpdGh1Yi5jb20vZ3Jhdml0YXRpb25hbC90ZWxlcG9ydC9saWIvd2ViL3Rlcm1pbmFswOMeAWIGcHJvdG8z", [file_gogoproto_gogo]);
 
 /**
  * Envelope is used to wrap and transend and receive messages between the
