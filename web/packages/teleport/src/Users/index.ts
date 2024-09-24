@@ -16,4 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { UsersContainer as Users } from './Users';
+export { UsersContainer as Users, UserRoute } from './Users';

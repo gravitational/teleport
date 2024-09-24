@@ -159,6 +159,7 @@ const cfg = {
     desktops: '/web/cluster/:clusterId/desktops',
     desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
     users: '/web/users',
+    userDetails: '/web/users/:username/:tab?',
     bots: '/web/bots',
     botsNew: '/web/bots/new/:type?',
     console: '/web/cluster/:clusterId/console',

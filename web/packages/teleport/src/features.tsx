@@ -56,7 +56,7 @@ import { AccountPage } from './Account';
 import { Support } from './Support';
 import { Clusters } from './Clusters';
 import { TrustedClusters } from './TrustedClusters';
-import { Users } from './Users';
+import { UserRoute } from './Users';
 import { RolesContainer as Roles } from './Roles';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { RecordingsContainer as Recordings } from './Recordings';
@@ -188,8 +188,8 @@ export class FeatureUsers implements TeleportFeature {
   route = {
     title: 'Manage Users',
     path: cfg.routes.users,
-    exact: true,
-    component: Users,
+    exact: false,
+    component: UserRoute,
   };
 
   hasAccess(flags: FeatureFlags): boolean {
@@ -199,7 +199,7 @@ export class FeatureUsers implements TeleportFeature {
   navigationItem = {
     title: NavTitle.Users,
     icon: UsersIcon,
-    exact: true,
+    exact: false,
     getLink() {
       return cfg.getUsersRoute();
     },

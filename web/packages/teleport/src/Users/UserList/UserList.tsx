@@ -20,6 +20,8 @@ import React from 'react';
 import { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
+import { useHistory } from 'react-router';
+
 import { User, UserOrigin } from 'teleport/services/user';
 import { ClientSearcheableTableWithQueryParamSupport } from 'teleport/components/ClientSearcheableTableWithQueryParamSupport';
 
@@ -30,9 +32,23 @@ export default function UserList({
   onDelete,
   onReset,
 }: Props) {
+  const history = useHistory();
+
+  function handleRowClick(row: User) {
+    history.push(`/web/users/${row.name}`);
+  }
+
   return (
     <ClientSearcheableTableWithQueryParamSupport
       data={users}
+      row={{
+        onClick: handleRowClick,
+        getStyle() {
+          return {
+            cursor: 'pointer',
+          };
+        },
+      }}
       columns={[
         {
           key: 'name',
