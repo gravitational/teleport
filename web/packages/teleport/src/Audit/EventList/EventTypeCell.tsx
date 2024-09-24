@@ -284,6 +284,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.INTEGRATION_CREATE]: Icons.Info,
   [eventCodes.INTEGRATION_UPDATE]: Icons.Info,
   [eventCodes.INTEGRATION_DELETE]: Icons.Info,
+  [eventCodes.CROWN_JEWEL_CREATE]: Icons.Info,
+  [eventCodes.CROWN_JEWEL_UPDATE]: Icons.Info,
+  [eventCodes.CROWN_JEWEL_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

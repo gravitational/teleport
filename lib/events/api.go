@@ -775,6 +775,13 @@ const (
 	IntegrationUpdateEvent = "integration.update"
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
+
+	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
+	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
+	//CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.
+	CrownJewelUpdateEvent = "access_graph.crown_jewel.update"
+	// CrownJewelDeleteEvent is emitted when a crown jewel resource is deleted.
+	CrownJewelDeleteEvent = "access_graph.crown_jewel.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
