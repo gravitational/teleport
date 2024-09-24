@@ -48,7 +48,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -406,7 +405,6 @@ func TestGCPKMSKeystore(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             "test-host-id",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 				faketimeOverride:     clock,
 			})
@@ -684,7 +682,6 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             localHostID,
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")

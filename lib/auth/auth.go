@@ -382,8 +382,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
 		ClusterName:          cfg.ClusterName,
-		CloudClients:         cfg.CloudClients,
 		AuthPreferenceGetter: cfg.ClusterConfiguration,
+		FIPS:                 cfg.FIPS,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {

@@ -30,7 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,7 +40,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -548,11 +547,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 		HostUUID:             hostUUID,
 		Logger:               logger,
 		AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-		CloudClients: &cloud.TestCloudClients{
-			KMS: newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
-			STS: &fakeAWSSTSClient{
-				account: "123456789012",
-			},
+		awsKMSClient:         newFakeAWSKMSService(t, clock, "123456789012", "us-west-2", 100),
+		awsSTSClient: &fakeAWSSTSClient{
+			account: "123456789012",
 		},
 		kmsClient:         testGCPKMSClient,
 		clockworkOverride: clock,
@@ -645,8 +642,9 @@ func newTestPack(ctx context.Context, t *testing.T) *testPack {
 
 	if config, ok := awsKMSTestConfig(t); ok {
 		opts := baseOpts
-		opts.CloudClients, err = cloud.NewClients()
-		require.NoError(t, err)
+		// Unset the fake clients so this test can use the real AWS clients.
+		opts.awsKMSClient = nil
+		opts.awsSTSClient = nil
 
 		backend, err := newAWSKMSKeystore(ctx, &config.AWSKMS, &opts)
 		require.NoError(t, err)
