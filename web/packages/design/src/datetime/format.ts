@@ -18,14 +18,14 @@
 
 import { format } from 'date-fns';
 
-import Logger from 'shared/libs/logger';
+import { Logger } from 'design/logger';
 
 import { DATE_FORMAT, DATE_TIME_FORMAT, SHORT_DATE_FORMAT } from './constants';
 
 const DEFAULT_LOCALE = 'en-US';
 const isTest = process.env.NODE_ENV === 'test';
 
-const logger = Logger.create('datetime/format');
+const logger = new Logger('datetime/format');
 
 /** Accepts a date and returns formatted as 'yyyy-MM-dd' */
 export function displayDate(date: Date): string {
