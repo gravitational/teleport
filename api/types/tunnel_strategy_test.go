@@ -21,7 +21,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 func TestTunnelStrategyMarshalling(t *testing.T) {

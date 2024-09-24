@@ -23,9 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ghodss/yaml"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 func FormatString(description string, msg string) string {

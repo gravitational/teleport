@@ -23,9 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 func TestAccessRequestConditionsIsEmpty(t *testing.T) {

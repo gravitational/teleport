@@ -29,10 +29,10 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 // TSHConfigPath is the path within the .tsh directory to

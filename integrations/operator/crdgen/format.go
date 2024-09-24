@@ -25,9 +25,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"sigs.k8s.io/yaml"
 )
 
 // crdFormatFunc formats the given CRD into a document. It returns the document

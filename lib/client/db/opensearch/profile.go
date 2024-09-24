@@ -24,8 +24,9 @@ import (
 	"os"
 	"path"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 // ProfileName is the name of the opensearch-cli that will be created for Teleport usage

@@ -28,7 +28,6 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"

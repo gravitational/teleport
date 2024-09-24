@@ -29,8 +29,9 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 	"helm.sh/helm/v3/pkg/chart/loader"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 // tagRegex matches tagged values with kind. For example:
