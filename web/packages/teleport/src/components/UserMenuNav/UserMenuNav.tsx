@@ -22,12 +22,10 @@ import styled, { useTheme } from 'styled-components';
 import { Moon, Sun, ChevronDown, Logout as LogoutIcon } from 'design/Icon';
 import { Text, Box } from 'design';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
-
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
+import { getCurrentTheme, getNextTheme } from 'teleport/ThemeProvider';
 import { focusOutsideTarget } from 'teleport/lib/util/eventTarget';
-
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
