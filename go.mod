@@ -14,6 +14,7 @@ require (
 	cloud.google.com/go/spanner v1.67.0
 	cloud.google.com/go/storage v1.43.0
 	connectrpc.com/connect v1.16.2
+	connectrpc.com/vanguard v0.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.14.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1

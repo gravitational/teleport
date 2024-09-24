@@ -626,6 +626,8 @@ cloud.google.com/go/workflows v1.9.0/go.mod h1:ZGkj1aFIOd9c8Gerkjjq7OW7I5+l6cSvT
 cloud.google.com/go/workflows v1.10.0/go.mod h1:fZ8LmRmZQWacon9UCX1r/g/DfAXx5VcPALq2CxzdePw=
 connectrpc.com/connect v1.16.2 h1:ybd6y+ls7GOlb7Bh5C8+ghA6SvCBajHwxssO2CGFjqE=
 connectrpc.com/connect v1.16.2/go.mod h1:n2kgwskMHXC+lVqb18wngEpF95ldBHXjZYJussz5FRc=
+connectrpc.com/vanguard v0.3.0 h1:prUKFm8rYDwvpvnOSoqdUowPMK0tRA0pbSrQoMd6Zng=
+connectrpc.com/vanguard v0.3.0/go.mod h1:nxQ7+N6qhBiQczqGwdTw4oCqx1rDryIt20cEdECqToM=
 cuelabs.dev/go/oci/ociregistry v0.0.0-20240404174027-a39bec0462d2 h1:BnG6pr9TTr6CYlrJznYUDj6V7xldD1W+1iXPum0wT/w=
 cuelabs.dev/go/oci/ociregistry v0.0.0-20240404174027-a39bec0462d2/go.mod h1:pK23AUVXuNzzTpfMCA06sxZGeVQ/75FdVtW249de9Uo=
 cuelang.org/go v0.9.2 h1:pfNiry2PdRBr02G/aKm5k2vhzmqbAOoaB4WurmEbWvs=
