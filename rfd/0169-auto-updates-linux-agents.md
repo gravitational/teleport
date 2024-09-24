@@ -25,7 +25,6 @@ The following anti-goals are out-of-scope for this proposal, but will be address
 - Signing of agent artifacts (e.g., via TUF)
 - Teleport Cloud APIs for updating agents
 - Improvements to the local functionality of the Kubernetes agent for better compatibility with FluxCD and ArgoCD
-- Support for progressive rollouts to different groups of ephemeral or auto-scaling agents (see: Version Promotion)
 - Support for progressive rollouts of tbot, when not installed on the same system as a Teleport agent
 
 This RFD proposes a specific implementation of several sections in https://github.com/gravitational/teleport/pull/39217.
@@ -53,154 +52,9 @@ The existing mechanism for automatic agent updates does not provide a hands-off 
 
 We must provide a seamless, hands-off experience for auto-updates of Teleport Agents that is easy to maintain and safer for production use.
 
-## Details - Teleport API
+## UX
 
-Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
-The version and edition served from that endpoint will be configured using new `autoupdate_version` resource.
-
-Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
-- The `host=[uuid]` parameter sent to `/v1/webapi/find`
-- The `group=[name]` parameter sent to `/v1/webapi/find`
-- The schedule defined in the new `autoupdate_config` resource
-- The status of past agent upgrades for the given version
-
-To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
-Teleport auth servers use their access to heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
-
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/update.yaml` file, which is written via `teleport-update enable`:
-```shell
-$ teleport-update enable --proxy teleport.example.com --group staging
-```
-
-At the start of a group rollout, the Teleport auth server captures the desired group of hosts to update in the backend.
-An fixed number of hosts (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
-Additional hosts are instructed to update as earlier updates complete, timeout, or fail, never exceeding `max_in_flight`.
-The group rollout is halted if timeouts or failures exceed their specified thresholds.
-Rollouts may be retried with `tctl autoupdate run`.
-
-### Scalability
-
-#### Window Capture
-
-Instance heartbeats will be cached by auth servers using a dedicated cache.
-This cache is initialized from the backend when the auth server starts, and kept up-to-date when the heartbeats are broadcast to all auth servers.
-
-When the auth server is started, the cache is initialized using rate-limited backend reads that occur in the background, to avoid mass-reads of instance heartbeats.
-The rate is modulated by the total number of instance heartbeats, to avoid putting too much load on the backend on large clusters.
-The cache is considered healthy when all instance heartbeats present on the backend have been read at least once.
-
-Instance heartbeats are currently broadcast to all auth servers.
-The cache will be kept up-to-date when the auth server receives updates.
-
-At the start of the upgrade window, auth servers attempt to write an update rollout plan to the backend.
-This plan is protected by optimistic locking, and contains the following data:
-
-Data key: `/autoupdate/[name of group](/[auth ID]/[number])` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/1`)
-
-Data value JSON:
-- `start_time`: timestamp of current window start time
-- `version`: version for which this rollout is valid
-- `schedule`: type of schedule that triggered the rollout
-- `hosts`: list of host UUIDs in randomized order
-- `auth_id`: ID of the auth server writing the plan
-
-
-Expiration time of each key is 2 weeks.
-
-At a fixed interval, auth servers will check the plan to determine if a new plan is needed by comparing `start_time` to the current time and the desired window.
-If a new plan is needed, auth servers will query their cache of instance heartbeats and attempt to write the new plan.
-The first auth server to write the plan wins; others will be rejected by the optimistic lock.
-Auth servers will only write the plan if their instance heartbeat cache is healthy.
-
-If the resource size is greater than 100 KiB, auth servers will divide the resource into pages no greater than 100 KiB each.
-This is necessary to support backends with a value size limit.
-
-Each page will duplicate all values besides `hosts`, which will be different for each page.
-All pages besides the first page will be prefixed with the auth server's ID.
-Pages will be written in reverse order before the final atomic non-prefixed write of the first page.
-If the non-prefixed write fails, the auth server is responsible for cleaning up the unusable pages.
-If cleanup fails, the unusable pages will expire from the backend after 2 weeks.
-
-```
-Winning auth:
-  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/2
-  WRITE: /autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56/1
-  WRITE: /autoupdate/staging | auth_id: 58526ba2-c12d-4a49-b5a4-1b694b82bf56
-
-Losing auth:
-  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/2
-  WRITE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/1
-  WRITE CONFLICT: /autoupdate/staging | auth_id: dd850e65-d2b2-4557-8ffb-def893c52530
-  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/1
-  DELETE: /autoupdate/staging/dd850e65-d2b2-4557-8ffb-def893c52530/2
-```
-
-To read all pages, auth servers read the first page, get the auth server ID from the `auth_id` field, and then range-read the remaining pages.
-
-#### Rollout
-
-The rollout logic is progressed by instance heartbeat backend writes, as changes can only occur on these events.
-
-The following data related to the rollout are stored in each instance heartbeat:
-- `agent_update_start_time`: timestamp of individual agent's upgrade time
-- `agent_update_version`: current agent version
-
-Expiration time of the heartbeat is extended to 24 hours when `agent_update_start_time` is written.
-
-Additionally, an in-memory data structure is maintained based on the cache, and kept up-to-date by a background process.
-This data structure contains the number of unfinished (pending and ongoing) upgrades preceding each instance heartbeat in the rollout plan.
-Instance heartbeats are considered completed when either `agent_update_version` matches the plan version, or `agent_update_start_time` is past the expiration time.
-```golang
-unfinished := make(map[Rollout][UUID]int)
-```
-
-On each instance heartbeat write, the auth server looks at the data structure to determine if the associated agent should begin upgrading.
-This determination is made by comparing the stored number of unfinished upgrades to `max_in_flight % x len(hosts)`.
-If the stored number is fewer, `agent_update_start_time` is updated to the current time when the heartbeat is written.
-
-The auth server writes the following keys to `/autoupdate/[name of group]/status` (e.g., `/autoupdate/staging/status`):
-- `last_active_host_index`: index of the last host allowed to update
-- `failed_host_count`: failed host count
-- `timeout_host_count`: timed-out host count
-
-Writes are rate-limited such that the progress is only updated every 10 seconds.
-If the auth server's cached progress is greater than its calculated progress, the auth server declines to update the progress.
-
-The predetermined ordering of hosts avoids cache synchronization issues between auth servers.
-Two concurrent heartbeat writes may temporarily result in fewer upgrading instances than desired, but this will eventually be resolved by cache propagation.
-
-Each group rollout is represented by an `agent_rollout_plan` Teleport resource that includes the progress and host count, but not the list of UUIDs.
-Proxies use the start time in the resource to determine when to stream the list of UUIDs via a dedicated RPC.
-Proxies watch the status section of `agent_rollout_plan` for updates to progress.
-
-Proxies read all started rollouts and maintain an in-memory map of host UUID to upgrading status:
-```golang
-upgrading := make(map[UUID]bool)
-```
-Proxies watch for changes to the plan and update the map accordingly.
-
-When the updater queries the proxy via `/v1/webapi/find?host=[host_uuid]&group=[name]`, the proxies query the map to determine the value of `agent_autoupdate: true`.
-
-Updating all agents generates the following additional backend write load:
-- One write per page of the rollout plan per update group.
-- One write per auth server every 10 seconds, during rollouts.
-
-### REST Endpoints
-
-`/v1/webapi/find?host=[host_uuid]&group=[name]`
-```json
-{
-  "server_edition": "enterprise",
-  "agent_version": "15.1.1",
-  "agent_autoupdate": true,
-  "agent_update_jitter_seconds": 10
-}
-```
-Notes:
-- Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
-- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
-- The host UUID is read from `/var/lib/teleport/host_uuid` by the updater.
-- The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
+[Hugo to add]
 
 ### Teleport Resources
 
@@ -211,74 +65,85 @@ kind: autoupdate_config
 spec:
   # agent_autoupdate allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
-  # agent updates are in place.
-  agent_autoupdate: true|false
+  # agent updates are in place. Setting this to pause will halt the rollout.
+  agent_autoupdate: disable|enable|pause
 
-  # agent_schedules contains both "regular" and "critical" schedules.
-  # The schedule used is determined by the agent_version_schedule associated
-  # with the version in autoupdate_version.
-  # Groups are not configurable with the "immediate" schedule.
+  # agent_schedules specifies version rollout schedules for agents.
+  # The schedule used is determined by the schedule associated
+  # with the version in the rollout_plan resource.
+  # For now, only the "regular" strategy is configurable.
   agent_schedules:
-    # schedule is "regular" or "critical"
+    # rollout strategy must be "regular" for now
     regular:
-      # name of the group. Must only contain valid backend / resource name characters.
-    - name: staging-group
-      # days specifies the days of the week when the group may be updated.
-      #  default: ["*"] (all days)
-      days: [“Sun”, “Mon”, ... | "*"]
-      # start_hour specifies the hour when the group may start upgrading.
-      #  default: 0
-      start_hour: 0-23
-      # jitter_seconds specifies a maximum jitter duration after the start hour.
-      # The agent updater client will pick a random time within this duration to wait to update.
-      #  default: 0
-      jitter_seconds: 0-60
-      # timeout_seconds specifies the amount of time, after the specified jitter, after which
-      # an agent update will be considered timed out if the version does not change.
-      #  default: 60
-      timeout_seconds: 30-900
-      # failure_seconds specifies the amount of time after which an agent update will be considered
-      # failed if the agent heartbeat stops before the update is complete.
-      #  default: 0
-      failure_seconds: 0-900
-      # max_in_flight specifies the maximum number of agents that may be updated at the same time.
-      #  default: 100%
-      max_in_flight: 0-100%
-      # max_timeout_before_halt specifies the percentage of clients that may time out before this group
-      # and all dependent groups are halted.
-      #  default: 10%
-      max_timeout_before_halt: 0-100%
-      # max_failed_before_halt specifies the percentage of clients that may fail before this group
-      # and all dependent groups are halted.
-      #  default: 0
-      max_failed_before_halt: 0-100%
-      # requires specifies groups that must pass with the current version before this group is allowed
-      # to run using that version.
-      requires: ["test-group"]
+        # name of the group. Must only contain valid backend / resource name characters.
+      - name: staging
+        # days specifies the days of the week when the group may be updated.
+        #  default: ["*"] (all days)
+        days: [ “Sun”, “Mon”, ... | "*" ]
+        # start_hour specifies the hour when the group may start upgrading.
+        #  default: 0
+        start_hour: 0-23
+        # wait_days specifies how many days to wait after the previous group finished before starting.
+        #  default: 0
+        wait_days: 0-1
+        # jitter_seconds specifies a maximum jitter duration after the start hour.
+        # The agent updater client will pick a random time within this duration to wait to update.
+        #  default: 5
+        jitter_seconds: 0-60
+        # max_in_flight specifies the maximum number of agents that may be updated at the same time.
+        # Only valid for the backpressure strategy.
+        #  default: 20%
+        max_in_flight: 10-100%
+        # alert_after specifies the duration after which a cluster alert will be set if the rollout has
+        # not completed.
+        #  default: 4h
+        alert_after: 1h
+
   # ...
+```
+
+Default resource:
+```yaml
+kind: autoupdate_config
+spec:
+  agent_autoupdate: enable
+  agent_schedules:
+    regular:
+    - name: default
+      days: ["*"]
+      start_hour: 0
+      jitter_seconds: 5
+      max_in_flight: 20%
+      alert_after: 4h
 ```
 
 Dependency cycles are rejected.
 Dependency chains longer than a week will be rejected.
 Otherwise, updates could take up to 7 weeks to propagate.
 
-The updater will receive `agent_autoupdate: true` from the time is it designated for update until the version changes in `autoupdate_version`.
-After 24 hours, the update is halted in-place, and the group is considered failed if unfinished.
+The update proceeds from the first group to the last group, ensuring that each group successfully updates before allowing the next group to proceed.
 
-Changing the version or schedule completely resets progress.
-Releasing new client versions multiple times a week has the potential to starve dependent groups from updates.
+The updater will receive `agent_autoupdate: true` from the time is it designated for update until the `target_version` in `autoupdate_agent_plan` (below) changes.
+Changing the `target_version` resets the schedule immediately, clearing all progress.
+
+Changing the `current_version` in `autoupdate_agent_plan` changes the advertised `current_version` for all unfinished groups.
+
+Changing `agent_schedules` will preserve the `state` of groups that have the same name before and after the change.
+However, any changes to `agent_schedules` that occur while a group is active will be rejected.
+
+Releasing new agent versions multiple times a week has the potential to starve dependent groups from updates.
 
 Note that the `default` schedule applies to agents that do not specify a group name.
 
 ```shell
 # configuration
-$ tctl autoupdate update--set-agent-auto-update=off
+$ tctl autoupdate update --set-agent-auto-update=off
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --schedule regular --group staging-group --set-start-hour=3
+$ tctl autoupdate update --group staging-group --set-start-hour=3
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --schedule regular --group staging-group --set-jitter-seconds=60
+$ tctl autoupdate update --group staging-group --set-jitter-seconds=60
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --schedule regular --default --set-jitter-seconds=60
+$ tctl autoupdate update --group default --set-jitter-seconds=60
 Automatic updates configuration has been updated.
 $ tctl autoupdate reset
 Automatic updates configuration has been reset to defaults.
@@ -309,16 +174,46 @@ $ tctl autoupdate run --group staging-group
 Executing auto-update for group 'staging-group' immediately.
 ```
 
-```yaml
-kind: autoupdate_version
-spec:
-  # agent_version is the version of the agent the cluster will advertise.
-  agent_version: X.Y.Z
-  # agent_version_schedule specifies the rollout schedule associated with the version.
-  # Currently, only critical, regular, and immediate schedules are permitted.
-  agent_version_schedule: regular|critical|immediate
+Notes:
+- `autoupdate_agent_plan` is separate from `autoupdate_config` so that Cloud customers can be restricted from updating `autoupdate_agent_plan`, while maintaining control over the rollout.
 
-  # ...
+#### Rollout
+
+```yaml
+kind: autoupdate_agent_plan
+spec:
+  # current_version is the desired version for agents before their window.
+  current_version: A.B.C
+  # target_version is the desired version for agents after their window.
+  target_version: X.Y.Z
+  # schedule to use for the rollout
+  schedule: regular|immediate
+  # strategy to use for the rollout
+  # default: backpressure
+  strategy: backpressure|grouped
+  # paused specifies whether the rollout is paused
+  # default: enabled
+  autoupdate: enabled|disabled|paused
+status:
+  groups:
+    # name of group
+  - name: staging
+    # start_time is the time the upgrade will start
+    start_time: 2020-12-09T16:09:53+00:00
+    # initial_count is the number of connected agents at the start of the window
+    initial_count: 432
+    # missing_count is the number of agents disconnected since the start of the rollout
+    present_count: 53
+    # failed_count is the number of agents rolled-back since the start of the rollout
+    failed_count: 23
+    # progress is the current progress through the rollout
+    progress: 0.532
+    # state is the current state of the rollout (unstarted, active, done, rollback)
+    state: active
+    # last_update_time is the time of the previous update for the group
+    last_update_time: 2020-12-09T16:09:53+00:00
+    # last_update_reason is the trigger for the last update
+    last_update_reason: rollback
 ```
 
 ```shell
@@ -328,45 +223,96 @@ $ tctl autoupdate update --set-agent-version=15.1.2 --critical
 Automatic updates configuration has been updated.
 ```
 
-Notes:
-- `autoupdate_version` is separate from `autoupdate_config` so that Cloud customers can be restricted from updating `autoupdate_version`, while maintaining control over the rollout.
+## Details - Teleport API
 
-#### Rollout
+Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
+The version and edition served from that endpoint will be configured using new `autoupdate_agent_plan` resource.
 
-```yaml
-kind: agent_rollout_plan
-spec:
-  # start time of the rollout
-  start_time: 0001-01-01T00:00:00Z
-  # target version of the rollout
-  version: X.Y.Z
-  # schedule that triggered the rollout
-  schedule: regular
-  # hosts updated by the rollout
-  host_count: 127
-status:
-  # current host index in rollout progress
-  last_active_host_index: 23
-  # failed hosts
-  failed_host_count: 3
-  # timed-out hosts
-  timeout_host_count: 1
+Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
+- The `host=[uuid]` parameter sent to `/v1/webapi/find`
+- The `group=[name]` parameter sent to `/v1/webapi/find`
+- The schedule defined in the new `autoupdate_config` resource
+- The status of past agent upgrades for the given version
+
+To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
+Teleport auth servers use their access to agent heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
+
+Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/update.yaml` file, which is written via `teleport-update enable`:
+```shell
+$ teleport-update enable --proxy teleport.example.com --group staging
 ```
 
+At the start of a group rollout, the Teleport auth servers record the initial number connected agents.
+A fixed number of connected agents (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
+Additional agents are instructed to update as earlier updates complete, never exceeding `max_in_flight`.
+Rollouts may be paused with `tctl autoupdate pause` or manually triggered with `tctl autoupdate run`.
+
+### Rollout
+
+Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` by the `teleport-update` binary.
+
+The following data related to the rollout are stored in each instance heartbeat:
+- `agent_update_start_time`: timestamp of individual agent's upgrade time
+- `agent_update_current_version`: current agent version
+- `agent_update_rollback`: whether the agent was rolled-back automatically
+- `agent_update_uuid`: Auto-update UUID
+- `agent_update_group`: Auto-update group name
+
+Auth servers use their local instance inventory to calculate rollout statistics and write them to `/autoupdate/[group]/[auth ID]` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`).
+
+Every minute, auth servers persist the version counts:
+- `version_counts[group][version]`
+  - `count`: number of currently connected agents at `version` in `group`
+  - `failed_count`: number of currently connected agents at `version` in `group` that experienced a rollback or inability to upgrade
+  - `lowest_uuid`: lowest UUID of all currently connected agents at `version` in `group`
+
+At the start of each group's window, auth servers persist an initial count:
+- `initial_counts[group]`
+  - `count`: number of connected agents in `group` at start of window
+
+Expiration time of the persisted key is 1 hour.
+
+To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_plan` status on a one-minute interval.
+- To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_plan` status, if not already written.
+- To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_plan` status using the formulas, declining to write if the current written progress is further ahead.
+
+If `/autoupdate/[group]/[auth ID]` is older than 1 minute, we do not consider its contents.
+This prevents double-counting agents when auth servers are killed.
+
+#### Progress Formulas
+
+Each auth server will calculate the progress as `( max_in_flight * initial_counts[group].count + version_counts[group][target_version].count ) / initial_counts[group].count` and write the progress to `autoupdate_agent_plan` status.
+This formula determines the progress percentage by adding a `max_in_flight` percentage-window above the number of currently updated agents in the group.
+
+However, if `as_numeral(version_counts[group][not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the calculated progress, that progress value will be used instead.
+This protects against a statistical deadlock, where no UUIDs fall within the next `max_in_flight` window of UUID space, by always permitting the next non-updated agent to update.
+
+To ensure that the rollout is halted if more than `max_in_flight` un-updated agents drop off, an addition restriction must be imposed for the rollout to proceed:
+`version_counts[group][*].count > initial_counts[group].count - max_in_flight * initial_counts[group].count`
+
+To prevent double-counting of agents when considering all counts across all auth servers, only agents connected for one minute will be considered in these formulas.
+
+#### Proxies
+
+When the updater queries the proxy via `/v1/webapi/find?host=[uuid]&group=[name]`, the proxies query the `autoupdate_agent_plan` status to determine the value of `agent_autoupdate: true`.
+The boolean is returned as `true` in the case that the provided `host` contains a UUID that is under the progress percentage for the `group`:
+`as_numeral(host_uuid) / as_numeral(max_uuid) < progress`
+
+### REST Endpoints
+
+`/v1/webapi/find?host=[uuid]&group=[name]`
+```json
+{
+  "server_edition": "enterprise",
+  "agent_version": "15.1.1",
+  "agent_autoupdate": true,
+  "agent_update_jitter_seconds": 10
+}
+```
 Notes:
-- This resource is stored in a paginated format with separate keys for each page and progress
-
-### Version Promotion
-
-This RFD only proposed a mechanism to signal when agent auto-updates should occur.
-Advertising different target Teleport versions for different groups of agents is out-of-scope for this RFD.
-This means that groups which employ auto-scaling or ephemeral resources will slowly converge to the latest Teleport version.
-
-**This could lead to a production outage, as the latest Teleport version may not receive any validation before it is advertised to newly provisioned resources in production.**
-
-To solve this in the future, we can use the group name (provided to `/v1/webapi/find` and specified via `teleport-update enable`) to determine which version should be served.
-
-This will require tracking the desired version of groups in the backend, which will add additional complexity to the rollout logic.
+- Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
+- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
+- The UUID and group name are read from `/var/lib/teleport/versions/update.yaml` by the updater.
 
 ## Details - Linux Agents
 
@@ -380,7 +326,7 @@ Source code for the updater will live in the main Teleport repository, with the 
 ### Installation
 
 ```shell
-$ apt-get install teleport-ent-updater
+$ apt-get install teleport
 $ teleport-update enable --proxy example.teleport.sh
 
 # if not enabled already, configure teleport and:
@@ -427,6 +373,16 @@ $ tree /var/lib/teleport
    │  └── etc
    │     └── systemd
    │        └── teleport.service
+   ├── system # if installed via OS package
+   │  ├── bin
+   │  │  ├── tsh
+   │  │  ├── tbot
+   │  │  ├── ... # other binaries
+   │  │  ├── teleport-update
+   │  │  └── teleport
+   │  └── etc
+   │     └── systemd
+   │        └── teleport.service
    └── update.yaml
 $ ls -l /usr/local/bin/tsh
 /usr/local/bin/tsh -> /var/lib/teleport/versions/15.0.0/bin/tsh
@@ -444,9 +400,11 @@ $ ls -l /usr/local/lib/systemd/system/teleport.service
 
 This file stores configuration for `teleport-update`.
 
+All updates are applied atomically using renameio.
+
 ```
 version: v1
-kind: updates
+kind: update_config
 spec:
   # proxy specifies the Teleport proxy address to retrieve the agent version and update configuration from.
   proxy: mytenant.teleport.sh
@@ -457,8 +415,16 @@ spec:
   # enabled specifies whether auto-updates are enabled, i.e., whether teleport-update update is allowed to update the agent.
   enabled: true
 status:
-  # active_version specifies the active (symlinked) deployment of the telepport agent.
+  # start_time specifies the start time of the most recent update.
+  start_time: 2020-12-09T16:09:53+00:00
+  # active_version specifies the active (symlinked) deployment of the teleport agent.
   active_version: 15.1.1
+  # version_history specifies the previous deployed versions, in order by recency.
+  version_history: ["15.1.3", "15.0.4"]
+  # rollback specifies whether the most recent version was deployed by an automated rollback.
+  rollback: true
+  # error specifies the last error encounted
+  error: "" 
 ```
 
 #### backup.yaml
@@ -479,7 +445,7 @@ spec:
 
 ### Runtime
 
-The agent-updater will run as a periodically executing systemd service which runs every 10 minutes.
+The `teleport-update` binary will run as a periodically executing systemd service which runs every 10 minutes.
 The systemd service will run:
 ```shell
 $ teleport-update update
@@ -490,7 +456,7 @@ After it is installed, the `update` subcommand will no-op when executed until co
 $ teleport-update enable --proxy mytenant.teleport.sh --group staging
 ```
 
-If the proxy address is not provided with `--proxy`, the current proxy address from `teleport.yaml` is used.
+If the proxy address is not provided with `--proxy`, the current proxy address from `teleport.yaml` is used, if present.
 
 The `enable` subcommand will change the behavior of `teleport-update update` to update teleport and restart the existing agent, if running.
 It will also run update teleport immediately, to ensure that subsequent executions succeed.
@@ -498,9 +464,9 @@ It will also run update teleport immediately, to ensure that subsequent executio
 Both `update` and `enable` will maintain a shared lock file preventing any re-entrant executions.
 
 The `enable` subcommand will:
-1. Query the `/v1/webapi/find` endpoint.
-2. If the current updater-managed version of Teleport is the latest, and teleport package is not installed, jump to (16).
-3. If the current updater-managed version of Teleport is the latest, but the teleport package is installed, jump to (13).
+1. If an updater-incompatible version of the Teleport package is installed, fail immediately.
+2. Query the `/v1/webapi/find` endpoint.
+3. If the current updater-managed version of Teleport is the latest, jump to (14).
 4. Ensure there is enough free disk space to update Teleport via `unix.Statfs()` and `content-length` header from `HEAD` request.
 5. Download the desired Teleport tarball specified by `agent_version` and `server_edition`.
 6. Download and verify the checksum (tarball URL suffixed with `.sha256`).
@@ -510,10 +476,8 @@ The `enable` subcommand will:
 10. Restart the agent if the systemd service is already enabled.
 11. Set `active_version` in `update.yaml` if successful or not enabled.
 12. Replace the symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
-13. Remove and purge any `teleport` package if installed.
-14. Verify the symlinks to the active version still exists.
-15. Remove all stored versions of the agent except the current version and last working version.
-16. Configure `update.yaml` with the current proxy address and group, and set `enabled` to true.
+13. Remove all stored versions of the agent except the current version and last working version.
+14. Configure `update.yaml` with the current proxy address and group, and set `enabled` to true.
 
 The `disable` subcommand will:
 1. Configure `update.yaml` to set `enabled` to false.
@@ -535,17 +499,20 @@ When `update` subcommand is otherwise executed, it will:
 14. Replace the old symlinks/binaries and `/var/lib/teleport/proc/sqlite.db` and quit (exit 1) if unsuccessful.
 15. Remove all stored versions of the agent except the current version and last working version.
 
-To enable auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-update` at that version if present and different.
+To guarantee auto-updates of the updater itself, all commands will first check for an `active_version`, and reexec using the `teleport-update` at that version if present and different.
 The `/usr/local/bin/teleport-update` symlink will take precedence to avoid reexec in most scenarios.
 
 To ensure that SELinux permissions do not prevent the `teleport-update` binary from installing/removing Teleport versions, the updater package will configure SELinux contexts to allow changes to all required paths.
 
-To ensure that `teleport` package removal does not interfere with `teleport-update`, package removal will run `apt purge` (or `yum` equivalent) while ensuring that `/etc/teleport.yaml` and `/var/lib/teleport` are not purged.
-Failure to do this could result in `/etc/teleport.yaml` being removed when an operator runs `apt purge` at a later date.
-
-To ensure that `teleport` package removal does not lead to a hard restart of Teleport, the updater will ensure that the package is removed without triggering needrestart or similar services.
-
 To ensure that backups are consistent, the updater will use the [SQLite backup API](https://www.sqlite.org/backup.html) to perform the backup.
+
+The `teleport` apt and yum packages contain a system installation of Teleport in `/var/lib/teleport/versions/system`.
+Post package installation, the `link` subcommand is executed automatically to link the system installation when no auto-updater-managed version of Teleport is linked:
+```
+/usr/local/bin/teleport -> /var/lib/teleport/versions/system/bin/teleport
+/usr/local/bin/teleport-updater -> /var/lib/teleport/versions/system/bin/teleport-updater
+...
+```
 
 #### Failure Conditions
 
@@ -563,9 +530,6 @@ To retrieve known information about agent updates, the `status` subcommand will 
   "agent_version_installed": "15.1.1",
   "agent_version_desired": "15.1.2",
   "agent_version_previous": "15.1.0",
-  "agent_edition_installed": "enterprise",
-  "agent_edition_desired": "enterprise",
-  "agent_edition_previous": "enterprise",
   "agent_update_time_last": "2020-12-10T16:00:00+00:00",
   "agent_update_time_jitter": 600,
   "agent_updates_enabled": true
@@ -618,6 +582,8 @@ This workflow supports customers that cannot use the auto-update mechanism provi
 
 Cluster administrators that want to self-manage agent updates may manually query the `/v1/webapi/find` endpoint using the host UUID, and implement auto-updates with their own automation.
 
+Cluster administrators that choose this path may use the `teleport` package without auto-updates enabled locally.
+
 ### Installers
 
 The following install scripts will be updated to install the latest updater and run `teleport-update enable` with the proxy address:
@@ -632,10 +598,10 @@ Eventually, additional logic from the scripts could be added to `teleport-update
 Moving additional logic into the updater is out-of-scope for this proposal.
 
 To create pre-baked VM or container images that reduce the complexity of the cluster joining operation, two workflows are permitted:
-- Install the `teleport-ent-updater` package and defer `teleport-update enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
+- Install the `teleport` package and defer `teleport-update enable`, Teleport configuration, and `systemctl enable teleport` to cloud-init scripts.
   This allows both the proxy address and token to be injected at VM initialization. The VM image may be used with any Teleport cluster.
   Installers scripts will continue to function, as the package install operation will no-op.
-- Install the `teleport-ent-updater` package and run `teleport-update enable` before the image is baked, but defer final Teleport configuration and `systemctl enable teleport` to cloud-init scripts.
+- Install the `teleport` package and run `teleport-update enable` before the image is baked, but defer final Teleport configuration and `systemctl enable teleport` to cloud-init scripts.
   This allows the proxy address to be pre-set in the image. `teleport.yaml` can be partially configured during image creation. At minimum, the token must be injected via cloud-init scripts.
   Installers scripts would be skipped in favor of the `teleport configure` command.
 
@@ -666,9 +632,12 @@ Rollbacks for the Kubernetes updater, as well as packaging changes to improve UX
 
 ## Migration
 
-The existing update scheduling system will remain in-place until the old auto-updater is fully deprecated.
+The existing update system will remain in-place until the old auto-updater is fully deprecated.
 
-Eventually, the `cluster_maintenance_config` resource will be deprecated.
+Both update systems can co-exist on the same machine.
+The old auto-updater will update the system package, which will not affect the `teleport-update`-managed installation. 
+
+Eventually, the `cluster_maintenance_config` resource and `teleport-ent-upgrader` package will be deprecated.
 
 ## Security
 
@@ -717,19 +686,14 @@ service AutoUpdateService {
   // ResetAutoUpdateConfig restores the autoupdate config to default values.
   rpc ResetAutoUpdateConfig(ResetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
 
-  // GetAutoUpdateVersion returns the autoupdate version.
-  rpc GetAutoUpdateVersion(GetAutoUpdateVersionRequest) returns (AutoUpdateVersion);
-  // CreateAutoUpdateVersion creates the autoupdate version.
-  rpc CreateAutoUpdateVersion(CreateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
-  // UpdateAutoUpdateVersion updates the autoupdate version.
-  rpc UpdateAutoUpdateVersion(UpdateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
-  // UpsertAutoUpdateVersion overwrites the autoupdate version.
-  rpc UpsertAutoUpdateVersion(UpsertAutoUpdateVersionRequest) returns (AutoUpdateVersion);
-
-  // GetAgentRolloutPlan returns the agent rollout plan and current progress.
-  rpc GetAgentRolloutPlan(GetAgentRolloutPlanRequest) returns (AgentRolloutPlan);
-  // GetAutoUpdateVersion streams the agent rollout plan's list of all hosts.
-  rpc GetAgentRolloutPlanHosts(GetAgentRolloutPlanHostsRequest) returns (stream AgentRolloutPlanHost);
+  // GetAutoUpdateAgentPlan returns the autoupdate plan for agents.
+  rpc GetAutoUpdateAgentPlan(GetAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // CreateAutoUpdateAgentPlan creates the autoupdate plan for agents.
+  rpc CreateAutoUpdateAgentPlan(CreateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // UpdateAutoUpdateAgentPlan updates the autoupdate plan for agents.
+  rpc UpdateAutoUpdateAgentPlan(UpdateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // UpsertAutoUpdateAgentPlan overwrites the autoupdate plan for agents.
+  rpc UpsertAutoUpdateAgentPlan(UpsertAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
 }
 
 // GetAutoUpdateConfigRequest requests the contents of the AutoUpdateConfig.
@@ -779,8 +743,6 @@ message AutoUpdateConfigSpec {
 message AgentAutoUpdateSchedules {
   // regular schedules for non-critical versions.
   repeated AgentAutoUpdateGroup regular = 1;
-  // critical schedules for urgently needed versions.
-  repeated AgentAutoUpdateGroup critical = 2;
 }
 
 // AgentAutoUpdateGroup specifies the update schedule for a group of agents.
@@ -799,12 +761,6 @@ message AgentAutoUpdateGroup {
   int32 failure_seconds = 6;
   // max_in_flight specifies agents that can be updated at the same time, by percent.
   string max_in_flight = 7;
-  // max_timeout_before_halt specifies agents that can timeout before the rollout is halted, by percent.
-  string max_timeout_before_halt = 8;
-  // max_failed_before_halt specifies agents that can fail before the rollout is halted, by percent.
-  string max_failed_before_halt = 9;
-  // requires specifies rollout groups that must succeed for the current version/schedule before this rollout can run.
-  repeated string requires = 10;
 }
 
 // Day of the week
@@ -820,29 +776,29 @@ enum Day {
   DAY_SATURDAY = 8;
 }
 
-// GetAutoUpdateVersionRequest requests the autoupdate_version singleton resource.
-message GetAutoUpdateVersionRequest {}
+// GetAutoUpdateAgentPlanRequest requests the autoupdate_agent_plan singleton resource.
+message GetAutoUpdateAgentPlanRequest {}
 
-// GetAutoUpdateVersionRequest requests creation of the autoupdate_version singleton resource.
-message CreateAutoUpdateVersionRequest {
-  // autoupdate_version resource contents
-  AutoUpdateVersion autoupdate_version = 1;
+// GetAutoUpdateAgentPlanRequest requests creation of the autoupdate_agent_plan singleton resource.
+message CreateAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
 }
 
-// GetAutoUpdateVersionRequest requests an update of the autoupdate_version singleton resource.
-message UpdateAutoUpdateVersionRequest {
-  // autoupdate_version resource contents
-  AutoUpdateVersion autoupdate_version = 1;
+// GetAutoUpdateAgentPlanRequest requests an update of the autoupdate_agent_plan singleton resource.
+message UpdateAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
 }
 
-// GetAutoUpdateVersionRequest requests an upsert of the autoupdate_version singleton resource.
-message UpsertAutoUpdateVersionRequest {
-  // autoupdate_version resource contents
-  AutoUpdateVersion autoupdate_version = 1;
+// GetAutoUpdateAgentPlanRequest requests an upsert of the autoupdate_agent_plan singleton resource.
+message UpsertAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
 }
 
-// AutoUpdateVersion holds dynamic configuration settings for autoupdate versions.
-message AutoUpdateVersion {
+// AutoUpdateAgentPlan holds dynamic configuration settings for agent autoupdates.
+message AutoUpdateAgentPlan {
   // kind is the kind of the resource.
   string kind = 1;
   // sub_kind is the sub kind of the resource.
@@ -852,11 +808,13 @@ message AutoUpdateVersion {
   // metadata is the metadata of the resource.
   teleport.header.v1.Metadata metadata = 4;
   // spec is the spec of the resource.
-  AutoUpdateVersionSpec spec = 5;
+  AutoUpdateAgentPlanSpec spec = 5;
+  // status is the status of the resource.
+  AutoUpdateAgentPlanStatus status = 6;
 }
 
-// AutoUpdateVersionSpec is the spec for the autoupdate version.
-message AutoUpdateVersionSpec {
+// AutoUpdateAgentPlanSpec is the spec for the autoupdate version.
+message AutoUpdateAgentPlanSpec {
   // agent_version is the desired agent version for new rollouts.
   string agent_version = 1;
   // agent_version schedule is the schedule to use for rolling out the agent_version.
@@ -869,66 +827,22 @@ enum Schedule {
   SCHEDULE_UNSPECIFIED = 0;
   // REGULAR update schedule
   SCHEDULE_REGULAR = 1;
-  // CRITICAL update schedule for critical bugs and vulnerabilities
-  SCHEDULE_CRITICAL = 2;
   // IMMEDIATE update schedule for updating all agents immediately
-  SCHEDULE_IMMEDIATE = 3;
+  SCHEDULE_IMMEDIATE = 2;
 }
 
-// GetAgentRolloutPlanRequest requests an agent_rollout_plan.
-message GetAgentRolloutPlanRequest {
-  // name of the agent_rollout_plan
-  string name = 1;
-}
-
-// GetAgentRolloutPlanHostsRequest requests the ordered host UUIDs for an agent_rollout_plan.
-message GetAgentRolloutPlanHostsRequest {
-  // name of the agent_rollout_plan
-  string name = 1;
-}
-
-// AgentRolloutPlan defines a version update rollout consisting a fixed group of agents.
-message AgentRolloutPlan {
-  // kind is the kind of the resource.
-  string kind = 1;
-  // sub_kind is the sub kind of the resource.
-  string sub_kind = 2;
-  // version is the version of the resource.
-  string version = 3;
-  // metadata is the metadata of the resource.
-  teleport.header.v1.Metadata metadata = 4;
-  // spec is the spec of the resource.
-  AgentRolloutPlanSpec spec = 5;
-  // status is the status of the resource.
-  AgentRolloutPlanStatus status = 6;
-}
-
-// AutoUpdateVersionSpec is the spec for the AgentRolloutPlan.
-message AgentRolloutPlanSpec {
-  // start_time of the rollout
-  google.protobuf.Timestamp start_time = 1;
+// AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
+message AutoUpdateAgentPlanStatus {
   // version targetted by the rollout
   string version = 2;
-  // schedule that triggered the rollout
-  string schedule = 3;
-  // host_count of hosts to update
-  int64 host_count = 4;
-}
-
-// AutoUpdateVersionStatus is the status for the AgentRolloutPlan.
-message AgentRolloutPlanStatus {
+  // start_time of the rollout
+  google.protobuf.Timestamp start_time = 1;
   // last_active_host_index specifies the index of the last host that may be updated.
   int64 last_active_host_index = 1;
   // failed_host_count specifies the number of failed hosts.
   int64 failed_host_count = 2;
   // timeout_host_count specifies the number of timed-out hosts.
   int64 timeout_host_count = 3;
-}
-
-// AgentRolloutPlanHost identifies an agent by host ID
-message AgentRolloutPlanHost {
-  // host_id of a host included in the rollout
-  string host_id = 1;
 }
 ```
 
@@ -958,13 +872,13 @@ Making the update boolean instruction available via the `/webapi/find` TLS endpo
 
 ## Execution Plan
 
-1. Implement Teleport APIs for new scheduling system (without backpressure or group interdependence)
+1. Implement Teleport APIs for new scheduling system (without backpressure strategy)
 2. Implement new Linux server auto-updater in Go.
 3. Implement changes to Kubernetes auto-updater.
 4. Test extensively on all supported Linux distributions.
 5. Prep documentation changes.
-6. Release new updater via teleport-ent-updater package.
+6. Release via `teleport` package.
 7. Release documentation changes.
 8. Communicate to users that they should update their updater.
-9. Deprecate old auto-updater endpoints.
+9. Begin deprecation of old auto-updater resources, packages, and endpoints.
 10. Add group interdependence and backpressure features.
