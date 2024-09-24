@@ -333,6 +333,10 @@ All CAs listed in the output of `tctl status` must be rotated.
 
 ## Step 5/5. Confirm that Teleport is using your HSM
 
-You are all set! Check the teleport logs for `Creating new HSM key pair` to
-confirm that the feature is working. You can also check that keys were created
-in your HSM using your HSM's admin tool.
+You are all set! You can confirm that HSM keys are being used a few different
+ways:
+
+1. `tctl status` will show `PKCS#11 HSM` as the `storage` method for all
+   Certificate Authority keys.
+1. Teleport Auth service logs will contain `Creating new HSM key pair`.
+1. Your HSM's admin tool should show the newly created keys.
