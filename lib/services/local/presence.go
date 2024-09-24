@@ -470,6 +470,7 @@ func (s *PresenceService) GetReverseTunnel(ctx context.Context, name string) (ty
 }
 
 // GetReverseTunnels returns a list of registered servers
+// Deprecated: use ListReverseTunnels
 // TODO(noah): REMOVE IN 18.0.0 - replace with calls to ListReverseTunnels
 func (s *PresenceService) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
 	startKey := backend.ExactKey(reverseTunnelsPrefix)

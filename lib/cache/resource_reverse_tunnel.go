@@ -26,6 +26,7 @@ import (
 )
 
 // GetReverseTunnels is a part of auth.Cache implementation
+// Deprecated: use ListReverseTunnels
 func (c *Cache) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
 	defer span.End()

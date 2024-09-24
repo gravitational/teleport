@@ -114,6 +114,7 @@ type Presence interface {
 	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
 
 	// GetReverseTunnels returns a list of registered servers
+	// Deprecated: use ListReverseTunnels
 	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
