@@ -32,8 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/teleport/assets/backport/github"
-
-	"github.com/gravitational/teleport/api/utils/yaml"
+	"gopkg.in/yaml.v2"
 )
 
 func main() {
