@@ -178,6 +178,26 @@ linters-settings:
             desc: '"lib/srv/uacc" requires CGO'
           - pkg: github.com/gravitational/teleport/lib/cgroup
             desc: '"lib/cgroup" requires CGO'
+      # Prevent importing various yaml libraries, use api/utils/yaml instead
+      yaml:
+        files:
+          - "**/api/**"
+          - "**/integrations/**"
+          - "**/lib/**"
+          - "**/tool/**"
+          - "!**/api/utils/yaml/**"
+          # TODO(atburke): Add e/* once e uses api/utils/yaml
+        deny:
+          - pkg: github.com/ghodss/yaml
+            desc: 'use "github.com/gravitational/teleport/api/utils/yaml" instead'
+          - pkg: gopkg.in/yaml.v2
+            desc: 'use "github.com/gravitational/teleport/api/utils/yaml" instead'
+          - pkg: gopkg.in/yaml.v3
+            desc: 'use "github.com/gravitational/teleport/api/utils/yaml" instead'
+          - pkg: sigs.k8s.io/yaml
+            desc: 'use "github.com/gravitational/teleport/api/utils/yaml" instead'
+          - pkg: k8s.io/apimachinery/pkg/util/yaml
+            desc: 'use "github.com/gravitational/teleport/api/utils/yaml" instead'
   errorlint:
     comparison: true
     asserts: true
