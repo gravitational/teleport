@@ -29,14 +29,13 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -117,7 +116,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c *authclient.Cli
 		reader = f
 	}
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(reader)
 	for {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)

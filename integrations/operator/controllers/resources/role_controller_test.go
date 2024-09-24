@@ -30,12 +30,12 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/util/retry"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"

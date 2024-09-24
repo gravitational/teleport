@@ -37,12 +37,12 @@ import (
 	v1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 

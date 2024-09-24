@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/yaml"
@@ -231,7 +230,7 @@ func writeYAML(w io.Writer, values interface{}) error {
 
 // ReadYAML can unmarshal a stream of documents, used in tests.
 func ReadYAML(reader io.Reader) (interface{}, error) {
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, 32*1024)
+	decoder := yaml.NewDecoder(reader)
 	var values []interface{}
 	for {
 		var val interface{}

@@ -31,11 +31,10 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -166,7 +165,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 	defer f.Close()
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(f)
 	var raw services.UnknownResource
 	if err := decoder.Decode(&raw); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -225,7 +224,7 @@ func resourceName(filename string) (string, error) {
 	}
 	defer f.Close()
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(f)
 
 	var raw services.UnknownResource
 	if err := decoder.Decode(&raw); err != nil {

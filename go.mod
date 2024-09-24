@@ -215,7 +215,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
 	helm.sh/helm/v3 v3.15.4
 	k8s.io/api v0.31.0

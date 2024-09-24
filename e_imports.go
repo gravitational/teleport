@@ -126,7 +126,6 @@ import (
 	_ "google.golang.org/protobuf/types/known/fieldmaskpb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 	_ "gopkg.in/check.v1"
-	_ "k8s.io/apimachinery/pkg/util/yaml"
 
 	_ "github.com/gravitational/teleport/api/accessrequest"
 	_ "github.com/gravitational/teleport/api/breaker"
@@ -165,4 +164,5 @@ import (
 	_ "github.com/gravitational/teleport/api/utils/keys"
 	_ "github.com/gravitational/teleport/api/utils/retryutils"
 	_ "github.com/gravitational/teleport/api/utils/tlsutils"
+	_ "github.com/gravitational/teleport/api/utils/yaml"
 )

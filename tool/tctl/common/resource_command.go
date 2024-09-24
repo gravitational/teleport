@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/encoding/protojson"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
@@ -62,9 +61,9 @@ import (
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/secreports"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -339,7 +338,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 		defer f.Close()
 		reader = f
 	}
-	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(reader)
 	count := 0
 	for {
 		var raw services.UnknownResource

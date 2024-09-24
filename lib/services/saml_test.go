@@ -27,10 +27,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -40,7 +39,7 @@ func TestParseFromMetadata(t *testing.T) {
 
 	input := fixtures.SAMLOktaConnectorV2
 
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+	decoder := yaml.NewDecoder(strings.NewReader(input))
 	var raw UnknownResource
 	err := decoder.Decode(&raw)
 	require.NoError(t, err)
@@ -63,7 +62,7 @@ func TestCheckSAMLEntityDescriptor(t *testing.T) {
 		"with certificate padding":    fixtures.SAMLOktaConnectorV2WithPadding,
 	} {
 		t.Run(name, func(t *testing.T) {
-			decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(input), defaults.LookaheadBufSize)
+			decoder := yaml.NewDecoder(strings.NewReader(input))
 			var raw UnknownResource
 			err := decoder.Decode(&raw)
 			require.NoError(t, err)
