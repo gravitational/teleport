@@ -27,8 +27,12 @@ import (
 // EC2DiscoverySSMDocument receives the proxy address and returns an SSM Document.
 // This document downloads and runs a Teleport installer.
 // Requires the proxy endpoint URL, example: https://tenant.teleport.sh
-func EC2DiscoverySSMDocument(proxy string) string {
-	randString := uuid.NewString() // Secure random so the filename can not be guessed to avoid possible script injection
+func EC2DiscoverySSMDocument(proxy string, insecureSkipNameRandomization bool) string {
+	installTeleportPath := "/tmp/installTeleport.sh"
+	if !insecureSkipNameRandomization {
+		// Secure random so the filename can not be guessed to avoid possible script injection
+		installTeleportPath = fmt.Sprintf("/tmp/installTeleport-%s.sh", uuid.NewString())
+	}
 
 	return fmt.Sprintf(`
 schemaVersion: '2.2'
@@ -45,7 +49,7 @@ mainSteps:
   name: downloadContent
   inputs:
     sourceType: "HTTP"
-    destinationPath: "/tmp/installTeleport-%s.sh"
+    destinationPath: %q
     sourceInfo:
       url: "%s/webapi/scripts/installer/{{ scriptName }}"
 - action: aws:runShellScript
@@ -53,8 +57,8 @@ mainSteps:
   inputs:
     timeoutSeconds: '300'
     runCommand:
-      - /bin/sh /tmp/installTeleport-%s.sh "{{ token }}"
-`, randString, proxy, randString)
+      - /bin/sh %s "{{ token }}"
+`, installTeleportPath, proxy, installTeleportPath)
 }
 
 const EC2DiscoveryPolicyName = "TeleportEC2Discovery"

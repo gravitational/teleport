@@ -77,6 +77,7 @@ func CreateRole(
 	trustPolicy *awslib.PolicyDocument,
 	tags tags.AWSTags,
 ) (*provisioning.Action, error) {
+
 	trustPolicyJSON, err := trustPolicy.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,7 +90,7 @@ func CreateRole(
 	}
 	type createRoleInput struct {
 		// AssumeRolePolicyDocument shadows the input's field of the same name
-		// to marshal the trust policy doc as unescpaed JSON.
+		// to marshal the trust policy doc as unescaped JSON.
 		AssumeRolePolicyDocument *awslib.PolicyDocument
 		*iam.CreateRoleInput
 	}
