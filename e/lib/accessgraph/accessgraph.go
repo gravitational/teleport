@@ -253,6 +253,7 @@ func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 			ChangeID:               data.ChangeId,
 			AffectedResourceName:   data.AffectedResourceName,
 			AffectedResourceSource: data.AffectedResourceSource,
+			AffectedResourceType:   data.AffectedResourceKind,
 		}
 	default:
 		return nil

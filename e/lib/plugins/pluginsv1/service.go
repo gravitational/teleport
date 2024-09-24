@@ -212,7 +212,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		PluginMetadata: apievents.PluginMetadata{
 			PluginType:     string(plugin.GetType()),
 			HasCredentials: staticCreds != nil,
-			PluginData:     s.pluginToProtobufStruct(ctx, plugin),
+			PluginData:     s.pluginToProtobufStruct(ctx, out),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
