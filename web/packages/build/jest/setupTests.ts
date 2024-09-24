@@ -67,10 +67,7 @@ const failOnConsoleIgnoreList = new Set([
 ]);
 // A list of allowed messages, for expected messages that shouldn't fail the build (e.g., warnings
 // about deprecated functions from 3rd-party libraries).
-const failOnConsoleAllowedMessages = [
-  'defaultProps will be removed',
-  'findDOMNode is deprecated',
-];
+const failOnConsoleAllowedMessages = ['defaultProps will be removed'];
 failOnConsole({
   skipTest: ({ testPath }) => {
     const relativeTestPath = path.relative(rootDir, testPath);
