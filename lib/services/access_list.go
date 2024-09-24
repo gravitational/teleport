@@ -250,16 +250,23 @@ func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListsAn
 	}
 }
 
+// MembershipOrOwnershipType represents the type of membership or ownership a tlsca.Identity has for an Access List.
+type MembershipOrOwnershipType int
+
+const (
+	MembershipOrOwnershipTypeNone MembershipOrOwnershipType = iota
+	MembershipOrOwnershipTypeExplicit
+	MembershipOrOwnershipTypeInherited
+)
+
 // GetAccessListNestedLists returns the names of all nested lists that are direct Members of the provided Access List.
-func GetAccessListNestedLists(ctx context.Context, membersGetter AccessListsAndMembersGetter, accessListName string) ([]string, error) {
+func (a AccessListMembershipChecker) GetAccessListNestedLists(ctx context.Context, accessListName string) (nestedLists []string, err error) {
 	var pageToken string
-	var nestedLists []string
 
 	for {
 		var members []*accesslist.AccessListMember
-		var err error
 
-		members, pageToken, err = membersGetter.ListAccessListMembers(ctx, accessListName, 0 /* default page size */, pageToken)
+		members, pageToken, err = a.members.ListAccessListMembers(ctx, accessListName, 0 /* default page size */, pageToken)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -278,40 +285,42 @@ func GetAccessListNestedLists(ctx context.Context, membersGetter AccessListsAndM
 	return nestedLists, nil
 }
 
-// IsAccessListOwner will determine both whether the provided `identity` is an owner for the `accessList`
+// IsAccessListOwner will determine both whether the provided tlsca.Identity is an owner for the accessList
 // and meets its ownership requirements.
 //
-// If ownership is inherited (through the `identity` having Membership in an Access List which is an Owner
-// of the provided `accessList`), the `identity` must also meet the membership requirements of the nested list.
-//
-// For example, in case of valid inherited ownership, `{true, nil}` is returned.
-func (a AccessListMembershipChecker) IsAccessListOwner(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) (isOwnershipInherited bool, err error) {
-	// An opaque access denied error.
-	accessDenied := trace.AccessDenied("access denied")
+// If ownership is inherited (through the tlsca.Identity having Membership in an Access List which is an Owner
+// of the provided accessList), the tlsca.Identity must also meet the membership requirements of the nested list.
+func (a AccessListMembershipChecker) IsAccessListOwner(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) (MembershipOrOwnershipType, error) {
+	ownershipType := MembershipOrOwnershipTypeNone
 
 	// Is the supplied identity explicitly in the Owners list?
-	isExplicitOwner := slices.ContainsFunc(accessList.GetOwners(), func(owner accesslist.Owner) bool {
+	if slices.ContainsFunc(accessList.GetOwners(), func(owner accesslist.Owner) bool {
 		return owner.Name == identity.Username
-	})
-	if !isExplicitOwner {
+	}) {
+		ownershipType = MembershipOrOwnershipTypeExplicit
+	} else {
 		err := a.recursiveIsAccessListOwnerCheck(ctx, identity, accessList)
 		if err != nil {
-			return false, accessDenied
+			if trace.IsNotFound(err) {
+				return MembershipOrOwnershipTypeNone, trace.NotFound("User '%s' is not an owner of list '%s'.", identity.Username, accessList.GetName())
+			}
+			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 		}
+		ownershipType = MembershipOrOwnershipTypeInherited
 	}
 
 	// Does the supplied Identity meet the ownership requirements?
 	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
-		return !isExplicitOwner, accessDenied
+		return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is an owner, but does not have the roles or traits required to be an owner of list '%s'.", identity.Username, accessList.GetName())
 	}
 
-	// We've gotten through all the checks, so the user is an owner.
-	return !isExplicitOwner, nil
+	// We've gotten through all the checks, so the user is a valid owner.
+	return ownershipType, nil
 }
 
-// recursiveIsAccessListOwnerCheck will check if the `identity` is an inherited owner of the provided `accessList`.
-// Ownership is inherited when the `identity` is a Member of an Access List, up to the maximum allowed depth,
-// which is an Owner of the provided `accessList`.
+// recursiveIsAccessListOwnerCheck checks if supplied tlsca.Identity is an inherited owner of the accessList.
+// Ownership is inherited when the tlsca.Identity is a Member of an Access List, up to the maximum allowed depth,
+// which is an explicit Owner of the provided accessList.
 func (a AccessListMembershipChecker) recursiveIsAccessListOwnerCheck(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) error {
 	seen := map[string]struct{}{}
 	type queueItem struct {
@@ -342,7 +351,7 @@ func (a AccessListMembershipChecker) recursiveIsAccessListOwnerCheck(ctx context
 			return trace.Wrap(err)
 		}
 		if trace.IsNotFound(err) {
-			subAccessListMembers, err := GetAccessListNestedLists(ctx, a.members, item.name)
+			subAccessListMembers, err := a.GetAccessListNestedLists(ctx, item.name)
 			if err != nil {
 				return trace.NotFound("Error finding Access List '%s'.", item.name)
 			}
@@ -361,7 +370,7 @@ func (a AccessListMembershipChecker) recursiveIsAccessListOwnerCheck(ctx context
 		if !expires.IsZero() && !a.clock.Now().Before(expires) {
 			// Avoid non-deterministic behavior here: If user's membership is expired, then
 			// continue checking, in case their membership in a related list is still valid.
-			ownershipErr = trace.AccessDenied("User '%s's ownership has expired in Access List '%s'.", identity.Username, item.name)
+			ownershipErr = trace.AccessDenied("User '%s's membership has expired in Access List '%s'.", identity.Username, item.name)
 			continue
 		}
 
@@ -377,14 +386,12 @@ func (a AccessListMembershipChecker) recursiveIsAccessListOwnerCheck(ctx context
 	return ownershipErr
 }
 
-// IsAccessListMember will determine whether the provided `identity` is a member for the `accessList`
+// IsAccessListMember will determine whether the provided tlsca.Identity is a member for the accessList
 // and meets its membership requirements.
 //
-// If membership is inherited (through the `identity` having Membership in a nested Access List),
-// the `identity` must also meet the membership requirements of the nested list.
-//
-// For example, in case of valid inherited membership, `{true, error|nil}` is returned.
-func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) (isMembershipInherited bool, err error) {
+// If membership is inherited (through the tlsca.Identity having Membership in a nested Access List),
+// the tlsca.Identity must also meet the membership requirements of the nested list.
+func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) (MembershipOrOwnershipType, error) {
 	username := identity.Username
 
 	// Allow for nil locks while we transition away from using `IsAccessListMember` outside of this struct.
@@ -393,44 +400,43 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 			User: username,
 		})
 		if err != nil {
-			return false, trace.Wrap(err)
+			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 		}
 
 		if len(locks) > 0 {
-			return false, trace.AccessDenied("User '%s' is currently locked.", username)
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is currently locked.", username)
 		}
 	}
 
 	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
 	if err != nil && trace.IsNotFound(err) {
 		// See if the user is a member of any nested lists by recursing
-		err := a.recursiveIsAccessListMemberCheck(ctx, identity, accessList)
-		if trace.IsNotFound(err) {
-			// The member has not been found, so we know they're not a member of this list.
-			return false, trace.NotFound("User '%s' is not a member of list '%s'.", username, accessList.GetName())
-		}
-		if err != nil {
-			return false, trace.Wrap(err)
+		if err := a.recursiveIsAccessListMemberCheck(ctx, identity, accessList); err != nil {
+			if trace.IsNotFound(err) {
+				// The member has not been found, so we know they're not a member of this list.
+				return MembershipOrOwnershipTypeNone, trace.NotFound("User '%s' is not a member of list '%s'.", username, accessList.GetName())
+			}
+			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 		}
 
 		if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
-			return true, trace.AccessDenied("User '%s' is a member, but does not have the roles or traits required to be a member of list '%s'.", username, accessList.GetName())
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is a member, but does not have the roles or traits required to be a member of list '%s'.", username, accessList.GetName())
 		}
 
-		return true, nil
+		return MembershipOrOwnershipTypeInherited, nil
 	} else if err != nil {
-		return false, trace.Wrap(err)
+		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 	}
 
 	expires := member.Spec.Expires
 	if !expires.IsZero() && !a.clock.Now().Before(expires) {
-		return false, trace.AccessDenied("User '%s's membership has expired in list '%s'.", username, accessList.GetName())
+		return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s's membership has expired in list '%s'.", username, accessList.GetName())
 	}
 	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
-		return false, trace.AccessDenied("User '%s' is a member, but does not have the roles or traits required to be a member of list '%s'.", username, accessList.GetName())
+		return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is a member, but does not have the roles or traits required to be a member of list '%s'.", username, accessList.GetName())
 	}
 
-	return false, nil
+	return MembershipOrOwnershipTypeExplicit, nil
 }
 
 // recursiveIsAccessListMemberCheck will check if the `identity` is an inherited member of the provided `accessList`.
@@ -458,7 +464,7 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 			return trace.Wrap(err)
 		}
 		if trace.IsNotFound(err) {
-			subAccessListMembers, err := GetAccessListNestedLists(ctx, a.members, item.name)
+			subAccessListMembers, err := a.GetAccessListNestedLists(ctx, item.name)
 			if err != nil {
 				return trace.AccessDenied("Error finding access list '%s'.", item.name)
 			}
@@ -493,16 +499,14 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 	return membershipErr
 }
 
-// IsAccessListMember will determine whether the provided `identity` is a member for the `accessList`
+// IsAccessListMember will determine whether the provided tlsca.Identity is a member for the accessList
 // and meets its membership requirements.
 //
-// If membership is inherited (through the `identity` having Membership in a nested Access List),
-// the `identity` must also meet the membership requirements of the nested list.
-//
-// For example, in case of valid inherited membership, `{true, error|nil}` is returned.
+// If membership is inherited (through the tlsca.Identity having Membership in a nested Access List),
+// the tlsca.Identity must also meet the membership requirements of the nested list.
 //
 // TODO(mdwn): Remove this in favor of using the access list membership checker.
-func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (bool, error) {
+func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (MembershipOrOwnershipType, error) {
 	// See if the member getter also implements lock getter. If so, use it. Otherwise, nil is fine.
 	lockGetter, _ := members.(LockGetter)
 	return AccessListMembershipChecker{
@@ -512,15 +516,14 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 	}.IsAccessListMember(ctx, identity, accessList)
 }
 
-// IsAccessListOwner will determine both whether the provided `identity` is an owner for the `accessList`
+// IsAccessListOwner will determine both whether the provided tlsca.Identity is an owner for the accessList
 // and meets its ownership requirements.
 //
-// If ownership is inherited (through the `identity` having Membership in an Access List which is an Owner
-// of the provided `accessList`), the `identity` must also meet the membership requirements of the nested list.
+// If ownership is inherited (through the tlsca.Identity having Membership in an Access List which is an Owner
+// of the provided accessList), the tlsca.Identity must also meet the membership requirements of the nested list.
 //
-// For example, in case of valid inherited ownership, `{true, nil}` is returned.
 // TODO(kiosion): Remove this in favor of using the access list membership checker.
-func IsAccessListOwner(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (bool, error) {
+func IsAccessListOwner(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (MembershipOrOwnershipType, error) {
 	lockGetter, _ := members.(LockGetter)
 	return AccessListMembershipChecker{
 		members: members,

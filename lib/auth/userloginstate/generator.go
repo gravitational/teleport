@@ -191,19 +191,19 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 	}
 
 	for _, accessList := range accessLists {
-		if ownershipInherited, err := g.memberChecker.IsAccessListOwner(ctx, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state, ownershipInherited)
+		if ownershipType, err := g.memberChecker.IsAccessListOwner(ctx, identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state, ownershipType)
 		}
 
-		if membershipInherited, err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state, membershipInherited)
+		if membershipType, err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
+			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state, membershipType)
 		}
 	}
 
 	return nil
 }
 
-func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState, inherited bool) accesslist.Grants {
+func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState, membershipOrOwnershipType services.MembershipOrOwnershipType) accesslist.Grants {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
 
 	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
@@ -214,7 +214,7 @@ func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accessli
 		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
 	}
 
-	if inherited {
+	if membershipOrOwnershipType == services.MembershipOrOwnershipTypeInherited {
 		state.Spec.InheritedRoles = append(state.Spec.InheritedRoles, grants.Roles...)
 
 		if state.Spec.InheritedTraits == nil && len(grants.Traits) > 0 {
