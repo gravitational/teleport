@@ -21,7 +21,6 @@ package limiter
 
 import (
 	"context"
-	"encoding/json"
 	"net"
 	"net/http"
 
@@ -34,8 +33,8 @@ import (
 
 // Limiter helps limiting connections and request rates
 type Limiter struct {
-	// ConnectionsLimiter limits simultaneous connection
-	*ConnectionsLimiter
+	// connectionLimiter limits simultaneous connection
+	connectionLimiter *ConnectionsLimiter
 	// rateLimiter limits request rate
 	rateLimiter *RateLimiter
 }
@@ -52,24 +51,10 @@ type Config struct {
 	Clock timetools.TimeProvider
 }
 
-// SetEnv reads LimiterConfig from JSON string
-func (l *Config) SetEnv(v string) error {
-	if err := json.Unmarshal([]byte(v), l); err != nil {
-		return trace.Wrap(err, "expected JSON encoded remote certificate")
-	}
-	return nil
-}
-
 // NewLimiter returns new rate and connection limiter
 func NewLimiter(config Config) (*Limiter, error) {
-	if config.MaxConnections < 0 {
-		config.MaxConnections = 0
-	}
-
-	connectionsLimiter, err := NewConnectionsLimiter(config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	config.MaxConnections = max(config.MaxConnections, 0)
+	connectionsLimiter := NewConnectionsLimiter(config.MaxConnections)
 
 	rateLimiter, err := NewRateLimiter(config)
 	if err != nil {
@@ -77,9 +62,13 @@ func NewLimiter(config Config) (*Limiter, error) {
 	}
 
 	return &Limiter{
-		ConnectionsLimiter: connectionsLimiter,
-		rateLimiter:        rateLimiter,
+		connectionLimiter: connectionsLimiter,
+		rateLimiter:       rateLimiter,
 	}, nil
+}
+
+func (l *Limiter) GetNumConnection(token string) (int64, error) {
+	return l.connectionLimiter.GetNumConnection(token)
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
@@ -90,10 +79,14 @@ func (l *Limiter) RegisterRequestWithCustomRate(token string, customRate *rateli
 	return l.rateLimiter.RegisterRequest(token, customRate)
 }
 
+func (l *Limiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	l.connectionLimiter.ServeHTTP(w, r)
+}
+
 // WrapHandle adds limiter to the handle
 func (l *Limiter) WrapHandle(h http.Handler) {
 	l.rateLimiter.Wrap(h)
-	l.ConnLimiter.Wrap(l.rateLimiter)
+	l.connectionLimiter.Wrap(l.rateLimiter)
 }
 
 // RegisterRequestAndConnection register a rate and connection limiter for a given token. Close function is returned,
@@ -112,11 +105,11 @@ func (l *Limiter) RegisterRequestAndConnection(token string) (func(), error) {
 	}
 
 	// Apply connection limiting.
-	if err := l.AcquireConnection(token); err != nil {
+	if err := l.connectionLimiter.AcquireConnection(token); err != nil {
 		return func() {}, trace.LimitExceeded("exceeded connection limit for %q", token)
 	}
 
-	return func() { l.ReleaseConnection(token) }, nil
+	return func() { l.connectionLimiter.ReleaseConnection(token) }, nil
 }
 
 // UnaryServerInterceptor returns a gRPC unary interceptor which
@@ -148,10 +141,10 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 		if err := l.RegisterRequestWithCustomRate(clientIP, customRate(info.FullMethod)); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
 		}
-		if err := l.ConnLimiter.Acquire(clientIP, 1); err != nil {
+		if err := l.connectionLimiter.AcquireConnection(clientIP); err != nil {
 			return nil, trace.LimitExceeded("connection limit exceeded")
 		}
-		defer l.ConnLimiter.Release(clientIP, 1)
+		defer l.connectionLimiter.ReleaseConnection(clientIP)
 		return handler(ctx, req)
 	}
 }
@@ -171,17 +164,17 @@ func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.Ser
 	if err := l.RegisterRequest(clientIP); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")
 	}
-	if err := l.ConnLimiter.Acquire(clientIP, 1); err != nil {
+	if err := l.connectionLimiter.AcquireConnection(clientIP); err != nil {
 		return trace.LimitExceeded("connection limit exceeded")
 	}
-	defer l.ConnLimiter.Release(clientIP, 1)
+	defer l.connectionLimiter.ReleaseConnection(clientIP)
 	return handler(srv, serverStream)
 }
 
 // WrapListener returns a [Listener] that wraps the provided listener
 // with one that limits connections
 func (l *Limiter) WrapListener(ln net.Listener) (*Listener, error) {
-	return NewListener(ln, l.ConnectionsLimiter)
+	return NewListener(ln, l.connectionLimiter)
 }
 
 type handlerWrapper interface {
