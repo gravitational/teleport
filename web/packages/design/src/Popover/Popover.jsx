@@ -46,7 +46,7 @@ import PropTypes from 'prop-types';
 
 import Modal from '../Modal';
 
-import Transition from './Transition';
+import { Transition } from './Transition';
 
 function getOffsetTop(rect, vertical) {
   let offset = 0;
@@ -287,12 +287,12 @@ export default class Popover extends React.Component {
     };
   }
 
-  handleEntering = element => {
+  handleEntering = () => {
     if (this.props.onEntering) {
-      this.props.onEntering(element);
+      this.props.onEntering(this.paperRef.current);
     }
 
-    this.setPositioningStyles(element);
+    this.setPositioningStyles(this.paperRef.current);
   };
 
   render() {
