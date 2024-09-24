@@ -103,7 +103,14 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 	// handle the migration in batches of 300 documents per second
 	t := time.NewTimer(time.Second)
 	defer t.Stop()
-	for range t.C {
+	for {
+
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-t.C:
+		}
+
 		docs, err := b.svc.Collection(b.CollectionName).
 			// passing the key type here forces the client to map the key to the underlying type
 			// and return all the keys in that share the same underlying type.

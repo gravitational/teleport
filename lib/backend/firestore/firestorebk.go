@@ -46,6 +46,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 func init() {
@@ -415,8 +417,24 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	}
 
 	// Migrate incorrect key types to the correct type.
-	// Start the migration after a delay to allow the backend to start up and won't be affected by the migration.
-	_ = b.clock.AfterFunc(5*time.Minute, b.migrateIncorrectKeyTypes)
+	// TODO(tigrato|rosstimothy): DELETE in 19.0.0
+	go func() {
+		migrationInterval := interval.New(interval.Config{
+			Duration:      time.Hour * 12,
+			FirstDuration: utils.FullJitter(time.Minute * 5),
+			Jitter:        retryutils.NewSeventhJitter(),
+			Clock:         b.clock,
+		})
+		defer migrationInterval.Stop()
+		for {
+			select {
+			case <-migrationInterval.Next():
+				b.migrateIncorrectKeyTypes()
+			case <-b.clientContext.Done():
+				return
+			}
+		}
+	}()
 
 	l.Info("Backend created.")
 	return b, nil
@@ -645,7 +663,6 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 
 		return nil
 	}, firestore.MaxAttempts(maxTxnAttempts))
-
 	if err != nil {
 		if status.Code(err) == codes.Aborted {
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
@@ -710,7 +727,6 @@ func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev st
 
 		return nil
 	}, firestore.MaxAttempts(maxTxnAttempts))
-
 	if err != nil {
 		if status.Code(err) == codes.Aborted {
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
@@ -777,7 +793,6 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 
 		return nil
 	}, firestore.MaxAttempts(maxTxnAttempts))
-
 	if err != nil {
 		if status.Code(err) == codes.Aborted {
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
