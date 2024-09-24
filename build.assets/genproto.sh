@@ -61,7 +61,8 @@ main() {
     --exclude-path=api/proto/teleport/usageevents/ \
     --exclude-path=api/proto/teleport/mfa/ \
     --exclude-path=proto/teleport/lib/web/terminal/envelope.proto \
-    --exclude-path=proto/prehog/
+    --exclude-path=proto/prehog/ \
+    --exclude-path=proto/web/ \
 
   # Generate event.proto separately because we only want to run it on this
   # one particular file in legacy.
@@ -70,11 +71,16 @@ main() {
 
   # Generate connect-go protos.
   echoed buf generate --template=buf-connect-go.gen.yaml \
-    --path=proto/prehog/
+    --path=proto/prehog/ \
+    --path=proto/web/
+
+  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-connect-ts.gen.yaml \
+    --path=proto/web/
 
   # Generate TS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml \
     --path=proto/prehog/ \
+    --path=proto/web/ \
     --path=proto/teleport/lib/teleterm/ \
     --path=api/proto/teleport/accesslist/ \
     --path=api/proto/teleport/devicetrust/ \

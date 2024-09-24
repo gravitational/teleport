@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package web.v1;
+
+option go_package = "github.com/gravitational/teleport/proto/web/v1;web";
+
+// GreetRequest
+message GreetRequest {
+  string name = 1;
+}
+
+// GreetResponse
+message GreetResponse {
+  string greeting = 1;
+}
+
+// WebService
+service WebService {
+  // Greet
+  rpc Greet(GreetRequest) returns (GreetResponse) {}
+}
