@@ -6090,6 +6090,8 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
+    // Settings for the Datadog Incident Management plugin
+    PluginDatadogAccessSettings datadog = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6262,6 +6264,11 @@ message PluginOktaSyncSettings {
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync. May be missing for old Okta integration installs.
   string app_name = 8;
+
+  // DisableSyncAppGroups disables syncing of app groups from Okta.
+  // This is useful when the app groups are not needed in Teleport.
+  // and integration with Okta is only used for user sync.
+  bool disable_sync_app_groups = 9;
 }
 
 // Defines a set of discord channel IDs
@@ -6338,6 +6345,16 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
+}
+
+// PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
+message PluginDatadogAccessSettings {
+  option (gogoproto.equal) = true;
+
+  // ApiEndpoint is the Datadog API endpoint.
+  string api_endpoint = 1;
+  // FallbackRecipient specifies the default recipient.
+  string fallback_recipient = 2;
 }
 
 message PluginBootstrapCredentialsV1 {

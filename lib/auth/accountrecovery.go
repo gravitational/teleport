@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -39,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutil "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -67,7 +67,11 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 	// Only user's with email as their username can start recovery.
 	if _, err := mail.ParseAddress(req.GetUsername()); err != nil {
-		log.Debugf("Failed to start account recovery, user %s is not in valid email format", req.GetUsername())
+		a.logger.DebugContext(
+			ctx, "Failed to start account recovery, username is not in valid email format",
+			"user", req.GetUsername(),
+			"error", err,
+		)
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
@@ -77,13 +81,21 @@ func (a *Server) StartAccountRecovery(ctx context.Context, req *proto.StartAccou
 
 	// Remove any other existing tokens for this user before creating a token.
 	if err := a.deleteUserTokens(ctx, req.Username); err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(
+			ctx, "Failed to delete existing recovery tokens for user",
+			"user", req.GetUsername(),
+			"error", err,
+		)
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
 	token, err := a.createRecoveryToken(ctx, req.GetUsername(), authclient.UserTokenTypeRecoveryStart, req.GetRecoverType())
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(
+			ctx, "Failed to create recovery token for user",
+			"user", req.GetUsername(),
+			"error", err,
+		)
 		return nil, trace.AccessDenied(startRecoveryGenericErrMsg)
 	}
 
@@ -97,7 +109,7 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 		// In the case of not found, we still want to perform the comparison.
 		// It will result in an error but this avoids timing attacks which expose account presence.
 	case err != nil:
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to fetch user to verify account recovery", "error", err)
 		return trace.AccessDenied(startRecoveryGenericErrMsg)
 	case user.GetUserType() != types.UserTypeLocal:
 		return trace.AccessDenied("only local users may perform account recovery")
@@ -116,7 +128,11 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 		}
 		if errResult == nil {
 			if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-				log.WithFields(logrus.Fields{"user": username}).Warn("Failed to emit account recovery code used event.")
+				a.logger.WarnContext(
+					ctx, "Failed to emit account recovery code used event",
+					"user", username,
+					"error", err,
+				)
 			}
 		} else {
 			event.Metadata.Code = events.RecoveryCodeUseFailureCode
@@ -127,7 +143,11 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 			}
 
 			if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
-				log.WithFields(logrus.Fields{"user": username}).Warn("Failed to emit account recovery code used failed event.")
+				a.logger.WarnContext(
+					ctx, "Failed to emit account recovery code used failed event",
+					"user", username,
+					"error", err,
+				)
 			}
 		}
 	}()
@@ -139,7 +159,10 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 
 	hashedCodes := make([]types.RecoveryCode, numOfRecoveryCodes)
 	if trace.IsNotFound(err) {
-		log.Debugf("Account recovery codes for user %q not found, using fake hashes to mitigate timing attacks.", username)
+		a.logger.DebugContext(
+			ctx, "Account recovery codes not found for user, using fake hashes to mitigate timing attacks",
+			"user", username,
+		)
 		for i := 0; i < numOfRecoveryCodes; i++ {
 			hashedCodes[i].HashedCode = fakeRecoveryCodeHash
 		}
@@ -160,7 +183,7 @@ func (a *Server) verifyRecoveryCode(ctx context.Context, username string, recove
 		// Mark matched token as used in backend, so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
 		if err := a.UpsertRecoveryCodes(ctx, username, recovery); err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "Failed to update recovery code as used", "error", err)
 			return trace.AccessDenied(startRecoveryGenericErrMsg)
 		}
 		break
@@ -195,7 +218,10 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 	switch req.GetAuthnCred().(type) {
 	case *proto.VerifyAccountRecoveryRequest_Password:
 		if startToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
-			log.Debugf("Failed to verify account recovery, expected mfa authn response, but received password.")
+			a.logger.DebugContext(
+				ctx,
+				"Failed to verify account recovery, expected mfa authn response, but received password",
+			)
 			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
@@ -207,7 +233,10 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 
 	case *proto.VerifyAccountRecoveryRequest_MFAAuthenticateResponse:
 		if startToken.GetUsage() == types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
-			log.Debugf("Failed to verify account recovery, expected password, but received a mfa authn response.")
+			a.logger.DebugContext(
+				ctx,
+				"Failed to verify account recovery, expected password, but received a mfa authn response",
+			)
 			return nil, trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 		}
 
@@ -230,7 +259,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 
 	// Delete start token to invalidate the recovery link sent to users.
 	if err := a.DeleteUserToken(ctx, startToken.GetName()); err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to delete account recovery token", "error", err)
 	}
 
 	return approvedToken, nil
@@ -242,7 +271,7 @@ func (a *Server) verifyAuthnRecovery(ctx context.Context, startToken types.UserT
 	// does not guarantee the user defined in token exists anymore.
 	_, err := a.Services.GetUser(ctx, startToken.GetUser(), false)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to fetch user to verify account recovery", "error", err)
 		return trace.AccessDenied(verifyRecoveryGenericErrMsg)
 	}
 
@@ -251,7 +280,10 @@ func (a *Server) verifyAuthnRecovery(ctx context.Context, startToken types.UserT
 	verifyAuthnErr := authenticateFn()
 	switch {
 	case trace.IsConnectionProblem(verifyAuthnErr):
-		log.Error(trace.DebugReport(verifyAuthnErr))
+		a.logger.DebugContext(
+			ctx, "Encountered connection problem when verifying account recovery",
+			"error", verifyAuthnErr,
+		)
 		return trace.AccessDenied(verifyRecoveryBadAuthnErrMsg)
 	case verifyAuthnErr == nil:
 		return nil
@@ -268,7 +300,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 
 	approvedToken, err := a.GetUserToken(ctx, req.GetRecoveryApprovedTokenID())
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Encountered error when fetching recovery token", "error", err)
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
@@ -280,7 +312,10 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	switch req.GetNewAuthnCred().(type) {
 	case *proto.CompleteAccountRecoveryRequest_NewPassword:
 		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD {
-			log.Debugf("Failed to recover account, expected new password, but received %T.", req.GetNewAuthnCred())
+			a.logger.DebugContext(
+				ctx, "Failed to recover account, did not receive password as expected",
+				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
+			)
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
@@ -289,13 +324,16 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		}
 
 		if err := a.UpsertPassword(approvedToken.GetUser(), req.GetNewPassword()); err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "Failed to upsert new password for user", "error", err)
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
 	case *proto.CompleteAccountRecoveryRequest_NewMFAResponse:
 		if approvedToken.GetUsage() != types.UserTokenUsage_USER_TOKEN_RECOVER_MFA {
-			log.Debugf("Failed to recover account, expected new MFA register response, but received %T.", req.GetNewAuthnCred())
+			a.logger.DebugContext(
+				ctx, "Failed to recover account, did not receive MFA register response as expected",
+				"received_type", logutil.TypeAttr(req.GetNewAuthnCred()),
+			)
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
@@ -316,7 +354,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 	// Check and remove user locks so user can immediately sign in after finishing recovering.
 	user, err := a.Services.GetUser(ctx, approvedToken.GetUser(), false /* without secrets */)
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to fetch user to complete account recovery", "error", err)
 		return trace.AccessDenied(completeRecoveryGenericErrMsg)
 	}
 
@@ -324,12 +362,12 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		user.ResetLocks()
 		_, err = a.UpsertUser(ctx, user)
 		if err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "Failed to upsert user completing account recovery", "error", err)
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 
 		if err := a.DeleteUserLoginAttempts(approvedToken.GetUser()); err != nil {
-			log.Error(trace.DebugReport(err))
+			a.logger.ErrorContext(ctx, "Failed to delete user login attempts after completing account recovery", "error", err)
 			return trace.AccessDenied(completeRecoveryGenericErrMsg)
 		}
 	}
@@ -347,12 +385,12 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 
 	token, err := a.GetUserToken(ctx, req.GetTokenID())
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to fetch existing user recovery token", "error", err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	if _, err := mail.ParseAddress(token.GetUser()); err != nil {
-		log.Debugf("Failed to create new recovery codes, username %q is not a valid email: %v.", token.GetUser(), err)
+		a.logger.DebugContext(ctx, "Failed to create new recovery codes, username is not a valid email", "user", token.GetUser(), "error", err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
@@ -371,12 +409,12 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 
 	newRecovery, err := a.generateAndUpsertRecoveryCodes(ctx, token.GetUser())
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to generate and upsert new recovery codes", "error", err)
 		return nil, trace.AccessDenied(unableToCreateCodesMsg)
 	}
 
 	if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to delete user tokens", "error", err)
 	}
 
 	return newRecovery, nil
@@ -386,7 +424,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAccountRecoveryTokenRequest) (types.UserToken, error) {
 	token, err := a.GetUserToken(ctx, req.GetRecoveryTokenID())
 	if err != nil {
-		log.Error(trace.DebugReport(err))
+		a.logger.ErrorContext(ctx, "Failed to get user token", "error", err)
 		return nil, trace.AccessDenied("access denied")
 	}
 
@@ -446,7 +484,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 		},
 		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 	}); err != nil {
-		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
+		a.logger.WarnContext(ctx, "Failed to emit recovery tokens generate event", "error", err, "user", username)
 	}
 
 	return &proto.RecoveryCodes{

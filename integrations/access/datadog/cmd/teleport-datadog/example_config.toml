@@ -21,7 +21,7 @@ addr = "example.com:3025"
 # Datadog API Endpoint specifies the Datadog API endpoint.
 # See documentation for supported Datadog Sites: https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site.
 # Make sure to specify the "api.*" subdomain.
-api_endpoint = "https://api.datadoghq.com/api/v2"
+api_endpoint = "https://api.datadoghq.com"
 
 # Datadog API Key accepts a key value or a filepath if the value starts with a '/'.
 api_key = "api_key"

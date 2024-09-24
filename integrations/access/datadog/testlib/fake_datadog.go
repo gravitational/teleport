@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -56,6 +57,16 @@ func NewFakeDatadog(concurrency int) *FakeDatadog {
 		incidentUpdates:  make(chan datadog.IncidentsBody, concurrency),
 		newIncidentNotes: make(chan datadog.TimelineBody, concurrency*3),
 	}
+
+	// Ignore api version for tests
+	const apiPrefix = "/" + datadog.APIVersion
+	router.NotFound = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, apiPrefix) {
+			http.StripPrefix(apiPrefix, router).ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})
 
 	router.GET("/permissions", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")

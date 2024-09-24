@@ -1086,7 +1086,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewLoggerForTests(),
+		Log:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 

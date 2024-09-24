@@ -21,10 +21,10 @@ package reversetunnelclient
 import (
 	"context"
 	"crypto/tls"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
@@ -51,7 +51,7 @@ type TunnelAuthDialerConfig struct {
 	// ClientConfig is SSH tunnel client config
 	ClientConfig *ssh.ClientConfig
 	// Log is used for logging.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
 	// GetClusterCAs contains cluster CAs.
@@ -59,11 +59,13 @@ type TunnelAuthDialerConfig struct {
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
-	if c.Resolver == nil {
+	switch {
+	case c.Resolver == nil:
 		return trace.BadParameter("missing tunnel address resolver")
-	}
-	if c.GetClusterCAs == nil {
+	case c.GetClusterCAs == nil:
 		return trace.BadParameter("missing cluster CA getter")
+	case c.Log == nil:
+		return trace.BadParameter("missing log")
 	}
 	return nil
 }
@@ -83,7 +85,10 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	addr, mode, err := t.Resolver(ctx)
 	if err != nil {
-		t.Log.Errorf("Failed to resolve tunnel address: %v", err)
+		t.Log.ErrorContext(
+			ctx, "Failed to resolve tunnel address",
+			"error", err,
+		)
 		return nil, trace.Wrap(err)
 	}
 

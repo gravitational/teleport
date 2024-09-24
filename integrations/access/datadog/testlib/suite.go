@@ -66,7 +66,7 @@ func (s *DatadogBaseSuite) SetupTest() {
 			PluginType: types.PluginTypeDatadog,
 		},
 		Datadog: datadog.DatadogConfig{
-			APIEndpoint:    s.fakeDatadog.URL() + "/",
+			APIEndpoint:    s.fakeDatadog.URL(),
 			APIKey:         "api-key",
 			ApplicationKey: "application-key",
 		},
