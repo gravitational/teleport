@@ -56,6 +56,16 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. Such a SAML resource is invalid and not usable.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if err := a.Services.UpsertSAMLConnector(ctx, connector); err != nil {
 		return trace.Wrap(err)
 	}
