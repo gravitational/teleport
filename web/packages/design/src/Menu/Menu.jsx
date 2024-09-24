@@ -48,10 +48,6 @@ class Menu extends React.Component {
       menuList.style['paddingRight'] = size;
       menuList.style.width = `calc(100% + ${size})`;
     }
-
-    if (this.props.onEntering) {
-      this.props.onEntering(element);
-    }
   };
 
   render() {
@@ -62,7 +58,6 @@ class Menu extends React.Component {
       <Popover
         popoverCss={popoverCss}
         getContentAnchorEl={this.getContentAnchorEl}
-        onEntering={this.handleEntering}
         anchorOrigin={POSITION}
         transformOrigin={POSITION}
         {...other}
@@ -96,10 +91,6 @@ Menu.propTypes = {
    * @param {string} reason Can be:`"escapeKeyDown"`, `"backdropClick"`, `"tabKeyDown"`
    */
   onClose: PropTypes.func,
-  /**
-   * Callback fired when the Menu is entering.
-   */
-  onEntering: PropTypes.func,
   /**
    * If `true`, the menu is visible.
    */

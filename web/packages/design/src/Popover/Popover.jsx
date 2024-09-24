@@ -288,10 +288,6 @@ export default class Popover extends React.Component {
   }
 
   handleEntering = () => {
-    if (this.props.onEntering) {
-      this.props.onEntering(this.paperRef.current);
-    }
-
     this.setPositioningStyles(this.paperRef.current);
   };
 
@@ -404,10 +400,6 @@ Popover.propTypes = {
    * Callback fired when the component has entered.
    */
   onEntered: PropTypes.func,
-  /**
-   * Callback fired when the component is entering.
-   */
-  onEntering: PropTypes.func,
   /**
    * If `true`, the popover is visible.
    */
