@@ -17,9 +17,10 @@
  */
 
 import React from 'react';
-import { CardTerminalLogin } from 'design/CardTerminal';
 
 import { LogoHero } from 'teleport/components/LogoHero';
+
+import { CardTerminalLogin } from './CardTerminal';
 
 export function LoginTerminalRedirect() {
   return (
