@@ -58,6 +58,16 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. Such a SAML resource is invalid and not usable.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	upserted, err := a.Services.UpsertSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -86,6 +96,18 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. In this case we want to look up the existing SAML
+	// connector and populate the singing key from it if it's the same certificate. This avoids accidentally clearing
+	// the private key and creating an unusable connector.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	updated, err := a.Services.UpdateSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -114,6 +136,14 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 	if err := services.ValidateSAMLConnector(connector, a); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
+	// not empty (cert is set) but the private key is missing. This SAML Connector is invalid, we must reject it
+	// with an actionable message.
+	if connector.GetSigningKeyPair().PrivateKey == "" {
+		return nil, trace.BadParameter("Missing private key for signing connector. " + services.ErrMsgHowToFixMissingPrivateKey)
+	}
+
 	created, err := a.Services.CreateSAMLConnector(ctx, connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
