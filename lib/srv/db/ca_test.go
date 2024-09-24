@@ -346,6 +346,7 @@ func TestCARenewer(t *testing.T) {
 	// Initialize the CA certs as normal.
 	require.NoError(t, databaseServer.initCACert(ctx, rds))
 	require.Equal(t, string(initialCA), rds.GetStatusCA())
+	require.Equal(t, int64(1), atomic.LoadInt64(&caDownloader.count))
 
 	// Start the database CA renewer.
 	renewerCtx, cancel := context.WithCancel(ctx)
@@ -361,16 +362,13 @@ func TestCARenewer(t *testing.T) {
 	caDownloader.cert = updatedCA
 	caDownloader.version = []byte("second-version")
 
-	// Trigger the CA renews by advancing in time.
-	testCtx.clock.Advance(caRenewInterval)
-
-	// Check if the database status CA is updated with new contents.
 	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&caDownloader.count) == 2
-	}, 5*time.Second, time.Second, "failed to wait the CA download")
-
-	// Advance another time to trigger another renew.
-	testCtx.clock.Advance(caRenewInterval)
+		// Advance the clock to ensure the renew loop is awakened, and start
+		// renewing the CAs. This can cause multiple renewals to occur, but for
+		// this test case, it is fine, given that the CA version won't change.
+		testCtx.clock.Advance(caRenewInterval)
+		return atomic.LoadInt64(&caDownloader.count) == int64(2)
+	}, 5*time.Second, 250*time.Millisecond, "failed to wait the CA download, expected 2 downloads but got %d", atomic.LoadInt64(&caDownloader.count))
 
 	// Wait until renewer is gone to check database CA contents. This avoids,
 	// test race condition.
