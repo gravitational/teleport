@@ -42,6 +42,7 @@ import (
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 //go:embed bytecode
@@ -95,7 +96,7 @@ type Service struct {
 
 	// argsCache holds the arguments to execve because they come a different
 	// event than the result.
-	argsCache map[string][]string
+	argsCache *utils.FnCache
 
 	// closeContext is used to signal the BPF service is shutting down to all
 	// goroutines.
@@ -134,7 +135,6 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	s := &Service{
 		BPFConfig:    config,
 		watch:        NewSessionWatch(),
-		argsCache:    map[string][]string{},
 		closeContext: closeContext,
 		closeFunc:    closeFunc,
 	}
@@ -154,6 +154,13 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 			}
 		}
 	}()
+
+	s.argsCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 24 * time.Hour,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	start := time.Now()
 	log.Debugf("Starting enhanced session recording.")
@@ -357,20 +364,26 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	// the args in a ttlmap, so they can be retrieved when the return event arrives.
 	case eventArg:
 		key := strconv.FormatUint(event.PID, 10)
-		args, ok := s.argsCache[key]
-		if !ok {
-			args = make([]string, 0)
-		}
+
+		// loadFn does not return an error, so we can skip error handling.
+		args, _ := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return make([]string, 0), nil
+		})
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
 		args = append(args, C.GoString(argv))
-		s.argsCache[key] = args
+
+		s.argsCache.Set(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
 		key := strconv.FormatUint(event.PID, 10)
-		args, ok := s.argsCache[key]
-		if !ok {
+
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+			return nil, trace.NotFound("args missing")
+		})
+
+		if err != nil {
 			log.Debugf("Got event with missing args: skipping.")
 			lostCommandEvents.Add(float64(1))
 			return
@@ -410,7 +423,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		}
 
 		// Now that the event has been processed, remove from cache.
-		delete(s.argsCache, key)
+		s.argsCache.Remove(key)
 	}
 }
 

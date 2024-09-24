@@ -177,6 +177,17 @@ func (c *FnCache) Remove(key any) {
 	delete(c.entries, key)
 }
 
+// Set set an item in the cache.
+func (c *FnCache) Set(key any, v any, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[key] = &fnCacheEntry{
+		v:   v,
+		t:   c.cfg.Clock.Now(),
+		ttl: ttl,
+	}
+}
+
 // RemoveExpired purges any items from the cache which have exceeded their TTL.
 func (c *FnCache) RemoveExpired() {
 	c.mu.Lock()
