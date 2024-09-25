@@ -30,6 +30,7 @@ import (
 	"html/template"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -400,7 +401,6 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -1044,6 +1044,43 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
 	// Upsert a notification state when to mark a notification as read or hide it.
 	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
+
+	h.GET("/webapi/sites/:site/authapi/*request", h.WithClusterAuth(h.forwardToAuth))
+	h.POST("/webapi/sites/:site/authapi/*request", h.WithClusterAuth(h.forwardToAuth))
+	h.PUT("/webapi/sites/:site/authapi/*request", h.WithClusterAuth(h.forwardToAuth))
+	h.DELETE("/webapi/sites/:site/authapi/*request", h.WithClusterAuth(h.forwardToAuth))
+	h.PATCH("/webapi/sites/:site/authapi/*request", h.WithClusterAuth(h.forwardToAuth))
+}
+
+func (h *Handler) forwardToAuth(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
+	cltI, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		h.logger.DebugContext(r.Context(), "Failed to get user client.", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	clt := cltI.(*authclient.Client).HTTPClient.HTTPClient()
+	req := r.Clone(r.Context())
+	req.RequestURI = ""
+	req.URL = &url.URL{
+		Scheme: "https",
+		Host:   constants.APIDomain,
+		Path:   p.ByName("request"),
+	}
+	req.Header.Del("Authorization")
+	req.Header.Del("Cookie")
+	req.Header.Del("Teleport-MFA-Response")
+	resp, err := clt.Do(req)
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "Failed to forward auth request.", "error", err)
+		http.Error(w, "bad gateway", http.StatusBadGateway)
+		return nil, nil
+	}
+	defer resp.Body.Close()
+	maps.Copy(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+	return nil, nil
 }
 
 // GetProxyClient returns authenticated auth server client
