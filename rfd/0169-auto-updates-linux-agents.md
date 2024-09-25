@@ -131,7 +131,7 @@ The update proceeds from the first group to the last group, ensuring that each g
 The updater will receive `agent_autoupdate: true` from the time is it designated for update until the `target_version` in `autoupdate_agent_plan` (below) changes.
 Changing the `target_version` resets the schedule immediately, clearing all progress.
 
-Changing the `current_version` in `autoupdate_agent_plan` changes the advertised `current_version` for all unfinished groups.
+Changing the `start_version` in `autoupdate_agent_plan` changes the advertised `start_version` for all unfinished groups.
 
 Changing `agent_schedules` will preserve the `state` of groups that have the same name before and after the change.
 However, any changes to `agent_schedules` that occur while a group is active will be rejected.
@@ -187,8 +187,8 @@ Notes:
 ```yaml
 kind: autoupdate_agent_plan
 spec:
-  # current_version is the desired version for agents before their window.
-  current_version: A.B.C
+  # start_version is the desired version for agents before their window.
+  start_version: A.B.C
   # target_version is the desired version for agents after their window.
   target_version: X.Y.Z
   # schedule to use for the rollout
@@ -349,7 +349,7 @@ Instance heartbeats will be extended to incorporate and send data that is writte
 
 The following data related to the rollout are stored in each instance heartbeat:
 - `agent_update_start_time`: timestamp of individual agent's upgrade time
-- `agent_update_current_version`: current agent version
+- `agent_update_start_version`: current agent version
 - `agent_update_rollback`: whether the agent was rolled-back automatically
 - `agent_update_uuid`: Auto-update UUID
 - `agent_update_group`: Auto-update group name
@@ -751,7 +751,7 @@ are signed.
 
 The Update Framework (TUF) will be used to implement secure updates in the future.
 
-Anyone who possesses a host UUID can determine when that host is scheduled to update by repeatedly querying the public `/v1/webapi/find` endpoint.
+Anyone who possesses a updater UUID can determine when that host is scheduled to update by repeatedly querying the public `/v1/webapi/find` endpoint.
 It is not possible to discover the current version of that host, only the designated update window.
 
 ## Logging
@@ -834,8 +834,8 @@ message AutoUpdateConfig {
 
 // AutoUpdateConfigSpec is the spec for the autoupdate config.
 message AutoUpdateConfigSpec {
-  // agent_autoupdate specifies whether agent autoupdates are enabled.
-  bool agent_autoupdate = 1;
+  // agent_autoupdate_mode specifies whether agent autoupdates are enabled, disabled, or paused.
+  Mode agent_autoupdate_mode = 1;
   // agent_schedules specifies schedules for updates of grouped agents.
   AgentAutoUpdateSchedules agent_schedules = 3;
 }
@@ -854,14 +854,16 @@ message AgentAutoUpdateGroup {
   repeated Day days = 2;
   // start_hour to initiate update
   int32 start_hour = 3;
-  // jitter_seconds to introduce before update as rand([0, jitter_seconds]).
-  int32 jitter_seconds = 4;
-  // timeout_seconds before an agent is considered time-out (no version change)
-  int32 timeout_seconds = 5;
-  // failure_seconds before an agent is considered failed (loses connection)
-  int32 failure_seconds = 6;
+  // wait_days after last group succeeds before this group can run
+  int32 wait_days = 4;
+  // jitter_seconds to introduce before update as rand([0, jitter_seconds])
+  int32 jitter_seconds = 5;
+  // canary_count of agents to use in the canary deployment.
+  int32 canary_count = 6;
+  // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
+  int32 alert_after_hours = 7; 
   // max_in_flight specifies agents that can be updated at the same time, by percent.
-  string max_in_flight = 7;
+  string max_in_flight = 8;
 }
 
 // Day of the week
@@ -875,6 +877,18 @@ enum Day {
   DAY_THURSDAY = 6;
   DAY_FRIDAY = 7;
   DAY_SATURDAY = 8;
+}
+
+// Mode of operation
+enum Mode {
+  // UNSPECIFIED update mode
+  MODE_UNSPECIFIED = 0;
+  // DISABLE updates
+  MODE_DISABLE = 1;
+  // ENABLE updates
+  MODE_ENABLE = 2;
+  // PAUSE updates
+  MODE_PAUSE = 3;
 }
 
 // GetAutoUpdateAgentPlanRequest requests the autoupdate_agent_plan singleton resource.
@@ -916,10 +930,16 @@ message AutoUpdateAgentPlan {
 
 // AutoUpdateAgentPlanSpec is the spec for the autoupdate version.
 message AutoUpdateAgentPlanSpec {
-  // agent_version is the desired agent version for new rollouts.
-  string agent_version = 1;
-  // agent_version schedule is the schedule to use for rolling out the agent_version.
-  Schedule agent_version_schedule = 2;
+  // start_version is the version to update from.
+  string start_version = 1;
+  // target_version is the version to update to.
+  string target_version = 2;
+  // schedule to use for the rollout
+  Schedule schedule = 3;
+  // strategy to use for the rollout
+  Strategy strategy = 4;
+  // autoupdate_mode to use for the rollout
+  Mode autoupdate_mode = 5;
 }
 
 // Schedule type for the rollout
@@ -930,6 +950,16 @@ enum Schedule {
   SCHEDULE_REGULAR = 1;
   // IMMEDIATE update schedule for updating all agents immediately
   SCHEDULE_IMMEDIATE = 2;
+}
+
+// Strategy type for the rollout
+enum Strategy {
+  // UNSPECIFIED update strategy
+  STRATEGY_UNSPECIFIED = 0;
+  // GROUPED update schedule, with no backpressure
+  STRATEGY_GROUPED = 1;
+  // BACKPRESSURE update schedule
+  STRATEGY_BACKPRESSURE = 2;
 }
 
 // AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
