@@ -693,6 +693,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
+	go h.startFeatureWatcher()
+
 	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,

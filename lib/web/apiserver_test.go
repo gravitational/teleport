@@ -4593,7 +4593,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.NoError(t, err)
 
 	// start the feature watcher so the web config gets new features
-	go handler.startFeatureWatcher()
 	<-handler.featureWatcherReady // await until the watcher is ready
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
@@ -4781,7 +4780,6 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		},
 	})
 	// start the feature watcher so the web config gets new features
-	go handler.startFeatureWatcher()
 	<-handler.featureWatcherReady // await until the watcher is ready
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
