@@ -65,15 +65,15 @@ kind: autoupdate_config
 spec:
   # agent_autoupdate allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
-  # agent updates are in place. Setting this to pause will halt the rollout.
+  # agent updates are in place. Setting this to pause will temporarily halt the rollout.
   agent_autoupdate: disable|enable|pause
 
   # agent_schedules specifies version rollout schedules for agents.
   # The schedule used is determined by the schedule associated
-  # with the version in the rollout_plan resource.
-  # For now, only the "regular" strategy is configurable.
+  # with the version in the autoupdate_agent_plan resource.
+  # For now, only the "regular" schedule is configurable.
   agent_schedules:
-    # rollout strategy must be "regular" for now
+    # rollout schedule must be "regular" for now
     regular:
         # name of the group. Must only contain valid backend / resource name characters.
       - name: staging
@@ -93,7 +93,7 @@ spec:
         # canary_count specifies the desired number of canaries to update before any other agents
         # are updated.
         #  default: 5
-        canaries: 0-10
+        canary_count: 0-10
         # max_in_flight specifies the maximum number of agents that may be updated at the same time.
         # Only valid for the backpressure strategy.
         #  default: 20%
@@ -117,6 +117,7 @@ spec:
       days: ["*"]
       start_hour: 0
       jitter_seconds: 5
+      canary_count: 5
       max_in_flight: 20%
       alert_after: 4h
 ```
@@ -143,9 +144,9 @@ Note that the `default` schedule applies to agents that do not specify a group n
 # configuration
 $ tctl autoupdate update --set-agent-auto-update=off
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --group staging-group --set-start-hour=3
+$ tctl autoupdate update --group staging --set-start-hour=3
 Automatic updates configuration has been updated.
-$ tctl autoupdate update --group staging-group --set-jitter-seconds=60
+$ tctl autoupdate update --group staging --set-jitter-seconds=60
 Automatic updates configuration has been updated.
 $ tctl autoupdate update --group default --set-jitter-seconds=60
 Automatic updates configuration has been updated.
@@ -159,11 +160,11 @@ Version: v1.2.4
 Schedule: regular
 
 Groups:
-staging-group: succeeded at 2024-01-03 23:43:22 UTC
-prod-group: scheduled for 2024-01-03 23:43:22 UTC (depends on prod-group)
-other-group: failed at 2024-01-05 22:53:22 UTC
+staging: succeeded at 2024-01-03 23:43:22 UTC
+prod: scheduled for 2024-01-03 23:43:22 UTC (depends on prod)
+other: failed at 2024-01-05 22:53:22 UTC
 
-$ tctl autoupdate status --group staging-group
+$ tctl autoupdate status --group staging
 Status: succeeded
 Date: 2024-01-03 23:43:22 UTC
 Requires: (none)
@@ -174,8 +175,8 @@ Failed: 15 (3%)
 Timed-out: 0
 
 # re-running failed group
-$ tctl autoupdate run --group staging-group
-Executing auto-update for group 'staging-group' immediately.
+$ tctl autoupdate run --group staging
+Executing auto-update for group 'staging' immediately.
 ```
 
 Notes:
