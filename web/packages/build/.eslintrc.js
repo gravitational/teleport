@@ -42,7 +42,13 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: [
+    'react',
+    'babel',
+    'import',
+    'react-hooks',
+    'eslint-plugin-react-compiler',
+  ],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
@@ -148,6 +154,8 @@ module.exports = {
     // Turned off because we use automatic runtime.
     'react/jsx-uses-react': 0,
     'react/react-in-jsx-scope': 0,
+
+    'react-compiler/react-compiler': 'error',
   },
   settings: {
     react: {
