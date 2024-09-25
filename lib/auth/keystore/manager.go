@@ -153,9 +153,11 @@ type Options struct {
 	Logger *slog.Logger
 	// AuthPreferenceGetter provides the current cluster auth preference.
 	AuthPreferenceGetter cryptosuites.AuthPreferenceGetter
-	// CloudClients provides cloud clients.
-	CloudClients CloudClientProvider
+	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
+	FIPS bool
 
+	awsKMSClient      kmsClient
+	awsSTSClient      stsClient
 	kmsClient         *kms.KeyManagementClient
 	clockworkOverride clockwork.Clock
 	// GCPKMS uses a special fake clock that seemed more testable at the time.
@@ -166,9 +168,6 @@ type Options struct {
 func (opts *Options) CheckAndSetDefaults() error {
 	if opts.ClusterName == nil {
 		return trace.BadParameter("ClusterName is required")
-	}
-	if opts.CloudClients == nil {
-		return trace.BadParameter("CloudClients is required")
 	}
 	if opts.AuthPreferenceGetter == nil {
 		return trace.BadParameter("AuthPreferenceGetter is required")
