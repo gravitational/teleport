@@ -192,9 +192,9 @@ func getMatches[T any](resources []T, filters []*regexp.Regexp, getNameFn func(T
 // getClientAndFilters will create the Okta client and compile the given filters.
 func (p *PluginConfigHelper) getClientAndFilters(ctx context.Context, orgURL, token string, filters []string) (api.Client, []*regexp.Regexp, error) {
 	client, err := p.oktaClientCreator(ctx, api.ClientConfig{
-		Endpoint: orgURL,
-		Token:    token,
-		Log:      slog.With("okta_url", orgURL),
+		Endpoint:     orgURL,
+		AuthProvider: api.NewSSWSAuthProvider(token),
+		Log:          slog.With("okta_url", orgURL),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

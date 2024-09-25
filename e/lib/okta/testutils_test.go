@@ -213,8 +213,8 @@ func newTestService(t *testing.T, ap *testAccessPoint, options ...testServiceOpt
 		OnHeartbeat:      func(err error) {},
 		Emitter:          emitter,
 		OktaAPIEndpoint:  "dummy",
-		OktaAPIToken:     "dummy",
 		ConnectorService: ap,
+		AuthProvider:     api.NewSSWSAuthProvider("dummy"),
 	}
 	for _, opt := range options {
 		opt(&serviceConfig)

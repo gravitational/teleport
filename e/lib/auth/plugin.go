@@ -360,6 +360,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 	oktaSvc, err := oktaservice.NewService(oktaservice.ServiceConfig{
 		Backend:    p.authServer.GetBackend(),
 		Authorizer: p.authServer.Authorizer,
+		JWTSigner:  p.authServer.APIConfig.AuthServer.GetKeyStore(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

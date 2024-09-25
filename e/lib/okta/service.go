@@ -108,9 +108,6 @@ type Config struct {
 	// OktaAPIEndpoint is the API endpoint to use for interacting with Okta.
 	OktaAPIEndpoint string
 
-	// OktaAPIToken is the API token.
-	OktaAPIToken string
-
 	// TimeBetweenSyncs is the amount of time between synchronization calls.
 	TimeBetweenSyncs time.Duration
 
@@ -155,6 +152,9 @@ type Config struct {
 
 	// SCIMEnabled indicates that SCIM support is enabled for this instance
 	SCIMEnabled bool
+
+	// AuthProvider is the auth provider for the Okta service.
+	AuthProvider api.AuthProvider
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -197,9 +197,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.OktaAPIEndpoint == "" {
 		return trace.BadParameter("Okta API endpoint is missing")
 	}
-	if c.OktaAPIToken == "" {
-		return trace.BadParameter("Okta API token is missing")
-	}
 	if c.ConnectorService == nil {
 		return trace.BadParameter("ConnectorService service is missing")
 	}
@@ -240,6 +237,9 @@ func (c *Config) CheckAndSetDefaults() error {
 			}
 			c.accessListSyncGroupFilters = append(c.accessListSyncGroupFilters, compiledFilter)
 		}
+	}
+	if c.AuthProvider == nil {
+		return trace.BadParameter("auth provider is missing")
 	}
 
 	return nil
@@ -529,7 +529,7 @@ func newWithClientCreator(ctx context.Context, config Config, creator api.OktaCl
 
 	client, err := creator(ctx, api.ClientConfig{
 		Endpoint:         config.OktaAPIEndpoint,
-		Token:            config.OktaAPIToken,
+		AuthProvider:     config.AuthProvider,
 		Log:              slog.With("okta", "client"),
 		UpdateStatusCode: s.serviceStatus.SetCode,
 	})

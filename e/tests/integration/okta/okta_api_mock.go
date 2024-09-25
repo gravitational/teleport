@@ -25,6 +25,13 @@ type mockOktaAPIClient struct {
 	appUserAssignments map[string]map[string]bool
 	// Represents        appId -> groupId -> assignment
 	appGroupAssignments map[string]map[string]*okta.ApplicationGroupAssignment
+	// Okta Token Scopes
+	scopes []string
+}
+
+// GetScopes returns the scopes.
+func (m *mockOktaAPIClient) GetScopes() []string {
+	return m.scopes
 }
 
 func newMockOktaAPIClient() *mockOktaAPIClient {
@@ -35,6 +42,15 @@ func newMockOktaAPIClient() *mockOktaAPIClient {
 		groupAssignments:    make(map[string]map[string]bool),
 		appUserAssignments:  make(map[string]map[string]bool),
 		appGroupAssignments: make(map[string]map[string]*okta.ApplicationGroupAssignment),
+		scopes: []string{
+			api.ScopeUserManage,
+			api.ScopeUserRead,
+			api.ScopeAppsManage,
+			api.ScopeAppsRead,
+			api.ScopeGroupsManage,
+			api.ScopeGroupsRead,
+			api.ScopeOrgsRead,
+		},
 	}
 	setOktaMockedAPIClient(m)
 	return m

@@ -1,15 +1,20 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
+	"github.com/patrickmn/go-cache"
 	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/types"
@@ -24,8 +29,6 @@ type ClientConfig struct {
 	HTTPClient *http.Client
 	// Endpoint is a URL indicating the root endpoint of the Okta API service
 	Endpoint string
-	// Token is an Okta-supplied user API access token
-	Token string
 	// Log receives any log info
 	Log *slog.Logger
 	// StatusSink receives status update information from the OktaClient.
@@ -34,6 +37,14 @@ type ClientConfig struct {
 	// UpdateStatusCode is a function that will report a new status code for the
 	// entire integration.
 	UpdateStatusCode StatusCodeUpdater
+	// Oauth is an optional OAuth configuration for the Okta client.
+	AuthProvider AuthProvider
+}
+
+// AuthProvider is an interface for providing Okta client configuration options.
+type AuthProvider interface {
+	// GetAuthOptions returns the Okta auth provider configuration options.
+	GetAuthOptions() []okta.ConfigSetter
 }
 
 // Check validates the state of the ClientConfig, returning a non-nil error
@@ -42,8 +53,8 @@ func (cfg *ClientConfig) Check() error {
 	if cfg.Endpoint == "" {
 		return trace.BadParameter("missing Okta Client parameter EndPoint")
 	}
-	if cfg.Token == "" {
-		return trace.BadParameter("missing Okta Client parameter Token")
+	if cfg.AuthProvider == nil {
+		return trace.BadParameter("missing Okta AuthProvider")
 	}
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{
@@ -57,6 +68,9 @@ func (cfg *ClientConfig) Check() error {
 			},
 			Timeout: oktaConnectionTimeout,
 		}
+	}
+	if cfg.Log == nil {
+		cfg.Log = slog.Default()
 	}
 	return nil
 }
@@ -84,7 +98,17 @@ var clientProvider = func(ctx context.Context, cfg ...okta.ConfigSetter) (OktaAP
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewClientAPIAdapter(client), err
+	// fetchAndSetClientScopes fetches the access token and extracts the scopes configured on the Okta side for
+	// Okta credentials.
+	// If the Okta client is configured with the "PrivateKey" authorization mode, the scopes
+	// will be fetched from the access token and then set on the local Okta client.
+	// This ensures that the Okta client is configured with the correct scopes.
+	// If the Okta client attempts to use scopes that have not been granted, the Okta API will return an error at runtime when the
+	// client tries to access the API.
+	if err := fetchAndSetClientScopes(client); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewClientAPIAdapter(client, client.GetConfig().Okta.Client.Scopes...), nil
 }
 
 // OktaAPI is an interface for interacting with the Okta API.
@@ -106,17 +130,20 @@ type OktaAPI interface {
 	CloneRequestExecutor() *okta.RequestExecutor
 	ListGroupUsers(ctx context.Context, groupId string, qp *query.Params) ([]*okta.User, *okta.Response, error)
 	AddUserToGroup(ctx context.Context, groupId string, userId string) (*okta.Response, error)
+	GetScopes() []string
 }
 
-func NewClientAPIAdapter(client *okta.Client) OktaAPI {
+func NewClientAPIAdapter(client *okta.Client, scopes ...string) OktaAPI {
 	return &APIClient{
 		client: client,
+		scopes: scopes,
 	}
 }
 
 // APIClient is an adapter for the Okta API client.
 type APIClient struct {
 	client *okta.Client
+	scopes []string
 }
 
 // AddUserToGroup will assign the given user to the group.
@@ -202,4 +229,64 @@ func (o *APIClient) CreateApplication(ctx context.Context, body okta.App, qp *qu
 // GetApplication fetches the data for a single application, by ID
 func (o *APIClient) GetApplication(ctx context.Context, appId string, appInstance okta.App, qp *query.Params) (okta.App, *okta.Response, error) {
 	return o.client.Application.GetApplication(ctx, appId, appInstance, qp)
+}
+
+// GetScopes returns the scopes for the Okta client.
+func (o *APIClient) GetScopes() []string {
+	return o.scopes
+}
+
+// wrappedTransprot  wraps the Okta client transport and
+// captures the access token and extracts the scopes.
+type wrappedTransport struct {
+	http.RoundTripper
+	accessToken okta.RequestAccessToken
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (t *wrappedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bodyBytes, &t.accessToken); err != nil {
+		return nil, err
+	}
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	return resp, nil
+}
+
+func fetchAndSetClientScopes(client *okta.Client) error {
+	if client.GetConfig().Okta.Client.AuthorizationMode != "PrivateKey" {
+		client.GetConfig().Okta.Client.Scopes = oktaAPIScopes
+		return nil
+	}
+	tr := &wrappedTransport{
+		RoundTripper: http.DefaultTransport,
+	}
+	auth := okta.NewPrivateKeyAuth(okta.PrivateKeyAuthConfig{
+		Req: &http.Request{
+			Header: make(http.Header),
+		},
+		HttpClient: &http.Client{
+			Transport: tr,
+		},
+		TokenCache:       cache.New(5*time.Minute, 10*time.Minute),
+		PrivateKeySigner: client.GetConfig().PrivateKeySigner,
+		ClientId:         client.GetConfig().Okta.Client.ClientId,
+		OrgURL:           client.GetConfig().Okta.Client.OrgUrl,
+		MaxRetries:       client.GetConfig().Okta.Client.RateLimit.MaxRetries,
+		MaxBackoff:       client.GetConfig().Okta.Client.RateLimit.MaxBackoff,
+		Scopes:           oktaAPIScopes,
+	})
+	if err := auth.Authorize(); err != nil {
+		return trace.Wrap(err, "failed to authorize")
+	}
+	client.GetConfig().Okta.Client.Scopes = strings.Split(tr.accessToken.Scope, " ")
+	return nil
 }

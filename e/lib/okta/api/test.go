@@ -401,3 +401,8 @@ func (t *TestOktaClient) GetAppGroups(ctx context.Context, appID OktaAppID) ([]O
 	}
 	return t.AppsToGroups[appID], nil
 }
+
+// GetScopes returns the list of scopes that the Okta client has access to.
+func (t *TestOktaClient) GetScopes() []string {
+	return oktaAPIScopes
+}

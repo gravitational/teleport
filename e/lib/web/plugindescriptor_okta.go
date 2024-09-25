@@ -301,9 +301,9 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	})
 
 	oktaClient, err := api.NewClient(ctx, api.ClientConfig{
-		HTTPClient: args.httpClient,
-		Endpoint:   orgURL.String(),
-		Token:      oktaAPIToken,
+		HTTPClient:   args.httpClient,
+		Endpoint:     orgURL.String(),
+		AuthProvider: api.NewSSWSAuthProvider(oktaAPIToken),
 		Log: slog.With(
 			"okta_url", orgURL.String(),
 			teleport.ComponentKey, teleport.Component(types.PluginTypeOkta),

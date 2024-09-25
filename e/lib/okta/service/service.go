@@ -20,8 +20,10 @@ package oktaservice
 
 import (
 	"context"
+	"crypto"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -50,6 +52,14 @@ type ServiceConfig struct {
 
 	// OktaAssignments is the Okta assignments service to use.
 	OktaAssignments services.OktaAssignments
+	// JWTSigner is the JWT signer getter to use.
+	JWTSigner jwtSignerGetter
+	// Clock is the clock to use.
+	Clock clockwork.Clock
+}
+
+type jwtSignerGetter interface {
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
 }
 
 func (c *ServiceConfig) CheckAndSetDefaults() error {
@@ -81,6 +91,13 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	if c.OktaAssignments == nil {
 		c.OktaAssignments = oktaSvc
 	}
+	if c.JWTSigner == nil {
+		return trace.BadParameter("key store is missing")
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
 
 	return nil
 }
@@ -94,6 +111,7 @@ type Service struct {
 	authorizer      authz.Authorizer
 	oktaImportRules services.OktaImportRules
 	oktaAssignments services.OktaAssignments
+	jwtSigner       jwtSignerGetter
 }
 
 // NewService creates a new Okta gRPC service.
@@ -107,6 +125,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:      cfg.Authorizer,
 		oktaImportRules: cfg.OktaImportRules,
 		oktaAssignments: cfg.OktaAssignments,
+		jwtSigner:       cfg.JWTSigner,
 	}, nil
 }
 

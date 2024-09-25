@@ -43,18 +43,19 @@ func NewClient(ctx context.Context, cfg ClientConfig) (Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	createFunc := getClientProvider()
-	client, err := createFunc(ctx,
+	settings := []okta.ConfigSetter{
 		okta.WithCache(false), // We don't want a cache as we need up to date info.
 		okta.WithOrgUrl(cfg.Endpoint),
-		okta.WithToken(cfg.Token),
 		okta.WithHttpClientPtr(cfg.HTTPClient),
-
 		// This will retry until the request timeout has passed, doing a backoff
 		// of up to 30 seconds.
 		okta.WithRequestTimeout(RequestTimeoutSeconds),
 		okta.WithRateLimitMaxRetries(math.MaxInt32),
-	)
+	}
+
+	settings = append(settings, cfg.AuthProvider.GetAuthOptions()...)
+	createFunc := getClientProvider()
+	client, err := createFunc(ctx, settings...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -453,6 +454,11 @@ func (w *WrappedClient) OrgName(ctx context.Context) (string, error) {
 // OrgURL will return the org URL for the client.
 func (w *WrappedClient) OrgURL() string {
 	return w.oktaOrgURL
+}
+
+// GetScopes returns the scopes that the client is authorized to access.
+func (w *WrappedClient) GetScopes() []string {
+	return w.Client.GetScopes()
 }
 
 // DoHttp performs an HTTP request to the Okta API.

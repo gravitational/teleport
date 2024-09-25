@@ -181,10 +181,10 @@ func TestErrorConversion(t *testing.T) {
 						Return(ec.roundTrip)
 
 					client, err := NewClient(testCtx, ClientConfig{
-						Endpoint:   "https://okta.example.com",
-						Token:      "i-am-not-a-token",
-						HTTPClient: &http.Client{Transport: mockta},
-						Log:        slog.With("test", t.Name()),
+						Endpoint:     "https://okta.example.com",
+						AuthProvider: NewSSWSAuthProvider("i-am-not-a-token"),
+						HTTPClient:   &http.Client{Transport: mockta},
+						Log:          slog.With("test", t.Name()),
 					})
 					require.NoError(t, err)
 

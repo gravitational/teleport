@@ -66,6 +66,8 @@ type Client interface {
 	// DoHttp executes an HTTP request on the supplied URL using the same
 	// credentials and headers used by underlying Okta client
 	DoHttp(ctx context.Context, method string, url *url.URL, accept []string) ([]byte, error)
+	// GetScopes returns the scopes that the client is configured to use.
+	GetScopes() []string
 }
 
 // CreateNewOktaClient will create a new Okta client.

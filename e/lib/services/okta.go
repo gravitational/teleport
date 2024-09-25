@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/e/lib/okta/leader"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -34,7 +35,6 @@ const (
 // implementation details)
 type oktaSettings struct {
 	apiEndPoint           string
-	apiToken              string
 	pluginStatusSink      common.StatusSink
 	syncPeriod            time.Duration
 	userSyncEnabled       bool
@@ -46,6 +46,7 @@ type oktaSettings struct {
 	oktaAppID             string
 	appGroupSyncDisabled  bool
 	scimEnabled           bool
+	oktaAuthProvider      api.AuthProvider
 }
 
 func (s *oktaSettings) orgURLBase64() string {
@@ -68,13 +69,13 @@ func InitOkta(process *service.TeleportProcess) error {
 		return initOktaService(process.ExitContext(), process,
 			oktaSettings{
 				apiEndPoint:           process.Config.Okta.APIEndpoint,
-				apiToken:              token,
 				syncPeriod:            process.Config.Okta.SyncSettings.AppGroupSyncPeriod,
 				userSyncEnabled:       false,
 				accessListSyncEnabled: process.Config.Okta.SyncSettings.SyncAccessLists,
 				defaultOwners:         process.Config.Okta.SyncSettings.DefaultOwners,
 				appFilters:            process.Config.Okta.SyncSettings.AppFilters,
 				groupFilters:          process.Config.Okta.SyncSettings.GroupFilters,
+				oktaAuthProvider:      api.NewSSWSAuthProvider(token),
 			},
 			process.GetID())
 	})
@@ -98,6 +99,8 @@ type OktaPluginPrams struct {
 	// SCIMEnabled indicates that SCIM sync is enabled for this plugin
 	// instance.
 	SCIMEnabled bool
+	// AuthProvider is the Okta auth provider.
+	AuthProvider api.AuthProvider
 }
 
 // InitOktaPlugin will initialize and start the Okta service for plugin use. This will not
@@ -122,7 +125,6 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 				appGroupSyncDisabled:  params.AppGroupSyncDisabled,
 				accessListSyncEnabled: settings.SyncSettings.SyncAccessLists,
 				apiEndPoint:           settings.OrgUrl,
-				apiToken:              params.Token,
 				pluginStatusSink:      params.PluginStatusSink,
 				ssoConnectorID:        settings.SyncSettings.SsoConnectorId,
 				defaultOwners:         settings.SyncSettings.DefaultOwners,
@@ -130,6 +132,7 @@ func InitOktaPlugin(ctx context.Context, params OktaPluginPrams) string {
 				groupFilters:          settings.SyncSettings.GroupFilters,
 				oktaAppID:             settings.SyncSettings.AppId,
 				scimEnabled:           params.SCIMEnabled,
+				oktaAuthProvider:      api.NewSSWSAuthProvider(params.Token),
 			},
 			pluginLogComponent(params.PluginName), components...)
 	})
@@ -232,7 +235,6 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		AccessLists:                conn.Client.AccessListClient(),
 		OnHeartbeat:                process.OnHeartbeat(teleport.Okta),
 		OktaAPIEndpoint:            settings.apiEndPoint,
-		OktaAPIToken:               settings.apiToken,
 		PluginStatusSink:           settings.pluginStatusSink,
 		TimeBetweenSyncs:           settings.syncPeriod,
 		UserSyncEnabled:            settings.userSyncEnabled,
@@ -244,6 +246,7 @@ func initOktaService(ctx context.Context, process *service.TeleportProcess, sett
 		AccessListSyncGroupFilters: settings.groupFilters,
 		OktaSAMLAppID:              settings.oktaAppID,
 		SCIMEnabled:                settings.scimEnabled,
+		AuthProvider:               settings.oktaAuthProvider,
 	})
 	if err != nil {
 		return trace.Wrap(err)

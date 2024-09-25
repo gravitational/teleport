@@ -20,11 +20,13 @@ package oktaservice
 
 import (
 	"context"
+	"crypto"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -173,6 +175,13 @@ type testClient struct {
 	services.UserGetter
 }
 
+type mockKeyStore struct {
+}
+
+func (m mockKeyStore) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
 func initSvc(t *testing.T, kind string) (context.Context, *Service) {
 	ctx := context.Background()
 	backend, err := memory.New(memory.Config{})
@@ -241,6 +250,7 @@ func initSvc(t *testing.T, kind string) (context.Context, *Service) {
 	svc, err := NewService(ServiceConfig{
 		Backend:    backend,
 		Authorizer: authorizer,
+		JWTSigner:  &mockKeyStore{},
 	})
 	require.NoError(t, err)
 
