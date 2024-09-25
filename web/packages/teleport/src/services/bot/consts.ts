@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Bot } from 'teleport/rpc/teleport/machineid/v1/bot_pb';
 import {
   ApiBot,
   BotType,
@@ -69,11 +70,12 @@ export function toApiGitHubRule({
   };
 }
 
-export function makeBot(bot: ApiBot): FlatBot {
+export function makeBot(bot: Bot): FlatBot {
   if (!bot?.metadata?.name) {
     return;
   }
 
+  console.log({ bot });
   const labels = bot?.metadata?.labels
     ? new Map(Object.entries(bot.metadata.labels))
     : new Map<string, string>();

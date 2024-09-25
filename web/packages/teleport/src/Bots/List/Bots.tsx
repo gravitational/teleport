@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAttemptNext } from 'shared/hooks';
 import { Link } from 'react-router-dom';
 import { HoverTooltip } from 'shared/components/ToolTip';
+import { useQuery } from '@connectrpc/connect-query';
 import { Alert, Box, Button, Indicator } from 'design';
 
 import {
@@ -28,45 +29,44 @@ import {
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { BotList } from 'teleport/Bots/List/BotList';
-import {
-  deleteBot,
-  editBot,
-  fetchBots,
-  fetchRoles,
-} from 'teleport/services/bot/bot';
+import { deleteBot, editBot, fetchRoles } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
+import { listBots } from 'teleport/rpc/teleport/machineid/v1/bot_service-BotService_connectquery';
 
 import cfg from 'teleport/config';
+import { makeBot } from 'teleport/services/bot/consts';
 
 export function Bots() {
   const ctx = useTeleport();
   const flags = ctx.getFeatureFlags();
   const hasAddBotPermissions = flags.addBots;
 
-  const [bots, setBots] = useState<FlatBot[]>();
+  // const [bots, setBots] = useState<FlatBot[]>();
   const [selectedBot, setSelectedBot] = useState<FlatBot>();
   const [selectedRoles, setSelectedRoles] = useState<string[]>();
   const { attempt: crudAttempt, run: crudRun } = useAttemptNext();
-  const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
+  // const { attempt: fetchAttempt, run: fetchRun } = useAttemptNext('processing');
+  const { data, isSuccess, isLoading, isError, error } = useQuery(listBots);
+  const bots = data?.bots.map(makeBot) || [];
 
-  useEffect(() => {
-    const signal = new AbortController();
-    const flags = ctx.getFeatureFlags();
+  // useEffect(() => {
+  //   const signal = new AbortController();
+  //   const flags = ctx.getFeatureFlags();
 
-    async function bots(signal: AbortSignal) {
-      return await fetchBots(signal, flags);
-    }
+  //   async function bots(signal: AbortSignal) {
+  //     return await fetchBots(signal, flags);
+  //   }
 
-    fetchRun(() =>
-      bots(signal.signal).then(botRes => {
-        setBots(botRes.bots);
-      })
-    );
-    return () => {
-      signal.abort();
-    };
-  }, [ctx, fetchRun]);
+  //   fetchRun(() =>
+  //     bots(signal.signal).then(botRes => {
+  //       setBots(botRes.bots);
+  //     })
+  //   );
+  //   return () => {
+  //     signal.abort();
+  //   };
+  // }, [ctx, fetchRun]);
 
   async function fetchRoleNames(search: string): Promise<string[]> {
     const flags = ctx.getFeatureFlags();
@@ -76,30 +76,29 @@ export function Bots() {
 
   function onDelete() {
     crudRun(() => deleteBot(flags, selectedBot.name)).then(() => {
-      setBots(bots.filter(bot => bot.name !== selectedBot.name));
+      // setBots(bots.filter(bot => bot.name !== selectedBot.name));
       onClose();
     });
   }
 
   function onEdit() {
-    crudRun(() =>
-      editBot(flags, selectedBot.name, { roles: selectedRoles }).then(
-        (updated: FlatBot) => {
-          const updatedList: FlatBot[] = bots.map((item: FlatBot): FlatBot => {
-            if (item.name !== selectedBot.name) {
-              return item;
-            }
-            return {
-              ...item,
-              ...updated,
-            };
-          });
-
-          setBots(updatedList);
-          onClose();
-        }
-      )
-    );
+    // crudRun(() =>
+    //   editBot(flags, selectedBot.name, { roles: selectedRoles }).then(
+    //     (updated: FlatBot) => {
+    //       const updatedList: FlatBot[] = bots.map((item: FlatBot): FlatBot => {
+    //         if (item.name !== selectedBot.name) {
+    //           return item;
+    //         }
+    //         return {
+    //           ...item,
+    //           ...updated,
+    //         };
+    //       });
+    //       setBots(updatedList);
+    //       onClose();
+    //     }
+    //   )
+    // );
   }
 
   function onClose() {
@@ -122,11 +121,7 @@ export function Bots() {
           >
             <Button
               intent="primary"
-              fill={
-                fetchAttempt.status === 'success' && bots.length === 0
-                  ? 'filled'
-                  : 'border'
-              }
+              fill={isSuccess && data.bots.length === 0 ? 'filled' : 'border'}
               ml="auto"
               width="240px"
               as={Link}
@@ -138,15 +133,13 @@ export function Bots() {
           </HoverTooltip>
         </Box>
       </FeatureHeader>
-      {fetchAttempt.status == 'processing' && (
+      {isLoading && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {fetchAttempt.status == 'failed' && (
-        <Alert kind="danger" children={fetchAttempt.statusText} />
-      )}
-      {fetchAttempt.status == 'success' && (
+      {isError && <Alert kind="danger" children={error.message} />}
+      {isSuccess && (
         <BotList
           attempt={crudAttempt}
           bots={bots}

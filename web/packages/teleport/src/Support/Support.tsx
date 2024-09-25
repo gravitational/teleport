@@ -19,9 +19,6 @@
 import React, { PropsWithChildren } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Card, Flex, Text } from 'design';
-import { useQuery, TransportProvider } from '@connectrpc/connect-query';
-import { createConnectTransport } from '@connectrpc/connect-web';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import * as Icons from 'design/Icon';
 
@@ -32,42 +29,23 @@ import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
-import { getAuthHeaders } from 'teleport/services/api';
-import { listRoles } from 'teleport/rpc/teleport/legacy/client/proto/authservice-AuthService_connectquery';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
-  const queryClient = new QueryClient();
 
-  const transport = createConnectTransport({
-    interceptors: [
-      next => request => {
-        const headers = getAuthHeaders();
-        Object.keys(headers).forEach(k => request.header.append(k, headers[k]));
-        // Add your headers here
-        return next(request);
-      },
-    ],
-    credentials: 'include',
-    baseUrl: '/v1/webapi/sites/teleport.zarquon.sh/authapi/v1/grpc/',
-  });
   // showCTA returns the premium support value for enterprise customers and true for OSS users
   const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
 
   return (
-    <TransportProvider transport={transport}>
-      <QueryClientProvider client={queryClient}>
-        <Support
-          {...cluster}
-          isEnterprise={cfg.isEnterprise}
-          tunnelPublicAddress={cfg.tunnelPublicAddress}
-          isCloud={cfg.isCloud}
-          showPremiumSupportCTA={showCTA}
-          children={children}
-        />
-      </QueryClientProvider>
-    </TransportProvider>
+    <Support
+      {...cluster}
+      isEnterprise={cfg.isEnterprise}
+      tunnelPublicAddress={cfg.tunnelPublicAddress}
+      isCloud={cfg.isCloud}
+      showPremiumSupportCTA={showCTA}
+      children={children}
+    />
   );
 }
 
@@ -82,8 +60,6 @@ export const Support = ({
   showPremiumSupportCTA,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
-
-  const { data, isError, error } = useQuery(listRoles, { Limit: 1 });
 
   return (
     <FeatureBox pt="4">
