@@ -33,7 +33,8 @@ export function TextSelectCopy({
   bash = true,
   ...styles
 }: Props) {
-  const font = fontFamily || useTheme().fonts.mono;
+  const theme = useTheme();
+  const font = fontFamily || theme.fonts.mono;
   const ref = useRef();
   const abortControllerRef = useRef<AbortController>();
   const [copyCmd, setCopyCmd] = useState(() => 'Copy');
