@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -63,8 +62,6 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*pgcon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// enable tracing
-	pgConn.Frontend().Trace(os.Stdout, pgproto3.TracerOptions{})
 	return pgConn, nil
 }
 
@@ -247,9 +244,7 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 	}
 	// Upgrade connection to TLS.
 	conn = tls.Server(conn, s.tlsConfig)
-	tlsClient := pgproto3.NewBackend(conn, conn)
-	tlsClient.Trace(os.Stdout, pgproto3.TracerOptions{})
-	return tlsClient, nil
+	return pgproto3.NewBackend(conn, conn), nil
 }
 
 func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgproto3.StartupMessage) error {
