@@ -6686,6 +6686,16 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
 	}
 
+	if err := services.ValidateAssertionConsumerServicesEndpoint(sp.GetACSURL()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -6715,6 +6725,14 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		},
 	}); emitErr != nil {
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+	}
+
+	if err := services.ValidateAssertionConsumerServicesEndpoint(sp.GetACSURL()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(err)
