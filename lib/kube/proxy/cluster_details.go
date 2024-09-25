@@ -64,7 +64,7 @@ type kubeDetails struct {
 	// that are supported by the cluster.
 	// The codec factory is updated periodically to include the latest custom resources
 	// that are added to the cluster.
-	kubeCodecs serializer.CodecFactory
+	kubeCodecs *serializer.CodecFactory
 	// rbacSupportedTypes is the list of supported types for RBAC for the cluster.
 	// The list is updated periodically to include the latest custom resources
 	// that are added to the cluster.
@@ -245,7 +245,7 @@ func (k *kubeDetails) getClusterSupportedResources() (*serializer.CodecFactory, 
 	if k.isClusterOffline {
 		return nil, nil, trace.ConnectionProblem(nil, "kubernetes cluster %q is offline", k.kubeCluster.GetName())
 	}
-	return &(k.kubeCodecs), k.rbacSupportedTypes, nil
+	return k.kubeCodecs, k.rbacSupportedTypes, nil
 }
 
 // getObjectGVK returns the default GVK (if any) registered for the specified request path.

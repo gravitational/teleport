@@ -117,8 +117,11 @@ type AuthPreference interface {
 	// SetAllowHeadless sets the value of the allow headless setting.
 	SetAllowHeadless(b bool)
 
+	// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+	SetRequireMFAType(RequireMFAType)
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
+
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
 
@@ -175,6 +178,13 @@ type AuthPreference interface {
 	GetSignatureAlgorithmSuite() SignatureAlgorithmSuite
 	// SetSignatureAlgorithmSuite sets the signature algorithm suite.
 	SetSignatureAlgorithmSuite(SignatureAlgorithmSuite)
+	// SetDefaultSignatureAlgorithmSuite sets default signature algorithm suite
+	// based on the params. This is meant for a default auth preference in a
+	// brand new cluster or after resetting the auth preference.
+	SetDefaultSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams)
+	// CheckSignatureAlgorithmSuite returns an error if the current signature
+	// algorithm suite is incompatible with [params].
+	CheckSignatureAlgorithmSuite(SignatureAlgorithmSuiteParams) error
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -213,7 +223,15 @@ func newAuthPreferenceWithLabels(spec AuthPreferenceSpecV2, labels map[string]st
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{}, map[string]string{
+	authPref, _ := newAuthPreferenceWithLabels(AuthPreferenceSpecV2{
+		// This is useful as a static value, but the real default signature
+		// algorithm suite depends on the cluster FIPS and HSM settings, and
+		// gets written by [AuthPreferenceV2.SetDefaultSignatureAlgorithmSuite]
+		// wherever a default auth preference will actually be persisted.
+		// It is set here so that many existing tests using this get the
+		// benefits of the balanced-v1 suite.
+		SignatureAlgorithmSuite: SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	}, map[string]string{
 		OriginLabel: OriginDefaults,
 	})
 	return authPref
@@ -412,6 +430,11 @@ func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
 	c.Spec.AllowHeadless = NewBoolOption(b)
 }
 
+// SetRequireMFAType sets the type of MFA requirement enforced for this cluster.
+func (c *AuthPreferenceV2) SetRequireMFAType(t RequireMFAType) {
+	c.Spec.RequireMFAType = t
+}
+
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
@@ -557,6 +580,61 @@ func (c *AuthPreferenceV2) GetSignatureAlgorithmSuite() SignatureAlgorithmSuite 
 // SetSignatureAlgorithmSuite sets the signature algorithm suite.
 func (c *AuthPreferenceV2) SetSignatureAlgorithmSuite(suite SignatureAlgorithmSuite) {
 	c.Spec.SignatureAlgorithmSuite = suite
+}
+
+// SignatureAlgorithmSuiteParams is a set of parameters used to determine if a
+// configured signature algorithm suite is valid, or to set a default signature
+// algorithm suite.
+type SignatureAlgorithmSuiteParams struct {
+	// FIPS should be true if running in FIPS mode.
+	FIPS bool
+	// UsingHSMOrKMS should be true if the auth server is configured to
+	// use an HSM or KMS.
+	UsingHSMOrKMS bool
+}
+
+// SetDefaultSignatureAlgorithmSuite sets default signature algorithm suite
+// based on the params. This is meant for a default auth preference in a
+// brand new cluster or after resetting the auth preference.
+func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) {
+	switch {
+	case params.FIPS:
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
+	case params.UsingHSMOrKMS:
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
+	default:
+		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
+	}
+}
+
+var (
+	errNonFIPSSignatureAlgorithmSuite = &trace.BadParameterError{Message: `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`}
+	errNonHSMSignatureAlgorithmSuite  = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
+)
+
+// CheckSignatureAlgorithmSuite returns an error if the current signature
+// algorithm suite is incompatible with [params].
+func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorithmSuiteParams) error {
+	switch c.GetSignatureAlgorithmSuite() {
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED,
+		SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY,
+		SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
+		// legacy, fips-v1, and unspecified are always valid.
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
+		if params.FIPS {
+			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
+		}
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
+		if params.FIPS {
+			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
+		}
+		if params.UsingHSMOrKMS {
+			return trace.Wrap(errNonHSMSignatureAlgorithmSuite)
+		}
+	default:
+		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
+	}
+	return nil
 }
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.

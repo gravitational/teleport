@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 // NewHostUsers initialize a new HostUsers object
@@ -103,7 +104,7 @@ type HostUsersBackend interface {
 	// CreateGroup creates a group on a host.
 	CreateGroup(group string, gid string) error
 	// CreateUser creates a user on a host.
-	CreateUser(name string, groups []string, home, uid, gid string) error
+	CreateUser(name string, groups []string, opts host.UserOpts) error
 	// DeleteUser deletes a user from a host.
 	DeleteUser(name string) error
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
@@ -253,18 +254,21 @@ func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) 
 
 	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
 	// the teleport-keep group
-	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup) && ui.Mode == services.HostUserModeKeep
+	migrateStaticUser := ui.TakeOwnership && ui.Mode == services.HostUserModeStatic
 
 	_, hasDropGroup := currentGroups[types.TeleportDropGroup]
 	_, hasKeepGroup := currentGroups[types.TeleportKeepGroup]
 	_, hasStaticGroup := currentGroups[types.TeleportStaticGroup]
-	if !(hasDropGroup || hasKeepGroup || hasStaticGroup || migrateKeepUser) {
+	isManagedUser := hasDropGroup || hasKeepGroup || hasStaticGroup
+	if !(isManagedUser || migrateKeepUser || migrateStaticUser) {
 		return nil, trace.Errorf("%q %w", name, unmanagedUserErr)
 	}
 
 	// Do not convert/update groups from static to non-static user, and vice versa.
-	isStaticUser := ui.Mode == services.HostUserModeStatic
-	if hasStaticGroup != isStaticUser {
+	isStaticMode := ui.Mode == services.HostUserModeStatic
+	managedStaticConversion := isManagedUser && (hasStaticGroup != isStaticMode)
+	if managedStaticConversion {
 		slog.DebugContext(context.Background(),
 			"Aborting host user creation, can't convert between auto-provisioned and static host users.",
 			"login", name)
@@ -322,9 +326,39 @@ func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) 
 	return closer, nil
 }
 
+func (u *HostUserManagement) resolveGID(username string, groups []string, gid string) (string, error) {
+	if gid != "" {
+		// ensure user's primary group exists if a gid is explicitly provided
+		err := u.backend.CreateGroup(username, gid)
+		if err != nil && !trace.IsAlreadyExists(err) {
+			return "", trace.Wrap(err)
+		}
+
+		return gid, nil
+	}
+
+	// user's without an explicit gid should use the group that shares their login
+	// name if defined, otherwise user creation will fail due to their primary group
+	// already existing
+	if slices.Contains(groups, username) {
+		return username, nil
+	}
+
+	// avoid automatic assignment of groups not defined in the role
+	if _, err := u.backend.LookupGroup(username); err == nil {
+		return "", trace.AlreadyExists("host login %q conflicts with an existing group that is not defined in user's role, either add %q to host_groups or explicitly assign a GID", username, username)
+	}
+
+	return "", nil
+}
+
 func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
-	var home string
 	var err error
+	userOpts := host.UserOpts{
+		UID:   ui.UID,
+		GID:   ui.GID,
+		Shell: ui.Shell,
+	}
 
 	var closer io.Closer
 	switch ui.Mode {
@@ -341,7 +375,7 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 		} else {
 			ui.Groups = append(ui.Groups, types.TeleportKeepGroup)
 		}
-		home, err = u.backend.GetDefaultHomeDirectory(name)
+		userOpts.Home, err = u.backend.GetDefaultHomeDirectory(name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -354,15 +388,12 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 			}
 		}
 
-		if ui.GID != "" {
-			// if gid is specified a group must already exist
-			err := u.backend.CreateGroup(name, ui.GID)
-			if err != nil && !trace.IsAlreadyExists(err) {
-				return trace.Wrap(err)
-			}
+		userOpts.GID, err = u.resolveGID(name, ui.Groups, ui.GID)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		err = u.backend.CreateUser(name, ui.Groups, home, ui.UID, ui.GID)
+		err = u.backend.CreateUser(name, ui.Groups, userOpts)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.WrapWithMessage(err, "error while creating user")
 		}
@@ -372,8 +403,8 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 			return trace.Wrap(err)
 		}
 
-		if home != "" {
-			if err := u.backend.CreateHomeDirectory(home, user.Uid, user.Gid); err != nil {
+		if userOpts.Home != "" {
+			if err := u.backend.CreateHomeDirectory(userOpts.Home, user.Uid, user.Gid); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -402,10 +433,10 @@ func (u *HostUserManagement) ensureGroupsExist(groups ...string) error {
 func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
 	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
 	// the teleport-keep group
-	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
-	skipKeepGroup := migrateKeepUser && ui.Mode != services.HostUserModeKeep
+	hasKeepGroup := slices.Contains(ui.Groups, types.TeleportKeepGroup)
+	migrateKeepUser := hasKeepGroup && ui.Mode == services.HostUserModeKeep
 
-	if skipKeepGroup {
+	if hasKeepGroup && !migrateKeepUser {
 		log.Warnf("explicit assignment of %q group is not possible in 'insecure-drop' mode", types.TeleportKeepGroup)
 	}
 
@@ -417,7 +448,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		case types.TeleportDropGroup, types.TeleportStaticGroup:
 			continue
 		case types.TeleportKeepGroup:
-			if skipKeepGroup {
+			if !migrateKeepUser {
 				continue
 			}
 		}

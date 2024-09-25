@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -48,6 +49,9 @@ type ALPNAuthClient interface {
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
+
+	// GetAuthPreference returns the current cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
 // ALPNAuthTunnelConfig contains the required fields used to create an authed ALPN Proxy
@@ -114,13 +118,13 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 }
 
 func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (tls.Certificate, error) {
-	// TODO(nklaassen): support configurable signature algorithms.
-	keyRing, err := GenerateRSAKeyRing()
+	key, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
+		cryptosuites.UserTLS)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-
-	publicKeyPEM, err := keys.MarshalPublicKey(keyRing.PrivateKey.Public())
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -142,9 +146,9 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	tlsCert, err := keys.X509KeyPair(certs.TLS, keyRing.PrivateKey.PrivateKeyPEM())
+	tlsCert, err := keys.TLSCertificateForSigner(key, certs.TLS)
 	if err != nil {
-		return tls.Certificate{}, trace.BadParameter("failed to parse private key: %v", err)
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 
 	return tlsCert, nil

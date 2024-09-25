@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
@@ -1410,6 +1411,14 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindStaticHostUser,
 			create: testCreateStaticHostUser,
 		},
+		{
+			kind:   types.KindAutoUpdateConfig,
+			create: testCreateAutoUpdateConfig,
+		},
+		{
+			kind:   types.KindAutoUpdateVersion,
+			create: testCreateAutoUpdateVersion,
+		},
 	}
 
 	for _, test := range tests {
@@ -2274,6 +2283,76 @@ spec:
 
 	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
 	require.NoError(t, err)
+}
+
+func testCreateAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools_autoupdate: true
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateConfig](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateConfig
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateConfig{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+}
+
+func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools_version: 1.2.3
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]*autoupdate.AutoUpdateVersion](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected autoupdate.AutoUpdateVersion
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*autoupdate.AutoUpdateVersion{&expected},
+		resources,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 }
 
 func TestPluginResourceWrapper(t *testing.T) {

@@ -69,7 +69,11 @@ func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log utils.Log
 	config := newAuthConfig(t, log, clock)
 	config.Auth.StorageConfig = *storageConfig
 	config.Auth.KeyStore = keystore.HSMTestConfig(t)
-	config.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
+	authPref, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
+		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1,
+	})
+	require.NoError(t, err)
+	config.Auth.Preference = authPref
 	return config
 }
 

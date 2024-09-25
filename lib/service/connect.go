@@ -46,13 +46,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,11 +61,12 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
+
+const updateClientsJoinWarning = "This agent joined the cluster during the update_clients phase of a host CA rotation, so its services might not be usable by clients that haven't logged in recently."
 
 // reconnectToAuthService continuously attempts to reconnect to the auth
 // service until succeeds or process gets shut down
@@ -266,7 +267,17 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 			// while servers should use old credentials to answer auth requests.
 			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				if !trace.IsNotFound(err) {
+					return nil, trace.Wrap(err)
+				}
+				newIdentity = identity
+				// the only legitimate reason to not have a replacement identity
+				// during update_clients is if the agent joined during
+				// update_clients and then restarted
+				process.logger.WarnContext(
+					process.ExitContext(),
+					updateClientsJoinWarning,
+				)
 			}
 			if role == types.RoleAdmin || role == types.RoleAuth {
 				return newConnector(newIdentity, identity)
@@ -276,14 +287,10 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateServers:
 			// Servers and clients are using new identity credentials, but the
 			// identity is still set up to trust the old certificate authority certificates.
-			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			if role == types.RoleAdmin || role == types.RoleAuth {
-				return newConnector(newIdentity, newIdentity)
+				return newConnector(identity, identity)
 			}
-			connector, err := process.getConnector(newIdentity, newIdentity)
+			connector, err := process.getConnector(identity, identity)
 			return connector, trace.Wrap(err)
 		case types.RotationPhaseRollback:
 			// In rollback phase, clients and servers should switch back
@@ -301,53 +308,6 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 	default:
 		return nil, trace.BadParameter("unsupported rotation state: %q", rotation.State)
 	}
-}
-
-// KeyPair is a private/public key pair
-type KeyPair struct {
-	// PrivateKey is a private key in PEM format
-	PrivateKey []byte
-	// PublicSSHKey is a public key in SSH format
-	PublicSSHKey []byte
-	// PublicTLSKey is a public key in X509 format
-	PublicTLSKey []byte
-}
-
-func (process *TeleportProcess) deleteKeyPair(role types.SystemRole, reason string) {
-	process.keyMutex.Lock()
-	defer process.keyMutex.Unlock()
-	process.logger.DebugContext(process.ExitContext(), "Deleted generated key pair.", "identity", role, "reason", reason)
-	delete(process.keyPairs, keyPairKey{role: role, reason: reason})
-}
-
-func (process *TeleportProcess) generateKeyPair(role types.SystemRole, reason string) (*KeyPair, error) {
-	process.keyMutex.Lock()
-	defer process.keyMutex.Unlock()
-
-	mapKey := keyPairKey{role: role, reason: reason}
-	keyPair, ok := process.keyPairs[mapKey]
-	if ok {
-		process.logger.DebugContext(process.ExitContext(), "Returning existing key pair for.", "identity", role, "reason", reason)
-		return &keyPair, nil
-	}
-	process.logger.DebugContext(process.ExitContext(), "Generating new key pair.", "identity", role, "reason", reason)
-	privPEM, pubSSH, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	privateKey, err := ssh.ParseRawPrivateKey(privPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	keyPair = KeyPair{PrivateKey: privPEM, PublicSSHKey: pubSSH, PublicTLSKey: pubTLS}
-	process.keyPairs[mapKey] = keyPair
-
-	return &keyPair, nil
 }
 
 // newWatcher returns a new watcher,
@@ -384,17 +344,9 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if id.Role == types.RoleAdmin || id.Role == types.RoleAuth {
 		return auth.GenerateIdentity(process.localAuth, id, additionalPrincipals, dnsNames)
 	}
-	const reason = "re-register"
-	keyPair, err := process.generateKeyPair(id.Role, reason)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
-	defer cancel()
 
 	var clt auth.ReRegisterClient = conn.Client
 	var remoteAddr string
-
 	if srv := process.getLocalAuth(); srv != nil {
 		clt = srv
 		// auth server typically extracts remote addr from conn. since we're using the local auth
@@ -404,13 +356,12 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 		remoteAddr = cmp.Or(process.Config.AdvertiseIP, defaults.Localhost)
 	}
 
+	ctx, cancel := context.WithTimeout(process.ExitContext(), apidefaults.DefaultIOTimeout)
+	defer cancel()
 	identity, err := auth.ReRegister(ctx, auth.ReRegisterParams{
 		Client:                clt,
 		ID:                    id,
 		AdditionalPrincipals:  additionalPrincipals,
-		PrivateKey:            keyPair.PrivateKey,
-		PublicTLSKey:          keyPair.PublicTLSKey,
-		PublicSSHKey:          keyPair.PublicSSHKey,
 		DNSNames:              dnsNames,
 		RemoteAddr:            remoteAddr,
 		Rotation:              rotation,
@@ -420,7 +371,6 @@ func (process *TeleportProcess) reRegister(conn *Connector, additionalPrincipals
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.deleteKeyPair(id.Role, reason)
 	return identity, nil
 }
 
@@ -457,12 +407,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		}
 
 		process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-		const reason = "first-time-connect"
-		keyPair, err := process.generateKeyPair(role, reason)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
 		token, err := process.Config.Token()
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -480,8 +424,6 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			ProxyServer:          process.Config.ProxyServer,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicTLSKey:         keyPair.PublicTLSKey,
-			PublicSSHKey:         keyPair.PublicSSHKey,
 			CipherSuites:         process.Config.CipherSuites,
 			CAPins:               process.Config.CAPins,
 			CAPath:               filepath.Join(dataDir, defaults.CACertFile),
@@ -500,7 +442,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			}
 		}
 
-		certs, err := join.Register(process.ExitContext(), registerParams)
+		result, err := join.Register(process.ExitContext(), registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
@@ -508,12 +450,15 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = state.ReadIdentityFromKeyPair(keyPair.PrivateKey, certs)
+		privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		process.deleteKeyPair(role, reason)
+		identity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	process.logger.InfoContext(process.ExitContext(), "Successfully obtained credentials to connect to the cluster.", "identity", role)
@@ -537,6 +482,13 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	}, false)
 	if err != nil {
 		return nil, trace.NewAggregate(err, connector.Close())
+	}
+
+	if ca.GetRotation().Phase == types.RotationPhaseUpdateClients {
+		process.logger.WarnContext(
+			process.ExitContext(),
+			updateClientsJoinWarning,
+		)
 	}
 
 	if err := process.storage.WriteIdentity(state.IdentityCurrent, *identity); err != nil {
@@ -1061,24 +1013,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			if local.Phase != types.RotationPhaseUpdateClients && local.CurrentID != remote.CurrentID {
 				return nil, trace.CompareFailed(outOfSync, id.Role, remote, local, id.Role)
 			}
-			// Write the replacement identity as a current identity and reload the server.
-			replacement, err := storage.ReadIdentity(state.IdentityReplacement, id.Role)
+			clientState := conn.clientState.Load()
+			err = writeStateAndIdentity(state.IdentityCurrent, clientState.identity)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			connState, err := newConnectorState(replacement)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			err = writeStateAndIdentity(state.IdentityCurrent, replacement)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			// the current clientState and the new connState are equivalent, but
-			// by overwriting it we're going to only have one connector state
-			// around in memory
-			conn.clientState.Store(connState)
-			conn.serverState.Store(connState)
+			conn.serverState.Store(clientState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		case types.RotationPhaseRollback:
 			// Allow transition to this phase from any other local phase
@@ -1273,7 +1213,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
-		Log:                   process.log,
+		Log:                   process.logger,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
 		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(tlsConfig.RootCAs),
 	})

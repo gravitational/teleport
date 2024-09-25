@@ -31,7 +31,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specclaims_to_roles-items)|ClaimsToRoles specifies a dynamic mapping from claims to roles.|
 |client_id|string|ClientID is the id of the authentication client (Teleport Auth server).|
 |client_redirect_settings|[object](#specclient_redirect_settings)|ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones.|
-|client_secret|string|ClientSecret is used to authenticate the client.|
+|client_secret|string|ClientSecret is used to authenticate the client. This field supports secret lookup. See the operator documentation for more details.|
 |display|string|Display is the friendly name for this provider.|
 |google_admin_email|string|GoogleAdminEmail is the email of a google admin to impersonate.|
 |google_service_account|string|GoogleServiceAccount is a string containing google service account credentials.|

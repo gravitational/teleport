@@ -33,8 +33,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -116,14 +116,17 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 	return certPEM, nil
 }
 
-// GenerateSelfSignedCA generates self-signed certificate authority used for internal inter-node communications
+// GenerateSelfSignedCA generates self-signed certificate authority used for tests.
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	certPEM, err := GenerateSelfSignedCAWithSigner(priv, entity, dnsNames, ttl)
+	keyPEM, err := keys.MarshalPrivateKey(signer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	certPEM, err := GenerateSelfSignedCAWithSigner(signer, entity, dnsNames, ttl)
 	return keyPEM, certPEM, err
 }
 

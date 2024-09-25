@@ -160,6 +160,11 @@ const (
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
+const (
+	notificationsPageReadInterval = 5 * time.Millisecond
+	notificationsWriteInterval    = 40 * time.Millisecond
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -185,7 +190,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
@@ -199,6 +207,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		cfg.ClusterConfiguration = clusterConfig
+	}
+	if cfg.AutoUpdateService == nil {
+		cfg.AutoUpdateService, err = local.NewAutoUpdateService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Restrictions == nil {
 		cfg.Restrictions = local.NewRestrictionsService(cfg.Backend)
@@ -309,6 +323,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.UserTasks == nil {
+		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.DiscoveryConfigs == nil {
 		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
@@ -347,6 +367,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		if err != nil {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -410,6 +433,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Access:                    cfg.Access,
 		DynamicAccessExt:          cfg.DynamicAccessExt,
 		ClusterConfiguration:      cfg.ClusterConfiguration,
+		AutoUpdateService:         cfg.AutoUpdateService,
 		Restrictions:              cfg.Restrictions,
 		Apps:                      cfg.Apps,
 		Kubernetes:                cfg.Kubernetes,
@@ -423,6 +447,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:     cfg.SessionTrackerService,
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
+		UserTasks:                 cfg.UserTasks,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
@@ -464,6 +489,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
+		logger:                  cfg.Logger,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -623,6 +649,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.IntegrationsTokenGenerator
+	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -645,6 +672,7 @@ type Services struct {
 	services.DevicesGetter
 	services.SPIFFEFederations
 	services.StaticHostUser
+	services.AutoUpdateService
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1010,6 +1038,9 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// logger is the logger used by the auth server.
+	logger *slog.Logger
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1339,6 +1370,13 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer dynamicLabelsCheck.Stop()
 
+	notificationsCleanup := interval.New(interval.Config{
+		Duration:      48 * time.Hour,
+		FirstDuration: utils.FullJitter(time.Hour),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer notificationsCleanup.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1362,6 +1400,14 @@ func (a *Server) runPeriodicOperations() {
 	// from the cloud db.
 	if modules.GetModules().Features().Cloud {
 		go a.periodicSyncUpgradeWindowStartHour()
+	}
+
+	// disable periodics that are not required for cloud dashboard tenants
+	if services.IsDashboard(*modules.GetModules().Features().ToProto()) {
+		releaseCheck.Stop()
+		localReleaseCheck.Stop()
+		heartbeatCheckTicker.Stop()
+		dynamicLabelsCheck.Stop()
 	}
 
 	for {
@@ -1403,6 +1449,8 @@ func (a *Server) runPeriodicOperations() {
 			a.syncDesktopsLimitAlert(ctx)
 		case <-dynamicLabelsCheck.Next():
 			a.syncDynamicLabelsAlert(ctx)
+		case <-notificationsCleanup.Next():
+			go a.CleanupNotifications(ctx)
 		}
 	}
 }
@@ -1509,7 +1557,7 @@ const (
 )
 
 // syncReleaseAlerts calculates alerts related to new teleport releases. When checkRemote
-// is true it pulls the latest release info from github.  Otherwise, it loads the versions used
+// is true it pulls the latest release info from GitHub.  Otherwise, it loads the versions used
 // for the most recent alerts and re-syncs with latest cluster state.
 func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 	log.Debug("Checking for new teleport releases via github api.")
@@ -2199,16 +2247,18 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
-	Key                  []byte
-	Username             string
-	TTL                  time.Duration
-	Compatibility        string
-	RouteToCluster       string
-	PinnedIP             string
-	MFAVerified          string
-	AttestationStatement *keys.AttestationStatement
-	AppName              string
-	AppSessionID         string
+	SSHPubKey               []byte
+	TLSPubKey               []byte
+	Username                string
+	TTL                     time.Duration
+	Compatibility           string
+	RouteToCluster          string
+	PinnedIP                string
+	MFAVerified             string
+	SSHAttestationStatement *keys.AttestationStatement
+	TLSAttestationStatement *keys.AttestationStatement
+	AppName                 string
+	AppSessionID            string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -2228,31 +2278,20 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.Key
-	cryptoPubKey, err := sshutils.CryptoPublicKey(req.Key)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(cryptoPubKey)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	certs, err := a.generateUserCert(ctx, certRequest{
 		user:                             userState,
 		ttl:                              req.TTL,
 		compatibility:                    req.Compatibility,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
+		sshPublicKey:                     req.SSHPubKey,
+		tlsPublicKey:                     req.TLSPubKey,
 		routeToCluster:                   req.RouteToCluster,
 		checker:                          checker,
 		traits:                           userState.GetTraits(),
 		loginIP:                          req.PinnedIP,
 		pinIP:                            req.PinnedIP != "",
 		mfaVerified:                      req.MFAVerified,
-		sshPublicKeyAttestationStatement: req.AttestationStatement,
-		tlsPublicKeyAttestationStatement: req.AttestationStatement,
+		sshPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
 	})
@@ -4591,11 +4630,13 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
-			NodeHeartbeats:     true,
-			AppHeartbeats:      true,
-			AppCleanup:         true,
-			DatabaseHeartbeats: true,
-			DatabaseCleanup:    true,
+			NodeHeartbeats:       true,
+			AppHeartbeats:        true,
+			AppCleanup:           true,
+			DatabaseHeartbeats:   true,
+			DatabaseCleanup:      true,
+			KubernetesHeartbeats: true,
+			KubernetesCleanup:    true,
 		},
 	}
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
@@ -5759,6 +5800,136 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 	}
 }
 
+// CleanupNotifications deletes all expired user notifications and global notifications, as well as any associated notification states, for all users.
+func (a *Server) CleanupNotifications(ctx context.Context) {
+	var userNotifications []*notificationsv1.Notification
+	var userNotificationsPageKey string
+	userNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer userNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-userNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListUserNotifications(ctx, 20, userNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list user notifications for periodic cleanup", "error", err)
+		}
+		userNotifications = append(userNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationsPageKey = nextKey
+	}
+
+	var globalNotifications []*notificationsv1.GlobalNotification
+	var globalNotificationsPageKey string
+	globalNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer globalNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-globalNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListGlobalNotifications(ctx, 20, globalNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list global notifications for periodic cleanup", "error", err)
+		}
+		globalNotifications = append(globalNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		globalNotificationsPageKey = nextKey
+	}
+
+	timeNow := a.clock.Now()
+
+	notificationsDeleteLimiter := time.NewTicker(notificationsWriteInterval)
+	defer notificationsDeleteLimiter.Stop()
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredGlobalNotificationsByID := make(map[string]*notificationsv1.GlobalNotification)
+	for _, gn := range globalNotifications {
+		notificationID := gn.GetMetadata().GetName()
+		expiry := gn.GetSpec().GetNotification().GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteGlobalNotification(ctx, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup global notification", "error", err, "notification_id", notificationID)
+			}
+		} else {
+			nonExpiredGlobalNotificationsByID[notificationID] = gn
+		}
+	}
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredUserNotificationsByID := make(map[string]*notificationsv1.Notification)
+	for _, un := range userNotifications {
+		notificationID := un.GetMetadata().GetName()
+		user := un.GetSpec().GetUsername()
+		expiry := un.GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotification(ctx, user, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup user notification", "error", err, "notification_id", notificationID, "target_user", user)
+			}
+		} else {
+			nonExpiredUserNotificationsByID[notificationID] = un
+		}
+	}
+
+	var userNotificationStates []*notificationsv1.UserNotificationState
+	var userNotificationStatesPageKey string
+	notificationStatesTicker := time.NewTicker(notificationsPageReadInterval)
+	defer notificationStatesTicker.Stop()
+	for {
+		select {
+		case <-notificationStatesTicker.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.ListNotificationStatesForAllUsers(ctx, 20, userNotificationStatesPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
+		}
+		userNotificationStates = append(userNotificationStates, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationStatesPageKey = nextKey
+	}
+
+	for _, uns := range userNotificationStates {
+		id := uns.GetSpec().GetNotificationId()
+		username := uns.GetSpec().GetUsername()
+
+		// If this notification state is for a notification which doesn't exist in either the non-expired global notifications map or
+		// the non-expired user notifications map, then delete it.
+		if nonExpiredGlobalNotificationsByID[id] == nil && nonExpiredUserNotificationsByID[id] == nil {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotificationState(ctx, username, id); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification state", "error", err, "user", username, "id", id)
+			}
+		}
+	}
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -6157,13 +6328,19 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}
 	features := modules.GetModules().Features().ToProto()
 
+	authPref, err := a.GetAuthPreference(ctx)
+	if err != nil {
+		return proto.PingResponse{}, nil
+	}
+
 	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  features,
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LoadAllCAs:      a.loadAllCAs,
+		ClusterName:             cn.GetClusterName(),
+		ServerVersion:           teleport.Version,
+		ServerFeatures:          features,
+		ProxyPublicAddr:         a.getProxyPublicAddr(),
+		IsBoring:                modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:              a.loadAllCAs,
+		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 	}, nil
 }
 
@@ -6898,7 +7075,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -6947,6 +7124,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.OIDCIdPCAJWT
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECAJWT
+	case types.OktaCA:
+		return cryptosuites.OktaCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

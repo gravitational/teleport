@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// TestNewAutoUpdateVersion verifies validation for auto update version resource.
+// TestNewAutoUpdateVersion verifies validation for AutoUpdateVersion resource.
 func TestNewAutoUpdateVersion(t *testing.T) {
 	tests := []struct {
 		name      string
