@@ -131,6 +131,48 @@ func TestAutoDiscoverNode(t *testing.T) {
 		},
 	}
 
+	t.Run("check and set defaults", func(t *testing.T) {
+		t.Run("oss package is not allowed with auto upgrades", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      true,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.Error(t, err)
+		})
+		t.Run("fips package is allowed", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      false,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport-ent-fips",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.NoError(t, err)
+		})
+		t.Run("fips is not allowed with auto upgrades", func(t *testing.T) {
+			installerConfig := &AutoDiscoverNodeInstallerConfig{
+				RepositoryChannel: "stable/rolling",
+				AutoUpgrades:      true,
+				ProxyPublicAddr:   "proxy.example.com",
+				TeleportPackage:   "teleport-ent-fips",
+				TokenName:         "my-token",
+				AzureClientID:     "azure-client-id",
+			}
+
+			_, err := NewAutoDiscoverNodeInstaller(installerConfig)
+			require.Error(t, err)
+		})
+	})
+
 	t.Run("well known distros", func(t *testing.T) {
 		for distroName, distroVersions := range wellKnownOS {
 			for distroVersion, distroConfig := range distroVersions {
