@@ -33,6 +33,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/vanguard"
 	"connectrpc.com/vanguard/vanguardgrpc"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/oxy/ratelimit"
@@ -45,7 +46,11 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -150,6 +155,45 @@ type TLSServer struct {
 	// clientTLSConfigGenerator pre-generates and caches specialized per-cluster
 	// client TLS configs.
 	clientTLSConfigGenerator *ClientTLSConfigGenerator
+}
+
+func init() {
+	encoding.RegisterCodec(&grpcCodec{&vanguard.JSONCodec{
+		MarshalOptions:   protojson.MarshalOptions{EmitUnpopulated: true},
+		UnmarshalOptions: protojson.UnmarshalOptions{DiscardUnknown: true},
+	}})
+}
+
+type grpcCodec struct {
+	codec vanguard.Codec
+}
+
+func (g *grpcCodec) Marshal(v any) ([]byte, error) {
+	msg, ok := v.(proto.Message)
+	if !ok {
+		msgv1, ok := v.(protoadapt.MessageV1)
+		if !ok {
+			return nil, fmt.Errorf("value is not a proto.Message: %T", v)
+		}
+		msg = protoadapt.MessageV2Of(msgv1)
+	}
+	return g.codec.MarshalAppend(nil, msg)
+}
+
+func (g *grpcCodec) Unmarshal(data []byte, v any) error {
+	msg, ok := v.(proto.Message)
+	if !ok {
+		msgv1, ok := v.(protoadapt.MessageV1)
+		if !ok {
+			return fmt.Errorf("value is not a proto.Message: %T", v)
+		}
+		msg = protoadapt.MessageV2Of(msgv1)
+	}
+	return g.codec.Unmarshal(data, msg)
+}
+
+func (g *grpcCodec) Name() string {
+	return g.codec.Name()
 }
 
 // NewTLSServer returns new unstarted TLS server
