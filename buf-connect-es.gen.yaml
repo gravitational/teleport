@@ -3,9 +3,10 @@ plugins:
   - local: protoc-gen-es
     out: web/packages/teleport/src/rpc
     opt: target=ts
+    include_imports: true
   - local: protoc-gen-connect-query
     out: web/packages/teleport/src/rpc
     opt:
     - target=ts
-    - import_extension=none
-    - ts_nocheck=false
+    include_imports: true
+clean: true

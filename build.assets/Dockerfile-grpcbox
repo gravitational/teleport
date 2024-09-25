@@ -23,7 +23,7 @@ ARG NODE_GRPC_TOOLS_VERSION
 ARG NODE_PROTOC_TS_VERSION
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-RUN npm install --global @bufbuild/protoc-gen-es@2.1.0 @connectrpc/protoc-gen-connect-query
+RUN npm install --global @bufbuild/protoc-gen-es@^1.10.0 @connectrpc/protoc-gen-connect-query
 
 # buf
 # eg, "v1.26.1"

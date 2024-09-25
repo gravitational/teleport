@@ -10,15 +10,9 @@ importers:
 
   .:
     dependencies:
-      '@bufbuild/buf':
-        specifier: 1.39.0
-        version: 1.39.0
       '@bufbuild/protobuf':
-        specifier: ^1.10.0
+        specifier: ^1.0.0
         version: 1.10.0
-      '@bufbuild/protoc-gen-es':
-        specifier: ^1.10.0
-        version: 1.10.0(@bufbuild/protobuf@1.10.0)
       '@codemirror/autocomplete':
         specifier: ^6.18.0
         version: 6.18.0(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.33.0)(@lezer/common@1.2.1)
@@ -29,13 +23,13 @@ importers:
         specifier: ^6.33.0
         version: 6.33.0
       '@connectrpc/connect':
-        specifier: 1.5.0
+        specifier: ^1.5.0
         version: 1.5.0(@bufbuild/protobuf@1.10.0)
       '@connectrpc/connect-query':
-        specifier: ^1.0.0
+        specifier: ^1.4.2
         version: 1.4.2(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.5.0(@bufbuild/protobuf@1.10.0))(@tanstack/react-query@5.56.2(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@connectrpc/connect-web':
-        specifier: ^1.0.0
+        specifier: ^1.5.0
         version: 1.5.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.5.0(@bufbuild/protobuf@1.10.0))
       '@grpc/grpc-js':
         specifier: 1.11.1
@@ -1180,62 +1174,8 @@ packages:
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
-  '@bufbuild/buf-darwin-arm64@1.39.0':
-    resolution: {integrity: sha512-Ptl0uAGssLxQTzoZhGwv1FFTbzUfcstIpEwMhN+XrwiuqsSxOg9eq/n3yXoci5VJsHokjDUHnWkR3y+j5P/5KA==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@bufbuild/buf-darwin-x64@1.39.0':
-    resolution: {integrity: sha512-XNCuy9sjQwVJ4NIZqxaTIyzUtlyquSkp/Uuoh5W5thJ3nzZ5RSgvXKF5iXHhZmesrfRGApktwoCx5Am8runsfQ==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [darwin]
-
-  '@bufbuild/buf-linux-aarch64@1.39.0':
-    resolution: {integrity: sha512-Am+hrw94awp/eY027ROXwRQBuwAzOpQ/4zI4dgmgsyhzeWZ8w1LWC8z2SSr8T2cqd0cm52KxtoWMW+B3b2qzbw==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [linux]
-
-  '@bufbuild/buf-linux-x64@1.39.0':
-    resolution: {integrity: sha512-JXVkHoMrTvmpseqdoQPJJ6MRV7/vlloYtvXHHACEzVytYjljOYCNoVET/E5gLBco/edeXFMNc40cCi1KgL3rSw==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [linux]
-
-  '@bufbuild/buf-win32-arm64@1.39.0':
-    resolution: {integrity: sha512-akdGW02mo04wbLfjNMBQqxC4mPQ/L/vTU8/o79I67GSxyFYt7bKifvYIYhAA39C2gibHyB7ZLmoeRPbaU8wbYA==}
-    engines: {node: '>=12'}
-    cpu: [arm64]
-    os: [win32]
-
-  '@bufbuild/buf-win32-x64@1.39.0':
-    resolution: {integrity: sha512-jos08UMg9iUZsGjPrNpLXP+FNk6q6GizO+bjee/GcI0kSijIzXYMg14goQr0TKlvqs/+IRAM5vZIokQBYlAENQ==}
-    engines: {node: '>=12'}
-    cpu: [x64]
-    os: [win32]
-
-  '@bufbuild/buf@1.39.0':
-    resolution: {integrity: sha512-lm7xb9pc7X04rRjCQ69o9byAAZ7/dsUQGoH+iJ9uBSXQWiwQ1Ts8gneBnuUVsAH2vdW73NFBpmNQGE9XtFauVQ==}
-    engines: {node: '>=12'}
-    hasBin: true
-
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
-
-  '@bufbuild/protoc-gen-es@1.10.0':
-    resolution: {integrity: sha512-zBYBsVT/ul4uZb6F+kD7/k4sWNHVVbEPfJwKi0FDr+9VJo8MKIofI6pkr5ksBLr4fi/74r+e/75Xi/0clL5dXg==}
-    engines: {node: '>=14'}
-    hasBin: true
-    peerDependencies:
-      '@bufbuild/protobuf': 1.10.0
-    peerDependenciesMeta:
-      '@bufbuild/protobuf':
-        optional: true
-
-  '@bufbuild/protoplugin@1.10.0':
-    resolution: {integrity: sha512-u6NE4vL0lw1+EK4/PiE/SQB7fKO4LRJNTEScIXVOi2x88K/c8WKc/k0KyEaA0asVBMpwekJQZGnRyj04ZtN5Gg==}
 
   '@bundled-es-modules/cookie@2.0.0':
     resolution: {integrity: sha512-Or6YHg/kamKHpxULAdSqhGqnWFneIXu1NKvvfBBzKGwpVsYuFIQ5aBPHDnnoR3ghW1nvSkALd+EF9iMtY7Vjxw==}
@@ -2748,11 +2688,6 @@ packages:
   '@typescript-eslint/visitor-keys@7.14.1':
     resolution: {integrity: sha512-Crb+F75U1JAEtBeQGxSKwI60hZmmzaqA3z9sYsVm8X7W5cwLEm5bRe0/uXS6+MR/y8CVpKSR/ontIAIEPFcEkA==}
     engines: {node: ^18.18.0 || >=20.0.0}
-
-  '@typescript/vfs@1.6.0':
-    resolution: {integrity: sha512-hvJUjNVeBMp77qPINuUvYXj4FyWeeMMKZkxEATEU3hqBAQ7qdTBCUFT7Sp0Zu0faeEtFf+ldXxMEDr/bk73ISg==}
-    peerDependencies:
-      typescript: '*'
 
   '@uiw/codemirror-extensions-basic-setup@4.23.0':
     resolution: {integrity: sha512-+k5nkRpUWGaHr1JWT8jcKsVewlXw5qBgSopm9LW8fZ6KnSNZBycz8kHxh0+WSvckmXEESGptkIsb7dlkmJT/hQ==}
@@ -6673,11 +6608,6 @@ packages:
       typescript:
         optional: true
 
-  typescript@4.5.2:
-    resolution: {integrity: sha512-5BlMof9H1yGt0P8/WF+wPNw6GfctgGjXp5hkblpyT+8rkASSmkUKMXrxR0Xg8ThVCi/JnHQiKXeBaEwCeQwMFw==}
-    engines: {node: '>=4.2.0'}
-    hasBin: true
-
   typescript@5.5.4:
     resolution: {integrity: sha512-Mtq29sKDAEYP7aljRgtPOpTvOfbwRWlS6dPRzwjdE+C0R4brX/GUyhHSecbHMFLNBLcJIPt9nl9yG5TZ1weH+Q==}
     engines: {node: '>=14.17'}
@@ -7934,50 +7864,7 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
-  '@bufbuild/buf-darwin-arm64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf-darwin-x64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf-linux-aarch64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf-linux-x64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf-win32-arm64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf-win32-x64@1.39.0':
-    optional: true
-
-  '@bufbuild/buf@1.39.0':
-    optionalDependencies:
-      '@bufbuild/buf-darwin-arm64': 1.39.0
-      '@bufbuild/buf-darwin-x64': 1.39.0
-      '@bufbuild/buf-linux-aarch64': 1.39.0
-      '@bufbuild/buf-linux-x64': 1.39.0
-      '@bufbuild/buf-win32-arm64': 1.39.0
-      '@bufbuild/buf-win32-x64': 1.39.0
-
   '@bufbuild/protobuf@1.10.0': {}
-
-  '@bufbuild/protoc-gen-es@1.10.0(@bufbuild/protobuf@1.10.0)':
-    dependencies:
-      '@bufbuild/protoplugin': 1.10.0
-    optionalDependencies:
-      '@bufbuild/protobuf': 1.10.0
-    transitivePeerDependencies:
-      - supports-color
-
-  '@bufbuild/protoplugin@1.10.0':
-    dependencies:
-      '@bufbuild/protobuf': 1.10.0
-      '@typescript/vfs': 1.6.0(typescript@4.5.2)
-      typescript: 4.5.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@bundled-es-modules/cookie@2.0.0':
     dependencies:
@@ -9875,13 +9762,6 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 7.14.1
       eslint-visitor-keys: 3.4.3
-
-  '@typescript/vfs@1.6.0(typescript@4.5.2)':
-    dependencies:
-      debug: 4.3.6
-      typescript: 4.5.2
-    transitivePeerDependencies:
-      - supports-color
 
   '@uiw/codemirror-extensions-basic-setup@4.23.0(@codemirror/autocomplete@6.18.0(@codemirror/language@6.10.2)(@codemirror/state@6.4.1)(@codemirror/view@6.33.0)(@lezer/common@1.2.1))(@codemirror/commands@6.6.1)(@codemirror/language@6.10.2)(@codemirror/lint@6.4.2)(@codemirror/search@6.5.3)(@codemirror/state@6.4.1)(@codemirror/view@6.33.0)':
     dependencies:
@@ -14783,8 +14663,6 @@ snapshots:
       typescript: 5.5.4
     transitivePeerDependencies:
       - supports-color
-
-  typescript@4.5.2: {}
 
   typescript@5.5.4: {}
 

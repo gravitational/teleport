@@ -27,12 +27,13 @@ import * as Icons from 'design/Icon';
 
 import styled from 'styled-components';
 
-import { listUsers } from 'teleport/rpc/teleport/users/v1/users_service-UsersService_connectquery';
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { CtaEvent } from 'teleport/services/userEvent';
+import { getAuthHeaders } from 'teleport/services/api';
+import { listRoles } from 'teleport/rpc/teleport/legacy/client/proto/authservice-AuthService_connectquery';
 
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
@@ -40,8 +41,16 @@ export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const queryClient = new QueryClient();
 
   const transport = createConnectTransport({
-    baseUrl:
-      'https://teleport.zarquon.sh:3080/v1/webapi/sites/teleport.zarquon.sh/authapi/v1/grpc/',
+    interceptors: [
+      next => request => {
+        const headers = getAuthHeaders();
+        Object.keys(headers).forEach(k => request.header.append(k, headers[k]));
+        // Add your headers here
+        return next(request);
+      },
+    ],
+    credentials: 'include',
+    baseUrl: '/v1/webapi/sites/teleport.zarquon.sh/authapi/v1/grpc/',
   });
   // showCTA returns the premium support value for enterprise customers and true for OSS users
   const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
@@ -74,8 +83,7 @@ export const Support = ({
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
-  const data = useQuery(listUsers);
-  console.log({ data });
+  const { data, isError, error } = useQuery(listRoles, { Limit: 1 });
 
   return (
     <FeatureBox pt="4">
