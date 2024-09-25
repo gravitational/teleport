@@ -66,7 +66,7 @@ spec:
   # agent_autoupdate allows turning agent updates on or off at the
   # cluster level. Only turn agent automatic updates off if self-managed
   # agent updates are in place. Setting this to pause will temporarily halt the rollout.
-  agent_autoupdate: disable|enable|pause
+  agent_autoupdate_mode: disable|enable|pause
 
   # agent_schedules specifies version rollout schedules for agents.
   # The schedule used is determined by the schedule associated
@@ -110,7 +110,7 @@ Default resource:
 ```yaml
 kind: autoupdate_config
 spec:
-  agent_autoupdate: enable
+  agent_autoupdate_mode: enable
   agent_schedules:
     regular:
     - name: default
@@ -198,7 +198,7 @@ spec:
   strategy: backpressure|grouped
   # paused specifies whether the rollout is paused
   # default: enabled
-  autoupdate: enabled|disabled|paused
+  autoupdate_mode: enabled|disabled|paused
 status:
   groups:
     # name of group
@@ -242,7 +242,7 @@ Whether the Teleport updater querying the endpoint is instructed to upgrade (via
 - The status of past agent upgrades for the given version
 
 To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
-Teleport auth servers use their access to agent heartbeat data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
+Teleport auth servers use their access to the instance inventory data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
 
 Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/update.yaml` file, which is written via `teleport-update enable`:
 ```shell
@@ -259,6 +259,89 @@ If canaries are enabled, a user-specified number of agents are updated first.
 These agents must all update successfully for the rollout to proceed to the remaining agents.
 
 Rollouts may be paused with `tctl autoupdate pause` or manually triggered with `tctl autoupdate run`.
+
+### Group states
+
+Let `v1` be the current version and `v2` the target version.
+
+A group can be in 5 state:
+- unstarted: the group update has not been started yet. 
+- canary: a few canaries are getting updated. New agents should run `v1`. Existing agents should not attempt to update and keep their existing version.
+- active: the group is actively getting updated. New agents should run `v2`, existing agents are instructed to update to `v2`.
+- done: the group has been updated. New agents should run `v2`.
+- rolledback: the group has been rolledback. New agents should run `v1`, existing agents should update to `v1`.
+
+The finite state machine is the following:
+```mermaid
+flowchart TD
+    unstarted((unstarted))
+    canary((canary))
+    active((active))
+    done((done))
+    rolledback((rolledback))
+
+    unstarted -->|StartGroup</br>MaintenanceTriggerOK| canary
+    canary -->|canary came back alive| active
+    canary -->|ForceGroup| done
+    canary -->|RollbackGroup| rolledback
+    active -->|ForceGroup</br>Success criteria met| done
+    done -->|RollbackGroup| rolledback
+    active -->|RollbackGroup| rolledback
+  
+    canary -->|ResetGroup| canary
+    active -->|ResetGroup| active
+```
+
+### Agent auto update modes
+
+The agent auto update mode is specified by both Cloud (via `autoupdate_agent_plan`)
+and by the customer (via `autoupdate_config`).
+
+The agent update mode can take 3 values:
+
+1. disabled: teleport should not manage agent updates
+2. paused: the updates are temporarily suspended, we honour the existing rollout state
+3. enabled: teleport can update agents
+
+The cluster agent rollout mode is computed by taking the lowest value.
+For example:
+
+- cloud says `enabled` and the customer says `enabled` -> the updates are `enabled`
+- cloud says `enabled` and the customer says `suspended` -> the updates are `suspended`
+- cloud says `disabled` and the customer says `suspended` -> the updates are `disabled`
+- cloud says `disabled` and the customer says `enabled` -> the updates are `disabled`
+
+### Proxy answer
+
+The proxy response contains two parts related to automatic updates:
+- the target version of the requested group
+- if the agent should be updated
+
+#### Rollout status: disabled
+
+| Group state | Version | Should update |
+|-------------|---------|---------------|
+| *           | v2      | false         |
+
+#### Rollout status: paused
+
+| Group state | Version | Should update |
+|-------------|---------|---------------|
+| unstarted   | v1      | false         |
+| canary      | v1      | false         |
+| active      | v2      | false         |
+| done        | v2      | false         |
+| rolledback  | v1      | false         |
+
+#### Rollout status: enabled
+
+| Group state | Version | Should update              |
+|-------------|---------|----------------------------|
+| unstarted   | v1      | false                      |
+| canary      | v1      | false, except for canaries |
+| active      | v2      | true if UUID <= progress   |
+| done        | v2      | true                       |
+| rolledback  | v1      | true                       |
 
 ### Rollout
 
