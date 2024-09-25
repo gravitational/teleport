@@ -3,14 +3,40 @@ run-name: Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github.acto
 
 on:
   pull_request:
+
   merge_group:
-  push:
-    branches:
-      - tener/*
 
 jobs:
+  changes:
+    name: Check for relevant changes
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        if: ${{ github.event_name == 'merge_group' }}
+        uses: actions/checkout@v4
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: changes
+        with:
+          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
+          filters: |
+            changed:
+              - '.github/workflows/integration-tests-non-root.yaml'
+              - '**.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'build.assets/Makefile'
+              - 'build.assets/Dockerfile*'
+              - 'Makefile'
+
   test:
     name: Integration Tests (Non-root)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
@@ -18,11 +44,12 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport15
+      image: ghcr.io/gravitational/teleport-buildbox:teleport17
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         WEBASSETS_SKIP_BUILD: 1
+        TELEPORT_XAUTH_TEST: yes
       options: --cap-add=SYS_ADMIN --privileged
 
     services:

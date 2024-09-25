@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 // TestDatabaseAccess runs the database access integration test suite.
@@ -175,7 +178,9 @@ func (p *DatabasePack) testIPPinning(t *testing.T) {
 			wantQueryCount := tc.targetCluster.postgres.QueryCount() + 1
 
 			// Execute a query.
-			result, err := testClient.Exec(context.Background(), "select 1").ReadAll()
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			defer cancel()
+			result, err := testClient.Exec(ctx, "select 1").ReadAll()
 			require.NoError(t, err)
 			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 			require.Equal(t, wantQueryCount, tc.targetCluster.postgres.QueryCount())
@@ -210,7 +215,9 @@ func (p *DatabasePack) testPostgresRootCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount()
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -244,7 +251,9 @@ func (p *DatabasePack) testPostgresLeafCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
@@ -253,6 +262,185 @@ func (p *DatabasePack) testPostgresLeafCluster(t *testing.T) {
 	// Disconnect.
 	err = client.Close(context.Background())
 	require.NoError(t, err)
+}
+
+func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
+	// TODO(jakule): Fix flaky test
+	t.Skip("flaky test, skip for now")
+
+	var (
+		ctx             = context.Background()
+		rootCluster     = p.Root.Cluster
+		authServer      = rootCluster.Process.GetAuthServer()
+		clusterRootName = rootCluster.Secrets.SiteName
+		clusterLeafName = p.Leaf.Cluster.Secrets.SiteName
+	)
+
+	pw := phaseWatcher{
+		clusterRootName: clusterRootName,
+		pollingPeriod:   rootCluster.Process.Config.PollingPeriod,
+		clock:           p.clock,
+		siteAPI:         rootCluster.GetSiteAPI(clusterLeafName),
+		certType:        types.DatabaseCA,
+	}
+
+	currentDbCA, err := p.Root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	rotationPhases := []string{
+		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
+		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
+	}
+
+	waitForEvent := func(process *service.TeleportProcess, event string) {
+		_, err := process.WaitForEventTimeout(20*time.Second, event)
+		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
+	}
+
+	for _, phase := range rotationPhases {
+		errChan := make(chan error, 1)
+
+		go func() {
+			errChan <- pw.waitForPhase(phase, func() error {
+				return authServer.RotateCertAuthority(ctx, auth.RotateRequest{
+					Type:        types.DatabaseCA,
+					TargetPhase: phase,
+					Mode:        types.RotationModeManual,
+				})
+			})
+		}()
+
+		err = <-errChan
+
+		if err != nil && strings.Contains(err.Error(), "context deadline exceeded") {
+			// TODO(jakule): Workaround for CertAuthorityWatcher failing to get the correct rotation status.
+			// Query auth server directly to see if the incorrect rotation status is a rotation or watcher problem.
+			dbCA, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
+				Type:       types.DatabaseCA,
+				DomainName: clusterRootName,
+			}, false)
+			require.NoError(t, err)
+			require.Equal(t, dbCA.GetRotation().Phase, phase)
+		} else {
+			require.NoError(t, err)
+		}
+
+		// Reload doesn't happen on Init
+		if phase == types.RotationPhaseInit {
+			continue
+		}
+
+		waitForEvent(p.Root.Cluster.Process, service.TeleportReloadEvent)
+		waitForEvent(p.Leaf.Cluster.Process, service.TeleportReadyEvent)
+
+		p.WaitForLeaf(t)
+	}
+
+	rotatedDbCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.DatabaseCA,
+		DomainName: clusterRootName,
+	}, false)
+	require.NoError(t, err)
+
+	// Sanity check. Check if the CA was rotated.
+	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
+
+	// Connect to the database service in leaf cluster via root cluster.
+	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+		Address:    p.Root.Cluster.Web, // Connecting via root cluster.
+		Cluster:    p.Leaf.Cluster.Secrets.SiteName,
+		Username:   p.Root.User.GetName(),
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: p.Leaf.PostgresService.Name,
+			Protocol:    p.Leaf.PostgresService.Protocol,
+			Username:    "postgres",
+			Database:    "test",
+		},
+	})
+	require.NoError(t, err)
+
+	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
+	wantRootQueryCount := p.Root.postgres.QueryCount()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := dbClient.Exec(ctx, "select 1").ReadAll()
+	require.NoError(t, err)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
+	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
+
+	// Disconnect.
+	err = dbClient.Close(context.Background())
+	require.NoError(t, err)
+}
+
+// phaseWatcher holds all arguments required by rotation watcher.
+type phaseWatcher struct {
+	clusterRootName string
+	pollingPeriod   time.Duration
+	clock           clockwork.Clock
+	siteAPI         types.Events
+	certType        types.CertAuthType
+}
+
+// waitForPhase waits until rootCluster cluster detects the rotation. fn is a rotation function that is called after
+// watcher is created.
+func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
+	defer cancel()
+
+	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Clock:     p.clock,
+			Client:    p.siteAPI,
+		},
+		Types: []types.CertAuthType{p.certType},
+	})
+	if err != nil {
+		return err
+	}
+	defer watcher.Close()
+
+	if err := fn(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	sub, err := watcher.Subscribe(ctx, types.CertAuthorityFilter{
+		p.certType: p.clusterRootName,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer sub.Close()
+
+	var lastPhase string
+	for i := 0; i < 10; i++ {
+		select {
+		case <-ctx.Done():
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
+		case <-sub.Done():
+			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, sub.Error())
+		case evt := <-sub.Events():
+			switch evt.Type {
+			case types.OpPut:
+				ca, ok := evt.Resource.(types.CertAuthority)
+				if !ok {
+					return trace.BadParameter("expected a ca got type %T", evt.Resource)
+				}
+				if ca.GetRotation().Phase == phase {
+					return nil
+				}
+				lastPhase = ca.GetRotation().Phase
+			}
+		}
+	}
+	return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
 }
 
 // testMySQLRootCluster tests a scenario where a user connects
@@ -550,7 +738,9 @@ func TestDatabaseAccessUnspecifiedHostname(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, uint32(1), pack.Root.postgres.QueryCount())
@@ -582,7 +772,9 @@ func (p *DatabasePack) testPostgresSeparateListener(t *testing.T) {
 	wantLeafQueryCount := p.Root.postgres.QueryCount()
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -663,7 +855,9 @@ func (p *DatabasePack) testHARootCluster(t *testing.T) {
 	wantRootQueryCount := p.Root.postgres.QueryCount() + 1
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount()
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
@@ -727,7 +921,9 @@ func (p *DatabasePack) testHALeafCluster(t *testing.T) {
 	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
 
 	// Execute a query.
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
