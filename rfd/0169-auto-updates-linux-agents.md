@@ -855,13 +855,13 @@ message AgentAutoUpdateGroup {
   // start_hour to initiate update
   int32 start_hour = 3;
   // wait_days after last group succeeds before this group can run
-  int32 wait_days = 4;
-  // jitter_seconds to introduce before update as rand([0, jitter_seconds])
-  int32 jitter_seconds = 5;
-  // canary_count of agents to use in the canary deployment.
-  int32 canary_count = 6;
+  int64 wait_days = 4;
   // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
-  int32 alert_after_hours = 7; 
+  int64 alert_after_hours = 5;
+  // jitter_seconds to introduce before update as rand([0, jitter_seconds])
+  int64 jitter_seconds = 6;
+  // canary_count of agents to use in the canary deployment.
+  int64 canary_count = 7;
   // max_in_flight specifies agents that can be updated at the same time, by percent.
   string max_in_flight = 8;
 }
@@ -964,17 +964,54 @@ enum Strategy {
 
 // AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
 message AutoUpdateAgentPlanStatus {
-  // version targetted by the rollout
-  string version = 2;
+  // name of the group
+  string name = 0;
   // start_time of the rollout
   google.protobuf.Timestamp start_time = 1;
-  // last_active_host_index specifies the index of the last host that may be updated.
-  int64 last_active_host_index = 1;
-  // failed_host_count specifies the number of failed hosts.
-  int64 failed_host_count = 2;
-  // timeout_host_count specifies the number of timed-out hosts.
-  int64 timeout_host_count = 3;
+  // initial_count is the number of connected agents at the start of the window.
+  int64 initial_count = 2;
+  // present_count is the current number of connected agents.
+  int64 present_count = 3;
+  // failed_count specifies the number of failed agents.
+  int64 failed_count = 4;
+  // canaries is a list of canary agents.
+  repeated Canary canaries = 5;
+  // progress is the current progress through the rollout.
+  float64 progress = 6;
+  // state is the current state of the rollout.
+  State state = 7;
+  // last_update_time is the time of the previous update for this group.
+  google.protobuf.Timestamp last_update_time = 8;
+  // last_update_reason is the trigger for the last update
+  string last_update_reason = 9;
 }
+
+// Canary agent
+message Canary {
+  // update_uuid of the canary agent
+  string update_uuid = 0;
+  // host_uuid of the canary agent
+  string host_uuid = 1;
+  // hostname of the canary agent
+  string hostname = 2;
+}
+
+// State of the rollout
+enum State {
+  // UNSPECIFIED state
+  STATE_UNSPECIFIED = 0;
+  // UNSTARTED state
+  STATE_UNSTARTED = 1;
+  // CANARY state
+  STATE_CANARY = 2;
+  // ACTIVE state
+  STATE_ACTIVE = 3;
+  // DONE state
+  STATE_DONE = 4;
+  // ROLLEDBACK state
+  STATE_ROLLEDBACK = 5;
+}
+
 ```
 
 ## Alternatives
