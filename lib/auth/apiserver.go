@@ -98,7 +98,7 @@ type APIServer struct {
 }
 
 // NewAPIServer returns a new instance of APIServer HTTP handler
-func NewAPIServer(config *APIConfig) (http.Handler, error) {
+func NewAPIServer(config *APIConfig) (http.Handler, *httprouter.Router, error) {
 	srv := APIServer{
 		APIConfig: *config,
 		Clock:     clockwork.NewRealClock(),
@@ -165,7 +165,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
@@ -173,7 +173,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 		httplib.Rewrite("/v1/nodes", "/v1/namespaces/default/nodes"),
 		httplib.Rewrite("/v1/sessions", "/v1/namespaces/default/sessions"),
 		httplib.Rewrite("/v1/sessions/([^/]+)/(.*)", "/v1/namespaces/default/sessions/$1/$2"),
-	), nil
+	), &srv.Router, nil
 }
 
 // HandlerWithAuthFunc is http handler with passed auth context

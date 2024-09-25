@@ -26,16 +26,19 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
 	"sync/atomic"
 	"time"
 
+	"connectrpc.com/vanguard/vanguardgrpc"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -192,7 +195,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		},
 	}
 
-	apiServer, err := NewAPIServer(&cfg.APIConfig)
+	apiServer, apiServerRouter, err := NewAPIServer(&cfg.APIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -262,6 +265,21 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	transcoder, err := vanguardgrpc.NewTranscoder(server.grpcServer.server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiServerRouter.POST("/:version/grpc/:serviceName/:methodName", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		newReq := new(http.Request)
+		*newReq = *r
+		newReq.URL = new(url.URL)
+		*newReq.URL = *r.URL
+		newReq.URL.Path = "/" + p.ByName("serviceName") + "/" + p.ByName("methodName")
+		newReq.URL.RawPath = ""
+		transcoder.ServeHTTP(w, newReq)
+	})
 
 	return server, nil
 }
