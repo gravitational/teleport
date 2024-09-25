@@ -4593,7 +4593,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	require.NoError(t, err)
 
 	// start the feature watcher so the web config gets new features
-	<-handler.featureWatcherReady // await until the watcher is ready
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{
@@ -4764,7 +4763,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
-	handler := env.proxies[0].handler.handler
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
@@ -4780,7 +4778,6 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		},
 	})
 	// start the feature watcher so the web config gets new features
-	<-handler.featureWatcherReady // await until the watcher is ready
 	env.clock.Advance(DefaultFeatureWatchInterval * 2)
 
 	expectedCfg := webclient.WebConfig{

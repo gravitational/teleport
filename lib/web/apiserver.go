@@ -171,10 +171,6 @@ type Handler struct {
 	// an authenticated websocket so unauthenticated sockets dont get left
 	// open.
 	wsIODeadline time.Duration
-
-	// featureWatcherReady is a chan that the feature watcher closes
-	// to signal it is ready. Used in tests.
-	featureWatcherReady chan struct{}
 }
 
 // HandlerOption is a functional argument - an option that can be passed
@@ -465,7 +461,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
-		featureWatcherReady:  make(chan struct{}),
 	}
 
 	if automaticUpgrades(cfg.ClusterFeatures) && h.cfg.AutomaticUpgradesChannels == nil {

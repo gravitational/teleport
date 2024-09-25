@@ -52,11 +52,6 @@ func (h *Handler) startFeatureWatcher() {
 	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
 	ctx := h.cfg.Context
 
-	// close ready channel to signal it started the main loop
-	if h.featureWatcherReady != nil {
-		close(h.featureWatcherReady)
-	}
-
 	defer ticker.Stop()
 	for {
 		select {
