@@ -7590,7 +7590,7 @@ func waitForOutput(r io.Reader, substr string) error {
 	timeoutCh := time.After(10 * time.Second)
 
 	var prev string
-	out := make([]byte, int64(len(substr)*2))
+	out := make([]byte, int64(len(substr)*3))
 	for {
 		select {
 		case <-timeoutCh:
@@ -9530,7 +9530,7 @@ func TestModeratedSession(t *testing.T) {
 
 	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
-	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerStream, "Teleport > Waiting for required participants..."))
 
 	moderator := s.authPack(t, "bar", moderatorRole.GetName())
 	moderatorWS, _, err := s.makeTerminal(t, moderator, withSessionID(sess.ID), withParticipantMode(types.SessionModeratorMode))
@@ -9619,7 +9619,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
-	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerStream, "Teleport > Waiting for required participants..."))
 
 	moderatorWS, _, err := s.makeTerminal(t, moderator, withSessionID(sess.ID), withParticipantMode(types.SessionModeratorMode))
 	require.NoError(t, err)
