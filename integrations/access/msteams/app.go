@@ -16,12 +16,14 @@ package msteams
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
@@ -53,6 +55,8 @@ type App struct {
 	watcherJob lib.ServiceJob
 	pd         *pd.CompareAndSwap[PluginData]
 
+	accessMonitoringRules *accessmonitoring.RuleHandler
+
 	*lib.Process
 }
 
@@ -76,7 +80,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
-	a.watcherJob, err = a.newWatcherJob()
+	a.watcherJob, err = a.newWatcherJob(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,6 +144,24 @@ func (a *App) init(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.apiClient,
+		PluginName: pluginName,
+		// Map msteams.RecipientData onto the common recipient type used
+		// by the access monitoring rules watcher.
+		FetchRecipientCallback: func(ctx context.Context, name string) (*common.Recipient, error) {
+			msTeamsRecipient, err := a.bot.FetchRecipient(ctx, name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &common.Recipient{
+				Name: name,
+				ID:   msTeamsRecipient.ID,
+				Kind: string(msTeamsRecipient.Kind),
+			}, nil
+		},
+	})
+
 	return a.initBot(ctx)
 }
 
@@ -182,17 +204,41 @@ func (a *App) initBot(ctx context.Context) error {
 }
 
 // newWatcherJob creates WatcherJob
-func (a *App) newWatcherJob() (lib.ServiceJob, error) {
-	return watcherjob.NewJob(
+func (a *App) newWatcherJob(ctx context.Context) (lib.ServiceJob, error) {
+
+	watchKinds := []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindAccessMonitoringRule},
+	}
+	acceptedWatchKinds := make([]string, 0, len(watchKinds))
+	watcherJob, err := watcherjob.NewJobWithConfirmedWatchKinds(
 		a.apiClient,
 		watcherjob.Config{
-			Watch: types.Watch{
-				Kinds: []types.WatchKind{{Kind: types.KindAccessRequest}},
-			},
+			Watch:            types.Watch{Kinds: watchKinds, AllowPartialSuccess: true},
 			EventFuncTimeout: handlerTimeout,
 		},
 		a.onWatcherEvent,
+		func(ws types.WatchStatus) {
+			for _, watchKind := range ws.GetKinds() {
+				acceptedWatchKinds = append(acceptedWatchKinds, watchKind.Kind)
+			}
+		},
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(acceptedWatchKinds) == 0 {
+		return nil, trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+			watchKinds)
+	}
+	// Check if KindAccessMonitoringRule resources are being watched,
+	// the role the plugin is running as may not have access.
+	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
+			return nil, trace.Wrap(err, "initializing Access Monitoring Rule cache")
+		}
+	}
+	return watcherJob, nil
 }
 
 // run starts the main process
@@ -240,6 +286,10 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 // onWatcherEvent called when an access request event is received
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	kind := event.Resource.GetKind()
+	if kind == types.KindAccessMonitoringRule {
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
+	}
+
 	if kind != types.KindAccessRequest {
 		return trace.Errorf("unexpected kind %s", kind)
 	}
@@ -474,6 +524,14 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := stringset.New()
+
+	accessRuleRecipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
+	accessRuleRecipients.ForEach(func(r common.Recipient) {
+		recipientSet.Add(r.Name)
+	})
+	if recipientSet.Len() != 0 {
+		return recipientSet.ToSlice()
+	}
 
 	var validEmailsSuggReviewers []string
 	for _, reviewer := range req.GetSuggestedReviewers() {
