@@ -19,10 +19,15 @@
 import React, { PropsWithChildren } from 'react';
 import { Link } from 'react-router-dom';
 import { Box, Card, Flex, Text } from 'design';
+import { useQuery, TransportProvider } from '@connectrpc/connect-query';
+import { createConnectTransport } from '@connectrpc/connect-web';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 import * as Icons from 'design/Icon';
 
 import styled from 'styled-components';
 
+import { listUsers } from 'teleport/rpc/teleport/users/v1/users_service-UsersService_connectquery';
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
@@ -32,19 +37,28 @@ import { CtaEvent } from 'teleport/services/userEvent';
 export function SupportContainer({ children }: { children?: React.ReactNode }) {
   const ctx = useTeleport();
   const cluster = ctx.storeUser.state.cluster;
+  const queryClient = new QueryClient();
 
+  const transport = createConnectTransport({
+    baseUrl:
+      'https://teleport.zarquon.sh:3080/v1/webapi/sites/teleport.zarquon.sh/authapi/v1/grpc/',
+  });
   // showCTA returns the premium support value for enterprise customers and true for OSS users
   const showCTA = cfg.isEnterprise ? !cfg.premiumSupport : true;
 
   return (
-    <Support
-      {...cluster}
-      isEnterprise={cfg.isEnterprise}
-      tunnelPublicAddress={cfg.tunnelPublicAddress}
-      isCloud={cfg.isCloud}
-      showPremiumSupportCTA={showCTA}
-      children={children}
-    />
+    <TransportProvider transport={transport}>
+      <QueryClientProvider client={queryClient}>
+        <Support
+          {...cluster}
+          isEnterprise={cfg.isEnterprise}
+          tunnelPublicAddress={cfg.tunnelPublicAddress}
+          isCloud={cfg.isCloud}
+          showPremiumSupportCTA={showCTA}
+          children={children}
+        />
+      </QueryClientProvider>
+    </TransportProvider>
   );
 }
 
@@ -59,6 +73,9 @@ export const Support = ({
   showPremiumSupportCTA,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
+
+  const data = useQuery(listUsers);
+  console.log({ data });
 
   return (
     <FeatureBox pt="4">

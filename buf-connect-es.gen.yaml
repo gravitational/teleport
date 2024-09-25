@@ -1,20 +1,14 @@
 version: v2
 plugins:
-  - local:
-      # - npm
-      # - exec
-      # - --yes
-      # - --package=@bufbuild/protoc-gen-es@2.1.0
-      # - --
-      - protoc-gen-es
-    out: web/packages/teleport/connect
+  - local: protoc-gen-es
+    out: web/packages/teleport/src/rpc
     opt: target=ts
-  - local:
-      # - npm
-      # - exec
-      # - --yes
-      # - --package=@connectrpc/protoc-gen-connect-es@1.5.0
-      # - --
-      - protoc-gen-connect-es
-    out: web/packages/teleport/connect
-    opt: target=ts
+  # - local: protoc-gen-connect-es
+  #   out: web/packages/teleport/src/rpc
+    # opt: target=ts
+  - local: protoc-gen-connect-query
+    out: web/packages/teleport/src/rpc
+    opt:
+    - target=ts
+    - import_extension=none
+    - ts_nocheck=false
