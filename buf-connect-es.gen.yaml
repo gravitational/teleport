@@ -3,9 +3,6 @@ plugins:
   - local: protoc-gen-es
     out: web/packages/teleport/src/rpc
     opt: target=ts
-  # - local: protoc-gen-connect-es
-  #   out: web/packages/teleport/src/rpc
-    # opt: target=ts
   - local: protoc-gen-connect-query
     out: web/packages/teleport/src/rpc
     opt:
