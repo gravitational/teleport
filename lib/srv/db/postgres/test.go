@@ -25,7 +25,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
-	mathrand "math/rand"
 	"net"
 	"os"
 	"regexp"
@@ -33,7 +32,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
@@ -401,62 +399,6 @@ func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
 	return nil
 }
 
-type RawBackendMessage struct {
-	rawBytes []byte
-}
-
-func (r RawBackendMessage) Decode(data []byte) error {
-	panic("implement me")
-}
-
-func (r RawBackendMessage) Encode(dst []byte) []byte {
-	return bytes.Clone(r.rawBytes)
-}
-
-func (r RawBackendMessage) Backend() {
-}
-
-var _ pgproto3.BackendMessage = (*RawBackendMessage)(nil)
-
-func randomSplit(rnd *mathrand.Rand, data []byte) (split1, split2 []byte) {
-	if len(data) == 0 {
-		return data, nil
-	}
-
-	// Randomly choose a split point.
-	splitPoint := rnd.Intn(3)
-	if splitPoint > len(data) {
-		splitPoint = rnd.Intn(len(data) + 1)
-	}
-
-	split1 = make([]byte, splitPoint)
-	split2 = make([]byte, len(data)-splitPoint)
-
-	copy(split1, data[:splitPoint])
-	copy(split2, data[splitPoint:])
-
-	return split1, split2
-}
-
-func randomSliceSplit(rnd *mathrand.Rand, data []byte) [][]byte {
-	var out [][]byte
-	remainder := data
-
-	for len(remainder) > 0 {
-		split1, split2 := randomSplit(rnd, remainder)
-		out = append(out, split1)
-
-		// If the second split is empty, we are done.
-		if len(split2) == 0 {
-			break
-		}
-
-		remainder = split2
-	}
-
-	return out
-}
-
 func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uint32) error {
 	atomic.AddUint32(&s.queryCount, 1)
 	if query == TestLongRunningQuery {
@@ -480,28 +422,6 @@ func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uin
 		&pgproto3.CommandComplete{CommandTag: []byte(TestQueryResponse.CommandTag.String())},
 		&pgproto3.ReadyForQuery{},
 	}
-
-	// replace messages
-	func() {
-		buf := bytes.Buffer{}
-		for _, message := range messages {
-			out := message.Encode(nil)
-			buf.Write(out)
-		}
-
-		seed := time.Now().Unix()
-		rnd := mathrand.New(mathrand.NewSource(seed))
-		s.log.Debugf("Random seed %v", seed)
-		messages = []pgproto3.BackendMessage{}
-
-		for _, part := range randomSliceSplit(rnd, buf.Bytes()) {
-			messages = append(messages, RawBackendMessage{rawBytes: part})
-		}
-
-		s.log.Debugf("Split messages into %v parts", len(messages))
-		s.log.Debugf(":D")
-
-	}()
 
 	for _, message := range messages {
 		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
