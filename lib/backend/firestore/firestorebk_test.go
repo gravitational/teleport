@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"reflect"
@@ -36,7 +37,6 @@ import (
 	"cloud.google.com/go/firestore/apiv1/firestorepb"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
@@ -421,7 +421,7 @@ func TestDeleteDocuments(t *testing.T) {
 
 			b := &Backend{
 				svc:           client,
-				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{teleport.ComponentKey: BackendName}),
+				logger:        slog.With(teleport.ComponentKey, BackendName),
 				clock:         clockwork.NewFakeClock(),
 				clientContext: ctx,
 				clientCancel:  cancel,

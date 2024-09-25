@@ -31,7 +31,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
@@ -147,7 +146,7 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 	} else {
 		reads.WithLabelValues(s.Component).Add(float64(len(res.Items)))
 	}
-	s.trackRequest(types.OpGet, startKey, endKey)
+	s.trackRequest(ctx, types.OpGet, startKey, endKey)
 	end := s.Clock().Now()
 	if d := end.Sub(start); d > time.Second*3 {
 		if s.slowRangeLogLimiter.AllowN(end, 1) {
@@ -181,7 +180,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, i.Key, nil)
+	s.trackRequest(ctx, types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -207,7 +206,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, i.Key, nil)
+	s.trackRequest(ctx, types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -235,7 +234,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, i.Key, nil)
+	s.trackRequest(ctx, types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -263,7 +262,7 @@ func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, i.Key, nil)
+	s.trackRequest(ctx, types.OpPut, i.Key, nil)
 	return lease, err
 }
 
@@ -286,7 +285,7 @@ func (s *Reporter) Get(ctx context.Context, key Key) (*Item, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpGet, key, nil)
+	s.trackRequest(ctx, types.OpGet, key, nil)
 	return item, err
 }
 
@@ -314,7 +313,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, expected.Key, nil)
+	s.trackRequest(ctx, types.OpPut, expected.Key, nil)
 	return lease, err
 }
 
@@ -341,7 +340,7 @@ func (s *Reporter) Delete(ctx context.Context, key Key) error {
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpDelete, key, nil)
+	s.trackRequest(ctx, types.OpDelete, key, nil)
 	return err
 }
 
@@ -369,7 +368,7 @@ func (s *Reporter) ConditionalDelete(ctx context.Context, key Key, revision stri
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpDelete, key, nil)
+	s.trackRequest(ctx, types.OpDelete, key, nil)
 	return err
 }
 
@@ -411,10 +410,10 @@ func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction
 		switch ca.Action.Kind {
 		case KindPut:
 			writeTotal++
-			s.trackRequest(types.OpPut, ca.Key, nil)
+			s.trackRequest(ctx, types.OpPut, ca.Key, nil)
 		case KindDelete:
 			writeTotal++
-			s.trackRequest(types.OpDelete, ca.Key, nil)
+			s.trackRequest(ctx, types.OpDelete, ca.Key, nil)
 		default:
 			// ignore other variants
 		}
@@ -445,7 +444,7 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey, endKey Key) error 
 	if err != nil && !trace.IsNotFound(err) {
 		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpDelete, startKey, endKey)
+	s.trackRequest(ctx, types.OpDelete, startKey, endKey)
 	return err
 }
 
@@ -476,7 +475,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 	} else {
 		writes.WithLabelValues(s.Component).Inc()
 	}
-	s.trackRequest(types.OpPut, lease.Key, nil)
+	s.trackRequest(ctx, types.OpPut, lease.Key, nil)
 	return err
 }
 
@@ -521,7 +520,7 @@ type topRequestsCacheKey struct {
 }
 
 // trackRequests tracks top requests, endKey is supplied for ranges
-func (s *Reporter) trackRequest(opType types.OpType, key Key, endKey Key) {
+func (s *Reporter) trackRequest(ctx context.Context, opType types.OpType, key Key, endKey Key) {
 	if len(key) == 0 {
 		return
 	}
@@ -551,7 +550,7 @@ func (s *Reporter) trackRequest(opType types.OpType, key Key, endKey Key) {
 
 	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
-		log.Warningf("Failed to get counter: %v", err)
+		slog.WarnContext(ctx, "Failed to get prometheus counter", "error", err)
 		return
 	}
 	counter.Inc()

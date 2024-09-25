@@ -21,11 +21,13 @@ package backend
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -209,7 +211,7 @@ func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(conte
 			case <-cfg.Backend.Clock().After(refreshAfter):
 				if err := lock.resetTTL(ctx, cfg.Backend); err != nil {
 					cancelFunction()
-					log.Errorf("%v", err)
+					slog.ErrorContext(ctx, "failed to reset lock ttl", "error", err, "lock", logutils.StringerAttr(lock.key))
 					return
 				}
 			case <-stopRefresh:
