@@ -44,14 +44,6 @@ func (d *DiscardAuditLog) Close() error {
 	return nil
 }
 
-func (d *DiscardAuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return make([]byte, 0), nil
-}
-
-func (d *DiscardAuditLog) GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error) {
-	return make([]EventFields, 0), nil
-}
-
 func (d *DiscardAuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	return make([]apievents.AuditEvent, 0), "", nil
 }
