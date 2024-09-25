@@ -23,13 +23,13 @@ ARG NODE_GRPC_TOOLS_VERSION
 ARG NODE_PROTOC_TS_VERSION
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-RUN npm install --global @bufbuild/protoc-gen-es@^1.10.0 @connectrpc/protoc-gen-connect-query
-
 # buf
 # eg, "v1.26.1"
 ARG BUF_VERSION
 RUN VERSION="$BUF_VERSION"; \
   go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+
+RUN npm install --global @bufbuild/protoc-gen-es@1.10.0 @connectrpc/protoc-gen-connect-query@1.4.2
 
 # Pre-install go-runned binaries.
 # This is meant to be the only step that changes depending on the Teleport

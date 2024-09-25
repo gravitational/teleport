@@ -51,7 +51,7 @@ main() {
   # Generate go, go-grpc and connect-go protos (preferred).
   echoed buf generate --template=buf-go.gen.yaml
   echoed buf generate --template=buf-connect-go.gen.yaml
-  echoed buf generate --template=buf-connect-es.gen.yaml
+  echoed buf generate --template=buf-web.gen.yaml
 
   # Generate TS protos.
   [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml

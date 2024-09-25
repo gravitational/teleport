@@ -1,0 +1,31 @@
+version: v2
+clean: true
+plugins:
+  - local:
+      # - npm
+      # - exec
+      # - --yes
+      # - --package=@bufbuild/protoc-gen-es@1.10.0
+      # - --
+      - protoc-gen-es
+    out: web/packages/teleport/src/gen/proto
+    opt:
+      - target=ts
+      - import_extension=none
+      - ts_nocheck=false
+    strategy: all
+    include_imports: true
+  - local:
+      # - npm
+      # - exec
+      # - --yes
+      # - --package=@connectrpc/protoc-gen-connect-query@1.4.2
+      # - --
+      - protoc-gen-connect-query
+    out: web/packages/teleport/src/gen/proto
+    opt:
+      - target=ts
+      - import_extension=none
+      - ts_nocheck=false
+    strategy: all
+    include_imports: true
