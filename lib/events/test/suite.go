@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 )
@@ -209,6 +211,37 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	require.False(t, chunks.Next())
 
 	require.NoError(t, chunks.Done())
+
+	// as a sanity check, try pulling events using the exporter helper (should be
+	// equivalent to the above behavior)
+	var exportedEvents atomic.Uint64
+	var exporter *export.DateExporter
+	var err error
+	exporter, err = export.NewDateExporter(export.DateExporterConfig{
+		Client: s.Log,
+		Date:   baseTime,
+		Export: func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+			exportedEvents.Add(1)
+			return nil
+		},
+		OnIdle: func(ctx context.Context) {
+			// only exporting extant events, so we can close as soon as we're caught up.
+			exporter.Close()
+		},
+		Concurrency:  3,
+		MaxBackoff:   time.Millisecond * 600,
+		PollInterval: time.Millisecond * 200,
+	})
+	require.NoError(t, err)
+	defer exporter.Close()
+
+	select {
+	case <-exporter.Done():
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "timeout waiting for exporter to finish")
+	}
+
+	require.Equal(t, uint64(8), exportedEvents.Load())
 }
 
 // EventPagination covers event search pagination.
