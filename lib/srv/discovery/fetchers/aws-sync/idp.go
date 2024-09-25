@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
 	samltypes "github.com/russellhaering/gosaml2/types"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -34,7 +35,7 @@ import (
 func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
-
+		existing := a.lastResult
 		iamClient, err := a.CloudClients.GetAWSIAMClient(
 			ctx,
 			"", /* region is empty because saml providers are global */
@@ -42,11 +43,13 @@ func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
+			result.SAMLProviders = existing.SAMLProviders
 			return nil
 		}
 		listResp, err := iamClient.ListSAMLProvidersWithContext(ctx, &iam.ListSAMLProvidersInput{})
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to list AWS SAML identity providers"))
+			result.SAMLProviders = existing.SAMLProviders
 			return nil
 		}
 
@@ -56,7 +59,11 @@ func (a *awsFetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources
 			provider, err := a.fetchAWSSAMLProvider(ctx, iamClient, arn)
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for SAML provider %s", arn))
-			} else {
+				provider = sliceFilterPickFirst(existing.SAMLProviders, func(p *accessgraphv1alpha.AWSSAMLProviderV1) bool {
+					return p.Arn == arn
+				})
+			}
+			if provider != nil {
 				providers = append(providers, provider)
 			}
 		}
@@ -121,13 +128,14 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		EntityId:            metadata.EntityID,
 		SsoUrls:             ssoURLs,
 		SigningCertificates: signingCerts,
+		LastSyncTime:        timestamppb.Now(),
 	}, nil
 }
 
 func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
-
+		existing := a.lastResult
 		iamClient, err := a.CloudClients.GetAWSIAMClient(
 			ctx,
 			"", /* region is empty because oidc providers are global */
@@ -135,11 +143,13 @@ func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources
 		)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to get AWS IAM client"))
+			result.OIDCProviders = existing.OIDCProviders
 			return nil
 		}
 		listResp, err := iamClient.ListOpenIDConnectProvidersWithContext(ctx, &iam.ListOpenIDConnectProvidersInput{})
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to list AWS OIDC identity providers"))
+			result.OIDCProviders = existing.OIDCProviders
 			return nil
 		}
 
@@ -149,7 +159,11 @@ func (a *awsFetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources
 			provider, err := a.fetchAWSOIDCProvider(ctx, iamClient, arn)
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for OIDC provider %s", arn))
-			} else {
+				provider = sliceFilterPickFirst(existing.OIDCProviders, func(p *accessgraphv1alpha.AWSOIDCProviderV1) bool {
+					return p.Arn == arn
+				})
+			}
+			if provider != nil {
 				providers = append(providers, provider)
 			}
 		}
@@ -182,12 +196,13 @@ func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 	}
 
 	return &accessgraphv1alpha.AWSOIDCProviderV1{
-		Arn:         arn,
-		CreatedAt:   awsTimeToProtoTime(provider.CreateDate),
-		Tags:        tags,
-		AccountId:   accountID,
-		ClientIds:   aws.StringValueSlice(provider.ClientIDList),
-		Thumbprints: aws.StringValueSlice(provider.ThumbprintList),
-		Url:         aws.StringValue(provider.Url),
+		Arn:          arn,
+		CreatedAt:    awsTimeToProtoTime(provider.CreateDate),
+		Tags:         tags,
+		AccountId:    accountID,
+		ClientIds:    aws.StringValueSlice(provider.ClientIDList),
+		Thumbprints:  aws.StringValueSlice(provider.ThumbprintList),
+		Url:          aws.StringValue(provider.Url),
+		LastSyncTime: timestamppb.Now(),
 	}, nil
 }

@@ -44,7 +44,9 @@ spec:
       # the list example above can be expressed as:
       'reg': '^us-west-1|eu-central-1$'
 
-    # List of host groups the created user will be added to. Any that don't already exist are created.
+    # List of host groups the created user will be added to. Any that don't
+    # already exist are created. Only applies when create_host_user_mode
+    # is not 'off'.
     host_groups: [ubuntu, nginx, other]
 
     # Assign the user to the sudoers group

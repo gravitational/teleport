@@ -41,20 +41,24 @@ const session = {
       if (response.samlSloUrl) {
         window.open(response.samlSloUrl, '_self');
       } else {
-        history.goToLogin(rememberLocation);
+        history.goToLogin({ rememberLocation });
       }
     });
   },
 
-  logoutWithoutSlo(rememberLocation = false) {
+  logoutWithoutSlo({
+    rememberLocation = false,
+    withAccessChangedMessage = false,
+  } = {}) {
     api.delete(cfg.api.webSessionPath).finally(() => {
-      history.goToLogin(rememberLocation);
+      this.clear();
+      history.goToLogin({ rememberLocation, withAccessChangedMessage });
     });
   },
 
   clearBrowserSession(rememberLocation = false) {
     this.clear();
-    history.goToLogin(rememberLocation);
+    history.goToLogin({ rememberLocation });
   },
 
   clear() {

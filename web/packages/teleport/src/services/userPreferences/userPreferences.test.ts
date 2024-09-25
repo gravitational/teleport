@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { getCurrentTheme, getNextTheme } from 'design/ThemeProvider';
+import {
+  getCurrentTheme,
+  getNextTheme,
+  updateFavicon,
+} from 'design/ThemeProvider';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 import { UserPreferences } from 'gen-proto-ts/teleport/userpreferences/v1/userpreferences_pb';
 
@@ -88,6 +92,66 @@ test('getCurrentTheme', () => {
 
   currentTheme = getCurrentTheme(Theme.DARK);
   expect(currentTheme).toBe(Theme.DARK);
+});
+
+describe('updateFavicon', () => {
+  let originalMatchMedia: typeof window.matchMedia;
+
+  beforeAll(() => {
+    originalMatchMedia = window.matchMedia;
+  });
+
+  afterAll(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.href = '/initial-favicon.png';
+    document.head.appendChild(link);
+  });
+
+  test('set dark favicon when dark theme is preferred', () => {
+    window.matchMedia = jest.fn().mockImplementation(query => ({
+      matches: query === '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    updateFavicon();
+
+    const favicon = document.querySelector(
+      'link[rel="icon"]'
+    ) as HTMLLinkElement;
+    expect(favicon.href).toContain('/app/favicon-dark.png');
+  });
+
+  test('set light favicon when light theme is preferred', () => {
+    window.matchMedia = jest.fn().mockImplementation(query => ({
+      matches: query !== '(prefers-color-scheme: dark)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    updateFavicon();
+
+    const favicon = document.querySelector(
+      'link[rel="icon"]'
+    ) as HTMLLinkElement;
+    expect(favicon.href).toContain('/app/favicon-light.png');
+  });
 });
 
 test('getNextTheme', () => {

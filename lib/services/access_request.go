@@ -2044,21 +2044,6 @@ func (m *RequestValidator) roleAllowsResource(
 	return true, nil
 }
 
-// TODO(atburke): Remove this once teleport.e reference is switched over
-func GetResourceDetails(ctx context.Context, clusterName string, lister client.ListResourcesClient, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
-	return accessrequest.GetResourceDetails(ctx, clusterName, lister, ids)
-}
-
-// TODO(atburke): Remove this once teleport.e reference is switched over
-func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
-	return accessrequest.GetResourceIDsByCluster(r)
-}
-
-// TODO(atburke): Remove this once teleport.e reference is switched over
-func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesClient, resourceIDs []types.ResourceID, opts ...accessrequest.ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
-	return accessrequest.GetResourcesByResourceIDs(ctx, lister, resourceIDs, opts...)
-}
-
 // resourceMatcherToMatcherSlice returns the resourceMatcher in a RoleMatcher slice
 // if the resourceMatcher is not nil, otherwise returns a nil slice.
 func resourceMatcherToMatcherSlice(resourceMatcher *KubeResourcesMatcher) []RoleMatcher {

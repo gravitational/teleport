@@ -104,11 +104,14 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	const backendPrefix = "generic_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		backendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper[*testResource153](
+		ServiceWrapperConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: backendPrefix,
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Create a couple test resources.
@@ -244,11 +247,14 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	const initialBackendPrefix = "initial_prefix"
 	const additionalBackendPrefix = "additional_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		initialBackendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper[*testResource153](
+		ServiceWrapperConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: initialBackendPrefix,
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Verify that the service's backend prefix matches the initial backend prefix.

@@ -76,6 +76,10 @@ type Key struct {
 	// AllowResidentKey should be paired only with WebAuthn registration methods,
 	// as it makes Key mimic a WebAuthn device.
 	AllowResidentKey bool
+	// ReplyWithCredProps sets the credProps extension (rk=true) in
+	// SignCredentialCreation responses, regardless of other parameters.
+	// Useful for extension testing.
+	ReplyWithCredProps bool
 
 	counter uint32
 }

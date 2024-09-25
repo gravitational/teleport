@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
@@ -487,11 +488,6 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -499,13 +495,20 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	features := modules.GetModules().Features()
 
-	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
-		Region:             req.Region,
-		ClusterNames:       req.GetEksClusterNames(),
-		EnableAppDiscovery: req.EnableAppDiscovery,
-		EnableAutoUpgrades: features.AutomaticUpgrades,
-		IsCloud:            features.Cloud,
-		AgentVersion:       req.AgentVersion,
+	clusterName, err := s.cache.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+		Region:              req.Region,
+		ClusterNames:        req.GetEksClusterNames(),
+		EnableAppDiscovery:  req.EnableAppDiscovery,
+		EnableAutoUpgrades:  features.AutomaticUpgrades,
+		IsCloud:             features.Cloud,
+		AgentVersion:        req.AgentVersion,
+		TeleportClusterName: clusterName.GetClusterName(),
+		IntegrationName:     req.Integration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -756,5 +759,44 @@ func (s *AWSOIDCService) ListVPCs(ctx context.Context, req *integrationpb.ListVP
 	return &integrationpb.ListVPCsResponse{
 		Vpcs:      vpcs,
 		NextToken: resp.NextToken,
+	}, nil
+}
+
+// Ping does a health check for an integration.
+func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingRequest) (*integrationpb.PingResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Integration == "" {
+		return nil, trace.BadParameter("integration is required")
+	}
+
+	// Instead of asking the user for a region (or storing a default region), we use the sentinel value for the global region.
+	// This improves the UX, because it is one less input we require from the user.
+	awsClientReq, err := s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClient, err := awsoidc.NewPingClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.Ping(ctx, awsClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &integrationpb.PingResponse{
+		AccountId: resp.AccountID,
+		Arn:       resp.ARN,
+		UserId:    resp.UserID,
 	}, nil
 }

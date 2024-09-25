@@ -79,6 +79,8 @@ impl FilesystemBackend {
         &mut self,
         res: efs::ServerDeviceAnnounceResponse,
     ) -> PduResult<()> {
+        // TODO(zmb3): send the underlying NTSTATUS code instead
+        // of converting everything to 0 or 1.
         let err_code = match res.result_code {
             NtStatus::SUCCESS => TdpErrCode::Nil,
             _ => TdpErrCode::Failed,

@@ -302,11 +302,6 @@ func (a *LocalKeyAgent) GetKeyRing(clusterName string, opts ...CertOption) (*Key
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedCerts, err := a.clientStore.GetTrustedCerts(idx.ProxyHost)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyRing.TrustedCerts = trustedCerts
 	return keyRing, nil
 }
 
@@ -515,7 +510,7 @@ func (a *LocalKeyAgent) AddDatabaseKeyRing(keyRing *KeyRing) error {
 // AddKubeKeyRing activates a new signed Kubernetes key by adding it into the keystore.
 // key must contain at least one Kubernetes cert. ssh cert is not required.
 func (a *LocalKeyAgent) AddKubeKeyRing(keyRing *KeyRing) error {
-	if len(keyRing.KubeTLSCerts) == 0 {
+	if len(keyRing.KubeTLSCredentials) == 0 {
 		return trace.BadParameter("key ring must contain at least one Kubernetes access certificate")
 	}
 	return a.addKeyRing(keyRing)
@@ -627,7 +622,7 @@ func (a *LocalKeyAgent) Signers() ([]ssh.Signer, error) {
 			if err := k.checkCert(cert); err != nil {
 				return nil, trace.Wrap(err)
 			}
-			signer, err := sshutils.SSHSigner(cert, k.PrivateKey.Signer)
+			signer, err := sshutils.SSHSigner(cert, k.SSHPrivateKey.Signer)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

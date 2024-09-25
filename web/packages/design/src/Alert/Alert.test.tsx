@@ -109,6 +109,29 @@ describe('Banner', () => {
     expect(primaryCallback).toHaveBeenCalled();
   });
 
+  test('action buttons as links', async () => {
+    render(
+      <Banner
+        primaryAction={{
+          content: 'Primary Link',
+          href: 'https://goteleport.com/1',
+        }}
+        secondaryAction={{
+          content: 'Secondary Link',
+          href: 'https://goteleport.com/2',
+        }}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: 'Primary Link' })).toHaveAttribute(
+      'href',
+      'https://goteleport.com/1'
+    );
+    expect(
+      screen.getByRole('link', { name: 'Secondary Link' })
+    ).toHaveAttribute('href', 'https://goteleport.com/2');
+  });
+
   test('dismiss button', async () => {
     const user = userEvent.setup();
     const onDismiss = jest.fn();

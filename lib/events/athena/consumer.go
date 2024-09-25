@@ -39,7 +39,7 @@ import (
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/segmentio/parquet-go"
+	"github.com/parquet-go/parquet-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -161,7 +161,14 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
-			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
+			// use uuidv7 to give approximate time order to files. this isn't strictly necessary
+			// but it assists in bulk event export roughly progressing in time order through a given
+			// day which is what folks tend to expect.
+			id, err := uuid.NewV7()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
 			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
@@ -250,8 +257,8 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 		default:
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:  c.backend,
-					LockName: "athena_lock",
+					Backend:            c.backend,
+					LockNameComponents: []string{"athena_lock"},
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

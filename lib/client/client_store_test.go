@@ -20,7 +20,13 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -36,6 +42,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -62,7 +69,13 @@ func newTestAuthority(t *testing.T) testAuthority {
 
 // makeSignedKeyRing helper returns a new user key ring signed by CAPriv key.
 func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeExpired bool) *KeyRing {
-	priv, err := s.keygen.GeneratePrivateKey()
+	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(context.Context) (types.SignatureAlgorithmSuite, error) {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
+	})
+	require.NoError(t, err)
+	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
+	require.NoError(t, err)
+	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
 	require.NoError(t, err)
 
 	allowedLogins := []string{idx.Username, "root"}
@@ -71,8 +84,6 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 		ttl = -ttl
 	}
 
-	// reuse the same RSA keys for SSH and TLS keys
-	// TODO(nklaassen): don't
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
 		Username: idx.Username,
@@ -82,7 +93,7 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	require.NoError(t, err)
 	tlsCert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
 		Clock:     clock,
-		PublicKey: priv.Public(),
+		PublicKey: tlsKey.Public(),
 		Subject:   subject,
 		NotAfter:  clock.Now().UTC().Add(ttl),
 	})
@@ -93,7 +104,7 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 
 	cert, err := s.keygen.GenerateUserCert(services.UserCertParams{
 		CASigner:              caSigner,
-		PublicUserKey:         ssh.MarshalAuthorizedKey(priv.SSHPublicKey()),
+		PublicUserKey:         sshPriv.MarshalSSHPublicKey(),
 		Username:              idx.Username,
 		AllowedLogins:         allowedLogins,
 		TTL:                   ttl,
@@ -102,15 +113,14 @@ func (s *testAuthority) makeSignedKeyRing(t *testing.T, idx KeyRingIndex, makeEx
 	})
 	require.NoError(t, err)
 
-	keyRing := NewKeyRing(priv)
+	keyRing := NewKeyRing(sshPriv, tlsPriv)
 	keyRing.KeyRingIndex = idx
-	keyRing.PrivateKey = priv
 	keyRing.Cert = cert
 	keyRing.TLSCert = tlsCert
 	keyRing.TrustedCerts = []authclient.TrustedCerts{s.trustedCerts}
 	keyRing.DBTLSCredentials["example-db"] = TLSCredential{
 		Cert:       tlsCert,
-		PrivateKey: priv,
+		PrivateKey: tlsPriv,
 	}
 	return keyRing
 }
@@ -186,12 +196,12 @@ func TestClientStore(t *testing.T) {
 		require.NoError(t, err)
 		expectKeyRing := keyRing.Copy()
 		expectKeyRing.TrustedCerts = nil
-		require.Equal(t, expectKeyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, expectKeyRing, retrievedKeyRing)
 
 		// Getting the key from the client store should fill in the trusted certs.
 		retrievedKeyRing, err = clientStore.GetKeyRing(idx, WithAllCerts...)
 		require.NoError(t, err)
-		require.Equal(t, keyRing, retrievedKeyRing)
+		assertEqualKeyRings(t, keyRing, retrievedKeyRing)
 
 		var profileDir string
 		if fs, ok := clientStore.KeyStore.(*FSKeyStore); ok {
@@ -357,6 +367,103 @@ func TestProxySSHConfig(t *testing.T) {
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
 		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
+	})
+}
+
+// BenchmarkLoadKeysToKubeFromStore benchmarks the namesake function used in the
+// `tsh kube credentials` command called by kubectl. It should be reasonably
+// fast to avoid adding latency to all kubectl calls. It should tolerate being
+// called many times in parallel.
+func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(b, err)
+
+	template := x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "k8scluster",
+		},
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, key.Public(), key)
+	require.NoError(b, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	require.NotEmpty(b, certPEM)
+
+	keyPEM, err := keys.MarshalPrivateKey(key)
+	require.NoError(b, err)
+	privateKey, err := keys.NewPrivateKey(key, keyPEM)
+	require.NoError(b, err)
+
+	kubeCred := TLSCredential{
+		PrivateKey: privateKey,
+		Cert:       certPEM,
+	}
+
+	dir := b.TempDir()
+	fsKeyStore := NewFSKeyStore(dir)
+
+	keyRing := &KeyRing{
+		KeyRingIndex: KeyRingIndex{
+			ProxyHost:   "teleport.example.com",
+			Username:    "tester",
+			ClusterName: "teleportcluster",
+		},
+		TLSPrivateKey:      privateKey,
+		SSHPrivateKey:      privateKey,
+		TLSCert:            certPEM,
+		KubeTLSCredentials: make(map[string]TLSCredential, 10),
+	}
+
+	kubeClusterNames := make([]string, 0, 10)
+	for i := 0; i < 10; i++ {
+		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
+		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
+		kubeClusterNames = append(kubeClusterNames, kubeClusterName)
+	}
+
+	err = fsKeyStore.AddKeyRing(keyRing)
+	require.NoError(b, err)
+
+	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			var wg sync.WaitGroup
+			wg.Add(len(kubeClusterNames))
+			for _, kubeClusterName := range kubeClusterNames {
+				go func() {
+					defer wg.Done()
+					keyPEM, certPEM, err := LoadKeysToKubeFromStore(&profile.Profile{
+						SiteName: "teleport.example.com",
+						Username: "tester",
+					}, dir, "teleportcluster", kubeClusterName)
+					require.NoError(b, err)
+					require.NotEmpty(b, certPEM)
+					require.NotEmpty(b, keyPEM)
+				}()
+			}
+			wg.Wait()
+		}
+	})
+
+	// Compare against a naive GetKeyRing call which loads the key and cert for
+	// all active kube clusters, not just the one requested.
+	b.Run("GetKeyRing", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			var wg sync.WaitGroup
+			wg.Add(len(kubeClusterNames))
+			for _, kubeClusterName := range kubeClusterNames {
+				go func() {
+					defer wg.Done()
+					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, WithKubeCerts{})
+					require.NoError(b, err)
+					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
+					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
+				}()
+			}
+			wg.Wait()
+		}
 	})
 }
 

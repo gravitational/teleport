@@ -517,6 +517,73 @@ state of this API Resource.\n---\nThis struct is intended for direct use as an a
 				},
 			},
 		},
+		{
+			description: "array of objects with object field",
+			input: apiextv1.JSONSchemaProps{
+				Type: "object",
+				Properties: map[string]apiextv1.JSONSchemaProps{
+					"mappings": apiextv1.JSONSchemaProps{
+						Type:        "array",
+						Description: "Mappings is a list of matches that will map match conditions to labels.",
+						Items: &apiextv1.JSONSchemaPropsOrArray{
+							Schema: &apiextv1.JSONSchemaProps{
+								Type: "object",
+								Properties: map[string]apiextv1.JSONSchemaProps{
+									"add_labels": apiextv1.JSONSchemaProps{
+										Type:        "object",
+										Description: "AddLabels specifies which labels to add if any of the previous matches match.",
+										Nullable:    true,
+										Properties: map[string]apiextv1.JSONSchemaProps{
+											"key": apiextv1.JSONSchemaProps{
+												Type: "string",
+											},
+											"value": apiextv1.JSONSchemaProps{
+												Type: "string",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: []PropertyTable{
+				{
+					Name: "",
+					Fields: []PropertyTableField{
+						{
+							Name:        "mappings",
+							Type:        "[][object](#mappings-items)",
+							Description: "Mappings is a list of matches that will map match conditions to labels.",
+						},
+					},
+				},
+				{
+					Name: "mappings items",
+					Fields: []PropertyTableField{
+						{
+							Name:        "add_labels",
+							Type:        "[object](#mappings-itemsadd_labels)",
+							Description: "AddLabels specifies which labels to add if any of the previous matches match.",
+						},
+					},
+				},
+				{
+					Name: "mappings items.add_labels",
+					Fields: []PropertyTableField{
+						{
+							Name: "key",
+							Type: "string",
+						},
+						{
+							Name: "value",
+							Type: "string",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {

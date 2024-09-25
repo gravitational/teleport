@@ -13,5 +13,5 @@
     "jest": "^29.7.0",
     "memfs": "^4.11.1"
   },
-  "packageManager": "pnpm@9.5.0"
+  "packageManager": "pnpm@9.8.0"
 }

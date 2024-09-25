@@ -29,9 +29,13 @@
               "slug": "/upgrading/overview/"
             },
             {
-                "title": "Set up Automatic Agent Updates",
-                "slug": "/upgrading/automatic-agent-updates/"
-            }
+              "title": "Set up Automatic Agent Updates",
+              "slug": "/upgrading/automatic-agent-updates/"
+            },
+            {
+              "title": "Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
+	    }
           ]
         },
         {
@@ -107,7 +111,7 @@
       "icon": "book",
       "title": "References",
       "entries": [],
-      "generateFrom": "reference" 
+      "generateFrom": "reference"
     }
   ],
   "variables": {
@@ -128,7 +132,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.1.0",
+      "version": "16.3.0",
       "major_version": "16",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -206,41 +210,6 @@
     }
   },
   "redirects": [
-    {
-      "source": "/application-access/introduction/",
-      "destination": "/enroll-resources/application-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/setup/admin/github-sso/",
-      "destination": "/admin-guides/access-controls/sso/github-sso/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/circleci/",
-      "destination": "/enroll-resources/machine-id/deployment/circleci/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/gitlab/",
-      "destination": "/enroll-resources/machine-id/deployment/gitlab/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/jenkins/",
-      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/access-guides/ansible/",
-      "destination": "/enroll-resources/machine-id/access-guides/ansible/",
-      "permanent": true
-    },
-    {
-      "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
-      "permanent": true
-    },
     {
       "source": "/machine-id/deployment/aws/",
       "destination": "/enroll-resources/machine-id/deployment/aws/",
@@ -323,7 +292,7 @@
     },
     {
       "source": "/agents/deploy-agents-terraform/",
-      "destination": "/enroll-resources/agents/deploy-agents-terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-starter/enroll-resources/",
       "permanent": true
     },
     {
@@ -1013,7 +982,7 @@
     },
     {
       "source": "/machine-id/access-guides/terraform/",
-      "destination": "/enroll-resources/machine-id/access-guides/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
       "permanent": true
     },
     {
@@ -1078,7 +1047,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -1637,6 +1606,11 @@
       "permanent": true
     },
     {
+      "source": "/access-controls/access-graph/",
+      "destination": "/admin-guides/deploy-a-cluster/access-graph/access-graph/",
+      "permanent": true
+    },
+    {
       "source": "/access-controls/access-graph/aws-sync/",
       "destination": "/admin-guides/teleport-policy/integrations/aws-sync/",
       "permanent": true
@@ -1918,7 +1892,7 @@
     },
     {
       "source": "/access-controls/login-rules/kubernetes/",
-      "destination": "/admin-guides/infrastructure-as-code/kubernetes/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
       "permanent": true
     },
     {
@@ -1928,7 +1902,7 @@
     },
     {
       "source": "/access-controls/login-rules/terraform/",
-      "destination": "/admin-guides/infrastructure-as-code/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
       "permanent": true
     },
     {
@@ -2083,7 +2057,12 @@
     },
     {
       "source": "/choose-an-edition/migrate-to-cloud/",
-      "destination": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
+      "permanent": true
+    },
+    {
+      "source": "/admin-guides/deploy-a-cluster/migrate-to-cloud/",
+      "destination": "/admin-guides/migrate-plans/",
       "permanent": true
     },
     {
@@ -2387,6 +2366,11 @@
       "permanent": true
     },
     {
+      "source": "/management/diagnostics/logging/",
+      "destination": "/admin-guides/management/diagnostics/logging/",
+      "permanent": true
+    },
+    {
       "source": "/management/diagnostics/metrics/",
       "destination": "/admin-guides/management/diagnostics/metrics/",
       "permanent": true
@@ -2418,22 +2402,22 @@
     },
     {
       "source": "/management/dynamic-resources/access-list/",
-      "destination": "/admin-guides/infrastructure-as-code/access-list/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/access-list/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/agentless-ssh-servers/",
-      "destination": "/admin-guides/infrastructure-as-code/agentless-ssh-servers/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-helm/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator-helm/",
+      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-helm/",
       "permanent": true
     },
     {
       "source": "/management/dynamic-resources/teleport-operator-standalone/",
-      "destination": "/admin-guides/infrastructure-as-code/teleport-operator-standalone/",
+      "destination": "/admin-guides/infrastructure-as-code/teleport-operator/teleport-operator-standalone/",
       "permanent": true
     },
     {
@@ -2448,7 +2432,7 @@
     },
     {
       "source": "/management/dynamic-resources/user-and-role/",
-      "destination": "/admin-guides/infrastructure-as-code/user-and-role/",
+      "destination": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
       "permanent": true
     },
     {
@@ -2588,12 +2572,22 @@
     },
     {
       "source": "/upgrading/reference/",
-      "destination": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
       "permanent": true
     },
     {
       "source": "/choose-an-edition/teleport-enterprise/introduction/",
       "destination": "/admin-guides/deploy-a-cluster/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     }
   ]

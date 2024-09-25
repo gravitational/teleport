@@ -29,6 +29,7 @@ import (
 var (
 	version   = kingpin.Arg("version", "Version to be released").Required().String()
 	changelog = kingpin.Arg("changelog", "Path to CHANGELOG.md").Required().String()
+	labels    = kingpin.Flag("labels", "Labels to apply to the end of a release, e.g. security labels").String()
 )
 
 func main() {
@@ -42,6 +43,7 @@ func main() {
 
 	gen := &releaseNotesGenerator{
 		releaseVersion: *version,
+		labels:         *labels,
 	}
 
 	notes, err := gen.generateReleaseNotes(clFile)

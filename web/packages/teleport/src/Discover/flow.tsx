@@ -48,9 +48,14 @@ export interface ResourceViewConfig<T = any> {
    * depending on what step in the flow a user is in (indicated
    * by "currentStep" param).
    * Not supplying a function is equivalent to always prompting
-   * on exit or changing route.
+   * on exit or changing route when not on a step with the
+   * eventName `DiscoverEvent.Completed`.
    */
-  shouldPrompt?: (currentStep: number, resourceSpec: ResourceSpec) => boolean;
+  shouldPrompt?: (
+    currentStep: number,
+    currentView: View | undefined,
+    resourceSpec: ResourceSpec
+  ) => boolean;
 }
 
 export type View = BaseView<{

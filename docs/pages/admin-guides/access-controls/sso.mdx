@@ -209,9 +209,12 @@ $ tsh login --proxy=proxy.example.com --auth=github --bind-addr=localhost:1234 -
 ```
 
 For this to work the hostname or CIDR of the remote machine that will be used for
-the callback will need to be allowed  via`spec.client_redirect_settings`:
+the callback will need to be allowed via your auth connector's `client_redirect_settings`:
 
 ```code
+kind: oidc
+metadata:
+  name: example-connector
 spec:
   client_redirect_settings:
     # a list of hostnames allowed for HTTPS client redirect URLs
@@ -246,7 +249,7 @@ The following authentication connectors are supported:
 
 |Type|Description|
 |---|---|
-|None|If no authentication connector is created, Teleport will use local authentication based user information stored<br/> in the Auth Service backend. You can manage user data via the `tctl users` command. |
+|None|If no authentication connector is created, Teleport will use local authentication based user information stored<br/> in the Auth Service backend. You can manage user data via the web UI Users page and the `tctl users` command. |
 |`saml`| The SAML connector type uses the [SAML protocol](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language) to authenticate users and query their group membership.|
 |`oidc`| The OIDC connector type uses the [OpenID Connect protocol](https://en.wikipedia.org/wiki/OpenID_Connect) to authenticate users<br/> and query their group membership.|
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
@@ -256,7 +259,7 @@ The following authentication connectors are supported:
 
 |Type|Description|
 |---|---|
-|None|If no authentication connector is created, Teleport will use local authentication based user information stored in the Auth Service backend. You can manage user data via the `tctl users` command. |
+|None|If no authentication connector is created, Teleport will use local authentication based user information stored in the Auth Service backend. You can manage user data via the web UI Users page and the `tctl users` command. |
 |`github`| The GitHub connector uses GitHub SSO to authenticate users and query their group membership.|
 
 </TabItem>
@@ -265,29 +268,13 @@ The following authentication connectors are supported:
 
 ### Creating an authentication connector
 
-<Tabs>
-<TabItem scope={["cloud", "enterprise"]} label="Commercial">
-
 Before you can create an authentication connector, you must enable
 authentication via that connector's protocol.
 
-To set the default authentication type as `saml` or `oidc`, either modify your
-Auth Service configuration file (if using a self-hosted edition of Teleport) or
+To set the default authentication type as `saml`, `oidc`, or `github`,
 create a `cluster_auth_preference` resource.
 
-<Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise","oss"]}>
- Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
-  ```yaml
-  auth_service:
-    authentication:
-      # Set as saml, oidc, or github
-      type: saml|oidc|github
-  ```
-
-  </TabItem>
-  <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
-  Create a file called `cap.yaml`:
+Create a file called `cap.yaml`:
   ```yaml
   kind: cluster_auth_preference
   metadata:
@@ -298,7 +285,7 @@ create a `cluster_auth_preference` resource.
   version: v2
   ```
 
-  Create the resource:
+Create the resource:
 
   ```code
   # Log in to your cluster with tsh so you can run tctl commands.
@@ -306,11 +293,10 @@ create a `cluster_auth_preference` resource.
   $ tctl create -f cap.yaml
   ```
 
-  </TabItem>
-</Tabs>
 
 Next, define an authentication connector. Create a file called `connector.yaml`
-based on one of the following examples.
+based on one of the following examples. Teleport Community Edition only supports
+GitHub as an SSO option.
 
 <Tabs>
 <TabItem label="Okta">
@@ -323,12 +309,24 @@ based on one of the following examples.
 
 (!docs/pages/includes/sso/saml-slo.mdx!)
 
+You may use `entity_descriptor_url` in lieu of `entity_descriptor` to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
+
 </TabItem>
 <TabItem label="OneLogin">
 
 ```yaml
 (!/examples/resources/onelogin-connector.yaml!)
 ```
+
+You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
 
 </TabItem>
 <TabItem label="OIDC">
@@ -351,6 +349,12 @@ based on one of the following examples.
 (!/examples/resources/adfs-connector.yaml!)
 ```
 
+You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
+
 </TabItem>
 <TabItem label="SAML">
 
@@ -362,6 +366,12 @@ based on one of the following examples.
 
 (!docs/pages/includes/sso/saml-slo.mdx!)
 
+You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
+the entity descriptor from your IDP. 
+
+We recommend "pinning" the entity descriptor by including the XML rather than
+fetching from a URL.
+
 </TabItem>
 <TabItem label="GitHub">
 
@@ -372,41 +382,11 @@ based on one of the following examples.
 </TabItem>
 </Tabs>
 
-You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch
-the entity descriptor from your IDP. 
-
-We recommend "pinning" the entity descriptor by including the XML rather than
-fetching from a URL.
-
-</TabItem>
-<TabItem scope="oss" label="Teleport Community Edition">
-
-Next, define an authentication connector. Create a file called `connector.yaml`
-with the following content:
-
-```yaml
-kind: cluster_auth_preference
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: github
-  webauthn:
-    # Replace with the address of your Teleport cluster
-    rp_id: 'example.teleport.sh'
-version: v2
-
-```
-
-</TabItem>
-</Tabs>
-
 Create the connector: 
 
 ```code
 $ tctl create -f connector.yaml
 ```
-
-
 
 ### User logins
 

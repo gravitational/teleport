@@ -2,7 +2,7 @@
 
 ## Usage
 
-Please, refer to [official documentation](https://goteleport.com/docs/setup/guides/terraform-provider/).
+Please, refer to [official documentation](https://goteleport.com/docs/admin-guides/infrastructure-as-code/terraform-provider/).
 
 ## Development
 

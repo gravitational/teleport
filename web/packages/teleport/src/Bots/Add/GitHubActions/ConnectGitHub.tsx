@@ -190,7 +190,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         <Text ml="1">Ref Type</Text>
                         <RefTypeSelect>
                           <ReactSelect
-                            disabled={isLoading}
+                            isDisabled={isLoading}
                             isMulti={false}
                             value={repoRules[i].refType}
                             onChange={o => handleChange(i, 'refType', o)}

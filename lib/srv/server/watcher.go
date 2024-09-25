@@ -51,17 +51,25 @@ func WithTriggerFetchC(triggerFetchC <-chan struct{}) Option {
 	}
 }
 
+// WithPreFetchHookFn sets a function that gets called before each new iteration.
+func WithPreFetchHookFn(f func()) Option {
+	return func(w *Watcher) {
+		w.preFetchHookFn = f
+	}
+}
+
 // Watcher allows callers to discover cloud instances matching specified filters.
 type Watcher struct {
 	// InstancesC can be used to consume newly discovered instances.
 	InstancesC     chan Instances
 	missedRotation <-chan []types.Server
 
-	fetchersFn    func() []Fetcher
-	pollInterval  time.Duration
-	triggerFetchC <-chan struct{}
-	ctx           context.Context
-	cancel        context.CancelFunc
+	fetchersFn     func() []Fetcher
+	pollInterval   time.Duration
+	triggerFetchC  <-chan struct{}
+	ctx            context.Context
+	cancel         context.CancelFunc
+	preFetchHookFn func()
 }
 
 func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) {
@@ -82,6 +90,10 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 
 // fetchAndSubmit fetches the resources and submits them for processing.
 func (w *Watcher) fetchAndSubmit() {
+	if w.preFetchHookFn != nil {
+		w.preFetchHookFn()
+	}
+
 	for _, fetcher := range w.fetchersFn() {
 		w.sendInstancesOrLogError(fetcher.GetInstances(w.ctx, false))
 	}

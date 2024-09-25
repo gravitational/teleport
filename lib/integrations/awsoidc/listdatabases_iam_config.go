@@ -22,7 +22,9 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -41,6 +43,9 @@ type ConfigureIAMListDatabasesRequest struct {
 
 	// IntegrationRole is the Integration's AWS Role used by the integration.
 	IntegrationRole string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -58,8 +63,31 @@ func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 
 // ListDatabasesIAMConfigureClient describes the required methods to create the IAM Policies required for Listing Databases.
 type ListDatabasesIAMConfigureClient interface {
+	callerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+}
+
+type defaultListDatabasesIAMConfigureClient struct {
+	*iam.Client
+	callerIdentityGetter
+}
+
+// NewListDatabasesIAMConfigureClient creates a new ListDatabasesIAMConfigureClient.
+func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (ListDatabasesIAMConfigureClient, error) {
+	if region == "" {
+		return nil, trace.BadParameter("region is required")
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &defaultListDatabasesIAMConfigureClient{
+		Client:               iam.NewFromConfig(cfg),
+		callerIdentityGetter: sts.NewFromConfig(cfg),
+	}, nil
 }
 
 // ConfigureListDatabasesIAM set ups the policy required for accessing an RDS DB Instances and RDS DB Clusters.
@@ -71,6 +99,10 @@ type ListDatabasesIAMConfigureClient interface {
 //   - iam:PutRolePolicy
 func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigureClient, req ConfigureIAMListDatabasesRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

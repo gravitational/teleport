@@ -28,6 +28,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
+	authntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
@@ -60,39 +61,37 @@ func TestCeremony_Run(t *testing.T) {
 		require.NoError(t, err, "EnrollDevice failed")
 	}
 
+	sshCert, sshSigner, err := testenv.NewSelfSignedSSHCert()
+	require.NoError(t, err)
+
+	runParams := &authntypes.CeremonyRunParams{
+		DevicesClient: devices,
+		Certs: &devicepb.UserCertificates{
+			SshAuthorizedKey: sshCert,
+		},
+		SSHSigner: sshSigner,
+	}
+
 	tests := []struct {
-		name  string
-		dev   testenv.FakeDevice
-		certs *devicepb.UserCertificates
+		name string
+		dev  testenv.FakeDevice
 	}{
 		{
 			name: "macOS ok",
 			dev:  macOSDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 		{
 			name: "linux ok",
 			dev:  linuxDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 		{
 			name: "windows ok",
 			dev:  windowsDev1,
-			certs: &devicepb.UserCertificates{
-				// SshAuthorizedKey is not parsed by the fake server.
-				SshAuthorizedKey: []byte("<a proper SSH certificate goes here>"),
-			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err = newAuthnCeremony(test.dev).Run(ctx, devices, test.certs)
+			_, err = newAuthnCeremony(test.dev).Run(ctx, runParams)
 
 			// A nil error is good enough for this test.
 			assert.NoError(t, err, "RunCeremony failed")

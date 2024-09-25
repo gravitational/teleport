@@ -104,23 +104,23 @@ class TeleportContext implements types.Context {
       !storageService.getOnboardDiscover()
     ) {
       const hasResource =
-        await userService.checkUserHasAccessToRegisteredResource();
+        await userService.checkUserHasAccessToAnyRegisteredResource();
       storageService.setOnboardDiscover({ hasResource });
     }
 
     if (user.acl.accessGraph.list) {
       // If access graph is enabled, check what features are enabled and store them in local storage.
-      try {
-        const accessGraphFeatures =
-          await userService.fetchAccessGraphFeatures();
-
-        for (let key in accessGraphFeatures) {
-          window.localStorage.setItem(key, accessGraphFeatures[key]);
-        }
-      } catch (e) {
-        // If we fail to fetch access graph features, log the error and continue.
-        console.error('Failed to fetch access graph features', e);
-      }
+      userService
+        .fetchAccessGraphFeatures()
+        .then(features => {
+          for (let key in features) {
+            window.localStorage.setItem(key, features[key]);
+          }
+        })
+        .catch(e => {
+          // If we fail to fetch access graph features, log the error and continue.
+          console.error('Failed to fetch access graph features', e);
+        });
     }
   }
 
@@ -147,7 +147,12 @@ class TeleportContext implements types.Context {
         userContext.getIntegrationsAccess().list ||
         userContext.hasDiscoverAccess() ||
         userContext.getDeviceTrustAccess().list ||
-        userContext.getLockAccess().list
+        userContext.getLockAccess().list ||
+        userContext.getAccessListAccess().list ||
+        userContext.getAccessGraphAccess().list ||
+        hasAccessMonitoringAccess() ||
+        userContext.getTokenAccess().create ||
+        userContext.getBotsAccess().list
       );
     }
 

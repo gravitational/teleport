@@ -484,14 +484,12 @@ We will also have to change the disk layout of the ~/.tsh directory:
      │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
      │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
 -    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA.key        --> TLS private key for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA.crt        --> TLS cert for Kubernetes cluster "kubeA"
++    │   |    │   ├── kubeA.cred       --> TLS private key and certificate for Kubernetes cluster "kubeA"
      │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
      │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
      │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
 -    │   |        ├── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        ├── kubeC.key        --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        └── kubeC.crt        --> TLS cert for Kubernetes cluster "kubeC"
++    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
      |   └── cas                       --> Trusted clusters certificates
      |        ├── root.pem             --> TLS CA for teleport cluster "root"
      |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -540,12 +538,30 @@ re-running the command so that it prints the correct updated paths.
 The main TLS private key used to authenticate to cluster APIs will now be held
 in `~/.tsh/keys/one.example.com/foo.key`.
 
-All TLS x509 cert files will be renamed from `<name>-x509.pem` to
-`<name>.crt`.
-This may seem like an unecessary breaking change, but it has a benefit that any
+All TLS x509 cert files (except for k8s) will be renamed from `<name>-x509.pem`
+to `<name>.crt`.
+This may seem like an unnecessary breaking change, but it has a benefit that any
 software trying to use the old `<name>-x509.pem` along with the outdated private
 key location will fail to load both files, instead of successfully opening the
 cert but failing with some confusing error when the private key does not match.
+
+Because app and db logins will now cause the private key AND cert to be
+overwritten, we will use an OS file lock on the key file whenever reading or
+writing the pair of files, to avoid a race condition that could cause key/cert
+pair that don't match to be read or written.
+
+#### Kubernetes
+
+In the interest of keeping `tsh kube credentials` performant for cases where it
+is called tens of times per second, instead of storing the key and cert in
+separate files, they are both combined into a single file `<cluster>.cred`.
+The requires only a single file read, instead of 2 file reads plus an OS file
+lock/unlock.
+
+We don't do this for app and db key/certs because those are often read by third
+party clients.
+For kubectl, we don't have to worry about this, because it always gets the
+current credentials by calling `tsh kube credentials`.
 
 ### HSMs and KMS
 

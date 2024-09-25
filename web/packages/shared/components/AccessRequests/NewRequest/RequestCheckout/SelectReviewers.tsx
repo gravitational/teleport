@@ -242,10 +242,8 @@ function Reviewers({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Flex alignItems="baseline">
-          <Text mr={2} typography="body3">
-            Reviewers (optional)
-          </Text>
+        <Flex alignItems="baseline" gap={2}>
+          <Text typography="body3">Reviewers (optional)</Text>
           <ButtonBorder
             onClick={e => {
               // By stopping propagation,
@@ -258,6 +256,15 @@ function Reviewers({
           >
             {btnTxt}
           </ButtonBorder>
+          {reviewers.length > 0 ? (
+            <ButtonBorder
+              onClick={() => updateReviewers([])}
+              size="small"
+              width="50px"
+            >
+              Clear
+            </ButtonBorder>
+          ) : null}
         </Flex>
         {reviewers.length > 0 && (
           <ButtonIcon onClick={() => setExpanded(e => !e)}>

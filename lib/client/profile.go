@@ -429,16 +429,28 @@ func (p *ProfileStatus) CACertPathForCluster(cluster string) string {
 	return filepath.Join(keypaths.ProxyKeyDir(p.Dir, p.Name), "cas", cluster+".pem")
 }
 
-// KeyPath returns path to the private key for this profile.
+// SSHKeyPath returns path to the SSH private key for this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>.
-func (p *ProfileStatus) KeyPath() string {
+func (p *ProfileStatus) SSHKeyPath() string {
 	// Return an env var override if both valid and present for this identity.
 	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
 		return path
 	}
 
-	return keypaths.UserKeyPath(p.Dir, p.Name, p.Username)
+	return keypaths.UserSSHKeyPath(p.Dir, p.Name, p.Username)
+}
+
+// TLSKeyPath returns path to the TLS private key for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>.
+func (p *ProfileStatus) TLSKeyPath() string {
+	// Return an env var override if both valid and present for this identity.
+	if path, ok := p.virtualPathFromEnv(VirtualPathKey, nil); ok {
+		return path
+	}
+
+	return keypaths.UserTLSKeyPath(p.Dir, p.Name, p.Username)
 }
 
 // DatabaseCertPathForCluster returns path to the specified database access
@@ -498,7 +510,7 @@ func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string)
 	return keypaths.DatabaseOracleWalletDirectory(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
-// DatabaseLocalCAPath returns the specified db 's self-signed localhost CA path for
+// DatabaseLocalCAPath returns the specified db's self-signed localhost CA path for
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-db/proxy-localca.pem
@@ -559,20 +571,6 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	}
 
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
-}
-
-// KubeCertPathForCluster returns path to the specified kube access certificate
-// for this profile, for the specified cluster name.
-//
-// It's kept in <profile-dir>/keys/<proxy>/<username>-kube/<cluster>/<name>-x509.pem
-func (p *ProfileStatus) KubeCertPathForCluster(teleportCluster, kubeCluster string) string {
-	if teleportCluster == "" {
-		teleportCluster = p.Cluster
-	}
-	if path, ok := p.virtualPathFromEnv(VirtualPathKubernetes, VirtualPathKubernetesParams(kubeCluster)); ok {
-		return path
-	}
-	return keypaths.KubeCertPath(p.Dir, p.Name, p.Username, teleportCluster, kubeCluster)
 }
 
 // DatabaseServices returns a list of database service names for this profile.

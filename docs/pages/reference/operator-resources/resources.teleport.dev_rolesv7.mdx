@@ -341,6 +341,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
 |create_host_user|boolean|CreateHostUser allows users to be automatically created on a host|
+|create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
 |create_host_user_mode|string or integer|CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is "unspecified"; 1 is "off"; 2 is "drop" (removed for v15 and above), 3 is "keep"; 4 is "insecure-drop". Can be either the string or the integer representation of each option.|
 |desktop_clipboard|boolean|DesktopClipboard indicates whether clipboard sharing is allowed between the user's workstation and the remote desktop. It defaults to true unless explicitly set to false.|
 |desktop_directory_sharing|boolean|DesktopDirectorySharing indicates whether directory sharing is allowed between the user's workstation and the remote desktop. It defaults to false unless explicitly set to true.|
@@ -354,6 +355,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |max_kubernetes_connections|integer|MaxKubernetesConnections defines the maximum number of concurrent Kubernetes sessions a user may hold.|
 |max_session_ttl|string|MaxSessionTTL defines how long a SSH session can last for.|
 |max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
+|mfa_verification_interval|string|MFAVerificationInterval optionally defines the maximum duration that can elapse between successive MFA verifications. This variable is used to ensure that users are periodically prompted to verify their identity, enhancing security by preventing prolonged sessions without re-authentication when using tsh proxy * derivatives. It's only effective if the session requires MFA. If not set, defaults to `max_session_ttl`.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding authorizes use of X11 forwarding.|
 |pin_source_ip|boolean|PinSourceIP forces the same client IP for certificate generation and usage|
 |port_forwarding|boolean|PortForwarding defines if the certificate will have "permit-port-forwarding" in the certificate. PortForwarding is "yes" if not set, that's why this is a pointer|

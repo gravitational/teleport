@@ -19,9 +19,9 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -41,7 +41,6 @@ import (
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
@@ -165,9 +164,9 @@ type dynamoClient interface {
 
 // Backend is a DynamoDB-backed key value backend implementation.
 type Backend struct {
-	svc   dynamoClient
-	clock clockwork.Clock
-	*log.Entry
+	svc     dynamoClient
+	clock   clockwork.Clock
+	logger  *slog.Logger
 	streams *dynamodbstreams.Client
 	buf     *backend.CircularBuffer
 	Config
@@ -233,20 +232,20 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
+	l := slog.With(teleport.ComponentKey, BackendName)
 
 	var cfg *Config
 	if err := utils.ObjectToStruct(params, &cfg); err != nil {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
-	defer l.Debug("AWS session is created.")
+	defer l.DebugContext(ctx, "AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+	l.InfoContext(ctx, "Initializing backend", "table", cfg.TableName, "poll_stream_period", cfg.PollStreamPeriod)
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),
@@ -284,7 +283,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	b := &Backend{
-		Entry:   l,
+		logger:  l,
 		Config:  *cfg,
 		clock:   clockwork.NewRealClock(),
 		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
@@ -298,7 +297,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	go func() {
 		if err := b.asyncPollStreams(ctx); err != nil {
-			b.Errorf("Stream polling loop exited: %v", err)
+			b.logger.ErrorContext(ctx, "Stream polling loop exited", "error", err)
 		}
 	}()
 
@@ -317,12 +316,12 @@ func (b *Backend) configureTable(ctx context.Context, svc *applicationautoscalin
 	case tableStatusOK:
 		if tableBillingMode == types.BillingModePayPerRequest {
 			b.Config.EnableAutoScaling = false
-			b.Logger.Info("Ignoring auto_scaling setting as table is in on-demand mode.")
+			b.logger.InfoContext(ctx, "Ignoring auto_scaling setting as table is in on-demand mode.")
 		}
 	case tableStatusMissing:
 		if b.Config.BillingMode == billingModePayPerRequest {
 			b.Config.EnableAutoScaling = false
-			b.Logger.Info("Ignoring auto_scaling setting as table is being created in on-demand mode.")
+			b.logger.InfoContext(ctx, "Ignoring auto_scaling setting as table is being created in on-demand mode.")
 		}
 		err = b.createTable(ctx, tableName, fullPathKey)
 	case tableStatusNeedsMigration:
@@ -497,7 +496,7 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 }
 
 // GetRange returns range of elements
-func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -530,7 +529,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	return &backend.GetResult{Items: values}, nil
 }
 
-func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
+func (b *Backend) getAllRecords(ctx context.Context, startKey, endKey backend.Key, limit int) (*getResult, error) {
 	var result getResult
 
 	// this code is being extra careful here not to introduce endless loop
@@ -545,7 +544,7 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []b
 		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
 		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
 			if len(result.records) == backend.DefaultRangeLimit {
-				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 			}
 			result.lastEvaluatedKey = nil
 			return &result, nil
@@ -564,7 +563,7 @@ const (
 )
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -607,7 +606,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) erro
 }
 
 // Get returns a single item or not found error
-func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	r, err := b.getKey(ctx, key)
 	if err != nil {
 		return nil, err
@@ -638,7 +637,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 
@@ -682,7 +681,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 }
 
 // Delete deletes item by key
-func (b *Backend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
 	if _, err := b.getKey(ctx, key); err != nil {
 		return err
 	}
@@ -711,7 +710,7 @@ func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*ba
 
 // ConditionalDelete deletes item by key if the provided revision matches
 // the revision of the item in Dynamo.
-func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (b *Backend) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	if rev == "" {
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
@@ -895,7 +894,7 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	b.Infof("Waiting until table %q is created.", aws.ToString(tableName))
+	b.logger.InfoContext(ctx, "Waiting until table is created.", "table", aws.ToString(tableName))
 	waiter := dynamodb.NewTableExistsWaiter(b.svc)
 
 	err = waiter.Wait(ctx,
@@ -903,7 +902,7 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 		10*time.Minute,
 	)
 	if err == nil {
-		b.Infof("Table %q has been created.", aws.ToString(tableName))
+		b.logger.InfoContext(ctx, "Table has been created.", "table", aws.ToString(tableName))
 	}
 
 	return trace.Wrap(err)
@@ -999,13 +998,13 @@ const (
 
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
-func prependPrefix(key []byte) string {
+func prependPrefix(key backend.Key) string {
 	return keyPrefix + string(key)
 }
 
 // trimPrefix removes leading 'teleport' from the key
-func trimPrefix(key string) []byte {
-	return []byte(strings.TrimPrefix(key, keyPrefix))
+func trimPrefix(key string) backend.Key {
+	return backend.Key(strings.TrimPrefix(key, keyPrefix))
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.
@@ -1064,7 +1063,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) (stri
 	return r.Revision, nil
 }
 
-func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
+func (b *Backend) deleteKey(ctx context.Context, key backend.Key) error {
 	av, err := attributevalue.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -1079,7 +1078,7 @@ func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
+func (b *Backend) deleteKeyIfExpired(ctx context.Context, key backend.Key) error {
 	_, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
 		Key:       keyToAttributeValueMap(key),
@@ -1095,7 +1094,7 @@ func (b *Backend) deleteKeyIfExpired(ctx context.Context, key []byte) error {
 	return trace.Wrap(err)
 }
 
-func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
+func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) {
 	av, err := attributevalue.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -1124,7 +1123,7 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
-			b.Warnf("Failed deleting expired key %q: %v", key, err)
+			b.logger.WarnContext(ctx, "Failed deleting expired key", "key", key, "error", err)
 		}
 		return nil, trace.NotFound("%q is not found", key)
 	}
@@ -1207,7 +1206,7 @@ func fullPathToAttributeValueMap(fullPath string) map[string]types.AttributeValu
 	}
 }
 
-func keyToAttributeValueMap(key []byte) map[string]types.AttributeValue {
+func keyToAttributeValueMap(key backend.Key) map[string]types.AttributeValue {
 	return fullPathToAttributeValueMap(prependPrefix(key))
 }
 

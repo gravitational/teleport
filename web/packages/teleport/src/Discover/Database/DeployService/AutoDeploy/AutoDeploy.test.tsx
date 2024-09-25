@@ -54,7 +54,7 @@ const mockDbLabels = [{ name: 'env', value: 'prod' }];
 
 const integrationName = 'aws-oidc-integration';
 const region: Regions = 'us-east-2';
-const awsoidcRoleArn = 'role-arn';
+const awsoidcRoleName = 'role-arn';
 
 const mockAwsRdsDb: AwsRdsDatabase = {
   engine: 'postgres',
@@ -74,7 +74,7 @@ const mocKIntegration: Integration = {
   name: integrationName,
   resourceType: 'integration',
   spec: {
-    roleArn: `doncare/${awsoidcRoleArn}`,
+    roleArn: `arn:aws:iam::123456789012:role/${awsoidcRoleName}`,
     issuerS3Bucket: '',
     issuerS3Prefix: '',
   },
@@ -117,17 +117,6 @@ describe('test AutoDeploy.tsx', () => {
     await screen.findByText('sg-id');
     await screen.findByText('subnet-id');
   }
-
-  test('init: labels are rendered, command is not rendered yet', async () => {
-    const { teleCtx, discoverCtx } = getMockedContexts();
-
-    renderAutoDeploy(teleCtx, discoverCtx);
-    await waitForSubnetsAndSecurityGroups();
-
-    expect(screen.getByText(/env: prod/i)).toBeInTheDocument();
-    expect(screen.queryByText(/copy\/paste/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/curl/i)).not.toBeInTheDocument();
-  });
 
   test('clicking button renders command', async () => {
     const { teleCtx, discoverCtx } = getMockedContexts();

@@ -38,10 +38,12 @@ export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
  * @param value The value user entered.
  */
 const requiredField =
-  <T = string>(message: string): Rule<string | T[]> =>
+  <T = string>(message: string): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
-    const valid = !(!value || value.length === 0);
+    // TODO(bl-nero): This typecast hides the fact that `requiredField` doesn't
+    // actually work for other primitive types, like `number`.
+    const valid = !(!value || (value as T[]).length === 0);
     return {
       valid,
       message: !valid ? message : '',

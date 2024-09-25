@@ -76,6 +76,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
+	types.NewRule(types.KindSPIFFEFederation, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -314,6 +315,26 @@ func validateRoleExpressions(r types.Role) error {
 			}
 		}
 
+		for _, ks := range r.GetKubeResources(condition.condition) {
+			_, err := parse.NewTraitsTemplateExpression(ks.Namespace)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			_, err = parse.NewTraitsTemplateExpression(ks.Name)
+			if err != nil {
+				err = trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+			for _, verb := range ks.Verbs {
+				_, err = parse.NewTraitsTemplateExpression(verb)
+				if err != nil {
+					err = trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err)
+					errs = append(errs, err)
+				}
+			}
+		}
+
 		for _, labels := range []struct {
 			name string
 			kind string
@@ -487,6 +508,33 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		inDbRoles := r.GetDatabaseRoles(condition)
 		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
+
+		var out []types.KubernetesResource
+		// we access the resources in the role using the role conditions
+		// to avoid receiving the compatibility resources added in GetKubernetesResources
+		// for roles <v7
+		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
+			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, traits, "kubernetes resource namespace")
+			if rec.Namespace == "" {
+				namespaces = []string{""}
+			}
+			names := applyValueTraitsSlice([]string{rec.Name}, traits, "kubernetes resource name")
+			if rec.Name == "" {
+				names = []string{""}
+			}
+			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
+			for _, namespace := range namespaces {
+				for _, name := range names {
+					out = append(out, types.KubernetesResource{
+						Kind:      rec.Kind,
+						Namespace: namespace,
+						Name:      name,
+						Verbs:     verbs,
+					})
+				}
+			}
+		}
+		r.SetKubeResources(condition, out)
 
 		for _, kind := range []string{
 			types.KindRemoteCluster,
@@ -1256,6 +1304,21 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if maxSessionTTL != 0 && ttl > maxSessionTTL {
 			ttl = maxSessionTTL
+		}
+	}
+	return ttl
+}
+
+// AdjustMFAVerificationInterval will reduce the requested ttl to the lowest mfa verification interval
+// for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
+func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
+	for _, role := range set {
+		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
+			continue
+		}
+		if mfaVerificationInterval != 0 && ttl > mfaVerificationInterval {
+			ttl = mfaVerificationInterval
 		}
 	}
 	return ttl
@@ -2448,7 +2511,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2671,10 +2734,10 @@ func checkRoleLabelsMatch(
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+	return CheckLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
 }
 
-// checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
+// CheckLabelsMatch checks if the [labelMatchers] match the labels of [resource]
 // for [condition].
 // It considers both [labelMatchers.Labels] and [labelMatchers.Expression].
 //
@@ -2687,7 +2750,7 @@ func checkRoleLabelsMatch(
 // match it's not considered a match.
 //
 // If neither is set, it's not a match in either case.
-func checkLabelsMatch(
+func CheckLabelsMatch(
 	condition types.RoleConditionType,
 	labelMatchers types.LabelMatchers,
 	userTraits wrappers.Traits,

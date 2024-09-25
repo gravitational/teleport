@@ -91,6 +91,8 @@ should not create ServiceAccount for post-delete hook if serviceAccount.create i
     spec:
       template:
         metadata:
+          labels:
+            app: RELEASE-NAME
           name: RELEASE-NAME-delete-hook
         spec:
           containers:

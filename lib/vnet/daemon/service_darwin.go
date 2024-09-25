@@ -30,6 +30,8 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // Start starts an XPC listener and waits for it to receive a message with VNet config.
@@ -40,7 +42,7 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 		return trace.Wrap(err)
 	}
 
-	log.InfoContext(ctx, "Starting daemon", "bundle_path", bundlePath)
+	log.InfoContext(ctx, "Starting daemon", "version", teleport.Version, "bundle_path", bundlePath)
 
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))

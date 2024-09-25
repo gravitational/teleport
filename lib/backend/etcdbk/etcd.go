@@ -20,12 +20,12 @@
 package etcdbk
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"os"
 	"sort"
 	"strconv"
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.etcd.io/etcd/api/v3/mvccpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -150,8 +149,8 @@ var (
 )
 
 type EtcdBackend struct {
-	nodes []string
-	*log.Entry
+	nodes       []string
+	logger      *slog.Logger
 	cfg         *Config
 	clients     *utils.RoundRobin[*clientv3.Client]
 	cancelC     chan bool
@@ -279,7 +278,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 	}
 
 	b := &EtcdBackend{
-		Entry:       log.WithFields(log.Fields{teleport.ComponentKey: GetName()}),
+		logger:      slog.With(teleport.ComponentKey, GetName()),
 		cfg:         cfg,
 		nodes:       cfg.Nodes,
 		cancelC:     make(chan bool, 1),
@@ -434,7 +433,7 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	if b.clients != nil {
 		b.clients.ForEach(func(clt *clientv3.Client) {
 			if err := clt.Close(); err != nil {
-				b.Entry.WithError(err).Warning("Failed closing existing etcd client on reconnect.")
+				b.logger.WarnContext(ctx, "Failed closing existing etcd client on reconnect.", "error", err)
 			}
 		})
 
@@ -510,7 +509,7 @@ WatchEvents:
 	for b.ctx.Err() == nil {
 		err = b.watchEvents(b.ctx)
 
-		b.Debugf("Watch exited: %v", err)
+		b.logger.DebugContext(b.ctx, "Watch exited", "error", err)
 
 		// pause briefly to prevent excessive watcher creation attempts
 		select {
@@ -519,7 +518,7 @@ WatchEvents:
 			break WatchEvents
 		}
 	}
-	b.Debugf("Watch stopped: %v.", trace.NewAggregate(err, b.ctx.Err()))
+	b.logger.DebugContext(b.ctx, "Watch stopped", "error", trace.NewAggregate(err, b.ctx.Err()))
 }
 
 // eventResult is used to ferry the result of event processing
@@ -593,7 +592,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			select {
 			case r := <-q.Pop():
 				if r.err != nil {
-					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
+					b.logger.ErrorContext(ctx, "Failed to unmarshal event", "event", r.original, "error", r.err)
 					continue EmitEvents
 				}
 				b.buf.Emit(r.event)
@@ -628,7 +627,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 
 				// limit backlog warnings to once per minute to prevent log spam.
 				if now := time.Now(); now.After(lastBacklogWarning.Add(time.Minute)) {
-					b.Warnf("Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
+					b.logger.WarnContext(ctx, "Etcd event processing backlog; may result in excess memory usage and stale cluster state.")
 					lastBacklogWarning = now
 				}
 
@@ -651,7 +650,7 @@ func (b *EtcdBackend) NewWatcher(ctx context.Context, watch backend.Watch) (back
 }
 
 // GetRange returns query range
-func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -797,7 +796,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -878,7 +877,7 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 }
 
 // Get returns a single item or not found error
-func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *EtcdBackend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	re, err := b.clients.Next().Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
@@ -899,7 +898,7 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 }
 
 // Delete deletes item by key
-func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
+func (b *EtcdBackend) Delete(ctx context.Context, key backend.Key) error {
 	start := b.clock.Now()
 	re, err := b.clients.Next().Delete(ctx, b.prependPrefix(key))
 	writeLatencies.Observe(time.Since(start).Seconds())
@@ -915,7 +914,7 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 }
 
 // ConditionalDelete deletes the item if it hasn't been modified.
-func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev string) error {
+func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix backend.Key, rev string) error {
 	r, err := fromBackendRevision(rev)
 	if err != nil {
 		return trace.Wrap(backend.ErrIncorrectRevision)
@@ -940,7 +939,7 @@ func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev 
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -1107,10 +1106,10 @@ func fromType(eventType mvccpb.Event_EventType) types.OpType {
 	}
 }
 
-func (b *EtcdBackend) trimPrefix(in []byte) []byte {
-	return bytes.TrimPrefix(in, []byte(b.cfg.Key))
+func (b *EtcdBackend) trimPrefix(in backend.Key) backend.Key {
+	return in.TrimPrefix(backend.Key(b.cfg.Key))
 }
 
-func (b *EtcdBackend) prependPrefix(in []byte) string {
+func (b *EtcdBackend) prependPrefix(in backend.Key) string {
 	return b.cfg.Key + string(in)
 }

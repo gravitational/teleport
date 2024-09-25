@@ -25,9 +25,9 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/iam/iamiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -390,15 +390,8 @@ type Policies interface {
 	// Upsert creates a new Policy or creates a Policy version if a policy with
 	// the same name already exists.
 	Upsert(ctx context.Context, policy *Policy) (arn string, err error)
-	// Retrieve retrieves a policy and its versions. If the tags list is
-	// present, the Policy should have all of them, otherwise an error is
-	// returned.
-	Retrieve(ctx context.Context, arn string, tags map[string]string) (policy *iam.Policy, policyVersions []*iam.PolicyVersion, err error)
 	// Attach attaches a policy with `arn` to the provided `identity`.
 	Attach(ctx context.Context, arn string, identity Identity) error
-	// AttachBoundary attaches a policy boundary with `arn` to the provided
-	// `identity`.
-	AttachBoundary(ctx context.Context, arn string, identity Identity) error
 }
 
 // policies default implementation of the policies functions.
@@ -407,13 +400,26 @@ type policies struct {
 	partitionID string
 	// accountID current AWS account ID.
 	accountID string
-	// iamClient already initialized IAM client.
-	iamClient iamiface.IAMAPI
+	// iamClient is an already initialized IAM client.
+	iamClient IAMClient
 }
+
+// IAMClient describes the methods required to manage AWS IAM policies.
+type IAMClient interface {
+	AttachRolePolicy(ctx context.Context, params *iam.AttachRolePolicyInput, optFns ...func(*iam.Options)) (*iam.AttachRolePolicyOutput, error)
+	AttachUserPolicy(ctx context.Context, params *iam.AttachUserPolicyInput, optFns ...func(*iam.Options)) (*iam.AttachUserPolicyOutput, error)
+	CreatePolicy(ctx context.Context, params *iam.CreatePolicyInput, optFns ...func(*iam.Options)) (*iam.CreatePolicyOutput, error)
+	CreatePolicyVersion(ctx context.Context, params *iam.CreatePolicyVersionInput, optFns ...func(*iam.Options)) (*iam.CreatePolicyVersionOutput, error)
+	DeletePolicyVersion(ctx context.Context, params *iam.DeletePolicyVersionInput, optFns ...func(*iam.Options)) (*iam.DeletePolicyVersionOutput, error)
+	GetPolicy(ctx context.Context, params *iam.GetPolicyInput, optFns ...func(*iam.Options)) (*iam.GetPolicyOutput, error)
+	ListPolicyVersions(ctx context.Context, params *iam.ListPolicyVersionsInput, optFns ...func(*iam.Options)) (*iam.ListPolicyVersionsOutput, error)
+}
+
+var _ IAMClient = (*iam.Client)(nil)
 
 // NewPolicies creates new instance of Policies using the provided
 // identity, partitionID and IAM client.
-func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI) Policies {
+func NewPolicies(partitionID string, accountID string, iamClient IAMClient) *policies {
 	return &policies{
 		partitionID: partitionID,
 		accountID:   accountID,
@@ -441,99 +447,55 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 	}
 
 	// Retrieve policy versions.
-	_, versions, err := p.Retrieve(ctx, policyARN, policy.Tags)
+	versions, err := p.getPolicyVersions(ctx, policyARN, policy.Tags)
 	if err != nil && !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
 
-	// Convert tags into IAM policy tags.
-	policyTags := make([]*iam.Tag, 0, len(policy.Tags))
-	for key, value := range policy.Tags {
-		policyTags = append(policyTags, &iam.Tag{Key: aws.String(key), Value: aws.String(value)})
-	}
-
 	// If no versions were found, we need to create a new policy.
 	if trace.IsNotFound(err) {
-		resp, err := p.iamClient.CreatePolicyWithContext(ctx, &iam.CreatePolicyInput{
-			PolicyName:     aws.String(policy.Name),
-			Description:    aws.String(policy.Description),
-			PolicyDocument: aws.String(string(encodedPolicyDocument)),
-			Tags:           policyTags,
-		})
+		policyARN, err := p.createPolicy(ctx, policy, encodedPolicyDocument)
 		if err != nil {
-			return "", trace.Wrap(ConvertIAMError(err))
+			return "", trace.Wrap(err)
 		}
 
-		log.Debugf("Created new policy %q with ARN %q", policy.Name, aws.StringValue(resp.Policy.Arn))
-		return aws.StringValue(resp.Policy.Arn), nil
+		log.Debugf("Created new policy %q with ARN %q", policy.Name, policyARN)
+		return policyARN, nil
 	}
 
 	// Check number of policy versions and delete one if necessary.
 	if len(versions) == maxPolicyVersions {
 		// Sort versions based on create date.
 		sort.Slice(versions, func(i, j int) bool {
-			return versions[i].CreateDate.Before(aws.TimeValue(versions[j].CreateDate))
+			return versions[i].CreateDate.Before(aws.ToTime(versions[j].CreateDate))
 		})
 
 		// Find the first version that is not default.
 		var policyVersionID string
 		for _, policyVersion := range versions {
-			if !aws.BoolValue(policyVersion.IsDefaultVersion) {
-				policyVersionID = *policyVersion.VersionId
+			if !policyVersion.IsDefaultVersion {
+				policyVersionID = aws.ToString(policyVersion.VersionId)
 				break
 			}
 		}
 
 		// Delete first non-default version.
-		_, err := p.iamClient.DeletePolicyVersionWithContext(ctx, &iam.DeletePolicyVersionInput{
-			PolicyArn: aws.String(policyARN),
-			VersionId: aws.String(policyVersionID),
-		})
+		err = p.deletePolicyVersion(ctx, policyARN, policyVersionID)
 		if err != nil {
-			return "", trace.Wrap(ConvertIAMError(err))
+			return "", trace.Wrap(err)
 		}
 
 		log.Debugf("Max policy versions reached for policy %q, deleted policy version %q", policyARN, policyVersionID)
 	}
 
 	// Create new policy version.
-	createPolicyResp, err := p.iamClient.CreatePolicyVersionWithContext(ctx, &iam.CreatePolicyVersionInput{
-		PolicyArn:      aws.String(policyARN),
-		PolicyDocument: aws.String(string(encodedPolicyDocument)),
-		SetAsDefault:   aws.Bool(true),
-	})
+	versionID, err := p.createPolicyVersion(ctx, policyARN, encodedPolicyDocument)
 	if err != nil {
-		return "", trace.Wrap(ConvertIAMError(err))
+		return "", trace.Wrap(err)
 	}
 
-	log.Debugf("Created new policy version %q for %q", aws.StringValue(createPolicyResp.PolicyVersion.VersionId), policyARN)
+	log.Debugf("Created new policy version %q for %q", versionID, policyARN)
 	return policyARN, nil
-}
-
-// Retrieve retrieves a policy and its versions. If the tags list is present,
-// the Policy should have all of them, otherwise an error is returned.
-//
-// Requires the following AWS permissions to be performed:
-// * `iam:GetPolicy`: wildcard ("*") or the policy to be retrieved;
-// * `iam.ListPolicyVersions`: wildcard ("*") or the policy to be retrieved;
-func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]string) (*iam.Policy, []*iam.PolicyVersion, error) {
-	getPolicyResp, err := p.iamClient.GetPolicyWithContext(ctx, &iam.GetPolicyInput{PolicyArn: aws.String(arn)})
-	if err != nil {
-		return nil, nil, trace.Wrap(ConvertIAMError(err))
-	}
-
-	for tagName, tagValue := range tags {
-		if !matchTag(getPolicyResp.Policy.Tags, tagName, tagValue) {
-			return nil, nil, trace.AlreadyExists("policy %q doesn't have the tag %s=%q", arn, tagName, tagValue)
-		}
-	}
-
-	resp, err := p.iamClient.ListPolicyVersionsWithContext(ctx, &iam.ListPolicyVersionsInput{PolicyArn: aws.String(arn)})
-	if err != nil {
-		return nil, nil, trace.Wrap(ConvertIAMError(err))
-	}
-
-	return getPolicyResp.Policy, resp.Versions, nil
 }
 
 // Attach attaches a policy with `arn` to the provided `identity`.
@@ -546,20 +508,12 @@ func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]str
 func (p *policies) Attach(ctx context.Context, arn string, identity Identity) error {
 	switch identity.(type) {
 	case User, *User:
-		_, err := p.iamClient.AttachUserPolicyWithContext(ctx, &iam.AttachUserPolicyInput{
-			PolicyArn: aws.String(arn),
-			UserName:  aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+		if err := p.attachUserPolicy(ctx, arn, identity); err != nil {
+			return trace.Wrap(err)
 		}
 	case Role, *Role:
-		_, err := p.iamClient.AttachRolePolicyWithContext(ctx, &iam.AttachRolePolicyInput{
-			PolicyArn: aws.String(arn),
-			RoleName:  aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
+		if err := p.attachRolePolicy(ctx, arn, identity); err != nil {
+			return trace.Wrap(err)
 		}
 	default:
 		return trace.BadParameter("policies can be attached to users and roles, received %q.", identity.GetType())
@@ -568,43 +522,10 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 	return nil
 }
 
-// AttachBoundary attaches a policy boundary with `arn` to the provided
-// `identity`.
-//
-// Only `User` and `Role` identities supported.
-//
-// Requires the following AWS permissions to be performed:
-// * `iam:PutUserPermissionsBoundary`: wildcard ("*") or provided user identity;
-// * `iam:PutRolePermissionsBoundary`: wildcard ("*") or provided role identity;
-func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Identity) error {
-	switch identity.(type) {
-	case User, *User:
-		_, err := p.iamClient.PutUserPermissionsBoundaryWithContext(ctx, &iam.PutUserPermissionsBoundaryInput{
-			PermissionsBoundary: aws.String(arn),
-			UserName:            aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
-		}
-	case Role, *Role:
-		_, err := p.iamClient.PutRolePermissionsBoundaryWithContext(ctx, &iam.PutRolePermissionsBoundaryInput{
-			PermissionsBoundary: aws.String(arn),
-			RoleName:            aws.String(identity.GetName()),
-		})
-		if err != nil {
-			return trace.Wrap(ConvertIAMError(err))
-		}
-	default:
-		return trace.BadParameter("boundary policies can be attached to users and roles, received %q.", identity.GetType())
-	}
-
-	return nil
-}
-
 // matchTag checks if tag name and value are present on the policy tags list.
-func matchTag(policyTags []*iam.Tag, name, value string) bool {
+func matchTag(policyTags []iamtypes.Tag, name, value string) bool {
 	for _, policyTag := range policyTags {
-		if *policyTag.Key == name && *policyTag.Value == value {
+		if aws.ToString(policyTag.Key) == name && aws.ToString(policyTag.Value) == value {
 			return true
 		}
 	}
@@ -623,3 +544,95 @@ const (
 	// Ref: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_managed-versioning.html#version-limits
 	maxPolicyVersions = 5
 )
+
+// CreatePolicy creates an IAM policy in AWS.
+func (p *policies) createPolicy(ctx context.Context, policy *Policy, docJSON []byte) (string, error) {
+	// Convert tags into IAM policy tags.
+	policyTags := make([]iamtypes.Tag, 0, len(policy.Tags))
+	for key, value := range policy.Tags {
+		policyTags = append(policyTags, iamtypes.Tag{
+			Key: aws.String(key), Value: aws.String(value),
+		})
+	}
+
+	resp, err := p.iamClient.CreatePolicy(ctx, &iam.CreatePolicyInput{
+		PolicyName:     aws.String(policy.Name),
+		Description:    aws.String(policy.Description),
+		PolicyDocument: aws.String(string(docJSON)),
+		Tags:           policyTags,
+	})
+	if err != nil {
+		return "", trace.Wrap(ConvertIAMv2Error(err))
+	}
+
+	return aws.ToString(resp.Policy.Arn), nil
+}
+
+func (p *policies) deletePolicyVersion(ctx context.Context, policyARN, policyVersionID string) error {
+	// Delete first non-default version.
+	_, err := p.iamClient.DeletePolicyVersion(ctx, &iam.DeletePolicyVersionInput{
+		PolicyArn: aws.String(policyARN),
+		VersionId: aws.String(policyVersionID),
+	})
+	return trace.Wrap(ConvertIAMv2Error(err))
+}
+
+func (p *policies) createPolicyVersion(ctx context.Context, policyARN string, docJSON []byte) (string, error) {
+	createPolicyResp, err := p.iamClient.CreatePolicyVersion(ctx, &iam.CreatePolicyVersionInput{
+		PolicyArn:      aws.String(policyARN),
+		PolicyDocument: aws.String(string(docJSON)),
+		SetAsDefault:   true,
+	})
+	if err != nil {
+		return "", trace.Wrap(ConvertIAMv2Error(err))
+	}
+	return aws.ToString(createPolicyResp.PolicyVersion.VersionId), nil
+}
+
+// getPolicyVersions retrieves policy versions. If the tags list is present,
+// the policy should have all of them, otherwise an error is returned.
+//
+// Requires the following AWS permissions to be performed:
+// * `iam:GetPolicy`: wildcard ("*") or the policy to be retrieved;
+// * `iam.ListPolicyVersions`: wildcard ("*") or the policy to be retrieved;
+func (p *policies) getPolicyVersions(ctx context.Context, policyARN string, tags map[string]string) ([]iamtypes.PolicyVersion, error) {
+	getPolicyResp, err := p.iamClient.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyARN})
+	if err != nil {
+		return nil, trace.Wrap(ConvertIAMv2Error(err))
+	}
+
+	for tagName, tagValue := range tags {
+		if !matchTag(getPolicyResp.Policy.Tags, tagName, tagValue) {
+			return nil, trace.AlreadyExists("policy %q doesn't have the tag %s=%q", policyARN, tagName, tagValue)
+		}
+	}
+
+	resp, err := p.iamClient.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyARN})
+	if err != nil {
+		return nil, trace.Wrap(ConvertIAMv2Error(err))
+	}
+
+	return resp.Versions, nil
+}
+
+func (p *policies) attachUserPolicy(ctx context.Context, policyARN string, identity Identity) error {
+	_, err := p.iamClient.AttachUserPolicy(ctx, &iam.AttachUserPolicyInput{
+		PolicyArn: aws.String(policyARN),
+		UserName:  aws.String(identity.GetName()),
+	})
+	if err != nil {
+		return trace.Wrap(ConvertIAMv2Error(err))
+	}
+	return nil
+}
+
+func (p *policies) attachRolePolicy(ctx context.Context, policyARN string, identity Identity) error {
+	_, err := p.iamClient.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
+		PolicyArn: aws.String(policyARN),
+		RoleName:  aws.String(identity.GetName()),
+	})
+	if err != nil {
+		return trace.Wrap(ConvertIAMv2Error(err))
+	}
+	return nil
+}

@@ -263,6 +263,7 @@ export const resourceIconSpecs = {
   weavegitops: forAllThemes(i.weavegitops),
 
   windows: { dark: i.windowsDark, light: i.windowsLight },
+  wiz: { dark: i.wizDark, light: i.wizLight },
   workshop: { dark: i.workshopDark, light: i.workshopLight },
 
   youtube: forAllThemes(i.youtube),

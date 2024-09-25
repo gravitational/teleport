@@ -27,7 +27,35 @@ export default {
 export function List() {
   return (
     <BannerList
-      banners={[{ id: 'ban1', severity: 'info', message: 'This is fine.' }]}
+      banners={[
+        { id: 'ban1', severity: 'info', message: 'This is fine.' },
+        {
+          id: 'ban2',
+          severity: 'warning',
+          message: 'Click this, or else',
+          linkText: 'Click Me',
+          linkDestination: 'https://goteleport.com/',
+        },
+        {
+          id: 'ban3',
+          severity: 'danger',
+          message: 'External link',
+          linkText: 'Click Me',
+          linkDestination: 'https://example.com/',
+        },
+        {
+          id: 'ban4',
+          severity: 'danger',
+          message: 'Default link text',
+          linkDestination: 'https://goteleport.com/',
+        },
+        {
+          id: 'ban5',
+          severity: 'danger',
+          message: 'External link, default link text',
+          linkDestination: 'https://google.com/',
+        },
+      ]}
     />
   );
 }

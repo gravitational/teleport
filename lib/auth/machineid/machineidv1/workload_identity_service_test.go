@@ -38,7 +38,7 @@ import (
 // real gRPC client/server.
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})

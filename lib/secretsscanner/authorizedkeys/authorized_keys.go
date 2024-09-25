@@ -210,7 +210,10 @@ func (w *Watcher) start(ctx context.Context) error {
 		}
 
 		if !timer.Stop() {
-			<-timer.Chan()
+			select {
+			case <-timer.Chan():
+			default:
+			}
 		}
 		timer.Reset(jitterFunc(maxReSendInterval))
 

@@ -264,7 +264,7 @@ func (f *fakeAWSKMSService) CreateKey(input *kms.CreateKeyInput) (*kms.CreateKey
 	var privKeyPEM []byte
 	switch aws.StringValue(input.KeySpec) {
 	case kms.KeySpecRsa2048:
-		privKeyPEM = testRSAPrivateKeyPEM
+		privKeyPEM = testRSA2048PrivateKeyPEM
 	case kms.KeySpecEccNistP256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {

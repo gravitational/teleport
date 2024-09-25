@@ -412,8 +412,7 @@ type GenerateAWSOIDCTokenRequest struct {
 	// Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
 	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
 	// Integration is the AWS OIDC Integration name.
-	// If not provided, it will use the Teleport's Proxy Public URL as issuer.
-	// Optional.
+	// Required.
 	Integration string `protobuf:"bytes,2,opt,name=integration,proto3" json:"integration,omitempty"`
 }
 

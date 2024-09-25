@@ -21,6 +21,10 @@ import { ResourceIdKind } from 'teleport/services/agents';
 /** Available request kinds for resource-based and role-based access requests. */
 export type ResourceKind = ResourceIdKind | 'role' | 'resource';
 
+/**
+ * Maps a resource ID (usually agent name) to resource description (usually the
+ * same, but not necessarily).
+ */
 export type ResourceMap = {
   [K in ResourceIdKind | 'role']: Record<string, string>;
 };

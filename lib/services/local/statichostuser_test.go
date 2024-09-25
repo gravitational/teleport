@@ -34,7 +34,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -265,10 +266,19 @@ func getStaticHostUserService(t *testing.T) services.StaticHostUser {
 func getStaticHostUser(index int) *userprovisioningpb.StaticHostUser {
 	name := fmt.Sprintf("obj%v", index)
 	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
-		Login:  "alice",
-		Groups: []string{"foo", "bar"},
-		Uid:    "1234",
-		Gid:    "1234",
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
+				},
+				Groups: []string{"foo", "bar"},
+				Uid:    1234,
+				Gid:    5678,
+			},
+		},
 	})
 }
 

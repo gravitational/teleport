@@ -48,6 +48,11 @@ type SPIFFEFederations interface {
 	) (*machineidv1.SPIFFEFederation, error)
 	// DeleteSPIFFEFederation deletes a SPIFFE Federation by name.
 	DeleteSPIFFEFederation(ctx context.Context, name string) error
+	// UpdateSPIFFEFederation updates a SPIFFE Federation. It will not act if the resource is not found
+	// or where the revision does not match.
+	UpdateSPIFFEFederation(
+		ctx context.Context, spiffeFederation *machineidv1.SPIFFEFederation,
+	) (*machineidv1.SPIFFEFederation, error)
 }
 
 // MarshalSPIFFEFederation marshals the SPIFFEFederation object into a JSON byte
@@ -122,6 +127,17 @@ func ValidateSPIFFEFederation(s *machineidv1.SPIFFEFederation) error {
 		if err != nil {
 			return trace.Wrap(err, "validating spec.bundle_source.https_web.bundle_endpoint_url")
 		}
+	}
+
+	// Ensure that all key status fields are set if any are set. This is a safeguard against weird inconsistent states
+	// where some fields are set and others are not.
+	currentBundleSet := s.Status.GetCurrentBundle() != ""
+	currentBundledSyncedAtSet := s.Status.GetCurrentBundleSyncedAt() != nil
+	currentBundleSyncedFromSet := s.Status.GetCurrentBundleSyncedFrom() != nil
+	anyStatusFieldSet := currentBundleSet || currentBundledSyncedAtSet || currentBundleSyncedFromSet
+	allStatusFieldsSet := currentBundleSet && currentBundledSyncedAtSet && currentBundleSyncedFromSet
+	if anyStatusFieldSet && !allStatusFieldsSet {
+		return trace.BadParameter("status: all of ['current_bundle', 'current_bundle_synced_at', 'current_bundle_synced_from'] must be set if any are set")
 	}
 
 	return nil

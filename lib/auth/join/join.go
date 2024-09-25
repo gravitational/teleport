@@ -18,6 +18,7 @@ package join
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"log/slog"
 	"os"
@@ -27,14 +28,17 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -42,11 +46,13 @@ import (
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/cloud/imds/azure"
 	"github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/spacelift"
+	"github.com/gravitational/teleport/lib/terraformcloud"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -83,10 +89,6 @@ type RegisterParams struct {
 	AdditionalPrincipals []string
 	// DNSNames is a list of DNS names to add to x509 certificate
 	DNSNames []string
-	// PublicTLSKey is a server's public key to sign
-	PublicTLSKey []byte
-	// PublicSSHKey is a server's public SSH key to sign
-	PublicSSHKey []byte
 	// CipherSuites is a list of cipher suites to use for TLS client connection
 	// Ignored if AuthClient is provided.
 	CipherSuites []uint16
@@ -134,6 +136,10 @@ type RegisterParams struct {
 	// KubernetesReadFileFunc is a function used to read the Kubernetes token
 	// from disk. Used in tests, and set to `os.ReadFile` if unset.
 	KubernetesReadFileFunc func(name string) ([]byte, error)
+	// TerraformCloudAudienceTag is a tag name for the environment variable
+	// containing TF Cloud's Workload Identity Token when using Terraform Cloud
+	// joining.
+	TerraformCloudAudienceTag string
 }
 
 func (r *RegisterParams) checkAndSetDefaults() error {
@@ -172,11 +178,22 @@ func (r *RegisterParams) verifyAuthOrProxyAddress() error {
 	return nil
 }
 
-// Register is used to generate host keys when a node or proxy are running on
-// different hosts than the auth server. This method requires provisioning
-// tokens to prove a valid auth server was used to issue the joining request
-// as well as a method for the node to validate the auth server.
-func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, err error) {
+// RegisterResult contains the certificates and the private key generated during
+// the registration process.
+type RegisterResult struct {
+	// Certs holds the certificates issued and signed by the Auth server.
+	Certs *proto.Certs
+	// PrivateKey is the subject key of the certificates in [Certs]. It is
+	// generated according to the current signature algorithm suite configured
+	// in the cluster.
+	PrivateKey crypto.Signer
+}
+
+// Register is used to get signed certificates when a node, proxy, or bot is
+// running on a different host than the auth server. This method requires a
+// provision token that will be used to authenticate as an identity that should
+// be allowed to join the cluster.
+func Register(ctx context.Context, params RegisterParams) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "Register")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -234,23 +251,28 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case types.JoinMethodTerraformCloud:
+		params.IDToken, err = terraformcloud.NewIDTokenSource(params.TerraformCloudAudienceTag, os.Getenv).GetIDToken()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
 		log.Info("Attempting registration with existing auth client.")
-		certs, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
+		result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
 		if err != nil {
 			log.WithError(err).Error("Registration with existing auth client failed.")
 			return nil, trace.Wrap(err)
 		}
 		log.Info("Successfully registered with existing auth client.")
-		return certs, nil
+		return result, nil
 	}
 
 	type registerMethod struct {
-		call func(ctx context.Context, token string, params RegisterParams) (*proto.Certs, error)
+		call func(ctx context.Context, token string, params RegisterParams) (*RegisterResult, error)
 		desc string
 	}
 
@@ -282,14 +304,14 @@ func Register(ctx context.Context, params RegisterParams) (certs *proto.Certs, e
 	var collectedErrs []error
 	for _, method := range registerMethods {
 		log.Infof("Attempting registration %s.", method.desc)
-		certs, err := method.call(ctx, token, params)
+		result, err := method.call(ctx, token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
 			continue
 		}
 		log.Infof("Successfully registered %s.", method.desc)
-		return certs, nil
+		return result, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
@@ -316,17 +338,24 @@ func registerThroughProxy(
 	ctx context.Context,
 	token string,
 	params RegisterParams,
-) (certs *proto.Certs, err error) {
+) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughProxy")
 	defer func() { tracing.EndSpan(span, err) }()
 
+	proxyAddr := getHostAddresses(params)[0]
+	hostKeys, err := generateHostKeysForProxy(ctx, params.Insecure, proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var certs *proto.Certs
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure, types.JoinMethodTPM:
 		// IAM and Azure join methods require gRPC client
 		conn, err := proxyinsecureclient.NewConnection(
 			ctx,
 			proxyinsecureclient.ConnectionConfig{
-				ProxyServer:  getHostAddresses(params)[0],
+				ProxyServer:  proxyAddr,
 				CipherSuites: params.CipherSuites,
 				Clock:        params.Clock,
 				Insecure:     params.Insecure,
@@ -341,15 +370,14 @@ func registerThroughProxy(
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
 		switch params.JoinMethod {
 		case types.JoinMethodIAM:
-			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, params)
+			certs, err = registerUsingIAMMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodAzure:
-			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, params)
+			certs, err = registerUsingAzureMethod(ctx, joinServiceClient, token, hostKeys, params)
 		case types.JoinMethodTPM:
-			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, params)
+			certs, err = registerUsingTPMMethod(ctx, joinServiceClient, token, hostKeys, params)
 		default:
 			return nil, trace.BadParameter("unhandled join method %q", params.JoinMethod)
 		}
-
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -358,32 +386,23 @@ func registerThroughProxy(
 		// params to call proxy HTTP endpoint
 		var err error
 		certs, err = params.GetHostCredentials(ctx,
-			getHostAddresses(params)[0],
+			proxyAddr,
 			params.Insecure,
-			types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.ec2IdentityDocument,
-				IDToken:              params.IDToken,
-				Expires:              params.Expires,
-			})
+			*registerUsingTokenRequestForParams(token, hostKeys, params))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	return certs, nil
+	return &RegisterResult{
+		Certs:      certs,
+		PrivateKey: hostKeys.privateKey,
+	}, nil
 }
 
 // registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(
 	ctx context.Context, token string, params RegisterParams,
-) (certs *proto.Certs, err error) {
+) (result *RegisterResult, err error) {
 	ctx, span := tracer.Start(ctx, "registerThroughAuth")
 	defer func() { tracing.EndSpan(span, err) }()
 
@@ -411,11 +430,8 @@ func registerThroughAuth(
 	}
 	defer client.Close()
 
-	certs, err = registerThroughAuthClient(ctx, token, params, client)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return certs, nil
+	result, err = registerThroughAuthClient(ctx, token, params, client)
+	return result, trace.Wrap(err)
 }
 
 // AuthJoinClient is a client that allows access to the Auth Servers join
@@ -423,6 +439,7 @@ func registerThroughAuth(
 type AuthJoinClient interface {
 	joinServiceClient
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }
 
 func registerThroughAuthClient(
@@ -430,35 +447,33 @@ func registerThroughAuthClient(
 	token string,
 	params RegisterParams,
 	client AuthJoinClient,
-) (certs *proto.Certs, err error) {
+) (result *RegisterResult, err error) {
+	hostKeys, err := generateHostKeysForAuth(ctx, client)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var certs *proto.Certs
 	switch params.JoinMethod {
 	// IAM and Azure methods use unique gRPC endpoints
 	case types.JoinMethodIAM:
-		certs, err = registerUsingIAMMethod(ctx, client, token, params)
+		certs, err = registerUsingIAMMethod(ctx, client, token, hostKeys, params)
 	case types.JoinMethodAzure:
-		certs, err = registerUsingAzureMethod(ctx, client, token, params)
+		certs, err = registerUsingAzureMethod(ctx, client, token, hostKeys, params)
 	case types.JoinMethodTPM:
-		certs, err = registerUsingTPMMethod(ctx, client, token, params)
+		certs, err = registerUsingTPMMethod(ctx, client, token, hostKeys, params)
 	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
-		certs, err = client.RegisterUsingToken(
-			ctx,
-			&types.RegisterUsingTokenRequest{
-				Token:                token,
-				HostID:               params.ID.HostUUID,
-				NodeName:             params.ID.NodeName,
-				Role:                 params.ID.Role,
-				AdditionalPrincipals: params.AdditionalPrincipals,
-				DNSNames:             params.DNSNames,
-				PublicTLSKey:         params.PublicTLSKey,
-				PublicSSHKey:         params.PublicSSHKey,
-				EC2IdentityDocument:  params.ec2IdentityDocument,
-				IDToken:              params.IDToken,
-				Expires:              params.Expires,
-			})
+		certs, err = client.RegisterUsingToken(ctx, registerUsingTokenRequestForParams(token, hostKeys, params))
 	}
-	return certs, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &RegisterResult{
+		Certs:      certs,
+		PrivateKey: hostKeys.privateKey,
+	}, nil
 }
 
 func getHostAddresses(params RegisterParams) []string {
@@ -623,7 +638,7 @@ type joinServiceClient interface {
 	) (*proto.Certs, error)
 }
 
-func registerUsingTokenRequestForParams(token string, params RegisterParams) *types.RegisterUsingTokenRequest {
+func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
 	return &types.RegisterUsingTokenRequest{
 		Token:                token,
 		HostID:               params.ID.HostUUID,
@@ -631,8 +646,10 @@ func registerUsingTokenRequestForParams(token string, params RegisterParams) *ty
 		Role:                 params.ID.Role,
 		AdditionalPrincipals: params.AdditionalPrincipals,
 		DNSNames:             params.DNSNames,
-		PublicTLSKey:         params.PublicTLSKey,
-		PublicSSHKey:         params.PublicSSHKey,
+		PublicTLSKey:         hostKeys.tlsPub,
+		PublicSSHKey:         hostKeys.sshPub,
+		EC2IdentityDocument:  params.ec2IdentityDocument,
+		IDToken:              params.IDToken,
 		Expires:              params.Expires,
 	}
 }
@@ -640,7 +657,7 @@ func registerUsingTokenRequestForParams(token string, params RegisterParams) *ty
 // registerUsingIAMMethod is used to register using the IAM join method. It is
 // able to register through a proxy or through the auth server directly.
 func registerUsingIAMMethod(
-	ctx context.Context, joinServiceClient joinServiceClient, token string, params RegisterParams,
+	ctx context.Context, joinServiceClient joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
 	log.Infof("Attempting to register %s with IAM method using regional STS endpoint", params.ID.Role)
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
@@ -656,7 +673,7 @@ func registerUsingIAMMethod(
 
 		// send the register request including the challenge response
 		return &proto.RegisterUsingIAMMethodRequest{
-			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 			StsIdentityRequest:        signedRequest,
 		}, nil
 	})
@@ -672,7 +689,7 @@ func registerUsingIAMMethod(
 // registerUsingAzureMethod is used to register using the Azure join method. It
 // is able to register through a proxy or through the auth server directly.
 func registerUsingAzureMethod(
-	ctx context.Context, client joinServiceClient, token string, params RegisterParams,
+	ctx context.Context, client joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
 	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
 		imds := azure.NewInstanceMetadataClient()
@@ -689,7 +706,7 @@ func registerUsingAzureMethod(
 		}
 
 		return &proto.RegisterUsingAzureMethodRequest{
-			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, params),
+			RegisterUsingTokenRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 			AttestedData:              ad,
 			AccessToken:               accessToken,
 		}, nil
@@ -703,12 +720,13 @@ func registerUsingTPMMethod(
 	ctx context.Context,
 	client joinServiceClient,
 	token string,
+	hostKeys *newHostKeys,
 	params RegisterParams,
 ) (*proto.Certs, error) {
 	log := slog.Default()
 
 	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
-		JoinRequest: registerUsingTokenRequestForParams(token, params),
+		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
 	}
 
 	attestation, close, err := tpm.Attest(ctx, log)
@@ -784,4 +802,56 @@ func readCA(path string) (*x509.Certificate, error) {
 		return nil, trace.Wrap(err, "failed to parse certificate at %v", path)
 	}
 	return cert, nil
+}
+
+type newHostKeys struct {
+	privateKey crypto.Signer
+	sshPub     []byte
+	tlsPub     []byte
+}
+
+func generateHostKeysForProxy(ctx context.Context, insecure bool, proxyAddr string) (*newHostKeys, error) {
+	getSuite := func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		pr, err := webclient.Find(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: proxyAddr,
+			Insecure:  insecure,
+		})
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging proxy to determine signature algorithm suite")
+		}
+		return pr.Auth.SignatureAlgorithmSuite, nil
+	}
+	return generateHostKeys(ctx, getSuite)
+}
+
+func generateHostKeysForAuth(ctx context.Context, authClient AuthJoinClient) (*newHostKeys, error) {
+	getSuite := func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		pr, err := authClient.Ping(ctx)
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging auth to determine signature algorithm suite")
+		}
+		return pr.SignatureAlgorithmSuite, nil
+	}
+	return generateHostKeys(ctx, getSuite)
+}
+
+func generateHostKeys(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (*newHostKeys, error) {
+	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.HostIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &newHostKeys{
+		privateKey: key,
+		sshPub:     ssh.MarshalAuthorizedKey(sshPub),
+		tlsPub:     tlsPub,
+	}, nil
 }

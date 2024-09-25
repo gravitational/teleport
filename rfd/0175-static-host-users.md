@@ -170,7 +170,7 @@ to true in their config) will ignore `static_host_user`s entirely.
 
 ### Audit events
 
-The `session.start` audit event will be extened to include a flag
+The `session.start` audit event will be extend to include a flag
 indicating whether or not the host user for an SSH session was
 created by Teleport (for both static and non-static host users).
 

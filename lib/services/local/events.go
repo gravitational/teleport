@@ -19,9 +19,7 @@
 package local
 
 import (
-	"bytes"
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -30,11 +28,13 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
@@ -66,7 +66,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser
-	var prefixes [][]byte
+	var prefixes []backend.Key
 	for _, kind := range watch.Kinds {
 		if kind.Name != "" && kind.Kind != types.KindNamespace {
 			if watch.AllowPartialSuccess {
@@ -94,6 +94,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
+		case types.KindAutoUpdateConfig:
+			parser = newAutoUpdateConfigParser()
+		case types.KindAutoUpdateVersion:
+			parser = newAutoUpdateVersionParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -179,6 +183,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindUserTask:
+			parser = newUserTaskParser()
 		case types.KindDiscoveryConfig:
 			parser = newDiscoveryConfigParser()
 		case types.KindHeadlessAuthentication:
@@ -226,6 +232,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSettingsParser()
 		case types.KindSPIFFEFederation:
 			parser = newSPIFFEFederationParser()
+		case types.KindStaticHostUser:
+			parser = newStaticHostUserParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -246,7 +254,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if origNumPrefixes != redundantNumPrefixes {
 		// If you've hit this error, the prefixes in two or more of your parsers probably overlap, meaning
 		// one prefix will also contain another as a subset. Look into using backend.ExactKey instead of
-		// backend.Key in your parser.
+		// backend.NewKey in your parser.
 		return nil, trace.BadParameter("redundant prefixes detected in events, which will result in event parsers not aligning with their intended prefix (this is a bug)")
 	}
 
@@ -358,28 +366,28 @@ type resourceParser interface {
 	// parse parses resource from the backend event
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
-	match(key []byte) bool
+	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
-	prefixes() [][]byte
+	prefixes() []backend.Key
 }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
 type baseParser struct {
-	matchPrefixes [][]byte
+	matchPrefixes []backend.Key
 }
 
-func newBaseParser(prefixes ...[]byte) baseParser {
+func newBaseParser(prefixes ...backend.Key) baseParser {
 	return baseParser{matchPrefixes: prefixes}
 }
 
-func (p baseParser) prefixes() [][]byte {
+func (p baseParser) prefixes() []backend.Key {
 	return p.matchPrefixes
 }
 
-func (p baseParser) match(key []byte) bool {
+func (p baseParser) match(key backend.Key) bool {
 	for _, prefix := range p.matchPrefixes {
-		if bytes.HasPrefix(key, prefix) {
+		if key.HasPrefix(prefix) {
 			return true
 		}
 	}
@@ -391,7 +399,7 @@ func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAut
 	caFilter.FromMap(filter)
 	return &certAuthorityParser{
 		loadSecrets: loadSecrets,
-		baseParser:  newBaseParser(backend.Key(authoritiesPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(authoritiesPrefix)),
 		filter:      caFilter,
 	}
 }
@@ -438,7 +446,7 @@ func (p *certAuthorityParser) parse(event backend.Event) (types.Resource, error)
 
 func newProvisionTokenParser() *provisionTokenParser {
 	return &provisionTokenParser{
-		baseParser: newBaseParser(backend.Key(tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tokensPrefix)),
 	}
 }
 
@@ -466,7 +474,7 @@ func (p *provisionTokenParser) parse(event backend.Event) (types.Resource, error
 
 func newStaticTokensParser() *staticTokensParser {
 	return &staticTokensParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, staticTokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, staticTokensPrefix)),
 	}
 }
 
@@ -499,7 +507,7 @@ func (p *staticTokensParser) parse(event backend.Event) (types.Resource, error) 
 
 func newClusterAuditConfigParser() *clusterAuditConfigParser {
 	return &clusterAuditConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, auditPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, auditPrefix)),
 	}
 }
 
@@ -533,7 +541,7 @@ func (p *clusterAuditConfigParser) parse(event backend.Event) (types.Resource, e
 
 func newClusterNetworkingConfigParser() *clusterNetworkingConfigParser {
 	return &clusterNetworkingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, networkingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, networkingPrefix)),
 	}
 }
 
@@ -567,7 +575,7 @@ func (p *clusterNetworkingConfigParser) parse(event backend.Event) (types.Resour
 
 func newAuthPreferenceParser() *authPreferenceParser {
 	return &authPreferenceParser{
-		baseParser: newBaseParser(backend.Key(authPrefix, preferencePrefix, generalPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authPrefix, preferencePrefix, generalPrefix)),
 	}
 }
 
@@ -601,7 +609,7 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 
 func newUIConfigParser() *uiConfigParser {
 	return &uiConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, uiPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, uiPrefix)),
 	}
 }
 
@@ -635,7 +643,7 @@ func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
 	return &sessionRecordingConfigParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, sessionRecordingPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, sessionRecordingPrefix)),
 	}
 }
 
@@ -669,7 +677,7 @@ func (p *sessionRecordingConfigParser) parse(event backend.Event) (types.Resourc
 
 func newClusterNameParser() *clusterNameParser {
 	return &clusterNameParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, namePrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, namePrefix)),
 	}
 }
 
@@ -700,10 +708,76 @@ func (p *clusterNameParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newAutoUpdateConfigParser() *autoUpdateConfigParser {
+	return &autoUpdateConfigParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateConfigPrefix)),
+	}
+}
+
+type autoUpdateConfigParser struct {
+	baseParser
+}
+
+func (p *autoUpdateConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateConfig)
+		return h, nil
+	case types.OpPut:
+		autoUpdateConfig, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateConfig), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateVersionParser() *autoUpdateVersionParser {
+	return &autoUpdateVersionParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateVersionPrefix)),
+	}
+}
+
+type autoUpdateVersionParser struct {
+	baseParser
+}
+
+func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindAutoUpdateVersion, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameAutoUpdateVersion)
+		return h, nil
+	case types.OpPut:
+		autoUpdateVersion, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateVersion), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newNamespaceParser(name string) *namespaceParser {
-	prefix := backend.Key(namespacesPrefix)
+	prefix := backend.NewKey(namespacesPrefix)
 	if name != "" {
-		prefix = backend.Key(namespacesPrefix, name, paramsPrefix)
+		prefix = backend.NewKey(namespacesPrefix, name, paramsPrefix)
 	}
 	return &namespaceParser{
 		baseParser: newBaseParser(prefix),
@@ -714,12 +788,12 @@ type namespaceParser struct {
 	baseParser
 }
 
-func (p *namespaceParser) match(key []byte) bool {
+func (p *namespaceParser) match(key backend.Key) bool {
 	// namespaces are stored under key '/namespaces/<namespace-name>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 3
+		key.HasSuffix(backend.Key(paramsPrefix)) &&
+		len(key.Components()) == 3
 }
 
 func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
@@ -742,7 +816,7 @@ func (p *namespaceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newRoleParser() *roleParser {
 	return &roleParser{
-		baseParser: newBaseParser(backend.Key(rolesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(rolesPrefix)),
 	}
 }
 
@@ -775,26 +849,26 @@ func newAccessRequestParser(m map[string]string) (*accessRequestParser, error) {
 	}
 	return &accessRequestParser{
 		filter:      filter,
-		matchPrefix: backend.Key(accessRequestsPrefix),
-		matchSuffix: backend.Key(paramsPrefix),
+		matchPrefix: backend.NewKey(accessRequestsPrefix),
+		matchSuffix: backend.NewKey(paramsPrefix),
 	}, nil
 }
 
 type accessRequestParser struct {
 	filter      types.AccessRequestFilter
-	matchPrefix []byte
-	matchSuffix []byte
+	matchPrefix backend.Key
+	matchSuffix backend.Key
 }
 
-func (p *accessRequestParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *accessRequestParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *accessRequestParser) match(key []byte) bool {
-	if !bytes.HasPrefix(key, p.matchPrefix) {
+func (p *accessRequestParser) match(key backend.Key) bool {
+	if !key.HasPrefix(p.matchPrefix) {
 		return false
 	}
-	if !bytes.HasSuffix(key, p.matchSuffix) {
+	if !key.HasSuffix(p.matchSuffix) {
 		return false
 	}
 	return true
@@ -820,7 +894,7 @@ func (p *accessRequestParser) parse(event backend.Event) (types.Resource, error)
 
 func newUserParser() *userParser {
 	return &userParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, usersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, usersPrefix)),
 	}
 }
 
@@ -828,12 +902,12 @@ type userParser struct {
 	baseParser
 }
 
-func (p *userParser) match(key []byte) bool {
+func (p *userParser) match(key backend.Key) bool {
 	// users are stored under key '/web/users/<username>/params'
 	// and this code matches similar pattern
 	return p.baseParser.match(key) &&
-		bytes.HasSuffix(key, []byte(paramsPrefix)) &&
-		bytes.Count(key, []byte{backend.Separator}) == 4
+		key.HasSuffix(backend.Key(paramsPrefix)) &&
+		len(key.Components()) == 4
 }
 
 func (p *userParser) parse(event backend.Event) (types.Resource, error) {
@@ -856,7 +930,7 @@ func (p *userParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNodeParser() *nodeParser {
 	return &nodeParser{
-		baseParser: newBaseParser(backend.Key(nodesPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(nodesPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -870,7 +944,7 @@ func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 
 func newProxyParser() *proxyParser {
 	return &proxyParser{
-		baseParser: newBaseParser(backend.Key(proxiesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(proxiesPrefix)),
 	}
 }
 
@@ -884,7 +958,7 @@ func (p *proxyParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuthServerParser() *authServerParser {
 	return &authServerParser{
-		baseParser: newBaseParser(backend.Key(authServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authServersPrefix)),
 	}
 }
 
@@ -898,7 +972,7 @@ func (p *authServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newTunnelConnectionParser() *tunnelConnectionParser {
 	return &tunnelConnectionParser{
-		baseParser: newBaseParser(backend.Key(tunnelConnectionsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(tunnelConnectionsPrefix)),
 	}
 }
 
@@ -938,7 +1012,7 @@ func (p *tunnelConnectionParser) parse(event backend.Event) (types.Resource, err
 
 func newReverseTunnelParser() *reverseTunnelParser {
 	return &reverseTunnelParser{
-		baseParser: newBaseParser(backend.Key(reverseTunnelsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(reverseTunnelsPrefix)),
 	}
 }
 
@@ -966,7 +1040,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 
 func newAppServerV3Parser() *appServerV3Parser {
 	return &appServerV3Parser{
-		baseParser: newBaseParser(backend.Key(appServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(appServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -1002,7 +1076,7 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1014,7 +1088,7 @@ func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
 
 func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(snowflakePrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1026,7 +1100,7 @@ func newSnowflakeSessionParser(loadSecrets bool) *webSessionParser {
 
 func newAppSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(appsPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(appsPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1038,7 +1112,7 @@ func newAppSessionParser(loadSecrets bool) *webSessionParser {
 
 func newWebSessionParser(loadSecrets bool) *webSessionParser {
 	return &webSessionParser{
-		baseParser:  newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(webPrefix, sessionsPrefix)),
 		loadSecrets: loadSecrets,
 		hdr: types.ResourceHeader{
 			Kind:    types.KindWebSession,
@@ -1077,7 +1151,7 @@ func (p *webSessionParser) parse(event backend.Event) (types.Resource, error) {
 
 func newWebTokenParser() *webTokenParser {
 	return &webTokenParser{
-		baseParser: newBaseParser(backend.Key(webPrefix, tokensPrefix)),
+		baseParser: newBaseParser(backend.NewKey(webPrefix, tokensPrefix)),
 	}
 }
 
@@ -1105,7 +1179,7 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 
 func newKubeServerParser() *kubeServerParser {
 	return &kubeServerParser{
-		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeServersPrefix)),
 	}
 }
 
@@ -1142,7 +1216,7 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseServerParser() *databaseServerParser {
 	return &databaseServerParser{
-		baseParser: newBaseParser(backend.Key(dbServersPrefix, apidefaults.Namespace)),
+		baseParser: newBaseParser(backend.NewKey(dbServersPrefix, apidefaults.Namespace)),
 	}
 }
 
@@ -1179,7 +1253,7 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 
 func newDatabaseServiceParser() *databaseServiceParser {
 	return &databaseServiceParser{
-		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseServicePrefix)),
 	}
 }
 
@@ -1204,7 +1278,7 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 
 func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
 	}
 }
 
@@ -1228,7 +1302,7 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 
 func newCrownJewelParser() *crownJewelParser {
 	return &crownJewelParser{
-		baseParser: newBaseParser(backend.Key(crownJewelsKey)),
+		baseParser: newBaseParser(backend.NewKey(crownJewelsKey)),
 	}
 }
 
@@ -1256,7 +1330,7 @@ func (p *crownJewelParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAppParser() *appParser {
 	return &appParser{
-		baseParser: newBaseParser(backend.Key(appPrefix)),
+		baseParser: newBaseParser(backend.NewKey(appPrefix)),
 	}
 }
 
@@ -1280,7 +1354,7 @@ func (p *appParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseParser() *databaseParser {
 	return &databaseParser{
-		baseParser: newBaseParser(backend.Key(databasesPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databasesPrefix)),
 	}
 }
 
@@ -1304,7 +1378,7 @@ func (p *databaseParser) parse(event backend.Event) (types.Resource, error) {
 
 func newDatabaseObjectParser() *databaseObjectParser {
 	return &databaseObjectParser{
-		baseParser: newBaseParser(backend.Key(databaseObjectPrefix)),
+		baseParser: newBaseParser(backend.NewKey(databaseObjectPrefix)),
 	}
 }
 
@@ -1352,20 +1426,20 @@ func parseServer(event backend.Event, kind string) (types.Resource, error) {
 
 func newRemoteClusterParser() *remoteClusterParser {
 	return &remoteClusterParser{
-		matchPrefix: backend.Key(remoteClustersPrefix),
+		matchPrefix: backend.NewKey(remoteClustersPrefix),
 	}
 }
 
 type remoteClusterParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *remoteClusterParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *remoteClusterParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *remoteClusterParser) match(key []byte) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+func (p *remoteClusterParser) match(key backend.Key) bool {
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error) {
@@ -1388,7 +1462,7 @@ func (p *remoteClusterParser) parse(event backend.Event) (types.Resource, error)
 
 func newLockParser() *lockParser {
 	return &lockParser{
-		baseParser: newBaseParser(backend.Key(locksPrefix)),
+		baseParser: newBaseParser(backend.NewKey(locksPrefix)),
 	}
 }
 
@@ -1413,20 +1487,20 @@ func (p *lockParser) parse(event backend.Event) (types.Resource, error) {
 
 func newNetworkRestrictionsParser() *networkRestrictionsParser {
 	return &networkRestrictionsParser{
-		matchPrefix: backend.Key(restrictionsPrefix, network),
+		matchPrefix: backend.NewKey(restrictionsPrefix, network),
 	}
 }
 
 type networkRestrictionsParser struct {
-	matchPrefix []byte
+	matchPrefix backend.Key
 }
 
-func (p *networkRestrictionsParser) prefixes() [][]byte {
-	return [][]byte{p.matchPrefix}
+func (p *networkRestrictionsParser) prefixes() []backend.Key {
+	return []backend.Key{p.matchPrefix}
 }
 
-func (p *networkRestrictionsParser) match(key []byte) bool {
-	return bytes.HasPrefix(key, p.matchPrefix)
+func (p *networkRestrictionsParser) match(key backend.Key) bool {
+	return key.HasPrefix(p.matchPrefix)
 }
 
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
@@ -1449,7 +1523,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1474,7 +1548,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
+		baseParser: newBaseParser(backend.NewKey(windowsDesktopsPrefix, "")),
 	}
 }
 
@@ -1515,7 +1589,7 @@ type installerParser struct {
 
 func newInstallerParser() *installerParser {
 	return &installerParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
 	}
 }
 
@@ -1548,7 +1622,7 @@ type pluginParser struct {
 
 func newPluginParser(loadSecrets bool) *pluginParser {
 	return &pluginParser{
-		baseParser:  newBaseParser(backend.Key(pluginsPrefix)),
+		baseParser:  newBaseParser(backend.NewKey(pluginsPrefix)),
 		loadSecrets: loadSecrets,
 	}
 }
@@ -1577,7 +1651,7 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
 	return &samlIDPServiceProviderParser{
-		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
+		baseParser: newBaseParser(backend.NewKey(samlIDPServiceProviderPrefix)),
 	}
 }
 
@@ -1601,7 +1675,7 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 
 func newUserGroupParser() *userGroupParser {
 	return &userGroupParser{
-		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+		baseParser: newBaseParser(backend.NewKey(userGroupPrefix)),
 	}
 }
 
@@ -1625,7 +1699,7 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 
 func newOktaImportRuleParser() *oktaImportRuleParser {
 	return &oktaImportRuleParser{
-		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaImportRulePrefix)),
 	}
 }
 
@@ -1649,7 +1723,7 @@ func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error
 
 func newOktaAssignmentParser() *oktaAssignmentParser {
 	return &oktaAssignmentParser{
-		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+		baseParser: newBaseParser(backend.NewKey(oktaAssignmentPrefix)),
 	}
 }
 
@@ -1673,7 +1747,7 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 
 func newIntegrationParser() *integrationParser {
 	return &integrationParser{
-		baseParser: newBaseParser(backend.Key(integrationsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(integrationsPrefix)),
 	}
 }
 
@@ -1695,9 +1769,37 @@ func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newUserTaskParser() *userTaskParser {
+	return &userTaskParser{
+		baseParser: newBaseParser(backend.NewKey(userTasksKey)),
+	}
+}
+
+type userTaskParser struct {
+	baseParser
+}
+
+func (p *userTaskParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserTask, types.V1, 0)
+	case types.OpPut:
+		r, err := services.UnmarshalUserTask(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newDiscoveryConfigParser() *discoveryConfigParser {
 	return &discoveryConfigParser{
-		baseParser: newBaseParser(backend.Key(discoveryConfigPrefix)),
+		baseParser: newBaseParser(backend.NewKey(discoveryConfigPrefix)),
 	}
 }
 
@@ -1726,7 +1828,7 @@ func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticati
 	}
 
 	return &headlessAuthenticationParser{
-		baseParser: newBaseParser(backend.Key(headlessAuthenticationPrefix)),
+		baseParser: newBaseParser(backend.NewKey(headlessAuthenticationPrefix)),
 		filter:     filter,
 	}, nil
 }
@@ -1780,7 +1882,7 @@ func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAuditQueryParser() *auditQueryParser {
 	return &auditQueryParser{
-		baseParser: newBaseParser(backend.Key(AuditQueryPrefix)),
+		baseParser: newBaseParser(backend.NewKey(AuditQueryPrefix)),
 	}
 }
 
@@ -1803,7 +1905,7 @@ func (p *auditQueryParser) parse(event backend.Event) (types.Resource, error) {
 
 func newSecurityReportParser() *securityReportParser {
 	return &securityReportParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportPrefix)),
+		baseParser: newBaseParser(backend.NewKey(SecurityReportPrefix)),
 	}
 }
 
@@ -1826,7 +1928,7 @@ func (p *securityReportParser) parse(event backend.Event) (types.Resource, error
 
 func newSecurityReportStateParser() *securityReportStateParser {
 	return &securityReportStateParser{
-		baseParser: newBaseParser(backend.Key(SecurityReportStatePrefix)),
+		baseParser: newBaseParser(backend.NewKey(SecurityReportStatePrefix)),
 	}
 }
 
@@ -1849,7 +1951,7 @@ func (p *securityReportStateParser) parse(event backend.Event) (types.Resource, 
 
 func newUserLoginStateParser() *userLoginStateParser {
 	return &userLoginStateParser{
-		baseParser: newBaseParser(backend.Key(userLoginStatePrefix)),
+		baseParser: newBaseParser(backend.NewKey(userLoginStatePrefix)),
 	}
 }
 
@@ -1945,7 +2047,7 @@ func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, err
 
 func newKubeWaitingContainerParser() *kubeWaitingContainerParser {
 	return &kubeWaitingContainerParser{
-		baseParser: newBaseParser(backend.Key(kubeWaitingContPrefix)),
+		baseParser: newBaseParser(backend.NewKey(kubeWaitingContPrefix)),
 	}
 }
 
@@ -1956,25 +2058,19 @@ type kubeWaitingContainerParser struct {
 func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// remove the first separator so no separated parts should be
-		// empty strings
-		key := string(event.Item.Key)
-		if len(key) > 0 && key[0] == backend.Separator {
-			key = key[1:]
-		}
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 6 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindKubeWaitingContainer, event.Item.Key)
 		}
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
-			parts[5],
+			string(parts[5]),
 			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
-				Username:      parts[1],
-				Cluster:       parts[2],
-				Namespace:     parts[3],
-				PodName:       parts[4],
-				ContainerName: parts[5],
+				Username:      string(parts[1]),
+				Cluster:       string(parts[2]),
+				Namespace:     string(parts[3]),
+				PodName:       string(parts[4]),
+				ContainerName: string(parts[5]),
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
 			},
@@ -2028,7 +2124,7 @@ func (p *AccessMonitoringRuleParser) parse(event backend.Event) (types.Resource,
 
 func newUserNotificationParser() *userNotificationParser {
 	return &userNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsUserSpecificPrefix)),
+		baseParser: newBaseParser(backend.NewKey(notificationsUserSpecificPrefix)),
 	}
 }
 
@@ -2039,11 +2135,7 @@ type userNotificationParser struct {
 func (p *userNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 4 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
@@ -2052,10 +2144,10 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			Kind:    types.KindNotification,
 			Version: types.V1,
 			Spec: &notificationsv1.NotificationSpec{
-				Username: parts[2],
+				Username: string(parts[2]),
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[3],
+				Name: string(parts[3]),
 			},
 		}
 
@@ -2076,7 +2168,7 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 
 func newGlobalNotificationParser() *globalNotificationParser {
 	return &globalNotificationParser{
-		baseParser: newBaseParser(backend.Key(notificationsGlobalPrefix)),
+		baseParser: newBaseParser(backend.NewKey(notificationsGlobalPrefix)),
 	}
 }
 
@@ -2087,12 +2179,7 @@ type globalNotificationParser struct {
 func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-		// notifications/global/<uuid>
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 3 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
@@ -2106,7 +2193,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 				},
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[2],
+				Name: string(parts[2]),
 			},
 		}
 
@@ -2127,7 +2214,7 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 
 func newBotInstanceParser() *botInstanceParser {
 	return &botInstanceParser{
-		baseParser: newBaseParser(backend.Key(botInstancePrefix)),
+		baseParser: newBaseParser(backend.NewKey(botInstancePrefix)),
 	}
 }
 
@@ -2138,13 +2225,7 @@ type botInstanceParser struct {
 func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		// Remove the first separator so none of the separated parts will be
-		// empty strings
-		key := string(event.Item.Key)
-		key = strings.TrimPrefix(key, string(backend.Separator))
-
-		// bot_instance/<1: bot name>/<2: uuid>
-		parts := strings.Split(key, string(backend.Separator))
+		parts := event.Item.Key.Components()
 		if len(parts) != 3 {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
 		}
@@ -2153,11 +2234,11 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
 			Spec: &machineidv1.BotInstanceSpec{
-				BotName:    parts[1],
-				InstanceId: parts[2],
+				BotName:    string(parts[1]),
+				InstanceId: string(parts[2]),
 			},
 			Metadata: &headerv1.Metadata{
-				Name: parts[2],
+				Name: string(parts[2]),
 			},
 		}
 
@@ -2178,7 +2259,7 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newInstanceParser() *instanceParser {
 	return &instanceParser{
-		baseParser: newBaseParser(backend.Key(instancePrefix)),
+		baseParser: newBaseParser(backend.NewKey(instancePrefix)),
 	}
 }
 
@@ -2201,6 +2282,35 @@ func (p *instanceParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
+func newStaticHostUserParser() *staticHostUserParser {
+	return &staticHostUserParser{
+		baseParser: newBaseParser(backend.NewKey(staticHostUserPrefix)),
+	}
+}
+
+type staticHostUserParser struct {
+	baseParser
+}
+
+func (p *staticHostUserParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindStaticHostUser, types.V2, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func resourceHeader(event backend.Event, kind, version string, offset int) (types.Resource, error) {
 	name, err := base(event.Item.Key, offset)
 	if err != nil {
@@ -2210,7 +2320,7 @@ func resourceHeader(event backend.Event, kind, version string, offset int) (type
 		Kind:    kind,
 		Version: version,
 		Metadata: types.Metadata{
-			Name:      string(name),
+			Name:      name,
 			Namespace: apidefaults.Namespace,
 		},
 	}, nil
@@ -2226,7 +2336,7 @@ func resourceHeaderWithTemplate(event backend.Event, hdr types.ResourceHeader, o
 		SubKind: hdr.SubKind,
 		Version: hdr.Version,
 		Metadata: types.Metadata{
-			Name:      string(name),
+			Name:      name,
 			Namespace: apidefaults.Namespace,
 		},
 	}, nil
@@ -2270,7 +2380,7 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 
 func newDeviceParser() *deviceParser {
 	return &deviceParser{
-		baseParser: newBaseParser(backend.Key(devicetrust.DevicesIDPrefix...)),
+		baseParser: newBaseParser(backend.NewKey(devicetrust.DevicesIDPrefix...)),
 	}
 }
 
@@ -2290,7 +2400,7 @@ func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
 				Kind:    types.KindDevice,
 				Version: types.V1,
 				Metadata: types.Metadata{
-					Name: string(name),
+					Name: name,
 				},
 			},
 		}
@@ -2314,7 +2424,7 @@ func (p *deviceParser) parse(event backend.Event) (types.Resource, error) {
 
 func newAccessGraphSecretPrivateKeyParser() *accessGraphSecretPrivateKeyParser {
 	return &accessGraphSecretPrivateKeyParser{
-		baseParser: newBaseParser(backend.Key(privateKeysPrefix)),
+		baseParser: newBaseParser(backend.NewKey(privateKeysPrefix)),
 	}
 }
 
@@ -2358,7 +2468,7 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 
 func newAccessGraphSecretAuthorizedKeyParser() *accessGraphSecretAuthorizedKeyParser {
 	return &accessGraphSecretAuthorizedKeyParser{
-		baseParser: newBaseParser(backend.Key(authorizedKeysPrefix)),
+		baseParser: newBaseParser(backend.NewKey(authorizedKeysPrefix)),
 	}
 }
 
@@ -2417,19 +2527,19 @@ type EventMatcher interface {
 	Match(types.Event) (types.Resource, error)
 }
 
-// base returns last element delimited by separator, index is
-// is an index of the key part to get counting from the end
-func base(key []byte, offset int) ([]byte, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
+// base returns the key component that is offset
+// components before the last component.
+func base(key backend.Key, offset int) (string, error) {
+	parts := key.Components()
 	if len(parts) < offset+1 {
-		return nil, trace.NotFound("failed parsing %v", string(key))
+		return "", trace.NotFound("failed parsing %v", string(key))
 	}
-	return parts[len(parts)-offset-1], nil
+	return string(parts[len(parts)-offset-1]), nil
 }
 
 // baseTwoKeys returns two last keys
-func baseTwoKeys(key []byte) (string, string, error) {
-	parts := bytes.Split(key, []byte{backend.Separator})
+func baseTwoKeys(key backend.Key) (string, string, error) {
+	parts := key.Components()
 	if len(parts) < 2 {
 		return "", "", trace.NotFound("failed parsing %v", string(key))
 	}
@@ -2438,7 +2548,7 @@ func baseTwoKeys(key []byte) (string, string, error) {
 
 func newAccessGraphSettingsParser() *accessGraphSettingsParser {
 	return &accessGraphSettingsParser{
-		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, accessGraphSettingsPrefix)),
+		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix)),
 	}
 }
 
@@ -2472,7 +2582,7 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 
 func newSPIFFEFederationParser() *spiffeFederationParser {
 	return &spiffeFederationParser{
-		baseParser: newBaseParser(backend.Key(spiffeFederationPrefix)),
+		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
 	}
 }
 

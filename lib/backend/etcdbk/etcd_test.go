@@ -117,7 +117,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key starting with "/" into etcd via the
 	// _prefixed_ client...
 	item := backend.Item{
-		Key:   []byte("/foo"),
+		Key:   backend.Key("/foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -135,7 +135,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key that does _not_ start with a separator
 	// char (i.e. "/") into etcd via the _prefixed_ client...
 	item = backend.Item{
-		Key:   []byte("foo"),
+		Key:   backend.Key("foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -219,7 +219,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	buckets := make(map[int64]struct{})
 	for i := 0; i < count; i++ {
-		key := backend.Key(pfx, fmt.Sprintf("%d", i))
+		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
 			Value:   []byte(fmt.Sprintf("val-%d", i)),
@@ -234,7 +234,7 @@ func TestLeaseBucketing(t *testing.T) {
 		time.Sleep(time.Millisecond * 200)
 	}
 
-	start := backend.Key(pfx, "")
+	start := backend.NewKey(pfx, "")
 
 	rslt, err := bk.GetRange(ctx, start, backend.RangeEnd(start), backend.NoLimit)
 	require.NoError(t, err)

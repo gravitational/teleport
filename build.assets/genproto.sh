@@ -42,45 +42,18 @@ main() {
   # this for us (and which is what we use for the non-gogo protogen).
   rm -fr gogogen
   trap 'rm -fr gogogen' EXIT # don't leave files behind
-  echoed buf generate --template=buf-gogo.gen.yaml \
-    --path=api/proto/teleport/legacy/ \
-    --path=api/proto/teleport/attestation/ \
-    --path=api/proto/teleport/usageevents/ \
-    --path=api/proto/teleport/mfa/ \
-    --path=proto/teleport/lib/web/terminal/envelope.proto \
-    --exclude-path=api/proto/teleport/legacy/client/proto/event.proto
+  echoed buf generate --template=buf-gogo.gen.yaml
   cp -r gogogen/github.com/gravitational/teleport/. .
   # error out if there's anything outside of github.com/gravitational/teleport
   rm -fr gogogen/github.com/gravitational/teleport
   rmdir gogogen/github.com/gravitational gogogen/github.com gogogen
 
-  # Generate protoc-gen-go protos (preferred).
-  echoed buf generate --template=buf-go.gen.yaml \
-    --exclude-path=api/proto/teleport/legacy/ \
-    --exclude-path=api/proto/teleport/attestation/ \
-    --exclude-path=api/proto/teleport/usageevents/ \
-    --exclude-path=api/proto/teleport/mfa/ \
-    --exclude-path=proto/teleport/lib/web/terminal/envelope.proto \
-    --exclude-path=proto/prehog/
-
-  # Generate event.proto separately because we only want to run it on this
-  # one particular file in legacy.
-  echoed buf generate --template=buf-go.gen.yaml \
-    --path=api/proto/teleport/legacy/client/proto/event.proto
-
-  # Generate connect-go protos.
-  echoed buf generate --template=buf-connect-go.gen.yaml \
-    --path=proto/prehog/
+  # Generate go, go-grpc and connect-go protos (preferred).
+  echoed buf generate --template=buf-go.gen.yaml
+  echoed buf generate --template=buf-connect-go.gen.yaml
 
   # Generate TS protos.
-  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml \
-    --path=proto/prehog/ \
-    --path=proto/teleport/lib/teleterm/ \
-    --path=api/proto/teleport/accesslist/ \
-    --path=api/proto/teleport/devicetrust/ \
-    --path=api/proto/teleport/header/ \
-    --path=api/proto/teleport/trait/ \
-    --path=api/proto/teleport/userpreferences/
+  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-ts.gen.yaml
 }
 
 main "$@"

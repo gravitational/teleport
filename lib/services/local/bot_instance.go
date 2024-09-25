@@ -44,11 +44,15 @@ type BotInstanceService struct {
 
 // NewBotInstanceService creates a new BotInstanceService with the given backend.
 func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*BotInstanceService, error) {
-	service, err := generic.NewServiceWrapper(backend,
-		types.KindBotInstance,
-		botInstancePrefix,
-		services.MarshalBotInstance,
-		services.UnmarshalBotInstance)
+	service, err := generic.NewServiceWrapper(
+		generic.ServiceWrapperConfig[*machineidv1.BotInstance]{
+			Backend:       backend,
+			ResourceKind:  types.KindBotInstance,
+			BackendPrefix: botInstancePrefix,
+			MarshalFunc:   services.MarshalBotInstance,
+			UnmarshalFunc: services.UnmarshalBotInstance,
+			ValidateFunc:  services.ValidateBotInstance,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,10 +67,6 @@ func NewBotInstanceService(backend backend.Backend, clock clockwork.Clock) (*Bot
 // Note that new BotInstances will have their .Metadata.Name overwritten by the
 // instance UUID.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-	if err := services.ValidateBotInstance(instance); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	instance.Kind = types.KindBotInstance
 	instance.Version = types.V1
 

@@ -51,12 +51,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -101,6 +102,9 @@ type Auth interface {
 	// GetAWSIAMCreds returns the AWS IAM credentials, including access key,
 	// secret access key and session token.
 	GetAWSIAMCreds(ctx context.Context, database types.Database, databaseUser string) (string, string, string, error)
+	// GenerateDatabaseClientKey generates a cryptographic key appropriate for
+	// database client connections.
+	GenerateDatabaseClientKey(context.Context) (*keys.PrivateKey, error)
 	// WithLogger returns a new instance of Auth with updated logger.
 	// The callback function receives the current logger and returns a new one.
 	WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) Auth
@@ -112,7 +116,11 @@ type AuthClient interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
-	// GetAuthPreference returns the cluster authentication config.
+}
+
+// AccessPoint is an interface that defines a subset of
+// authclient.DatabaseAccessPoint that are required for database auth.
+type AccessPoint interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
@@ -120,6 +128,8 @@ type AuthClient interface {
 type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient AuthClient
+	// AccessPoint is a caching client connected to the Auth Server.
+	AccessPoint AccessPoint
 	// Clients provides interface for obtaining cloud provider clients.
 	Clients cloud.Clients
 	// Clock is the clock implementation.
@@ -132,6 +142,9 @@ type AuthConfig struct {
 func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AuthClient == nil {
 		return trace.BadParameter("missing AuthClient")
+	}
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
 		return trace.BadParameter("missing Clients")
@@ -147,10 +160,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 
 func (c *AuthConfig) withLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) AuthConfig {
 	return AuthConfig{
-		AuthClient: c.AuthClient,
-		Clients:    c.Clients,
-		Clock:      c.Clock,
-		Log:        getUpdatedLogger(c.Log),
+		AuthClient:  c.AuthClient,
+		AccessPoint: c.AccessPoint,
+		Clients:     c.Clients,
+		Clock:       c.Clock,
+		Log:         getUpdatedLogger(c.Log),
 	}
 }
 
@@ -978,7 +992,7 @@ func verifyConnectionFunc(rootCAs *x509.CertPool) func(cs tls.ConnectionState) e
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
 func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUser string) (cert *tls.Certificate, cas [][]byte, err error) {
-	privateKey, err := native.GeneratePrivateKey()
+	privateKey, err := a.GenerateDatabaseClientKey(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1009,9 +1023,24 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUs
 	return &clientCert, resp.CACerts, nil
 }
 
+// GenerateDatabaseClientKey generates a cryptographic key appropriate for
+// database client connections.
+func (a *dbAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKey, error) {
+	signer, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.DatabaseClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKey, err := keys.NewSoftwarePrivateKey(signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return privateKey, nil
+}
+
 // GetAuthPreference returns the cluster authentication config.
 func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
-	return a.cfg.AuthClient.GetAuthPreference(ctx)
+	return a.cfg.AccessPoint.GetAuthPreference(ctx)
 }
 
 // GetAzureIdentityResourceID returns the Azure identity resource ID attached to

@@ -21,13 +21,13 @@ package memory
 import (
 	"bytes"
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/btree"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -98,10 +98,8 @@ func New(cfg Config) (*Memory, error) {
 	)
 	buf.SetInit()
 	m := &Memory{
-		Mutex: &sync.Mutex{},
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentMemory,
-		}),
+		Mutex:  &sync.Mutex{},
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentMemory),
 		Config: cfg,
 		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
 			return a.Less(b)
@@ -117,7 +115,7 @@ func New(cfg Config) (*Memory, error) {
 // Memory is a memory B-Tree based backend
 type Memory struct {
 	*sync.Mutex
-	*log.Entry
+	logger *slog.Logger
 	Config
 	// tree is a BTree with items
 	tree *btree.BTreeG[*btreeItem]
@@ -179,7 +177,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 }
 
 // Get returns a single item or not found error
-func (m *Memory) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (m *Memory) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -243,7 +241,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (m *Memory) Delete(ctx context.Context, key []byte) error {
+func (m *Memory) Delete(ctx context.Context, key backend.Key) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -268,7 +266,7 @@ func (m *Memory) Delete(ctx context.Context, key []byte) error {
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 // Note that elements deleted by range do not produce any events
-func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -293,7 +291,7 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey []byte) error
 }
 
 // GetRange returns query range
-func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (m *Memory) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -308,7 +306,7 @@ func (m *Memory) GetRange(ctx context.Context, startKey []byte, endKey []byte, l
 	m.removeExpired()
 	re := m.getRange(ctx, startKey, endKey, limit)
 	if len(re.Items) == backend.DefaultRangeLimit {
-		m.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+		m.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 	}
 	return &re, nil
 }
@@ -350,7 +348,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if expected.Key.Compare(replaceWith.Key) != 0 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	m.Lock()
@@ -378,7 +376,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	return backend.NewLease(replaceWith), nil
 }
 
-func (m *Memory) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+func (m *Memory) ConditionalDelete(ctx context.Context, key backend.Key, rev string) error {
 	if len(key) == 0 || (rev == "" && !m.Mirror) {
 		return trace.Wrap(backend.ErrIncorrectRevision)
 	}
@@ -441,7 +439,7 @@ func (m *Memory) NewWatcher(ctx context.Context, watch backend.Watch) (backend.W
 	return m.buf.NewWatcher(ctx, watch)
 }
 
-func (m *Memory) getRange(ctx context.Context, startKey, endKey []byte, limit int) backend.GetResult {
+func (m *Memory) getRange(ctx context.Context, startKey, endKey backend.Key, limit int) backend.GetResult {
 	var res backend.GetResult
 	m.tree.AscendRange(&btreeItem{Item: backend.Item{Key: startKey}}, &btreeItem{Item: backend.Item{Key: endKey}}, func(item *btreeItem) bool {
 		res.Items = append(res.Items, item.Item)
@@ -474,7 +472,7 @@ func (m *Memory) removeExpired() int {
 		}
 		m.heap.PopEl()
 		m.tree.Delete(item)
-		m.Debugf("Removed expired %v %v item.", string(item.Key), item.Expires)
+		m.logger.DebugContext(m.ctx, "Removed expired item.", "key", item.Key.String(), "epiry", item.Expires)
 		removed++
 
 		event := backend.Event{
@@ -488,7 +486,7 @@ func (m *Memory) removeExpired() int {
 		}
 	}
 	if removed > 0 {
-		m.Debugf("Removed %v expired items.", removed)
+		m.logger.DebugContext(m.ctx, "Removed expired items.", "num_expired", removed)
 	}
 	return removed
 }

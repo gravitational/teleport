@@ -31,6 +31,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -331,10 +332,10 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 	}
 
 	if dbInfo.Protocol == defaults.ProtocolOracle {
-		if err := generateDBLocalProxyCert(keyRing, profile); err != nil {
+		if err := generateDBLocalProxyCert(keyRing.TLSPrivateKey, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(keyRing, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -680,7 +681,7 @@ func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile 
 	if route.Protocol == defaults.ProtocolOracle {
 		localCert, err := tls.LoadX509KeyPair(
 			profile.DatabaseLocalCAPath(),
-			profile.KeyPath(),
+			profile.TLSKeyPath(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -703,7 +704,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 	}
 
 	if arg.tunnel {
-		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil)
+		cc := client.NewDBCertChecker(arg.tc, arg.dbInfo.RouteToDatabase, nil, client.WithTTL(time.Duration(arg.cf.MinsToLive)*time.Minute))
 		opts = append(opts, alpnproxy.WithMiddleware(cc))
 		// When using a tunnel, try to load certs, but if that fails
 		// just skip them and let the reissuer fetch new certs when the local

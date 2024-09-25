@@ -228,7 +228,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		return pong, trace.Wrap(err)
 	}
 
-	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 
 	return pong, trace.Wrap(err)
 }

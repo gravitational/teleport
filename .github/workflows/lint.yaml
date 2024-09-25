@@ -2,8 +2,9 @@ name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:
-
   merge_group:
+env:
+  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
@@ -59,9 +60,11 @@ jobs:
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
               # rendered doc changes
+              - 'docs/pages/admin-guides/**'
+              - 'docs/pages/enroll-resources/**'
+              - 'docs/pages/reference/operator-resources/**'
               - 'docs/pages/reference/terraform-provider.mdx'
               - 'docs/pages/reference/terraform-provider/**'
-              - 'docs/pages/reference/operator-resources/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
 
   lint-go:
@@ -83,15 +86,12 @@ jobs:
       - name: Check for untidy go modules
         shell: bash
         run: |
-          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
-            pushd $(dirname "$f") > /dev/null; 
-            go mod tidy;
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff;
             popd > /dev/null;
           done
-
-          # We have to add the current directory as a safe directory or else git commands will not work as expected.
-          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |
@@ -204,7 +204,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@bdb594084c95f0638c76c891ccb75bf4b75ef61c # v1.36.0
+      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}

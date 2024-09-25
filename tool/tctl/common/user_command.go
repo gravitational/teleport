@@ -81,7 +81,7 @@ type UserCommand struct {
 
 // Initialize allows UserCommand to plug itself into the CLI parser
 func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	const helpPrefix string = "[Teleport DB users only]"
+	const helpPrefix string = "[Teleport local users only]"
 
 	u.config = config
 	users := app.Command("users", "Manage user accounts.")

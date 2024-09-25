@@ -85,6 +85,10 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  // enterprise non-exact routes will be merged into this
+  // see `getNonExactRoutes` for details about non-exact routes
+  nonExactRoutes: [],
+
   // featureLimits define limits for features.
   /** @deprecated Use entitlements instead. */
   featureLimits: {
@@ -196,7 +200,7 @@ const cfg = {
 
   api: {
     appSession: '/v1/webapi/sessions/app',
-    appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
+    appDetailsPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
@@ -205,7 +209,6 @@ const cfg = {
     clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
-    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
@@ -242,8 +245,6 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
 
-    // TODO(zmb3): remove this when Assist is no longer using it
-    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -305,13 +306,13 @@ const cfg = {
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
-      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
-      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
     awsRdsDbDeployServicesPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
@@ -331,10 +332,10 @@ const cfg = {
     awsAppAccessPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
     awsConfigureIamAppAccessPath:
-      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
     awsConfigureIamEc2AutoDiscoverWithSsmPath:
-      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName',
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName&awsAccountID=:accountID',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -380,6 +381,19 @@ const cfg = {
 
   playable_db_protocols: [],
 
+  getNonExactRoutes() {
+    // These routes will not be exact matched when deciding if it is a valid route
+    // to redirect to when a user is unauthenticated.
+    // This is useful for routes that can be infinitely nested, e.g. `
+    // /web/accessgraph` and `/web/accessgraph/integrations/new`
+    // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
+
+    return [
+      // at the moment, only `e` has an exempt route, which is merged in on `cfg.init()`
+      ...this.nonExactRoutes,
+    ];
+  },
+
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
   },
@@ -390,8 +404,8 @@ const cfg = {
     });
   },
 
-  getAppFqdnUrl(params: UrlAppParams) {
-    return generatePath(cfg.api.appFqdnPath, { ...params });
+  getAppDetailsUrl(params: UrlAppParams) {
+    return generatePath(cfg.api.appDetailsPath, { ...params });
   },
 
   getClusterAlertsUrl(clusterId: string) {
@@ -541,8 +555,7 @@ const cfg = {
   },
 
   getUsersRoute() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.users, { clusterId });
+    return cfg.routes.users;
   },
 
   getBotsRoute() {
@@ -653,13 +666,6 @@ const cfg = {
     return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
-  getCheckAccessToRegisteredResourceUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.checkAccessToRegisteredResource, {
-      clusterId,
-    });
-  },
-
   getUserContextUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.userContextPath, { clusterId });
@@ -696,11 +702,6 @@ const cfg = {
 
   getUserWithUsernameUrl(username: string) {
     return generatePath(cfg.api.userWithUsernamePath, { username });
-  },
-
-  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
-    // TODO(zmb3): remove this when Assist is no longer using it
-    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
@@ -1229,6 +1230,7 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+  accountID: string;
 }
 
 export interface UrlAwsOidcConfigureIdp {
@@ -1241,6 +1243,7 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+  accountID: string;
 }
 
 export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
@@ -1248,6 +1251,7 @@ export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   iamRoleName: string;
   ssmDocument: string;
   integrationName: string;
+  accountID: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

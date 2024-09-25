@@ -17,7 +17,8 @@
  */
 import { render, screen, fireEvent } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
-import { within } from '@testing-library/react';
+
+import selectEvent from 'react-select-event';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
@@ -76,12 +77,7 @@ describe('JoinTokens', () => {
       target: { value: 'the_token' },
     });
 
-    const inputEl = within(screen.getByTestId('role_select')).getByRole(
-      'textbox'
-    );
-    fireEvent.change(inputEl, { target: { value: 'Node' } });
-    fireEvent.focus(inputEl);
-    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
+    await selectEvent.select(screen.getByLabelText('Join Roles'), ['Node']);
 
     fireEvent.click(screen.getByRole('button', { name: /create join token/i }));
     expect(

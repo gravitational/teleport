@@ -16,4 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { Alert, Danger, Info, Warning, Success, Banner } from './Alert';
+export {
+  type Action,
+  ActionButton,
+  Alert,
+  Danger,
+  Info,
+  Warning,
+  Success,
+  Banner,
+} from './Alert';

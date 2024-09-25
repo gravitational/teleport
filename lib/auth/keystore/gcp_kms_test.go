@@ -111,7 +111,7 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	var pem []byte
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512:
-		pem = testRSAPrivateKeyPEM
+		pem = testRSA2048PrivateKeyPEM
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -499,7 +499,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			require.NoError(t, err, "unexpected error creating CA")
 
 			// Client private key that will be the basis of test certs to be signed.
-			clientPrivKey, err := keys.ParsePrivateKey(testRSAPrivateKeyPEM)
+			clientPrivKey, err := keys.ParsePrivateKey(testRSA2048PrivateKeyPEM)
 			require.NoError(t, err)
 
 			// Test signing an SSH certificate.

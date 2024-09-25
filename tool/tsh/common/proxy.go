@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
@@ -56,7 +57,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, func() error {
+	sshFunc := func() error {
 		clt, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
@@ -102,7 +103,12 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		defer conn.Close()
 
 		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
-	}))
+	}
+	if !cf.Relogin {
+		return trace.Wrap(sshFunc())
+	}
+
+	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, sshFunc))
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -382,13 +388,31 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var (
+		appInfo *appInfo
+		app     types.Application
+	)
+	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		profile, err := tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	app, err := appInfo.GetApp(cf.Context, tc)
-	if err != nil {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		app, err = appInfo.GetApp(cf.Context, clusterClient.AuthClient)
+		return trace.Wrap(err)
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -621,7 +645,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(signer crypto.Signer, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -631,7 +655,7 @@ func generateDBLocalProxyCert(keyRing *libclient.KeyRing, profile *libclient.Pro
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      keyRing.PrivateKey.Signer,
+		Signer:      signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,

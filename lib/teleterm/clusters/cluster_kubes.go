@@ -116,6 +116,7 @@ func (c *Cluster) reissueKubeCert(ctx context.Context, clusterClient *client.Clu
 			RouteToCluster:    c.clusterClient.SiteName,
 			KubernetesCluster: kubeCluster,
 			RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+			TTL:               c.clusterClient.KeyTTL,
 		},
 		c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Kubernetes cluster", kubeCluster)),
 	)

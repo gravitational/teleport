@@ -52,5 +52,30 @@ func MergeResources(results ...*Resources) *Resources {
 		result.SAMLProviders = append(result.SAMLProviders, r.SAMLProviders...)
 		result.OIDCProviders = append(result.OIDCProviders, r.OIDCProviders...)
 	}
+
+	deduplicateResources(result)
 	return result
+}
+
+func deduplicateResources(result *Resources) {
+	result.Users = deduplicateSlice(result.Users, usersUniqueKeyFunc)
+	result.UserInlinePolicies = deduplicateSlice(result.UserInlinePolicies, usersInlinePolicyUniqueKeyFunc)
+	result.UserAttachedPolicies = deduplicateSlice(result.UserAttachedPolicies, usersAttachedPoliciesUniqueKeyFunc)
+	result.UserGroups = deduplicateSlice(result.UserGroups, userGroupUniqueKeyFunc)
+	result.Groups = deduplicateSlice(result.Groups, groupUniqueKeyFunc)
+	result.GroupInlinePolicies = deduplicateSlice(result.GroupInlinePolicies, groupInlinePolicyUniqueKeyFunc)
+	result.GroupAttachedPolicies = deduplicateSlice(result.GroupAttachedPolicies, groupAttachedPolicyUniqueKeyFunc)
+	result.Instances = deduplicateSlice(result.Instances, instancesUniqueKeyFunc)
+	result.Policies = deduplicateSlice(result.Policies, policyUniqueKeyFunc)
+	result.S3Buckets = deduplicateSlice(result.S3Buckets, s3UniqueKeyFunc)
+	result.Roles = deduplicateSlice(result.Roles, roleUniqueKeyFunc)
+	result.RoleInlinePolicies = deduplicateSlice(result.RoleInlinePolicies, roleInlinePolicyUniqueKeyFunc)
+	result.RoleAttachedPolicies = deduplicateSlice(result.RoleAttachedPolicies, roleAttachedPoliciesUniqueKeyFunc)
+	result.InstanceProfiles = deduplicateSlice(result.InstanceProfiles, instanceProfileUniqueKeyFunc)
+	result.AssociatedAccessPolicies = deduplicateSlice(result.AssociatedAccessPolicies, associatedAccessPolicyUniqueKeyFunc)
+	result.EKSClusters = deduplicateSlice(result.EKSClusters, eksClusterUniqueKeyFunc)
+	result.AccessEntries = deduplicateSlice(result.AccessEntries, accessEntryUniqueKeyFunc)
+	result.RDSDatabases = deduplicateSlice(result.RDSDatabases, rdsUniqueKeyFunc)
+	result.SAMLProviders = deduplicateSlice(result.SAMLProviders, samlUniqueKeyFunc)
+	result.OIDCProviders = deduplicateSlice(result.OIDCProviders, oidcUniqueKeyFunc)
 }

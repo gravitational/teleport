@@ -163,7 +163,7 @@ type migrationStatus struct {
 	Completed time.Time      `json:"completed"`
 }
 
-var key = backend.Key("migrations", "current")
+var key = backend.NewKey("migrations", "current")
 
 func setCurrentMigration(ctx context.Context, b backend.Backend, status migrationStatus) error {
 	value, err := json.Marshal(status)

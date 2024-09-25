@@ -89,6 +89,9 @@ type Role interface {
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
+	// GetRoleConditions gets the RoleConditions for the RoleConditionType.
+	GetRoleConditions(rct RoleConditionType) RoleConditions
+
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
 	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
@@ -1693,6 +1696,16 @@ func (r *RoleV6) GetPreviewAsRoles(rct RoleConditionType) []string {
 	return roleConditions.ReviewRequests.PreviewAsRoles
 }
 
+// GetRoleConditions returns the role conditions for the role.
+func (r *RoleV6) GetRoleConditions(rct RoleConditionType) RoleConditions {
+	roleConditions := r.Spec.Allow
+	if rct == Deny {
+		roleConditions = r.Spec.Deny
+	}
+
+	return roleConditions
+}
+
 // SetPreviewAsRoles sets the list of extra roles which should apply to a
 // reviewer while they are viewing a Resource Access Request for the
 // purposes of viewing details such as the hostname and labels of requested
@@ -1744,7 +1757,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		}
 
 		for _, verb := range kubeResource.Verbs {
-			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard {
+			if !slices.Contains(KubernetesVerbs, verb) && verb != Wildcard && !strings.Contains(verb, "{{") {
 				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
 			}
 			if verb == Wildcard && len(kubeResource.Verbs) > 1 {

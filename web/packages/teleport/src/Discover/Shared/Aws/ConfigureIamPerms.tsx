@@ -29,6 +29,7 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { Regions } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 type AwsResourceKind = 'rds' | 'ec2' | 'eks';
 
@@ -41,9 +42,8 @@ export function ConfigureIamPerms({
   integrationRoleArn: string;
   kind: AwsResourceKind;
 }) {
-  // arn's are formatted as `don-care-about-this-part/role-arn`.
-  // We are splitting by slash and getting the last element.
-  const iamRoleName = integrationRoleArn.split('/').pop();
+  const { awsAccountId: accountID, arnResourceName: iamRoleName } =
+    splitAwsIamArn(integrationRoleArn);
 
   let scriptUrl;
   let msg;
@@ -57,6 +57,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getEc2InstanceConnectIAMConfigureScriptUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{
@@ -97,6 +98,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getEksIamConfigureScriptUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{
@@ -111,6 +113,7 @@ export function ConfigureIamPerms({
         "eks:CreateAccessEntry",
         "eks:DeleteAccessEntry",
         "eks:AssociateAccessPolicy",
+        "eks:TagResource"
       ],
       "Resource": "*"
     }
@@ -134,6 +137,7 @@ export function ConfigureIamPerms({
       scriptUrl = cfg.getAwsConfigureIamScriptListDatabasesUrl({
         region,
         iamRoleName,
+        accountID,
       });
 
       const json = `{

@@ -20,6 +20,7 @@ package config
 
 import (
 	"bytes"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"net"
@@ -43,14 +44,17 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -335,6 +339,7 @@ func TestConfigReading(t *testing.T) {
 			WebIdleTimeout:        types.Duration(19 * time.Second),
 			RoutingStrategy:       types.RoutingStrategy_MOST_RECENT,
 			ProxyPingInterval:     types.Duration(10 * time.Second),
+			SSHDialTimeout:        types.Duration(45 * time.Second),
 		},
 		SSH: SSH{
 			Service: Service{
@@ -675,7 +680,7 @@ proxy_service:
 	}
 
 	for _, tt := range tests {
-		comment := fmt.Sprintf(tt.desc)
+		comment := tt.desc
 
 		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
@@ -1546,6 +1551,7 @@ func makeConfigFixture() string {
 	conf.Auth.DisconnectExpiredCert = types.NewBoolOption(true)
 	conf.Auth.RoutingStrategy = types.RoutingStrategy_MOST_RECENT
 	conf.Auth.ProxyPingInterval = types.NewDuration(10 * time.Second)
+	conf.Auth.SSHDialTimeout = types.NewDuration(45 * time.Second)
 
 	// ssh service:
 	conf.SSH.EnabledFlag = "true"
@@ -3421,8 +3427,10 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 			},
 		},
@@ -3435,9 +3443,11 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:      true,
-					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
-					ClientId:     "llama-UUID",
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					ClientID:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3460,8 +3470,6 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-					Username:    "llama",
-					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3472,6 +3480,10 @@ jamf_service:
 						},
 						{},
 					},
+				},
+				Credentials: &servicecfg.JamfCredentials{
+					Username: "llama",
+					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -4925,6 +4937,115 @@ func TestDiscoveryConfig(t *testing.T) {
 			require.Equal(t, testCase.expectedAWSMatchers, cfg.Discovery.AWSMatchers)
 			require.Equal(t, testCase.expectedAzureMatchers, cfg.Discovery.AzureMatchers)
 			require.Equal(t, testCase.expectedGCPMatchers, cfg.Discovery.GCPMatchers)
+		})
+	}
+}
+
+// TestProxyUntrustedCert tests that configuring a Proxy Service with an HTTPS
+// cert signed by an untrusted cert authority is an error, and returns a helpful
+// error message.
+func TestProxyUntrustedCert(t *testing.T) {
+	t.Parallel()
+
+	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	// Generate a CA for the test that will not be trusted.
+	caCert, err := tlsca.GenerateSelfSignedCAWithSigner(
+		caPriv,
+		pkix.Name{
+			CommonName:   "CA",
+			Organization: []string{"teleport"},
+		}, nil, defaults.CATTL)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromCertAndSigner(caCert, caPriv)
+	require.NoError(t, err)
+
+	// Generate a leaf cert signed by the untrusted CA.
+	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: leafPriv.Public(),
+		Subject:   pkix.Name{CommonName: "leaf"},
+		NotAfter:  time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	leafPrivPem, err := keys.MarshalPrivateKey(leafPriv)
+	require.NoError(t, err)
+
+	certDir := t.TempDir()
+	certPath := filepath.Join(certDir, "leaf.crt")
+	keyPath := filepath.Join(certDir, "leaf.key")
+	err = os.WriteFile(certPath, leafCert, 0600)
+	require.NoError(t, err)
+	err = os.WriteFile(keyPath, leafPrivPem, 0600)
+	require.NoError(t, err)
+
+	fc := &FileConfig{
+		Proxy: Proxy{
+			KeyPairs: []KeyPair{
+				{
+					PrivateKey:  keyPath,
+					Certificate: certPath,
+				},
+			},
+		},
+	}
+	cfg := &servicecfg.Config{}
+
+	err = applyProxyConfig(fc, cfg)
+	require.Error(t, err)
+	require.ErrorContains(t, err, certPath)
+	require.ErrorContains(t, err, proxyUntrustedTLSCertErrMsg)
+
+	// We can't test that writing the CA cert to file and setting SSL_CERT_FILE
+	// would fix this error, because:
+	// - the system root certs are loaded exactly once and cached
+	// - it only works on linux
+}
+
+func TestDebugServiceConfig(t *testing.T) {
+	for name, tc := range map[string]struct {
+		configFile                string
+		commandLineFlags          *CommandLineFlags
+		expectDebugServiceEnabled bool
+	}{
+		"enabled by default": {configFile: "", expectDebugServiceEnabled: true},
+		"disabled by commandline": {
+			configFile:                "",
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
+		"disabled by configuration": {
+			configFile: `
+debug_service:
+  enabled: "no"
+`,
+			expectDebugServiceEnabled: false,
+		},
+		"commandline flag has priority over config file": {
+			configFile: `
+debug_service:
+  enabled: "yes"
+`,
+			commandLineFlags:          &CommandLineFlags{DisableDebugService: true},
+			expectDebugServiceEnabled: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			filePath := filepath.Join(t.TempDir(), "config.yaml")
+			require.NoError(t, os.WriteFile(filePath, []byte(tc.configFile), 0o777))
+
+			if tc.commandLineFlags == nil {
+				tc.commandLineFlags = &CommandLineFlags{}
+			}
+			tc.commandLineFlags.ConfigFile = filePath
+
+			conf := servicecfg.MakeDefaultConfig()
+			require.NoError(t, Configure(tc.commandLineFlags, conf, false))
+			require.Equal(t, tc.expectDebugServiceEnabled, conf.DebugService.Enabled)
 		})
 	}
 }

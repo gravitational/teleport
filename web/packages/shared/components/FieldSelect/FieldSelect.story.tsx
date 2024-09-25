@@ -31,41 +31,75 @@ export default {
 
 export function Default() {
   const [selectedOption, setSelectedOption] = useState<Option>(OPTIONS[0]);
+  const [selectedOptions, setSelectedOptions] = useState<readonly Option[]>([]);
   return (
     <Validation>
-      {() => (
-        <Flex flexDirection="column">
-          <FieldSelect
-            label="FieldSelect with search"
-            onChange={option => setSelectedOption(option as Option)}
-            value={selectedOption}
-            isSearchable
-            options={OPTIONS}
-          />
-          <FieldSelectAsync
-            label="FieldSelectAsync with search"
-            onChange={option => setSelectedOption(option as Option)}
-            value={selectedOption}
-            isSearchable
-            loadOptions={async input => {
-              await wait(400);
-              return OPTIONS.filter(o => o.label.includes(input));
-            }}
-            noOptionsMessage={() => 'No options'}
-          />
-          <FieldSelectAsync
-            label="FieldSelectAsync with error"
-            onChange={undefined}
-            value={undefined}
-            isSearchable
-            loadOptions={async () => {
-              await wait(400);
-              return Promise.reject('Network error');
-            }}
-            noOptionsMessage={() => 'No options'}
-          />
-        </Flex>
-      )}
+      {({ validator }) => {
+        validator.validate();
+        return (
+          <Flex flexDirection="column">
+            <FieldSelect
+              label="FieldSelect with search"
+              onChange={option => setSelectedOption(option as Option)}
+              value={selectedOption}
+              isSearchable
+              options={OPTIONS}
+            />
+            <FieldSelect
+              label="FieldSelect with validation rule"
+              onChange={option => setSelectedOption(option as Option)}
+              rule={opt => {
+                return () =>
+                  opt.value !== 'linux'
+                    ? { valid: true }
+                    : { valid: false, message: 'No penguins allowed' };
+              }}
+              value={selectedOption}
+              options={OPTIONS}
+            />
+            <FieldSelect
+              label="FieldSelect, multi-select"
+              isMulti
+              options={OPTIONS}
+              value={selectedOptions}
+              onChange={setSelectedOptions}
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with search"
+              onChange={option => setSelectedOption(option as Option)}
+              value={selectedOption}
+              isSearchable
+              loadOptions={async input => {
+                await wait(400);
+                return OPTIONS.filter(o => o.label.includes(input));
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="FieldSelectAsync with error"
+              onChange={undefined}
+              value={undefined}
+              isSearchable
+              loadOptions={async () => {
+                await wait(400);
+                throw new Error('Network error');
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+            <FieldSelectAsync
+              label="Empty FieldSelectAsync"
+              onChange={undefined}
+              value={undefined}
+              isSearchable
+              loadOptions={async () => {
+                await wait(400);
+                return [];
+              }}
+              noOptionsMessage={() => 'No options'}
+            />
+          </Flex>
+        );
+      }}
     </Validation>
   );
 }

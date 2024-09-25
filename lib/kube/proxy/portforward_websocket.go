@@ -27,10 +27,14 @@ import (
 	"strings"
 	"sync"
 
+	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
+	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
+	"k8s.io/client-go/tools/portforward"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -296,4 +300,60 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	wg.Wait()
 
 	h.Debugf("Port forwarding pair completed.")
+}
+
+// runPortForwardingTunneledHTTPStreams handles a port-forwarding request that uses SPDY protocol
+// over WebSockets.
+func runPortForwardingTunneledHTTPStreams(req portForwardRequest) error {
+	targetConn, _, err := req.targetDialer.Dial(PortForwardProtocolV1Name)
+	if err != nil {
+		return trace.Wrap(err, "error upgrading target connection")
+	}
+	defer targetConn.Close()
+
+	// Try to upgrade the websocket connection.
+	// Beyond this point, we don't need to write errors to the response.
+	upgrader := gwebsocket.Upgrader{
+		CheckOrigin:  func(r *http.Request) bool { return true },
+		Subprotocols: []string{portforwardconstants.WebsocketsSPDYTunnelingPortForwardV1},
+	}
+	conn, err := upgrader.Upgrade(req.httpResponseWriter, req.httpRequest, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tunneledConn := portforward.NewTunnelingConnection("server", conn)
+
+	streamChan := make(chan httpstream.Stream, 1)
+	spdyConn, err := spdystream.NewServerConnectionWithPings(
+		tunneledConn,
+		httpStreamReceived(req.context, streamChan),
+		req.pingPeriod,
+	)
+	if err != nil {
+		return trace.Wrap(err, "error upgrading connection")
+	}
+
+	if conn == nil {
+		return trace.ConnectionProblem(nil, "Unable to upgrade websocket connection")
+	}
+	defer conn.Close()
+
+	h := &portForwardProxy{
+		Entry: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.Component(teleport.ComponentProxyKube),
+			events.RemoteAddr:     req.httpRequest.RemoteAddr,
+		}),
+		portForwardRequest:    req,
+		sourceConn:            spdyConn,
+		streamChan:            streamChan,
+		streamPairs:           make(map[string]*httpStreamPair),
+		streamCreationTimeout: DefaultStreamCreationTimeout,
+		targetConn:            targetConn,
+	}
+	defer h.Close()
+	h.Debugf("Setting port forwarding streaming connection idle timeout to %v", IdleTimeout)
+	spdyConn.SetIdleTimeout(IdleTimeout)
+	h.run()
+	return nil
 }

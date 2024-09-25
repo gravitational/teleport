@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 )
@@ -35,7 +36,7 @@ import (
 func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources, collectErr func(error)) func() error {
 	return func() error {
 		var err error
-		result.RDSDatabases, err = a.fetchAWSRDSDatabases(ctx)
+		result.RDSDatabases, err = a.fetchAWSRDSDatabases(ctx, a.lastResult)
 		if err != nil {
 			collectErr(trace.Wrap(err, "failed to fetch databases"))
 		}
@@ -44,7 +45,7 @@ func (a *awsFetcher) pollAWSRDSDatabases(ctx context.Context, result *Resources,
 }
 
 // fetchAWSRDSDatabases fetches RDS databases from all regions.
-func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context) (
+func (a *awsFetcher) fetchAWSRDSDatabases(ctx context.Context, existing *Resources) (
 	[]*accessgraphv1alpha.AWSRDSDatabaseV1,
 	error,
 ) {
@@ -140,8 +141,9 @@ func awsRDSInstanceToRDS(instance *rds.DBInstance, region, accountID string) *ac
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster:  false,
-		ResourceId: aws.StringValue(instance.DbiResourceId),
+		IsCluster:    false,
+		ResourceId:   aws.StringValue(instance.DbiResourceId),
+		LastSyncTime: timestamppb.Now(),
 	}
 }
 
@@ -168,7 +170,8 @@ func awsRDSClusterToRDS(instance *rds.DBCluster, region, accountID string) *acce
 			Engine:  aws.StringValue(instance.Engine),
 			Version: aws.StringValue(instance.EngineVersion),
 		},
-		IsCluster:  true,
-		ResourceId: aws.StringValue(instance.DbClusterResourceId),
+		IsCluster:    true,
+		ResourceId:   aws.StringValue(instance.DbClusterResourceId),
+		LastSyncTime: timestamppb.Now(),
 	}
 }

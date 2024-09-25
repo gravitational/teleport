@@ -201,7 +201,7 @@ export function ReauthenticateStep({
       {reauthenticateAttempt.status === 'error' && (
         <OutlineDanger>{reauthenticateAttempt.statusText}</OutlineDanger>
       )}
-      Verification Method
+      <Box mb={2}>Verification Method</Box>
       <form onSubmit={e => onReauthenticate(e)}>
         <RadioGroup
           name="mfaOption"

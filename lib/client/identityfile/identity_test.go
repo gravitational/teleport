@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -74,7 +75,8 @@ func newSelfSignedCA(priv crypto.Signer) (*tlsca.CertAuthority, authclient.Trust
 }
 
 func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.KeyRing {
-	privateKey, err := testauthority.New().GeneratePrivateKey()
+	// Some formats only support RSA (certain DBs, PPK files).
+	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
 	ff, tc, err := newSelfSignedCA(privateKey)
@@ -101,8 +103,7 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 	})
 	require.NoError(t, err)
 
-	ta := testauthority.New()
-	signer, err := ta.GeneratePrivateKey()
+	signer, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
 	require.NoError(t, err)
 	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
@@ -115,7 +116,8 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 	})
 	require.NoError(t, err)
 
-	keyRing := client.NewKeyRing(privateKey)
+	// Identity files use a single key for SSH and TLS.
+	keyRing := client.NewKeyRing(privateKey, privateKey)
 	keyRing.KeyRingIndex = client.KeyRingIndex{
 		ProxyHost:   "localhost",
 		Username:    "testuser",
@@ -143,7 +145,7 @@ func TestWrite(t *testing.T) {
 	// key is OK:
 	out, err := os.ReadFile(cfg.OutputPath)
 	require.NoError(t, err)
-	require.Equal(t, string(out), string(keyRing.PrivateKey.PrivateKeyPEM()))
+	require.Equal(t, string(out), string(keyRing.SSHPrivateKey.PrivateKeyPEM()))
 
 	// cert is OK:
 	out, err = os.ReadFile(keypaths.IdentitySSHCertPath(cfg.OutputPath))
@@ -168,7 +170,7 @@ func TestWrite(t *testing.T) {
 	require.NoError(t, err)
 
 	wantArr := [][]byte{
-		keyRing.PrivateKey.PrivateKeyPEM(),
+		keyRing.TLSPrivateKey.PrivateKeyPEM(),
 		keyRing.Cert,
 		keyRing.TLSCert,
 		[]byte(knownHosts),
@@ -228,14 +230,11 @@ func TestWriteAllFormats(t *testing.T) {
 		t.Run(string(format), func(t *testing.T) {
 			keyRing := newClientKeyRing(t)
 
-			keyRing.WindowsDesktopCerts = map[string][]byte{
-				"windows-user": []byte("cert data"),
-			}
-
 			cfg := WriteConfig{
-				OutputPath: path.Join(t.TempDir(), "identity"),
-				KeyRing:    keyRing,
-				Format:     format,
+				OutputPath:          path.Join(t.TempDir(), "identity"),
+				KeyRing:             keyRing,
+				WindowsDesktopCerts: map[string][]byte{"windows-user": []byte("cert data")},
+				Format:              format,
 			}
 
 			// extra fields for kubernetes
@@ -416,8 +415,8 @@ func TestKeyFromIdentityFile(t *testing.T) {
 		require.NoError(t, err)
 		parsedKeyRing, err := KeyRingFromIdentityFile(identityFilePath, proxyHost, cluster)
 		require.NoError(t, err)
-		require.NotNil(t, parsedKeyRing.KubeTLSCerts[k8sCluster])
-		require.Equal(t, keyRing.TLSCert, parsedKeyRing.KubeTLSCerts[k8sCluster])
+		require.NotNil(t, parsedKeyRing.KubeTLSCredentials[k8sCluster].PrivateKey)
+		require.Equal(t, keyRing.TLSCert, parsedKeyRing.KubeTLSCredentials[k8sCluster].Cert)
 	})
 }
 

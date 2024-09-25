@@ -47,7 +47,7 @@ function getDeviceTrustStatusKind(
   deviceTrusted: boolean,
   deviceTrustRequired: boolean
 ): DeviceTrustStatusKind {
-  if (deviceTrustRequired && deviceTrusted) {
+  if (deviceTrusted) {
     return 'authorized';
   }
   if (deviceTrustRequired) {

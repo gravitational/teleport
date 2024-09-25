@@ -40,6 +40,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |spacelift|[object](#specspacelift)|Spacelift allows the configuration of options specific to the "spacelift" join method.|
 |suggested_agent_matcher_labels|object|SuggestedAgentMatcherLabels is a set of labels to be used by agents to match on resources. When an agent uses this token, the agent should monitor resources that match those labels. For databases, this means adding the labels to `db_service.resources.labels`. Currently, only node-join scripts create a configuration according to the suggestion.|
 |suggested_labels|object|SuggestedLabels is a set of labels that resources should set when using this token to enroll themselves in the cluster. Currently, only node-join scripts create a configuration according to the suggestion.|
+|terraform_cloud|[object](#specterraform_cloud)|TerraformCloud allows the configuration of options specific to the "terraform_cloud" join method.|
 |tpm|[object](#spectpm)|TPM allows the configuration of options specific to the "tpm" join method.|
 
 ### spec.allow items
@@ -176,6 +177,26 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |caller_type|string||
 |scope|string||
 |space_id|string||
+
+### spec.terraform_cloud
+
+|Field|Type|Description|
+|---|---|---|
+|allow|[][object](#specterraform_cloudallow-items)|Allow is a list of Rules, nodes using this token must match one allow rule to use this token.|
+|audience|string|Audience is the JWT audience as configured in the TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform Cloud. If unset, defaults to the Teleport cluster name. For example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is set in Terraform Cloud, this value should be `foo`. If the variable is set to match the cluster name, it does not need to be set here.|
+|hostname|string|Hostname is the hostname of the Terraform Enterprise instance expected to issue JWTs allowed by this token. This may be unset for regular Terraform Cloud use, in which case it will be assumed to be `app.terraform.io`. Otherwise, it must both match the `iss` (issuer) field included in JWTs, and provide standard JWKS endpoints.|
+
+### spec.terraform_cloud.allow items
+
+|Field|Type|Description|
+|---|---|---|
+|organization_id|string||
+|organization_name|string||
+|project_id|string||
+|project_name|string||
+|run_phase|string||
+|workspace_id|string||
+|workspace_name|string||
 
 ### spec.tpm
 

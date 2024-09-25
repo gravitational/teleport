@@ -19,14 +19,11 @@
 package srv
 
 import (
-	"bytes"
 	"context"
-	"os/user"
 	"testing"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -38,19 +35,6 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
-
-// TestDecodeChildError ensures that child error message marshaling
-// and unmarshaling returns the original values.
-func TestDecodeChildError(t *testing.T) {
-	var buf bytes.Buffer
-	require.NoError(t, DecodeChildError(&buf))
-
-	targetErr := trace.NotFound(user.UnknownUserError("test").Error())
-
-	writeChildError(&buf, targetErr)
-
-	require.ErrorIs(t, DecodeChildError(&buf), targetErr)
-}
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)
