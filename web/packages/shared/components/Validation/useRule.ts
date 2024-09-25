@@ -16,28 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import Logger from '../../libs/logger';
+import { useState, useEffect } from 'react';
 
 import { useValidation } from './Validation';
-
-const logger = Logger.create('validation');
 
 /**
  * useRule subscribes to validation requests upon which executes validate() callback
  */
-export default function useRule(cb) {
-  if (typeof cb !== 'function') {
-    logger.warn(`useRule(fn), fn() must be a function`);
-    return;
-  }
-
-  const [, rerender] = React.useState();
-  const validator = useValidation();
+// TODO(ravicious): Replace `any` with actual types once Validation uses types.
+export default function useRule(cb: () => any) {
+  const [, rerender] = useState({});
+  const validator: any = useValidation();
 
   // register to validation context to be called on cb()
-  React.useEffect(() => {
+  useEffect(() => {
     function onValidate() {
       if (validator.validating) {
         const result = cb();
