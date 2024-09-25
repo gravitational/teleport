@@ -26,11 +26,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgproto3/v2"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -71,7 +72,7 @@ type Engine struct {
 // InitializeConnection initializes the client connection.
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.rawClientConn = clientConn
-	e.client = pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
+	e.client = pgproto3.NewBackend(clientConn, clientConn)
 
 	// The proxy is supposed to pass a startup message it received from
 	// the psql client over to us, so wait for it and extract database
@@ -86,7 +87,8 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 
 // SendError sends an error to connected client in a Postgres understandable format.
 func (e *Engine) SendError(err error) {
-	if err := e.client.Send(toErrorResponse(err)); err != nil && !utils.IsOKNetworkError(err) {
+	e.client.Send(toErrorResponse(err))
+	if err := e.client.Flush(); err != nil && !utils.IsOKNetworkError(err) {
 		e.Log.ErrorContext(e.Context, "Failed to send error to client.", "error", err)
 	}
 }
@@ -283,7 +285,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(hijackedConn.Conn), hijackedConn.Conn)
+	frontend := pgproto3.NewFrontend(hijackedConn.Conn, hijackedConn.Conn)
 	return frontend, hijackedConn, nil
 }
 
@@ -292,27 +294,32 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgpr
 func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.HijackedConn) error {
 	// AuthenticationOk indicates that the authentication was successful.
 	e.Log.DebugContext(e.Context, "Sending AuthenticationOk.")
-	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
+	client.Send(&pgproto3.AuthenticationOk{})
+	if err := client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	// BackendKeyData provides secret-key data that the frontend must save
 	// if it wants to be able to issue cancel requests later.
 	e.Log.DebugContext(e.Context, "Sending BackendKeyData.", "pid", hijackedConn.PID)
-	if err := client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey}); err != nil {
+	client.Send(&pgproto3.BackendKeyData{ProcessID: hijackedConn.PID, SecretKey: hijackedConn.SecretKey})
+	if err := client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	// ParameterStatuses contains parameters reported by the server such as
 	// server version, relay them back to the client.
 	e.Log.DebugContext(e.Context, "Sending ParameterStatuses.", "statuses", hijackedConn.ParameterStatuses)
 	for k, v := range hijackedConn.ParameterStatuses {
-		if err := client.Send(&pgproto3.ParameterStatus{Name: k, Value: v}); err != nil {
-			return trace.Wrap(err)
-		}
+		client.Send(&pgproto3.ParameterStatus{Name: k, Value: v})
+	}
+	if err := client.Flush(); err != nil {
+		return trace.Wrap(err)
 	}
 	// ReadyForQuery indicates that the start-up is completed and the
 	// frontend can now issue commands.
 	e.Log.DebugContext(e.Context, "Sending ReadyForQuery")
-	if err := client.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'}); err != nil {
+	client.Send(&pgproto3.ReadyForQuery{TxStatus: 'I'})
+	if err := client.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -354,7 +361,8 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- nil
 			return
 		}
-		err = server.Send(message)
+		server.Send(message)
+		err = server.Flush()
 		if err != nil {
 			log.ErrorContext(e.Context, "Failed to send message to server.", "error", err)
 			clientErrCh <- err
@@ -425,7 +433,7 @@ func (e *Engine) auditResult(session *common.Session, pgMsg pgproto3.BackendMess
 
 	switch m := pgMsg.(type) {
 	case *pgproto3.CommandComplete:
-		res.AffectedRecords = uint64(pgconn.CommandTag(m.CommandTag).RowsAffected())
+		res.AffectedRecords = uint64(pgconn.NewCommandTag(string(m.CommandTag)).RowsAffected())
 	case *pgproto3.ErrorResponse:
 		res.Error = common.ConvertError(pgconn.ErrorResponseToPgError(m))
 	default:
@@ -453,7 +461,7 @@ func (e *Engine) receiveFromServer(serverConn *pgconn.PgConn, serverErrCh chan<-
 
 		// server will never be used to write to server,
 		// which is why we pass io.Discard instead of e.rawServerConn
-		server := pgproto3.NewFrontend(pgproto3.NewChunkReader(copyReader), io.Discard)
+		server := pgproto3.NewFrontend(copyReader, io.Discard)
 
 		var count int64
 		defer func() {
@@ -540,8 +548,9 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return common.ConvertConnectError(err, sessionCtx)
 	}
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(tlsConn), tlsConn)
-	if err = frontend.Send(e.cancelReq); err != nil {
+	frontend := pgproto3.NewFrontend(tlsConn, tlsConn)
+	frontend.Send(e.cancelReq)
+	if err = frontend.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 	response := make([]byte, 1)
@@ -555,8 +564,9 @@ func (e *Engine) handleCancelRequest(ctx context.Context, sessionCtx *common.Ses
 // startPGWireTLS is a helper func that upgrades upstream connection to TLS.
 // copied from github.com/jackc/pgconn.startTLS.
 func startPGWireTLS(conn net.Conn, tlsConfig *tls.Config) (net.Conn, error) {
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-	if err := frontend.Send(&pgproto3.SSLRequest{}); err != nil {
+	frontend := pgproto3.NewFrontend(conn, conn)
+	frontend.Send(&pgproto3.SSLRequest{})
+	if err := frontend.Flush(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response := make([]byte, 1)
@@ -582,8 +592,7 @@ func formatParameters(parameters [][]byte, formatCodes []int16) (formatted []str
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-BIND
 	// https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-FUNCTIONCALL
 	if len(formatCodes) > 1 && len(formatCodes) != len(parameters) {
-		logrus.Warnf("Postgres parameter format codes and parameters don't match: %#v %#v.",
-			parameters, formatCodes)
+		slog.WarnContext(context.Background(), "Postgres parameter format codes and parameters don't match.", "paramters", parameters, "format_codes", formatCodes)
 		return formatted
 	}
 	for i, p := range parameters {
