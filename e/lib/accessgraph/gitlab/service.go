@@ -132,6 +132,7 @@ func New(ctx context.Context, opts Opts) (*Service, error) {
 		getCreds:          opts.GetCreds,
 		fetcher:           fetcher,
 		pluginStatusSink:  opts.PluginStatusSink,
+		usageReporter:     opts.UsageReporter,
 	}, nil
 }
 
