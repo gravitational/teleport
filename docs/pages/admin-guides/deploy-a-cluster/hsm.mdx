@@ -14,10 +14,7 @@ hardware security module (HSM) to store and handle private keys.
 - An HSM reachable from your Teleport auth server.
 - The PKCS#11 module for your HSM.
 
-<Admonition type="warning" scope={["cloud", "oss"]} opened={true} scopeOnly={true} title="Compatibility Warning">
-Teleport Cloud and Teleport Open Source do not currently support HSM.
-
-</Admonition>
+(!docs/pages/includes/enterprise/hsm-warning.mdx!)
 
 While most PKCS#11 HSMs should be supported, the Teleport team tests with AWS
 CloudHSM, YubiHSM2, and SoftHSM2.
