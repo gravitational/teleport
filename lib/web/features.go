@@ -23,7 +23,9 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 )
 
-// SetClusterFeatures sets the flags for supported and unsupported features
+// SetClusterFeatures sets the flags for supported and unsupported features.
+// TODO(mcbattirola): make method unexported, fix tests using it to set
+// test modules instead.
 func (h *Handler) SetClusterFeatures(features proto.Features) {
 	h.Mutex.Lock()
 	defer h.Mutex.Unlock()
