@@ -90,14 +90,18 @@ spec:
         # The agent updater client will pick a random time within this duration to wait to update.
         #  default: 5
         jitter_seconds: 0-60
+        # canary_count specifies the desired number of canaries to update before any other agents
+        # are updated.
+        #  default: 5
+        canaries: 0-10
         # max_in_flight specifies the maximum number of agents that may be updated at the same time.
         # Only valid for the backpressure strategy.
         #  default: 20%
         max_in_flight: 10-100%
         # alert_after specifies the duration after which a cluster alert will be set if the rollout has
         # not completed.
-        #  default: 4h
-        alert_after: 1h
+        #  default: 4
+        alert_after_hours: 1-8
 
   # ...
 ```
@@ -206,6 +210,8 @@ status:
     present_count: 53
     # failed_count is the number of agents rolled-back since the start of the rollout
     failed_count: 23
+    # canaries is a list of updater UUIDs used for canary deployments
+    canaries: ["abc123-..."]
     # progress is the current progress through the rollout
     progress: 0.532
     # state is the current state of the rollout (unstarted, active, done, rollback)
@@ -243,8 +249,14 @@ $ teleport-update enable --proxy teleport.example.com --group staging
 ```
 
 At the start of a group rollout, the Teleport auth servers record the initial number connected agents.
-A fixed number of connected agents (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
+The number of updated and non-updated agents is tracked by the auth servers.
+
+If backpressure is enabled, a fixed number of connected agents (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
 Additional agents are instructed to update as earlier updates complete, never exceeding `max_in_flight`.
+
+If canaries are enabled, a user-specified number of agents are updated first.
+These agents must all update successfully for the rollout to proceed to the remaining agents.
+
 Rollouts may be paused with `tctl autoupdate pause` or manually triggered with `tctl autoupdate run`.
 
 ### Rollout
@@ -269,11 +281,13 @@ Every minute, auth servers persist the version counts:
 At the start of each group's window, auth servers persist an initial count:
 - `initial_counts[group]`
   - `count`: number of connected agents in `group` at start of window
+  - `canaries`: list of updater UUIDs to use for canary deployments
 
 Expiration time of the persisted key is 1 hour.
 
 To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_plan` status on a one-minute interval.
 - To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_plan` status, if not already written.
+- To calculate the canaries, each auth server will write a random selection of all canaries to `autoupdate_agent_plan` status, if not already written.
 - To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_plan` status using the formulas, declining to write if the current written progress is further ahead.
 
 If `/autoupdate/[group]/[auth ID]` is older than 1 minute, we do not consider its contents.
@@ -312,7 +326,8 @@ The boolean is returned as `true` in the case that the provided `host` contains 
 Notes:
 - Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
 - The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
-- The UUID and group name are read from `/var/lib/teleport/versions/update.yaml` by the updater.
+- The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
+- The UUID is read from `/tmp/teleport_update_uuid`, which `teleport-update` regenerates when missing.
 
 ## Details - Linux Agents
 
@@ -519,6 +534,8 @@ Post package installation, the `link` subcommand is executed automatically to li
 If the new version of Teleport fails to start, the installation of Teleport is reverted as described above.
 
 If `teleport-update` itself fails with an error, and an older version of `teleport-update` is available, the update will retry with the older version.
+
+If the agent losses its connection to the proxy, `teleport-update` updates the agent to the group's current desired version immediately.
 
 Known failure conditions caused by intentional configuration (e.g., updates disabled) will not trigger retry logic.
 
@@ -872,13 +889,17 @@ Making the update boolean instruction available via the `/webapi/find` TLS endpo
 
 ## Execution Plan
 
-1. Implement Teleport APIs for new scheduling system (without backpressure strategy)
-2. Implement new Linux server auto-updater in Go.
+1. Implement Teleport APIs for new scheduling system (without backpressure strategy, canaries, or completion tracking)
+2. Implement new Linux server auto-updater in Go, including systemd-based rollbacks.
 3. Implement changes to Kubernetes auto-updater.
 4. Test extensively on all supported Linux distributions.
 5. Prep documentation changes.
-6. Release via `teleport` package.
+6. Release via `teleport` package and script for packageless install.
 7. Release documentation changes.
-8. Communicate to users that they should update their updater.
+8. Communicate to users that they should update to the new system.
 9. Begin deprecation of old auto-updater resources, packages, and endpoints.
-10. Add group interdependence and backpressure features.
+10. Add healthcheck endpoint to Teleport agents and incorporate into rollback logic.
+10. Add progress and completion checking.
+10. Add canary functionality.
+10. Add backpressure functionality if necessary.
+11. Add DB backups if necessary.
