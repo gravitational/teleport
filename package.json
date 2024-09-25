@@ -62,6 +62,8 @@
     "@codemirror/autocomplete": "^6.18.0",
     "@codemirror/lang-sql": "^6.7.1",
     "@codemirror/view": "^6.33.0",
+    "@connectrpc/connect-query": "^1.0.0",
+    "@connectrpc/connect-web": "^1.0.0",
     "@grpc/grpc-js": "1.11.1",
     "@lezer/highlight": "^1.2.1",
     "@nivo/bar": "^0.87.0",
