@@ -9530,7 +9530,7 @@ func TestModeratedSession(t *testing.T) {
 
 	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
-	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerStream, "Teleport > Waiting for required participants..."))
 
 	moderator := s.authPack(t, "bar", moderatorRole.GetName())
 	moderatorWS, _, err := s.makeTerminal(t, moderator, withSessionID(sess.ID), withParticipantMode(types.SessionModeratorMode))
@@ -9619,7 +9619,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	peerStream := terminal.NewStream(ctx, terminal.StreamConfig{WS: peerWS})
 
-	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
+	require.NoError(t, waitForOutput(peerStream, "Teleport > Waiting for required participants..."))
 
 	moderatorWS, _, err := s.makeTerminal(t, moderator, withSessionID(sess.ID), withParticipantMode(types.SessionModeratorMode))
 	require.NoError(t, err)
