@@ -106,6 +106,7 @@ const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
     eventState: null,
   };
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.proxyCluster = 'localhost';
   return (
     <MemoryRouter

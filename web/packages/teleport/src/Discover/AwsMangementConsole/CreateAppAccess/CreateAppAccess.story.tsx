@@ -53,6 +53,7 @@ Success.parameters = {
 };
 
 export const Loading = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return <Component />;
 };
@@ -122,6 +123,7 @@ const Component = () => {
     eventState: null,
   };
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.proxyCluster = 'localhost';
   return (
     <MemoryRouter

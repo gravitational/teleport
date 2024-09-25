@@ -39,6 +39,7 @@ const OpenedIdentity = (props: IdentityProps) => {
     if (ref.current) {
       ref.current.togglePopover();
     }
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   }, [ref.current]);
 
   return (

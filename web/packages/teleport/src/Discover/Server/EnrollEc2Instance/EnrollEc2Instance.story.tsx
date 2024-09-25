@@ -117,6 +117,7 @@ SingleInstanceListCreated.parameters = {
 };
 
 export const SingleInstanceListForCloudPending = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return (
     <>
@@ -139,6 +140,7 @@ SingleInstanceListForCloudPending.parameters = {
 };
 
 export const AutoDiscoverInstanceListForCloudCreated = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return <Component autoDiscover={true} />;
 };
@@ -156,6 +158,7 @@ AutoDiscoverInstanceListForCloudCreated.parameters = {
 };
 
 export const AutoDiscoverInstanceListForCloudPending = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return (
     <>
@@ -287,6 +290,7 @@ const Component = ({
     eventState: null,
   };
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.proxyCluster = 'localhost';
   return (
     <MemoryRouter

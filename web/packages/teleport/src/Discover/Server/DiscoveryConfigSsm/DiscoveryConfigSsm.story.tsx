@@ -59,6 +59,7 @@ export default {
 };
 
 export const SuccessCloud = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return <Component />;
 };
@@ -100,6 +101,7 @@ SuccessSelfHosted.parameters = {
 };
 
 export const Loading = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return <Component />;
 };
@@ -115,6 +117,7 @@ Loading.parameters = {
 };
 
 export const Failed = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   return <Component />;
 };
@@ -184,6 +187,7 @@ const Component = ({
     eventState: null,
   };
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.proxyCluster = 'localhost';
   return (
     <MemoryRouter

@@ -53,6 +53,7 @@ export const Webauthn = () => <Login {...sample} auth2faType="webauthn" />;
 export const Optional = () => <Login {...sample} auth2faType="optional" />;
 export const On = () => <Login {...sample} auth2faType="on" />;
 export const CommunityAcknowledgement = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.edition = 'community';
   return <Login {...sample} licenseAcknowledged={false} />;
 };

@@ -87,6 +87,7 @@ export function InProgress() {
     return () => ref.current.abort();
   }, []);
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   appContext.connectMyComputerService.createRole = () =>
     new Promise(resolve => {
       ref.current.signal.addEventListener('abort', () => resolve(undefined));

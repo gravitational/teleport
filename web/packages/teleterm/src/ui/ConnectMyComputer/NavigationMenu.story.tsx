@@ -58,6 +58,7 @@ export function AgentStarting() {
 
   const appContext = new MockAppContext({ appVersion: '17.0.0' });
 
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   appContext.connectMyComputerService.downloadAgent = () =>
     new Promise((resolve, reject) => {
       abortControllerRef.current.signal.addEventListener('abort', () => reject);

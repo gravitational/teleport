@@ -121,6 +121,7 @@ ClustersList.parameters = {
 };
 
 export const ClustersListInCloud = () => {
+  // eslint-disable-next-line react-compiler/react-compiler -- FIXME
   cfg.isCloud = true;
   cfg.automaticUpgrades = true;
   cfg.automaticUpgradesTargetVersion = 'v14.3.2';

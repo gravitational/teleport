@@ -275,6 +275,7 @@ export const OnlineLoadingResources = () => {
 
   let rejectPromise: (error: Error) => void;
   const promiseRejectedOnUnmount = new Promise<any>((resolve, reject) => {
+    // eslint-disable-next-line react-compiler/react-compiler -- FIXME
     rejectPromise = reject;
   });
 
