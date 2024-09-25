@@ -5,9 +5,9 @@ FROM docker.io/golang:1.23
 # Image layers go from less likely to most likely to change.
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \
-  npm \
-  unzip \
-  && \
+    npm \
+    unzip \
+    && \
   rm -rf /var/lib/apt/lists/*
 
 # protoc-gen-gogofast
@@ -27,7 +27,7 @@ RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_
 # eg, "v1.26.1"
 ARG BUF_VERSION
 RUN VERSION="$BUF_VERSION"; \
-  go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
+    go install "github.com/bufbuild/buf/cmd/buf@$VERSION"
 
 RUN npm install --global @bufbuild/protoc-gen-es@1.10.0 @connectrpc/protoc-gen-connect-query@1.4.2
 

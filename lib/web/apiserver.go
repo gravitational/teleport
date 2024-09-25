@@ -401,6 +401,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+
 }
 
 // Check if this request should be forwarded to an application handler to
