@@ -45,7 +45,7 @@ export function useReviewAccessRequest({
   goBack(): void;
 }) {
   const ctx = useAppContext();
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();

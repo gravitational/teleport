@@ -36,7 +36,7 @@ const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
-  workspacesService.useState();
+  workspacesService.rerenderOnStateChange();
 
   if (!workspacesService.getRootClusterUri()) {
     return null;
@@ -65,7 +65,7 @@ function SearchBar() {
     makeEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   useKeyboardShortcuts({
     [OPEN_SEARCH_BAR_SHORTCUT_ACTION]: () => {

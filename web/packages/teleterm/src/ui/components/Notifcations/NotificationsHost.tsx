@@ -25,7 +25,7 @@ import { Notifications } from './Notifications';
 export function NotificationsHost() {
   const { notificationsService } = useAppContext();
 
-  notificationsService.useState();
+  notificationsService.rerenderOnStateChange();
 
   return (
     <Notifications

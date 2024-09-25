@@ -30,7 +30,7 @@ import { Step, useConnectionsContext } from './connectionsContext';
 
 export function Connections() {
   const { connectionTracker } = useAppContext();
-  connectionTracker.useState();
+  connectionTracker.rerenderOnStateChange();
   const iconRef = useRef();
   const { isOpen, toggle, close, stepToOpen } = useConnectionsContext();
   const { status: vnetStatus } = useVnetContext();

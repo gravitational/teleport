@@ -49,8 +49,8 @@ import { makeUiAccessRequest } from '../DocumentAccessRequests/useAccessRequests
 
 export default function useAccessRequestCheckout() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
+  ctx.clustersService.rerenderOnStateChange();
   const clusterUri =
     ctx.workspacesService?.getActiveWorkspace()?.localClusterUri;
   const rootClusterUri = ctx.workspacesService?.getRootClusterUri();

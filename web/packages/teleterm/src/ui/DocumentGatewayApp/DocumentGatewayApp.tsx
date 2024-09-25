@@ -42,7 +42,7 @@ export function DocumentGatewayApp(props: {
     reconnect,
   } = useDocumentGateway(props.doc);
 
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   return (
     <Document visible={props.visible}>

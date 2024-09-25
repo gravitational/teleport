@@ -48,8 +48,8 @@ type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
   const { workspacesService, mainProcessClient, notificationsService } = ctx;
-  workspacesService.useState();
-  ctx.clustersService.useState();
+  workspacesService.rerenderOnStateChange();
+  ctx.clustersService.rerenderOnStateChange();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
   const activeRootCluster = getActiveRootCluster(ctx);

@@ -31,8 +31,8 @@ import { LoggedInUser } from 'teleterm/services/tshd/types';
  */
 export function useLoggedInUser(): LoggedInUser | undefined {
   const { clustersService, workspacesService } = useAppContext();
-  clustersService.useState();
-  workspacesService.useState();
+  clustersService.rerenderOnStateChange();
+  workspacesService.rerenderOnStateChange();
 
   const clusterUri = workspacesService.getRootClusterUri();
   if (!clusterUri) {
@@ -58,7 +58,7 @@ export function useLoggedInUser(): LoggedInUser | undefined {
  */
 export function useWorkspaceLoggedInUser(): LoggedInUser | undefined {
   const { clustersService } = useAppContext();
-  clustersService.useState();
+  clustersService.rerenderOnStateChange();
   const { rootClusterUri } = useWorkspaceContext();
 
   const cluster = clustersService.findCluster(rootClusterUri);

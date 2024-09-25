@@ -621,7 +621,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     });
   }
 
-  useState() {
+  rerenderOnStateChange() {
     return useStore(this).state;
   }
 

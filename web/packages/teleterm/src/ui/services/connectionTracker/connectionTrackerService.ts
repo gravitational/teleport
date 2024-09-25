@@ -72,7 +72,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
       );
   }
 
-  useState() {
+  rerenderOnStateChange() {
     return useStore(this).state;
   }
 

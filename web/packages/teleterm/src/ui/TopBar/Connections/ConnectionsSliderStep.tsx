@@ -28,7 +28,7 @@ import { useConnectionsContext } from './connectionsContext';
 
 export const ConnectionsSliderStep = (props: StepComponentProps) => {
   const { connectionTracker } = useAppContext();
-  connectionTracker.useState();
+  connectionTracker.rerenderOnStateChange();
   const { close: closeConnectionList } = useConnectionsContext();
 
   const items = connectionTracker.getConnections();

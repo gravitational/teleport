@@ -38,7 +38,7 @@ import { ChangeAccessRequestKind } from './modals/ChangeAccessRequestKind';
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
   const { regular: regularDialog, important: importantDialog } =
-    modalsService.useState();
+    modalsService.rerenderOnStateChange();
 
   const closeRegularDialog = () => modalsService.closeRegularDialog();
   const closeImportantDialog = () => modalsService.closeImportantDialog();

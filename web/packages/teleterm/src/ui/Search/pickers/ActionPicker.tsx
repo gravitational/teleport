@@ -67,7 +67,7 @@ import { PickerContainer } from './PickerContainer';
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
   const { clustersService, modalsService } = ctx;
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   const {
     changeActivePicker,

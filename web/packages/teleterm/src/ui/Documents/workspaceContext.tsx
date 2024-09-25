@@ -45,7 +45,7 @@ export const WorkspaceContextProvider: React.FC<
 
 export const useWorkspaceContext = () => {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
 
   return React.useContext(WorkspaceContext);
 };

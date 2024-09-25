@@ -37,7 +37,7 @@ export function TabHostContainer(props: {
   topBarContainerRef: React.MutableRefObject<HTMLDivElement>;
 }) {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
   const isRootClusterSelected = !!ctx.workspacesService.getRootClusterUri();
 
   if (isRootClusterSelected) {

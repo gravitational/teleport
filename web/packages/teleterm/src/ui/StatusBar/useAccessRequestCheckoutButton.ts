@@ -20,7 +20,7 @@ import { useAppContext } from '../appContextProvider';
 
 export function useAccessRequestsButton() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
 
   const workspaceAccessRequest =
     ctx.workspacesService.getActiveWorkspaceAccessRequestsService();

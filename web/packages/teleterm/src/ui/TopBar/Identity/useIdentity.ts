@@ -23,8 +23,8 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 export function useIdentity() {
   const ctx = useAppContext();
 
-  ctx.clustersService.useState();
-  ctx.workspacesService.useState();
+  ctx.clustersService.rerenderOnStateChange();
+  ctx.workspacesService.rerenderOnStateChange();
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);

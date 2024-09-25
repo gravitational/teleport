@@ -23,8 +23,8 @@ export function useClusters() {
   const { workspacesService, clustersService, commandLauncher } =
     useAppContext();
 
-  workspacesService.useState();
-  clustersService.useState();
+  workspacesService.rerenderOnStateChange();
+  clustersService.rerenderOnStateChange();
 
   function findLeaves(clusterUri: string) {
     return clustersService

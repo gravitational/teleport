@@ -118,7 +118,7 @@ export class ModalsService extends ImmutableStore<State> {
     });
   }
 
-  useState() {
+  rerenderOnStateChange() {
     return useStore(this).state;
   }
 }

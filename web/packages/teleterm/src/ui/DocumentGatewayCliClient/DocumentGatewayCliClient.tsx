@@ -44,7 +44,7 @@ export const DocumentGatewayCliClient = (props: {
   doc: types.DocumentGatewayCliClient;
 }) => {
   const { clustersService } = useAppContext();
-  clustersService.useState();
+  clustersService.rerenderOnStateChange();
 
   const { doc, visible } = props;
   const [hasRenderedTerminal, setHasRenderedTerminal] = useState(false);

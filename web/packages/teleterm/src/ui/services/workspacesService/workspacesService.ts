@@ -220,7 +220,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
-  useState() {
+  rerenderOnStateChange() {
     return useStore(this);
   }
 

@@ -132,7 +132,7 @@ export const ConnectMyComputerContextProvider: FC<
     usageService,
   } = ctx;
   const { requestResourcesRefresh } = useResourcesContext();
-  clustersService.useState();
+  clustersService.rerenderOnStateChange();
 
   const [
     isAgentConfiguredAttempt,

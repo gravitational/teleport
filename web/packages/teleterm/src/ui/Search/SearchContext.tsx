@@ -130,7 +130,7 @@ export const SearchContextProvider: FC<PropsWithChildren> = props => {
     );
   }
 
-  appContext.workspacesService.useState();
+  appContext.workspacesService.rerenderOnStateChange();
   const activeDocument = appContext.workspacesService
     .getActiveWorkspaceDocumentService()
     ?.getActive();

@@ -51,7 +51,7 @@ export class NotificationsService extends ImmutableStore<NotificationItem[]> {
     return this.state;
   }
 
-  useState(): NotificationItem[] {
+  rerenderOnStateChange(): NotificationItem[] {
     return useStore(this).state;
   }
 

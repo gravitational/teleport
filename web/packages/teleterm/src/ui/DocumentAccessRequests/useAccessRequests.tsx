@@ -43,7 +43,7 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const ctx = useAppContext();
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   const {
     localClusterUri: clusterUri,

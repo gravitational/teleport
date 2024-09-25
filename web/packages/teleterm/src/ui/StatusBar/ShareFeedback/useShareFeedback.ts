@@ -30,8 +30,8 @@ export const FEEDBACK_TOO_LONG_ERROR = 'FEEDBACK_TOO_LONG_ERROR';
 
 export function useShareFeedback() {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
+  ctx.clustersService.rerenderOnStateChange();
 
   const [isShareFeedbackOpened, setIsShareFeedbackOpened] = useState(false);
 

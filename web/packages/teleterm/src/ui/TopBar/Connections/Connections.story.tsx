@@ -264,7 +264,7 @@ const prepareAppContext = (appContext: MockAppContext) => {
   appContext.connectionTracker.activateItem = async () => {};
   appContext.connectionTracker.disconnectItem = async () => {};
   appContext.connectionTracker.removeItem = async () => {};
-  appContext.connectionTracker.useState = () => null;
+  appContext.connectionTracker.rerenderOnStateChange = () => null;
 };
 
 const useOpenConnections = () => {

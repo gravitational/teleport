@@ -27,7 +27,7 @@ import { RootClusterUri } from 'teleterm/ui/uri';
 export function RecentClusters() {
   const ctx = useAppContext();
 
-  ctx.clustersService.useState();
+  ctx.clustersService.rerenderOnStateChange();
 
   const rootClusters = ctx.clustersService
     .getClusters()

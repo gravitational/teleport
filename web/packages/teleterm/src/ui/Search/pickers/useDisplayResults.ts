@@ -31,7 +31,7 @@ export function useDisplayResults(args: {
   inputValue: string;
 }): DisplayResults {
   const { workspacesService } = useAppContext();
-  workspacesService.useState();
+  workspacesService.rerenderOnStateChange();
 
   const localClusterUri =
     workspacesService.getActiveWorkspace()?.localClusterUri;

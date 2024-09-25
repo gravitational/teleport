@@ -22,8 +22,8 @@ import { routing } from 'teleterm/ui/uri';
 
 export function useActiveDocumentClusterBreadcrumbs(): string {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
+  ctx.workspacesService.rerenderOnStateChange();
+  ctx.clustersService.rerenderOnStateChange();
 
   const activeDocument = ctx.workspacesService
     .getActiveWorkspaceDocumentService()
