@@ -43,6 +43,8 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // startFeatureWatcher periodically pings the auth server and updates `clusterFeatures`.
 // Must be called only once per `handler`, otherwise it may close an already closed channel
 // which will cause a panic.
+// The watcher doesn't ping the auth server immediately upon start because features are
+// already set by the config object in `NewHandler`.
 func (h *Handler) startFeatureWatcher() {
 	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
 	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
