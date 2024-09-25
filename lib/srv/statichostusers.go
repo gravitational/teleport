@@ -245,9 +245,10 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 
 	slog.DebugContext(ctx, "Attempt to update matched static host user.", "login", login)
 	ui := services.HostUsersInfo{
-		Groups: createUser.Groups,
-		Mode:   services.HostUserModeStatic,
-		Shell:  createUser.DefaultShell,
+		Groups:        createUser.Groups,
+		Mode:          services.HostUserModeStatic,
+		Shell:         createUser.DefaultShell,
+		TakeOwnership: createUser.TakeOwnershipIfUserExists,
 	}
 	if createUser.Uid != 0 {
 		ui.UID = strconv.Itoa(int(createUser.Uid))
