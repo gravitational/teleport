@@ -59,7 +59,13 @@ type KeyStoreManager interface {
 // GenerateAWSOIDCTokenRequest contains the required elements to generate an AWS OIDC Token (JWT).
 type GenerateAWSOIDCTokenRequest struct {
 	// Integration is the AWS OIDC Integration name.
+	// Integration or ARN is required.
+	// Optional.
 	Integration string
+	// ARN is the ARN for the role that should be used instead of loading it from the integration.
+	// Integration or ARN is required.
+	// Optional.
+	ARN string
 	// Username is the JWT Username (on behalf of claim)
 	Username string
 	// Subject is the JWT Subject (subject claim)
@@ -70,8 +76,8 @@ type GenerateAWSOIDCTokenRequest struct {
 
 // CheckAndSetDefaults checks the request params.
 func (g *GenerateAWSOIDCTokenRequest) CheckAndSetDefaults() error {
-	if g.Integration == "" {
-		return trace.BadParameter("integration missing")
+	if g.Integration == "" && g.ARN == "" {
+		return trace.BadParameter("integration and arn are missing")
 	}
 	if g.Username == "" {
 		return trace.BadParameter("username missing")
@@ -107,22 +113,31 @@ func GenerateAWSOIDCToken(ctx context.Context, cacheClt Cache, keyStoreManager K
 		return "", trace.Wrap(err)
 	}
 
-	integration, err := cacheClt.GetIntegration(ctx, req.Integration)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	var issuer string
+	var err error
+	if req.ARN == "" {
+		integration, err := cacheClt.GetIntegration(ctx, req.Integration)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 
-	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
-	}
+		if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+			return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+		}
 
-	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
-	}
+		if integration.GetAWSOIDCIntegrationSpec() == nil {
+			return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+		}
 
-	issuer, err := issuerForIntegration(ctx, integration, cacheClt)
-	if err != nil {
-		return "", trace.Wrap(err)
+		issuer, err = issuerForIntegration(ctx, integration, cacheClt)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	} else {
+		issuer, err = oidc.IssuerForCluster(ctx, cacheClt)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	clusterName, err := cacheClt.GetClusterName()

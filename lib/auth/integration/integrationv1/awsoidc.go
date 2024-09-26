@@ -45,7 +45,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 
 	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
-			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration, "")
 		}
 	}
 
@@ -54,7 +54,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 
 // generateAWSOIDCTokenWithoutAuthZ generates a token to be used when executing an AWS OIDC Integration action.
 // Bypasses authz and should only be used by other methods that validate AuthZ.
-func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrationName string) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
+func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrationName, arn string) (*integrationpb.GenerateAWSOIDCTokenResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -62,6 +62,7 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrat
 
 	token, err := awsoidc.GenerateAWSOIDCToken(ctx, s.cache, s.keyStoreManager, awsoidc.GenerateAWSOIDCTokenRequest{
 		Integration: integrationName,
+		ARN:         arn,
 		Username:    username,
 		Subject:     types.IntegrationAWSOIDCSubject,
 		Clock:       s.clock,
@@ -173,7 +174,7 @@ func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, regi
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
+	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -773,15 +774,31 @@ func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingReques
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Integration == "" {
-		return nil, trace.BadParameter("integration is required")
-	}
+	var awsClientReq *awsoidc.AWSClientRequest
 
-	// Instead of asking the user for a region (or storing a default region), we use the sentinel value for the global region.
-	// This improves the UX, because it is one less input we require from the user.
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch {
+	case req.Arn != "":
+		token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, "", req.Arn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		awsClientReq = &awsoidc.AWSClientRequest{
+			IntegrationName: "no-integration",
+			Token:           token.Token,
+			RoleARN:         req.Arn,
+			Region:          awsutils.AWSGlobalRegion,
+		}
+	case req.Integration != "":
+		// Instead of asking the user for a region (or storing a default region), we use the sentinel value for the global region.
+		// This improves the UX, because it is one less input we require from the user.
+		awsClientReq, err = s.awsClientReq(ctx, req.Integration, awsutils.AWSGlobalRegion)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.BadParameter("integration or arn is required")
 	}
 
 	awsClient, err := awsoidc.NewPingClient(ctx, awsClientReq)
