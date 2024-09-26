@@ -23,9 +23,14 @@ package bpf
 
 import (
 	_ "embed"
+	"io"
 	"runtime"
+	"sync"
 
-	"github.com/aquasecurity/libbpfgo"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -42,42 +47,19 @@ var (
 	)
 )
 
-const (
-	diskEventsBuffer = "open_events"
-)
-
-// rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
-// buffer.
-type rawOpenEvent struct {
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID uint64
-
-	// PID is the ID of the process.
-	PID uint64
-
-	// ReturnCode is the return code of open.
-	ReturnCode int32
-
-	// Command is name of the executable opening the file.
-	Command [CommMax]byte
-
-	// Path is the full path to the file being opened.
-	Path [PathMax]byte
-
-	// Flags are the flags passed to open.
-	Flags int32
-}
-
 type cgroupRegister interface {
 	startSession(cgroupID uint64) error
 	endSession(cgroupID uint64) error
 }
 
 type open struct {
-	session
+	objs diskObjects
 
-	eventBuf *RingBuffer
-	lost     *Counter
+	eventBuf chan []byte
+	toClose  []io.Closer
+
+	closed bool
+	mtx    sync.Mutex
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
@@ -88,64 +70,142 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	o := &open{}
+	// Remove resource limits for kernels <5.11.
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal("Removing memlock:", err)
+	}
 
-	diskBPF, err := embedFS.ReadFile("bytecode/disk.bpf.o")
-	if err != nil {
+	var objs diskObjects
+	if err := loadDiskObjects(&objs, nil); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	o.session.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	trs := []struct {
+		name string
+		prog *ebpf.Program
+	}{
+		{
+			name: "sys_enter_creat",
+			prog: objs.TracepointSyscallsSysEnterCreat,
+		},
+		{
+			name: "sys_enter_open",
+			prog: objs.TracepointSyscallsSysEnterOpen,
+		},
+		{
+			name: "sys_enter_openat2",
+			prog: objs.TracepointSyscallsSysEnterOpenat2,
+		},
+		{
+			name: "sys_exit_creat",
+			prog: objs.TracepointSyscallsSysExitCreat,
+		},
+		{
+			name: "sys_exit_open",
+			prog: objs.TracepointSyscallsSysExitOpen,
+		},
+		{
+			name: "sys_exit_openat2",
+			prog: objs.TracepointSyscallsSysExitOpenat2,
+		},
 	}
-
-	// Resizing the ring buffer must be done here, after the module
-	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(o.session.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Load into the kernel
-	if err = o.session.module.BPFLoadObject(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	syscalls := []string{"openat", "openat2"}
 
 	if runtime.GOARCH != "arm64" {
-		// open is not implemented on arm64.
-		syscalls = append(syscalls, "open")
+		// openat is not implemented on arm64.
+		trs = append(trs, []struct {
+			name string
+			prog *ebpf.Program
+		}{
+			{
+				name: "sys_enter_openat",
+				prog: objs.TracepointSyscallsSysEnterOpenat,
+			},
+			{
+				name: "sys_exit_openat",
+				prog: objs.TracepointSyscallsSysExitOpenat,
+			},
+		}...)
 	}
 
-	for _, syscall := range syscalls {
-		if err = AttachSyscallTracepoint(o.session.module, syscall); err != nil {
+	toClose := make([]io.Closer, 0, len(trs))
+	for _, tr := range trs {
+		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		toClose = append(toClose, tp)
 	}
 
-	o.eventBuf, err = NewRingBuffer(o.session.module, diskEventsBuffer)
+	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	o.lost, err = NewCounter(o.session.module, "lost", lostDiskEvents)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	bpfEvents := make(chan []byte, 100)
+	go sendEvents(bpfEvents, eventBuf)
+
+	return &open{
+		objs:     objs,
+		eventBuf: bpfEvents,
+		toClose:  toClose,
+	}, nil
+}
+
+func (o *open) startSession(cgroupID uint64) error {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	if o.closed {
+		return trace.BadParameter("open session already closed")
 	}
 
-	return o, nil
+	if err := o.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (o *open) endSession(cgroupID uint64) error {
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	if o.closed {
+		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+	}
+
+	if err := o.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // close will stop reading events off the ring buffer and unload the BPF
 // program. The ring buffer is closed as part of the module being closed.
 func (o *open) close() {
-	o.lost.Close()
-	o.eventBuf.Close()
-	o.session.module.Close()
+	o.mtx.Lock()
+	defer o.mtx.Unlock()
+
+	if o.closed {
+		return
+	}
+
+	o.closed = true
+
+	for _, toClose := range o.toClose {
+		if err := toClose.Close(); err != nil {
+			log.Warn(err)
+		}
+	}
+
+	if err := o.objs.Close(); err != nil {
+		log.Warn(err)
+	}
 }
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
-	return o.eventBuf.EventCh
+	return o.eventBuf
 }

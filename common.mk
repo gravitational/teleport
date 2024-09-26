@@ -73,26 +73,11 @@ ifneq (,$(or $(IS_NATIVE_BUILD),$(IS_CROSS_COMPILE_BB)))
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
-KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
-ER_BPF_BUILDDIR := lib/bpf/bytecode
-BPF_INCLUDES := $(LIBBPF_INCLUDES)
-STATIC_LIBS += $(LIBBPF_LIBS)
+CLANG ?= $(shell which clang || which clang-12)
+INCLUDES :=
 
-# Get Clang's default includes on this system. We'll explicitly add these dirs
-# to the includes list when compiling with `-target bpf` because otherwise some
-# architecture-specific dirs will be "missing" on some architectures/distros -
-# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
-# sys/cdefs.h etc. might be missing.
-#
-# Use '-idirafter': Don't interfere with include mechanics except where the
-# build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
-	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
-
-# Link static version of libraries required by Teleport (bpf, pcsc) to reduce
-# system dependencies. Avoid dependencies on dynamic libraries if we already
-# link the static version using --as-needed.
-CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="$(BPF_INCLUDES)" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+# Link static version of libraries required by Teleport (pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
+CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 
 endif # IS_NATIVE_BUILD || IS_CROSS_COMPILE_BB

@@ -9,8 +9,6 @@ updates:
     ignore:
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
-      # Must be kept in-sync with libbpf
-      - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
       - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/coreos/go-oidc

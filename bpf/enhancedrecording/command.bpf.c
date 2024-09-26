@@ -40,12 +40,21 @@ struct data_t {
     u64 pid;
     // ppid is the userspace term (i.e task->real_parent->tgid in kernel).
     u64 ppid;
-    char comm[TASK_COMM_LEN];
+    // Command is the executable.
+    char command[TASK_COMM_LEN];
+    // Type is the type of event.
     enum event_type type;
+    // Argv is the list of arguments to the program.
     char argv[ARGSIZE];
+    // ReturnCode is the return code of execve.
     int retval;
+    // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
 };
+
+// Force emitting struct data_t into the ELF. bpf2go needs this
+// to generate the Go bindings.
+const struct data_t *unused __attribute__((unused));
 
 BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
 
@@ -67,7 +76,7 @@ static int __submit_arg(void *ptr, struct common_data_t *common)
     data->pid = common->pid;
     data->cgroup = common->cgroup;
     for (int i = 0; i < TASK_COMM_LEN; i++)
-        data->comm[i] = common->comm[i];
+        data->command[i] = common->comm[i];
 
     bpf_ringbuf_submit(data, 0);
     return 1;
@@ -156,7 +165,7 @@ static int exit_execve(int ret)
     task = (struct task_struct *)bpf_get_current_task();
     data->ppid = BPF_CORE_READ(task, real_parent, tgid);
 
-    bpf_get_current_comm(&data->comm, sizeof(data->comm));
+    bpf_get_current_comm(&data->command, sizeof(data->command));
     data->type = EVENT_RET;
     data->retval = ret;
 

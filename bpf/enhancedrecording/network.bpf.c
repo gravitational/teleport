@@ -26,26 +26,48 @@ BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
 
 // separate data structs for ipv4 and ipv6
 struct ipv4_data_t {
+    // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // Version is the version of TCP (4 or 6).
     u64 ip;
+    // PID is the process ID.
     u32 pid;
+    // SrcAddr is the source IP address.
     u32 saddr;
+    // DstAddr is the destination IP address.
     u32 daddr;
+    // DstPort is the port the connection is being made to.
     u16 dport;
-    char task[TASK_COMM_LEN];
+    // Command is name of the executable making the connection.
+    char command[TASK_COMM_LEN];
 };
 BPF_RING_BUF(ipv4_events, EVENTS_BUF_SIZE);
 
+// Force emitting struct ipv4_data_t into the ELF. bpf2go needs this
+// to generate the Go bindings.
+const struct ipv4_data_t *unused_ipv4_data_t __attribute__((unused));
+
 struct ipv6_data_t {
+    // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
+    // Version is the version of TCP (4 or 6).
     u64 ip;
+    // PID is the process ID.
     u32 pid;
+    // SrcAddr is the source IP address.
     struct in6_addr saddr;
+    // DstAddr is the destination IP address.
     struct in6_addr daddr;
+    // DstPort is the port the connection is being made to.
     u16 dport;
-    char task[TASK_COMM_LEN];
+    // Command is name of the executable making the connection.
+    char command[TASK_COMM_LEN];
 };
 BPF_RING_BUF(ipv6_events, EVENTS_BUF_SIZE);
+
+// Force emitting struct ipv6_data_t into the ELF. bpf2go needs this
+// to generate the Go bindings.
+const struct ipv6_data_t *unused_ipv6_data_t __attribute__((unused));
 
 BPF_COUNTER(lost);
 
@@ -96,7 +118,7 @@ static int trace_connect_return(int ret, short ipver)
         data4.daddr = BPF_CORE_READ(skp, __sk_common.skc_daddr);
         data4.dport = __builtin_bswap16(dport);
         data4.cgroup = bpf_get_current_cgroup_id();
-        bpf_get_current_comm(&data4.task, sizeof(data4.task));
+        bpf_get_current_comm(&data4.command, sizeof(data4.command));
         if (bpf_ringbuf_output(&ipv4_events, &data4, sizeof(data4), 0) != 0)
             INCR_COUNTER(lost);
 
@@ -108,7 +130,7 @@ static int trace_connect_return(int ret, short ipver)
 
         data6.dport = __builtin_bswap16(dport);
         data6.cgroup = bpf_get_current_cgroup_id();
-        bpf_get_current_comm(&data6.task, sizeof(data6.task));
+        bpf_get_current_comm(&data6.command, sizeof(data6.command));
         if (bpf_ringbuf_output(&ipv6_events, &data6, sizeof(data6), 0) != 0)
             INCR_COUNTER(lost);
     }
