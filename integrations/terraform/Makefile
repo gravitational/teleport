@@ -121,9 +121,20 @@ endif
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
 
-.PHONY: release
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport
 ifeq ($(OS)-$(ARCH),darwin-universal)
-release: build-darwin-universal
+darwin-signed-build: build-darwin-universal
+else
+darwin-signed-build: build
+endif
+	$(NOTARIZE_BINARIES)
+
+.PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
 else
 release: build
 endif
