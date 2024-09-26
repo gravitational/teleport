@@ -104,9 +104,9 @@ The `create_host_user_mode` field enables host user creation when the value is
 the `app:nginx` label, the Teleport SSH Service creates a host user, adds it to
 the groups listed in `host_groups`, and gives it the sudoer permissions
 specified in the `host_sudoers` field. In this case, the new user receives
-permission to restart the Nginx service as root. The default shell for a created
-user can be configured with `create_host_user_default_shell`. Otherwise the
-host's default shell will be used.
+permission to restart the Nginx service as root. In Teleport 16.4.0 and later,
+the default shell for a created user can be configured with `create_host_user_default_shell`. 
+Otherwise the host's default shell will be used.
 
 {/*TODO (ptgott): We should move the information below into a reference guide*/}
 <Details title="Customizing host user creation">
