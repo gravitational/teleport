@@ -78,18 +78,6 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
-	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
-		Client:     conf.Client,
-		PluginType: types.PluginTypePagerDuty,
-		PluginName: pluginName,
-		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
-			return &common.Recipient{
-				Name: name,
-				ID:   name,
-				Kind: common.RecipientKindSchedule,
-			}, nil
-		},
-	})
 	app.mainJob = lib.NewServiceJob(app.run)
 
 	return app, nil
@@ -183,6 +171,22 @@ func (a *App) init(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 	}
+	client := a.conf.Client
+	if a.conf.Client == nil {
+		client = a.teleport
+	}
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     client,
+		PluginType: types.PluginTypePagerDuty,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+	})
 
 	if pong, err = a.checkTeleportVersion(ctx); err != nil {
 		return trace.Wrap(err)
