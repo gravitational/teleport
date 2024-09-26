@@ -34,16 +34,16 @@ package teleport
 // ideally a resolution to https://github.com/golang/go/issues/42504 )
 
 /*
-go list -f '
-{{- range .Imports}}{{println .}}{{end -}}
-{{- range .TestImports}}{{println .}}{{end -}}
-{{- range .XTestImports}}{{println .}}{{end -}}
-' -tags piv,tpmsimulator ./e/... |
-sort -u |
-xargs go list -find -f '{{if (and
-(not .Standard)
-(ne .Module.Path "github.com/gravitational/teleport")
-)}}{{printf "\t_ \"%v\"" .ImportPath}}{{end}}'
+ go list -f '
+ {{- range .Imports}}{{println .}}{{end -}}
+ {{- range .TestImports}}{{println .}}{{end -}}
+ {{- range .XTestImports}}{{println .}}{{end -}}
+ ' -tags piv,tpmsimulator ./e/... |
+ sort -u |
+ xargs go list -find -f '{{if (and
+ (not .Standard)
+ (ne .Module.Path "github.com/gravitational/teleport")
+ )}}{{printf "\t_ \"%v\"" .ImportPath}}{{end}}'
 */
 
 import (

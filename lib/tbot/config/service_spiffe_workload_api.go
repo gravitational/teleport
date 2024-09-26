@@ -22,8 +22,8 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/lib/tbot/spiffe/workloadattest"
 )
 

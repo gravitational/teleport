@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/coreos/go-semver v0.3.1
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
@@ -29,7 +30,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd
 	google.golang.org/grpc v1.66.0
 	google.golang.org/protobuf v1.34.2
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -48,5 +49,5 @@ require (
 	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240822170219-fc7c04adadcd // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

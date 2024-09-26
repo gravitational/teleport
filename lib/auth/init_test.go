@@ -39,12 +39,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/yaml"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -1722,7 +1722,7 @@ func resourceFromYAML(t *testing.T, value string) types.Resource {
 	t.Helper()
 
 	ur := &services.UnknownResource{}
-	err := kyaml.NewYAMLToJSONDecoder(strings.NewReader(value)).Decode(ur)
+	err := yaml.NewDecoder(strings.NewReader(value)).Decode(ur)
 	require.NoError(t, err)
 
 	resource, err := services.UnmarshalResource(ur.Kind, ur.Raw)

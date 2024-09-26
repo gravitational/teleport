@@ -19,10 +19,10 @@ package ui
 import (
 	"time"
 
-	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 // JoinToken is a UI-friendly representation of a JoinToken

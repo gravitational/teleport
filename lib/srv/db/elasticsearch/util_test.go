@@ -22,8 +22,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 func TestEngineGetQueryFromRequestBody(t *testing.T) {

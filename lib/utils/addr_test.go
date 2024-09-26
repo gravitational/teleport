@@ -25,7 +25,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 func TestParseHostPort(t *testing.T) {

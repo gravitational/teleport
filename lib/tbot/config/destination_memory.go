@@ -25,7 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"gopkg.in/yaml.v3"
+
+	"github.com/gravitational/teleport/api/utils/yaml"
 )
 
 const DestinationMemoryType = "memory"
