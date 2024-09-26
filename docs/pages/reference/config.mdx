@@ -237,10 +237,10 @@ today, but most new users should start with the latest configuration version.
 
 ### Config `v2`
 
-Configuration version `v2` includes support for Teleport's TLS routing feature.
-With TLS routing, Teleport's proxy listens on a single port and uses ALPN and SNI
-to route incoming traffic to the correct Teleport service rather than listening on
-multiple protocol-specific ports.
+Configuration version `v2` was introduced in Teleport 8 as part of Teleport's
+TLS routing feature. With TLS routing, Teleport's proxy listens on a single port
+and uses ALPN and SNI to route incoming traffic to the correct Teleport service
+rather than listening on multiple protocol-specific ports.
 
 For backwards compatibility, configuration version `v1` always listens on these
 protocol-specific ports. When Teleport is using configuration version `v2`, the
@@ -248,9 +248,10 @@ individual protocol-specific ports are not opened unless explicitly set.
 
 ### Config `v3`
 
-In version 3, the `auth_servers` field is no longer supported, and agents must
-specify one of `auth_server` or `proxy_server` to indicate which endpoint to use
-for joining a Teleport cluster.
+Configuration version `v3` was introduced with Teleport 11. In version 3, the
+`auth_servers` field is no longer supported, and agents must specify one of
+`auth_server` or `proxy_server` to indicate which endpoint to use for joining a
+Teleport cluster.
 
 Previous versions of Teleport allowed for `auth_servers` to point to Auth
 Servers or Proxy Servers. As a result, Teleport would try to connect in multiple
