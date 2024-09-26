@@ -476,6 +476,32 @@ var (
 		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind: "apitypes.KindAccessMonitoringRule",
 	}
+
+	staticHostUser = payload{
+		Name:                  "StaticHostUser",
+		TypeName:              "StaticHostUser",
+		VarName:               "staticHostUser",
+		GetMethod:             "StaticHostUserClient().GetStaticHostUser",
+		CreateMethod:          "StaticHostUserClient().CreateStaticHostUser",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "StaticHostUserClient().UpsertStaticHostUser",
+		DeleteMethod:          "StaticHostUserClient().DeleteStaticHostUser",
+		ID:                    "staticHostUser.Metadata.Name",
+		Kind:                  "static_host_user",
+		HasStaticID:           false,
+		ProtoPackage:          "userprovisioningv2",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/userprovisioning/v2",
+		TerraformResourceType: "teleport_static_host_user",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindStaticHostUser",
+	}
 )
 
 func main() {
@@ -523,6 +549,8 @@ func genTFSchema() {
 	generateDataSource(installer, pluralDataSource)
 	generateResource(accessMonitoringRule, pluralResource)
 	generateDataSource(accessMonitoringRule, pluralDataSource)
+	generateResource(staticHostUser, pluralResource)
+	generateDataSource(staticHostUser, pluralDataSource)
 }
 
 func generateResource(p payload, tpl string) {
