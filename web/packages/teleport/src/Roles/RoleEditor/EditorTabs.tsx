@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,15 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export type YamlParseRequest = {
-  yaml: string;
-};
+import React from 'react';
+import { SlideTabs } from 'design/SlideTabs';
 
-export type YamlStringifyRequest<T> = {
-  resource: T;
-};
-
-export enum YamlSupportedResourceKind {
-  AccessMonitoringRule = 'access_monitoring_rule',
-  Role = 'role',
+const tabs = ['Standard', 'YAML'];
+export enum EditorTab {
+  Standard,
+  Yaml,
 }
+
+export const EditorTabs = ({
+  onTabChange,
+  selectedEditorTab,
+  isProcessing,
+}: {
+  onTabChange(t: EditorTab): void;
+  selectedEditorTab: EditorTab;
+  isProcessing: boolean;
+}) => {
+  return (
+    <SlideTabs
+      appearance="round"
+      tabs={tabs}
+      onChange={onTabChange}
+      size="medium"
+      activeIndex={selectedEditorTab}
+      isProcessing={isProcessing}
+    />
+  );
+};
