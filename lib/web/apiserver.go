@@ -1005,6 +1005,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
 
+	h.PUT("/webapi/defaultconnector/:connectorType/:connectorName", h.WithAuth(h.setDefaultConnector))
+
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
 
@@ -2057,6 +2059,36 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+func (h *Handler) setDefaultConnector(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	connectorName := params.ByName("connectorName")
+	if connectorName == "" {
+		return nil, trace.BadParameter("a connectorName was not provided")
+	}
+
+	connectorType := params.ByName("connectorType")
+	if connectorName == "" {
+		return nil, trace.BadParameter("a connectorType was not provided")
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get auth preference")
+	}
+
+	authPref.SetConnectorName(connectorName)
+	authPref.SetType(connectorType)
+	_, err = clt.UpdateAuthPreference(r.Context(), authPref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
 }
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

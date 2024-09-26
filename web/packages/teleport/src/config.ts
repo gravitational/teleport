@@ -260,6 +260,9 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
+    setDefaultAuthConnectorPath:
+      '/v1/webapi/defaultconnector/:connectorType/:connectorName',
+
     joinTokenPath: '/v1/webapi/token',
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
     joinTokensPath: '/v1/webapi/tokens',
@@ -428,6 +431,16 @@ const cfg = {
     return generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
       ...params,
+    });
+  },
+
+  getSetDefaultAuthConnectorUrl(
+    connectorName: string,
+    connectorType: 'saml' | 'github' | 'oidc'
+  ) {
+    return generatePath(cfg.api.setDefaultAuthConnectorPath, {
+      connectorName,
+      connectorType,
     });
   },
 

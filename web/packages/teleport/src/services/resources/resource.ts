@@ -23,7 +23,12 @@ import { UnifiedResource, ResourcesResponse } from '../agents';
 
 import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { makeResource, makeResourceList, RoleResource } from './';
+import {
+  makeAuthConnectorResponse,
+  makeResource,
+  makeResourceList,
+  RoleResource,
+} from './';
 
 class ResourceService {
   fetchTrustedClusters() {
@@ -97,7 +102,7 @@ class ResourceService {
   createGithubConnector(content: string) {
     return api
       .post(cfg.getGithubConnectorsUrl(), { content })
-      .then(res => makeResource<'github'>(res));
+      .then(res => makeAuthConnectorResponse<'github'>(res.connector));
   }
 
   updateTrustedCluster(name: string, content: string) {
@@ -115,7 +120,7 @@ class ResourceService {
   updateGithubConnector(name: string, content: string) {
     return api
       .put(cfg.getGithubConnectorsUrl(name), { content })
-      .then(res => makeResource<'github'>(res));
+      .then(res => makeAuthConnectorResponse<'github'>(res));
   }
 
   deleteTrustedCluster(name: string) {
@@ -128,6 +133,16 @@ class ResourceService {
 
   deleteGithubConnector(name: string) {
     return api.delete(cfg.getGithubConnectorsUrl(name));
+  }
+
+  setDefaultAuthConnector(
+    connectorName: string,
+    connectorType: 'saml' | 'oidc' | 'github'
+  ) {
+    return api.put(
+      cfg.getSetDefaultAuthConnectorUrl(connectorName, connectorType),
+      {}
+    );
   }
 }
 

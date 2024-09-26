@@ -229,8 +229,23 @@ func (h *Handler) updateGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := UpdateResource[types.GithubConnector](r, params, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.UpdateGithubConnector)
-	return item, trace.Wrap(err)
+	item, err := UpdateResource(r, params, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.UpdateGithubConnector)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to check default auth preference")
+	}
+	isAlreadyDefault := authPref.GetConnectorName() == item.Name
+
+	return AuthConnectorUpsertResponse{IsAlreadyDefault: isAlreadyDefault, Connector: item}, trace.Wrap(err)
+}
+
+type AuthConnectorUpsertResponse struct {
+	IsAlreadyDefault bool             `json:"isAlreadyDefault"`
+	Connector        *ui.ResourceItem `json:"connector"`
 }
 
 func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -240,7 +255,17 @@ func (h *Handler) createGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 	}
 
 	item, err := CreateResource(r, types.KindGithubConnector, services.UnmarshalGithubConnector, clt.CreateGithubConnector)
-	return item, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := clt.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to check default auth preference")
+	}
+	isAlreadyDefault := authPref.GetConnectorName() == item.Name
+
+	return AuthConnectorUpsertResponse{IsAlreadyDefault: isAlreadyDefault, Connector: item}, trace.Wrap(err)
 }
 
 func (h *Handler) getTrustedClustersHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {

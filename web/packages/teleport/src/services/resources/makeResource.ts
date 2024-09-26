@@ -30,6 +30,23 @@ export function makeResource<T extends Kind>(json: any): Resource<T> {
   };
 }
 
+export function makeAuthConnectorResponse<T extends Kind>(
+  json: any
+): AuthConnectorResponse<T> {
+  const connector = makeResource<T>(json);
+  const isAlreadyDefault = !!json.isAlreadyDefault;
+
+  return {
+    connector,
+    isAlreadyDefault,
+  };
+}
+
+export type AuthConnectorResponse<T extends Kind> = {
+  connector: Resource<T>;
+  isAlreadyDefault: boolean;
+};
+
 export function makeResourceList<T extends Kind>(json: any): Resource<T>[] {
   json = json || [];
   return json.map(resource => makeResource<T>(resource));
