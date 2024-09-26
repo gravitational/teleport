@@ -34,13 +34,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -338,6 +338,9 @@ Outer:
 }
 
 func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Client) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	date := time.Now()
 	if c.date != "" {
 		var err error
@@ -360,97 +363,33 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 		}
 	}()
 
-	chunksProcessed := make(map[string]struct{})
-
-Outer:
-	for {
-		chunks := client.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
-			Date: timestamppb.New(date),
-		})
-
-	Chunks:
-		for chunks.Next() {
-			if _, ok := chunksProcessed[chunks.Item().Chunk]; ok {
-				log.WithFields(log.Fields{
-					"date":  date.Format(time.DateOnly),
-					"chunk": chunks.Item().Chunk,
-				}).Info("skipping already processed chunk")
-				continue Chunks
-			}
-
-			var cursor string
-		ProcessChunk:
-			for {
-
-				eventStream := client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
-					Date:   timestamppb.New(date),
-					Chunk:  chunks.Item().Chunk,
-					Cursor: cursor,
-				})
-
-			Events:
-				for eventStream.Next() {
-					cursor = eventStream.Item().Cursor
-					select {
-					case outch <- eventStream.Item():
-						continue Events
-					default:
-						log.Warn("backpressure in event stream")
-					}
-
-					select {
-					case outch <- eventStream.Item():
-					case <-ctx.Done():
-						return nil
-					}
-				}
-
-				if err := eventStream.Done(); err != nil {
-					log.WithFields(log.Fields{
-						"date":  date.Format(time.DateOnly),
-						"chunk": chunks.Item().Chunk,
-						"error": err,
-					}).Error("event stream failed, will attempt to reestablish")
-					continue ProcessChunk
-				}
-
-				chunksProcessed[chunks.Item().Chunk] = struct{}{}
-				break ProcessChunk
-			}
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+		select {
+		case outch <- event:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-
-		if err := chunks.Done(); err != nil {
-			log.WithFields(log.Fields{
-				"date":  date.Format(time.DateOnly),
-				"error": err,
-			}).Error("event chunk stream failed, will attempt to reestablish")
-			continue Outer
-		}
-
-		nextDate := date.AddDate(0, 0, 1)
-		if nextDate.After(time.Now()) {
-			delay := utils.SeventhJitter(time.Second * 7)
-			log.WithFields(log.Fields{
-				"date":  date.Format(time.DateOnly),
-				"delay": delay,
-			}).Info("finished processing known event chunks for current date, will re-poll after delay")
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return nil
-			}
-			continue Outer
-		}
-
-		log.WithFields(log.Fields{
-			"date": date.Format(time.DateOnly),
-			"next": nextDate.Format(time.DateOnly),
-		}).Info("finished processing known event chunks for historical date, moving to next")
-		date = nextDate
-		clear(chunksProcessed)
+		return nil
 	}
 
-	return nil
+	exporter, err := export.NewExporter(export.ExporterConfig{
+		Client:      client,
+		StartDate:   date,
+		Export:      exportFn,
+		Concurrency: 3,
+		BacklogSize: 1,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer exporter.Close()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case <-exporter.Done():
+		return trace.Errorf("exporter exited unexpected with state: %+v", exporter.GetState())
+	}
 }
 
 func printEvent(ekind string, rsc types.Resource, format string) error {
