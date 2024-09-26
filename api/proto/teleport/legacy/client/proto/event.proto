@@ -187,5 +187,7 @@ message Event {
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
     // UsernTask is a resource for user task.
     teleport.usertasks.v1.UserTask UserTask = 67;
+    // DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
+    types.DynamicWindowsDesktopV1 DynamicWindowsDesktop = 68;
   }
 }
