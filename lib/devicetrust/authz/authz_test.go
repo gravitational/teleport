@@ -170,13 +170,13 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertNoErr,
 		},
 		{
-			name:      "OSS mode never enforced",
+			name:      "OSS mode=required (Enterprise Auth)",
 			buildType: modules.BuildOSS,
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired, // Invalid for OSS, treated as "off".
+				Mode: constants.DeviceTrustModeRequired,
 			},
 			ext:       userWithoutExtensions,
-			assertErr: assertNoErr,
+			assertErr: assertDeniedErr,
 		},
 		{
 			name:      "Enterprise mode=off",
