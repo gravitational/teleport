@@ -214,11 +214,22 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) erro
 	errs = append(errs, s.stopHeartbeat(name))
 	s.fwd.removeKubeDetails(name)
 
+	shouldDeleteCluster := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
+	sender, ok := s.TLSServerConfig.InventoryHandle.GetSender()
+	if ok {
+		// Manual deletion per cluster is only required if the auth server
+		// doesn't support actively cleaning up database resources when the
+		// inventory control stream is terminated during shutdown.
+		if capabilities := sender.Hello().Capabilities; capabilities != nil {
+			shouldDeleteCluster = shouldDeleteCluster && !capabilities.KubernetesCleanup
+		}
+	}
+
 	// A child process can be forked to upgrade the Teleport binary. The child
 	// will take over the heartbeats so do NOT delete them in that case.
 	// When unregistering a dynamic cluster, the context is empty and the
 	// decision will be to delete the kubernetes server.
-	if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+	if shouldDeleteCluster {
 		errs = append(errs, s.deleteKubernetesServer(ctx, name))
 	}
 

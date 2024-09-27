@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -66,10 +67,6 @@ const (
 	PresenceMaxDifference  = time.Minute
 )
 
-// SessionControlsInfoBroadcast is sent in tandem with session creation
-// to inform any joining users about the session controls.
-const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
-
 const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
@@ -85,6 +82,21 @@ var serverSessions = prometheus.NewGauge(
 		Help: "Number of active sessions to this host",
 	},
 )
+
+func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
+	var modeCtrl bytes.Buffer
+	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	modeCtrl.WriteString("Teleport > Controls\r\n")
+	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+	if m == types.SessionModeratorMode {
+		modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+	}
+	_, err := w.Write(modeCtrl.Bytes())
+	if err != nil {
+		return fmt.Errorf("could not write bytes: %w", err)
+	}
+	return nil
+}
 
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -235,11 +247,15 @@ func (sc *sudoersCloser) Close() error {
 	return nil
 }
 
-// TryWriteSudoersFile tries to write the needed sudoers entry to the sudoers
+// WriteSudoersFile tries to write the needed sudoers entry to the sudoers
 // file, if any. If the returned closer is not nil, it must be called at the
 // end of the session to cleanup the sudoers file.
-func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
-	// Pulling sudoers directly from the Srv so TryWriteSudoersFile always
+func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.Closer, error) {
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return nil, nil
+	}
+
+	// Pulling sudoers directly from the Srv so WriteSudoersFile always
 	// respects the invariant that we shouldn't write sudoers on proxy servers.
 	// This might invalidate the cached sudoers field on SessionRegistry, so
 	// we may be able to remove that in a future PR
@@ -265,42 +281,51 @@ func (s *SessionRegistry) TryWriteSudoersFile(identityContext IdentityContext) (
 	return &sudoersCloser{
 		username:     identityContext.Login,
 		userSessions: s.sessionsByUser,
-		cleanup:      s.sudoers.RemoveSudoers,
+		cleanup:      sudoWriter.RemoveSudoers,
 	}, nil
 }
 
-// TryCreateHostUser attempts to create a local user on the host if needed.
-// If the returned closer is not nil, it must be called at the end of the
-// session to clean up the local user.
-func (s *SessionRegistry) TryCreateHostUser(identityContext IdentityContext) (created bool, closer io.Closer, err error) {
+// UpsertHostUser attempts to create or update a local user on the host if needed.
+// If the returned closer is not nil, it must be called at the end of the session to
+// clean up the local user.
+func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
+		return false, nil, nil
+	}
+
 	if !s.Srv.GetCreateHostUser() || s.users == nil {
 		s.log.Debug("Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
-	ui, err := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
-	if err != nil {
-		if trace.IsAccessDenied(err) {
-			log.Warnf("Unable to create host users: %v", err)
-			return false, nil, nil
+	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
+	if trace.IsAccessDenied(accessErr) {
+		existsErr := s.users.UserExists(identityContext.Login)
+		if existsErr != nil {
+			if trace.IsNotFound(existsErr) {
+				return false, nil, trace.WrapWithMessage(accessErr, "insufficient permissions for host user creation")
+			}
+
+			return false, nil, trace.Wrap(existsErr)
 		}
-		log.Debug("Error while checking host users creation permission: ", err)
-		return false, nil, trace.Wrap(err)
 	}
 
-	existsErr := s.users.UserExists(identityContext.Login)
-	if trace.IsAccessDenied(err) && existsErr != nil {
-		return false, nil, trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+	if accessErr != nil {
+		return false, nil, trace.Wrap(accessErr)
 	}
 
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
-	if err != nil && !trace.IsAlreadyExists(err) && !errors.Is(err, unmanagedUserErr) {
+	if err != nil {
 		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
-		return false, nil, trace.Wrap(err)
-	}
 
-	if errors.Is(err, unmanagedUserErr) {
-		log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+		if errors.Is(err, unmanagedUserErr) {
+			log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+			return false, nil, nil
+		}
+
+		if !trace.IsAlreadyExists(err) {
+			return false, nil, trace.Wrap(err)
+		}
 	}
 
 	return true, userCloser, nil
@@ -1278,7 +1303,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1928,16 +1952,23 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	// Send the participant mode and controls to the additional participant
+	if s.login != p.login {
+		err := MsgParticipantCtrls(p.ch, mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
 	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {

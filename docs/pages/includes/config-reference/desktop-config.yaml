@@ -112,10 +112,6 @@ windows_desktop_service:
   # Rules for applying labels to Windows hosts based on regular expressions
   # matched against the host name. If multiple rules match, the desktop will
   # get the union of all matching labels.
-  #
-  # The rules for matching static hosts and discovered hosts
-  # are slightly different. See https://goteleport.com/docs/desktop-access/rbac/
-  # for details.
   host_labels:
   - match: '^.*\.dev\.example\.com'
     labels:

@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"sync"
@@ -54,6 +55,9 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 
 	err = AddMetadataToRetryableError(ctx, func() error {
 		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), serverUUID+":0", config)
+		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
+		}
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)

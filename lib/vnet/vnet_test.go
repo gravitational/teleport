@@ -74,10 +74,6 @@ type testPack struct {
 type testPackConfig struct {
 	clock       clockwork.FakeClock
 	appProvider AppProvider
-
-	// customDNSZones is a map where the keys are custom DNS zones that should be valid, and the values are a
-	// slice of all Teleport clusters they should be valid for.
-	customDNSZones map[string][]string
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -130,21 +126,7 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 
 	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
 
-	lookupTXT := func(ctx context.Context, customDNSZone string) ([]string, error) {
-		clusters, ok := cfg.customDNSZones[customDNSZone]
-		if !ok {
-			return nil, nil
-		}
-		txtRecords := make([]string, 0, len(clusters))
-		for _, cluster := range clusters {
-			txtRecords = append(txtRecords, clusterTXTRecordPrefix+cluster)
-		}
-		return txtRecords, nil
-	}
-
-	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider,
-		withClock(cfg.clock),
-		withLookupTXTFunc(lookupTXT))
+	tcpHandlerResolver, err := NewTCPAppResolver(cfg.appProvider, withClock(cfg.clock))
 	require.NoError(t, err)
 
 	// Create the VNet and connect it to the other side of the TUN.
@@ -480,13 +462,9 @@ func TestDialFakeApp(t *testing.T) {
 				"echo.myzone.example.com",
 				"echo.nested.myzone.example.com",
 				"not.in.a.custom.zone",
-				"in.an.invalid.zone",
 			},
 			customDNSZones: []string{
 				"myzone.example.com",
-				// This zone will not have a valid TXT record because it is not included in the
-				// customDNSZones passed to newTestPack.
-				"an.invalid.zone",
 			},
 			cidrRange: "192.168.2.0/24",
 			leafClusters: map[string]testClusterSpec{
@@ -511,9 +489,6 @@ func TestDialFakeApp(t *testing.T) {
 	p := newTestPack(t, ctx, testPackConfig{
 		clock:       clock,
 		appProvider: appProvider,
-		customDNSZones: map[string][]string{
-			"myzone.example.com": {"root1.example.com", "another.random.cluster.example.com"},
-		},
 	})
 
 	validTestCases := []struct {
@@ -602,7 +577,6 @@ func TestDialFakeApp(t *testing.T) {
 		invalidTestCases := []string{
 			"not.an.app.example.com.",
 			"not.in.a.custom.zone",
-			"in.an.invalid.zone",
 		}
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {

@@ -44,8 +44,6 @@ func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 	}
 
 	config.MinVersion = tls.VersionTLS12
-	config.SessionTicketsDisabled = false
-	config.ClientSessionCache = tls.NewLRUClientSessionCache(DefaultLRUCapacity)
 }
 
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings

@@ -1254,6 +1254,54 @@ message AccessGraphGitlabScanEvent {
   uint64 total_groups = 3;
 }
 
+// AccessGraphAWSScanEvent is emitted when the Access Graph
+// AWS scan is enabled.
+message AccessGraphAWSScanEvent {
+  // total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+  uint64 total_ec2_instances = 1;
+  // total_users is the total amount of users found in the AWS scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the AWS scan.
+  uint64 total_groups = 3;
+  // total_roles is the total amount of roles found in the AWS scan.
+  uint64 total_roles = 4;
+  // total_policies is the total amount of policies found in the AWS scan.
+  uint64 total_policies = 5;
+  // total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+  uint64 total_eks_clusters = 6;
+  // total_rds_instances is the total amount of RDS instances found in the AWS scan.
+  uint64 total_rds_instances = 7;
+  // total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+  uint64 total_s3_buckets = 8;
+  // total_saml_providers is the total amount of SAML providers found in the AWS scan.
+  uint64 total_saml_providers = 9;
+  // total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+  uint64 total_oidc_providers = 10;
+  // total_accounts is the total amount of accounts synchronized in the AWS scan.
+  uint64 total_accounts = 11;
+}
+
+// AccessGraphAccessPathChangedEvent is emitted when the Crown Jewel functionality
+// is enabled and the Access Graph access path is changed.
+message AccessGraphAccessPathChangedEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
+// Crown Jewel Resource.
+message AccessGraphCrownJewelCreateEvent {}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1493,6 +1541,14 @@ message SubmitEventRequest {
     AccessGraphSecretsScanAuthorizedKeysEvent access_graph_secrets_scan_authorized_keys = 87;
 
     AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
+
+    AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+
+    AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90;
+
+    AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
+
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

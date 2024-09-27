@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/cloud"
 )
@@ -80,6 +81,8 @@ type AWSSync interface {
 	DiscoveryConfigName() string
 	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
 	IsFromDiscoveryConfig() bool
+	// GetAccountID returns the AWS account ID.
+	GetAccountID() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -149,6 +152,28 @@ func (r *Resources) count() int {
 	return sum
 }
 
+// UsageReport returns a usage report based on the resources.
+func (r *Resources) UsageReport(numberAccounts int) *usageeventsv1.AccessGraphAWSScanEvent {
+	if r == nil {
+		return &usageeventsv1.AccessGraphAWSScanEvent{
+			TotalAccounts: uint64(numberAccounts),
+		}
+	}
+	return &usageeventsv1.AccessGraphAWSScanEvent{
+		TotalEc2Instances:  uint64(len(r.Instances)),
+		TotalUsers:         uint64(len(r.Users)),
+		TotalGroups:        uint64(len(r.Groups)),
+		TotalRoles:         uint64(len(r.Roles)),
+		TotalPolicies:      uint64(len(r.Policies)),
+		TotalEksClusters:   uint64(len(r.EKSClusters)),
+		TotalRdsInstances:  uint64(len(r.RDSDatabases)),
+		TotalS3Buckets:     uint64(len(r.S3Buckets)),
+		TotalSamlProviders: uint64(len(r.SAMLProviders)),
+		TotalOidcProviders: uint64(len(r.OIDCProviders)),
+		TotalAccounts:      uint64(numberAccounts),
+	}
+}
+
 // NewAWSFetcher creates a new AWS fetcher.
 func NewAWSFetcher(ctx context.Context, cfg Config) (AWSSync, error) {
 	a := &awsFetcher{
@@ -181,6 +206,10 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 	}
 	a.lastResult = rec
 	a.lastDiscoveredResources = uint64(rec.count())
+}
+
+func (a *awsFetcher) GetAccountID() string {
+	return a.AccountID
 }
 
 func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {

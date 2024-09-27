@@ -30,7 +30,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -277,9 +276,9 @@ func TestConfigureIdPIAM(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
-				accountID:      tt.mockAccountID,
-				existingRoles:  tt.mockExistingRoles,
-				existingIDPUrl: tt.mockExistingIdPUrl,
+				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
+				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}
 
 			err := ConfigureIdPIAM(ctx, &clt, tt.req())
@@ -298,16 +297,9 @@ type mockRole struct {
 }
 
 type mockIdPIAMConfigClient struct {
-	accountID      string
+	callerIdentityGetter
 	existingIDPUrl []string
 	existingRoles  map[string]mockRole
-}
-
-// GetCallerIdentity returns information about the caller identity.
-func (m *mockIdPIAMConfigClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{
-		Account: &m.accountID,
-	}, nil
 }
 
 // CreateRole creates a new IAM Role.

@@ -346,6 +346,79 @@ this information from the token.
     - "Authorization: Bearer {{internal.jwt}}"
 ```
 
+### Backends-for-Frontends support
+
+By default, Teleport will only attempt to authenticate the user for the
+requested app when launched from the Web UI. If this is a client application
+that makes requests to a different backend application that is also protected by
+Teleport, then the client application will not be able to make requests to that
+backend application until a user has authenticated with both apps. In order to
+remedy this, you can add the backend application name in the `required_apps`
+field in the client app's spec which will then automatically attempt
+authentication with each of the listed required apps when a user launches the
+client application.
+
+```yaml
+- name: 'dashboard'
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  # Optional list of Teleport application names that require a session for this app to function correctly.
+  # When launching this app, any app listed here will also be launched, and a session will be created.
+  # These sessions follow their respective RBAC policies.
+  required_apps:
+    - 'my-api'
+    - 'prod-database'
+    # Add more required app names as needed
+```
+
+### CORS support for preflight requests
+
+Teleport does not send any unauthenticated requests to the destination app. This
+means that any preflight requests sent by an application to another application
+within Teleport for an API request will return an error and fail. You can
+specify a CORS spec per application that will respond to these preflight
+requests. This does not overwrite the destination app's CORS policy for the
+requested route, but is only used for the OPTION requests sent to the requested
+route.
+
+```yaml
+- name: 'dashboard'
+  uri: https://localhost:4321
+  public_addr: dashboard.example.com
+  # Optional CORS policy is used for preflight requests only. It does not overwrite the contained
+  # app's CORS policy per route but is used by Teleport to respond to unauthenticated OPTION requests.
+  # Important Notes:
+  # - Each field in the CORS spec is optional.
+  # - The allowed_headers field accepts wildcard entries. However, in requests with "allow_credentials: true",
+  #   a wildcard is treated as the literal header name "*" without special semantics.
+  # - The Authorization header can't be set with a wildcard and always needs to be listed explicitly.
+  cors:
+    # Specifies which origins are allowed to make cross-origin requests.
+    allowed_origins:
+      - 'https://example.com'
+      - 'https://app.example.com'
+    # HTTP methods that are allowed when accessing the resource.
+    allowed_methods:
+      - 'GET'
+      - 'POST'
+      - 'PUT'
+      - 'DELETE'
+      - 'OPTIONS'
+    # HTTP headers that can be used during the actual request.
+    allowed_headers:
+      - 'Content-Type'
+      - 'Authorization'
+      - 'X-Custom-Header'
+    # Headers that browsers are allowed to access.
+    exposed_headers:
+      - 'Content-Type'
+      - 'X-Custom-Response-Header'
+    # Indicates whether the request can include credentials.
+    allow_credentials: true
+    # Indicates how long (in seconds) the results of a preflight request can be cached.
+    max_age: 3600
+```
+
 ## View applications in Teleport
 
 Teleport provides a UI for quickly launching connected applications.

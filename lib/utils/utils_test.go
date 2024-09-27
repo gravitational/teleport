@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -94,9 +95,11 @@ func TestSelfSignedCert(t *testing.T) {
 
 	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
 	require.NoError(t, err)
-	require.NotNil(t, creds)
-	require.Equal(t, 4, len(creds.PublicKey)/100)
-	require.Equal(t, 16, len(creds.PrivateKey)/100)
+	signer, err := keys.ParsePrivateKey(creds.PrivateKey)
+	require.NoError(t, err)
+	pub, err := keys.ParsePublicKey(creds.PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, signer.Public(), pub)
 }
 
 func TestRandomDuration(t *testing.T) {

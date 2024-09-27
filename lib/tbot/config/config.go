@@ -174,7 +174,7 @@ type CLIConf struct {
 	// - Refuse to run if not compiled with boringcrypto
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
-	// - RSA2048 should be used for private key generation
+	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation
 	FIPS bool
 
 	// DiagAddr is the address the diagnostics http service should listen on.
@@ -311,7 +311,7 @@ type BotConfig struct {
 	// - Refuse to run if not compiled with boringcrypto
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
-	// - RSA2048 should be used for private key generation
+	// - RSA2048 or ECDSA with NIST-P256 curve should be used for private key generation
 	FIPS bool `yaml:"fips"`
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
