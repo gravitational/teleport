@@ -856,6 +856,42 @@ func (c *windowsDesktopCollection) writeJSON(w io.Writer) error {
 	return utils.WriteJSONArray(w, c.desktops)
 }
 
+type dynamicWindowsDesktopCollection struct {
+	desktops []types.DynamicWindowsDesktop
+}
+
+func (c *dynamicWindowsDesktopCollection) resources() (r []types.Resource) {
+	for _, resource := range c.desktops {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *dynamicWindowsDesktopCollection) writeText(w io.Writer, verbose bool) error {
+	var rows [][]string
+	for _, d := range c.desktops {
+		labels := common.FormatLabels(d.GetAllLabels(), verbose)
+		rows = append(rows, []string{d.GetName(), d.GetAddr(), d.GetDomain(), labels})
+	}
+	headers := []string{"Name", "Address", "AD Domain", "Labels"}
+	var t asciitable.Table
+	if verbose {
+		t = asciitable.MakeTable(headers, rows...)
+	} else {
+		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *dynamicWindowsDesktopCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.desktops)
+}
+
+func (c *dynamicWindowsDesktopCollection) writeJSON(w io.Writer) error {
+	return utils.WriteJSONArray(w, c.desktops)
+}
+
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
