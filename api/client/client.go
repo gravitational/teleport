@@ -57,6 +57,7 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
@@ -3644,6 +3645,78 @@ func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	return nil
 }
 
+// GetDynamicWindowsDesktop returns registered windows desktop hosts by name.
+func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
+	resp, err := c.grpc.GetDynamicWindowsDesktop(ctx, &authpb.GetDynamicWindowsDesktopRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Desktop, nil
+}
+
+// GetDynamicWindowsDesktops returns all registered dynamic Windows desktops.
+func (c *Client) GetDynamicWindowsDesktops(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
+	resp, err := c.grpc.GetDynamicWindowsDesktops(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	desktops := make([]types.DynamicWindowsDesktop, 0, len(resp.GetDesktops()))
+	for _, desktop := range resp.GetDesktops() {
+		desktops = append(desktops, desktop)
+	}
+	return desktops, nil
+}
+
+// CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
+func (c *Client) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.CreateDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
+func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpdateDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// UpsertDynamicWindowsDesktop updates a dynamic Windows desktop resource, creating it if it doesn't exist.
+func (c *Client) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
+	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", desktop)
+	}
+	_, err := c.grpc.UpsertDynamicWindowsDesktop(ctx, d)
+	return trace.Wrap(err)
+}
+
+// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
+func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDynamicWindowsDesktop(ctx, &proto.DeleteDynamicWindowsDesktopRequest{
+		Name: name,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllDynamicWindowsDesktops removes all registered windows desktop hosts.
+func (c *Client) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDynamicWindowsDesktops(ctx, &emptypb.Empty{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP authentication.
 func (c *Client) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
 	resp, err := c.grpc.GenerateWindowsDesktopCert(ctx, req)
@@ -3845,6 +3918,8 @@ func convertEnrichedResource(resource *proto.PaginatedResource) (*types.Enriched
 	} else if r := resource.GetAppServerOrSAMLIdPServiceProvider(); r != nil { //nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktop(); r != nil {
+		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
+	} else if r := resource.GetDynamicWindowsDesktop(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, Logins: resource.Logins, RequiresRequest: resource.RequiresRequest}, nil
 	} else if r := resource.GetWindowsDesktopService(); r != nil {
 		return &types.EnrichedResource{ResourceWithLabels: r, RequiresRequest: resource.RequiresRequest}, nil

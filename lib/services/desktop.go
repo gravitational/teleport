@@ -30,18 +30,31 @@ import (
 // WindowsDesktops defines an interface for managing Windows desktop hosts.
 type WindowsDesktops interface {
 	WindowsDesktopGetter
+	DynamicWindowsDesktopGetter
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error
 	DeleteWindowsDesktop(ctx context.Context, hostID, name string) error
 	DeleteAllWindowsDesktops(context.Context) error
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
+	CreateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) error
+	UpdateDynamicWindowsDesktop(context.Context, types.DynamicWindowsDesktop) error
+	UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error
+	DeleteDynamicWindowsDesktop(ctx context.Context, name string) error
+	DeleteAllDynamicWindowsDesktops(context.Context) error
+	ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error)
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
 }
 
 // WindowsDesktopGetter is an interface for fetching WindowsDesktop resources.
 type WindowsDesktopGetter interface {
 	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+}
+
+// DynamicWindowsDesktopGetter is an interface for fetching DynamicWindowsDesktop resources.
+type DynamicWindowsDesktopGetter interface {
+	GetDynamicWindowsDesktops(context.Context) ([]types.DynamicWindowsDesktop, error)
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
 }
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.
@@ -79,6 +92,58 @@ func UnmarshalWindowsDesktop(data []byte, opts ...MarshalOption) (types.WindowsD
 	switch h.Version {
 	case types.V3:
 		var s types.WindowsDesktopV3
+		if err := utils.FastUnmarshal(data, &s); err != nil {
+			return nil, trace.BadParameter(err.Error())
+		}
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.Revision != "" {
+			s.SetRevision(cfg.Revision)
+		}
+		if !cfg.Expires.IsZero() {
+			s.SetExpiry(cfg.Expires)
+		}
+		return &s, nil
+	}
+	return nil, trace.BadParameter("windows desktop resource version %q is not supported", h.Version)
+}
+
+// MarshalDynamicWindowsDesktop marshals the DynamicWindowsDesktop resource to JSON.
+func MarshalDynamicWindowsDesktop(s types.DynamicWindowsDesktop, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch s := s.(type) {
+	case *types.DynamicWindowsDesktopV1:
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return utils.FastMarshal(maybeResetProtoRevision(cfg.PreserveRevision, s))
+	default:
+		return nil, trace.BadParameter("unrecognized windows desktop version %T", s)
+	}
+}
+
+// UnmarshalDynamicWindowsDesktop unmarshals the DynamicWindowsDesktop resource from JSON.
+func UnmarshalDynamicWindowsDesktop(data []byte, opts ...MarshalOption) (types.DynamicWindowsDesktop, error) {
+	if len(data) == 0 {
+		return nil, trace.BadParameter("missing windows desktop data")
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var h types.ResourceHeader
+	if err := utils.FastUnmarshal(data, &h); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case types.V1:
+		var s types.DynamicWindowsDesktopV1
 		if err := utils.FastUnmarshal(data, &s); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
