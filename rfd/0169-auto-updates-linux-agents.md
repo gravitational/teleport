@@ -357,14 +357,12 @@ The following data related to the rollout are stored in each instance heartbeat:
 Auth servers use their local instance inventory to calculate rollout statistics and write them to `/autoupdate/[group]/[auth ID]` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`).
 
 Every minute, auth servers persist the version counts:
-- `version_counts[group][version]`
+- `agent_data[group].stats[version]`
   - `count`: number of currently connected agents at `version` in `group`
   - `failed_count`: number of currently connected agents at `version` in `group` that experienced a rollback or inability to upgrade
   - `lowest_uuid`: lowest UUID of all currently connected agents at `version` in `group`
-
-At the start of each group's window, auth servers persist an initial count:
-- `initial_counts[group]`
-  - `count`: number of connected agents in `group` at start of window
+  - `count`: number of connected agents at `version` in `group` at start of window
+- `agent_data[group]`
   - `canaries`: list of updater UUIDs to use for canary deployments
 
 Expiration time of the persisted key is 1 hour.
@@ -379,14 +377,19 @@ This prevents double-counting agents when auth servers are killed.
 
 #### Progress Formulas
 
-Each auth server will calculate the progress as `( max_in_flight * initial_counts[group].count + version_counts[group][target_version].count ) / initial_counts[group].count` and write the progress to `autoupdate_agent_plan` status.
+Given:
+```
+initial_count[group] = sum(agent_data[group].stats[*]).count
+```
+
+Each auth server will calculate the progress as `( max_in_flight * initial_count[group] + agent_data[group].stats[target_version].count ) / initial_count[group]` and write the progress to `autoupdate_agent_plan` status.
 This formula determines the progress percentage by adding a `max_in_flight` percentage-window above the number of currently updated agents in the group.
 
-However, if `as_numeral(version_counts[group][not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the calculated progress, that progress value will be used instead.
+However, if `as_numeral(agent_data[group].stats[not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the calculated progress, that progress value will be used instead.
 This protects against a statistical deadlock, where no UUIDs fall within the next `max_in_flight` window of UUID space, by always permitting the next non-updated agent to update.
 
 To ensure that the rollout is halted if more than `max_in_flight` un-updated agents drop off, an addition restriction must be imposed for the rollout to proceed:
-`version_counts[group][*].count > initial_counts[group].count - max_in_flight * initial_counts[group].count`
+`agent_data[group].stats[*].count > initial_count[group] - max_in_flight * initial_count[group]`
 
 To prevent double-counting of agents when considering all counts across all auth servers, only agents connected for one minute will be considered in these formulas.
 
@@ -977,7 +980,7 @@ message AutoUpdateAgentPlanStatus {
   // canaries is a list of canary agents.
   repeated Canary canaries = 5;
   // progress is the current progress through the rollout.
-  float64 progress = 6;
+  float progress = 6;
   // state is the current state of the rollout.
   State state = 7;
   // last_update_time is the time of the previous update for this group.
@@ -994,6 +997,8 @@ message Canary {
   string host_uuid = 1;
   // hostname of the canary agent
   string hostname = 2;
+  // success state of the canary agent
+  bool success = 3;
 }
 
 // State of the rollout
