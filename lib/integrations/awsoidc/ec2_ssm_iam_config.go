@@ -108,7 +108,7 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EC2SSMConfigureClient describes the required methods to create the IAM Policies and SSM Document required for installing Teleport in EC2 instances.
 type EC2SSMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
@@ -120,7 +120,7 @@ type EC2SSMConfigureClient interface {
 type defaultEC2SSMConfigureClient struct {
 	*iam.Client
 	ssmClient *ssm.Client
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 // CreateDocument creates a Amazon Web Services Systems Manager (SSM document).
@@ -142,7 +142,7 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 	return &defaultEC2SSMConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
 		ssmClient:            ssm.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -167,7 +167,7 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -119,7 +119,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 // IdPIAMConfigureClient describes the required methods to create the AWS OIDC IdP and a Role that trusts that identity provider.
 // There is no guarantee that the client is thread safe.
 type IdPIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	awsactions.AssumeRolePolicyUpdater
 	awsactions.OpenIDConnectProviderCreator
 	awsactions.RoleCreator
@@ -132,7 +132,7 @@ type defaultIdPIAMConfigureClient struct {
 
 	*iam.Client
 	awsConfig aws.Config
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 // NewIdPIAMConfigureClient creates a new IdPIAMConfigureClient.
@@ -156,7 +156,7 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 		httpClient:           httpClient,
 		awsConfig:            cfg,
 		Client:               iam.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
