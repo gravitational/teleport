@@ -256,6 +256,7 @@ type cacheCollections struct {
 	webSessions              collectionReader[webSessionGetter]
 	webTokens                collectionReader[webTokenGetter]
 	windowsDesktops          collectionReader[windowsDesktopsGetter]
+	dynamicWindowsDesktops   collectionReader[dynamicWindowsDesktopsGetter]
 	windowsDesktopServices   collectionReader[windowsDesktopServiceGetter]
 	userNotifications        collectionReader[notificationGetter]
 	accessGraphSettings      collectionReader[accessGraphSettingsGetter]
@@ -618,6 +619,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.windowsDesktops
+		case types.KindDynamicWindowsDesktop:
+			if c.WindowsDesktops == nil {
+				return nil, trace.BadParameter("missing parameter DynamicWindowsDesktops")
+			}
+			collections.dynamicWindowsDesktops = &genericCollection[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter, dynamicWindowsDesktopsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.dynamicWindowsDesktops
 		case types.KindSAMLIdPServiceProvider:
 			if c.SAMLIdPServiceProviders == nil {
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
@@ -2336,6 +2346,41 @@ type windowsDesktopsGetter interface {
 }
 
 var _ executor[types.WindowsDesktop, windowsDesktopsGetter] = windowsDesktopsExecutor{}
+
+type dynamicWindowsDesktopsExecutor struct{}
+
+func (dynamicWindowsDesktopsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.DynamicWindowsDesktop, error) {
+	return cache.WindowsDesktops.GetDynamicWindowsDesktops(ctx)
+}
+
+func (dynamicWindowsDesktopsExecutor) upsert(ctx context.Context, cache *Cache, resource types.DynamicWindowsDesktop) error {
+	return cache.windowsDesktopsCache.UpsertDynamicWindowsDesktop(ctx, resource)
+}
+
+func (dynamicWindowsDesktopsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.windowsDesktopsCache.DeleteAllDynamicWindowsDesktops(ctx)
+}
+
+func (dynamicWindowsDesktopsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.windowsDesktopsCache.DeleteDynamicWindowsDesktop(ctx, resource.GetName())
+}
+
+func (dynamicWindowsDesktopsExecutor) isSingleton() bool { return false }
+
+func (dynamicWindowsDesktopsExecutor) getReader(cache *Cache, cacheOK bool) dynamicWindowsDesktopsGetter {
+	if cacheOK {
+		return cache.windowsDesktopsCache
+	}
+	return cache.Config.WindowsDesktops
+}
+
+type dynamicWindowsDesktopsGetter interface {
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	GetDynamicWindowsDesktops(context.Context) ([]types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error)
+}
+
+var _ executor[types.DynamicWindowsDesktop, dynamicWindowsDesktopsGetter] = dynamicWindowsDesktopsExecutor{}
 
 type kubeClusterExecutor struct{}
 

@@ -165,6 +165,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindDynamicWindowsDesktop:
+			parser = newDynamicWindowsDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -1537,6 +1539,31 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 		return resourceHeader(event, types.KindWindowsDesktopService, types.V3, 0)
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktopService(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDynamicWindowsDesktopsParser() *dynamicWindowsDesktopsParser {
+	return &dynamicWindowsDesktopsParser{
+		baseParser: newBaseParser(backend.NewKey(dynamicWindowsDesktopsPrefix, "")),
+	}
+}
+
+type dynamicWindowsDesktopsParser struct {
+	baseParser
+}
+
+func (p *dynamicWindowsDesktopsParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDynamicWindowsDesktop, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDynamicWindowsDesktop(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
