@@ -74,6 +74,7 @@ func ConfigureExternalAuditStorage(
 	policyCfg := &awslib.ExternalAuditStoragePolicyConfig{
 		Partition:           params.Partition,
 		Region:              params.Region,
+		Account:             params.AccountID,
 		AthenaWorkgroupName: params.AthenaWorkgroup,
 		GlueDatabaseName:    params.GlueDatabase,
 		GlueTableName:       params.GlueTable,
@@ -97,11 +98,13 @@ func ConfigureExternalAuditStorage(
 	policyCfg.S3ARNs = append(policyCfg.S3ARNs, bucketARN, wildcardARN)
 	policyCfg.S3ARNs = utils.Deduplicate(policyCfg.S3ARNs)
 
-	stsResp, err := clt.GetCallerIdentity(ctx, nil)
-	if err != nil {
-		return trace.Wrap(err, "attempting to find caller's AWS account ID: call to sts:GetCallerIdentity failed")
+	if policyCfg.Account == "" {
+		stsResp, err := clt.GetCallerIdentity(ctx, nil)
+		if err != nil {
+			return trace.Wrap(err, "attempting to find caller's AWS account ID: call to sts:GetCallerIdentity failed")
+		}
+		policyCfg.Account = aws.ToString(stsResp.Account)
 	}
-	policyCfg.Account = aws.ToString(stsResp.Account)
 
 	policyDoc, err := awslib.PolicyDocumentForExternalAuditStorage(policyCfg)
 	if err != nil {

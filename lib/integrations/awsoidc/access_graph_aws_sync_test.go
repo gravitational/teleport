@@ -129,7 +129,7 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockAccessGraphAWSAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -140,7 +140,7 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 }
 
 type mockAccessGraphAWSAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

@@ -71,13 +71,13 @@ func (r *EKSIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EKSIAMConfigureClient describes the required methods to create the IAM Policies required for enrolling EKS clusters into Teleport.
 type EKSIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultEKSEIAMConfigureClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	*iam.Client
 }
 
@@ -94,7 +94,7 @@ func NewEKSIAMConfigureClient(ctx context.Context, region string) (EKSIAMConfigu
 
 	return &defaultEKSEIAMConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -118,7 +118,7 @@ func ConfigureEKSIAM(ctx context.Context, clt EKSIAMConfigureClient, req EKSIAMC
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 
