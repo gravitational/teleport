@@ -941,7 +941,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 				kubeCreds = &staticKubeCreds{}
 			}
 			err := setupImpersonationHeaders(
-				logrus.NewEntry(logrus.New()),
 				&clusterSession{
 					kubeAPICreds: kubeCreds,
 					authContext: authContext{
@@ -966,7 +965,7 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 	}
 }
 
-func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote bool) authContext {
+func mockAuthCtx(t *testing.T, kubeCluster string, isRemote bool) authContext {
 	t.Helper()
 	user, err := types.NewUser("bob")
 	require.NoError(t, err)
@@ -981,7 +980,7 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
-		kubeClusterName: "kube-cluster",
+		kubeClusterName: kubeCluster,
 		// getClientCreds requires sessions to be valid for at least 1 minute
 		sessionTTL: 2 * time.Minute,
 	}
@@ -995,7 +994,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
 
-	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
+	authCtx := mockAuthCtx(t, "kube-cluster", false)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{

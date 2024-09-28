@@ -34,6 +34,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/rest"
@@ -44,49 +46,23 @@ import (
 )
 
 func TestPortForwardKubeService(t *testing.T) {
-	const (
-		localPort = 9084
-	)
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
+	t.Parallel()
 
-	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := SetupTestContext(
-		context.Background(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-		},
-	)
-
-	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
-	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	user, _ := testCtx.CreateUserAndRole(
-		testCtx.Context,
-		t,
-		username,
-		RoleSpec{
-			Name:       roleName,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
-		})
-
-	// generate a kube client with user certs for auth
-	_, config := testCtx.GenTestKubeClientTLSCert(
-		t,
-		user.GetName(),
-		kubeCluster,
-	)
-	require.NoError(t, err)
+	missingPermissions := metav1.Status{
+		Status:  metav1.StatusFailure,
+		Message: "missing permissions",
+		Reason:  metav1.StatusReasonForbidden,
+		Code:    http.StatusForbidden,
+	}
 
 	type args struct {
 		portforwardClientBuilder func(*testing.T, portForwardRequestConfig) portForwarder
+		opts                     []testingkubemock.Option
 	}
 	tests := []struct {
-		name string
-		args args
+		name    string
+		args    args
+		wantErr *metav1.Status
 	}{
 		{
 			name: "SPDY protocol",
@@ -100,9 +76,65 @@ func TestPortForwardKubeService(t *testing.T) {
 				portforwardClientBuilder: websocketPortForwardClientBuilder,
 			},
 		},
+		{
+			name: "SPDY protocol error",
+			args: args{
+				portforwardClientBuilder: spdyPortForwardClientBuilder,
+				opts: []testingkubemock.Option{
+					testingkubemock.WithPortForwardError(missingPermissions),
+				},
+			},
+			wantErr: &missingPermissions,
+		},
+		{
+			name: "Websocket protocol error",
+			args: args{
+				portforwardClientBuilder: websocketPortForwardClientBuilder,
+				opts: []testingkubemock.Option{
+					testingkubemock.WithPortForwardError(missingPermissions),
+				},
+			},
+			wantErr: &missingPermissions,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			kubeMock, err := testingkubemock.NewKubeAPIMock(tt.args.opts...)
+			require.NoError(t, err)
+			t.Cleanup(func() { kubeMock.Close() })
+
+			// creates a Kubernetes service with a configured cluster pointing to mock api server
+			testCtx := SetupTestContext(
+				context.Background(),
+				t,
+				TestConfig{
+					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+				},
+			)
+
+			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+			user, _ := testCtx.CreateUserAndRole(
+				testCtx.Context,
+				t,
+				username,
+				RoleSpec{
+					Name:       roleName,
+					KubeUsers:  roleKubeUsers,
+					KubeGroups: roleKubeGroups,
+				})
+
+			// generate a kube client with user certs for auth
+			_, config := testCtx.GenTestKubeClientTLSCert(
+				t,
+				user.GetName(),
+				kubeCluster,
+			)
+			require.NoError(t, err)
+
 			// readyCh communicate when the port forward is ready to get traffic
 			readyCh := make(chan struct{})
 			// errCh receives a single error from ForwardPorts goroutine.
@@ -117,7 +149,6 @@ func TestPortForwardKubeService(t *testing.T) {
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				localPort:    localPort,
 				podPort:      80,
 				stopCh:       stopCh,
 				readyCh:      readyCh,
@@ -131,6 +162,12 @@ func TestPortForwardKubeService(t *testing.T) {
 
 			select {
 			case err := <-errCh:
+				if tt.wantErr != nil {
+					require.ErrorContains(t, err, (&kubeerrors.StatusError{
+						ErrStatus: *tt.wantErr,
+					}).Error())
+					return
+				}
 				// When we receive an error instead of a ready signal, it means that
 				// fw.ForwardPorts() setup failed.
 				// fw.ForwardPorts() setup creates a listener, a connection to the
@@ -149,7 +186,11 @@ func TestPortForwardKubeService(t *testing.T) {
 				// The connection is closed if the upstream reports any error and
 				// ForwardPorts returns it.
 				// Dial a connection to localPort.
-				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
+				ports, err := fw.GetPorts()
+				require.NoError(t, err)
+				require.Len(t, ports, 1)
+
+				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", ports[0].Local))
 				require.NoError(t, err)
 				t.Cleanup(func() { conn.Close() })
 				_, err = conn.Write(stdinContent)
@@ -186,7 +227,7 @@ func spdyPortForwardClientBuilder(t *testing.T, req portForwardRequestConfig) po
 	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "")
 	require.NoError(t, err)
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, http.MethodPost, u)
-	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", req.localPort, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
+	fw, err := portforward.New(dialer, []string{fmt.Sprintf("%d:%d", 0, req.podPort)}, req.stopCh, req.readyCh, os.Stdout, os.Stdin)
 	require.NoError(t, err)
 	return fw
 }
@@ -196,7 +237,7 @@ func websocketPortForwardClientBuilder(t *testing.T, req portForwardRequestConfi
 	// testing mock does not care about the port.
 	u, err := portforwardURL(req.podNamespace, req.podName, req.restConfig.Host, "ports=8080")
 	require.NoError(t, err)
-	client, err := newWebSocketClient(req.restConfig, "GET", u, withLocalPortforwarding(int32(req.localPort), req.readyCh))
+	client, err := newWebSocketClient(req.restConfig, "GET", u, withLocalPortforwarding(req.readyCh))
 	require.NoError(t, err)
 	return client
 }
@@ -208,8 +249,6 @@ type portForwardRequestConfig struct {
 	podName string
 	// podNamespace is the pod namespace.
 	podNamespace string
-	// localPort is the local port that will be selected to expose the PodPort
-	localPort int
 	// podPort is the target port for the pod.
 	podPort int
 	// stopCh is the channel used to manage the port forward lifecycle
@@ -220,6 +259,7 @@ type portForwardRequestConfig struct {
 
 type portForwarder interface {
 	ForwardPorts() error
+	GetPorts() ([]portforward.ForwardedPort, error)
 	Close()
 }
 
@@ -411,6 +451,7 @@ func (f *fakeSPDYConnection) streamsClosed() bool {
 }
 
 func TestPortForwardUnderlyingProtocol(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		version      *version.Info
@@ -490,17 +531,10 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 			stopCh := make(chan struct{})
 			t.Cleanup(func() { close(stopCh) })
 
-			// allocate a port
-			listener, err := net.Listen("tcp", "127.0.0.1:0")
-			require.NoError(t, err)
-			localPort := listener.Addr().(*net.TCPAddr).Port
-			_ = listener.Close()
-
 			fw := spdyPortForwardClientBuilder(t, portForwardRequestConfig{
 				podName:      podName,
 				podNamespace: podNamespace,
 				restConfig:   config,
-				localPort:    localPort,
 				podPort:      80,
 				stopCh:       stopCh,
 				readyCh:      readyCh,
@@ -532,7 +566,12 @@ func TestPortForwardUnderlyingProtocol(t *testing.T) {
 				// The connection is closed if the upstream reports any error and
 				// ForwardPorts returns it.
 				// Dial a connection to localPort.
-				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", localPort))
+
+				ports, err := fw.GetPorts()
+				require.NoError(t, err)
+				require.Len(t, ports, 1)
+
+				conn, err := net.Dial("tcp", fmt.Sprintf("localhost:%d", ports[0].Local))
 				require.NoError(t, err)
 				t.Cleanup(func() { conn.Close() })
 				_, err = conn.Write(stdinContent)

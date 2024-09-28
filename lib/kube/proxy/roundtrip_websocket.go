@@ -64,7 +64,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// request headers. This is necessary to forward the original user's impersonation
 	// when multiple kubernetes_users are available.
 	copyImpersonationHeaders(header, w.originalHeaders)
-	if err := setupImpersonationHeaders(w.log, w.sess, header); err != nil {
+	if err := setupImpersonationHeaders(w.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -117,7 +117,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 var kubeExecSubprotocolV5MinVersion = func() *versionUtil.Version {
-	const kubeExecSubprotocolV5Version = "1.30.0"
+	const kubeExecSubprotocolV5Version = "v1.30.0"
 	return versionUtil.MustParse(kubeExecSubprotocolV5Version)
 }()
 
@@ -135,7 +135,7 @@ func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
 }
 
 var kubePortforwardSPDYOverWebsocket = func() *versionUtil.Version {
-	const kubePortforwardSPDYOverWebsocketVersion = "1.31.0"
+	const kubePortforwardSPDYOverWebsocketVersion = "v1.31.0"
 	return versionUtil.MustParse(kubePortforwardSPDYOverWebsocketVersion)
 }()
 

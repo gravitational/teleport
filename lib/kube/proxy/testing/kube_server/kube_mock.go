@@ -121,6 +121,13 @@ func WithExecError(status metav1.Status) Option {
 	}
 }
 
+// WithPortForwardError sets the error to be returned by the PortForward call
+func WithPortForwardError(status metav1.Status) Option {
+	return func(s *KubeMockServer) {
+		s.portforwardError = &status
+	}
+}
+
 // WithVersion sets the version of the server
 func WithVersion(version *apimachineryversion.Info) Option {
 	return func(s *KubeMockServer) {
@@ -152,6 +159,7 @@ type KubeMockServer struct {
 	deletedResources map[deletedResource][]string
 	getPodError      *metav1.Status
 	execPodError     *metav1.Status
+	portforwardError *metav1.Status
 	mu               sync.Mutex
 	version          *apimachineryversion.Info
 	KubeExecRequests KubeUpgradeRequests
@@ -251,6 +259,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 }
 
 func (s *KubeMockServer) writeResponseError(rw http.ResponseWriter, respErr error, status *metav1.Status) {
+	status = status.DeepCopy()
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
@@ -739,6 +748,11 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
 func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+	if s.portforwardError != nil {
+		s.writeResponseError(w, nil, s.portforwardError)
+		return nil, nil
+	}
+
 	streamChan := make(chan httpstream.Stream)
 
 	var err error

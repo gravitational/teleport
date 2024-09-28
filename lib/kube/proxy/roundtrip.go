@@ -209,7 +209,7 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	copyImpersonationHeaders(header, s.originalHeaders)
 	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
-	if err := setupImpersonationHeaders(log.StandardLogger(), s.sess, header); err != nil {
+	if err := setupImpersonationHeaders(s.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

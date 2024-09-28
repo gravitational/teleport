@@ -36,7 +36,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
@@ -302,7 +301,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		ctx:            closeCtx,
 		close:          close,
 		sessions:       make(map[uuid.UUID]*session),
-		upgrader: websocket.Upgrader{
+		upgrader: gwebsocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
@@ -374,7 +373,7 @@ type Forwarder struct {
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
-	upgrader websocket.Upgrader
+	upgrader gwebsocket.Upgrader
 	// getKubernetesServersForKubeCluster is a function that returns a list of
 	// kubernetes servers for a given kube cluster but uses different methods
 	// depending on the service type.
@@ -1236,7 +1235,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 		return trace.Wrap(err)
 	}(); err != nil {
-		writeErr := ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
+		writeErr := ws.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseInternalServerErr, err.Error()), time.Now().Add(time.Second*10))
 		if writeErr != nil {
 			f.log.WithError(writeErr).Warn("Failed to send early-exit websocket close message.")
 		}
@@ -1282,7 +1281,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dialer := &websocket.Dialer{
+	dialer := &gwebsocket.Dialer{
 		TLSClientConfig: tlsConfig,
 		NetDialContext:  netDialer,
 	}
@@ -1351,26 +1350,26 @@ func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, 
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
 // remote joins.
-func wsProxy(log logrus.FieldLogger, wsSource *websocket.Conn, wsTarget *websocket.Conn) {
+func wsProxy(log logrus.FieldLogger, wsSource *gwebsocket.Conn, wsTarget *gwebsocket.Conn) {
 	errS := make(chan error, 1)
 	errT := make(chan error, 1)
 	wg := &sync.WaitGroup{}
 
-	forwardConn := func(dst, src *websocket.Conn, errc chan<- error) {
+	forwardConn := func(dst, src *gwebsocket.Conn, errc chan<- error) {
 		defer dst.Close()
 		defer src.Close()
 		for {
 			msgType, msg, err := src.ReadMessage()
 			if err != nil {
-				m := websocket.FormatCloseMessage(websocket.CloseNormalClosure, err.Error())
-				var e *websocket.CloseError
+				m := gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, err.Error())
+				var e *gwebsocket.CloseError
 				if errors.As(err, &e) {
-					if e.Code != websocket.CloseNoStatusReceived {
-						m = websocket.FormatCloseMessage(e.Code, e.Text)
+					if e.Code != gwebsocket.CloseNoStatusReceived {
+						m = gwebsocket.FormatCloseMessage(e.Code, e.Text)
 					}
 				}
 				errc <- err
-				dst.WriteMessage(websocket.CloseMessage, m)
+				dst.WriteMessage(gwebsocket.CloseMessage, m)
 				break
 			}
 
@@ -1403,8 +1402,8 @@ func wsProxy(log logrus.FieldLogger, wsSource *websocket.Conn, wsTarget *websock
 		to = "client"
 	}
 
-	var websocketErr *websocket.CloseError
-	if errors.As(err, &websocketErr) && websocketErr.Code == websocket.CloseAbnormalClosure {
+	var websocketErr *gwebsocket.CloseError
+	if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseAbnormalClosure {
 		log.WithError(err).Debugf("websocket proxy: Error when copying from %s to %s", from, to)
 	}
 	wg.Wait()
@@ -1444,7 +1443,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 }
 
 // execNonInteractive handles all exec sessions without a TTY.
-func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
+func (f *Forwarder) execNonInteractive(ctx *authContext, req *http.Request, _ httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) error {
 	canStart, err := f.canStartSessionAlone(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1668,11 +1667,11 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 		func(proxy *remoteCommandProxy) error {
 			if sess.noAuditEvents {
 				// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
-				return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
+				return f.remoteExec(req, sess, proxy)
 			}
 
 			if !request.tty {
-				return f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
+				return f.execNonInteractive(authCtx, req, p, request, proxy, sess)
 			}
 
 			client := newKubeProxyClientStreams(proxy)
@@ -1699,7 +1698,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 }
 
 // remoteExec forwards an exec request to a remote cluster.
-func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) error {
+func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *remoteCommandProxy) error {
 	executor, err := f.getExecutor(sess, req)
 	if err != nil {
 		f.log.WithError(err).Warning("Failed creating executor.")
@@ -1840,7 +1839,7 @@ const (
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request, withImpersonationHeaders bool) error {
 	if withImpersonationHeaders {
-		if err := setupImpersonationHeaders(f.log, sess, req.Header); err != nil {
+		if err := setupImpersonationHeaders(sess, req.Header); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1866,7 +1865,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log logrus.FieldLogger, sess *clusterSession, headers http.Header) error {
+func setupImpersonationHeaders(sess *clusterSession, headers http.Header) error {
 	// If the request is remote or this instance is a proxy,
 	// do not set up impersonation headers.
 	if sess.teleportCluster.isRemote || sess.kubeAPICreds == nil {
