@@ -1881,6 +1881,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted an integration [${name}]`;
     },
   },
+  [eventCodes.CROWN_JEWEL_CREATE]: {
+    type: 'access_graph.crown_jewel.create',
+    desc: 'Crown Jewel Created',
+    format: ({ user, name }) => {
+      return `User [${user}] created a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.CROWN_JEWEL_UPDATE]: {
+    type: 'access_graph.crown_jewel.update',
+    desc: 'Crown Jewel Updated',
+    format: ({ user, name }) => {
+      return `User [${user}] updated a crown jewel [${name}]`;
+    },
+  },
+  [eventCodes.CROWN_JEWEL_DELETE]: {
+    type: 'access_graph.crown_jewel.delete',
+    desc: 'Crown Jewel Deleted',
+    format: ({ user, name }) => {
+      return `User [${user}] deleted a crown jewel [${name}]`;
+    },
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
