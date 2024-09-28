@@ -2589,6 +2589,11 @@
       "source": "/enroll-resources/machine-id/deployment/spacelift/",
       "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/",
+      "permanent": true
     }
   ]
 }
