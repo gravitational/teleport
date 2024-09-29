@@ -18,6 +18,9 @@
 
 import React, { useState } from 'react';
 
+import * as Icon from 'design/Icon';
+import Flex from 'design/Flex';
+
 import { SlideTabs } from './SlideTabs';
 
 export default {
@@ -68,6 +71,35 @@ export const Medium = () => {
       onChange={setActiveIndex}
       activeIndex={activeIndex}
     />
+  );
+};
+
+export const Small = () => {
+  const [activeIndex1, setActiveIndex1] = useState(0);
+  const [activeIndex2, setActiveIndex2] = useState(0);
+  return (
+    <Flex flexDirection="column" gap={3}>
+      <SlideTabs
+        tabs={[
+          { content: <Icon.AlarmRing size="small" /> },
+          { content: <Icon.Bots size="small" /> },
+          { content: <Icon.Check size="small" /> },
+        ]}
+        size="small"
+        appearance="round"
+        onChange={setActiveIndex1}
+        activeIndex={activeIndex1}
+        fitContent
+      />
+      <SlideTabs
+        tabs={['Kraken', 'Chupacabra', 'Yeti']}
+        size="small"
+        appearance="round"
+        onChange={setActiveIndex2}
+        activeIndex={activeIndex2}
+        fitContent
+      />
+    </Flex>
   );
 };
 
