@@ -37,6 +37,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -78,8 +79,9 @@ type SPIFFEWorkloadAPIService struct {
 	trustBundleCache *spiffe.TrustBundleCache
 
 	// client holds the impersonated client for the service
-	client   *authclient.Client
-	attestor *workloadattest.Attestor
+	client           *authclient.Client
+	attestor         *workloadattest.Attestor
+	localTrustDomain spiffeid.TrustDomain
 }
 
 // setup initializes the service, performing tasks such as determining the
@@ -120,6 +122,12 @@ func (s *SPIFFEWorkloadAPIService) setup(ctx context.Context) (err error) {
 	if err != nil {
 		return trace.Wrap(err, "setting up workload attestation")
 	}
+
+	td, err := spiffeid.TrustDomainFromString(facade.Get().ClusterName)
+	if err != nil {
+		return trace.Wrap(err, "parsing trust domain name")
+	}
+	s.localTrustDomain = td
 
 	return nil
 }
@@ -685,8 +693,11 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 		// requested SPIFFE ID.
 		found := false
 		for _, svidReq := range svidReqs {
-			// TODO: THis comparison doesn't work.
-			if svidReq.Path == req.SpiffeId {
+			spiffeID, err := spiffeid.FromPath(s.localTrustDomain, svidReq.Path)
+			if err != nil {
+				return nil, trace.Wrap(err, "parsing SPIFFE ID from path %q", svidReq.Path)
+			}
+			if spiffeID.String() == req.SpiffeId {
 				found = true
 				svidReqs = []config.SVIDRequest{svidReq}
 				break
