@@ -39,6 +39,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -261,6 +262,65 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 	// but it seems to (NB: educated guess) require it if JWKS has multiple JWK-s with different `kid`-s.
 	opts := (&jose.SignerOptions{}).
 		WithHeader(jose.HeaderKey("kid"), "")
+
+	return k.sign(claims, opts)
+}
+
+// SignParamsJWTSVID are the parameters needed to sign a JWT SVID token.
+type SignParamsJWTSVID struct {
+	// JTI is the unique JWT ID.
+	JTI string
+	// SPIFFEID is the SPIFFE ID of the workload to which it is issued.
+	SPIFFEID spiffeid.ID
+	// Audiences are the audiences to include in the token as the expected
+	// recipients of the token.
+	Audiences []string
+	// TTL is the time to live for the token.
+	TTL time.Duration
+}
+
+// SignJWTSVID signs a JWT SVID token.
+// See https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md
+func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
+	claims := jwt.Claims{
+		// > 3.1. Subject:
+		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
+		Subject: p.SPIFFEID.String(),
+		// > 3.2. Audience:
+		// > The aud claim MUST be present, containing one or more values.
+		Audience: p.Audiences,
+		// > 3.3. Expiration Time:
+		// > The exp claim MUST be set
+		Expiry: jwt.NewNumericDate(k.config.Clock.Now().Add(p.TTL)),
+		// The spec makes no comment on inclusion of `iat`, but the SPIRE
+		// implementation does set this value and it feels like a good idea.
+		IssuedAt: jwt.NewNumericDate(k.config.Clock.Now()),
+		// > 7.1. Replay Protection
+		// > the jti claim is permitted by this specification, it should be
+		// > noted that JWT-SVID validators are not required to track jti
+		// > uniqueness.
+		ID: p.JTI,
+	}
+
+	// > 2.2. Key ID:
+	// >The kid header is optional.
+	//
+	// Whilst optional, the SPIRE reference implementation does set this value
+	// and it will be beneficial for compatability with a range of consumers
+	// which may require this value.
+	kid, err := KeyID(k.config.PublicKey)
+	if err != nil {
+		return "", trace.Wrap(err, "calculating 'kid'")
+	}
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", kid)
+
+	// > 2.3. Type
+	// > The typ header is optional. If set, its value MUST be either JWT or
+	// > JOSE.
+	//
+	// We will omit the inclusion of the type header until we can validate the
+	// ramifications of including it.
 
 	return k.sign(claims, opts)
 }
