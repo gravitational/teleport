@@ -252,7 +252,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 
 	tokens, err := client.GetTokens(ctx)
 	require.NoError(t, err)
-	require.Len(t, tokens, 0)
+	require.Empty(t, tokens)
 
 	// Create an initial bot
 	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
