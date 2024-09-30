@@ -257,7 +257,9 @@ func newCustomFixture(t testing.TB, mutateCfg func(*auth.TestServerConfig), sshO
 		sshSrv.Wait()
 	})
 
-	_, err = testServer.Auth().UpsertNode(ctx, sshSrv.getServerInfo())
+	server, err := sshSrv.getServerInfo(ctx)
+	require.NoError(t, err)
+	_, err = testServer.Auth().UpsertNode(ctx, server)
 	require.NoError(t, err)
 
 	sshSrvAddress := sshSrv.Addr()
@@ -3065,13 +3067,13 @@ func TestHostUserCreationProxy(t *testing.T) {
 	reg, err := srv.NewSessionRegistry(srv.SessionRegistryConfig{Srv: proxy, SessionTrackerService: proxyClient})
 	require.NoError(t, err)
 
-	_, err = reg.TryWriteSudoersFile(srv.IdentityContext{
+	_, err = reg.WriteSudoersFile(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
-	_, _, err = reg.TryCreateHostUser(srv.IdentityContext{
+	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
 		AccessChecker: &fakeAccessChecker{},
 	})
 	assert.NoError(t, err)

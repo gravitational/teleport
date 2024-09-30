@@ -59,6 +59,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.48.2
 	github.com/aws/aws-sdk-go-v2/service/glue v1.95.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.35.0
+	github.com/aws/aws-sdk-go-v2/service/kms v1.35.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.82.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.46.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.61.0

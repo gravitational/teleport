@@ -245,8 +245,6 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
 
-    // TODO(zmb3): remove this when Assist is no longer using it
-    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -308,13 +306,13 @@ const cfg = {
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
     awsConfigureIamScriptDeployServicePath:
-      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
-      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
     awsRdsDbDeployServicesPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
@@ -334,10 +332,10 @@ const cfg = {
     awsAppAccessPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
     awsConfigureIamAppAccessPath:
-      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
     awsConfigureIamEc2AutoDiscoverWithSsmPath:
-      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName',
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName&awsAccountID=:accountID',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
@@ -704,11 +702,6 @@ const cfg = {
 
   getUserWithUsernameUrl(username: string) {
     return generatePath(cfg.api.userWithUsernamePath, { username });
-  },
-
-  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
-    // TODO(zmb3): remove this when Assist is no longer using it
-    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
@@ -1237,6 +1230,7 @@ export interface UrlDeployServiceIamConfigureScriptParams {
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+  accountID: string;
 }
 
 export interface UrlAwsOidcConfigureIdp {
@@ -1249,6 +1243,7 @@ export interface UrlAwsOidcConfigureIdp {
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+  accountID: string;
 }
 
 export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
@@ -1256,6 +1251,7 @@ export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   iamRoleName: string;
   ssmDocument: string;
   integrationName: string;
+  accountID: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

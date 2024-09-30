@@ -349,8 +349,7 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	var desktopSessionEnd events.WindowsDesktopSessionEnd
 
 	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
-	// a copy of the session and using the SSH-specific index to iterate through events.
+	// for both Desktop and SSH sessions
 	var lastEvent events.AuditEvent
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

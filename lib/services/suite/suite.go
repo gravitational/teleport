@@ -83,20 +83,20 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	var keyPEM []byte
 	var key *keys.PrivateKey
 
-	if config.Type == types.DatabaseClientCA {
-		// Always use pre-generated RSA key for the db_client CA.
-		keyPEM = fixtures.PEMBytes["rsa-db-client"]
-	}
-	if config.Type == types.SAMLIDPCA {
-		// The SAML IdP uses xmldsig RSA SHA256 signature method
-		// http://www.w3.org/2001/04/xmldsig-more#rsa-sha256
-		// to sign the SAML assertion, so the key must be an RSA key.
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
 		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
 	}
 	if len(config.PrivateKeys) > 0 {
 		// Allow test to override the private key.
 		keyPEM = config.PrivateKeys[0]
 	}
+
 	if keyPEM != nil {
 		var err error
 		key, err = keys.ParsePrivateKey(keyPEM)
@@ -104,9 +104,10 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			panic(err)
 		}
 	} else {
-		// If config.PrivateKeys was not set and this is not the db_client CA,
-		// generate an ECDSA key. Signatures are ~10x faster than RSA and
-		// generating a new key is actually faster than parsing a PEM fixture.
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
 			panic(err)
@@ -167,7 +168,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 
 	// Add JWT keys if necessary.
 	switch config.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
 		if err != nil {
 			panic(err)

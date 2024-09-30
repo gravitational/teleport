@@ -82,12 +82,24 @@ actions menu or press `` Ctrl+Shift+` ``.
 
 Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
 this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
-Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
+Additionally, Teleport Connect prepends the `PATH` environment variable in the session with the
 directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
 
 When using [trusted clusters](../admin-guides/management/admin/trustedclusters.mdx), the cluster selector allows
 you to determine which cluster the shell session will be bound to. The selected cluster will be
 reflected in both the tab title and the status bar.
+
+### Changing the terminal shell
+
+By default, Teleport Connect launches the user shell on macOS/Linux and PowerShell on Windows.
+To switch to a different shell, right-click on a terminal tab (either a local terminal or a Kubernetes session).
+From the menu, choose a predefined shell (on Windows) or provide the path to a custom shell.
+
+The selected shell will be used only for that tab unless you choose to set it as the default.
+![Changing the terminal shell in Teleport Connect on Windows](../../img/use-teleport/connect-shell-switcher@2x.png)
+
+The configuration is stored under `terminal.shell` and `terminal.customShell` config properties.
+For more details, refer to the [Configuration](#configuration) section.
 
 ## Connecting to a Kubernetes cluster
 
@@ -466,6 +478,7 @@ Below is the list of the supported config properties.
 | `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+Shift+K` on Windows/Linux                                                             | Shortcut to open the search bar.                                                                           |
 | `headless.skipConfirm`        | false                                                                                                                | Skips the confirmation prompt for Headless WebAuthn approval and instead prompts for WebAuthn immediately. |
 | `ssh.noResume`                | false                                                                                                                | Disables SSH connection resumption.                                                                        |
+| `ssh.forwardAgent`            | false                                                                                                                | Enables agent forwarding.                                                                                  |
 
 <Admonition
   type="note"

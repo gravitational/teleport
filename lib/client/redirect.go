@@ -214,9 +214,10 @@ func (rd *Redirector) Start() error {
 	req := SSOLoginConsoleReq{
 		RedirectURL: u.String(),
 		SSOUserPublicKeys: SSOUserPublicKeys{
-			// TODO(nklaassen): split keys on client side.
-			PublicKey:            rd.PubKey,
-			AttestationStatement: rd.AttestationStatement,
+			SSHPubKey:               rd.SSHPubKey,
+			TLSPubKey:               rd.TLSPubKey,
+			SSHAttestationStatement: rd.SSHAttestationStatement,
+			TLSAttestationStatement: rd.TLSAttestationStatement,
 		},
 		CertTTL:           rd.TTL,
 		ConnectorID:       rd.ConnectorID,

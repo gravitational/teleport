@@ -40,6 +40,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -57,7 +59,9 @@ func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityServ
 		Clock:   clock,
 	})
 	require.NoError(t, err)
-	return local.NewTestIdentityService(backend)
+	service, err := local.NewTestIdentityService(backend)
+	require.NoError(t, err)
+	return service
 }
 
 func TestIdentityService_CreateUser(t *testing.T) {
@@ -259,6 +263,71 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
 	})
+}
+
+// TestNotificationCleanupOnUserDelete tests that notification objects associated with a user are deleted
+// when the user is deleted.
+func TestNotificationCleanupOnUserDelete(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	identitySvc, err := local.NewIdentityServiceV2(backend)
+	require.NoError(t, err)
+	notificationsSvc, err := local.NewNotificationsService(backend, backend.Clock())
+	require.NoError(t, err)
+
+	// Create the user.
+	username := "someuser"
+	userResource := &types.UserV2{}
+	userResource.SetName(username)
+	_, err = identitySvc.CreateUser(ctx, userResource)
+	require.NoError(t, err)
+
+	// Create a notification for this user.
+	testNotification := &notificationsv1.Notification{
+		SubKind: "test-subkind",
+		Spec: &notificationsv1.NotificationSpec{
+			Username: username,
+		},
+		Metadata: &headerv1.Metadata{
+			Labels: map[string]string{types.NotificationTitleLabel: "test"},
+		},
+	}
+	notif, err := notificationsSvc.CreateUserNotification(ctx, testNotification)
+	require.NoError(t, err)
+
+	// Create a notification state for this user.
+	userNotificationState := &notificationsv1.UserNotificationState{
+		Spec: &notificationsv1.UserNotificationStateSpec{
+			NotificationId: notif.GetMetadata().GetName(),
+		},
+		Status: &notificationsv1.UserNotificationStateStatus{
+			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
+		},
+	}
+	_, err = notificationsSvc.UpsertUserNotificationState(ctx, username, userNotificationState)
+	require.NoError(t, err)
+
+	// Delete the user.
+	err = identitySvc.DeleteUser(ctx, username)
+	require.NoError(t, err)
+
+	// Verify that the notification was deleted.
+	notifsOut, _, err := notificationsSvc.ListUserNotifications(ctx, 0, "")
+	require.NoError(t, err)
+	require.Empty(t, notifsOut)
+
+	// Verify that the notification state was deleted.
+	unsOut, _, err := notificationsSvc.ListUserNotificationStates(ctx, username, 1, "")
+	require.NoError(t, err)
+	require.Empty(t, unsOut)
 }
 
 func TestIdentityService_UpsertMFADevice(t *testing.T) {

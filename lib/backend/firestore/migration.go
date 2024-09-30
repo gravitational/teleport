@@ -20,11 +20,11 @@ package firestore
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/backend"
 )
@@ -43,10 +43,10 @@ func (b *Backend) migrateIncorrectKeyTypes() {
 		b.clientContext,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				LockName:      "firestore_migrate_incorrect_key_types",
-				Backend:       b,
-				TTL:           5 * time.Minute,
-				RetryInterval: time.Minute,
+				LockNameComponents: []string{"firestore_migrate_incorrect_key_types"},
+				Backend:            b,
+				TTL:                5 * time.Minute,
+				RetryInterval:      time.Minute,
 			},
 			ReleaseCtxTimeout:   10 * time.Second,
 			RefreshLockInterval: time.Minute,
@@ -81,15 +81,15 @@ func (b *Backend) migrateIncorrectKeyTypes() {
 			return nil
 		})
 
-	entry := b.Entry.WithFields(logrus.Fields{
-		"duration": duration,
-		"migrated": numberOfDocsMigrated,
-	})
+	entry := b.logger.With(
+		slog.Duration("duration", duration),
+		slog.Int("migrated", numberOfDocsMigrated),
+	)
 	if err != nil {
-		entry.WithError(err).Error("Failed to migrate incorrect key types.")
+		entry.ErrorContext(b.clientContext, "Failed to migrate incorrect key types.", "error", err)
 		return
 	}
-	entry.Infof("Migrated %d incorrect key types", numberOfDocsMigrated)
+	entry.InfoContext(b.clientContext, "Successfully migrated incorrect key types.")
 }
 
 func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) T) (int, error) {
@@ -151,7 +151,7 @@ func migrateKeyType[T any](ctx context.Context, b *Backend, newKey func([]byte) 
 		for _, job := range jobs {
 			if _, err := job.Results(); err != nil {
 				// log the error and continue
-				b.Entry.WithError(err).Error("failed to write bulk action")
+				b.logger.ErrorContext(ctx, "failed to write bulk action", "error", err)
 			}
 		}
 

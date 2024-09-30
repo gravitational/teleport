@@ -180,11 +180,7 @@ export function Notification({
         onClick={onNotificationClick}
         className="notification"
         tabIndex={0}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            onClick();
-          }
-        }}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && onClick()}
       >
         <GraphicContainer>
           <MainIconContainer type={content.type}>

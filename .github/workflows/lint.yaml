@@ -2,8 +2,9 @@ name: Lint (Go)
 run-name: Lint (Go and Rust)
 on:
   pull_request:
-
   merge_group:
+env:
+  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
@@ -85,15 +86,12 @@ jobs:
       - name: Check for untidy go modules
         shell: bash
         run: |
-          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
-            pushd $(dirname "$f") > /dev/null; 
-            go mod tidy;
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff;
             popd > /dev/null;
           done
-
-          # We have to add the current directory as a safe directory or else git commands will not work as expected.
-          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
 
       - name: Set linter versions
         run: |

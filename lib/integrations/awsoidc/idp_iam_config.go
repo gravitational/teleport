@@ -108,8 +108,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 // IdPIAMConfigureClient describes the required methods to create the AWS OIDC IdP and a Role that trusts that identity provider.
 // There is no guarantee that the client is thread safe.
 type IdPIAMConfigureClient interface {
-	// GetCallerIdentity returns information about the caller identity.
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	callerIdentityGetter
 
 	// CreateOpenIDConnectProvider creates an IAM OIDC IdP.
 	CreateOpenIDConnectProvider(ctx context.Context, params *iam.CreateOpenIDConnectProviderInput, optFns ...func(*iam.Options)) (*iam.CreateOpenIDConnectProviderOutput, error)
@@ -132,12 +131,7 @@ type defaultIdPIAMConfigureClient struct {
 
 	*iam.Client
 	awsConfig aws.Config
-	stsClient *sts.Client
-}
-
-// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-func (d *defaultIdPIAMConfigureClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
+	callerIdentityGetter
 }
 
 // NewIdPIAMConfigureClient creates a new IdPIAMConfigureClient.
@@ -158,10 +152,10 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 	}
 
 	return &defaultIdPIAMConfigureClient{
-		httpClient: httpClient,
-		awsConfig:  cfg,
-		Client:     iam.NewFromConfig(cfg),
-		stsClient:  sts.NewFromConfig(cfg),
+		httpClient:           httpClient,
+		awsConfig:            cfg,
+		Client:               iam.NewFromConfig(cfg),
+		callerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 

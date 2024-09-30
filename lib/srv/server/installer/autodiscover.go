@@ -369,7 +369,7 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 }
 
 func checksum(filename string) (string, error) {
-	f, err := utils.OpenFileNoUnsafeLinks(filename)
+	f, err := utils.OpenFileAllowingUnsafeLinks(filename)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

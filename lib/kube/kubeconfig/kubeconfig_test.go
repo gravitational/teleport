@@ -33,9 +33,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -197,7 +198,7 @@ func TestUpdate(t *testing.T) {
 	}
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
-		ClientKeyData:         creds.PrivateKey.PrivateKeyPEM(),
+		ClientKeyData:         creds.TLSPrivateKey.PrivateKeyPEM(),
 		LocationOfOrigin:      kubeconfigPath,
 		Extensions:            map[string]runtime.Object{},
 	}
@@ -564,8 +565,11 @@ func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keygen := testauthority.New()
-	priv, err := keygen.GeneratePrivateKey()
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	priv, err := keys.NewSoftwarePrivateKey(key)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -584,8 +588,8 @@ func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {
 	}
 
 	return &client.KeyRing{
-		PrivateKey: priv,
-		TLSCert:    tlsCert,
+		TLSPrivateKey: priv,
+		TLSCert:       tlsCert,
 		TrustedCerts: []authclient.TrustedCerts{{
 			TLSCertificates: [][]byte{caCert},
 		}},

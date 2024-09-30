@@ -61,18 +61,18 @@ from the list of members in the included access list.
 
 ## Cycles within lists
 
-The implementation will not support cycles within the heirarchy as
+The implementation will not support cycles within the hierarchy as
 this would introduce confusing options for configuration. Teleport
 will return an error if a cycle are introduced. It will also only look
 10 layers deep before exiting a lookup to avoid overly complex
-heirarchies.
+hierarchies.
 
-Errors over cycles in the heirarchy will be detected and returned at
+Errors over cycles in the hierarchy will be detected and returned at
 access list insertion/update time.
 
 ### Nesting depth
 
-Access list heirarchys will only recurse up to 10 layers deep
+Access list hierarchies will only recurse up to 10 layers deep
 initially.
 
 ## Access list reviews
@@ -98,7 +98,7 @@ user passes the respective membership/ownership requirements
 ## Other considerations
 
 Access lists will need to be allowed to have empty grants so access
-lists can represent only users and permisisons can be assigned purely
+lists can represent only users and permissions can be assigned purely
 through membership in other lists.
 
 # Examples

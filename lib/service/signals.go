@@ -154,9 +154,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 			default:
 				process.logger.InfoContext(process.ExitContext(), "Ignoring unknown signal.", "signal", signal)
 			}
-		case <-process.ReloadContext().Done():
-			process.logger.InfoContext(process.ExitContext(), "Exiting signal handler: process has started internal reload.")
-			return ErrTeleportReloading
 		case <-process.ExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Someone else has closed context, exiting.")
 			return nil
@@ -184,10 +181,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 		}
 	}
 }
-
-// ErrTeleportReloading is returned when signal waiter exits
-// because the teleport process has initiaded shutdown
-var ErrTeleportReloading = &trace.CompareFailedError{Message: "teleport process is reloading"}
 
 // ErrTeleportExited means that teleport has exited
 var ErrTeleportExited = &trace.CompareFailedError{Message: "teleport process has shutdown"}

@@ -276,6 +276,8 @@ type CommandLineFlags struct {
 type IntegrationConfAccessGraphAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAzureOIDC contains the arguments of
@@ -307,6 +309,8 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEICEIAM contains the arguments of
@@ -316,6 +320,8 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAWSAppAccessIAM contains the arguments of
@@ -323,6 +329,8 @@ type IntegrationConfEICEIAM struct {
 type IntegrationConfAWSAppAccessIAM struct {
 	// RoleName is the AWS Role associated with the Integration
 	RoleName string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEC2SSMIAM contains the arguments of
@@ -345,6 +353,8 @@ type IntegrationConfEC2SSMIAM struct {
 	// IntegrationName is the Teleport AWS OIDC Integration name.
 	// Used for resource tagging.
 	IntegrationName string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -354,6 +364,8 @@ type IntegrationConfEKSIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAWSOIDCIdP contains the arguments of
@@ -377,6 +389,8 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -986,6 +1000,7 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			TunnelStrategy:           fc.Auth.TunnelStrategy,
 			ProxyPingInterval:        fc.Auth.ProxyPingInterval,
 			CaseInsensitiveRouting:   fc.Auth.CaseInsensitiveRouting,
+			SSHDialTimeout:           fc.Auth.SSHDialTimeout,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2531,6 +2546,13 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 		}
+	}
+
+	if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          clf.FIPS,
+		UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+	}); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --skip-version-check flag.
