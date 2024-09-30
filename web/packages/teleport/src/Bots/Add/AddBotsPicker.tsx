@@ -242,6 +242,20 @@ function GuidedTile({
   );
 }
 
+export function DisplayTile({
+  icon,
+  title,
+}: {
+  title: string;
+  icon: JSX.Element;
+}) {
+  return (
+    <HoverIntegrationTile>
+      <TileContent icon={icon} title={title} />
+    </HoverIntegrationTile>
+  );
+}
+
 function TileContent({ icon, title }) {
   return (
     <>
@@ -263,4 +277,9 @@ const BadgeGuided = styled.div`
   top: 0px;
   right: 0px;
   font-size: 10px;
+`;
+
+const HoverIntegrationTile = styled(IntegrationTile)`
+  background: none;
+  transition: all 0.1s ease-in;
 `;
