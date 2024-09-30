@@ -75,6 +75,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -4074,41 +4075,29 @@ func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
-func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
 	return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
-			return tc.MockSSOLogin(ctx, connectorID, keyRing, protocol)
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
 		}
 
-		sshLogin, err := tc.NewSSHLogin(keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		// Set SAMLSingleLogoutEnabled from server settings.
 		pr, err := tc.Ping(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		proxyVersion := semver.New(pr.ServerVersion)
-
-		if protocol == constants.SAML && pr.Auth.SAML != nil {
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
 			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 		}
 
-		// ask the CA (via proxy) to sign our public key:
-		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-			SSHLogin:                      sshLogin,
-			ConnectorID:                   connectorID,
-			ConnectorName:                 connectorName,
-			Protocol:                      protocol,
-			BindAddr:                      tc.BindAddr,
-			CallbackAddr:                  tc.CallbackAddr,
-			Browser:                       tc.Browser,
-			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		}, nil)
-		return response, trace.Wrap(err)
+		ssoCeremony, err := tc.NewSSOLoginCeremony(ctx, keyRing, connectorID, connectorName, connectorType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := ssoCeremony.Run(ctx)
+		return resp, trace.Wrap(err)
 	}
 }
 
@@ -4135,7 +4124,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
