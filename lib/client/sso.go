@@ -24,13 +24,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
-// NewSSOMFACeremony creates a new SSO Login ceremony from client config.
+// NewSSOLoginCeremony creates a new SSO Login ceremony from client config.
 func (tc *TeleportClient) NewSSOLoginCeremony(ctx context.Context, keyRing *KeyRing, connectorID, connectorName, connectorType string) (*sso.Ceremony, error) {
 	rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
 	if err != nil {

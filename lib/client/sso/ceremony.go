@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -21,8 +21,9 @@ package sso
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
 // Ceremony is a customizable SSO login ceremony.
@@ -47,7 +48,8 @@ func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error
 		return nil, trace.Wrap(err)
 	}
 
-	return c.GetCallbackResponse(ctx)
+	resp, err := c.GetCallbackResponse(ctx)
+	return resp, trace.Wrap(err)
 }
 
 // NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
