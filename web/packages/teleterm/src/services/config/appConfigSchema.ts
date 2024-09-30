@@ -190,7 +190,7 @@ export const createAppConfigSchema = (settings: RuntimeSettings) => {
       .describe('Disables SSH connection resumption.'),
     'ssh.forwardAgent': z
       .boolean()
-      .default(true)
+      .default(false)
       .describe(
         "Enables agent forwarding when connecting to SSH nodes. It's the equivalent of the forward-agent flag in tsh ssh."
       ),
