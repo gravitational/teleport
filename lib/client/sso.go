@@ -24,15 +24,36 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
-// NewSSOMFACeremony creates a new SSO Login ceremony from client config.
+// NewSSOLoginCeremony creates a new SSO Login ceremony from client config.
 func (tc *TeleportClient) NewSSOLoginCeremony(ctx context.Context, keyRing *KeyRing, connectorID, connectorName, connectorType string) (*sso.Ceremony, error) {
-	rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
+	ceremony, err := tc.newBaseSSOCeremony(ctx, connectorName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ceremony.Init = tc.ssoLoginInitFn(keyRing, connectorID, connectorType)
+	return ceremony, nil
+}
+
+func (tc *TeleportClient) newSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
+	ceremony, err := tc.newBaseSSOCeremony(ctx, "" /*connectorDisplayName*/)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &sso.MFACeremony{Ceremony: ceremony}, nil
+}
+
+// newBaseSSOCeremony returns a base SSO ceremony from client config.
+// Ceremony.Init must be set by the caller.
+func (tc *TeleportClient) newBaseSSOCeremony(ctx context.Context, connectorDisplayName string) (*sso.Ceremony, error) {
+	rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorDisplayName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -43,9 +64,7 @@ func (tc *TeleportClient) NewSSOLoginCeremony(ctx context.Context, keyRing *KeyR
 		return nil, trace.Wrap(err)
 	}
 
-	ceremony := sso.NewCLICeremony(rd)
-	ceremony.Init = tc.ssoLoginInitFn(keyRing, connectorID, connectorType)
-	return ceremony, nil
+	return sso.NewCLICeremony(rd), nil
 }
 
 // ssoRedirectorConfig returns a standard configured sso redirector for login.

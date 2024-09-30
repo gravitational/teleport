@@ -58,3 +58,31 @@ func NewCLICeremony(rd *Redirector) *Ceremony {
 		GetCallbackResponse: rd.WaitForResponse,
 	}
 }
+
+type MFACeremony struct {
+	*Ceremony
+}
+
+// GetClientCallbackURL returns the SSO client callback URL.
+func (c *MFACeremony) GetClientCallbackURL() string {
+	return c.clientCallbackURL
+}
+
+// HandleRedirect handles redirect.
+func (c *MFACeremony) HandleRedirect(ctx context.Context, redirectURL string) error {
+	return c.Ceremony.HandleRedirect(ctx, redirectURL)
+}
+
+// GetCallbackMFAResponse returns an SSO MFA auth response once the callback is complete.
+func (c *MFACeremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
+	loginResp, err := c.GetCallbackResponse(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if loginResp.MFAToken == "" {
+		return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+	}
+
+	return loginResp.MFAToken, nil
+}
