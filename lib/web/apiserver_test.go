@@ -3093,7 +3093,6 @@ func TestPingSSHDialTimeout(t *testing.T) {
 
 	// Validate the timeout is the default value.
 	require.Equal(t, cnc.GetSSHDialTimeout(), out.Proxy.SSH.DialTimeout)
-
 }
 
 // TestConstructSSHResponse checks if the secret package uses AES-GCM to
@@ -4606,7 +4605,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 			LocalAuthEnabled:   true,
 			AllowPasswordless:  true,
 			AuthType:           constants.Local,
-			PreferredLocalMFA:  constants.SecondFactorWebauthn,
+			PreferredLocalMFA:  types.SecondFactorTypeWebauthnString,
 			LocalConnectorName: constants.PasswordlessConnector,
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 			MOTD:               MOTD,
@@ -4723,7 +4722,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 
 	// use mock client to assert that if ping returns an error, we'll default to
@@ -4761,7 +4759,6 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		assert.NoError(t, err)
 		diff := cmp.Diff(expectedCfg, cfg)
 		assert.Empty(t, diff)
-
 	}, time.Second*5, time.Millisecond*50)
 }
 

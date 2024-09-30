@@ -191,7 +191,7 @@ type WebConfigAuthSettings struct {
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
-	PreferredLocalMFA constants.SecondFactorType `json:"preferredLocalMfa,omitempty"`
+	PreferredLocalMFA string `json:"preferredLocalMfa,omitempty"`
 	// LocalConnectorName is the name of the local connector.
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
 	// PrivateKeyPolicy is the configured private key policy for the cluster.

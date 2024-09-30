@@ -391,7 +391,7 @@ type AuthenticationSettings struct {
 	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
 	// when various options are available.
 	// It is empty if there is nothing to suggest.
-	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
+	PreferredLocalMFA string `json:"preferred_local_mfa,omitempty"`
 	// AllowPasswordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
 	// AllowHeadless is true if headless logins are allowed.
