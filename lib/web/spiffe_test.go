@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"testing"
 
@@ -76,7 +77,9 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	for _, jwtKeyPair := range ca.GetTrustedJWTKeyPairs() {
 		wantKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
 		require.NoError(t, err)
-		wantKeyID, err := jwt.KeyID(wantKey)
+		rsaWantKey, ok := wantKey.(*rsa.PublicKey)
+		require.True(t, ok, "unsupported key type %T", wantKey)
+		wantKeyID := jwt.KeyID(rsaWantKey)
 		require.NoError(t, err)
 		gotPubKey, ok := gotBundle.JWTBundle().FindJWTAuthority(wantKeyID)
 		require.True(t, ok, "wanted public key not found in bundle")
