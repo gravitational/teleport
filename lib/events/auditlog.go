@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -185,7 +185,7 @@ type AuditLog struct {
 	AuditLogConfig
 
 	// log specifies the logger
-	log log.FieldLogger
+	log *slog.Logger
 
 	// playbackDir is a directory used for unpacked session recordings
 	playbackDir string
@@ -298,11 +298,9 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	}
 	ctx, cancel := context.WithCancel(cfg.Context)
 	al := &AuditLog{
-		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
-		AuditLogConfig: cfg,
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentAuditLog,
-		}),
+		playbackDir:     filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, apidefaults.Namespace),
+		AuditLogConfig:  cfg,
+		log:             slog.With(teleport.ComponentKey, teleport.ComponentAuditLog),
 		activeDownloads: make(map[string]context.Context),
 		ctx:             ctx,
 		cancel:          cancel,
@@ -412,9 +410,9 @@ func (l *AuditLog) cleanupOldPlaybacks() error {
 		fileToRemove := filepath.Join(l.playbackDir, fi.Name())
 		err := os.Remove(fileToRemove)
 		if err != nil {
-			l.log.Warningf("Failed to remove file %v: %v.", fileToRemove, err)
+			l.log.WarnContext(l.ctx, "Failed to remove session playback file", "file", fileToRemove, "error", err)
 		}
-		l.log.Debugf("Removed unpacked session playback file %v after %v.", fileToRemove, diff)
+		l.log.DebugContext(l.ctx, "Removed unpacked session playback file", "file", fileToRemove, "diff", diff)
 	}
 	return nil
 }
@@ -465,8 +463,8 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 }
 
 func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	g := l.log.WithFields(log.Fields{"eventType": req.EventTypes, "limit": req.Limit})
-	g.Debugf("SearchEvents(%v, %v)", req.From, req.To)
+	g := l.log.With("event_type", req.EventTypes, "limit", req.Limit)
+	g.DebugContext(ctx, "SearchEvents", "from", req.From, "to", req.To)
 	limit := req.Limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
@@ -482,7 +480,7 @@ func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([
 }
 
 func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.From, req.To, req.Limit)
+	l.log.DebugContext(ctx, "SearchSessionEvents", "from", req.From, "to", req.To, "limit", req.Limit)
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}
@@ -490,7 +488,7 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 }
 
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	l.log.Debugf("ExportUnstructuredEvents(%v, %v, %v)", req.Date, req.Chunk, req.Cursor)
+	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
 	if l.ExternalLog != nil {
 		return l.ExternalLog.ExportUnstructuredEvents(ctx, req)
 	}
@@ -498,7 +496,7 @@ func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb
 }
 
 func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	l.log.Debugf("GetEventExportChunks(%v)", req.Date)
+	l.log.DebugContext(ctx, "GetEventExportChunks", "date", req.Date)
 	if l.ExternalLog != nil {
 		return l.ExternalLog.GetEventExportChunks(ctx, req)
 	}
@@ -507,7 +505,7 @@ func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.Get
 
 // StreamSessionEvents implements [SessionStreamer].
 func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	l.log.WithField("session_id", string(sessionID)).Debug("StreamSessionEvents()")
+	l.log.DebugContext(ctx, "StreamSessionEvents", "session_id", string(sessionID))
 	e := make(chan error, 1)
 	c := make(chan apievents.AuditEvent)
 
@@ -542,10 +540,10 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		e <- trace.Wrap(err)
 		return c, e
 	}
-	l.log.WithFields(log.Fields{
-		"duration":   time.Since(start),
-		"session_id": string(sessionID),
-	}).Debug("Downloaded session to a temporary file for streaming.")
+	l.log.DebugContext(ctx, "Downloaded session to a temporary file for streaming.",
+		"duration", time.Since(start),
+		"session_id", string(sessionID),
+	)
 
 	go func() {
 		defer rawSession.Close()
@@ -606,7 +604,7 @@ func (l *AuditLog) getLocalLog() AuditLogger {
 func (l *AuditLog) Close() error {
 	if l.ExternalLog != nil {
 		if err := l.ExternalLog.Close(); err != nil {
-			log.Warningf("Close failure: %v", err)
+			l.log.WarnContext(l.ctx, "Close failure", "error", err)
 		}
 	}
 	l.cancel()
@@ -615,7 +613,7 @@ func (l *AuditLog) Close() error {
 
 	if l.localLog != nil {
 		if err := l.localLog.Close(); err != nil {
-			log.Warningf("Close failure: %v", err)
+			l.log.WarnContext(l.ctx, "Close failure", "error", err)
 		}
 		l.localLog = nil
 	}
@@ -632,7 +630,7 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 			return
 		case <-ticker.C:
 			if err := l.cleanupOldPlaybacks(); err != nil {
-				l.log.Warningf("Error while cleaning up playback files: %v.", err)
+				l.log.WarnContext(l.ctx, "Error while cleaning up playback files", "error", err)
 			}
 		}
 	}
@@ -652,7 +650,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			usedPercent, err := utils.PercentUsed(l.DataDir)
 			if err != nil {
 				auditFailedDisk.Inc()
-				log.Warnf("Disk space monitoring failed: %v.", err)
+				l.log.WarnContext(l.ctx, "Disk space monitoring failed", "error", err)
 				continue
 			}
 
@@ -661,7 +659,7 @@ func (l *AuditLog) periodicSpaceMonitor() {
 
 			// If used percentage goes above the alerting level, write to logs as well.
 			if usedPercent > float64(DiskAlertThreshold) {
-				log.Warnf("Free disk space for audit log is running low, %v%% of disk used.", usedPercent)
+				l.log.WarnContext(l.ctx, "Free disk space for audit log is running low", "percentage_used", usedPercent)
 			}
 		case <-l.ctx.Done():
 			return
