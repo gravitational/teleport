@@ -79,7 +79,7 @@ func firestoreParams() backend.Params {
 	// names for each test.
 	collection := "tp-cluster-data-test"
 	projectID := "tp-testproj"
-	endpoint := "localhost:8618"
+	endpoint := ""
 
 	if c := os.Getenv("TELEPORT_FIRESTORE_TEST_COLLECTION"); c != "" {
 		collection = c
@@ -506,12 +506,6 @@ func TestFirestoreMigration(t *testing.T) {
 
 	// Ensure that all incorrect key types have been migrated to the correct key type []byte
 	docs, err = uut.svc.Collection(uut.CollectionName).
-		// passing the key type here forces the client to map the key to the underlying type
-		// and return all the keys in that share the same underlying type.
-		// backend.Key is mapped to Array in Firestore.
-		// []byte is mapped to Bytes in Firestore.
-		// string is mapped to String in Firestore.
-		// Searching for keys with the same underlying type will return all keys with the same type.
 		Where(keyDocProperty, ">", []byte("/")).
 		Documents(context.Background()).GetAll()
 	require.NoError(t, err)
