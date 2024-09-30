@@ -5048,3 +5048,25 @@ debug_service:
 		})
 	}
 }
+
+func TestListenIPAppliedAfterDefaultProxySet(t *testing.T) {
+	t.Parallel()
+
+	testListenIP := "192.168.0.20"
+
+	commandLineFlags := CommandLineFlags{
+		ListenIP: net.ParseIP(testListenIP),
+	}
+	config := servicecfg.MakeDefaultConfig()
+	err := Configure(&commandLineFlags, config, false)
+	require.NoError(t, err, "unexpected error invoking Configure")
+
+	actualReverseTunnelHost := config.Proxy.ReverseTunnelListenAddr.Host()
+	assert.Equal(t, testListenIP, actualReverseTunnelHost, "expected proxy's reverse tunnel listen host to be the provided listen IP")
+
+	actualPort := config.Proxy.ReverseTunnelListenAddr.Port(-1)
+	require.NotEqual(t, -1, actualPort, "expected proxy's reverse tunnel port to be set")
+
+	expectedPort := defaults.SSHProxyTunnelListenPort
+	assert.Equal(t, expectedPort, actualPort, "expected proxy's reverse tunnel listen port to be the default SSH proxy tunnel listen port")
+}

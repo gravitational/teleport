@@ -2633,6 +2633,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		return trace.Wrap(err)
 	}
 
+	// set the default proxy listener addresses for config v1, if not already set
+	applyDefaultProxyListenerAddresses(cfg)
+
 	// apply --listen-ip flag:
 	if clf.ListenIP != nil {
 		applyListenIP(clf.ListenIP, cfg)
@@ -2670,9 +2673,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	if clf.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
-
-	// set the default proxy listener addresses for config v1, if not already set
-	applyDefaultProxyListenerAddresses(cfg)
 
 	// not publicly documented or supported for now (thus the
 	// "TELEPORT_UNSTABLE_" prefix); the group with an empty ID is a valid
