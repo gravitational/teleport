@@ -192,14 +192,13 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 		Browser:   cmd.Browser,
 	}
 
-	rd, err := sso.NewRedirector(ctx, rdConfig)
+	rd, err := sso.NewRedirector(rdConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rd.Close()
 
-	ceremony := sso.NewCLICeremony(rd)
-	ceremony.Init = func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
+	initSSO := func(ctx context.Context, clientCallbackURL string) (redirectURL string, err error) {
 		sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(c))
 		if err != nil {
 			return "nil", trace.Wrap(err)
@@ -229,6 +228,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 
 		return initResp.RedirectURL, nil
 	}
+	ceremony := sso.NewCLICeremony(rd, initSSO)
 
 	resp, err := ceremony.Run(ctx)
 	return resp, trace.Wrap(err)

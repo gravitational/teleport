@@ -53,9 +53,10 @@ func (c *Ceremony) Run(ctx context.Context) (*authclient.SSHLoginResponse, error
 }
 
 // NewCLICeremony creates a new CLI SSO ceremony from the given redirector.
-func NewCLICeremony(rd *Redirector) *Ceremony {
+func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 	return &Ceremony{
 		clientCallbackURL:   rd.ClientCallbackURL,
+		Init:                init,
 		HandleRedirect:      rd.OpenRedirect,
 		GetCallbackResponse: rd.WaitForResponse,
 	}

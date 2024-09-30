@@ -32,10 +32,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gvisor.dev/gvisor/pkg/log"
+
+	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -128,16 +129,14 @@ type Redirector struct {
 	responseC chan *authclient.SSHLoginResponse
 	// errorC will contain errors
 	errorC chan error
+	// doneC will be closed when the redirector is closed.
+	doneC chan struct{}
 	// proxyURL is a URL to the Teleport Proxy
 	proxyURL *url.URL
-	// context is a close context
-	context context.Context
-	// cancel broadcasts cancel
-	cancel context.CancelFunc
 }
 
 // NewRedirector returns new local web server redirector
-func NewRedirector(ctx context.Context, config RedirectorConfig) (*Redirector, error) {
+func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 	// validate proxy address
 	host, port, err := net.SplitHostPort(config.ProxyAddr)
 	if err != nil || host == "" || port == "" {
@@ -171,16 +170,14 @@ func NewRedirector(ctx context.Context, config RedirectorConfig) (*Redirector, e
 		config.CallbackAddr = callbackURL.String()
 	}
 
-	ctxCancel, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
 		RedirectorConfig: config,
-		context:          ctxCancel,
-		cancel:           cancel,
 		proxyURL:         proxyURL,
 		mux:              http.NewServeMux(),
 		key:              key,
 		responseC:        make(chan *authclient.SSHLoginResponse, 1),
 		errorC:           make(chan error, 1),
+		doneC:            make(chan struct{}),
 	}
 
 	// callback is a callback URL communicated to the Teleport proxy,
@@ -322,6 +319,9 @@ func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLogin
 		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
+		log.Debugf("Redirector closed")
+		return nil, trace.Errorf("redirector closed")
+	case <-ctx.Done():
 		log.Debugf("Canceled by user.")
 		return nil, trace.Wrap(ctx.Err(), "canceled by user")
 	}
@@ -330,7 +330,7 @@ func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLogin
 // Done is called when redirector is closed
 // or parent context is closed
 func (rd *Redirector) Done() <-chan struct{} {
-	return rd.context.Done()
+	return rd.doneC
 }
 
 // ResponseC returns a channel with response
@@ -372,12 +372,9 @@ func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authcli
 }
 
 // Close closes redirector and releases all resources
-func (rd *Redirector) Close() error {
-	rd.cancel()
-	if rd.server != nil {
-		rd.server.Close()
-	}
-	return nil
+func (rd *Redirector) Close() {
+	close(rd.doneC)
+	rd.server.Close()
 }
 
 // wrapCallback is a helper wrapper method that wraps callback HTTP handler
@@ -427,7 +424,7 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 			}
 			select {
 			case rd.errorC <- err:
-			case <-rd.context.Done():
+			case <-rd.Done():
 			}
 			redirectURL := errorURL
 			// A second SSO login attempt will be initiated if a key policy requirement was not satisfied.
@@ -459,7 +456,7 @@ func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (
 				redirectURL = terminalRedirectURL
 			}
 			http.Redirect(w, r, redirectURL, http.StatusFound)
-		case <-rd.context.Done():
+		case <-rd.Done():
 			http.Redirect(w, r, errorURL, http.StatusFound)
 		}
 	})

@@ -31,24 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewSSOLoginCeremony creates a new SSO Login ceremony from client config.
-func (tc *TeleportClient) NewSSOLoginCeremony(ctx context.Context, keyRing *KeyRing, connectorID, connectorName, connectorType string) (*sso.Ceremony, error) {
-	rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO: redirector should close when the context closes instead of requiring direct close.
-	rd, err := sso.NewRedirector(ctx, rdConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ceremony := sso.NewCLICeremony(rd)
-	ceremony.Init = tc.ssoLoginInitFn(keyRing, connectorID, connectorType)
-	return ceremony, nil
-}
-
 // ssoRedirectorConfig returns a standard configured sso redirector for login.
 // A display name for the SSO connector can optionally be provided for minor UI improvements.
 func (tc *TeleportClient) ssoRedirectorConfig(ctx context.Context, connectorDisplayName string) (sso.RedirectorConfig, error) {

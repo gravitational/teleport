@@ -4024,10 +4024,18 @@ func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType s
 			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 		}
 
-		ssoCeremony, err := tc.NewSSOLoginCeremony(ctx, keyRing, connectorID, connectorName, connectorType)
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
 
 		resp, err := ssoCeremony.Run(ctx)
 		return resp, trace.Wrap(err)
