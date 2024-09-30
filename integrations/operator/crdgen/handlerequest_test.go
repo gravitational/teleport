@@ -106,7 +106,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "port_info",
+					Name: "`port_info`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "port",
@@ -209,7 +209,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "ports items",
+					Name: "`ports` items",
 					Fields: []PropertyTableField{
 						{
 							Name:        "port",
@@ -309,7 +309,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "metadata",
+					Name: "`metadata`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "name",
@@ -319,7 +319,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "datacenter",
+					Name: "`datacenter`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "metadata",
@@ -329,7 +329,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "datacenter.metadata",
+					Name: "`datacenter.metadata`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "name",
@@ -409,7 +409,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "circleci",
+					Name: "`circleci`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "allow",
@@ -419,7 +419,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "circleci.allow items",
+					Name: "`circleci.allow` items",
 					Fields: []PropertyTableField{
 						{
 							Name:        "project_id",
@@ -429,7 +429,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "gitlab",
+					Name: "`gitlab`",
 					Fields: []PropertyTableField{
 						{
 							Name:        "allow",
@@ -439,7 +439,7 @@ func Test_propertyTable(t *testing.T) {
 					},
 				},
 				{
-					Name: "gitlab.allow items",
+					Name: "`gitlab.allow` items",
 					Fields: []PropertyTableField{
 						{
 							Name:        "project_id",
@@ -560,7 +560,7 @@ state of this API Resource.\n---\nThis struct is intended for direct use as an a
 					},
 				},
 				{
-					Name: "mappings items",
+					Name: "`mappings` items",
 					Fields: []PropertyTableField{
 						{
 							Name:        "add_labels",
@@ -570,7 +570,7 @@ state of this API Resource.\n---\nThis struct is intended for direct use as an a
 					},
 				},
 				{
-					Name: "mappings items.add_labels",
+					Name: "`mappings` items`.add_labels`",
 					Fields: []PropertyTableField{
 						{
 							Name: "key",

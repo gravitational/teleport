@@ -21,6 +21,7 @@ package crdgen
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -42,7 +43,7 @@ func formatAsYAML(crd apiextv1.CustomResourceDefinition) ([]byte, string, error)
 	return doc, "yaml", nil
 }
 
-var crdDocTmpl string = `---
+var crdDocTmpl string = strings.ReplaceAll(`---
 title: {{.Title}}
 description: {{.Description}}
 tocDepth: 3
@@ -56,7 +57,7 @@ tocDepth: 3
 {{ range .Sections}}
 ## {{.APIVersion}}
 
-**apiVersion:** {{.APIVersion}}
+BACKTICKapiVersion: {{.APIVersion}}BACKTICK
 
 {{- range .Subsections }}
 {{- if ne .Name "" }}
@@ -66,12 +67,12 @@ tocDepth: 3
 |Field|Type|Description|
 |---|---|---|
 {{- range .Fields }}
-|{{.Name}}|{{.Type}}|{{.Description}}|
+|BACKTICK{{.Name}}BACKTICK|{{.Type}}|{{.Description}}|
 {{- end }}
 {{ end }}
 
 {{- end}}
-`
+`, "BACKTICK", "`")
 
 type ResourcePage struct {
 	Title       string
@@ -137,6 +138,25 @@ func (t PropertyTable) Less(i, j int) bool {
 const statusDescription = "Status defines the observed state of the Teleport resource"
 const statusName = "status"
 
+var fieldPattern = regexp.MustCompile(`[\w_\.]+`)
+
+// preparePropertyTableName applies any adjustments to name so we can make it
+// the content of a subheading within a reference guide. In particular, wrap
+// field names and properties in backticks except for the plain-English word
+// "items".
+func preparePropertyTableName(name string) string {
+	return fieldPattern.ReplaceAllStringFunc(name, func(match string) string {
+		switch {
+		case match == "items":
+			return match
+		case strings.HasPrefix(match, "items"):
+			return "items" + "`" + strings.TrimPrefix(match, "items") + "`"
+		default:
+			return "`" + match + "`"
+		}
+	})
+}
+
 func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]PropertyTable, error) {
 	// Only create a property table for an object field. For other types, we can
 	// describe the type within a table row.
@@ -144,7 +164,7 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 		return nil, nil
 	}
 	tab := PropertyTable{
-		Name: currentFieldName,
+		Name: preparePropertyTableName(currentFieldName),
 	}
 	fields := []PropertyTableField{}
 	tables := []PropertyTable{}
@@ -211,6 +231,13 @@ func propertyTable(currentFieldName string, props *apiextv1.JSONSchemaProps) ([]
 
 		if fieldDesc == "" {
 			fieldDesc = v.Description
+		}
+
+		// Fix the spelling of "boolean". This is the only type
+		// name that requires processing prior to adding to the
+		// table.
+		if fieldType == "boolean" {
+			fieldType = "Boolean"
 		}
 
 		fields = append(fields, PropertyTableField{
