@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -256,7 +256,9 @@ func (p *proxyTunnelStrategy) dialDatabase(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		result, err := connClient.Exec(context.Background(), "select 1").ReadAll()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		result, err := connClient.Exec(ctx, "select 1").ReadAll()
 		require.NoError(t, err)
 		require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 		require.Equal(t, uint32(i+1), p.postgresDB.QueryCount())

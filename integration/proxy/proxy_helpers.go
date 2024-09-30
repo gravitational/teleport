@@ -35,7 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -436,7 +436,9 @@ func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
 }
 
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
-	result, err := client.Exec(context.Background(), "select 1").ReadAll()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	result, err := client.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
 	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
 }
