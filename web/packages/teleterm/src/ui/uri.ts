@@ -38,7 +38,7 @@ import type { RouteProps } from 'react-router';
 export type RootClusterUri = string;
 export type RootClusterServerUri = string;
 export type RootClusterKubeUri = string;
-export type RootClusterKubeResourceUri = string;
+export type RootClusterKubeResourceNamespaceUri = string;
 export type RootClusterDatabaseUri = string;
 export type RootClusterAppUri = string;
 export type RootClusterResourceUri =
@@ -50,7 +50,7 @@ export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
 export type LeafClusterUri = string;
 export type LeafClusterServerUri = string;
 export type LeafClusterKubeUri = string;
-export type LeafClusterKubeResourceUri = string;
+export type LeafClusterKubeResourceNamespaceUri = string;
 export type LeafClusterDatabaseUri = string;
 export type LeafClusterAppUri = string;
 export type LeafClusterResourceUri =
@@ -64,9 +64,9 @@ export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
 export type ClusterUri = RootClusterUri | LeafClusterUri;
 export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
 export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
-export type KubeResourceUri =
-  | RootClusterKubeResourceUri
-  | LeafClusterKubeResourceUri;
+export type KubeResourceNamespaceUri =
+  | RootClusterKubeResourceNamespaceUri
+  | LeafClusterKubeResourceNamespaceUri;
 export type AppUri = RootClusterAppUri | LeafClusterAppUri;
 export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
 export type ClusterOrResourceUri = ResourceUri | ClusterUri;
@@ -245,7 +245,7 @@ export const routing = {
     }
   },
 
-  getKubeResourceUri(params: Params) {
+  getKubeResourceNamespaceUri(params: Params) {
     if (params.leafClusterId) {
       // paths.kubeResourceLeaf is needed as path-to-regexp used by react-router doesn't support
       // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142

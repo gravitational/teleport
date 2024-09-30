@@ -65,7 +65,7 @@ describe('getServerUri', () => {
   /* eslint-enable jest/no-conditional-expect */
 });
 
-describe('getKubeResourceUri', () => {
+describe('getKubeResourceNamespaceUri', () => {
   const tests: Array<{ name: string; input: Params } & { output: string }> = [
     {
       name: 'returns a kube resource namespace URI for a root cluster',
@@ -91,7 +91,7 @@ describe('getKubeResourceUri', () => {
 
   /* eslint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output }) => {
-    expect(routing.getKubeResourceUri(input)).toEqual(output);
+    expect(routing.getKubeResourceNamespaceUri(input)).toEqual(output);
   });
   /* eslint-enable jest/no-conditional-expect */
 });

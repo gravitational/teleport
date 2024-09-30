@@ -124,7 +124,7 @@ func (r ResourceURI) GetKubeName() string {
 	return ""
 }
 
-// GetKubeResourceNamespace extracts the kube resource namespacefrom r. Returns an empty string if path is not a kube resource URI.
+// GetKubeResourceNamespace extracts the kube resource namespace from r. Returns an empty string if the path is not a kube resource URI.
 func (r ResourceURI) GetKubeResourceNamespace() string {
 	result, ok := pathKubeResourceNamespace.Match(r.path)
 	if ok {
