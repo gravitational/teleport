@@ -31,11 +31,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGetSPIFFEBundle(t *testing.T) {
@@ -75,7 +75,7 @@ func TestGetSPIFFEBundle(t *testing.T) {
 
 	require.Len(t, gotBundle.JWTAuthorities(), len(ca.GetTrustedJWTKeyPairs()))
 	for _, jwtKeyPair := range ca.GetTrustedJWTKeyPairs() {
-		wantKey, err := keys.ParsePublicKey(jwtKeyPair.PublicKey)
+		wantKey, err := utils.ParsePublicKey(jwtKeyPair.PublicKey)
 		require.NoError(t, err)
 		rsaWantKey, ok := wantKey.(*rsa.PublicKey)
 		require.True(t, ok, "unsupported key type %T", wantKey)

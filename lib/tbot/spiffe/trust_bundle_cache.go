@@ -38,9 +38,9 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/spiffe")
@@ -626,7 +626,7 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 
 	// Add JWT authorities to the trust bundle.
 	for _, keyPair := range ca.GetTrustedJWTKeyPairs() {
-		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		pubKey, err := utils.ParsePublicKey(keyPair.PublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing public key")
 		}

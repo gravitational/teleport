@@ -27,10 +27,10 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // getSPIFFEBundle returns the SPIFFE-compatible trust bundle which allows other
@@ -85,7 +85,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 
 	// Add JWT authorities to the trust bundle.
 	for _, keyPair := range spiffeCA.GetTrustedJWTKeyPairs() {
-		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		pubKey, err := utils.ParsePublicKey(keyPair.PublicKey)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing public key")
 		}

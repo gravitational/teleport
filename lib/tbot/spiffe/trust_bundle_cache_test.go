@@ -37,7 +37,6 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -183,7 +182,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	jwtCAPublic, jwtCAPrivate, err := testauthority.New().GenerateJWT()
 	require.NoError(t, err)
-	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
+	jwtCA, err := utils.ParsePublicKey(jwtCAPublic)
 	require.NoError(t, err)
 	rsaJWTCA, ok := jwtCA.(*rsa.PublicKey)
 	require.True(t, ok, "unsupported key format %T", jwtCA)
