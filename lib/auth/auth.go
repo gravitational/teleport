@@ -382,8 +382,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
 		ClusterName:          cfg.ClusterName,
-		CloudClients:         cfg.CloudClients,
 		AuthPreferenceGetter: cfg.ClusterConfiguration,
+		FIPS:                 cfg.FIPS,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -5918,7 +5918,6 @@ func (a *Server) CleanupNotifications(ctx context.Context) {
 		// If this notification state is for a notification which doesn't exist in either the non-expired global notifications map or
 		// the non-expired user notifications map, then delete it.
 		if nonExpiredGlobalNotificationsByID[id] == nil && nonExpiredUserNotificationsByID[id] == nil {
-			fmt.Printf("\n\nTHIS IS RUN\n\n")
 			select {
 			case <-notificationsDeleteLimiter.C:
 			case <-ctx.Done():

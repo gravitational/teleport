@@ -69,7 +69,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
@@ -79,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -343,10 +341,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := teleport.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, teleport.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -804,10 +800,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty
@@ -1078,10 +1072,8 @@ loop:
 	}
 
 	// read back the entire session and verify that it matches the stated output
-	capturedStream, err := main.Process.GetAuthServer().GetSessionChunk(apidefaults.Namespace, session.ID(sessionID), 0, events.MaxChunkBytes)
-	require.NoError(t, err)
-
-	require.Equal(t, sessionStream, string(capturedStream))
+	capturedStream, _ := streamSession(ctx, t, main.Process.GetAuthServer(), sessionID)
+	require.Equal(t, sessionStream, capturedStream)
 
 	// impersonating kube exec should be denied
 	// interactive command, allocate pty

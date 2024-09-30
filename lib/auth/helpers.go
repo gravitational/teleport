@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
@@ -93,6 +94,10 @@ type TestAuthServerConfig struct {
 	// RunWhileLockedRetryInterval is the interval to retry the run while locked
 	// operation.
 	RunWhileLockedRetryInterval time.Duration
+	// FIPS means the cluster should run in FIPS mode.
+	FIPS bool
+	// KeystoreConfig is configuration for the CA keystore.
+	KeystoreConfig servicecfg.KeystoreConfig
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -301,6 +306,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName:            clusterName,
 		HostUUID:               uuid.New().String(),
 		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
 	},
 		WithClock(cfg.Clock),
 	)

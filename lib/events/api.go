@@ -821,12 +821,6 @@ const (
 // a new event name here.
 
 const (
-	// MaxChunkBytes defines the maximum size of a session stream chunk that
-	// can be requested via AuditLog.GetSessionChunk(). Set to 5MB
-	MaxChunkBytes = 1024 * 1024 * 5
-)
-
-const (
 	// V1 is the V1 version of slice chunks API,
 	// it is 0 because it was not defined before
 	V1 = 0
@@ -1010,19 +1004,6 @@ type AuditLogSessionStreamer interface {
 
 // SessionStreamer supports streaming session chunks or events.
 type SessionStreamer interface {
-	// GetSessionChunk returns a reader which can be used to read a byte stream
-	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-	// beginning) up to maxBytes bytes.
-	//
-	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
-
-	// Returns all events that happen during a session sorted by time
-	// (oldest first).
-	//
-	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
-
 	// StreamSessionEvents streams all events from a given session recording. An
 	// error is returned on the first channel if one is encountered. Otherwise
 	// the event channel is closed when the stream ends. The event channel is

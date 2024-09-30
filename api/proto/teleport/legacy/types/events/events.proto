@@ -4400,18 +4400,23 @@ message PluginDelete {
 
 // PluginMetadata contains information about plugin resources.
 message PluginMetadata {
+  reserved 2;
+  reserved "plugin";
   // plugin_type is the plugin type of the plugin resource.
   // The value matches the types.PluginV1.Spec.Type field.
   string plugin_type = 1 [(gogoproto.jsontag) = "plugin_type"];
-
-  // plugin is the resource without secrets.
-  types.PluginV1 plugin = 2 [(gogoproto.jsontag) = "plugin,omitempty"];
 
   // has_credentials indicates whether the plugin has credentials.
   bool has_credentials = 3 [(gogoproto.jsontag) = "has_credentials"];
 
   // reuses_credentials indicates whether the plugin reuses credentials.
   bool reuses_credentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
+
+  // plugin_data is the plugin data of the plugin resource.
+  google.protobuf.Struct plugin_data = 5 [
+    (gogoproto.jsontag) = "plugin_data,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
