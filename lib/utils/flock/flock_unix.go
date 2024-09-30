@@ -1,4 +1,4 @@
-//go:build windows
+//go:build !windows
 
 /*
  * Teleport
@@ -21,19 +21,12 @@
 package flock
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
-	"time"
-	"unsafe"
-
-	"golang.org/x/sys/windows"
+	"syscall"
 
 	"github.com/gravitational/trace"
-)
-
-var (
-	kernel = windows.NewLazyDLL("kernel32.dll")
-	proc   = kernel.NewProc("CreateFileW")
 )
 
 // Lock implements filesystem lock for blocking another process execution until this lock is released.
@@ -42,41 +35,23 @@ func Lock(lockFile string, nonblock bool) (func() error, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	lockPath, err := windows.UTF16PtrFromString(lockFile)
+	// Create the advisory lock using flock.
+	lf, err := os.OpenFile(lockFile, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var lf *os.File
-	for lf == nil {
-		fd, _, err := proc.Call(
-			uintptr(unsafe.Pointer(lockPath)),
-			uintptr(windows.GENERIC_READ|windows.GENERIC_WRITE),
-			// Exclusive lock, for shared must be used: uintptr(windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE).
-			uintptr(0),
-			uintptr(0),
-			uintptr(windows.OPEN_ALWAYS),
-			uintptr(windows.FILE_ATTRIBUTE_NORMAL),
-			0,
-		)
-		switch err.(windows.Errno) {
-		case windows.NO_ERROR, windows.ERROR_ALREADY_EXISTS:
-			lf = os.NewFile(fd, lockFile)
-		case windows.ERROR_SHARING_VIOLATION:
-			if nonblock {
-				return nil, ErrLocked
-			}
-			// if the file is locked by another process we have to wait until the next check.
-			time.Sleep(time.Second)
-		default:
-			windows.CloseHandle(windows.Handle(fd))
-			return nil, trace.Wrap(err)
-		}
+	how := syscall.LOCK_EX
+	if nonblock {
+		how |= syscall.LOCK_NB
 	}
 
-	if err := fdSyscall(lf, func(fd uintptr) error {
-		return windows.SetHandleInformation(windows.Handle(fd), windows.HANDLE_FLAG_INHERIT, 1)
-	}); err != nil {
+	err = fdSyscall(lf, func(fd uintptr) error {
+		return syscall.Flock(int(fd), how)
+	})
+	if errors.Is(err, syscall.EAGAIN) {
+		return nil, ErrLocked
+	}
+	if err != nil {
 		_ = lf.Close()
 		return nil, trace.Wrap(err)
 	}
