@@ -27,9 +27,13 @@ import (
 
 // Ceremony is an MFA ceremony.
 type Ceremony struct {
+	// CreateAuthenticateChallenge creates an authentication challenge.
 	CreateAuthenticateChallenge func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
-	SolveAuthenticateChallenge  func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
-	PromptConstructor           PromptConstructor
+	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
+	PromptConstructor PromptConstructor
+	// SolveAuthenticateChallenge solves an authentication challenge. Used in non-interactive settings,
+	// such as the WebUI with layers abstracting user interaction, and tests.
+	SolveAuthenticateChallenge func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
 // Run runs the MFA ceremony.
