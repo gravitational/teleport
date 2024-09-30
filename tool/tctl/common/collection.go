@@ -884,14 +884,6 @@ func (c *dynamicWindowsDesktopCollection) writeText(w io.Writer, verbose bool) e
 	return trace.Wrap(err)
 }
 
-func (c *dynamicWindowsDesktopCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.desktops)
-}
-
-func (c *dynamicWindowsDesktopCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.desktops)
-}
-
 type tokenCollection struct {
 	tokens []types.ProvisionToken
 }
