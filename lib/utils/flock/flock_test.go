@@ -19,7 +19,6 @@
 package flock
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -27,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,14 +34,13 @@ import (
 func TestLock(t *testing.T) {
 	var locked atomic.Bool
 
-	ctx := context.Background()
 	lockFile := filepath.Join(os.TempDir(), ".lock")
 	t.Cleanup(func() {
 		require.NoError(t, os.Remove(lockFile))
 	})
 
 	// Acquire first lock should not return any error.
-	unlock, err := Lock(ctx, lockFile)
+	unlock, err := Lock(lockFile, false)
 	require.NoError(t, err)
 	locked.Store(true)
 
@@ -49,14 +48,19 @@ func TestLock(t *testing.T) {
 	errChan := make(chan error)
 	go func() {
 		signal <- struct{}{}
-		unlock, err := Lock(ctx, lockFile)
+		unlock, err := Lock(lockFile, false)
 		if err != nil {
 			errChan <- err
+			return
 		}
 		if locked.Load() {
 			errChan <- fmt.Errorf("first lock is still acquired, second lock must be blocking")
+			return
 		}
-		unlock()
+		if err := unlock(); err != nil {
+			errChan <- err
+			return
+		}
 		signal <- struct{}{}
 	}()
 
@@ -65,13 +69,32 @@ func TestLock(t *testing.T) {
 	// Since this is system call we can't track if the function reach blocking state already.
 	time.Sleep(100 * time.Millisecond)
 	locked.Store(false)
-	unlock()
+	require.NoError(t, unlock())
 
 	select {
-	case <-signal:
 	case err := <-errChan:
 		require.NoError(t, err)
+	case <-signal:
 	case <-time.After(5 * time.Second):
 		require.Fail(t, "second lock is not released")
 	}
+}
+
+// TestLockNonBlock verifies that second lock call returns error until first lock is released.
+func TestLockNonBlock(t *testing.T) {
+	lockfile := filepath.Join(t.TempDir(), ".lock")
+	unlock, err := Lock(lockfile, true)
+	require.NoError(t, err)
+
+	_, err = Lock(lockfile, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrLocked)
+
+	err = unlock()
+	require.NoError(t, err)
+
+	unlock2, err := Lock(lockfile, true)
+	require.NoError(t, err)
+	err = unlock2()
+	require.NoError(t, err)
 }

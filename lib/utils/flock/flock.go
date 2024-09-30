@@ -1,5 +1,3 @@
-//go:build !windows
-
 /*
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -21,55 +19,28 @@
 package flock
 
 import (
-	"context"
-	"log/slog"
+	"errors"
 	"os"
-	"syscall"
 
 	"github.com/gravitational/trace"
 )
 
-// Lock implements filesystem lock for blocking another process execution until this lock is released.
-func Lock(ctx context.Context, lockFile string) (func(), error) {
-	// Create the advisory lock using flock.
-	lf, err := os.OpenFile(lockFile, os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+var (
+	// ErrLocked is returned when file is already locked for non-blocking lock.
+	ErrLocked = errors.New("file already locked")
+)
 
-	rc, err := lf.SyscallConn()
+// fdSyscall should be used instead of f.Fd() when performing syscalls on fds.
+// Context: https://github.com/golang/go/issues/24331
+func fdSyscall(f *os.File, fn func(uintptr) error) error {
+	rc, err := f.SyscallConn()
 	if err != nil {
-		_ = lf.Close()
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	if err := rc.Control(func(fd uintptr) {
-		err = syscall.Flock(int(fd), syscall.LOCK_EX)
-	}); err != nil {
-		_ = lf.Close()
-		return nil, trace.Wrap(err)
+	if cErr := rc.Control(func(fd uintptr) {
+		err = fn(fd)
+	}); cErr != nil {
+		return trace.Wrap(cErr)
 	}
-	if err != nil {
-		_ = lf.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return func() {
-		rc, err := lf.SyscallConn()
-		if err != nil {
-			_ = lf.Close()
-			slog.DebugContext(ctx, "failed to acquire syscall connection", "error", err)
-			return
-		}
-		if err := rc.Control(func(fd uintptr) {
-			err = syscall.Flock(int(fd), syscall.LOCK_UN)
-		}); err != nil {
-			slog.DebugContext(ctx, "failed invokes the control", "file", lockFile, "error", err)
-		}
-		if err != nil {
-			slog.DebugContext(ctx, "failed to unlock file", "file", lockFile, "error", err)
-		}
-		if err := lf.Close(); err != nil {
-			slog.DebugContext(ctx, "failed to close lock file", "file", lockFile, "error", err)
-		}
-	}, nil
+	return trace.Wrap(err)
 }
