@@ -639,7 +639,7 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 
 	bundle := spiffebundle.New(td)
 
-	// Convert X509 authorities to SPIFFE bundle format.
+	// Add X509 authorities to the trust bundle.
 	for _, certBytes := range services.GetTLSCerts(ca) {
 		block, _ := pem.Decode(certBytes)
 		cert, err := x509.ParseCertificate(block.Bytes)
@@ -649,7 +649,7 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 		bundle.AddX509Authority(cert)
 	}
 
-	// Convert JWT keys to SPIFFE bundle format.
+	// Add JWT authorities to the trust bundle.
 	for _, keyPair := range ca.GetTrustedJWTKeyPairs() {
 		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
 		if err != nil {

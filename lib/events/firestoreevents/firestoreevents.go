@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/url"
 	"sort"
 	"strconv"
@@ -35,11 +36,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/iterator"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -250,8 +252,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 
 // Log is a firestore-db backed storage of events
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
+	// logger emits log messages
+	logger *slog.Logger
 	// Config is a backend configuration
 	EventsConfig
 	// svc is the primary Firestore client
@@ -279,11 +281,9 @@ func New(cfg EventsConfig) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	l := log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentFirestore),
-	})
-	l.Info("Initializing event backend.")
 	closeCtx, cancel := context.WithCancel(context.Background())
+	l := slog.With(teleport.ComponentKey, teleport.ComponentFirestore)
+	l.InfoContext(closeCtx, "Initializing event backend.")
 	firestoreAdminClient, firestoreClient, err := firestorebk.CreateFirestoreClients(closeCtx, cfg.ProjectID, cfg.EndPoint, cfg.CredentialsPath)
 	if err != nil {
 		cancel()
@@ -293,7 +293,7 @@ func New(cfg EventsConfig) (*Log, error) {
 	b := &Log{
 		svcContext:   closeCtx,
 		svcCancel:    cancel,
-		Entry:        l,
+		logger:       l,
 		EventsConfig: cfg,
 		svc:          firestoreClient,
 	}
@@ -308,7 +308,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, retryutils.LinearConfig{
 			Step: b.RetryPeriod / 10,
 			Max:  b.RetryPeriod,
-		}, b.Logger, b.purgeExpiredEvents, "purgeExpiredEvents")
+		}, b.logger.With("task_name", "purge_expired_events"), b.purgeExpiredEvents)
 	}
 	return b, nil
 }
@@ -386,7 +386,14 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, params searchEventsWit
 		params.limit = batchReadLimit
 	}
 
-	g := l.WithFields(log.Fields{"From": params.fromUTC, "To": params.toUTC, "Namespace": params.namespace, "Filter": params.filter, "Limit": params.limit, "StartKey": params.lastKey})
+	g := l.logger.With(
+		"from", params.fromUTC,
+		"to", params.toUTC,
+		"namespace", params.namespace,
+		"filter", params.filter,
+		"limit", params.limit,
+		"start_key", params.lastKey,
+	)
 
 	var firestoreOrdering firestore.Direction
 	switch params.order {
@@ -449,7 +456,7 @@ func (l *Log) query(
 	lastKey string,
 	filter searchEventsFilter,
 	limit int,
-	g *log.Entry,
+	g *slog.Logger,
 ) (values []events.EventFields, _ string, err error) {
 	var (
 		checkpointTime int64
@@ -483,7 +490,7 @@ func (l *Log) query(
 			return nil, "", firestorebk.ConvertGRPCError(err)
 		}
 
-		g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
+		g.DebugContext(ctx, "Query completed.", "duration", time.Since(start))
 
 		// Iterate over the documents in the query.
 		// The iterator is limited to [limit] documents so in order to know if we
@@ -560,6 +567,14 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 	)
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("firestoreevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("firestoreevents backend does not support streaming export"))
+}
+
 type searchEventsFilter struct {
 	eventTypes []string
 	condition  utils.FieldsCondition
@@ -594,7 +609,7 @@ func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
 		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
-	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
+	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, l.logger, tuples, l.getIndexParent())
 	return trace.Wrap(err)
 }
 

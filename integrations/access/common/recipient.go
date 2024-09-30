@@ -30,6 +30,8 @@ const (
 	RecipientKindSchedule = "schedule"
 	// RecipientKindTeam shows a recipient is a team.
 	RecipientKindTeam = "team"
+	// RecipientKindEmail shows a recipient is an email.
+	RecipientKindEmail = "email"
 )
 
 // RawRecipientsMap is a mapping of roles to recipient(s).

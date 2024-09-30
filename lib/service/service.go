@@ -2043,6 +2043,8 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(
 		process.ExitContext(),
@@ -2088,6 +2090,7 @@ func (process *TeleportProcess) initAuthService() error {
 			HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
 			Tracer:                  process.TracingProvider.Tracer(teleport.ComponentAuth),
 			CloudClients:            cloudClients,
+			Logger:                  logger,
 		}, func(as *auth.Server) error {
 			if !process.Config.CachePolicy.Enabled {
 				return nil
@@ -2109,8 +2112,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id))
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -2525,11 +2526,13 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
+	cfg.UserTasks = services.UserTasks
 	cfg.UserLoginStates = services.UserLoginStates
 	cfg.Users = services.Identity
 	cfg.WebSession = services.Identity.WebSessions()
 	cfg.WebToken = services.Identity.WebTokens()
 	cfg.WindowsDesktops = services.WindowsDesktops
+	cfg.AutoUpdateService = services.AutoUpdateService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2554,6 +2557,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.DynamicAccess = client
 	cfg.Events = client
 	cfg.Integrations = client
+	cfg.UserTasks = client.UserTasksServiceClient()
 	cfg.KubeWaitingContainers = client
 	cfg.Kubernetes = client
 	cfg.Notifications = client
@@ -2573,6 +2577,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.WebSession = client.WebSessions()
 	cfg.WebToken = client.WebTokens()
 	cfg.WindowsDesktops = client
+	cfg.AutoUpdateService = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -2636,6 +2641,7 @@ type combinedDiscoveryClient struct {
 	authclient.ClientI
 	discoveryConfigClient
 	eksClustersEnroller
+	services.UserTasks
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
@@ -2644,6 +2650,7 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI
 		ClientI:               clt,
 		discoveryConfigClient: clt.DiscoveryConfigClient(),
 		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
+		UserTasks:             clt.UserTasksServiceClient(),
 	}
 
 	// if caching is disabled, return access point
@@ -5152,14 +5159,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		grpcServerMTLS, err = process.initSecureGRPCServer(
 			initSecureGRPCServerCfg{
-				limiter:     proxyLimiter,
-				conn:        conn,
-				listener:    listeners.grpcMTLS,
-				accessPoint: accessPoint,
-				lockWatcher: lockWatcher,
-				emitter:     asyncEmitter,
+				limiter:  proxyLimiter,
+				conn:     conn,
+				listener: listeners.grpcMTLS,
+				kubeProxyAddr: kubeDialAddr(
+					cfg.Proxy,
+					clusterNetworkConfig.GetProxyListenerMode(),
+				),
+				accessPoint:     accessPoint,
+				lockWatcher:     lockWatcher,
+				emitter:         asyncEmitter,
+				tlsCipherSuites: cfg.CipherSuites,
 			},
 		)
 		if err != nil {
@@ -6587,15 +6600,15 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	)
 
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{
-		Signer:      cfg.conn.Client,
-		AccessPoint: cfg.accessPoint,
-		Authz:       authorizer,
-		Log:         process.log,
-		Emitter:     cfg.emitter,
-		// listener is using the underlying web listener, so we can just use its address.
-		// since tls routing is enabled.
-		KubeProxyAddr: cfg.listener.Addr().String(),
-		ClusterName:   clusterName,
+		AccessPoint:           cfg.accessPoint,
+		Authz:                 authorizer,
+		Log:                   process.log,
+		Emitter:               cfg.emitter,
+		KubeProxyAddr:         cfg.kubeProxyAddr.String(),
+		ClusterName:           clusterName,
+		GetConnTLSCertificate: cfg.conn.ClientGetCertificate,
+		GetConnTLSRoots:       cfg.conn.ClientGetPool,
+		ConnTLSCipherSuites:   cfg.tlsCipherSuites,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6611,12 +6624,14 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 
 // initSecureGRPCServerCfg is a configuration for initSecureGRPCServer function.
 type initSecureGRPCServerCfg struct {
-	conn        *Connector
-	limiter     *limiter.Limiter
-	listener    net.Listener
-	accessPoint authclient.ProxyAccessPoint
-	lockWatcher *services.LockWatcher
-	emitter     apievents.Emitter
+	conn            *Connector
+	limiter         *limiter.Limiter
+	listener        net.Listener
+	kubeProxyAddr   utils.NetAddr
+	accessPoint     authclient.ProxyAccessPoint
+	lockWatcher     *services.LockWatcher
+	emitter         apievents.Emitter
+	tlsCipherSuites []uint16
 }
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config

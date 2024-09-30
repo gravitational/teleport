@@ -134,6 +134,9 @@ importers:
       '@types/react-highlight':
         specifier: ^0.12.8
         version: 0.12.8
+      '@types/react-router':
+        specifier: ^5.1.20
+        version: 5.1.20
       '@types/react-router-dom':
         specifier: ^5.1.1
         version: 5.3.3
@@ -2471,8 +2474,8 @@ packages:
   '@types/react-router-dom@5.3.3':
     resolution: {integrity: sha512-kpqnYK4wcdm5UaWI3fLcELopqLrHgLqNsdpHauzlQktfkHL3npOSwtj1Uz9oKBAzs7lFtVkV8j83voAz2D8fhw==}
 
-  '@types/react-router@5.1.17':
-    resolution: {integrity: sha512-RNSXOyb3VyRs/EOGmjBhhGKTbnN6fHWvy5FNLzWfOWOGjgVUKqJZXfpKzLmgoU8h6Hj8mpALj/mbXQASOb92wQ==}
+  '@types/react-router@5.1.20':
+    resolution: {integrity: sha512-jGjmu/ZqS7FjSH6owMcD5qpq19+1RS9DeVRqfl1FeBMxTDQAGwlMWOcs52NDoXaNKyG3d1cYQFMs9rCrb88o9Q==}
 
   '@types/react-transition-group@4.4.11':
     resolution: {integrity: sha512-RM05tAniPZ5DZPzzNFP+DmrcOdD0efDUxMy3145oljWSl3x9ZV5vhme98gTxFrj2lhXvmGNnUiuDyJgY9IKkNA==}
@@ -9468,9 +9471,9 @@ snapshots:
     dependencies:
       '@types/history': 4.7.11
       '@types/react': 18.3.5
-      '@types/react-router': 5.1.17
+      '@types/react-router': 5.1.20
 
-  '@types/react-router@5.1.17':
+  '@types/react-router@5.1.20':
     dependencies:
       '@types/history': 4.7.11
       '@types/react': 18.3.5

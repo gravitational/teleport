@@ -160,6 +160,11 @@ const (
 		"(hint: use 'tctl get roles' to find roles that need updating)"
 )
 
+const (
+	notificationsPageReadInterval = 5 * time.Millisecond
+	notificationsWriteInterval    = 40 * time.Millisecond
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -185,7 +190,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Provisioner = local.NewProvisioningService(cfg.Backend)
 	}
 	if cfg.Identity == nil {
-		cfg.Identity = local.NewIdentityService(cfg.Backend)
+		cfg.Identity, err = local.NewIdentityServiceV2(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Access == nil {
 		cfg.Access = local.NewAccessService(cfg.Backend)
@@ -315,6 +323,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.UserTasks == nil {
+		cfg.UserTasks, err = local.NewUserTasksService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.DiscoveryConfigs == nil {
 		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
@@ -354,6 +368,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err, "creating SPIFFEFederation service")
 		}
 	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -365,8 +382,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
 		ClusterName:          cfg.ClusterName,
-		CloudClients:         cfg.CloudClients,
 		AuthPreferenceGetter: cfg.ClusterConfiguration,
+		FIPS:                 cfg.FIPS,
 	}
 	if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
 		if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
@@ -430,6 +447,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:     cfg.SessionTrackerService,
 		ConnectionsDiagnostic:     cfg.ConnectionsDiagnostic,
 		Integrations:              cfg.Integrations,
+		UserTasks:                 cfg.UserTasks,
 		DiscoveryConfigs:          cfg.DiscoveryConfigs,
 		Okta:                      cfg.Okta,
 		AccessLists:               cfg.AccessLists,
@@ -471,6 +489,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		loadAllCAs:              cfg.LoadAllCAs,
 		httpClientForAWSSTS:     cfg.HTTPClientForAWSSTS,
 		accessMonitoringEnabled: cfg.AccessMonitoringEnabled,
+		logger:                  cfg.Logger,
 	}
 	as.inventory = inventory.NewController(&as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -630,6 +649,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.IntegrationsTokenGenerator
+	services.UserTasks
 	services.DiscoveryConfigs
 	services.Okta
 	services.AccessLists
@@ -1018,6 +1038,9 @@ type Server struct {
 	// GithubUserAndTeamsOverride overrides the user and teams that would
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
+
+	// logger is the logger used by the auth server.
+	logger *slog.Logger
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1347,6 +1370,13 @@ func (a *Server) runPeriodicOperations() {
 	})
 	defer dynamicLabelsCheck.Stop()
 
+	notificationsCleanup := interval.New(interval.Config{
+		Duration:      48 * time.Hour,
+		FirstDuration: utils.FullJitter(time.Hour),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer notificationsCleanup.Stop()
+
 	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
 	go func() {
 		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
@@ -1419,6 +1449,8 @@ func (a *Server) runPeriodicOperations() {
 			a.syncDesktopsLimitAlert(ctx)
 		case <-dynamicLabelsCheck.Next():
 			a.syncDynamicLabelsAlert(ctx)
+		case <-notificationsCleanup.Next():
+			go a.CleanupNotifications(ctx)
 		}
 	}
 }
@@ -5768,6 +5800,136 @@ func (a *Server) syncDynamicLabelsAlert(ctx context.Context) {
 	}
 }
 
+// CleanupNotifications deletes all expired user notifications and global notifications, as well as any associated notification states, for all users.
+func (a *Server) CleanupNotifications(ctx context.Context) {
+	var userNotifications []*notificationsv1.Notification
+	var userNotificationsPageKey string
+	userNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer userNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-userNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListUserNotifications(ctx, 20, userNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list user notifications for periodic cleanup", "error", err)
+		}
+		userNotifications = append(userNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationsPageKey = nextKey
+	}
+
+	var globalNotifications []*notificationsv1.GlobalNotification
+	var globalNotificationsPageKey string
+	globalNotificationsReadLimiter := time.NewTicker(notificationsPageReadInterval)
+	defer globalNotificationsReadLimiter.Stop()
+	for {
+		select {
+		case <-globalNotificationsReadLimiter.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.Cache.ListGlobalNotifications(ctx, 20, globalNotificationsPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to list global notifications for periodic cleanup", "error", err)
+		}
+		globalNotifications = append(globalNotifications, response...)
+		if nextKey == "" {
+			break
+		}
+		globalNotificationsPageKey = nextKey
+	}
+
+	timeNow := a.clock.Now()
+
+	notificationsDeleteLimiter := time.NewTicker(notificationsWriteInterval)
+	defer notificationsDeleteLimiter.Stop()
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredGlobalNotificationsByID := make(map[string]*notificationsv1.GlobalNotification)
+	for _, gn := range globalNotifications {
+		notificationID := gn.GetMetadata().GetName()
+		expiry := gn.GetSpec().GetNotification().GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteGlobalNotification(ctx, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup global notification", "error", err, "notification_id", notificationID)
+			}
+		} else {
+			nonExpiredGlobalNotificationsByID[notificationID] = gn
+		}
+	}
+
+	// Initialize a map for non-expired notifications where the key is the notification id.
+	nonExpiredUserNotificationsByID := make(map[string]*notificationsv1.Notification)
+	for _, un := range userNotifications {
+		notificationID := un.GetMetadata().GetName()
+		user := un.GetSpec().GetUsername()
+		expiry := un.GetMetadata().GetExpires()
+
+		if timeNow.After(expiry.AsTime()) {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotification(ctx, user, notificationID); err != nil && !trace.IsNotFound(err) {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup user notification", "error", err, "notification_id", notificationID, "target_user", user)
+			}
+		} else {
+			nonExpiredUserNotificationsByID[notificationID] = un
+		}
+	}
+
+	var userNotificationStates []*notificationsv1.UserNotificationState
+	var userNotificationStatesPageKey string
+	notificationStatesTicker := time.NewTicker(notificationsPageReadInterval)
+	defer notificationStatesTicker.Stop()
+	for {
+		select {
+		case <-notificationStatesTicker.C:
+		case <-ctx.Done():
+			return
+		}
+		response, nextKey, err := a.ListNotificationStatesForAllUsers(ctx, 20, userNotificationStatesPageKey)
+		if err != nil {
+			slog.WarnContext(ctx, "encountered error attempting to list notification states for cleanup", "error", err)
+		}
+		userNotificationStates = append(userNotificationStates, response...)
+		if nextKey == "" {
+			break
+		}
+		userNotificationStatesPageKey = nextKey
+	}
+
+	for _, uns := range userNotificationStates {
+		id := uns.GetSpec().GetNotificationId()
+		username := uns.GetSpec().GetUsername()
+
+		// If this notification state is for a notification which doesn't exist in either the non-expired global notifications map or
+		// the non-expired user notifications map, then delete it.
+		if nonExpiredGlobalNotificationsByID[id] == nil && nonExpiredUserNotificationsByID[id] == nil {
+			select {
+			case <-notificationsDeleteLimiter.C:
+			case <-ctx.Done():
+				return
+			}
+			if err := a.DeleteUserNotificationState(ctx, username, id); err != nil {
+				slog.WarnContext(ctx, "encountered error attempting to cleanup notification state", "error", err, "user", username, "id", id)
+			}
+		}
+	}
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -6913,7 +7075,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 
 	// Add JWT keys if necessary.
 	switch caID.Type {
-	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA:
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx, jwtCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -6962,6 +7124,8 @@ func jwtCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.OIDCIdPCAJWT
 	case types.SPIFFECA:
 		return cryptosuites.SPIFFECAJWT
+	case types.OktaCA:
+		return cryptosuites.OktaCAJWT
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

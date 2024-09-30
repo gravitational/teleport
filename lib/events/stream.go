@@ -55,16 +55,9 @@ const (
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
 
-	// MaxUploadParts is the maximum allowed number of parts in a multi-part upload
-	// on Amazon S3.
-	MaxUploadParts = 10000
-
 	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
 	// Amazon S3.
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
-
-	// ReservedParts is the amount of parts reserved by default
-	ReservedParts = 100
 
 	// ProtoStreamV1 is a version of the binary protocol
 	ProtoStreamV1 = 1

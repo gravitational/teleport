@@ -73,7 +73,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 		return nil, trace.Wrap(err, "fetching SPIFFE CA")
 	}
 
-	// Add X509 authorities to trust bundle from TLS certs
+	// Add X509 authorities to the trust bundle.
 	for _, certPEM := range services.GetTLSCerts(spiffeCA) {
 		cert, err := tlsca.ParseCertificatePEM(certPEM)
 		if err != nil {
@@ -82,7 +82,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 		bundle.AddX509Authority(cert)
 	}
 
-	// Add JWT keys to trust bundle from trusted Key Pairs
+	// Add JWT authorities to the trust bundle.
 	for _, keyPair := range spiffeCA.GetTrustedJWTKeyPairs() {
 		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
 		if err != nil {
