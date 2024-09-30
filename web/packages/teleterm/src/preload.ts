@@ -75,6 +75,8 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     {
       ssh: {
         noResume: mainProcessClient.configService.get('ssh.noResume').value,
+        forwardAgent:
+          mainProcessClient.configService.get('ssh.forwardAgent').value,
       },
       terminal: {
         windowsBackend: mainProcessClient.configService.get(
