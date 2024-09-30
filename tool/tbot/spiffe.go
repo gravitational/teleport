@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
@@ -67,7 +68,11 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 	for _, svid := range x509Ctx.SVIDs {
 		fmt.Printf("- %s\n", svid.ID.String())
 		fmt.Printf("  - Hint: %s\n", svid.Hint)
-		fmt.Printf("  - Expiry: %s\n", svid.Certificates[0].NotAfter)
+		fmt.Printf(
+			"  - Expiry: %s (%s)\n",
+			svid.Certificates[0].NotAfter,
+			time.Until(svid.Certificates[0].NotAfter),
+		)
 		for _, san := range svid.Certificates[0].DNSNames {
 			fmt.Printf("  - DNS SAN: %s\n", san)
 		}
@@ -90,7 +95,10 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 	}
 	for _, jwtSVID := range jwtSVIDs {
 		fmt.Printf("- %s\n", jwtSVID.ID)
-		fmt.Printf("  - Expiry: %s\n", jwtSVID.Expiry)
+		fmt.Printf("  - Expiry: %s (%s)\n", jwtSVID.Expiry, time.Until(jwtSVID.Expiry))
+		fmt.Printf("  - Audiences: %v\n", jwtSVID.Audience)
+		fmt.Printf("  - Hint: %s\n", jwtSVID.Hint)
+		fmt.Printf("  - Value: %s\n", jwtSVID.Marshal())
 	}
 
 	fmt.Println("# JWT Bundles")
@@ -100,7 +108,7 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 	for _, jwtBundle := range jwtBundles.Bundles() {
 		fmt.Printf("- %s (Signing keys: %d)\n", jwtBundle.TrustDomain(), len(jwtBundle.JWTAuthorities()))
 		for keyID := range jwtBundle.JWTAuthorities() {
-			fmt.Printf("  - %s\n", keyID)
+			fmt.Printf("  - Key ID: %s\n", keyID)
 		}
 	}
 
