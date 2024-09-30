@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgtype/zeronull"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
 
