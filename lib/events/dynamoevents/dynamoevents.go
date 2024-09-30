@@ -48,6 +48,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
@@ -426,11 +428,11 @@ func isAWSValidationError(err error) bool {
 }
 
 func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
-	m, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, false
+	trimmedEvent := event.TrimToMaxSize(maxItemSize)
+	if trimmedEvent.Size() >= maxItemSize {
+		return trimmedEvent, false
 	}
-	return m.TrimToMaxSize(maxItemSize), true
+	return trimmedEvent, true
 }
 
 // putAuditEventContextKey represents context keys of putAuditEvent.
@@ -507,10 +509,6 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}
 
 	return input, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 func (l *Log) setExpiry(e *event) {
@@ -592,6 +590,14 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 
 	sort.Sort(toSort)
 	return eventArr, lastKey, nil
+}
+
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
 }
 
 // ByTimeAndIndex sorts events by time

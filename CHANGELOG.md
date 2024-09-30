@@ -1,5 +1,28 @@
 # Changelog
 
+## 16.4.2 (09/25/2024)
+
+* Fixed a panic when using the self-hosted PagerDuty plugin. [#46925](https://github.com/gravitational/teleport/pull/46925)
+* A user joining a session will now see available controls for terminating & leaving the session. [#46901](https://github.com/gravitational/teleport/pull/46901)
+* Fixed a regression in the SAML IdP service which prevented cache from initializing in a cluster that may have a service provider configured with unsupported `acs_url` and `relay_state` values. [#46845](https://github.com/gravitational/teleport/pull/46845)
+
+Enterprise:
+* Fixed a possible crash when using Teleport Policy's GitLab integration.
+
+## 16.4.1 (09/25/2024)
+
+### Secrets support for Kubernetes Operator
+
+Kubernetes Operator is now able to lookup values from Kubernetes secrets for `GithubConnector.ClientSecret` and `OIDCConnector.ClientSecret`.
+
+### Other improvements and fixes
+
+* Fixed a regression that made it impossible to read the Teleport Audit Log after creating a plugin if the audit event is present. [#46831](https://github.com/gravitational/teleport/pull/46831)
+* Added a new flag to static host users spec that allows teleport to automatically take ownership across matching hosts of any users with the same name as the static host user. [#46828](https://github.com/gravitational/teleport/pull/46828)
+* Added support for Kubernetes SPDY over Websocket Protocols for PortForward. [#46815](https://github.com/gravitational/teleport/pull/46815)
+* Fixed a regression where Teleport swallowed Kubernetes API errors when using kubectl exec with a Kubernetes cluster newer than v1.30.0. [#46811](https://github.com/gravitational/teleport/pull/46811)
+* Added support for Access Request Datadog plugin. [#46740](https://github.com/gravitational/teleport/pull/46740)
+
 ## 16.4.0 (09/18/2024)
 
 ### Machine ID for HCP Terraform and Terraform Enterprise
