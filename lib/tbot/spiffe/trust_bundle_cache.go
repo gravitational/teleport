@@ -119,6 +119,32 @@ func (b *BundleSet) EncodedX509Bundles(includeLocal bool) map[string][]byte {
 	return bundles
 }
 
+// MarshaledJWKSBundles returns a map of trust domain names to their JWT-SVID
+// signing keys encoded in the RFC 7517 JWKS format. If includeLocal is true,
+// the local trust domain will be included in the output.
+func (b *BundleSet) MarshaledJWKSBundles(includeLocal bool) (map[string][]byte, error) {
+	bundles := make(map[string][]byte)
+	if includeLocal {
+		marshaled, err := b.Local.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling local trust bundle")
+		}
+		bundles[b.Local.TrustDomain().IDString()] = marshaled
+	}
+	for _, v := range b.Federated {
+		marshaled, err := v.JWTBundle().Marshal()
+		if err != nil {
+			return nil, trace.Wrap(
+				err,
+				"marshaling federated trust bundle (%s)",
+				v.TrustDomain().Name(),
+			)
+		}
+		bundles[v.TrustDomain().IDString()] = marshaled
+	}
+	return bundles, nil
+}
+
 type eventsWatcher interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 }
