@@ -458,12 +458,9 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		MFACeremony:       c.tc.NewMFACeremony(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
 		MFARequiredReq:    mfaRequiredReq,
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq:    certsReq,
-		KeyRing:     keyRing,
-		newUserKeys: newUserKeys,
+		CertsReq:          certsReq,
+		KeyRing:           keyRing,
+		newUserKeys:       newUserKeys,
 	}, promptOpts...)
 	return keyRing, trace.Wrap(err)
 }
@@ -609,9 +606,6 @@ type PerformSessionMFACeremonyParams struct {
 	MFAAgainstRoot bool
 	// MFARequiredReq is the request for the MFA verification check.
 	MFARequiredReq *proto.IsMFARequiredRequest
-	// ChallengeExtensions is used to provide additional extensions to apply to the
-	// MFA challenge used in the ceremony. The scope extension must be supplied.
-	ChallengeExtensions mfav1.ChallengeExtensions
 	// CertsReq is the request for new certificates.
 	CertsReq *proto.UserCertsRequest
 
@@ -647,7 +641,6 @@ type newUserKeys struct {
 func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*KeyRing, *proto.Certs, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
-
 	mfaRequiredReq := params.MFARequiredReq
 
 	// If connecting to a host in a leaf cluster and MFA failed check to see

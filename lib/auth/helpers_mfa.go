@@ -115,6 +115,9 @@ func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI,
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Acquire and solve registration challenge.
 	usage := proto.DeviceUsage_DEVICE_USAGE_MFA

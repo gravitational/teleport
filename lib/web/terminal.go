@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -602,10 +601,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 		MFACeremony:       mfaCeremony,
 		MFAAgainstRoot:    t.ctx.cfg.RootClusterName == tc.SiteName,
 		MFARequiredReq:    mfaRequiredReq,
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq: certsReq,
+		CertsReq:          certsReq,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

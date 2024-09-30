@@ -37,7 +37,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -438,11 +437,8 @@ func (h *Handler) performSessionMFACeremony(
 		MFACeremony:       mfaCeremony,
 		MFAAgainstRoot:    true,
 		MFARequiredReq:    nil, // No need to verify.
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq: certsReq,
-		KeyRing:  nil, // We just want the certs.
+		CertsReq:          certsReq,
+		KeyRing:           nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
