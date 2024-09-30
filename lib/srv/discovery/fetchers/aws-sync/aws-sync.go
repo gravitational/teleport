@@ -45,6 +45,8 @@ type Config struct {
 	CloudClients cloud.Clients
 	// AccountID is the AWS account ID to use when fetching resources.
 	AccountID string
+	// AccountAlias is a Teleport-configured AWS account alias used for easy account identification
+	AccountAlias string
 	// Regions is the list of AWS regions to fetch resources from.
 	Regions []string
 	// AssumeRole is the configuration for assuming an AWS role.
@@ -83,6 +85,8 @@ type AWSSync interface {
 	IsFromDiscoveryConfig() bool
 	// GetAccountID returns the AWS account ID.
 	GetAccountID() string
+	// GetAccountAlias returns an AWS account alias for better identification
+	GetAccountAlias() string
 }
 
 // Resources is a collection of polled AWS resources.
@@ -210,6 +214,10 @@ func (a *awsFetcher) storeReport(rec *Resources, err error) {
 
 func (a *awsFetcher) GetAccountID() string {
 	return a.AccountID
+}
+
+func (a *awsFetcher) GetAccountAlias() string {
+	return a.AccountAlias
 }
 
 func (a *awsFetcher) poll(ctx context.Context, features Features) (*Resources, error) {

@@ -222,7 +222,23 @@ message AWSEventsStreamRequest {
     AWSResourceList upsert = 2;
     // delete is a command to delete a resource from the access graph when it's deleted from Teleport.
     AWSResourceList delete = 3;
+    // metadata is a command to issue metadata on the AWS resources being streamed
+    AWSMetadata metadata = 4;
   }
+}
+
+// AWSMetadata contains additional (non-AWS) information on the AWS resources sent to the access graph
+message AWSMetadata {
+  oneof metadata {
+    // account_alias maps an AWS account ID to an account alias
+    AWSAccountAlias account_alias = 1;
+  }
+}
+
+// AWSAccountAlias maps an AWS account ID to a Teleport-configured account alias for account identification
+message AWSAccountAlias {
+  string account_id = 1;
+  string account_alias = 2;
 }
 
 // AWSSyncOperation is a command that Teleport sends to the access graph service

@@ -7465,4 +7465,6 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+  // AccountAlias is an alias mapped to the resources from this sync for easy identification
+  string AccountAlias = 5 [(gogoproto.jsontag) = "account_alias,omitempty"];
 }

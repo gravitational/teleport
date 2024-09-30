@@ -65,7 +65,7 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 		// We will send a delete request for all resources and return.
 		upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, &aws_sync.Resources{})
 
-		if err := push(stream, upsert, toDel); err != nil {
+		if err := push(stream, upsert, toDel, []*accessgraphv1alpha.AWSMetadata{}); err != nil {
 			s.Log.WithError(err).Error("Error pushing empty resources to TAGs")
 		}
 		return trace.Wrap(errNoAccessGraphFetchers)
@@ -80,9 +80,10 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
 	accountIds := map[string]struct{}{}
+	accountAliases := map[string]string{}
 	for _, fetcher := range allFetchers {
-		fetcher := fetcher
 		accountIds[fetcher.GetAccountID()] = struct{}{}
+		accountAliases[fetcher.GetAccountID()] = fetcher.GetAccountAlias()
 		tokens <- struct{}{}
 		go func() {
 			defer func() {
@@ -111,10 +112,25 @@ func (s *Server) reconcileAccessGraph(ctx context.Context, currentTAGResources *
 	if err != nil {
 		s.Log.WithError(err).Error("Error polling TAGs")
 	}
-	result := aws_sync.MergeResources(results...)
 	// Merge all results into a single result
+	result := aws_sync.MergeResources(results...)
 	upsert, toDel := aws_sync.ReconcileResults(currentTAGResources, result)
-	pushErr := push(stream, upsert, toDel)
+
+	// Build account alias metadata
+	awsMetadata := make([]*accessgraphv1alpha.AWSMetadata, 0, len(accountAliases))
+	for accountId, accountAlias := range accountAliases {
+		awsMetadata = append(awsMetadata, &accessgraphv1alpha.AWSMetadata{
+			Metadata: &accessgraphv1alpha.AWSMetadata_AccountAlias{
+				AccountAlias: &accessgraphv1alpha.AWSAccountAlias{
+					AccountId:    accountId,
+					AccountAlias: accountAlias,
+				},
+			},
+		})
+	}
+
+	// Push all results and metadata to the access graph
+	pushErr := push(stream, upsert, toDel, awsMetadata)
 
 	s.awsSyncStatus.iterationFinished(allFetchers, pushErr, s.clock.Now())
 	for _, discoveryConfigName := range s.awsSyncStatus.discoveryConfigs() {
@@ -206,16 +222,38 @@ func pushDeleteInBatches(
 	return nil
 }
 
+func pushMetadata(
+	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
+	awsMetadata []*accessgraphv1alpha.AWSMetadata,
+) error {
+	for _, md := range awsMetadata {
+		err := client.Send(
+			&accessgraphv1alpha.AWSEventsStreamRequest{
+				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Metadata{Metadata: md},
+			},
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 func push(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
 	toDel *accessgraphv1alpha.AWSResourceList,
+	awsMetadata []*accessgraphv1alpha.AWSMetadata,
 ) error {
 	err := pushUpsertInBatches(client, upsert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = pushDeleteInBatches(client, toDel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = pushMetadata(client, awsMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -483,6 +521,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 				Regions:             awsFetcher.Regions,
 				Integration:         awsFetcher.Integration,
 				DiscoveryConfigName: discoveryConfigName,
+				AccountAlias:        awsFetcher.AccountAlias,
 			},
 		)
 		if err != nil {
