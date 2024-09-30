@@ -23,21 +23,21 @@ require (
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
-	google.golang.org/grpc v1.66.1
+	google.golang.org/grpc v1.66.2
 	google.golang.org/protobuf v1.34.2
 )
 
 require (
 	cloud.google.com/go v0.115.1 // indirect
-	cloud.google.com/go/auth v0.9.1 // indirect
+	cloud.google.com/go/auth v0.9.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
-	cloud.google.com/go/compute v1.28.0 // indirect
-	cloud.google.com/go/compute/metadata v0.5.0 // indirect
-	cloud.google.com/go/container v1.39.0 // indirect
-	cloud.google.com/go/iam v1.2.0 // indirect
-	cloud.google.com/go/kms v1.19.0 // indirect
-	cloud.google.com/go/longrunning v0.5.12 // indirect
-	cloud.google.com/go/resourcemanager v1.10.0 // indirect
+	cloud.google.com/go/compute v1.28.1 // indirect
+	cloud.google.com/go/compute/metadata v0.5.2 // indirect
+	cloud.google.com/go/container v1.40.0 // indirect
+	cloud.google.com/go/iam v1.2.1 // indirect
+	cloud.google.com/go/kms v1.20.0 // indirect
+	cloud.google.com/go/longrunning v0.6.1 // indirect
+	cloud.google.com/go/resourcemanager v1.10.1 // indirect
 	connectrpc.com/connect v1.16.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
@@ -116,7 +116,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/cloudflare/cfssl v1.6.4 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
-	github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b // indirect
+	github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59 // indirect
 	github.com/containerd/containerd v1.7.18 // indirect
 	github.com/containerd/errdefs v0.1.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -141,7 +141,7 @@ require (
 	github.com/elimity-com/scim v0.0.0-20240320110924-172bf2aee9c8 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.3 // indirect
 	github.com/envoyproxy/go-control-plane v0.13.0 // indirect
-	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20151013193312-d6023ce2651d // indirect
@@ -184,7 +184,7 @@ require (
 	github.com/google/s2a-go v0.1.8 // indirect
 	github.com/google/safetext v0.0.0-20240104143208-7a7d9b3d812f // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
@@ -343,15 +343,15 @@ require (
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.20.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/oauth2 v0.22.0 // indirect
+	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
-	google.golang.org/api v0.195.0 // indirect
+	google.golang.org/api v0.197.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240823204242-4ba0660f739c // indirect
+	google.golang.org/genproto v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
