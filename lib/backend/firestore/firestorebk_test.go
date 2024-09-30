@@ -20,6 +20,7 @@ package firestore
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -453,4 +454,60 @@ func TestDeleteDocuments(t *testing.T) {
 		})
 	}
 
+}
+
+// TestFirestoreMigration tests the migration of incorrect key types in Firestore.
+// TODO(tigrato|rosstimothy): DELETE In 19.0.0: Remove this migration in 19.0.0.
+func TestFirestoreMigration(t *testing.T) {
+	cfg := firestoreParams()
+	ensureTestsEnabled(t)
+	ensureEmulatorRunning(t, cfg)
+
+	clock := clockwork.NewRealClock()
+
+	uut, err := New(context.Background(), cfg, Options{Clock: clock})
+	require.NoError(t, err)
+
+	type byteAlias []byte
+	type badRecord struct {
+		Key        byteAlias `firestore:"key,omitempty"`
+		Timestamp  int64     `firestore:"timestamp,omitempty"`
+		Expires    int64     `firestore:"expires,omitempty"`
+		Value      []byte    `firestore:"value,omitempty"`
+		RevisionV2 string    `firestore:"revision,omitempty"`
+		RevisionV1 string    `firestore:"-"`
+	}
+
+	for i := 0; i < 301; i++ {
+		key := []byte(fmt.Sprintf("test-%d", i))
+		_, err = uut.svc.Collection(uut.CollectionName).
+			Doc(base64.URLEncoding.EncodeToString(key)).
+			Set(context.Background(), &badRecord{
+				Key:        key,
+				Timestamp:  clock.Now().UTC().Unix(),
+				Expires:    clock.Now().Add(time.Minute).UTC().Unix(),
+				Value:      key,
+				RevisionV2: "v2",
+			})
+		require.NoError(t, err)
+	}
+
+	// Migrate the collection
+	uut.migrateIncorrectKeyTypes()
+
+	// Ensure that all incorrect key types have been migrated
+	docs, err := uut.svc.Collection(uut.CollectionName).
+		Where(keyDocProperty, ">", byteAlias("/")).
+		Limit(100).
+		Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+
+	require.Empty(t, docs, "expected all incorrect key types to be migrated")
+
+	// Ensure that all incorrect key types have been migrated to the correct key type []byte
+	docs, err = uut.svc.Collection(uut.CollectionName).
+		Where(keyDocProperty, ">", []byte("/")).
+		Documents(context.Background()).GetAll()
+	require.NoError(t, err)
+	require.Len(t, docs, 301)
 }
