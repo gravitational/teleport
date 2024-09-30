@@ -208,6 +208,9 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
+	if o2.Spec.MFASettings != nil {
+		o2.Spec.MFASettings.ClientSecret = ""
+	}
 
 	return &o2
 }
