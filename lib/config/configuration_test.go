@@ -1827,8 +1827,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: false,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -1855,8 +1854,7 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2177,8 +2175,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -2206,8 +2203,7 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					Enabled: true,
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 				IdP: servicecfg.IdP{
 					SAMLIdP: servicecfg.SAMLIdP{
@@ -4119,8 +4115,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
@@ -4167,8 +4162,7 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 				Limiter: limiter.Config{
-					MaxConnections:   defaults.LimiterMaxConnections,
-					MaxNumberOfUsers: 250,
+					MaxConnections: defaults.LimiterMaxConnections,
 				},
 			},
 		},
