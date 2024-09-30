@@ -4713,7 +4713,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify enabled features are eventually enabled.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
@@ -4749,7 +4749,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// request and verify again
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
 		err = json.Unmarshal(res[:len(res)-1], &cfg)
@@ -4831,7 +4831,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 		// Make a request.
 		endpoint := clt.Endpoint("web", "config.js")
 		re, err := clt.Get(ctx, endpoint, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
 
 		// Response is type application/javascript, we need to strip off the variable name
