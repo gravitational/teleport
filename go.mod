@@ -70,7 +70,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v1.1.0
 	github.com/aws/smithy-go v1.21.0
-	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240826150212-5dc58b6e29f8
+	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20240918142057-e21b7a4e92d1
 	github.com/beevik/etree v1.4.1
 	github.com/buildkite/bintest/v3 v3.3.0
 	github.com/charmbracelet/bubbles v0.19.0
@@ -270,8 +270,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.18 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.18 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.32.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.25.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.33.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.25.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.20 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.9.19 // indirect
