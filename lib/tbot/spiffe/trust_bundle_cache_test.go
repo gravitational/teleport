@@ -21,6 +21,7 @@ package spiffe
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -184,8 +185,9 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
 	require.NoError(t, err)
-	jwtCAKID, err := jwt.KeyID(jwtCA)
-	require.NoError(t, err)
+	rsaJWTCA, ok := jwtCA.(*rsa.PublicKey)
+	require.True(t, ok, "unsupported key format %T", jwtCA)
+	jwtCAKID := jwt.KeyID(rsaJWTCA)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.SPIFFECA,
 		ClusterName: "example.com",

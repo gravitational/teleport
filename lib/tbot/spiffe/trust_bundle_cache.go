@@ -20,6 +20,7 @@ package spiffe
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"log/slog"
@@ -629,10 +630,11 @@ func convertSPIFFECAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, erro
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing public key")
 		}
-		kid, err := jwt.KeyID(pubKey)
-		if err != nil {
-			return nil, trace.Wrap(err, "generating key ID")
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, trace.BadParameter("unsupported key format %T", pubKey)
 		}
+		kid := jwt.KeyID(rsaPubKey)
 		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
 			return nil, trace.Wrap(err, "adding JWT authority to bundle")
 		}
