@@ -89,7 +89,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"sub_kind": {
-					Description: "sub_kind is an optional resource sub kind, used in some resources.",
+					Description: "an optional resource sub kind, used in some resources.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -122,7 +122,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						"recurrence": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"day_of_month": {
-									Description: "day_of_month is the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.",
+									Description: "the day of month that reviews will be scheduled on. Supported values are 0, 1, 15, and 31.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
@@ -195,7 +195,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 					}),
-					Description: "membership_requires describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of Membership_requires and must be in the members list.",
+					Description: "describes the requirements for a user to be a member of the access list. For a membership to an access list to be effective, the user must meet the requirements of `membership_requires` and must be in the members list.",
 					Optional:    true,
 				},
 				"owner_grants": {
@@ -222,7 +222,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 					}),
-					Description: "owner_grants describes the access granted by owners to this access list.",
+					Description: "describes the access granted by owners to this access list.",
 					Optional:    true,
 				},
 				"owners": {
@@ -265,7 +265,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Optional:    true,
 						},
 					}),
-					Description: "ownership_requires describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of ownership_requires and must be in the owners list.",
+					Description: "describes the requirements for a user to be an owner of the access list. For ownership of an access list to be effective, the user must meet the requirements of `ownership_requires` and must be in the owners list.",
 					Optional:    true,
 				},
 				"title": {

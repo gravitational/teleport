@@ -490,7 +490,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					Optional:    true,
 				},
 				"protocol": {
-					Description: "Protocol is the database protocol: postgres, mysql, mongodb, etc.",
+					Description: "Protocol is the database protocol: `postgres`, `mysql`, `mongodb`, etc.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -512,7 +512,7 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"trust_system_cert_pool": {
-							Description: "TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the ca_cert specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.",
+							Description: "TrustSystemCertPool allows Teleport to trust certificate authorities available on the host system. If not set (by default), Teleport only trusts self-signed databases with TLS certificates signed by Teleport's Database Server CA or the `ca_cert` specified in this TLS setting. For cloud-hosted databases, Teleport downloads the corresponding required CAs for validation.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -719,12 +719,12 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 							Optional:    true,
 						},
 						"started": {
-							Description: "Started is set to the time when rotation has been started in case if the state of the rotation is \"in_progress\".",
+							Description: "Started is set to the time when rotation has been started in case if the state of the rotation is `in_progress`.",
 							Optional:    true,
 							Type:        UseRFC3339Time(),
 						},
 						"state": {
-							Description: "State could be one of \"init\" or \"in_progress\".",
+							Description: "State could be one of `init` or `in_progress`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -839,32 +839,32 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 				"cors": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow_credentials": {
-							Description: "allow_credentials indicates whether credentials are allowed.",
+							Description: "`allow_credentials` indicates whether credentials are allowed.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"allowed_headers": {
-							Description: "allowed_headers specifies which headers can be used when accessing the app.",
+							Description: "`allowed_headers` specifies which headers can be used when accessing the app.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"allowed_methods": {
-							Description: "allowed_methods specifies which methods are allowed when accessing the app.",
+							Description: "`allowed_methods` specifies which methods are allowed when accessing the app.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"allowed_origins": {
-							Description: "allowed_origins specifies which origins are allowed to access the app.",
+							Description: "`allowed_origins` specifies which origins are allowed to access the app.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"exposed_headers": {
-							Description: "exposed_headers indicates which headers are made available to scripts via the browser.",
+							Description: "`exposed_headers` indicates which headers are made available to scripts via the browser.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"max_age": {
-							Description: "max_age indicates how long (in seconds) the results of a preflight request can be cached.",
+							Description: "`max_age` indicates how long (in seconds) the results of a preflight request can be cached.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
@@ -918,12 +918,12 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 						"headers": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"name": {
-									Description: "Name is the http header name.",
+									Description: "Name is the HTTP header name.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"value": {
-									Description: "Value is the http header value.",
+									Description: "Value is the HTTP header value.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1072,7 +1072,7 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					Type:        DurationType{},
 				},
 				"routing_strategy": {
-					Description: "RoutingStrategy determines the strategy used to route to nodes. 0 is \"unambiguous_match\"; 1 is \"most_recent\".",
+					Description: "RoutingStrategy determines the strategy used to route to nodes. 0 is `unambiguous_match`; 1 is `most_recent`.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
@@ -1322,7 +1322,7 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 								},
 								"serial_number_trait_name": {
-									Description: "SerialNumberTraitName is an optional custom user trait name for hardware key serial numbers to replace the default: \"hardware_key_serial_numbers\".  Note: Values for this user trait should be a comma-separated list of serial numbers, or a list of comm-separated lists. e.g [\"123\", \"345,678\"]",
+									Description: "SerialNumberTraitName is an optional custom user trait name for hardware key serial numbers to replace the default: `hardware_key_serial_numbers`.  Note: Values for this user trait should be a comma-separated list of serial numbers, or a list of comm-separated lists. e.g [\"123\", \"345,678\"]",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -1649,13 +1649,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_groups": {
-							Description: "KubeGroups is a list of kubernetes groups",
+							Description: "KubeGroups is a list of Kubernetes groups",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_labels": GenSchemaLabels(ctx),
 						"kubernetes_labels_expression": {
-							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -1690,7 +1690,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Description: "KubeUsers indicates optional Kubernetes users to impersonate",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2056,13 +2056,13 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_groups": {
-							Description: "KubeGroups is a list of kubernetes groups",
+							Description: "KubeGroups is a list of Kubernetes groups",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_labels": GenSchemaLabels(ctx),
 						"kubernetes_labels_expression": {
-							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.",
+							Description: "KubernetesLabelsExpression is a predicate expression used to allow/deny access to Kubernetes clusters.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2093,7 +2093,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is an optional kubernetes users to impersonate",
+							Description: "KubeUsers indicates optional Kubernetes users to impersonate",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2364,7 +2364,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"create_db_user": GenSchemaBoolOption(ctx),
 						"create_db_user_mode": {
-							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\".",
+							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is `unspecified`, 1 is `off`, 2 is `keep`, 3 is `best_effort_drop`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
@@ -2414,7 +2414,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:    true,
 						},
 						"lock": {
-							Description: "Lock specifies the locking mode (strict|best_effort) to be applied with the role.",
+							Description: "Lock specifies the locking mode (`strict` or `best_effort`) to be applied with the role.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -2588,7 +2588,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity",
+					Description: "GithubIdentities list associated GitHub OAuth2 identities that let user log in using externally verified identity",
 					Optional:    true,
 				},
 				"oidc_identities": {
@@ -2650,7 +2650,7 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		},
 		"status": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"password_state": {
-				Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
+				Description: "PasswordState reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
 				Optional:    true,
 				Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 			}}),
@@ -2769,7 +2769,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -2794,18 +2794,18 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"google_admin_email": {
-					Description: "GoogleAdminEmail is the email of a google admin to impersonate.",
+					Description: "GoogleAdminEmail is the email of a Google admin to impersonate.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"google_service_account": {
-					Description: "GoogleServiceAccount is a string containing google service account credentials.",
+					Description: "GoogleServiceAccount is a string containing Google service account credentials.",
 					Optional:    true,
 					Sensitive:   true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"google_service_account_uri": {
-					Description: "GoogleServiceAccountURI is a path to a google service account uri.",
+					Description: "GoogleServiceAccountURI is a path to a Google service account URI.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -2820,7 +2820,7 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Type:        DurationType{},
 				},
 				"prompt": {
-					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
+					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to `select_account` for backwards compatibility.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -2985,7 +2985,7 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3147,19 +3147,19 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"api_endpoint_url": {
-					Description: "APIEndpointURL is the URL of the API endpoint of the Github instance this connector is for.",
+					Description: "APIEndpointURL is the URL of the API endpoint of the GitHub instance this connector is for.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"client_id": {
-					Description: "ClientID is the Github OAuth app client ID.",
+					Description: "ClientID is the GitHub OAuth app client ID.",
 					Required:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"client_redirect_settings": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allowed_https_hostnames": {
-							Description: "a list of hostnames allowed for https client redirect URLs",
+							Description: "a list of hostnames allowed for HTTPS client redirect URLs",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3173,7 +3173,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 					Optional:    true,
 				},
 				"client_secret": {
-					Description: "ClientSecret is the Github OAuth app client secret.",
+					Description: "ClientSecret is the GitHub OAuth app client secret.",
 					Required:    true,
 					Sensitive:   true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -3196,12 +3196,12 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 				"teams_to_logins": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"kubernetes_groups": {
-							Description: "KubeGroups is a list of allowed kubernetes groups for this org/team.",
+							Description: "KubeGroups is a list of allowed Kubernetes groups for this org/team.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"kubernetes_users": {
-							Description: "KubeUsers is a list of allowed kubernetes users to impersonate for this org/team.",
+							Description: "KubeUsers is a list of allowed Kubernetes users to impersonate for this org/team.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
@@ -3211,7 +3211,7 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 						"organization": {
-							Description: "Organization is a Github organization a user belongs to.",
+							Description: "Organization is a GitHub organization a user belongs to.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -3221,13 +3221,13 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.",
+					Description: "TeamsToLogins maps GitHub team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.",
 					Optional:    true,
 				},
 				"teams_to_roles": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"organization": {
-							Description: "Organization is a Github organization a user belongs to.",
+							Description: "Organization is a GitHub organization a user belongs to.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -3242,11 +3242,11 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
-					Description: "TeamsToRoles maps Github team memberships onto allowed roles.",
+					Description: "TeamsToRoles maps GitHub team memberships onto allowed roles.",
 					Optional:    true,
 				},
 			}),
-			Description: "Spec is an Github connector specification.",
+			Description: "Spec is a GitHub connector specification.",
 			Required:    true,
 		},
 		"sub_kind": {
@@ -3323,7 +3323,7 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"enabled": {
-					Description: "Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
+					Description: "Enabled indicates if the TrustedCluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 				},

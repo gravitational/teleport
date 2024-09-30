@@ -24,7 +24,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message ResourceHeader {
   // kind is a resource kind.
   string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources.
+  // an optional resource sub kind, used in some resources.
   string sub_kind = 2;
   // Version is the API version used to create the resource. It must be
   // specified. Based on this version, Teleport will apply different defaults on

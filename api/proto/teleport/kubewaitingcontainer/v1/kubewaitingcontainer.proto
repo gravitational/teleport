@@ -25,7 +25,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message KubernetesWaitingContainer {
   // kind is a resource kind
   string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources
+  // an optional resource sub kind, used in some resources
   string sub_kind = 2;
   // version is the resource version. It must be specified.
   // Supported values are: `v1`.

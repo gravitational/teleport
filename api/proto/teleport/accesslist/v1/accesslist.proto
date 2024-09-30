@@ -51,16 +51,14 @@ message AccessListSpec {
   // audit describes the frequency that this access list must be audited.
   AccessListAudit audit = 3;
 
-  // membership_requires describes the requirements for a user to be a member of
-  // the access list. For a membership to an access list to be effective, the
-  // user must meet the requirements of Membership_requires and must be in the
-  // members list.
+  // describes the requirements for a user to be a member of the access list.
+  // For a membership to an access list to be effective, the user must meet the
+  // requirements of `membership_requires` and must be in the members list.
   AccessListRequires membership_requires = 4;
 
-  // ownership_requires describes the requirements for a user to be an owner of
-  // the access list. For ownership of an access list to be effective, the user
-  // must meet the requirements of ownership_requires and must be in the owners
-  // list.
+  // describes the requirements for a user to be an owner of the access list.
+  // For ownership of an access list to be effective, the user must meet the
+  // requirements of `ownership_requires` and must be in the owners list.
   AccessListRequires ownership_requires = 5;
 
   // grants describes the access granted by membership to this access list.
@@ -69,7 +67,7 @@ message AccessListSpec {
   // title is a plaintext short description of the access list.
   string title = 8;
 
-  // owner_grants describes the access granted by owners to this access list.
+  // describes the access granted by owners to this access list.
   AccessListGrants owner_grants = 11;
 }
 
@@ -126,7 +124,7 @@ message Recurrence {
   // Supported values are 0, 1, 3, 6, and 12.
   ReviewFrequency frequency = 1;
 
-  // day_of_month is the day of month that reviews will be scheduled on.
+  // the day of month that reviews will be scheduled on.
   // Supported values are 0, 1, 15, and 31.
   ReviewDayOfMonth day_of_month = 2;
 }

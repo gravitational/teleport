@@ -27,7 +27,7 @@ description: This page describes the supported values of the teleport_trusted_cl
 
 Optional:
 
-- `enabled` (Boolean) Enabled is a bool that indicates if the TrustedCluster is enabled or disabled. Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).
+- `enabled` (Boolean) Enabled indicates if the TrustedCluster is enabled or disabled.  Setting Enabled to false has a side effect of deleting the user and host certificate authority (CA).
 - `role_map` (Attributes List) RoleMap specifies role mappings to remote roles. (see [below for nested schema](#nested-schema-for-specrole_map))
 - `roles` (List of String) Roles is a list of roles that users will be assuming when connecting to this cluster.
 - `token` (String, Sensitive) Token is the authorization token provided by another cluster needed by this cluster to join.
