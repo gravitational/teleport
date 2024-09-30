@@ -1,6 +1,7 @@
 ---
 title: Usage Reporting and Billing
 description: Provides a detailed breakdown of Teleport usage reporting and billing.
+tocDepth: 3
 ---
 
 Commercial editions of Teleport send anonymized usage data to Teleport so we can
@@ -10,8 +11,12 @@ the billing metrics we calculate.
 ## Anonymized usage data
 
 The commercial editions of Teleport send anonymized information to Teleport's
-cloud infrastructure at `reporting-teleport.teleportinfra.sh:443`.
-This information contains the following:
+cloud infrastructure at `reporting-teleport.teleportinfra.sh:443`. This section
+describes the usage reporting system.
+
+### Usage reports
+
+Teleport usage reports contain the following information:
 
 - Teleport license identifier.
 - Anonymized cluster name and Teleport Auth Service host ID.
@@ -26,12 +31,14 @@ The count of interactions includes the following:
 
 - Teleport logins
 - SSH and Kubernetes exec sessions
-- Desktop and Database sessions
+- Desktop and database sessions
 - Web sessions with registered HTTP applications
 - Connections with registered TCP applications
 - SSH port forwards
 - Kubernetes API requests
 - SFTP actions
+
+### Anonymization
 
 The anonymization is done by passing names and IDs through HMAC-SHA-256.
 Teleport Cloud clusters use an HMAC key that's randomly generated when
@@ -39,6 +46,8 @@ the cluster is initialized. Self-hosted Teleport deployments use an
 anonymization key that's generated and embedded in the license file at
 download time and never shared with us. This makes it infeasible for anyone
 without access to the cluster to deanonymize the data we store.
+
+### How reporting takes place
 
 Each cluster in a [Trusted Clusters](reference/architecture/trustedclusters.mdx) setup
 is responsible for reporting about the interactions with its own resources;
@@ -54,6 +63,25 @@ to send usage data through a proxy for version 16.0.4/15.4.7/14.3.21 or later.
 Set the `TELEPORT_REPORTING_HTTPS_PROXY` and `TELEPORT_REPORTING_HTTP_PROXY`
 environment variables to your proxy address. That will apply as the HTTP connect
 proxy setting overriding `HTTPS_PROXY` and `HTTP_PROXY` just for outbound usage reporting.
+
+### Validating usage reports
+
+The system that Teleport uses for submitting usage reports is independent of the
+system that Teleport uses for submitting audit events. 
+
+Teleport processes submit audit events to the Teleport Auth Service, which
+stores them on its audit event backend for retrieval by Teleport API clients. In
+contrast, usage reports are aggregated on a submission service that runs either
+on self-hosted Teleport infrastructure or Teleport Cloud, depending on the
+user's plan. The submission service persists usage reports in the case of a
+submission failure. After a successful submission, the submission service
+deletes the reports.
+
+It is not possible for Teleport users to independently validate usage event
+data, as there is no way to set up a third-party usage event destination or
+retrieve usage events from a Teleport backend. Reach out to
+support@goteleport.com if you have questions about usage reporting on your
+Teleport account.
 
 ## Billing metrics
 
