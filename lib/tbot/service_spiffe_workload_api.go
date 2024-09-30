@@ -721,7 +721,16 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 			Svid:     resSVID.Jwt,
 			Hint:     resSVID.Hint,
 		})
-		// TODO: Audit style log message
+		log.InfoContext(ctx,
+			"Issued SVID for workload",
+			slog.Group("svid",
+				"type", "jwt",
+				"spiffe_id", resSVID.SpiffeId,
+				"jti", resSVID.Jti,
+				"hint", resSVID.Hint,
+				"audiences", resSVID.Audiences,
+			),
+		)
 	}
 
 	return out, nil
