@@ -690,6 +690,13 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	// > a specific SPIFFE ID. If unspecified, the server MUST return JWT-SVIDs
 	// > for all identities authorized for the client.
 	if req.SpiffeId != "" {
+		requestedSPIFFEID, err := spiffeid.FromString(req.SpiffeId)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing requested SPIFFE ID")
+		}
+		if requestedSPIFFEID.TrustDomain() != s.localTrustDomain {
+			return nil, trace.BadParameter("requested SPIFFE ID is not in the local trust domain")
+		}
 		// Search through available SVIDs to find the one that matches the
 		// requested SPIFFE ID.
 		found := false
