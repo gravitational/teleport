@@ -648,6 +648,7 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 }
 
 // FetchJWTSVID implements the SPIFFE Workload API FetchJWTSVID method.
+// See The SPIFFE Workload API (6.2.1).
 func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 	ctx context.Context,
 	req *workloadpb.JWTSVIDRequest,
@@ -748,6 +749,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 }
 
 // FetchJWTBundles implements the SPIFFE Workload API FetchJWTBundles method.
+// See The SPIFFE Workload API (6.2.2).
 func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
 	_ *workloadpb.JWTBundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchJWTBundlesServer,
@@ -790,6 +792,7 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
 }
 
 // ValidateJWTSVID implements the SPIFFE Workload API ValidateJWTSVID method.
+// See The SPIFFE Workload API (6.2.3).
 func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 	ctx context.Context,
 	req *workloadpb.ValidateJWTSVIDRequest,
