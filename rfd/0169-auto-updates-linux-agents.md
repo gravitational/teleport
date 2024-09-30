@@ -54,7 +54,347 @@ We must provide a seamless, hands-off experience for auto-updates of Teleport Ag
 
 ## UX
 
-[Hugo to add]
+### As Teleport Cloud I want to be able to update customers agents to a newer Teleport version
+
+<details>
+<summary>Before</summary>
+
+```yaml
+kind: autoupdate_agent_plan
+spec:
+  current_version: v1
+  target_version: v2
+  schedule: regular
+  strategy: grouped
+  autoupdate_mode: enabled
+status:
+  groups:
+    - name: dev
+      start_time: 2020-12-09T16:09:53+00:00
+      initial_count: 100
+      present_count: 103
+      failed_count: 2
+      progress: 1
+      state: active
+      last_update_time: 2020-12-09T16:09:53+00:00
+      last_update_reason: success
+    - name: staging
+      start_time: 0000-00-00
+      initial_count: 0
+      present_count: 0
+      failed_count: 0
+      progress: 0
+      state: unstarted
+      last_update_time: 2020-12-09T16:09:53+00:00
+      last_update_reason: newAgentPlan
+```
+</details>
+
+I run
+```bash
+tctl autoupdate agent new-rollout v3
+# created new rollout from v2 to v3
+```
+
+<details>
+<summary>After</summary>
+
+```yaml
+kind: autoupdate_agent_plan
+spec:
+  current_version: v2
+  target_version: v3
+  schedule: regular
+  strategy: grouped
+  autoupdate_mode: enabled
+status:
+  groups:
+    - name: dev
+      start_time: 0000-00-00
+      initial_count: 0
+      present_count: 0
+      failed_count: 0
+      progress: 0
+      state: unstarted
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: newAgentPlan
+    - name: staging
+      start_time: 0000-00-00
+      initial_count: 0
+      present_count: 0
+      failed_count: 0
+      progress: 0
+      state: unstarted
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: newAgentPlan
+```
+</details>
+
+Now, new agents will install v2 by default, and v3 after the maintenance.
+
+> [!NOTE]
+> If the previous maintenance was not finished, I will install v2 on new prod agents while the rest of prod is still running v1.
+> This is expected as we don't want to keep track of an infinite number of versions.
+> 
+> If this is an issue I can create a v1 -> v3 rollout instead.
+> 
+> ```bash
+> tctl autoupdate agent new-rollout v3 --current-version v1
+> # created new update plan from v2 to v3
+> ```
+
+### As Teleport Cloud I want to minimize the damage of a broken version to improve Teleport's availability to 99.99%
+
+#### Failure mode 1: the new version crashes
+
+I create a new deployment, with a broken version. The version is deployed to the canaries.
+The canaries crash, the updater reverts the update, the agents connect back online and
+advertise they rolled-back. The maintenance is stuck until the canaries are running the target version.
+
+<details>
+<summary>Autoupdate agent plan</summary>
+
+```yaml
+kind: autoupdate_agent_plan
+spec:
+  current_version: v1
+  target_version: v2
+  schedule: regular
+  strategy: grouped
+  autoupdate_mode: enabled
+status:
+  groups:
+    - name: dev
+      start_time: 2020-12-09T16:09:53+00:00
+      initial_count: 100
+      present_count: 100
+      failed_count: 0
+      progress: 0
+      state: canaries
+      canaries:
+        - updater_id: abc
+          host_id: def
+          hostname: foo.example.com
+          success: false
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: canaryTesting
+    - name: staging
+      start_time: 0000-00-00
+      initial_count: 0
+      present_count: 0
+      failed_count: 0
+      progress: 0
+      state: unstarted
+      last_update_time: 2020-12-10T16:09:53+00:00
+      last_update_reason: newAgentPlan
+```
+</details>
+
+I and the customer get an alert if the canary testing has not succeeded after an hour.
+Teleport cloud operators and the user can access the canary hostname and hostid
+to
+
+The rollout resumes.
+
+#### Failure mode 1 bis: the new version crashes, but not on the canaries
+
+This scenario is the same as the previous one but the Teleport agent bug only manifests on select agents.
+For example: [the agent fails to read cloud-provider specific metadata and crashes](TODO add link).
+
+The canaries might not select one of the affected agent and allow the update to proceed.
+All agents are updated, and all agents hosted on the cloud provider affected by the bug crash.
+The updaters of the affected agents will attempt to self-heal by reverting to the previous version.
+
+Once the previous Teleport version is running, the agent will advertise its update failed and it had to rollback.
+If too many agents failed, this will block the group from transitioning from `active` to `done`, protecting the future
+groups from the faulty updates.
+
+#### Failure mode 2: the new version crashes, and the old version cannot start
+
+I create a new deployment, with a broken version. The version is deployed to the canaries.
+The canaries attempt the update, and the new Teleport instance crashes.
+The updater fails to self-heal as the old version does not start anymore.
+
+This is typically caused by external sources like full disk, faulty networking, resource exhaustion.
+This can also be caused by the Teleport control plan not being available.
+
+The group update is stuck until the canary comes back online and runs the latest version.
+
+The customer and Teleport cloud receive an alert. The customer and Teleport cloud can retrieve the
+hostid and hostname of the faulty canaries. With this information they can go troubleshoot the failed agents.
+
+#### Failure mode 2 bis: the new version crashes, and the old version cannot start, but not on the canaries
+
+This scenario is the same as the previous one but the Teleport agent bug only manifests on select agents.
+For example: a clock drift blocks agents from re-connecting to Teleport.
+
+The canaries might not select one of the affected agent and allow the update to proceed.
+All agents are updated, and all agents hosted on the cloud provider affected by the bug crash.
+The updater fails to self-heal as the old version does not start anymore.
+
+If too many agents failed, this will block the group from transitioning from `active` to `done`, protecting the future
+groups from the faulty updates.
+
+In this case, it's hard to identify which agent dropped.
+
+#### Failure mode 3: shadow failure
+
+Teleport cloud deploys a new version. Agents from the first group get updated.
+The agents are seemingly running properly, but some functions are impaired.
+For example, host user creation is failing.
+
+Some user tries to access a resource served by the agent, it fails and the user
+notices the disruption.
+
+The customer can observe the agent update status and see that a recent update
+might have caused this:
+
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v2
+# New version: v3
+# Status: enabled
+# 
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          complete            YYYY-MM-DD HHh      120                115                 2
+# staging      in progress (53%)   YYYY-MM-D2 HHh      20                 10                  0
+# prod         not started                             234                0                   0
+```
+
+Then, the customer or Teleport Cloud team can suspend the rollout:
+
+```shell
+tctl auto-update agent suspend
+# Automatic updates suspended
+# No existing agent will get updated. New agents might install the new version
+# depending on their group.
+```
+
+At this point, no new agent is updated to reduce the service disruption.
+The customer can investigate, and get help from Teleport's support via a support ticket.
+If the update is really the cause of the issue, the customer or Teleport cloud can perform a rollback:
+
+```shell
+tctl auto-update agent rollback
+# Rolledback groups: [dev, staging]
+# Warning: the automatic agent updates are suspended.
+# Agents will not rollback until you run:
+# $> tctl auto-update agent resume
+```
+
+> [!NOTE]
+> By default, all groups not in the "unstarted" state are rolledback.
+> It is also possible to rollback only specific groups.
+
+The new state looks like
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v2
+# New version: v3
+# Status: suspended 
+#
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          rolledback          YYYY-MM-DD HHh      120                115                 2
+# staging      rolledback          YYYY-MM-D2 HHh      20                 10                  0
+# prod         not started                             234                0                   0
+```
+
+Finally, when the user is happy with the new plan, they can resume the updates.
+This will trigger the rollback.
+
+```shell
+tctl auto-update agent resume
+```
+
+### As a Teleport user and a Teleport on-call responder, I want to be able to pin a specific Teleport version of an agent to understand if a specific behaviour is caused by a specific Teleport version
+
+I connect to the node and lookup its status:
+```shell
+teleport-updater status
+# Running version v16.2.5
+# Automatic updates enabled.
+# Proxy: example.teleport.sh
+# Group: staging
+```
+
+I try to set a specific version:
+```shell
+teleport-udpater use-version v16.2.3
+# Error: the instance is enrolled into automatic updates.
+# You must specify --disable-automatic-updates to opt this agent out of automatic updates and manually control the version.
+```
+
+I acknowledge that I am leaving automatic updates:
+```shell
+teleport-udpater use-version v16.2.3 --disable-automatic-updates
+# Disabling automatic updates for the node. You can enable them back by running `teleport-updater enable`
+# Downloading version 16.2.3
+# Restarting teleport
+# Cleaning up old binaries
+```
+
+When the issue is fixed, I can enroll back into automatic updates:
+
+```shell
+teleport-updater enable
+# Enabling automatic updates
+# Proxy: example.teleport.sh
+# Group: staging
+```
+
+### As a Teleport user I want to fast-track a group update
+
+I have a new rollout, completely unstarted, and my current maintenance schedule updates over seevral days.
+However, the new version contains something that I need as soon s possible (e.g. a fix for a bug that affects me).
+
+<details>
+<summary>Before:</summary>
+
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v2
+# New version: v3
+# Status: enabled
+# 
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          not started                             120                0                   0
+# staging      not started                             20                 0                   0
+# prod         not started                             234                0                   0
+```
+</details>
+
+I can trigger the dev group immediately using the command:
+
+```shell
+tctl auto-update agent trigger-group dev
+# Dev group update triggered
+```
+
+[TODO: how to deal with the canary vs active vs done states?]
+
+<details>
+<summary>After:</summary>
+
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v2
+# New version: v3
+# Status: enabled
+# 
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          not started                             120                0                   0
+# staging      not started                             20                 0                   0
+# prod         not started                             234                0                   0
+```
+</details>
 
 ### Teleport Resources
 
