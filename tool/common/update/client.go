@@ -42,7 +42,8 @@ type downloadConfig struct {
 	Timeout time.Duration
 }
 
-func newClient(cfg *downloadConfig) *http.Client {
+// NewClient created http client for the downloading packages.
+func NewClient(cfg *downloadConfig) *http.Client {
 	rt := apiutils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,

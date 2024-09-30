@@ -27,7 +27,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -37,12 +36,11 @@ import (
 )
 
 var (
-	kernel    = windows.NewLazyDLL("kernel32.dll")
-	proc      = kernel.NewProc("CreateFileW")
-	ctrlEvent = kernel.NewProc("GenerateConsoleCtrlEvent")
+	kernel = windows.NewLazyDLL("kernel32.dll")
+	proc   = kernel.NewProc("CreateFileW")
 )
 
-func replace(path string, hash string) error {
+func replace(dir string, path string, hash string) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -56,10 +54,6 @@ func replace(path string, hash string) error {
 		return trace.Wrap(err)
 	}
 
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	tempDir, err := os.MkdirTemp(dir, hash)
 	if err != nil {
 		return trace.Wrap(err)
@@ -101,7 +95,7 @@ func replace(path string, hash string) error {
 	return nil
 }
 
-// lock implements locking mechanism for blocking another process acquire the lock until its released.
+// lock implements filesystem lock for blocking another process execution until this lock is released.
 func lock(dir string) (func(), error) {
 	path := filepath.Join(dir, ".lock")
 	lockPath, err := windows.UTF16PtrFromString(path)
@@ -142,15 +136,6 @@ func lock(dir string) (func(), error) {
 			slog.DebugContext(context.Background(), "failed to close lock file", "file", lockFile, "error", err)
 		}
 	}, nil
-}
-
-// sendInterrupt sends a Ctrl-Break event to the process.
-func sendInterrupt(pid int) error {
-	r, _, err := ctrlEvent.Call(uintptr(syscall.CTRL_BREAK_EVENT), uintptr(pid))
-	if r == 0 {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // freeDiskWithReserve returns the available disk space.

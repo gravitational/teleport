@@ -1,10 +1,27 @@
 //go:build !windows
 
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package update
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -14,6 +31,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// lock implements filesystem lock for blocking another process execution until this lock is released.
 func lock(dir string) (func(), error) {
 	ctx := context.Background()
 	// Build the path to the lock file that will be used by flock.
@@ -53,15 +71,6 @@ func lock(dir string) (func(), error) {
 			slog.DebugContext(ctx, "failed to close lock file", "file", lockFile, "error", err)
 		}
 	}, nil
-}
-
-// sendInterrupt sends a SIGINT to the process.
-func sendInterrupt(pid int) error {
-	err := syscall.Kill(pid, syscall.SIGINT)
-	if errors.Is(err, syscall.ESRCH) {
-		return trace.BadParameter("can't find the process: %v", pid)
-	}
-	return trace.Wrap(err)
 }
 
 // freeDiskWithReserve returns the available disk space.

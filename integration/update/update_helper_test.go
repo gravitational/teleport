@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package update
+package update_test
 
 import (
 	"net/http"
@@ -28,7 +28,8 @@ type limitRequest struct {
 	lock  chan struct{}
 }
 
-// limitedResponseWriter wraps http.ResponseWriter and enforces a write limit.
+// limitedResponseWriter wraps http.ResponseWriter and enforces a write limit
+// then block the response until signal is received.
 type limitedResponseWriter struct {
 	requests chan limitRequest
 }
@@ -54,6 +55,7 @@ func (lw *limitedResponseWriter) Wrap(w http.ResponseWriter) http.ResponseWriter
 	}
 }
 
+// SetLimitRequest sends limit request to the pool to wrap next response writer with defined limits.
 func (lw *limitedResponseWriter) SetLimitRequest(limit limitRequest) {
 	lw.requests <- limit
 }

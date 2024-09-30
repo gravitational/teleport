@@ -28,18 +28,24 @@ import (
 	"github.com/gravitational/teleport/tool/common/update"
 )
 
-var version = "development"
+var (
+	version  = "development"
+	baseUrl  = "http://localhost"
+	toolsDir = ""
+)
 
 func main() {
-	// At process startup, check if a version has already been downloaded to
-	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
-	// environment variable. If so, re-exec that version of {tsh, tctl}.
-	toolsVersion, reExec := update.CheckLocal()
+	updater := update.NewUpdater(
+		toolsDir,
+		version,
+		update.WithBaseURL(baseUrl),
+	)
+	toolsVersion, reExec := updater.CheckLocal()
 	if reExec {
 		// Download the version of client tools required by the cluster. This
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
-		err := update.Download(toolsVersion)
+		err := updater.Download(toolsVersion)
 		if errors.Is(err, update.ErrCanceled) {
 			os.Exit(0)
 			return
@@ -50,7 +56,7 @@ func main() {
 		}
 
 		// Re-execute client tools with the correct version of client tools.
-		code, err := update.Exec()
+		code, err := updater.Exec()
 		if err != nil {
 			log.Fatalf("Failed to re-exec client tool: %v", err)
 		} else {
@@ -58,6 +64,6 @@ func main() {
 		}
 	}
 	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Printf("Teleport v%v git", version)
+		fmt.Printf("Teleport v%v git\n", version)
 	}
 }

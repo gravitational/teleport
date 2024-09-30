@@ -31,12 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func replace(path string, hash string) error {
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func replace(dir string, path string, hash string) error {
 	// Use "pkgutil" from the filesystem to expand the archive. In theory .pkg
 	// files are xz archives, however it's still safer to use "pkgutil" in-case
 	// Apple makes non-standard changes to the format.
@@ -66,6 +61,7 @@ func replace(path string, hash string) error {
 		// extended attribute is set and macOS will not send a SIGKILL to the
 		// process if multiple processes are trying to operate on it.
 		expandExecPath := filepath.Join(expandPath, "Payload", app+".app", "Contents", "MacOS", app)
+
 		command := exec.Command(expandExecPath, "version", "--client")
 		command.Env = []string{teleportToolsVersion + "=off"}
 		if err := command.Run(); err != nil {

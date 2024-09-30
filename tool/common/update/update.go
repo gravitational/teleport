@@ -25,7 +25,9 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/types"
 	"io"
 	"net/http"
 	"os"
@@ -43,11 +45,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
 )
 
 const (
 	teleportToolsVersion = "TELEPORT_TOOLS_VERSION"
+	baseUrl              = "https://cdn.teleport.dev"
 	checksumHexLen       = 64
 	reservedFreeDisk     = 10 * 1024 * 1024
 
@@ -56,21 +58,60 @@ const (
 )
 
 var (
-	pattern       = regexp.MustCompile(`(?m)Teleport v(.*) git`)
-	baseUrl       = "https://cdn.teleport.dev"
-	defaultClient = newClient(&downloadConfig{})
-	featureFlag   int
+	pattern     = regexp.MustCompile(`(?m)Teleport v(.*) git`)
+	featureFlag int
 )
 
-// CheckLocal is run at client tool startup and will only perform local checks.
-func CheckLocal() (string, bool) {
-	// If a version of client tools has already been downloaded to
-	// $TELEPORT_HOME/bin, return that.
-	toolsVersion, err := version()
-	if err != nil {
-		return "", false
+// Option applies an option value for the Updater.
+type Option func(u *Updater)
+
+// WithBaseURL defines custom base url for the updater.
+func WithBaseURL(baseUrl string) Option {
+	return func(u *Updater) {
+		u.baseUrl = baseUrl
+	}
+}
+
+// WithClient defines custom http client for the Updater.
+func WithClient(client *http.Client) Option {
+	return func(u *Updater) {
+		u.client = client
+	}
+}
+
+// WithToolsDir defines the path for downloading the packages.
+func WithToolsDir(path string) Option {
+	return func(u *Updater) {
+		u.toolsDir = path
+	}
+}
+
+// Updater is updater client for the client tools auto updates.
+type Updater struct {
+	toolsDir     string
+	localVersion string
+
+	baseUrl string
+	client  *http.Client
+}
+
+// NewUpdater initiate updater for the client tools.
+func NewUpdater(toolsDir string, localVersion string, options ...Option) *Updater {
+	updater := &Updater{
+		toolsDir:     toolsDir,
+		localVersion: localVersion,
+		baseUrl:      baseUrl,
+		client:       NewClient(&downloadConfig{}),
+	}
+	for _, option := range options {
+		option(updater)
 	}
 
+	return updater
+}
+
+// CheckLocal is run at client tool startup and will only perform local checks.
+func (u *Updater) CheckLocal() (string, bool) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersion)
 	switch {
@@ -78,10 +119,18 @@ func CheckLocal() (string, bool) {
 	case requestedVersion == "off":
 		return "", false
 	// Requested version already the same as client version.
-	case teleport.Version == requestedVersion:
+	case u.localVersion == requestedVersion:
 		return requestedVersion, false
+	}
+
+	// If a version of client tools has already been downloaded to
+	// $TELEPORT_HOME/bin, return that.
+	toolsVersion, err := version(u.toolsDir)
+	if err != nil {
+		return "", false
+	}
 	// The user has requested a specific version of client tools.
-	case requestedVersion != "" && requestedVersion != toolsVersion:
+	if requestedVersion != "" && requestedVersion != toolsVersion {
 		return requestedVersion, true
 	}
 
@@ -90,7 +139,18 @@ func CheckLocal() (string, bool) {
 
 // CheckRemote will check against Proxy Service if client tools need to be
 // updated.
-func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
+func (u *Updater) CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
+	// Check if the user has requested a specific version of client tools.
+	requestedVersion := os.Getenv(teleportToolsVersion)
+	switch {
+	// The user has turned off any form of automatic updates.
+	case requestedVersion == "off":
+		return "", false, nil
+	// Requested version already the same as client version.
+	case u.localVersion == requestedVersion:
+		return requestedVersion, false, nil
+	}
+
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return "", false, trace.Wrap(err)
@@ -107,24 +167,17 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 
 	// If a version of client tools has already been downloaded to
 	// $TELEPORT_HOME/bin, return that.
-	toolsVersion, err := version()
+	toolsVersion, err := version(u.toolsDir)
 	if err != nil {
-		return "", false, nil
+		return "", false, trace.Wrap(err)
 	}
 
-	requestedVersion := os.Getenv(teleportToolsVersion)
 	switch {
-	// The user has turned off any form of automatic updates.
-	case requestedVersion == "off":
-		return "", false, nil
-	// Requested version already the same as client version.
-	case teleport.Version == requestedVersion:
-		return requestedVersion, false, nil
 	case requestedVersion != "" && requestedVersion != toolsVersion:
 		return requestedVersion, true, nil
 	case !resp.ToolsAutoupdate || resp.ToolsVersion == "":
 		return "", false, nil
-	case teleport.Version == resp.ToolsVersion:
+	case u.localVersion == resp.ToolsVersion:
 		return resp.ToolsVersion, false, nil
 	case resp.ToolsVersion != toolsVersion:
 		return resp.ToolsVersion, true, nil
@@ -134,17 +187,13 @@ func CheckRemote(ctx context.Context, proxyAddr string) (string, bool, error) {
 }
 
 // Download downloads requested version package, unarchive and replace existing one.
-func Download(toolsVersion string) error {
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (u *Updater) Download(toolsVersion string) error {
 	// Create $TELEPORT_HOME/bin if it does not exist.
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(u.toolsDir, 0755); err != nil {
 		return trace.Wrap(err)
 	}
 	// Lock to allow multiple concurrent {tsh, tctl} to run.
-	unlock, err := lock(dir)
+	unlock, err := lock(u.toolsDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -153,27 +202,27 @@ func Download(toolsVersion string) error {
 	// If the version of the running binary or the version downloaded to
 	// $TELEPORT_HOME/bin is the same as the requested version of client tools,
 	// nothing to be done, exit early.
-	teleportVersion, err := version()
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
+	teleportVersion, err := version(u.toolsDir)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+
 	}
 	if toolsVersion == teleport.Version || toolsVersion == teleportVersion {
 		return nil
 	}
 
 	// Download and update {tsh, tctl} in $TELEPORT_HOME/bin.
-	if err := update(toolsVersion); err != nil {
+	if err := u.Update(toolsVersion); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func update(toolsVersion string) error {
+// Update downloads requested version and replace it with existing one.
+func (u *Updater) Update(toolsVersion string) error {
 	// Get platform specific download URLs.
-	archiveURL, hashURL, err := urls(toolsVersion)
+	archiveURL, hashURL, err := urls(u.baseUrl, toolsVersion)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -181,63 +230,46 @@ func update(toolsVersion string) error {
 
 	// Download the archive and validate against the hash. Download to a
 	// temporary path within $TELEPORT_HOME/bin.
-	hash, err := downloadHash(hashURL)
+	hash, err := u.downloadHash(hashURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	path, err := downloadArchive(archiveURL, hash)
+	path, err := u.downloadArchive(archiveURL, hash)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer os.Remove(path)
 
 	// Perform atomic replace so concurrent exec do not fail.
-	if err := replace(path, hash); err != nil {
+	if err := replace(u.toolsDir, path, hash); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// urls returns the URL for the Teleport archive to download. The format is:
-// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
-func urls(toolsVersion string) (string, string, error) {
-	var archive string
-
-	switch runtime.GOOS {
-	case "darwin":
-		archive = baseUrl + "/tsh-" + toolsVersion + ".pkg"
-	case "windows":
-		archive = baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
-	case "linux":
-		edition := ""
-		if featureFlag&FlagEnt != 0 || featureFlag&FlagFips != 0 {
-			edition = "ent-"
-		}
-		fips := ""
-		if featureFlag&FlagFips != 0 {
-			fips = "fips-"
-		}
-
-		var b strings.Builder
-		b.WriteString(baseUrl + "/teleport-")
-		if edition != "" {
-			b.WriteString(edition)
-		}
-		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
-		if fips != "" {
-			b.WriteString(fips)
-		}
-		b.WriteString("bin.tar.gz")
-		archive = b.String()
-	default:
-		return "", "", trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
+// Exec re-executes tool command with same arguments and environ variables.
+func (u *Updater) Exec() (int, error) {
+	path, err := toolName(u.toolsDir)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 
-	return archive, archive + ".sha256", nil
+	cmd := exec.Command(path, os.Args[1:]...)
+	// To prevent re-execution loop we have to disable update logic for re-execution.
+	cmd.Env = append(os.Environ(), teleportToolsVersion+"=off")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return cmd.ProcessState.ExitCode(), nil
 }
 
-func downloadHash(url string) (string, error) {
+func (u *Updater) downloadHash(url string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -245,7 +277,7 @@ func downloadHash(url string) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	resp, err := defaultClient.Do(req)
+	resp, err := u.client.Do(req)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -267,8 +299,8 @@ func downloadHash(url string) (string, error) {
 	return raw, nil
 }
 
-func downloadArchive(url string, hash string) (string, error) {
-	resp, err := defaultClient.Get(url)
+func (u *Updater) downloadArchive(url string, hash string) (string, error) {
+	resp, err := u.client.Get(url)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -277,20 +309,15 @@ func downloadArchive(url string, hash string) (string, error) {
 		return "", trace.BadParameter("bad status when downloading archive: %v", resp.StatusCode)
 	}
 
-	dir, err := toolsDir()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
 	if resp.ContentLength != -1 {
-		if err := checkFreeSpace(dir, uint64(resp.ContentLength)); err != nil {
+		if err := checkFreeSpace(u.toolsDir, uint64(resp.ContentLength)); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}
 
 	// Caller of this function will remove this file after the atomic swap has
 	// occurred.
-	f, err := os.CreateTemp(dir, "tmp-")
+	f, err := os.CreateTemp(u.toolsDir, "tmp-")
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -313,31 +340,29 @@ func downloadArchive(url string, hash string) (string, error) {
 	return f.Name(), nil
 }
 
-// Exec re-executes tool command with same arguments and environ variables.
-func Exec() (int, error) {
-	path, err := toolName()
-	if err != nil {
-		return 0, trace.Wrap(err)
+// ToolsDir returns the path to {tsh, tctl} in $TELEPORT_HOME/bin.
+func ToolsDir() (string, error) {
+	home := os.Getenv(types.HomeEnvVar)
+	if home == "" {
+		var err error
+		home, err = os.UserHomeDir()
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
-	cmd := exec.Command(path, os.Args[1:]...)
-	// To prevent re-execution loop we have to disable update logic for re-execution.
-	cmd.Env = append(os.Environ(), teleportToolsVersion+"=off")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return cmd.ProcessState.ExitCode(), nil
+	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
 }
 
-func version() (string, error) {
+func version(toolsDir string) (string, error) {
 	// Find the path to the current executable.
-	path, err := toolName()
+	path, err := toolName(toolsDir)
 	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	} else if err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -380,35 +405,43 @@ func version() (string, error) {
 	return "", trace.BadParameter("unable to determine version")
 }
 
-// toolsDir returns the path to {tsh, tctl} in $TELEPORT_HOME/bin.
-func toolsDir() (string, error) {
-	home := os.Getenv(types.HomeEnvVar)
-	if home == "" {
-		var err error
-		home, err = os.UserHomeDir()
-		if err != nil {
-			return "", trace.Wrap(err)
+// urls returns the URL for the Teleport archive to download. The format is:
+// https://cdn.teleport.dev/teleport-{, ent-}v15.3.0-{linux, darwin, windows}-{amd64,arm64,arm,386}-{fips-}bin.tar.gz
+func urls(baseUrl, toolsVersion string) (string, string, error) {
+	var archive string
+	switch runtime.GOOS {
+	case "darwin":
+		archive = baseUrl + "/tsh-" + toolsVersion + ".pkg"
+	case "windows":
+		archive = baseUrl + "/teleport-v" + toolsVersion + "-windows-amd64-bin.zip"
+	case "linux":
+		var b strings.Builder
+		b.WriteString(baseUrl + "/teleport-")
+		if featureFlag&(FlagEnt|FlagFips) != 0 {
+			b.WriteString("ent-")
 		}
+		b.WriteString("v" + toolsVersion + "-" + runtime.GOOS + "-" + runtime.GOARCH + "-")
+		if featureFlag&FlagFips != 0 {
+			b.WriteString("fips-")
+		}
+		b.WriteString("bin.tar.gz")
+		archive = b.String()
+	default:
+		return "", "", trace.BadParameter("unsupported runtime: %v", runtime.GOOS)
 	}
 
-	return filepath.Join(filepath.Clean(home), ".tsh", "bin"), nil
+	return archive, archive + ".sha256", nil
 }
 
 // toolName returns the path to {tsh, tctl} for the executable that started
 // the current process.
-func toolName() (string, error) {
-	base, err := toolsDir()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
+func toolName(toolsDir string) (string, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	toolName := filepath.Base(executablePath)
 
-	return filepath.Join(base, toolName), nil
+	return filepath.Join(toolsDir, filepath.Base(executablePath)), nil
 }
 
 // checkFreeSpace verifies that we have enough requested space at specific directory.
@@ -421,5 +454,6 @@ func checkFreeSpace(path string, requested uint64) error {
 	if requested > free {
 		return trace.Errorf("%q needs %d additional bytes of disk space", path, requested-free)
 	}
+
 	return nil
 }

@@ -700,17 +700,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// At process startup, check if a version has already been downloaded to
 	// $TELEPORT_HOME/bin or if the user has set the TELEPORT_TOOLS_VERSION
 	// environment variable. If so, re-exec that version of {tsh, tctl}.
-	toolsVersion, reexec := update.CheckLocal()
+	toolsDir, err := update.ToolsDir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := update.NewUpdater(toolsDir, teleport.Version)
+	toolsVersion, reexec := updater.CheckLocal()
 	if reexec {
 		// Download the version of client tools required by the cluster. This
 		// is required if the user passed in the TELEPORT_TOOLS_VERSION
 		// explicitly.
-		if err := update.Download(toolsVersion); err != nil {
+		if err := updater.Download(toolsVersion); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Re-execute client tools with the correct version of client tools.
-		code, err := update.Exec()
+		code, err := updater.Exec()
 		if err != nil {
 			log.Debugf("Failed to re-exec client tool: %v.", err)
 			// TODO(russjones): Is 255 the correct error code here?
@@ -1238,8 +1243,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	if runtime.GOOS == constants.WindowsOS {
 		bench.Hidden()
 	}
-
-	var err error
 
 	cf.executablePath, err = os.Executable()
 	if err != nil {
@@ -5467,18 +5470,23 @@ const (
 func updateAndRun(ctx context.Context, proxy string) error {
 	// If needed, download the new version of {tsh, tctl} and re-exec. Make
 	// sure to exit this process with the same exit code as the child process.
-	toolsVersion, reexec, err := update.CheckRemote(ctx, proxy)
+	toolsDir, err := update.ToolsDir()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updater := update.NewUpdater(toolsDir, teleport.Version)
+	toolsVersion, reexec, err := updater.CheckRemote(ctx, proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if reexec {
 		// Download the version of client tools required by the cluster.
-		if err := update.Download(toolsVersion); err != nil {
+		if err := updater.Download(toolsVersion); err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Re-execute client tools with the correct version of client tools.
-		code, err := update.Exec()
+		code, err := updater.Exec()
 		if err != nil {
 			return trace.Wrap(err)
 		}

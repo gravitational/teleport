@@ -34,11 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func replace(path string, _ string) error {
-	dir, err := toolsDir()
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func replace(dir string, path string, _ string) error {
 	tempDir := renameio.TempDir(dir)
 
 	f, err := os.Open(path)
