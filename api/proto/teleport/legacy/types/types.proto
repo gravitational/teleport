@@ -4536,6 +4536,8 @@ message OIDCConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4554,6 +4556,23 @@ message SSOClientRedirectSettings {
   repeated string allowed_https_hostnames = 1;
   // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
   repeated string insecure_allowed_cidr_ranges = 2;
+}
+
+// OIDCConnectorMFASettings contains OIDC MFA settings.
+message OIDCConnectorMFASettings {
+  // Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // ClientID is the OIDC OAuth app client ID.
+  string client_id = 2;
+  // ClientSecret is the OIDC OAuth app client secret.
+  string client_secret = 3;
+  // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
+  // value is context-specific and varies for identity providers. Some identity providers
+  // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+  string acr_values = 4;
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.
+  // If not specified, it defaults to select_account for backwards compatibility.
+  string prompt = 5;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4728,6 +4747,19 @@ message SAMLConnectorSpecV2 {
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa,omitempty"];
+}
+
+// SAMLConnectorMFASettings contains SAML MFA settings.
+message SAMLConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+  // parameters in one XML file rather than supplying them in the individual elements.
+  string entity_descriptor = 2;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML.
+  string entity_descriptor_url = 3;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML

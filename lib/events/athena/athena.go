@@ -21,6 +21,7 @@ package athena
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -130,8 +130,8 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator.
 	UIDGenerator utils.UID
-	// LogEntry is a log entry.
-	LogEntry *log.Entry
+	// Logger emits log messages.
+	Logger *slog.Logger
 
 	// PublisherConsumerAWSConfig is an AWS config which can be used to
 	// construct AWS Clients using aws-sdk-go-v2, used by the publisher and
@@ -276,10 +276,8 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
-	if cfg.LogEntry == nil {
-		cfg.LogEntry = log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.ComponentAthena,
-		})
+	if cfg.Logger == nil {
+		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
 	}
 
 	if cfg.PublisherConsumerAWSConfig == nil {
@@ -476,7 +474,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		getQueryResultsInterval:      cfg.GetQueryResultsInterval,
 		disableQueryCostOptimization: cfg.DisableSearchCostOptimization,
 		awsCfg:                       cfg.StorerQuerierAWSConfig,
-		logger:                       cfg.LogEntry,
+		logger:                       cfg.Logger,
 		clock:                        cfg.Clock,
 		tracer:                       cfg.Tracer,
 	})
