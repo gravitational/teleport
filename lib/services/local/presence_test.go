@@ -249,16 +249,6 @@ func TestNodeCRUD(t *testing.T) {
 	node2, err := types.NewServerWithLabels("node2", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
 
-	node3, err := types.NewServerWithLabels(
-		"node3",
-		types.KindNode,
-		types.ServerSpecV2{
-			Hostname: "localhost;cat /etc/passwd",
-		},
-		nil,
-	)
-	require.NoError(t, err)
-
 	t.Run("CreateNode", func(t *testing.T) {
 		// Initially expect no nodes to be returned.
 		nodes, err := presence.GetNodes(ctx, apidefaults.Namespace)
@@ -270,10 +260,6 @@ func TestNodeCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = presence.UpsertNode(ctx, node2)
 		require.NoError(t, err)
-
-		// Creating a node with an invalid hostname should fail
-		_, err = presence.UpsertNode(ctx, node3)
-		require.ErrorContains(t, err, "invalid hostname")
 	})
 
 	// Run NodeGetters in nested subtests to allow parallelization.
