@@ -718,64 +718,49 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		c.Spec.SecondFactor = constants.SecondFactorWebauthn
 	}
 
-	// Make sure second factor makes sense.
-	sf := c.Spec.SecondFactor
-	switch sf {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-	case constants.SecondFactorWebauthn:
-		// If U2F is present validate it, we can derive Webauthn from it.
-		if c.Spec.U2F != nil {
-			if err := c.Spec.U2F.Check(); err != nil {
-				return trace.Wrap(err)
-			}
-			if c.Spec.Webauthn == nil {
-				// Not a problem, try to derive from U2F.
-				c.Spec.Webauthn = &Webauthn{}
-			}
+	// If U2F is present validate it, we can derive Webauthn from it.
+	if c.Spec.U2F != nil {
+		if err := c.Spec.U2F.Check(); err != nil {
+			return trace.Wrap(err)
 		}
 		if c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
+			// Not a problem, try to derive from U2F.
+			c.Spec.Webauthn = &Webauthn{}
 		}
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// The following scenarios are allowed for "on" and "optional":
-		// - Webauthn is configured (preferred)
-		// - U2F is configured, Webauthn derived from it (U2F-compat mode)
+	}
 
-		if c.Spec.U2F == nil && c.Spec.Webauthn == nil {
-			return trace.BadParameter("missing required webauthn configuration for second factor type %q", sf)
+	if c.GetSecondFactor() != "" {
+		// TODO(Joerger): print deprecation warning with new documentation link.
+	}
+
+	if len(c.GetSecondFactors()) == 0 {
+		// TODO(Joerger): Delete conditional once SecondFactorOff is removed.
+		if c.GetSecondFactor() != constants.SecondFactorOff {
+			return trace.BadParameter("missing required second_factors field")
+		}
+	}
+
+	// Validate expected fields for webauthn.
+	hasWebauthn := c.IsSecondFactorWebauthnAllowed()
+	if hasWebauthn {
+		if c.Spec.Webauthn == nil {
+			return trace.BadParameter("missing required webauthn configuration")
 		}
 
-		// Is U2F configured?
-		if c.Spec.U2F != nil {
-			if err := c.Spec.U2F.Check(); err != nil {
-				return trace.Wrap(err)
-			}
-			if c.Spec.Webauthn == nil {
-				// Not a problem, try to derive from U2F.
-				c.Spec.Webauthn = &Webauthn{}
-			}
-		}
-
-		// Is Webauthn valid? At this point we should always have a config.
 		if err := c.Spec.Webauthn.CheckAndSetDefaults(c.Spec.U2F); err != nil {
 			return trace.Wrap(err)
 		}
-	default:
-		return trace.BadParameter("second factor type %q not supported", c.Spec.SecondFactor)
 	}
 
 	// Set/validate AllowPasswordless. We need Webauthn first to do this properly.
-	hasWebauthn := sf == constants.SecondFactorWebauthn ||
-		sf == constants.SecondFactorOn ||
-		sf == constants.SecondFactorOptional
 	switch {
 	case c.Spec.AllowPasswordless == nil:
 		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowPasswordless.Value:
-		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
+		return trace.BadParameter("missing required webauthn configuration for passwordless=true")
 	}
 
 	// Set/validate AllowHeadless. We need Webauthn first to do this properly.
@@ -783,7 +768,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	case c.Spec.AllowHeadless == nil:
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
-		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+		return trace.BadParameter("missing required webauthn configuration for headless=true")
 	}
 
 	// Validate connector name for type=local.
