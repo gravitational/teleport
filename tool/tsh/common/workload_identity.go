@@ -24,7 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -152,7 +152,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		keyPath := path.Join(c.outputDirectory, svidKeyPEMPath)
+		keyPath := filepath.Join(c.outputDirectory, svidKeyPEMPath)
 		err = os.WriteFile(
 			keyPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -166,7 +166,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		}
 
 		// Write SVID
-		svidPath := path.Join(c.outputDirectory, svidPEMPath)
+		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
 		err = os.WriteFile(
 			svidPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -195,7 +195,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 				}
 			}
 		}
-		trustBundlePath := path.Join(c.outputDirectory, svidTrustBundlePEMPath)
+		trustBundlePath := filepath.Join(c.outputDirectory, svidTrustBundlePEMPath)
 		err = os.WriteFile(
 			trustBundlePath,
 			trustBundleBytes.Bytes(),
