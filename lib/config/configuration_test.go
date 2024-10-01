@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -2998,7 +2997,7 @@ func TestDatabaseCLIFlags(t *testing.T) {
 
 func TestTLSCert(t *testing.T) {
 	tmpDir := t.TempDir()
-	tmpCA := path.Join(tmpDir, "ca.pem")
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
 
 	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
 	require.NoError(t, err)

@@ -27,7 +27,7 @@ import (
 	"io"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -1747,8 +1747,8 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestPar
 }
 
 func (s *session) expandFileTransferRequestPath(p string) (string, error) {
-	expanded := path.Clean(p)
-	dir := path.Dir(expanded)
+	expanded := filepath.Clean(p)
+	dir := filepath.Dir(expanded)
 
 	var tildePrefixed bool
 	var noBaseDir bool
@@ -1775,11 +1775,11 @@ func (s *session) expandFileTransferRequestPath(p string) (string, error) {
 
 		if tildePrefixed {
 			// expand home dir to make an absolute path
-			expanded = path.Join(homeDir, expanded[2:])
+			expanded = filepath.Join(homeDir, expanded[2:])
 		} else {
 			// if no directories are specified SFTP will assume the file
 			// to be in the user's home dir
-			expanded = path.Join(homeDir, expanded)
+			expanded = filepath.Join(homeDir, expanded)
 		}
 	}
 

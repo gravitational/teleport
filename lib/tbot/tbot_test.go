@@ -971,8 +971,8 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
-	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
-	tmpDir := path.Join(os.TempDir(), t.Name())
+	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
+	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
 	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {
