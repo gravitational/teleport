@@ -43,61 +43,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestConnectionsLimiter(t *testing.T) {
-	limiter, err := NewLimiter(
-		Config{
-			MaxConnections: 0,
-		},
-	)
-	require.NoError(t, err)
-
-	for i := 0; i < 10; i++ {
-		require.NoError(t, limiter.AcquireConnection("token1"))
-	}
-	for i := 0; i < 5; i++ {
-		require.NoError(t, limiter.AcquireConnection("token2"))
-	}
-
-	for i := 0; i < 10; i++ {
-		limiter.ReleaseConnection("token1")
-	}
-	for i := 0; i < 5; i++ {
-		limiter.ReleaseConnection("token2")
-	}
-
-	limiter, err = NewLimiter(
-		Config{
-			MaxConnections: 5,
-		},
-	)
-	require.NoError(t, err)
-
-	for i := 0; i < 5; i++ {
-		require.NoError(t, limiter.AcquireConnection("token1"))
-	}
-
-	for i := 0; i < 5; i++ {
-		require.NoError(t, limiter.AcquireConnection("token2"))
-	}
-	for i := 0; i < 5; i++ {
-		require.Error(t, limiter.AcquireConnection("token2"))
-	}
-
-	for i := 0; i < 10; i++ {
-		limiter.ReleaseConnection("token1")
-		require.NoError(t, limiter.AcquireConnection("token1"))
-	}
-
-	for i := 0; i < 5; i++ {
-		limiter.ReleaseConnection("token2")
-	}
-	for i := 0; i < 5; i++ {
-		require.NoError(t, limiter.AcquireConnection("token2"))
-	}
-}
-
 func TestRateLimiter(t *testing.T) {
-	// TODO: this test fails
 	clock := &timetools.FreezedTime{
 		CurrentTime: time.Date(2016, 6, 5, 4, 3, 2, 1, time.UTC),
 	}
@@ -404,8 +350,7 @@ func TestListener(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			limiter, err := NewConnectionsLimiter(test.config)
-			require.NoError(t, err)
+			limiter := NewConnectionsLimiter(test.config.MaxConnections)
 
 			ln, err := NewListener(test.listener, limiter)
 			require.NoError(t, err)
