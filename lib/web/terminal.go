@@ -639,7 +639,6 @@ func mfaPrompt(stream *terminal.WSStream, codec terminal.MFACodec) mfa.Prompt {
 		resp, err := stream.ReadChallengeResponse(codec)
 		return resp, trace.Wrap(err)
 	})
-
 }
 
 type connectWithMFAFn = func(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)

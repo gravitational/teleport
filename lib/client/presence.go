@@ -57,7 +57,6 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
 func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...PresenceOption) error {
-
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{

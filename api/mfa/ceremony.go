@@ -38,22 +38,18 @@ type Ceremony struct {
 
 // Run runs the MFA ceremony.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
-	if c.CreateAuthenticateChallenge == nil {
+	switch {
+	case c.CreateAuthenticateChallenge == nil:
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
-	}
-
-	if c.SolveAuthenticateChallenge == nil && c.PromptConstructor == nil {
-		return nil, trace.BadParameter("mfa ceremony must have SolveAuthenticateChallenge or PromptConstructor set in order to succeed")
-	}
-
-	if req != nil {
-		if req.ChallengeExtensions == nil {
-			return nil, trace.BadParameter("missing challenge extensions")
-		}
-
-		if req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED {
-			return nil, trace.BadParameter("mfa challenge scope must be specified")
-		}
+	case c.SolveAuthenticateChallenge != nil && c.PromptConstructor != nil:
+		return nil, trace.BadParameter("mfa ceremony should have SolveAuthenticateChallenge or PromptConstructor set, not both")
+	case req == nil:
+		// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
+		// its own req or uses a different rpc, e.g. moderated sessions.
+	case req.ChallengeExtensions == nil:
+		return nil, trace.BadParameter("missing challenge extensions")
+	case req.ChallengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_UNSPECIFIED:
+		return nil, trace.BadParameter("mfa challenge scope must be specified")
 	}
 
 	chal, err := c.CreateAuthenticateChallenge(ctx, req)
@@ -73,11 +69,17 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, &ErrMFANotRequired
 	}
 
-	if c.SolveAuthenticateChallenge != nil {
-		return c.SolveAuthenticateChallenge(ctx, chal)
+	if c.SolveAuthenticateChallenge == nil && c.PromptConstructor == nil {
+		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have SolveAuthenticateChallenge or PromptConstructor set in order to succeed")
 	}
 
-	return c.PromptConstructor(promptOpts...).Run(ctx, chal)
+	if c.SolveAuthenticateChallenge != nil {
+		resp, err := c.SolveAuthenticateChallenge(ctx, chal)
+		return resp, trace.Wrap(err)
+	}
+
+	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
+	return resp, trace.Wrap(err)
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

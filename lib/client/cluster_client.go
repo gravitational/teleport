@@ -658,6 +658,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 		mfaRequiredReq = nil // Already checked, don't check again at root.
 	}
 
+	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
 	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},

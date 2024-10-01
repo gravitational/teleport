@@ -364,7 +364,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 						SiteName: "test",
 						Tracer:   tracing.NoopTracer("test"),
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
-							return test.prompt.Prompt
+							return test.prompt
 						},
 					},
 					lastPing: &webclient.PingResponse{
