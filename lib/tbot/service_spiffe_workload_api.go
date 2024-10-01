@@ -38,6 +38,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	workloadpb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -46,6 +47,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -800,12 +802,45 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
 }
 
 // ValidateJWTSVID implements the SPIFFE Workload API ValidateJWTSVID method.
+// See The SPIFFE Workload API (6.2.3).
 func (s *SPIFFEWorkloadAPIService) ValidateJWTSVID(
 	ctx context.Context,
 	req *workloadpb.ValidateJWTSVIDRequest,
 ) (*workloadpb.ValidateJWTSVIDResponse, error) {
-	// JWT functionality currently not implemented in Teleport Workload Identity.
-	return nil, trace.NotImplemented("method not implemented")
+	s.log.InfoContext(ctx, "ValidateJWTSVID request received from workload")
+	defer s.log.InfoContext(ctx, "ValidateJWTSVID request handled")
+
+	// The SPIFFE Workload API (6.2.3):
+	// > All fields in the ValidateJWTSVIDRequest and ValidateJWTSVIDResponse
+	// > message are mandatory.
+	switch {
+	case req.Audience == "":
+		return nil, trace.BadParameter("audience: must be set")
+	case req.Svid == "":
+		return nil, trace.BadParameter("svid: must be set")
+	}
+
+	bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	svid, err := jwtsvid.ParseAndValidate(
+		req.Svid, bundleSet, []string{req.Audience},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "validating JWT SVID")
+	}
+
+	claims, err := structpb.NewStruct(svid.Claims)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling claims")
+	}
+
+	return &workloadpb.ValidateJWTSVIDResponse{
+		SpiffeId: svid.ID.String(),
+		Claims:   claims,
+	}, nil
 }
 
 // String returns a human-readable string that can uniquely identify the

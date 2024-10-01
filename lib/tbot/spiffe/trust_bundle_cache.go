@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/bundle/jwtbundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -143,6 +144,18 @@ func (b *BundleSet) MarshaledJWKSBundles(includeLocal bool) (map[string][]byte, 
 		bundles[v.TrustDomain().IDString()] = marshaled
 	}
 	return bundles, nil
+}
+
+// GetJWTBundleForTrustDomain returns the JWT bundle for the given trust domain.
+// Implements the jwtbundle.Source interface.
+func (b *BundleSet) GetJWTBundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*jwtbundle.Bundle, error) {
+	if trustDomain.Name() == b.Local.TrustDomain().Name() {
+		return b.Local.JWTBundle(), nil
+	}
+	if bundle, ok := b.Federated[trustDomain.Name()]; ok {
+		return bundle.JWTBundle(), nil
+	}
+	return nil, trace.NotFound("trust domain %q not found", trustDomain.Name())
 }
 
 type eventsWatcher interface {
