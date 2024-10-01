@@ -282,6 +282,8 @@ type SignParamsJWTSVID struct {
 // SignJWTSVID signs a JWT SVID token.
 // See https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md
 func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
+	// Record time here for consistency between exp and iat.
+	now := k.config.Clock.Now()
 	claims := jwt.Claims{
 		// > 3.1. Subject:
 		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
@@ -291,10 +293,10 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 		Audience: p.Audiences,
 		// > 3.3. Expiration Time:
 		// > The exp claim MUST be set
-		Expiry: jwt.NewNumericDate(k.config.Clock.Now().Add(p.TTL)),
+		Expiry: jwt.NewNumericDate(now.Add(p.TTL)),
 		// The spec makes no comment on inclusion of `iat`, but the SPIRE
 		// implementation does set this value and it feels like a good idea.
-		IssuedAt: jwt.NewNumericDate(k.config.Clock.Now()),
+		IssuedAt: jwt.NewNumericDate(now),
 		// > 7.1. Replay Protection
 		// > the jti claim is permitted by this specification, it should be
 		// > noted that JWT-SVID validators are not required to track jti
