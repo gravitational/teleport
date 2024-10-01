@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -103,8 +104,11 @@ func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
 type SessionRegistry struct {
 	SessionRegistryConfig
 
-	// log holds the structured logger
+	// deprecated: log holds the legacy logrus structured logger
 	log *log.Entry
+
+	// logger holds the structured logger
+	logger *slog.Logger
 
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
@@ -185,6 +189,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
+		logger:   slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
 		sudoers:  cfg.Srv.GetHostSudoers(),
@@ -289,15 +294,19 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 // If the returned closer is not nil, it must be called at the end of the session to
 // clean up the local user.
 func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	ctx := s.Srv.Context()
+	log := s.logger.With("host_username", identityContext.Login)
+
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
 		return false, nil, nil
 	}
 
 	if !s.Srv.GetCreateHostUser() || s.users == nil {
-		s.log.Debug("Not creating host user: node has disabled host user creation.")
+		log.DebugContext(ctx, "Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
+	log.DebugContext(ctx, "Attempting to upsert host user")
 	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if trace.IsAccessDenied(accessErr) {
 		existsErr := s.users.UserExists(identityContext.Login)
@@ -316,16 +325,17 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil {
-		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
+		log.DebugContext(ctx, "Error creating user", "error", err)
 
 		if errors.Is(err, unmanagedUserErr) {
-			log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
 			return false, nil, nil
 		}
 
 		if !trace.IsAlreadyExists(err) {
 			return false, nil, trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Host user already exists")
 	}
 
 	return true, userCloser, nil
