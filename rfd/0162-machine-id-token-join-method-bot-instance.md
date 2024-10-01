@@ -128,14 +128,14 @@ renewal time:
    was originally signed with our CA, and the client will only be able to
    decrypt the returned identity if they actually have the private key for the
    previous identity.
+3. Accept client certificate authentication in HTTPS join methods. gRPC join
+   methods already accept client certificates, however these are authenticated
+   in the Join Service rather than in Auth directly. As such, gRPC join methods
+   will need to pass along the bot instance ID in a trusted field.
 
-Our preference is option (1): bots always join over gRPC, and provide a client
-certificate when re-joining. Bots without a client cert to present are
-registered as new instances, while bots with a valid client cert preserve their
-identity.
-
-Note that bots joined with the `token` method are not affected by this, as
-renewals take place over a fully mTLS-authenticated tunnel to the auth service.
+Our preference is option (3): bots and other clients join as usual, but will
+always provide a client certificate when one is available. Auth will use this
+client certificate to pair joining bots with their previous instances.
 
 Additionally, a downside to certificate verification is that the certificate
 validity period becomes a factor. If bots are only run intermittently, like
