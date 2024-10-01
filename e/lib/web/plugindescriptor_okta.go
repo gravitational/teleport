@@ -47,9 +47,10 @@ var _ pluginDescriptor = oktaPluginDescriptor{}
 // HandleValidateConfigRequest tests the Okta client configuration supplied in
 // the form.
 func (oktaPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, sessCtx *web.SessionContext, form url.Values, p *Plugin) error {
+	clusterFeatures := p.h.GetClusterFeatures()
 	args := validateOktaPluginInputsArgs{
 		form:            form,
-		clusterFeatures: &p.h.ClusterFeatures,
+		clusterFeatures: &clusterFeatures,
 		log:             p.Log,
 	}
 	_, err := args.validateOktaConfig(ctx)
@@ -58,10 +59,11 @@ func (oktaPluginDescriptor) HandleValidateConfigRequest(ctx context.Context, ses
 
 // HandleInstallRequest installs the Okta plugin
 func (oktaPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	clusterFeatures := p.h.GetClusterFeatures()
 	return installOktaPlugin(ctx, installOktaPluginArgs{
 		validateOktaPluginInputsArgs: validateOktaPluginInputsArgs{
 			form:            r.Form,
-			clusterFeatures: &p.h.ClusterFeatures,
+			clusterFeatures: &clusterFeatures,
 			log:             p.Log,
 		},
 		sessCtx: sessCtx,

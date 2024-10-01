@@ -357,15 +357,16 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	// the billing summary API is available for cloud users
 	// as well as self-hosted dashboards for usage-based customers
-	isDashboard := services.IsDashboard(p.h.ClusterFeatures)
-	isUsageBased := p.h.ClusterFeatures.IsUsageBased
-	isStripeManaged := p.h.ClusterFeatures.IsStripeManaged
+	features := p.h.GetClusterFeatures()
+	isDashboard := services.IsDashboard(features)
+	isUsageBased := features.IsUsageBased
+	isStripeManaged := features.IsStripeManaged
 
-	if p.h.ClusterFeatures.GetCloud() || (isDashboard && isUsageBased && !isStripeManaged) {
+	if features.GetCloud() || (isDashboard && isUsageBased && !isStripeManaged) {
 		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
 	}
 
-	if p.h.ClusterFeatures.GetCloud() {
+	if features.GetCloud() {
 		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
 		h.GET("/enterprise/cloud/nonbillable-summary", p.withCloudAuth(p.getNonBillableUsageSummaryHandle))
 
@@ -383,7 +384,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	}
 
 	// Recovery related endpoints.
-	if p.h.ClusterFeatures.GetRecoveryCodes() {
+	if features.GetRecoveryCodes() {
 		p.Log.Infoln("enabling recovery endpoints")
 		h.POST("/enterprise/cloud/recovery/start", p.withCloud(p.startAccountRecoveryHandle))
 		h.POST("/enterprise/cloud/recovery/verify", p.withCloud(p.verifyAccountRecoveryHandle))

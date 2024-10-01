@@ -73,11 +73,12 @@ type testOktaDescriptor struct {
 // HandleInstallRequest implements pluginDescriptor for the testOktaDescriptor
 // type.
 func (d testOktaDescriptor) HandleInstallRequest(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	clusterFeatures := p.h.GetClusterFeatures()
 	return installOktaPlugin(ctx, installOktaPluginArgs{
 		validateOktaPluginInputsArgs: validateOktaPluginInputsArgs{
 			form:            r.Form,
 			httpClient:      d.httpClient,
-			clusterFeatures: &p.h.ClusterFeatures,
+			clusterFeatures: &clusterFeatures,
 			log:             p.Log,
 			bcryptCost:      bcrypt.MinCost,
 		},
@@ -96,10 +97,11 @@ func (d testOktaDescriptor) TranslateCallbackCookie(*types.PluginSpecV1, *plugin
 // HandleValidateConfigRequest implements pluginDescriptor for the
 // testOktaDescriptor type.
 func (d testOktaDescriptor) HandleValidateConfigRequest(ctx context.Context, _ *web.SessionContext, form url.Values, p *Plugin) error {
+	clusterFeatures := p.h.GetClusterFeatures()
 	args := validateOktaPluginInputsArgs{
 		form:            form,
 		httpClient:      d.httpClient,
-		clusterFeatures: &p.h.ClusterFeatures,
+		clusterFeatures: &clusterFeatures,
 		log:             p.Log,
 	}
 	_, err := args.validateOktaConfig(ctx)
@@ -298,9 +300,11 @@ func TestOktaPluginInstallWithNewSAMLConnector(t *testing.T) {
 				authSvc.DeleteSAMLConnector(s.ctx, oktaSSOConnectorName)
 			})
 
-			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+			features := s.webPlugin.h.GetClusterFeatures()
+			features.Entitlements = map[string]*proto.EntitlementInfo{
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
+			s.webPlugin.h.SetClusterFeatures(features)
 
 			form := url.Values{
 				"type":       {"okta"},
@@ -559,9 +563,11 @@ func TestOktaPluginInstallWithExistingSAMLConnector(t *testing.T) {
 				pluginCredsSvc.DeletePluginStaticCredentials(s.ctx, types.PluginTypeOkta)
 			})
 
-			s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+			features := s.webPlugin.h.GetClusterFeatures()
+			features.Entitlements = map[string]*proto.EntitlementInfo{
 				string(entitlements.OktaSCIM): {Enabled: testCase.enableOktaSCIMEntitlement},
 			}
+			s.webPlugin.h.SetClusterFeatures(features)
 
 			// When I invoke the installer via the web interface...
 			installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
@@ -694,9 +700,11 @@ func TestOktaPluginInstallFailsWithInvalidFormValues(t *testing.T) {
 	s, webPack, mockta := newTestOktaPluginFixture(t)
 	installPluginEndPoint := webPack.clt.Endpoint("enterprise", "plugin")
 
-	s.webPlugin.h.ClusterFeatures.Entitlements = map[string]*proto.EntitlementInfo{
+	features := s.webPlugin.h.GetClusterFeatures()
+	features.Entitlements = map[string]*proto.EntitlementInfo{
 		string(entitlements.OktaSCIM): {Enabled: true},
 	}
+	s.webPlugin.h.SetClusterFeatures(features)
 
 	mockta.On("RoundTrip", requestForPath("GET", "/api/v1/users/me")).
 		Maybe().
