@@ -20,6 +20,8 @@ package spiffe
 
 import (
 	"context"
+	"crypto"
+	"crypto/rsa"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -35,6 +37,9 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	trustv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -176,6 +181,13 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
 	require.NoError(t, err)
+	jwtCAPublic, jwtCAPrivate, err := testauthority.New().GenerateJWT()
+	require.NoError(t, err)
+	jwtCA, err := keys.ParsePublicKey(jwtCAPublic)
+	require.NoError(t, err)
+	rsaJWTCA, ok := jwtCA.(*rsa.PublicKey)
+	require.True(t, ok, "unsupported key format %T", jwtCA)
+	jwtCAKID := jwt.KeyID(rsaJWTCA)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.SPIFFECA,
 		ClusterName: "example.com",
@@ -184,6 +196,12 @@ func TestTrustBundleCache_Run(t *testing.T) {
 				{
 					Cert: caCertPEM,
 					Key:  caKey,
+				},
+			},
+			JWT: []*types.JWTKeyPair{
+				{
+					PublicKey:  jwtCAPublic,
+					PrivateKey: jwtCAPrivate,
 				},
 			},
 		},
@@ -233,6 +251,10 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.Equal(t, "example.com", gotBundleSet.Local.TrustDomain().Name())
 	require.Len(t, gotBundleSet.Local.X509Authorities(), 1)
 	require.True(t, gotBundleSet.Local.X509Authorities()[0].Equal(caCert))
+	require.Len(t, gotBundleSet.Local.JWTAuthorities(), 1)
+	gotBundleJWTKey, ok := gotBundleSet.Local.FindJWTAuthority(jwtCAKID)
+	require.True(t, ok, "public key not found in bundle")
+	require.True(t, gotBundleJWTKey.(interface{ Equal(x crypto.PublicKey) bool }).Equal(jwtCA), "public keys do not match")
 	// Check the federated bundle
 	gotFederatedBundle, ok := gotBundleSet.Federated["pre-init-federated.example.com"]
 	require.True(t, ok)
