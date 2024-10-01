@@ -22,9 +22,16 @@ import {
   ShellCommand,
   TshLoginCommand,
   GatewayCliClientCommand,
+  SshOptions,
 } from '../types';
 
 import { getPtyProcessOptions } from './buildPtyOptions';
+
+const makeSshOptions = (options: Partial<SshOptions> = {}): SshOptions => ({
+  noResume: false,
+  forwardAgent: false,
+  ...options,
+});
 
 describe('getPtyProcessOptions', () => {
   describe('pty.gateway-cli-client', () => {
@@ -47,7 +54,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions(
         makeRuntimeSettings(),
-        { ssh: { noResume: false }, windowsPty: { useConpty: true } },
+        { ssh: makeSshOptions(), windowsPty: { useConpty: true } },
         cmd,
         processEnv
       );
@@ -76,7 +83,7 @@ describe('getPtyProcessOptions', () => {
 
       const { env } = getPtyProcessOptions(
         makeRuntimeSettings(),
-        { ssh: { noResume: false }, windowsPty: { useConpty: true } },
+        { ssh: makeSshOptions(), windowsPty: { useConpty: true } },
         cmd,
         processEnv
       );
@@ -103,12 +110,71 @@ describe('getPtyProcessOptions', () => {
 
       const { args } = getPtyProcessOptions(
         makeRuntimeSettings(),
-        { ssh: { noResume: true }, windowsPty: { useConpty: true } },
+        {
+          ssh: makeSshOptions({ noResume: true }),
+          windowsPty: { useConpty: true },
+        },
         cmd,
         processEnv
       );
 
       expect(args).toContain('--no-resume');
+    });
+
+    it('enables agent forwarding on tsh ssh invocations if the option is set', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: TshLoginCommand = {
+        kind: 'pty.tsh-login',
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        login: 'bob',
+        serverId: '01234567-89ab-cdef-0123-456789abcdef',
+        rootClusterId: 'baz',
+        leafClusterId: undefined,
+      };
+
+      const { args } = getPtyProcessOptions(
+        makeRuntimeSettings(),
+        {
+          ssh: makeSshOptions({ forwardAgent: true }),
+          windowsPty: { useConpty: true },
+        },
+        cmd,
+        processEnv
+      );
+
+      expect(args).toContain('--forward-agent');
+    });
+
+    it('does not enable agent forwarding on tsh ssh invocations if the option is not set', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: TshLoginCommand = {
+        kind: 'pty.tsh-login',
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        login: 'bob',
+        serverId: '01234567-89ab-cdef-0123-456789abcdef',
+        rootClusterId: 'baz',
+        leafClusterId: undefined,
+      };
+
+      const { args } = getPtyProcessOptions(
+        makeRuntimeSettings(),
+        {
+          ssh: makeSshOptions({ forwardAgent: false }),
+          windowsPty: { useConpty: true },
+        },
+        cmd,
+        processEnv
+      );
+
+      expect(args).not.toContain('--forward-agent');
     });
   });
 });

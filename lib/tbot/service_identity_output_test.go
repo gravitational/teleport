@@ -21,6 +21,7 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
@@ -172,6 +174,7 @@ func Test_renderSSHConfig(t *testing.T) {
 
 			err := renderSSHConfig(
 				context.Background(),
+				utils.NewSlogLoggerForTests(),
 				&webclient.PingResponse{
 					ClusterName: mockClusterName,
 					Proxy: webclient.ProxySettings{
@@ -224,6 +227,39 @@ func Test_renderSSHConfig(t *testing.T) {
 			require.Equal(
 				t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
 			)
+
+			// TODO(noah): In v17, we can move these assertions into the main
+			// block as the legacy proxycommand mode will be removed.
+			if tc.Env[sshConfigProxyModeEnv] == "new" {
+				for clusterType, clusterName := range map[string]string{
+					"local":  mockClusterName,
+					"remote": mockRemoteClusterName,
+				} {
+					clusterKnownHostBytes, err := os.ReadFile(
+						filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)),
+					)
+					require.NoError(t, err)
+					clusterKnownHostBytes = replaceTestDir(clusterKnownHostBytes)
+					clusterSSHConfigBytes, err := os.ReadFile(
+						filepath.Join(dir, fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)),
+					)
+					require.NoError(t, err)
+					clusterSSHConfigBytes = replaceTestDir(clusterSSHConfigBytes)
+
+					configGolden := fmt.Sprintf("%s_cluster_ssh_config", clusterType)
+					knownHostsGolden := fmt.Sprintf("%s_cluster_known_hosts", clusterType)
+					if golden.ShouldSet() {
+						golden.SetNamed(t, knownHostsGolden, clusterKnownHostBytes)
+						golden.SetNamed(t, configGolden, clusterSSHConfigBytes)
+					}
+					require.Equal(
+						t, string(golden.GetNamed(t, knownHostsGolden)), string(clusterKnownHostBytes),
+					)
+					require.Equal(
+						t, string(golden.GetNamed(t, configGolden)), string(clusterSSHConfigBytes),
+					)
+				}
+			}
 		})
 	}
 }

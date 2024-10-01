@@ -163,6 +163,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		}
 		return idCtx
 	}
+	assertTrustedDeviceRequired := func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
+		assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
+		assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
+	}
 
 	cases := []struct {
 		name      string
@@ -451,22 +455,17 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			},
 		},
 		{
-			name:     "device extensions not enforced for OSS",
-			cfg:      cfgWithDeviceMode(constants.DeviceTrustModeRequired),
-			identity: minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
-				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
-			},
+			name:      "device extensions enforced for OSS",
+			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
+			identity:  minimalIdentity,
+			assertion: assertTrustedDeviceRequired,
 		},
 		{
 			name:      "device extensions enforced for Enterprise",
 			buildType: modules.BuildEnterprise,
 			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity:  minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
-				assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
-				assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
-			},
+			assertion: assertTrustedDeviceRequired,
 		},
 		{
 			name:      "device extensions valid for Enterprise",

@@ -186,6 +186,7 @@ func (s *IdentityOutputService) generate(ctx context.Context) error {
 		}
 		if err := renderSSHConfig(
 			ctx,
+			s.log,
 			proxyPing,
 			clusterNames,
 			s.cfg.Destination,
@@ -249,6 +250,7 @@ type alpnTester interface {
 
 func renderSSHConfig(
 	ctx context.Context,
+	log *slog.Logger,
 	proxyPing *webclient.PingResponse,
 	clusterNames []string,
 	dest bot.Destination,
@@ -275,7 +277,7 @@ func renderSSHConfig(
 
 	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
-	knownHosts, err := ssh.GenerateKnownHosts(
+	knownHosts, clusterKnownHosts, err := ssh.GenerateKnownHosts(
 		ctx,
 		certAuthGetter,
 		clusterNames,
@@ -332,7 +334,8 @@ func renderSSHConfig(
 			}
 		}
 
-		// Generate SSH config
+		// Generate the primary SSH config which has the cluster-specific
+		// host blocks.
 		if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 			AppName:             openssh.TbotApp,
 			ClusterNames:        clusterNames,
@@ -356,6 +359,53 @@ func renderSSHConfig(
 			Resume: true,
 		}); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// Generate the per cluster files
+		for _, clusterName := range clusterNames {
+			sshConfigName := fmt.Sprintf("%s.%s", clusterName, ssh.ConfigName)
+			knownHostsName := fmt.Sprintf("%s.%s", clusterName, ssh.KnownHostsName)
+			knownHostsPath := filepath.Join(absDestPath, knownHostsName)
+
+			sb := &strings.Builder{}
+			if err := sshConf.GetClusterSSHConfig(sb, &openssh.ClusterSSHConfigParameters{
+				AppName:             openssh.TbotApp,
+				ClusterName:         clusterName,
+				KnownHostsPath:      knownHostsPath,
+				IdentityFilePath:    identityFilePath,
+				CertificateFilePath: certificateFilePath,
+				ProxyHost:           proxyHost,
+				ProxyPort:           proxyPort,
+				ExecutablePath:      executablePath,
+				DestinationDir:      absDestPath,
+
+				Insecure:          botCfg.Insecure,
+				FIPS:              botCfg.FIPS,
+				TLSRouting:        proxyPing.Proxy.TLSRoutingEnabled,
+				ConnectionUpgrade: connUpgradeRequired,
+				// Session resumption is enabled by default, this can be
+				// configurable at a later date if we discover reasons for this to
+				// be disabled.
+				Resume: true,
+			}); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := destDirectory.Write(ctx, sshConfigName, []byte(sb.String())); err != nil {
+				return trace.Wrap(err)
+			}
+
+			knownHosts, ok := clusterKnownHosts[clusterName]
+			if !ok {
+				log.WarnContext(
+					ctx,
+					"No generated known_hosts for cluster, will skip",
+					"cluster", clusterName,
+				)
+				continue
+			}
+			if err := destDirectory.Write(ctx, knownHostsName, []byte(knownHosts)); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	} else {
 		// Deprecated: this block will be removed in v17. It exists so users can
