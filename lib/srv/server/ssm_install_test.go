@@ -144,6 +144,7 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		{
@@ -188,6 +189,7 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		{
@@ -234,6 +236,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardError:  "timeout error",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		{
@@ -284,6 +287,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardError:  "timeout error",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		{
@@ -351,6 +355,7 @@ func TestSSMInstaller(t *testing.T) {
 						Status:        ssm.CommandStatusSuccess,
 						InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 					},
+					IssueType: "ec2-ssm-script-failure",
 				},
 				{
 					SSMRunEvent: &events.SSMRun{
@@ -365,6 +370,7 @@ func TestSSMInstaller(t *testing.T) {
 						ExitCode:   -1,
 						Status:     "SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 					},
+					IssueType: "ec2-ssm-agent-connection-lost",
 				},
 				{
 					SSMRunEvent: &events.SSMRun{
@@ -379,6 +385,7 @@ func TestSSMInstaller(t *testing.T) {
 						ExitCode:   -1,
 						Status:     "EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 					},
+					IssueType: "ec2-ssm-unsupported-os",
 				},
 				{
 					SSMRunEvent: &events.SSMRun{
@@ -393,6 +400,7 @@ func TestSSMInstaller(t *testing.T) {
 						ExitCode:   -1,
 						Status:     "EC2 Instance is not registered in SSM. Make sure that the instance has AmazonSSMManagedInstanceCore policy assigned.",
 					},
+					IssueType: "ec2-ssm-agent-not-registered",
 				},
 			},
 		},
@@ -448,6 +456,7 @@ func TestSSMInstaller(t *testing.T) {
 					StandardOutput: "custom output",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		{
@@ -488,6 +497,7 @@ func TestSSMInstaller(t *testing.T) {
 					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
+				IssueType: "ec2-ssm-script-failure",
 			}},
 		},
 		// todo(amk): test that incomplete commands eventually return

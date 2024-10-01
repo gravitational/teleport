@@ -36,15 +36,18 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -329,6 +332,7 @@ type Server struct {
 
 	awsSyncStatus         awsSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
+	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -460,6 +464,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
 			s.awsEC2ResourcesStatus.iterationStarted()
+			s.awsEC2Tasks.iterationStarted()
 		}),
 	)
 	if err != nil {
@@ -895,6 +900,22 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
+
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					accountID:   instances.AccountID,
+					integration: instances.Integration,
+					issueType:   usertasks.AutoDiscoverEC2IssueEICEFailedToCreateNode,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					InstanceId:      ec2Instance.InstanceID,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+				},
+			)
 			continue
 		}
 
@@ -937,6 +958,22 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
+
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					accountID:   instances.AccountID,
+					integration: instances.Integration,
+					issueType:   usertasks.AutoDiscoverEC2IssueEICEFailedToUpsertNode,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					InstanceId:      instanceID,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+				},
+			)
 		}
 	})
 	if err != nil {
@@ -972,6 +1009,24 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 			discoveryConfig: instances.DiscoveryConfig,
 			integration:     instances.Integration,
 		}, len(req.Instances))
+
+		for _, instance := range req.Instances {
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					accountID:   instances.AccountID,
+					integration: instances.Integration,
+					issueType:   usertasks.AutoDiscoverEC2IssueInvocationFailure,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					InstanceId:      instance.InstanceID,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+				},
+			)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1084,6 +1139,7 @@ func (s *Server) handleEC2Discovery() {
 			}
 
 			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfig)
+			s.upsertTasksForAWSEC2FailedEnrollments()
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return

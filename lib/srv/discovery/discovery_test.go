@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -199,9 +200,14 @@ func genEC2Instances(n int) []*ec2.Instance {
 type mockSSMInstaller struct {
 	mu                 sync.Mutex
 	installedInstances map[string]struct{}
+	runError           error
 }
 
 func (m *mockSSMInstaller) Run(_ context.Context, req server.SSMRunRequest) error {
+	if m.runError != nil {
+		return m.runError
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, inst := range req.Instances {
@@ -250,14 +256,35 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	dcForEC2SSMWithIntegrationName := uuid.NewString()
 	dcForEC2SSMWithIntegration, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: uuid.NewString()},
+		header.Metadata{Name: dcForEC2SSMWithIntegrationName},
 		discoveryconfig.Spec{
 			DiscoveryGroup: defaultDiscoveryGroup,
 			AWS: []types.AWSMatcher{{
 				Types:   []string{"ec2"},
 				Regions: []string{"eu-central-1"},
 				Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+				SSM:     &types.AWSSSM{DocumentName: "document"},
+				Params: &types.InstallerParams{
+					InstallTeleport: true,
+					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				Integration: "my-integration",
+			}},
+		},
+	)
+	require.NoError(t, err)
+
+	discoveryConfigForUserTaskTestName := uuid.NewString()
+	discoveryConfigForUserTaskTest, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: discoveryConfigForUserTaskTestName},
+		discoveryconfig.Spec{
+			DiscoveryGroup: defaultDiscoveryGroup,
+			AWS: []types.AWSMatcher{{
+				Types:   []string{"ec2"},
+				Regions: []string{"eu-west-2"},
+				Tags:    map[string]utils.Strings{"RunDiscover": {"please"}},
 				SSM:     &types.AWSSSM{DocumentName: "document"},
 				Params: &types.InstallerParams{
 					InstallTeleport: true,
@@ -280,6 +307,8 @@ func TestDiscoveryServer(t *testing.T) {
 		staticMatchers            Matchers
 		wantInstalledInstances    []string
 		wantDiscoveryConfigStatus *discoveryconfig.Status
+		userTasksDiscoverEC2Check require.ValueAssertionFunc
+		ssmRunError               error
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -538,6 +567,74 @@ func TestDiscoveryServer(t *testing.T) {
 			},
 			wantInstalledInstances: []string{"instance-id-1"},
 		},
+		{
+			name:             "one node found but SSM Run fails and DiscoverEC2 User Task is created",
+			presentInstances: []types.Server{},
+			foundEC2Instances: []*ec2.Instance{
+				{
+					InstanceId: aws.String("instance-id-1"),
+					Tags: []*ec2.Tag{{
+						Key:   aws.String("env"),
+						Value: aws.String("dev"),
+					}},
+					State: &ec2.InstanceState{
+						Name: aws.String(ec2.InstanceStateNameRunning),
+					},
+				},
+			},
+			ssm: &mockSSMClient{
+				commandOutput: &ssm.SendCommandOutput{
+					Command: &ssm.Command{
+						CommandId: aws.String("command-id-1"),
+					},
+				},
+				invokeOutput: &ssm.GetCommandInvocationOutput{
+					Status:       aws.String(ssm.CommandStatusSuccess),
+					ResponseCode: aws.Int64(0),
+				},
+			},
+			ssmRunError: trace.BadParameter("ssm run failed"),
+			emitter: &mockEmitter{
+				eventHandler: func(t *testing.T, ae events.AuditEvent, server *Server) {
+					t.Helper()
+					require.Equal(t, &events.SSMRun{
+						Metadata: events.Metadata{
+							Type: libevents.SSMRunEvent,
+							Code: libevents.SSMRunSuccessCode,
+						},
+						CommandID:  "command-id-1",
+						AccountID:  "owner",
+						InstanceID: "instance-id-1",
+						Region:     "eu-central-1",
+						ExitCode:   0,
+						Status:     ssm.CommandStatusSuccess,
+					}, ae)
+				},
+			},
+			staticMatchers:         Matchers{},
+			discoveryConfig:        discoveryConfigForUserTaskTest,
+			wantInstalledInstances: []string{},
+			userTasksDiscoverEC2Check: func(tt require.TestingT, i1 interface{}, i2 ...interface{}) {
+				existingTasks, ok := i1.([]*usertasksv1.UserTask)
+				require.True(t, ok, "failed to get existing tasks: %T", i1)
+				require.Len(t, existingTasks, 1)
+				existingTask := existingTasks[0]
+
+				require.Equal(t, "OPEN", existingTask.GetSpec().State)
+				require.Equal(t, "my-integration", existingTask.GetSpec().Integration)
+				require.Equal(t, "ec2-ssm-invocation-failure", existingTask.GetSpec().IssueType)
+				require.Equal(t, "owner", existingTask.GetSpec().GetDiscoverEc2().GetAccountId())
+				require.Equal(t, "eu-west-2", existingTask.GetSpec().GetDiscoverEc2().GetRegion())
+
+				taskInstances := existingTask.GetSpec().GetDiscoverEc2().Instances
+				require.Contains(t, taskInstances, "instance-id-1")
+				taskInstance := taskInstances["instance-id-1"]
+
+				require.Equal(t, "instance-id-1", taskInstance.InstanceId)
+				require.Equal(t, discoveryConfigForUserTaskTestName, taskInstance.DiscoveryConfig)
+				require.Equal(t, defaultDiscoveryGroup, taskInstance.DiscoveryGroup)
+			},
+		},
 	}
 
 	for _, tc := range tcs {
@@ -586,6 +683,7 @@ func TestDiscoveryServer(t *testing.T) {
 			reporter := &mockUsageReporter{}
 			installer := &mockSSMInstaller{
 				installedInstances: make(map[string]struct{}),
+				runError:           tc.ssmRunError,
 			}
 			tlsServer.Auth().SetUsageReporter(reporter)
 
@@ -639,6 +737,20 @@ func TestDiscoveryServer(t *testing.T) {
 					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
 					return true
 				}, 500*time.Millisecond, 50*time.Millisecond)
+			}
+			if tc.userTasksDiscoverEC2Check != nil {
+				var allUserTasks []*usertasksv1.UserTask
+				var nextToken string
+				for {
+					var userTasks []*usertasksv1.UserTask
+					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(context.Background(), 0, "")
+					require.NoError(t, err)
+					allUserTasks = append(allUserTasks, userTasks...)
+					if nextToken == "" {
+						break
+					}
+				}
+				tc.userTasksDiscoverEC2Check(t, allUserTasks)
 			}
 		})
 	}
