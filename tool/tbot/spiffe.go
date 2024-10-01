@@ -49,8 +49,9 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 		return trace.Wrap(err, "getting x509 context")
 	}
 
+	audience := "example.com"
 	jwtSVIDs, err := source.FetchJWTSVIDs(ctx, jwtsvid.Params{
-		Audience: "example.com",
+		Audience: audience,
 	})
 	if err != nil {
 		return trace.Wrap(err, "getting JWT SVIDs")
@@ -99,6 +100,16 @@ func onSPIFFEInspect(ctx context.Context, path string) error {
 		fmt.Printf("  - Audiences: %v\n", jwtSVID.Audience)
 		fmt.Printf("  - Hint: %s\n", jwtSVID.Hint)
 		fmt.Printf("  - Value: %s\n", jwtSVID.Marshal())
+
+		// Validate the produced JWT against the Workload API to validate that
+		// ValidateJWTSVID is working as expected, and that the produced JWT is
+		// valid.
+		_, err := source.ValidateJWTSVID(ctx, jwtSVID.Marshal(), audience)
+		if err != nil {
+			fmt.Printf("  - Validation: FAIL - %v\n", err)
+		} else {
+			fmt.Printf("  - Validation: PASS\n")
+		}
 	}
 
 	fmt.Println("# JWT Bundles")
