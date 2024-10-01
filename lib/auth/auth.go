@@ -372,12 +372,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
-	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
-		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
