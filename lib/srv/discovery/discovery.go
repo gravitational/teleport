@@ -36,11 +36,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -329,6 +331,7 @@ type Server struct {
 
 	awsSyncStatus         awsSyncStatus
 	awsEC2ResourcesStatus awsResourcesStatus
+	awsEC2Tasks           awsEC2Tasks
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -460,6 +463,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithTriggerFetchC(s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(func() {
 			s.awsEC2ResourcesStatus.iterationStarted()
+			s.awsEC2Tasks.iterationStarted()
 		}),
 	)
 	if err != nil {
@@ -883,6 +887,22 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
+
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					integration: instances.Integration,
+					issueType:   types.AutoDiscoverEC2IssueEICEFailedToCreateNode,
+					accountID:   instances.AccountID,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+					InstanceId:      ec2Instance.InstanceID,
+				},
+			)
 			continue
 		}
 
@@ -925,6 +945,22 @@ func (s *Server) heartbeatEICEInstance(instances *server.EC2Instances) {
 				discoveryConfig: instances.DiscoveryConfig,
 				integration:     instances.Integration,
 			}, 1)
+
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					integration: instances.Integration,
+					issueType:   types.AutoDiscoverEC2IssueEICEFailedToUpsertNode,
+					accountID:   instances.AccountID,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+					InstanceId:      instanceID,
+				},
+			)
 		}
 	})
 	if err != nil {
@@ -960,6 +996,24 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 			discoveryConfig: instances.DiscoveryConfig,
 			integration:     instances.Integration,
 		}, len(req.Instances))
+
+		for _, instance := range req.Instances {
+			s.awsEC2Tasks.addFailedEnrollment(
+				awsEC2FailedEnrollmentGroup{
+					integration: instances.Integration,
+					issueType:   types.AutoDiscoverEC2IssueInvocationFailure,
+					accountID:   instances.AccountID,
+					region:      instances.Region,
+				},
+				&usertasksv1.DiscoverEC2Instance{
+					// TODO(marco): add instance name
+					DiscoveryConfig: instances.DiscoveryConfig,
+					DiscoveryGroup:  s.DiscoveryGroup,
+					SyncTime:        timestamppb.New(s.clock.Now()),
+					InstanceId:      instance.InstanceID,
+				},
+			)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1072,6 +1126,7 @@ func (s *Server) handleEC2Discovery() {
 			}
 
 			s.updateDiscoveryConfigStatus(instances.EC2.DiscoveryConfig)
+			s.upsertTasksForAWSEC2FailedEnrollments()
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
 			return

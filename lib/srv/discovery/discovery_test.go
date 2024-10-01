@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -269,6 +270,16 @@ func TestDiscoveryServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	sortUserTasksFn := func(a *usertasksv1.UserTask, b *usertasksv1.UserTask) int {
+		if a.Metadata.GetName() < b.Metadata.GetName() {
+			return 1
+		}
+		if a.Metadata.GetName() > b.Metadata.GetName() {
+			return -1
+		}
+		return 0
+	}
+
 	tcs := []struct {
 		name string
 		// presentInstances is a list of servers already present in teleport
@@ -280,6 +291,7 @@ func TestDiscoveryServer(t *testing.T) {
 		staticMatchers            Matchers
 		wantInstalledInstances    []string
 		wantDiscoveryConfigStatus *discoveryconfig.Status
+		wantUserTasks             []*usertasksv1.UserTask
 	}{
 		{
 			name:             "no nodes present, 1 found ",
@@ -639,6 +651,23 @@ func TestDiscoveryServer(t *testing.T) {
 					require.Equal(t, *tc.wantDiscoveryConfigStatus, storedDiscoveryConfig.Status)
 					return true
 				}, 500*time.Millisecond, 50*time.Millisecond)
+			}
+
+			if tc.wantUserTasks != nil {
+				var allUserTasks []*usertasksv1.UserTask
+				var nextToken string
+				for {
+					var userTasks []*usertasksv1.UserTask
+					userTasks, nextToken, err = tlsServer.Auth().UserTasks.ListUserTasks(ctx, 0, "")
+					require.NoError(t, err)
+					allUserTasks = append(allUserTasks, userTasks...)
+					if nextToken == "" {
+						break
+					}
+				}
+				slices.SortFunc(allUserTasks, sortUserTasksFn)
+				slices.SortFunc(tc.wantUserTasks, sortUserTasksFn)
+				require.Equal(t, tc.wantUserTasks, allUserTasks)
 			}
 		})
 	}

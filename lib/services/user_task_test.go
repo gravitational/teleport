@@ -49,16 +49,19 @@ func TestMarshalUserTaskRoundTrip(t *testing.T) {
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-1234567890": {
-					Name:            "instance-name",
-					Region:          "us-east-1",
-					InvocationUrl:   "https://example.com/",
-					DiscoveryConfig: "config",
-					DiscoveryGroup:  "group",
-					SyncTime:        timestamppb.Now(),
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				Region:    "us-east-1",
+				AccountId: "123456789012",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-1234567890": {
+						Name:            "instance-name",
+						InvocationUrl:   "https://example.com/",
+						DiscoveryConfig: "config",
+						DiscoveryGroup:  "group",
+						SyncTime:        timestamppb.Now(),
+					},
 				},
-			}},
+			},
 		},
 	}
 
@@ -115,16 +118,19 @@ spec:
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-1234567890": {
-					Name:            "instance-name",
-					Region:          "us-east-1",
-					InvocationUrl:   "https://example.com/",
-					DiscoveryConfig: "config",
-					DiscoveryGroup:  "group",
-					SyncTime:        syncTime,
+			DiscoverEc2: &usertasksv1.DiscoverEC2{
+				Region:    "us-east-1",
+				AccountId: "123456789012",
+				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+					"i-1234567890": {
+						Name:            "instance-name",
+						InvocationUrl:   "https://example.com/",
+						DiscoveryConfig: "config",
+						DiscoveryGroup:  "group",
+						SyncTime:        syncTime,
+					},
 				},
-			}},
+			},
 		},
 	}
 
