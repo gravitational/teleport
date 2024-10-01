@@ -21,7 +21,7 @@
 package web
 
 import (
-	"compress/gzip"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
@@ -125,6 +125,9 @@ const (
 	IncludedResourceModeRequestable = "requestable"
 	// IncludedResourceModeAll describes that all resources, requestable and available, should be returned.
 	IncludedResourceModeAll = "all"
+	// DefaultFeatureWatchInterval is the default time in which the feature watcher
+	// should ping the auth server to check for updated features
+	DefaultFeatureWatchInterval = time.Minute * 5
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -154,12 +157,8 @@ type Handler struct {
 	// userConns tracks amount of current active connections with user certificates.
 	userConns atomic.Int32
 
-	// ClusterFeatures contain flags for supported and unsupported features.
-	// Note: This field can become stale since it's only set on initial proxy
-	// startup. To get the latest feature flags you'll need to ping from the
-	// auth server.
-	// https://github.com/gravitational/teleport/issues/39161
-	ClusterFeatures proto.Features
+	// clusterFeatures contain flags for supported and unsupported features.
+	clusterFeatures proto.Features
 
 	// nodeWatcher is a services.NodeWatcher used by Assist to lookup nodes from
 	// the proxy's cache and get nodes in real time.
@@ -315,6 +314,10 @@ type Config struct {
 
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
+
+	// FeatureWatchInterval is the interval between pings to the auth server
+	// to fetch new cluster features
+	FeatureWatchInterval time.Duration
 }
 
 // SetDefaults ensures proper default values are set if
@@ -329,6 +332,8 @@ func (c *Config) SetDefaults() {
 	if c.PresenceChecker == nil {
 		c.PresenceChecker = client.RunPresenceTask
 	}
+
+	c.FeatureWatchInterval = cmp.Or(c.FeatureWatchInterval, DefaultFeatureWatchInterval)
 }
 
 type APIHandler struct {
@@ -452,7 +457,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		log:                  newPackageLogger(),
 		logger:               slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		clock:                clockwork.NewRealClock(),
-		ClusterFeatures:      cfg.ClusterFeatures,
+		clusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
 		tracer:               cfg.TracerProvider.Tracer(teleport.ComponentWeb),
 		wsIODeadline:         wsIODeadline,
@@ -683,6 +688,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
+	go h.startFeatureWatcher()
+
 	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,
@@ -809,11 +816,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
 	h.GET("/webapi/sites/:site/events/search/sessions", h.WithClusterAuth(h.clusterSearchSessionEvents)) // search site session events
 	h.GET("/webapi/sites/:site/ttyplayback/:sid", h.WithClusterAuth(h.ttyPlaybackHandle))
-
-	// TODO(zmb3): remove these endpoints when Assist is no longer using them
-	// (assist calls the proxy's web API, and the proxy uses an HTTP client to call auth's API)
-	h.GET("/webapi/sites/:site/sessions/:sid/events", h.WithClusterAuth(h.siteSessionEventsGet)) // get recorded session's timing information (from events)
-	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                    // get recorded session's bytes (from events)
 
 	// scp file transfer
 	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
@@ -1170,17 +1172,12 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	desktopRecordingEnabled := recConfig.GetMode() != types.RecordOff
 
-	pingResp, err := clt.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	features := pingResp.GetServerFeatures()
-	entitlement := modules.GetProtoEntitlement(features, entitlements.AccessMonitoring)
+	features := h.GetClusterFeatures()
+	entitlement := modules.GetProtoEntitlement(&features, entitlements.AccessMonitoring)
 	// ensure entitlement is set & feature is configured
 	accessMonitoringEnabled := entitlement.Enabled && features.GetAccessMonitoringConfigured()
 
-	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), *pingResp.ServerFeatures, desktopRecordingEnabled, accessMonitoringEnabled)
+	userContext, err := ui.NewUserContext(user, accessChecker.Roles(), features, desktopRecordingEnabled, accessMonitoringEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1698,14 +1695,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures := h.ClusterFeatures
-	// ping server to get cluster features since h.ClusterFeatures may be stale
-	pingResponse, err := h.GetProxyClient().Ping(r.Context())
-	if err != nil {
-		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
-	} else {
-		clusterFeatures = *pingResponse.ServerFeatures
-	}
+	clusterFeatures := h.GetClusterFeatures()
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
@@ -1819,7 +1809,6 @@ func setEntitlementsWithLegacyLogic(webCfg *webclient.WebConfig, clusterFeatures
 		webCfg.Entitlements[string(entitlements.OIDC)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetOIDC()}
 		webCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetPolicy() != nil && clusterFeatures.GetPolicy().Enabled}
 		webCfg.Entitlements[string(entitlements.SAML)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetSAML()}
-
 		// set default Identity fields to legacy feature value
 		webCfg.Entitlements[string(entitlements.AccessLists)] = webclient.EntitlementInfo{Enabled: true, Limit: clusterFeatures.GetAccessList().GetCreateLimit()}
 		webCfg.Entitlements[string(entitlements.AccessMonitoring)] = webclient.EntitlementInfo{Enabled: clusterFeatures.GetAccessMonitoring().GetEnabled(), Limit: clusterFeatures.GetAccessMonitoring().GetMaxReportRangeLimit()}
@@ -3858,8 +3847,6 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
-const maxStreamBytes = 5 * 1024 * 1024
-
 func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, error) {
 	el := make([]events.EventFields, 0, len(rawEvents))
 	for _, event := range rawEvents {
@@ -4044,127 +4031,11 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 	}
 }
 
-// siteSessionStreamGet returns a byte array from a session's stream
-//
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream?query
-//
-// Query parameters:
-//
-//	"offset"   : bytes from the beginning
-//	"bytes"    : number of bytes to read (it won't return more than 512Kb)
-//
-// Unlike other request handlers, this one does not return JSON.
-// It returns the binary stream unencoded, directly in the respose body,
-// with Content-Type of application/octet-stream, gzipped with up to 95%
-// compression ratio.
-func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	httplib.SetNoCacheHeaders(w.Header())
-
-	onError := func(err error) {
-		h.log.WithError(err).Debug("Unable to retrieve session chunk.")
-		http.Error(w, err.Error(), trace.ErrorToCode(err))
-	}
-
-	// authenticate first
-	sctx, site, err := h.authenticateRequestWithCluster(w, r, p)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-
-	// get the session
-	sid, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-
-	// look at 'offset' parameter
-	// (skip error check and treat an invalid offset as offset 0)
-	query := r.URL.Query()
-	offset, _ := strconv.Atoi(query.Get("offset"))
-
-	max, err := strconv.Atoi(query.Get("bytes"))
-	if err != nil || max <= 0 {
-		max = maxStreamBytes
-	}
-	if max > maxStreamBytes {
-		max = maxStreamBytes
-	}
-
-	// call the site API to get the chunk:
-	bytes, err := clt.GetSessionChunk(apidefaults.Namespace, *sid, offset, max)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-	// see if we can gzip it:
-	var writer io.Writer = w
-	for _, acceptedEnc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
-		if strings.TrimSpace(acceptedEnc) == "gzip" {
-			gzipper := gzip.NewWriter(w)
-			writer = gzipper
-			defer gzipper.Close()
-			w.Header().Set("Content-Encoding", "gzip")
-		}
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	_, err = writer.Write(bytes)
-	if err != nil {
-		onError(trace.Wrap(err))
-		return
-	}
-}
-
 type eventsListGetResponse struct {
 	// Events is list of events retrieved.
 	Events []events.EventFields `json:"events"`
 	// StartKey is the position to resume search events.
 	StartKey string `json:"startKey"`
-}
-
-// siteSessionEventsGet gets the site session by id
-//
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events?after=N
-//
-// Query:
-//
-//	"after" : cursor value of an event to return "newer than" events
-//	          good for repeated polling
-//
-// Response body (each event is an arbitrary JSON structure)
-//
-// {"events": [{...}, {...}, ...}
-func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	sessionID, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		return nil, trace.BadParameter("invalid session ID %q", p.ByName("sid"))
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	afterN, err := strconv.Atoi(r.URL.Query().Get("after"))
-	if err != nil {
-		afterN = 0
-	}
-
-	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN)
-	if err != nil {
-		h.log.WithError(err).Debugf("Unable to find events for session %v.", sessionID)
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("unable to find events for session %q", sessionID)
-		}
-
-		return nil, trace.Wrap(err)
-	}
-	return eventsListGetResponse{Events: e}, nil
 }
 
 // hostCredentials sends a registration token and metadata to the Auth Server

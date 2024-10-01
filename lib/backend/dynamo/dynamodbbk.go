@@ -21,6 +21,7 @@ package dynamo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -40,7 +41,6 @@ import (
 	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
@@ -164,9 +164,9 @@ type dynamoClient interface {
 
 // Backend is a DynamoDB-backed key value backend implementation.
 type Backend struct {
-	svc   dynamoClient
-	clock clockwork.Clock
-	*log.Entry
+	svc     dynamoClient
+	clock   clockwork.Clock
+	logger  *slog.Logger
 	streams *dynamodbstreams.Client
 	buf     *backend.CircularBuffer
 	Config
@@ -232,20 +232,20 @@ var _ backend.Backend = &Backend{}
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
-	l := log.WithFields(log.Fields{teleport.ComponentKey: BackendName})
+	l := slog.With(teleport.ComponentKey, BackendName)
 
 	var cfg *Config
 	if err := utils.ObjectToStruct(params, &cfg); err != nil {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
 	}
 
-	defer l.Debug("AWS session is created.")
+	defer l.DebugContext(ctx, "AWS session is created.")
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	l.Infof("Initializing backend. Table: %q, poll streams every %v.", cfg.TableName, cfg.PollStreamPeriod)
+	l.InfoContext(ctx, "Initializing backend", "table", cfg.TableName, "poll_stream_period", cfg.PollStreamPeriod)
 
 	opts := []func(*config.LoadOptions) error{
 		config.WithRegion(cfg.Region),
@@ -283,7 +283,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
 
 	b := &Backend{
-		Entry:   l,
+		logger:  l,
 		Config:  *cfg,
 		clock:   clockwork.NewRealClock(),
 		buf:     backend.NewCircularBuffer(backend.BufferCapacity(cfg.BufferSize)),
@@ -297,7 +297,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	go func() {
 		if err := b.asyncPollStreams(ctx); err != nil {
-			b.Errorf("Stream polling loop exited: %v", err)
+			b.logger.ErrorContext(ctx, "Stream polling loop exited", "error", err)
 		}
 	}()
 
@@ -316,12 +316,12 @@ func (b *Backend) configureTable(ctx context.Context, svc *applicationautoscalin
 	case tableStatusOK:
 		if tableBillingMode == types.BillingModePayPerRequest {
 			b.Config.EnableAutoScaling = false
-			b.Logger.Info("Ignoring auto_scaling setting as table is in on-demand mode.")
+			b.logger.InfoContext(ctx, "Ignoring auto_scaling setting as table is in on-demand mode.")
 		}
 	case tableStatusMissing:
 		if b.Config.BillingMode == billingModePayPerRequest {
 			b.Config.EnableAutoScaling = false
-			b.Logger.Info("Ignoring auto_scaling setting as table is being created in on-demand mode.")
+			b.logger.InfoContext(ctx, "Ignoring auto_scaling setting as table is being created in on-demand mode.")
 		}
 		err = b.createTable(ctx, tableName, fullPathKey)
 	case tableStatusNeedsMigration:
@@ -544,7 +544,7 @@ func (b *Backend) getAllRecords(ctx context.Context, startKey, endKey backend.Ke
 		// otherwise updated lastEvaluatedKey and proceed with obtaining new records.
 		if (limit != 0 && len(result.records) >= limit) || len(re.lastEvaluatedKey) == 0 {
 			if len(result.records) == backend.DefaultRangeLimit {
-				b.Warnf("Range query hit backend limit. (this is a bug!) startKey=%q,limit=%d", startKey, backend.DefaultRangeLimit)
+				b.logger.WarnContext(ctx, "Range query hit backend limit. (this is a bug!)", "start_key", startKey, "limit", backend.DefaultRangeLimit)
 			}
 			result.lastEvaluatedKey = nil
 			return &result, nil
@@ -894,7 +894,7 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	b.Infof("Waiting until table %q is created.", aws.ToString(tableName))
+	b.logger.InfoContext(ctx, "Waiting until table is created.", "table", aws.ToString(tableName))
 	waiter := dynamodb.NewTableExistsWaiter(b.svc)
 
 	err = waiter.Wait(ctx,
@@ -902,7 +902,7 @@ func (b *Backend) createTable(ctx context.Context, tableName *string, rangeKey s
 		10*time.Minute,
 	)
 	if err == nil {
-		b.Infof("Table %q has been created.", aws.ToString(tableName))
+		b.logger.InfoContext(ctx, "Table has been created.", "table", aws.ToString(tableName))
 	}
 
 	return trace.Wrap(err)
@@ -1123,7 +1123,7 @@ func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) 
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
-			b.Warnf("Failed deleting expired key %q: %v", key, err)
+			b.logger.WarnContext(ctx, "Failed deleting expired key", "key", key, "error", err)
 		}
 		return nil, trace.NotFound("%q is not found", key)
 	}

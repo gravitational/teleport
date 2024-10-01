@@ -272,7 +272,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 
 	q := req.URL.Query()
 	if s.execPodError != nil {
-		s.writeResponseError(w, nil, s.execPodError)
+		s.writeResponseError(w, nil, s.execPodError.DeepCopy())
 		return nil, nil
 	}
 	request := remoteCommandRequest{
