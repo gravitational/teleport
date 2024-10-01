@@ -75,7 +75,7 @@ var (
 	// FIPSSTSEndpoints returns the set of known valid FIPS AWS STS endpoints.
 	FIPSSTSEndpoints = sync.OnceValue(func() []string {
 		return []string{
-			"sts-fips.us-east-1.amazonaws.com",
+			fipsSTSEndpointUSEast1,
 			"sts-fips.us-east-2.amazonaws.com",
 			"sts-fips.us-west-1.amazonaws.com",
 			"sts-fips.us-west-2.amazonaws.com",
