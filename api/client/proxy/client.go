@@ -16,6 +16,8 @@ package proxy
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/asn1"
 	"net"
@@ -38,6 +40,7 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -115,6 +118,22 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 			// not to send the client certificate by looking at certificate request.
 			if len(tlsCfg.Certificates) > 0 {
 				cert := tlsCfg.Certificates[0]
+
+				// When a hardware key is used to store the private key, the user may fail to provide
+				// a PIN or touch before a gRPC dial timeout occurs.
+				// The resulting "dial timeout" error is generic and doesn't indicate an issue with the
+				// hardware key itself (since YubiKey is treated like any other key).
+				// To avoid this, we perform a "warm-up" call to the key, ensuring it is ready
+				// before initiating the gRPC dial.
+				// This approach works because the connection is cached for a few seconds,
+				// allowing subsequent calls without requiring additional user action.
+				if priv, ok := cert.PrivateKey.(*keys.YubiKeyPrivateKey); ok {
+					b := make([]byte, 256)
+					_, err := priv.Sign(rand.Reader, b, crypto.SHA256)
+					if err != nil {
+						return nil, trace.Wrap(err, "failed to access a YubiKey private key")
+					}
+				}
 				tlsCfg.Certificates = nil
 				tlsCfg.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 					return &cert, nil
