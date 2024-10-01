@@ -306,7 +306,7 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// >The kid header is optional.
 	//
 	// Whilst optional, the SPIRE reference implementation does set this value
-	// and it will be beneficial for compatability with a range of consumers
+	// and it will be beneficial for compatibility with a range of consumers
 	// which may require this value.
 	kid, err := KeyID(k.config.PublicKey)
 	if err != nil {
