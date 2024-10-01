@@ -696,6 +696,9 @@ func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) 
 	if spec == nil || spec.Integration == "" {
 		return nil, trace.BadParameter("GitHub server %s missing integration", s.targetServer)
 	}
+	if s.identityContext.GitHubUserID == "" {
+		return nil, trace.BadParameter("user no associated github user")
+	}
 
 	// generate a new key pair
 	priv, err := native.GeneratePrivateKey()
@@ -703,17 +706,10 @@ func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	logins, err := s.identityContext.AccessChecker.GetAllowedLoginsForResource(s.targetServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(logins) == 0 {
-		return nil, trace.NotFound("no github login found")
-	}
 	resp, err := s.authClient.GenerateGitHubUserCert(ctx, &integrationv1.GenerateGitHubUserCertRequest{
 		Integration: spec.Integration,
 		PublicKey:   priv.MarshalSSHPublicKey(),
-		Login:       logins[0],
+		UserId:      s.identityContext.GitHubUserID,
 		KeyId:       s.identityContext.TeleportUser,
 		Ttl:         durationpb.New(10 * time.Duration(time.Minute)),
 	})

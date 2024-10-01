@@ -4115,6 +4115,61 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 	return githubReq, nil
 }
 
+// TODO
+func (a *ServerWithRoles) CreateGithubAuthRequestForUser(ctx context.Context, req *proto.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error) {
+	if req.CertRequest == nil {
+		return nil, trace.BadParameter("missing cert request")
+	}
+	if req.ConnectorId == "" {
+		org := req.CertRequest.RouteToGitServer.GitHubOrganization
+		if org == "" {
+			return nil, trace.BadParameter("one of github organization or connector id must be provided")
+		}
+		// TODO check if user has access to this organization
+		// TODO we only need to get the user id, so probably any working GitHub connector would do.
+		connectors, err := a.authServer.GetGithubConnectors(ctx, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		i := slices.IndexFunc(connectors, func(connector types.GithubConnector) bool {
+			for _, mapping := range connector.GetTeamsToRoles() {
+				if mapping.Organization == org {
+					return true
+				}
+			}
+			return false
+		})
+		if i < 0 {
+			return nil, trace.BadParameter("cannot find a github connector for %q", org)
+		}
+		req.ConnectorId = connectors[i].GetName()
+	} else {
+		// TODO check if user has access to this organization
+	}
+
+	authRequest := types.GithubAuthRequest{
+		ConnectorID:             req.ConnectorId,
+		CertTTL:                 a.context.Identity.GetIdentity().Expires.Sub(a.authServer.clock.Now()), // TODO validate?
+		ClientRedirectURL:       req.RedirectUrl,
+		AuthenticatedUser:       a.context.User.GetName(),
+		ClientLoginIP:           a.context.Identity.GetIdentity().LoginIP,
+		KubernetesCluster:       req.CertRequest.KubernetesCluster,
+		SshPublicKey:            req.CertRequest.SSHPublicKey,
+		TlsPublicKey:            req.CertRequest.TLSPublicKey,
+		SshAttestationStatement: req.CertRequest.SSHPublicKeyAttestationStatement,
+		TlsAttestationStatement: req.CertRequest.TLSPublicKeyAttestationStatement,
+		Compatibility:           req.CertRequest.Format,
+	}
+	resp, err := a.authServer.CreateGithubAuthRequest(ctx, authRequest)
+	if err != nil {
+		// TODO emit something else
+		// emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
 // GetGithubAuthRequest returns Github auth request if found.
 func (a *ServerWithRoles) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
 	if err := a.action(apidefaults.Namespace, types.KindGithubRequest, types.VerbRead); err != nil {

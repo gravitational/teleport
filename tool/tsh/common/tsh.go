@@ -4738,6 +4738,7 @@ type profileInfo struct {
 	Extensions         []string           `json:"extensions,omitempty"`
 	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
 	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
+	GitHubUserID       string             `json:"github_userid,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -4787,6 +4788,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Extensions:         p.Extensions,
 		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
+		GitHubUserID:       p.GitHubUserID,
 	}
 
 	// update active profile info from env

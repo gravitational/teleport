@@ -545,7 +545,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-require github.com/go-git/go-git/v5 v5.12.0
+require (
+	github.com/go-git/go-git/v5 v5.12.0
+	github.com/sigstore/fulcio v1.5.1
+)
 
 require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect

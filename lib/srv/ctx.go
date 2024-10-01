@@ -250,6 +250,9 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
+
+	// TODO
+	GitHubUserID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -1096,6 +1099,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserKind:       userKind,
 		BotName:        id.BotName,
 		BotInstanceID:  id.BotInstanceID,
+		// TODO add github user id
 	}
 }
 

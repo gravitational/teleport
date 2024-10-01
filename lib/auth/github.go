@@ -566,6 +566,30 @@ func (a *Server) getGithubOAuth2Client(connector types.GithubConnector) (*oauth2
 	return client, nil
 }
 
+func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(ctx context.Context, code string, req *types.GithubAuthRequest) (*authclient.GithubAuthResponse, error) {
+	githubUser, err := a.getGithubUser(ctx, code, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Attach the new (but secondary) identity.
+	teleportUser, err := a.GetUser(ctx, req.AuthenticatedUser, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	teleportUser.SetGithubIdentities(append(teleportUser.GetGithubIdentities(), githubUser.makeExternalIdentity(req.ConnectorID)))
+
+	// Instead of updating the user, refresh the user login state.
+	userState, err := a.ulsGenerator.Refresh(ctx, teleportUser, a.UserLoginStates)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO this flow is not a login technically, should a.CallLoginHook be called?
+	// TODO what about existing access requests?
+	return a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+}
+
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
@@ -606,10 +630,15 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 	diagCtx.Info.TestFlow = req.SSOTestFlow
 
+	if req.AuthenticatedUser != "" {
+		return a.validateGithubAuthCallbackForAuthenticatedUser(ctx, code, req)
+	}
+
 	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
 	}
+
 	diagCtx.Info.GithubTeamsToLogins = connector.GetTeamsToLogins()
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
 	logger.Debugf("Connector %q teams to logins: %v, roles: %v", connector.GetName(), connector.GetTeamsToLogins(), connector.GetTeamsToRoles())
@@ -642,6 +671,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		Roles:         params.Roles,
 		Traits:        params.Traits,
 		SessionTTL:    types.Duration(params.SessionTTL),
+		UserID:        params.UserID,
 	}
 
 	user, err := a.createGithubUser(ctx, params, req.SSOTestFlow)
@@ -653,25 +683,30 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err)
 	}
 
+	// Auth was successful, return session, certificate, etc. to caller.
 	userState, err := a.GetUserOrLoginState(ctx, user.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Auth was successful, return session, certificate, etc. to caller.
-	auth := authclient.GithubAuthResponse{
-		Req: GithubAuthRequestFromProto(req),
-		Identity: types.ExternalIdentity{
-			ConnectorID: params.ConnectorName,
-			Username:    params.Username,
-		},
-		Username: user.GetName(),
-	}
-
 	// In test flow skip signing and creating web sessions.
 	if req.SSOTestFlow {
 		diagCtx.Info.Success = true
-		return &auth, nil
+		return &authclient.GithubAuthResponse{
+			Req:      GithubAuthRequestFromProto(req),
+			Identity: userResp.makeExternalIdentity(req.ConnectorID),
+			Username: userState.GetName(),
+		}, nil
+	}
+
+	return a.makeGithubAuthResponse(ctx, req, userState, userResp, params.SessionTTL)
+}
+
+func (a *Server) makeGithubAuthResponse(ctx context.Context, req *types.GithubAuthRequest, userState services.UserState, githubUser *GithubUserResponse, sessionTTL time.Duration) (*authclient.GithubAuthResponse, error) {
+	auth := authclient.GithubAuthResponse{
+		Req:      GithubAuthRequestFromProto(req),
+		Identity: githubUser.makeExternalIdentity(req.ConnectorID),
+		Username: userState.GetName(),
 	}
 
 	// If the request is coming from a browser, create a web session.
@@ -680,7 +715,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 			User:                 userState.GetName(),
 			Roles:                userState.GetRoles(),
 			Traits:               userState.GetTraits(),
-			SessionTTL:           params.SessionTTL,
+			SessionTTL:           sessionTTL,
 			LoginTime:            a.clock.Now().UTC(),
 			LoginIP:              req.ClientLoginIP,
 			LoginUserAgent:       req.ClientUserAgent,
@@ -711,7 +746,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	if len(sshPublicKey)+len(tlsPublicKey) > 0 {
 		sshCert, tlsCert, err := a.CreateSessionCerts(ctx, &SessionCertsRequest{
 			UserState:               userState,
-			SessionTTL:              params.SessionTTL,
+			SessionTTL:              sessionTTL,
 			SSHPubKey:               sshPublicKey,
 			TLSPubKey:               tlsPublicKey,
 			SSHAttestationStatement: sshAttestationStatement,
@@ -745,6 +780,43 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	return &auth, nil
+}
+
+func (a *Server) getGithubUser(ctx context.Context, code string, req *types.GithubAuthRequest) (*GithubUserResponse, error) {
+	logger := log.WithFields(logrus.Fields{teleport.ComponentKey: "github"})
+
+	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
+	}
+
+	logger.Debugf("Connector %q for authenticated user %v", connector.GetName(), req.AuthenticatedUser)
+
+	// exchange the authorization code received by the callback for an access token
+	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
+	if err != nil {
+		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
+	}
+
+	logger.Debugf("Obtained OAuth2 token: Type=%v Expires=%v Scope=%v.",
+		token.TokenType, token.Expires, token.Scope)
+
+	// Get the Github organizations the user is a member of so we don't
+	// make unnecessary API requests
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ghClient := &githubAPIClient{
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
+	}
+	userResp, err := ghClient.getUser()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to query GitHub user info")
+	}
+	return userResp, nil
 }
 
 func (a *Server) getGithubUserAndTeams(
@@ -848,12 +920,16 @@ type CreateUserParams struct {
 
 	// SessionTTL is how long this session will last.
 	SessionTTL time.Duration
+
+	// UserID is the ID of the connector identity.
+	UserID string
 }
 
 func (a *Server) calculateGithubUser(ctx context.Context, diagCtx *SSODiagContext, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,
+		UserID:        claims.ID,
 	}
 
 	// Calculate logins, kubegroups, roles, and traits.
@@ -917,6 +993,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 			GithubIdentities: []types.ExternalIdentity{{
 				ConnectorID: p.ConnectorName,
 				Username:    p.Username,
+				UserID:      p.UserID,
 			}},
 			CreatedBy: types.CreatedBy{
 				User: types.UserRef{Name: teleport.UserSystem},
@@ -1076,6 +1153,7 @@ func populateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 		Username:            user.Login,
 		OrganizationToTeams: orgToTeams,
 		Teams:               teamList,
+		ID:                  user.getIDStr(),
 	}
 	log.WithFields(logrus.Fields{teleport.ComponentKey: "github"}).Debugf(
 		"Claims: %#v.", claims)
@@ -1097,6 +1175,20 @@ type githubAPIClient struct {
 type GithubUserResponse struct {
 	// Login is the username
 	Login string `json:"login"`
+	// ID is the user ID
+	ID int64 `json:"id"`
+}
+
+func (r GithubUserResponse) getIDStr() string {
+	return fmt.Sprintf("%v", r.ID)
+}
+
+func (r GithubUserResponse) makeExternalIdentity(connectorID string) types.ExternalIdentity {
+	return types.ExternalIdentity{
+		ConnectorID: connectorID,
+		Username:    r.Login,
+		UserID:      r.getIDStr(),
+	}
 }
 
 // getEmails retrieves a list of emails for authenticated user

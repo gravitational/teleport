@@ -1359,6 +1359,9 @@ type UserState interface {
 
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
+
+	// GetGitHubUserID finds a GitHub user ID from connected identities.
+	GetGitHubUserID() string
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and

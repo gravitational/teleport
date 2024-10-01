@@ -439,6 +439,7 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
 
 func getGitHubServer(ctx context.Context, org string, site site) (types.Server, error) {
+	slog.DebugContext(ctx, "=== getGitHubServer", "org", org)
 	servers, err := site.GetGitServers(ctx, func(s services.GitServer) bool {
 		github := s.GetGitHub()
 		return github != nil && github.Organization == org
@@ -464,6 +465,7 @@ func getServerWithResolver(ctx context.Context, host, port string, site site, re
 		return nil, trace.BadParameter("invalid remote site provided")
 	}
 
+	slog.DebugContext(ctx, "=== getServerWithResolver", "host", host)
 	if strings.HasSuffix(host, "."+types.GitHubServerDomain) {
 		return getGitHubServer(ctx, strings.TrimSuffix(host, "."+types.GitHubServerDomain), site)
 	}

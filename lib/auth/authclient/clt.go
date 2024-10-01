@@ -1861,6 +1861,7 @@ type ClientI interface {
 
 	// TODO is there a better place for this?
 	GenerateGitHubUserCert(ctx context.Context, in *integrationv1.GenerateGitHubUserCertRequest) (*integrationv1.GenerateGitHubUserCertResponse, error)
+	CreateGithubAuthRequestForUser(ctx context.Context, req *proto.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error)
 }
 
 type CreateAppSessionForV15Client interface {

@@ -22,6 +22,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -242,6 +243,9 @@ type ProfileStatus struct {
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	//TODO
+	GitHubUserID string
 }
 
 // profileOptions contains fields needed to initialize a profile beyond those
@@ -312,6 +316,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
 			ext == teleport.CertExtensionTeleportActiveRequests ||
+			ext == teleport.CertExtensionGitHubUserID ||
 			ext == teleport.CertExtensionAllowedResources {
 			continue
 		}
@@ -348,6 +353,11 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		}
 	}
 
+	githubUserID := sshCert.Extensions[teleport.CertExtensionGitHubUserID]
+	logins := slices.DeleteFunc(sshCert.ValidPrincipals, func(login string) bool {
+		return githubUserID != "" && githubUserID == login
+	})
+
 	return &ProfileStatus{
 		Name: opts.ProfileName,
 		Dir:  opts.ProfileDir,
@@ -356,7 +366,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Host:   opts.WebProxyAddr,
 		},
 		Username:                opts.Username,
-		Logins:                  sshCert.ValidPrincipals,
+		Logins:                  logins,
 		ValidUntil:              validUntil,
 		Extensions:              extensions,
 		CriticalOptions:         sshCert.CriticalOptions,
@@ -375,6 +385,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		IsVirtual:               opts.IsVirtual,
 		AllowedResourceIDs:      allowedResourceIDs,
 		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
+		GitHubUserID:            githubUserID,
 	}, nil
 }
 

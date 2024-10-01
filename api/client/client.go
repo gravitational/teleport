@@ -4957,3 +4957,9 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 	})
 	return rc, trace.Wrap(err)
 }
+
+// TODO
+func (c *Client) CreateGithubAuthRequestForUser(ctx context.Context, req *proto.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error) {
+	resp, err := c.grpc.CreateGithubAuthRequestForUser(ctx, req)
+	return resp, trace.Wrap(err)
+}
