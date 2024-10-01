@@ -76,25 +76,17 @@ func NewIntegrationsService(backend backend.Backend, opts ...IntegrationsService
 }
 
 // ListIntegrations returns a paginated list of Integration resources.
-func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string) ([]types.Integration, string, error) {
+func (s *IntegrationsService) ListIntegrations(ctx context.Context, pageSize int, pageToken string, withSecrets bool) ([]types.Integration, string, error) {
 	igs, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	/* TODO fix cache?
-	for _, ig := range igs {
-		switch ig.GetSubKind() {
-		case types.IntegrationSubKindGitHub:
-			if ig.GetGitHubIntegrationSpec().Proxy != nil {
-				cas := ig.GetGitHubIntegrationSpec().Proxy.CertAuthority
-				for _, ca := range cas {
-					ca.PrivateKey = nil
-				}
-				ig.SetGitHubSSHCertAuthority(cas)
-			}
+
+	if !withSecrets {
+		for i, ig := range igs {
+			igs[i] = ig.WithoutSecrets()
 		}
 	}
-	*/
 
 	return igs, nextKey, nil
 }
@@ -107,16 +99,7 @@ func (s *IntegrationsService) GetIntegration(ctx context.Context, name string, w
 	}
 
 	if !withSecrets {
-		switch ig.GetSubKind() {
-		case types.IntegrationSubKindGitHub:
-			if ig.GetGitHubIntegrationSpec().Proxy != nil {
-				cas := ig.GetGitHubIntegrationSpec().Proxy.CertAuthority
-				for _, ca := range cas {
-					ca.PrivateKey = nil
-				}
-				ig.SetGitHubSSHCertAuthority(cas)
-			}
-		}
+		return ig.WithoutSecrets(), nil
 	}
 
 	return ig, nil

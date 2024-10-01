@@ -181,6 +181,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindSPIFFEFederation, RW()),
 					types.NewRule(types.KindNotification, RW()),
 					types.NewRule(types.KindStaticHostUser, RW()),
+					types.NewRule(types.KindGitServer, RW()),
 				},
 			},
 		},
@@ -240,6 +241,9 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindClusterMaintenanceConfig, RO()),
 				},
+				GithubPermissions: []types.GitHubPermission{{
+					Organizations: []string{teleport.TraitInternalGitHubOrgs},
+				}},
 			},
 		},
 	}

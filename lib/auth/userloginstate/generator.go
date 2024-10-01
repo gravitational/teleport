@@ -145,6 +145,8 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 			Roles:          utils.CopyStrings(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
+			GitHubUserID:   user.GetGitHubUserID(),
+			GitHubUsername: user.GetGitHubUsername(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

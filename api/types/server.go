@@ -162,6 +162,18 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 	return server, nil
 }
 
+func NewGitServer(subKind string, spec ServerSpecV2) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindGitServer,
+		SubKind: subKind,
+		Spec:    spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version
@@ -501,11 +513,13 @@ func (s *ServerV2) openSSHEC2InstanceConnectEndpointNodeCheckAndSetDefaults() er
 	return nil
 }
 
-// TODO
+// MakeGitHubOrgServerDomain creates a special domain name used in server's
+// host address to identify the GitHub organization.
 func MakeGitHubOrgServerDomain(org string) string {
 	return fmt.Sprintf("%s.%s", org, GitHubServerDomain)
 }
 
+// GetGitHubOrgFromNodeAddr parses the organization from the node address.
 func GetGitHubOrgFromNodeAddr(addr string) (string, bool) {
 	if host, _, err := net.SplitHostPort(addr); err == nil {
 		addr = host
@@ -587,7 +601,6 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// TODO refactor
 	switch s.Kind {
 	case "":
 		return trace.BadParameter("server Kind is empty")

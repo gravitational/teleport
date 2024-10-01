@@ -16,8 +16,5 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import service from './gitservers';
-
 export * from './types';
 export * from './gitservers';
-export default service;

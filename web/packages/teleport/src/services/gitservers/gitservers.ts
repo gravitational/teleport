@@ -17,8 +17,15 @@
  */
 
 import api from 'teleport/services/api';
-import cfg, { UrlResourcesParams } from 'teleport/config';
-import { ResourcesResponse } from 'teleport/services/agents';
+import cfg from 'teleport/config';
 
-import { GitServer } from './types';
+import { GitServer, CreateGitServerRequest } from './types';
 import makeGitServer from './makeGitServer';
+
+export const gitServerService = {
+  createGitServer(req: CreateGitServerRequest ): Promise<GitServer> {
+    return api
+      .post(cfg.getGitServerUrl(cfg.proxyCluster), req)
+      .then(makeGitServer)
+  },
+}

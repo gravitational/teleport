@@ -20,8 +20,8 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -29,9 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
@@ -52,22 +50,40 @@ func onGitClone(cf *CLIConf) error {
 	return trace.Wrap(cmd.Run())
 }
 
-func onGitSSH(cf *CLIConf) error {
-	maybeUseTTYAsStdinFallback(cf.Context)
-
-	// TODO validate the host is github.com
-	user, err := getGitHubUsername(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cf.UserHost = fmt.Sprintf("%s@%s", user, types.MakeGitHubOrgServerDomain(cf.GitHubOrg))
-	log.Debugf("=== onGitSSH org %s userhost %s command %s", cf.GitHubOrg, cf.UserHost, cf.RemoteCommand)
-
+func onGitLogin(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	_, name, err := getGitHubUser(cf, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintf(cf.Stdout(), "Your GitHub username is %q.\n", name)
+	return nil
+}
+
+func onGitSSH(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO validate the host is github.com
+	userID, _, err := getGitHubUser(cf, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cf.UserHost = fmt.Sprintf("%s@%s", userID, types.MakeGitHubOrgServerDomain(cf.GitHubOrg))
+
+	// Make again to reflect cf.UserHost change // TODO improve perf
+	tc, err = makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	slog.InfoContext(cf.Context, "==tc", "hostlogin", tc.Config.HostLogin)
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -106,12 +122,19 @@ func onGitConfigCheck(cf *CLIConf) error {
 	case strings.HasPrefix(output, wantPrefix):
 		_, org, _ := strings.Cut(output, wantPrefix)
 		fmt.Fprintf(cf.Stdout(), "The current git dir is configured with Teleport for GitHub organization %q.\n\n", org)
+		cf.GitHubOrg = org
 	default:
 		fmt.Fprintf(cf.Stdout(), "The current git dir is not configured with Teleport.\n"+
 			"Run 'tsh git config udpate' to configure it.\n\n")
+		return nil
 	}
 
-	username, err := getGitHubUsername(cf)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, username, err := getGitHubUser(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -167,9 +190,11 @@ func onGitList(cf *CLIConf) error {
 
 		// TODO
 		resources, err = apiclient.GetAllUnifiedResources(cf.Context, client.AuthClient, &proto.ListUnifiedResourcesRequest{
-			Kinds:         []string{types.KindGitServer},
-			SortBy:        types.SortBy{Field: types.ResourceMetadataName},
-			IncludeLogins: true,
+			Kinds:               []string{types.KindGitServer},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			IncludeLogins:       true,
 		})
 		return trace.Wrap(err)
 	})
@@ -205,16 +230,23 @@ func printGitServers(cf *CLIConf, resources []*types.EnrichedResource) error {
 
 func printGitServersAsText(cf *CLIConf, resources []*types.EnrichedResource) error {
 	// TODO(greedy52) verbose mode?
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var rows [][]string
+	var showLoginNote bool
 	for _, resource := range resources {
 		server, ok := resource.ResourceWithLabels.(types.Server)
 		if !ok {
 			return trace.BadParameter("expecting Git server but got %v", server)
 		}
 
-		login := "(missing username)"
-		if len(resource.Logins) > 0 {
-			login = resource.Logins[0]
+		login := "(n/a)*"
+		if profile.GitHubUsername != "" && profile.GitHubUserID != "" {
+			login = profile.GitHubUsername
+		} else {
+			showLoginNote = true
 		}
 
 		if github := server.GetGitHub(); github != nil {
@@ -234,7 +266,11 @@ func printGitServersAsText(cf *CLIConf, resources []*types.EnrichedResource) err
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintln(cf.Stdout(), listGitServerHint)
+	if showLoginNote {
+		fmt.Fprintln(cf.Stdout(), gitLoginNote)
+	}
+
+	fmt.Fprintln(cf.Stdout(), gitCommandsGeneralHint)
 
 	return nil
 }
@@ -260,49 +296,39 @@ func makeGitSSHCommand(org string) string {
 	return "tsh git ssh --github-org " + org
 }
 
-func getGitHubUsername(cf *CLIConf) (string, error) {
+func getGitHubUser(cf *CLIConf, tc *client.TeleportClient) (string, string, error) {
 	profile, err := cf.ProfileStatus()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	usernames := profile.Traits[constants.TraitGitHubUsername]
-	if len(usernames) == 0 {
-		return "", trace.BadParameter("Your Teleport user does not have a GitHub username. Ask a cluster administrator to ensure your Teleport user has appropriate github_username set.")
-	}
-	// TODO print a warning for too many names?
-	return usernames[0], nil
-}
-
-func maybeUseTTYAsStdinFallback(ctx context.Context) {
-	if prompt.Stdin().IsTerminal() {
-		return
+	if profile.GitHubUserID != "" && profile.GitHubUsername != "" {
+		return profile.GitHubUserID, profile.GitHubUsername, nil
 	}
 
-	tty, err := os.Open("/dev/tty")
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.ReissueWithGitHubAuth(cf.Context, cf.GitHubOrg)
+	})
 	if err != nil {
-		log.Warn("Cannot open /dev/tty.")
-		return
+		return "", "", trace.Wrap(err)
 	}
 
-	// Check if IsTerminal just to be safe.
-	cr := prompt.NewContextReader(tty)
-	if !cr.IsTerminal() {
-		defer tty.Close()
-		log.Warn("/dev/tty is not terminal.")
-		return
+	profile, err = tc.ProfileStatus()
+	if err != nil {
+		return "", "", trace.Wrap(err)
 	}
 
-	go cr.HandleInterrupt()
-	prompt.SetStdin(cr)
-
-	go func() {
-		<-ctx.Done()
-		tty.Close()
-	}()
+	if profile.GitHubUserID == "" {
+		return "", "", trace.BadParameter("cannot retrieve github identity")
+	}
+	return profile.GitHubUserID, profile.GitHubUsername, nil
 }
 
-const listGitServerHint = "" +
+const gitLoginNote = "" +
+	"(n/a)*: Usernames will be retrieved automatically upon git commands.\n" +
+	"        Alternatively, run `tsh git login --github-org <org>`.\n"
+
+const gitCommandsGeneralHint = "" +
 	"hint: use 'tsh git clone <git-clone-ssh-url>' to clone a new repository\n" +
 	"      use 'tsh git config update' to configure an existing repository to use Teleport\n" +
 	"      once the repository is cloned or configured, use 'git' as normal\n"

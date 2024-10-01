@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -739,6 +740,7 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	slog.InfoContext(context.Background(), "=== IsErrorResolvableWithRelogin", "err", err)
 	// Private key policy errors indicate that the user must login with an
 	// unexpected private key policy requirement satisfied. This can occur
 	// in the following cases:
@@ -1694,6 +1696,89 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	return func(opt *SSHOptions) {
 		opt.LocalCommandExecutor = executor
 	}
+}
+
+// TODO
+func (tc *TeleportClient) ReissueWithGitHubAuth(ctx context.Context, githubOrg string) error {
+	keyRing, err := tc.localAgent.GetKeyRing(tc.SiteName, WithAllCerts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	newUserKeys, certReq, err := clusterClient.prepareUserCertsRequest(ctx, ReissueParams{
+		// TODO
+		//AccessRequests: profile.ActiveRequests.AccessRequests,
+		RouteToCluster: tc.SiteName,
+		RouteToGitServer: proto.RouteToGitServer{
+			GitHubOrganization: githubOrg,
+		},
+	}, keyRing)
+
+	// TODO REFACTOR!!!!
+	sshLoginSSO := SSHLoginSSO{
+		SSHLogin: SSHLogin{
+			ProxyAddr: tc.WebProxyAddr,
+			/* No need to pass in request related fields since we are not gonna use SSHLogin for the actual request
+			SSHPubKey:               certReq.SSHPublicKey,
+			TLSPubKey:               certReq.TLSPublicKey,
+			SSHAttestationStatement: certReq.SSHPublicKeyAttestationStatement.,
+			TLSAttestationStatement: certReq.TLSPublicKeyAttestationStatement,
+			*/
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+			ExtraHeaders:      tc.ExtraProxyHeaders,
+		},
+		ConnectorID:                   "TODO", // is this needed?
+		ConnectorName:                 "TODO", // is this needed?
+		Protocol:                      constants.Github,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: true,
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	loginFunc := func(redirectorReq SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
+		authRequest, err := rootClient.CreateGithubAuthRequestForUser(ctx, &proto.CreateGithubAuthRequestForUserRequest{
+			CertRequest: certReq,
+			RedirectUrl: redirectorReq.RedirectURL,
+			//ConnectorId: tc.ConnectorId, do we want this?
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &SSOLoginConsoleResponse{
+			RedirectURL: authRequest.RedirectURL,
+		}, nil
+	}
+
+	resp, err := SSHAgentSSOLogin(ctx, sshLoginSSO, &RedirectorConfig{
+		SSOLoginConsoleRequestFn: loginFunc,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyRing.ClusterName = tc.SiteName
+	keyRing.SSHPrivateKey = newUserKeys.ssh
+	keyRing.Cert = resp.Cert
+	return trace.Wrap(tc.localAgent.AddKeyRing(keyRing))
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
@@ -4722,6 +4807,10 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 	)
 	defer span.End()
 
+	// TODO(greedy52) move to proper place?
+	closeFunc := maybeUseTTYAsStdinFallback()
+	defer closeFunc()
+
 	stdin := prompt.Stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
@@ -4738,12 +4827,46 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 	)
 	defer span.End()
 
+	// TODO(greedy52) move to proper place?
+	closeFunc := maybeUseTTYAsStdinFallback()
+	defer closeFunc()
+
 	stdin := prompt.Stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")
 	}
 	return prompt.Password(
 		ctx, tc.Stderr, stdin, fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
+}
+
+// TODO(greedy52) move to proper place?
+func maybeUseTTYAsStdinFallback() func() {
+	if prompt.Stdin().IsTerminal() {
+		return func() {}
+	}
+
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		log.Warn("Cannot open /dev/tty.")
+		return func() {}
+	}
+
+	// Check if IsTerminal just to be safe.
+	cr := prompt.NewContextReader(tty)
+	if !cr.IsTerminal() {
+		defer tty.Close()
+		log.Warn("/dev/tty is not terminal.")
+		return func() {}
+	}
+
+	go cr.HandleInterrupt()
+	oldStdin := prompt.Stdin()
+	prompt.SetStdin(cr)
+
+	return func() {
+		prompt.SetStdin(oldStdin)
+		tty.Close()
+	}
 }
 
 // LoadTLSConfig returns the user's TLS configuration, either from static

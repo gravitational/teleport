@@ -350,6 +350,30 @@ type desktopIsActive struct {
 	Active bool `json:"active"`
 }
 
+type createGitServerRequest struct {
+	SubKind string                   `json:"subKind,omitempty"`
+	GitHub  *ui.GitHubServerMetadata `json:"github,omitempty"`
+}
+
+func (r *createGitServerRequest) checkAndSetDefaults() error {
+	switch r.SubKind {
+	case types.SubKindGitHub:
+		if r.GitHub == nil {
+			return trace.BadParameter("missing github metadata for GitHub server")
+		}
+		if r.GitHub.Integration == "" {
+			return trace.BadParameter("missing integration for GitHub server")
+		}
+		if r.GitHub.Organization == "" {
+			return trace.BadParameter("missing organization for GitHub server")
+		}
+		return nil
+
+	default:
+		return trace.BadParameter("invalid subkind %q, only %q is supported", r.SubKind, types.SubKindOpenSSHEICENode)
+	}
+}
+
 // createNodeRequest contains the required information to create a Node.
 type createNodeRequest struct {
 	Name     string          `json:"name,omitempty"`
@@ -383,6 +407,43 @@ func (r *createNodeRequest) checkAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+func (h *Handler) handleGitServerCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req *createGitServerRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server, err := types.NewGitServer(
+		req.SubKind,
+		types.ServerSpecV2{
+			GitHub: &types.GitHubServerMetadata{
+				Organization: req.GitHub.Organization,
+				Integration:  req.GitHub.Integration,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := clt.UpsertGitServer(ctx, server); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeServer(site.GetName(), server, nil /*logins*/, false /* requiresRequest */), nil
 }
 
 // handleNodeCreate creates a Teleport Node.

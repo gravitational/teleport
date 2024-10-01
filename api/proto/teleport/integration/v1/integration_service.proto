@@ -56,6 +56,8 @@ message ListIntegrationsRequest {
   int32 limit = 1;
   // NextKey is the key for the next page of Integrations.
   string next_key = 2;
+  // WithSecrets specifies whether to load associated secrets.
+  bool with_secrets = 3;
 }
 
 // ListIntegrationsResponse is the response for ListIntegrationsRequest.
@@ -131,6 +133,8 @@ message GenerateGitHubUserCertRequest {
   string key_id = 4;
   // Ttl is the duration the certificate will be valid for.
   google.protobuf.Duration ttl = 5;
+  // UserId is the GitHub user id. One of Login and UserId is required.
+  string user_id = 6;
 }
 
 // GenerateGitHubUserCertResponse contains a signed certificate.

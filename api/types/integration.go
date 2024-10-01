@@ -59,9 +59,11 @@ type Integration interface {
 
 	// GetGitHubIntegrationSpec returns the GitHub spec.
 	GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1
+	// SetGitHubIntegrationSpec returns the GitHub spec.
+	SetGitHubIntegrationSpec(*GitHubIntegrationSpecV1)
 
-	// SetGitHubSSHCertAuthority configures CA for GitHub integraion.
-	SetGitHubSSHCertAuthority(ca []*SSHKeyPair) error
+	// TODO
+	WithoutSecrets() Integration
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -264,22 +266,6 @@ func (ig *IntegrationV1) SetAWSOIDCIntegrationSpec(awsOIDCSpec *AWSOIDCIntegrati
 	}
 }
 
-func (ig *IntegrationV1) SetGitHubSSHCertAuthority(cas []*SSHKeyPair) error {
-	if ig.GetSubKind() != IntegrationSubKindGitHub {
-		return trace.BadParameter("integration is not %q subkind", IntegrationSubKindGitHub)
-	}
-
-	spec := ig.Spec.GetGitHub()
-	if spec.Proxy == nil {
-		spec.Proxy = &GitHubProxy{}
-	}
-	spec.Proxy.CertAuthority = cas
-	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
-		GitHub: spec,
-	}
-	return nil
-}
-
 // SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
 func (ig *IntegrationV1) SetAWSOIDCRoleARN(roleARN string) {
 	currentSubSpec := ig.Spec.GetAWSOIDC()
@@ -313,6 +299,11 @@ func (ig *IntegrationV1) GetAzureOIDCIntegrationSpec() *AzureOIDCIntegrationSpec
 
 func (ig *IntegrationV1) GetGitHubIntegrationSpec() *GitHubIntegrationSpecV1 {
 	return ig.Spec.GetGitHub()
+}
+func (ig *IntegrationV1) SetGitHubIntegrationSpec(spec *GitHubIntegrationSpecV1) {
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_GitHub{
+		GitHub: spec,
+	}
 }
 
 // Integrations is a list of Integration resources.
@@ -463,4 +454,54 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)
+}
+
+func (ig *IntegrationV1) Copy() *IntegrationV1 {
+	return utils.CloneProtoMsg(ig)
+}
+
+func (ig *IntegrationV1) WithoutSecrets() Integration {
+	switch ig.SubKind {
+	case IntegrationSubKindGitHub:
+		spec := ig.GetGitHubIntegrationSpec()
+		if spec == nil || spec.Proxy == nil {
+			return ig
+		}
+
+		clone := ig.Copy()
+		spec = clone.GetGitHubIntegrationSpec()
+		for i := range spec.Proxy.CertAuthorities {
+			spec.Proxy.CertAuthorities[i].PrivateKey = nil
+		}
+		if spec.Proxy.Connector != nil {
+			spec.Proxy.Connector.ClientSecret = ""
+		}
+		clone.SetGitHubIntegrationSpec(spec)
+		return clone
+	}
+	return ig
+}
+
+func (s *GitHubIntegrationSpecV1) MakeConnectorSpec() (*GithubConnectorSpecV3, error) {
+	if s.Proxy == nil {
+		return nil, trace.BadParameter("missing GitHub proxy settings")
+	}
+	if s.Proxy.Connector == nil {
+		return nil, trace.BadParameter("missing GitHub connector settings")
+	}
+
+	return &GithubConnectorSpecV3{
+		ClientID:     s.Proxy.Connector.ClientID,
+		ClientSecret: s.Proxy.Connector.ClientSecret,
+		RedirectURL:  s.Proxy.Connector.RedirectURL,
+		// TODO(greedy52) TeamsToRoles is not used for this flow. Consider use
+		// a different flag in the spec to avoid this fake mapping.
+		TeamsToRoles: []TeamRolesMapping{{
+			Organization: s.Organization,
+			Team:         "do-not-use",
+		}},
+		// Only public github.com is supported for now.
+		EndpointURL:    GithubURL,
+		APIEndpointURL: GithubAPIURL,
+	}, nil
 }

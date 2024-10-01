@@ -274,8 +274,9 @@ type Role interface {
 	// SetSPIFFEConditions sets the allow or deny SPIFFERoleCondition.
 	SetSPIFFEConditions(rct RoleConditionType, cond []*SPIFFERoleCondition)
 
-	// TODO
+	// GetGitHubPermissions returns the allow or deny GitHub-related permissions.
 	GetGitHubPermissions(RoleConditionType) []GitHubPermission
+	// SetGitHubPermissions sets the allow or deny GitHub-related permissions.
 	SetGitHubPermissions(RoleConditionType, []GitHubPermission)
 }
 
@@ -1876,7 +1877,6 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
-		// TODO alternative to fake a label?
 		return r.makeGitServerLabelMatchers(cond), nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)

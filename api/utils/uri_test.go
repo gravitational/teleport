@@ -34,7 +34,6 @@ func TestParseSessionsURI(t *testing.T) {
 		{info: "local default file system URI", in: "/home/log", url: &url.URL{Scheme: "file", Path: "/home/log"}},
 		{info: "explicit filesystem URI", in: "file:///home/log", url: &url.URL{Scheme: "file", Path: "/home/log"}},
 		{info: "other scheme", in: "other://my-bucket", url: &url.URL{Scheme: "other", Host: "my-bucket"}},
-		{info: "other schemess", in: "s3://access.support.blueplanet.com/records", url: &url.URL{Scheme: "s3", Host: "access.support.blueplanet.com"}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.info, func(t *testing.T) {

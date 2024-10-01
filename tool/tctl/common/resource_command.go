@@ -1346,6 +1346,8 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		case types.IntegrationSubKindGitHub:
+			existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}
@@ -2843,7 +2845,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var err error
 		var nextKey string
 		for {
-			igs, nextKey, err = client.ListIntegrations(ctx, 0, nextKey)
+			igs, nextKey, err = client.ListIntegrations(ctx, 0, nextKey, rc.withSecrets)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

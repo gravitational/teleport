@@ -2695,7 +2695,7 @@ func (integrationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecret
 	for {
 		var igs []types.Integration
 		var err error
-		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey)
+		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey, loadSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"sort"
 	"time"
 
@@ -396,7 +395,6 @@ func (s *PresenceService) GetGitServer(ctx context.Context, name string) (types.
 }
 func (s *PresenceService) GetGitServers(ctx context.Context) ([]types.Server, error) {
 	servers, err := s.getServers(ctx, types.KindGitServer, gitServerPrefix)
-	slog.DebugContext(ctx, "=== local.GetGitServers", "servers", servers, "error", err)
 	return servers, trace.Wrap(err)
 }
 func (s *PresenceService) DeleteGitServer(ctx context.Context, name string) error {

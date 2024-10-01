@@ -421,6 +421,7 @@ function makeIntegration(json: any): Integration {
       organization: github?.organization,
       publicKeys: github?.publicKeys,
       fingerprints: github?.fingerprints,
+      connectorID: github?.connectorID,
     },
     details: github? "GitHub Organiztion \""+ github.organization +"\"": undefined,
     // The integration resource does not have a "status" field, but is

@@ -97,6 +97,15 @@ type Exec interface {
 
 // NewExecRequest creates a new local or remote Exec.
 func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
+	// Always remote for git proxies.
+	if ctx.ServerSubKind == types.SubKindGitHub {
+		return &remoteExec{
+			ctx:     ctx,
+			command: command,
+			session: ctx.RemoteSession,
+		}, nil
+	}
+
 	// It doesn't matter what mode the cluster is in, if this is a Teleport node
 	// return a local *localExec.
 	if ctx.srv.Component() == teleport.ComponentNode {
@@ -393,8 +402,28 @@ func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, er
 	// Is there a better place?
 	switch e.ctx.ServerSubKind {
 	case types.SubKindGitHub:
+		command, path, err := parseGitCommand(e.GetCommand())
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse git command", "command", e.GetCommand())
+		}
+
+		// TODO move this to parseGitCommand
+		org, _, ok := strings.Cut(path, "/")
+		if !ok {
+			return nil, trace.Wrap(err, "failed to parse git command", "command", e.GetCommand())
+		}
+
+		spec := e.ctx.GetServer().GetInfo().GetGitHub()
+		if spec == nil {
+			return nil, trace.BadParameter("missing github spec for github server")
+		}
+
+		if spec.Organization != org {
+			return nil, trace.AccessDenied("expect organization %v but got %v", spec.Organization, org)
+		}
+
 		e.gitHubAuditor = &gitHubAuditor{
-			isPush: strings.HasPrefix(e.GetCommand(), gittransport.ReceivePackServiceName),
+			isPush: command == gittransport.ReceivePackServiceName,
 		}
 		inputWriter = io.MultiWriter(inputWriter, e.gitHubAuditor)
 	}

@@ -65,14 +65,18 @@ export enum IntegrationKind {
   ExternalAuditStorage = 'external-audit-storage',
 }
 export type IntegrationSpecAwsOidc = {
-  roleArn?: string;
-  issuerS3Prefix?: string;
-  issuerS3Bucket?: string;
-  organization?: string;
-  publicKeys?: [string];
+  connectorID?: string; // TODO move to GitHub
   fingerprints?: [string];
+  issuerS3Bucket?: string;
+  issuerS3Prefix?: string;
+  organization?: string; // TODO move to GitHub
+  publicKeys?: [string];
+  roleArn?: string;
 };
 export type IntegrationSpecGitHub = {
+  connectorClientID: string;
+  connectorClientSecret: string;
+  connectorRedirectURL: string;
   organization: string;
   publicKeys?: [string];
   fingerprints?: [string];

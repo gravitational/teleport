@@ -693,8 +693,6 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		return nil, nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
-	log.Debugf("==== params.MFAPrompt.Run resp %v", authnSolved)
-
 	// Issue certificate.
 	certsReq := params.CertsReq
 	certsReq.MFAResponse = authnSolved

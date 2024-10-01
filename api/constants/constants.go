@@ -406,11 +406,6 @@ const (
 	// the GID to create host user account with.
 	TraitHostUserGID = "host_user_gid"
 
-	// TraitGitHubUsername is the name of the variable used to store the GitHub
-	// login. This trait expects a singler username so values besides the first
-	// will be ignored.
-	TraitGitHubUsername = "github_username"
-
 	// TraitGitHubOrganizations is the name of the variable used to store
 	// allowed GitHub organizations.
 	TraitGitHubOrganizations = "github_orgs"

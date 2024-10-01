@@ -26,6 +26,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -515,6 +516,7 @@ func (s *Server) GetInfo() types.Server {
 		Addr: s.AdvertiseAddr(),
 	}
 	if s.targetServer != nil {
+		spec.Hostname = s.targetServer.GetHostname()
 		spec.GitHub = s.targetServer.GetGitHub()
 	}
 
@@ -696,6 +698,9 @@ func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) 
 	if spec == nil || spec.Integration == "" {
 		return nil, trace.BadParameter("GitHub server %s missing integration", s.targetServer)
 	}
+	if s.identityContext.GitHubUserID == "" {
+		return nil, trace.BadParameter("user no associated github user")
+	}
 
 	// generate a new key pair
 	priv, err := native.GeneratePrivateKey()
@@ -703,17 +708,10 @@ func (s *Server) getSSHSignerForGitHub(ctx context.Context) (ssh.Signer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	logins, err := s.identityContext.AccessChecker.GetAllowedLoginsForResource(s.targetServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(logins) == 0 {
-		return nil, trace.NotFound("no github login found")
-	}
 	resp, err := s.authClient.GenerateGitHubUserCert(ctx, &integrationv1.GenerateGitHubUserCertRequest{
 		Integration: spec.Integration,
 		PublicKey:   priv.MarshalSSHPublicKey(),
-		Login:       logins[0],
+		UserId:      s.identityContext.GitHubUserID,
 		KeyId:       s.identityContext.TeleportUser,
 		Ttl:         durationpb.New(10 * time.Duration(time.Minute)),
 	})
@@ -798,16 +796,30 @@ func (s *Server) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+var knownGithubDotComFingerprints = []string{
+	"SHA256:uNiVztksCsDhcc0u9e8BujQXVUpKZIDTMczCvj3tD2s",
+	"SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ",
+	"SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM",
+	"SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+}
+
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netConfig types.ClusterNetworkingConfig) (*tracessh.Client, error) {
-	// TODO(greedy52) beautify and add github host validation.
+	// TODO(greedy52) beautify and retrive github fingerprints with API.
 	hostKeyCallback := s.authHandlers.HostKeyAuth
 	if s.targetServer != nil &&
 		s.targetServer.GetKind() == types.KindGitServer &&
 		s.targetServer.GetSubKind() == types.SubKindGitHub {
-		hostKeyCallback = ssh.InsecureIgnoreHostKey()
 		systemLogin = "git"
+		hostKeyCallback = func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			actualFingerprint := ssh.FingerprintSHA256(key)
+			if slices.Contains(knownGithubDotComFingerprints, actualFingerprint) {
+				return nil
+			}
+			return trace.BadParameter("cannot verify github.com: unknown fingerprint %v algo %v", actualFingerprint, key.Type())
+		}
 	}
 
 	// the proxy will use the agentless signer as the auth method when

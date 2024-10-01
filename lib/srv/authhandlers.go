@@ -233,6 +233,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.PreviousIdentityExpires = asTime
 	}
+	identity.GitHubUserID = certificate.Extensions[teleport.CertExtensionGitHubUserID]
 
 	return identity, nil
 }
@@ -475,8 +476,12 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// exists and it is an agentless node, preform an RBAC check.
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
-		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+		if h.c.TargetServer != nil {
+			switch {
+			case h.c.TargetServer.IsOpenSSHNode(),
+				h.c.TargetServer.GetGitHub() != nil:
+				err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+			}
 		}
 	} else {
 		// the SSH server is a Teleport node, preform an RBAC check now
@@ -663,11 +668,28 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
+	// TODO refactor to services?
+	roleMatchers := []services.RoleMatcher{}
+	switch {
+	case target.GetGitHub() != nil:
+		switch cert.Extensions[teleport.CertExtensionGitHubUserID] {
+		case "":
+			return trace.AccessDenied("user %s@%s has no github user associated", teleportUser, ca.GetClusterName())
+		case osUser:
+			// yes
+		default:
+			return trace.AccessDenied("user %s@%s is not authorized to impersonate github user %s", teleportUser, ca.GetClusterName(), osUser)
+		}
+
+	default:
+		roleMatchers = append(roleMatchers, services.NewLoginMatcher(osUser))
+	}
+
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		target,
 		state,
-		services.NewLoginMatcher(osUser),
+		roleMatchers...,
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 			teleportUser, ca.GetClusterName(), osUser, clusterName, err)

@@ -402,7 +402,9 @@ func IsHandshakeFailedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(trace.Unwrap(err).Error(), "ssh: handshake failed")
+	// TODO(greedy52) investigate this
+	errStr := trace.Unwrap(err).Error()
+	return strings.Contains(errStr, "ssh: handshake failed") && !strings.Contains(errStr, "(ssh: handshake failed")
 }
 
 // IsCertExpiredError specifies whether this error indicates
