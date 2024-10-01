@@ -757,12 +757,46 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 }
 
 // FetchJWTBundles implements the SPIFFE Workload API FetchJWTBundles method.
+// See The SPIFFE Workload API (6.2.2).
 func (s *SPIFFEWorkloadAPIService) FetchJWTBundles(
-	req *workloadpb.JWTBundlesRequest,
+	_ *workloadpb.JWTBundlesRequest,
 	srv workloadpb.SpiffeWorkloadAPI_FetchJWTBundlesServer,
 ) error {
-	// JWT functionality currently not implemented in Teleport Workload Identity.
-	return trace.NotImplemented("method not implemented")
+	ctx := srv.Context()
+	s.log.InfoContext(ctx, "FetchJWTBundles stream started by workload")
+	defer s.log.InfoContext(ctx, "FetchJWTBundles stream ended")
+
+	for {
+		bundleSet, err := s.trustBundleCache.GetBundleSet(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.log.InfoContext(ctx, "Sending JWT trust bundles to workload")
+
+		// The SPIFFE Workload API (6.2.2):
+		// > The returned bundles are encoded as a standard JWK Set as defined
+		// > by RFC 7517 containing the JWT-SVID signing keys for the trust
+		// > domain. These keys may only represent a subset of the keys present
+		// > in the SPIFFE trust bundle for the trust domain. The server MUST
+		// > NOT include keys with other uses in the returned JWT bundles.
+		bundles, err := bundleSet.MarshaledJWKSBundles(true)
+		if err != nil {
+			return trace.Wrap(err, "marshaling bundles as JWKS")
+		}
+		err = srv.Send(&workloadpb.JWTBundlesResponse{
+			Bundles: bundles,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-bundleSet.Stale():
+		}
+	}
 }
 
 // ValidateJWTSVID implements the SPIFFE Workload API ValidateJWTSVID method.
