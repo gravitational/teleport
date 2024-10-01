@@ -27,6 +27,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -309,6 +311,20 @@ func (c *ErrorCountingLogger) SearchEvents(ctx context.Context, req events.Searc
 	events, key, err := c.wrapped.SearchEvents(ctx, req)
 	c.searches.observe(err)
 	return events, key, err
+}
+
+func (c *ErrorCountingLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.MapErr(c.wrapped.ExportUnstructuredEvents(ctx, req), func(err error) error {
+		c.searches.observe(err)
+		return err
+	})
+}
+
+func (c *ErrorCountingLogger) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.MapErr(c.wrapped.GetEventExportChunks(ctx, req), func(err error) error {
+		c.searches.observe(err)
+		return err
+	})
 }
 
 // SearchSessionEvents calls [c.wrapped.SearchSessionEvents] and counts the error or

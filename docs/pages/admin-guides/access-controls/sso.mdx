@@ -46,27 +46,11 @@ information about the temporary user.
 You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
 ```code
 # Log in to your cluster with tsh so you can use tctl remotely
-$ tsh login --proxy=proxy.example.com --user=myuser
+$ tsh login --proxy=example.teleport.sh
 $ tctl get users/<username>
 ```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-
-```code
-# Log in to your cluster with tsh so you can use tctl remotely
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl get users
-```
-
-</TabItem>
-
-</Tabs>
 
 Here is an example of a temporary `user` resource created when the GitHub user
 `myuser` signed in to GitHub to authenticate to Teleport. This resource
