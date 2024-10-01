@@ -119,10 +119,12 @@ func (b *Bot) GetTeamsApp(ctx context.Context) (*msapi.TeamsApp, error) {
 	}
 
 	b.log.DebugContext(ctx, "Retrieved the Teams application from the organization store",
-		"teams_app_id", teamsApp.ID,
-		"teams_app_display_name", teamsApp.DisplayName,
-		"teams_app_external_id", teamsApp.ExternalID,
-		"teams_app_distribution_method", teamsApp.DistributionMethod)
+		slog.Group("teams_app",
+			"id", teamsApp.ID,
+			"display_name", teamsApp.DisplayName,
+			"external_id", teamsApp.ExternalID,
+			"distribution_method", teamsApp.DistributionMethod),
+	)
 	b.teamsApp = teamsApp
 	return b.teamsApp, nil
 }
@@ -186,12 +188,15 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 	b.mu.RUnlock()
 	if ok {
 		log.DebugContext(ctx, "Found recipient in cache",
-			"recipient_id", d.ID,
-			"recipient_installed_app_id", d.App.ID,
-			"recipient_chat_id", d.Chat.ID,
-			"recipient_chat_url", d.Chat.WebURL,
-			"recipient_chat_tenant_id", d.Chat.TenantID,
-			"recipient_kind", d.Kind)
+			slog.Group("recipient",
+				"id", d.ID,
+				"installed_app_id", d.App.ID,
+				"chat_id", d.Chat.ID,
+				"chat_url", d.Chat.WebURL,
+				"chat_tenant_id", d.Chat.TenantID,
+				"kind", d.Kind,
+			),
+		)
 		return &d, nil
 	}
 
@@ -200,11 +205,14 @@ func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*RecipientD
 	channel, isChannel := b.checkChannelURL(recipient)
 	if isChannel {
 		log.DebugContext(ctx, "Recipient is a valid channel",
-			"channel_name", channel.Name,
-			"channel_chat_id", channel.ChatID,
-			"channel_group", channel.Group,
-			"channel_tenant_id", channel.Tenant,
-			"channel_url", channel.URL)
+			slog.Group("channel",
+				"name", channel.Name,
+				"chat_id", channel.ChatID,
+				"group", channel.Group,
+				"tenant_id", channel.Tenant,
+				"url", channel.URL,
+			),
+		)
 		// A team and a group are different but in MsTeams the team is associated to a group and will have the same id.
 
 		log = log.With("teams_app_id", b.teamsApp.ID, "channel_group", channel.Group)
@@ -430,10 +438,13 @@ func (b *Bot) checkChannelURL(recipient string) (*Channel, bool) {
 		ChatID: chatID,
 	}
 	log.DebugContext(ctx, "The recipient is a channel",
-		"channel_name", channel.Name,
-		"channel_group_id", channel.Group,
-		"channel_tenant_id", channel.Tenant,
-		"channel_chat_id", channel.ChatID)
+		slog.Group("channel",
+			"name", channel.Name,
+			"group_id", channel.Group,
+			"tenant_id", channel.Tenant,
+			"chat_id", channel.ChatID,
+		),
+	)
 
 	return &channel, true
 }

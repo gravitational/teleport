@@ -98,8 +98,9 @@ func Setup(conf Config) error {
 	return nil
 }
 
-// NewSLog builds a slog.Logger from the logger.Config.
-func (conf Config) NewSLog() (*slog.Logger, error) {
+// NewSLogLogger builds a slog.Logger from the logger.Config.
+// TODO: this code is adapted from `config.applyLogConfig`, we'll want to deduplicate the logic next time we refactor the logging setup
+func (conf Config) NewSLogLogger() (*slog.Logger, error) {
 	var w io.Writer
 	switch conf.Output {
 	case "":
