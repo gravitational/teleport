@@ -123,9 +123,9 @@ type Config struct {
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
 	// ConsumerLockName defines a name of a SQS consumer lock (optional).
-	// If provided, it will be prefixed with "athena_" to avoid accidental
+	// If provided, it will be prefixed with "athena/" to avoid accidental
 	// collision with existing locks.
-	ConsumerLockName []string
+	ConsumerLockName string
 	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
 	ConsumerDisabled bool
 
@@ -251,10 +251,6 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		// no-one should use that short interval, so it's easier to check here.
 		// For high load operation, BatchMaxItems will happen first.
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
-	}
-
-	if len(cfg.ConsumerLockName) == 0 {
-		cfg.ConsumerLockName = []string{"athena_lock"}
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
@@ -425,7 +421,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		cfg.BatchMaxInterval = dur
 	}
 	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
-		cfg.ConsumerLockName = []string{"athena", consumerLockName}
+		cfg.ConsumerLockName = consumerLockName
 	}
 	if val := url.Query().Get("consumerDisabled"); val != "" {
 		boolVal, err := strconv.ParseBool(val)
