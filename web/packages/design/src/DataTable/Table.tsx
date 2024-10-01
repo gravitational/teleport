@@ -131,7 +131,10 @@ export function Table<T>({
         <tr
           key={rowIdx}
           onClick={() => row?.onClick?.(item)}
+          onKeyUp={e => e.key === 'Enter' && row?.onClick?.(item)}
           style={row?.getStyle?.(item)}
+          tabIndex={row?.onClick ? 0 : undefined}
+          role={row?.onClick ? 'button' : undefined}
         >
           {cells}
         </tr>
@@ -224,7 +227,7 @@ function BasicTable<T>({
   style,
 }: BasicTableProps<T>) {
   return (
-    <StyledTable className={className} style={style}>
+    <StyledTable className={className} style={style} role="table">
       {renderHeaders()}
       {renderBody(data)}
     </StyledTable>
@@ -253,6 +256,7 @@ function SearchableBasicTable<T>({
         borderTopLeftRadius={0}
         borderTopRightRadius={0}
         style={style}
+        role="table"
       >
         {renderHeaders()}
         {renderBody(data)}
@@ -273,6 +277,7 @@ function PagedTable<T>({
   fetching,
   className,
   style,
+  isSearchable,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
@@ -282,21 +287,23 @@ function PagedTable<T>({
 
   return (
     <>
-      <StyledPanel>
-        <InputSearch
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
-        />
-        {(showTopPager || showBothPager) && (
-          <ClientSidePager
-            nextPage={nextPage}
-            prevPage={prevPage}
-            data={data}
-            {...fetching}
-            {...pagination}
+      {isSearchable && (
+        <StyledPanel>
+          <InputSearch
+            searchValue={searchValue}
+            setSearchValue={setSearchValue}
           />
-        )}
-      </StyledPanel>
+          {(showTopPager || showBothPager) && (
+            <ClientSidePager
+              nextPage={nextPage}
+              prevPage={prevPage}
+              data={data}
+              {...fetching}
+              {...pagination}
+            />
+          )}
+        </StyledPanel>
+      )}
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}

@@ -68,7 +68,18 @@ export function SortHeaderCell<T>({
 
   return (
     <th>
-      <a onClick={onClick} style={{ display: 'flex', alignItems: 'center' }}>
+      <a
+        onClick={onClick}
+        onKeyUp={e => e.key === 'Enter' && onClick()}
+        style={{ display: 'flex', alignItems: 'center' }}
+        tabIndex={0}
+        role="button"
+        css={`
+          &:focus-visible {
+            outline: 2px solid ${props => props.theme.colors.brand};
+          }
+        `}
+      >
         {text}
         <SortIndicator sortDir={dir} />
       </a>

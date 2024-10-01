@@ -203,6 +203,7 @@ export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
 };
 
 export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
+  isSearchable?: boolean;
   nextPage: () => void;
   prevPage: () => void;
   pagination: State<T>['state']['pagination'];
