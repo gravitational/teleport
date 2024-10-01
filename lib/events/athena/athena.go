@@ -500,7 +500,6 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	l := &Log{
 		publisher:      newPublisherFromAthenaConfig(cfg),
 		querier:        querier,
-		consumerCloser: nil,
 	}
 
 	if !cfg.ConsumerDisabled {
