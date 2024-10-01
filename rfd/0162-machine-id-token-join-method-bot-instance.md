@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah.stride@goteleport.com)
-state: draft
+state: Implemented (16.2.0)
 ---
 
 # RFD 00162 - Improving the on-prem fleet Bot management experience
