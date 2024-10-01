@@ -1050,6 +1050,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/lastseennotification", h.WithClusterAuth(h.notificationsUpsertLastSeenTimestamp))
 	// Upsert a notification state when to mark a notification as read or hide it.
 	h.PUT("/webapi/sites/:site/notificationstate", h.WithClusterAuth(h.notificationsUpsertNotificationState))
+
+	// Git Servers
+	h.POST("/webapi/sites/:site/gitserver", h.WithClusterAuth(h.handleGitServerCreate))
 }
 
 // GetProxyClient returns authenticated auth server client

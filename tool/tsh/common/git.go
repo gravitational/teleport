@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -55,8 +54,13 @@ func onGitClone(cf *CLIConf) error {
 func onGitSSH(cf *CLIConf) error {
 	maybeUseTTYAsStdinFallback(cf.Context)
 
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// TODO validate the host is github.com
-	user, err := getGitHubUsername(cf)
+	user, err := getGitHubUserID(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -64,7 +68,8 @@ func onGitSSH(cf *CLIConf) error {
 	cf.UserHost = fmt.Sprintf("%s@%s", user, types.MakeGitHubOrgServerDomain(cf.GitHubOrg))
 	log.Debugf("=== onGitSSH org %s userhost %s command %s", cf.GitHubOrg, cf.UserHost, cf.RemoteCommand)
 
-	tc, err := makeClient(cf)
+	// Make again to reflect cf.UserHost change // TODO improve perf
+	tc, err = makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,12 +111,19 @@ func onGitConfigCheck(cf *CLIConf) error {
 	case strings.HasPrefix(output, wantPrefix):
 		_, org, _ := strings.Cut(output, wantPrefix)
 		fmt.Fprintf(cf.Stdout(), "The current git dir is configured with Teleport for GitHub organization %q.\n\n", org)
+		cf.GitHubOrg = org
 	default:
 		fmt.Fprintf(cf.Stdout(), "The current git dir is not configured with Teleport.\n"+
 			"Run 'tsh git config udpate' to configure it.\n\n")
+		return nil
 	}
 
-	username, err := getGitHubUsername(cf)
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	username, err := getGitHubUserID(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -167,9 +179,11 @@ func onGitList(cf *CLIConf) error {
 
 		// TODO
 		resources, err = apiclient.GetAllUnifiedResources(cf.Context, client.AuthClient, &proto.ListUnifiedResourcesRequest{
-			Kinds:         []string{types.KindGitServer},
-			SortBy:        types.SortBy{Field: types.ResourceMetadataName},
-			IncludeLogins: true,
+			Kinds:               []string{types.KindGitServer},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			IncludeLogins:       true,
 		})
 		return trace.Wrap(err)
 	})
@@ -205,6 +219,10 @@ func printGitServers(cf *CLIConf, resources []*types.EnrichedResource) error {
 
 func printGitServersAsText(cf *CLIConf, resources []*types.EnrichedResource) error {
 	// TODO(greedy52) verbose mode?
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var rows [][]string
 	for _, resource := range resources {
 		server, ok := resource.ResourceWithLabels.(types.Server)
@@ -213,8 +231,8 @@ func printGitServersAsText(cf *CLIConf, resources []*types.EnrichedResource) err
 		}
 
 		login := "(missing username)"
-		if len(resource.Logins) > 0 {
-			login = resource.Logins[0]
+		if profile.GitHubUsername != "" && profile.GitHubUserID != "" {
+			login = profile.GitHubUsername
 		}
 
 		if github := server.GetGitHub(); github != nil {
@@ -260,20 +278,35 @@ func makeGitSSHCommand(org string) string {
 	return "tsh git ssh --github-org " + org
 }
 
-func getGitHubUsername(cf *CLIConf) (string, error) {
+func getGitHubUserID(cf *CLIConf, tc *client.TeleportClient) (string, error) {
 	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	usernames := profile.Traits[constants.TraitGitHubUsername]
-	if len(usernames) == 0 {
-		return "", trace.BadParameter("Your Teleport user does not have a GitHub username. Ask a cluster administrator to ensure your Teleport user has appropriate github_username set.")
+	if profile.GitHubUserID != "" {
+		return profile.GitHubUserID, nil
 	}
-	// TODO print a warning for too many names?
-	return usernames[0], nil
+
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.ReissueWithGitHubAuth(cf.Context, cf.GitHubOrg)
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	profile, err = tc.ProfileStatus()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if profile.GitHubUserID == "" {
+		return "", trace.BadParameter("cannot retrieve github identity")
+	}
+	return profile.GitHubUserID, nil
 }
 
+// TODO move to prompt lib
 func maybeUseTTYAsStdinFallback(ctx context.Context) {
 	if prompt.Stdin().IsTerminal() {
 		return

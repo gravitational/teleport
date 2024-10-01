@@ -61,6 +61,8 @@ type User interface {
 	GetSAMLIdentities() []ExternalIdentity
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
+	// SetGithubIdentities updates the list of connected GitHub identities
+	SetGithubIdentities([]ExternalIdentity)
 	// Get local authentication secrets (may be nil).
 	GetLocalAuth() *LocalAuthSecrets
 	// Set local authentication secrets (use nil to delete).
@@ -154,6 +156,10 @@ type User interface {
 	// who were created before this property was introduced and didn't perform any
 	// password-related activity since then. See RFD 0159 for details.
 	SetPasswordState(PasswordState)
+	// GetGitHubUserID finds a GitHub user ID from connected identities.
+	GetGitHubUserID() string
+	// GetGitHubUsername finds a GitHub username from connected identities.
+	GetGitHubUsername() string
 }
 
 // NewUser creates new empty user
@@ -446,6 +452,11 @@ func (u *UserV2) GetGithubIdentities() []ExternalIdentity {
 	return u.Spec.GithubIdentities
 }
 
+// SetGithubIdentities updates the list of connected GitHub identities
+func (u *UserV2) SetGithubIdentities(identities []ExternalIdentity) {
+	u.Spec.GithubIdentities = identities
+}
+
 // GetLocalAuth gets local authentication secrets (may be nil).
 func (u *UserV2) GetLocalAuth() *LocalAuthSecrets {
 	return u.Spec.LocalAuth
@@ -573,6 +584,23 @@ func (u *UserV2) GetPasswordState() PasswordState {
 
 func (u *UserV2) SetPasswordState(state PasswordState) {
 	u.Status.PasswordState = state
+}
+
+func (u *UserV2) GetGitHubUserID() string {
+	for _, github := range u.GetGithubIdentities() {
+		if github.UserID != "" {
+			return github.UserID
+		}
+	}
+	return ""
+}
+func (u *UserV2) GetGitHubUsername() string {
+	for _, github := range u.GetGithubIdentities() {
+		if github.Username != "" {
+			return github.Username
+		}
+	}
+	return ""
 }
 
 // IsEmpty returns true if there's no info about who created this user

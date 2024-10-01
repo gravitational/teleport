@@ -55,6 +55,13 @@ type Spec struct {
 
 	// UserType is the type of user that this state represents.
 	UserType types.UserType `json:"user_type" yaml:"user_type"`
+
+	// GitHubUserID indicates the GitHub user ID identified by the GitHub
+	// identity connector.
+	GitHubUserID string
+	// GitHubUsername indicates the GitHub username identified by the GitHub
+	// identity connector.
+	GitHubUsername string
 }
 
 // New creates a new user login state.
@@ -122,4 +129,17 @@ func (u *UserLoginState) IsBot() bool {
 // and should be removed when possible.
 func (u *UserLoginState) GetMetadata() types.Metadata {
 	return legacy.FromHeaderMetadata(u.Metadata)
+}
+
+func (u *UserLoginState) GetGitHubUserID() string {
+	return u.Spec.GitHubUserID
+}
+func (u *UserLoginState) SetGitHubUserID(githubUserID string) {
+	u.Spec.GitHubUserID = githubUserID
+}
+func (u *UserLoginState) GetGitHubUsername() string {
+	return u.Spec.GitHubUsername
+}
+func (u *UserLoginState) SetGitHubUsername(githubUsername string) {
+	u.Spec.GitHubUsername = githubUsername
 }

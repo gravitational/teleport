@@ -3641,6 +3641,10 @@ message ExternalIdentity {
 
   // SAMLSingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out), if applicable.
   string SAMLSingleLogoutURL = 3 [(gogoproto.jsontag) = "samlSingleLogoutUrl,omitempty"];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // LoginStatus is a login status of the user
@@ -4982,6 +4986,11 @@ message GithubAuthRequest {
   teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
   // TlsAttestationStatement is an attestation statement for the given TLS public key.
   teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
+
+  // AuthenticatedUser is the username of an authenticated Teleport user. This
+  // OAuth flow is used to retrieve GitHub identity info which will be added to
+  // the existing user.
+  string authenticated_user = 23 [(gogoproto.jsontag) = "authenticated_user,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5019,6 +5028,10 @@ message CreateUserParams {
     (gogoproto.jsontag) = "session_ttl,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // UserID is the ID of the identity. Some connectors like GitHub have an
+  // unique ID apart from the username.
+  string UserID = 9 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // SSODiagnosticInfo is a single SSO diagnostic info entry.
@@ -5152,6 +5165,11 @@ message GithubClaims {
 
   // Teams is the users team membership
   repeated string Teams = 3 [(gogoproto.jsontag) = "teams"];
+
+  // ID is a global unique integer that is assigned to each GitHub user. The ID
+  // is immutable (unlike the GitHub username) and can be found in APIs like
+  // get user.
+  string ID = 4 [(gogoproto.jsontag) = "user_id,omitempty"];
 }
 
 // TeamMapping represents a single team membership mapping.
@@ -7084,14 +7102,24 @@ message GitHubIntegrationSpecV1 {
 
 // GitHubProxy specifies GitHub proxy related settings.
 message GitHubProxy {
-  // Enabled indicates GitHub proxy should be enabled.
-  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
-
   // CertAuthority contains the active SSH CAs used between Teleport and
   // GitHub. GitHub does not allow the same CA to be used for a different
   // organization so the CA is defined per integration. TODO(greedy52) support
   // rotation, HSM encryption.
-  repeated SSHKeyPair cert_authority = 2 [(gogoproto.jsontag) = "cert_authority,omitempty"];
+  repeated SSHKeyPair cert_authorities = 1 [(gogoproto.jsontag) = "cert_authorities,omitempty"];
+
+  // Connector specifies GitHub connector used to obtain user ID and username.
+  GitHubProxyConnector connector = 2 [(gogoproto.jsontag) = "connector,omitempty"];
+}
+
+// GitHubProxyConnector specifies the GitHub connector spec for a GitHub proxy.
+message GitHubProxyConnector {
+  // ClientID is the Github OAuth app client ID.
+  string ClientID = 1 [(gogoproto.jsontag) = "client_id"];
+  // ClientSecret is the Github OAuth app client secret.
+  string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+  // RedirectURL is the authorization callback URL.
+  string RedirectURL = 3 [(gogoproto.jsontag) = "redirect_url"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

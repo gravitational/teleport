@@ -1216,7 +1216,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	git := app.Command("git", "Git server commands.")
 	gitList := git.Command("ls", "List Git servers.")
-	// TODO(greedy52) support search keywords etc.
+	gitList.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
+	gitList.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 
 	gitConfig := git.Command("config", "Check Teleport config of the working git dir.")
 	gitConfig.Arg("action", "Action to perform. Valid options: update or reset.").EnumVar(&cf.GitConfigAction, "", "update", "reset")
@@ -4570,6 +4571,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			fmt.Printf("  Allowed Resources:  %s\n", allowedResourcesStr)
 		}
 	}
+	if p.GitHubUsername != "" {
+		fmt.Printf("  GitHub username:    %s\n", p.GitHubUsername)
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -4738,6 +4742,8 @@ type profileInfo struct {
 	Extensions         []string           `json:"extensions,omitempty"`
 	CriticalOptions    map[string]string  `json:"critical_options,omitempty"`
 	AllowedResourceIDs []types.ResourceID `json:"allowed_resources,omitempty"`
+	GitHubUserID       string             `json:"github_userid,omitempty"`
+	GitHubUsername     string             `json:"github_login,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -4787,6 +4793,8 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Extensions:         p.Extensions,
 		CriticalOptions:    p.CriticalOptions,
 		AllowedResourceIDs: p.AllowedResourceIDs,
+		GitHubUserID:       p.GitHubUserID,
+		GitHubUsername:     p.GitHubUsername,
 	}
 
 	// update active profile info from env

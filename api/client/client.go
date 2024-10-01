@@ -4471,10 +4471,11 @@ func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
 
 // ListIntegrations returns a paginated list of Integrations.
 // The response includes a nextKey which must be used to fetch the next page.
-func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string, withSecrets bool) ([]types.Integration, string, error) {
 	resp, err := c.integrationsClient().ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
-		Limit:   int32(pageSize),
-		NextKey: nextKey,
+		Limit:       int32(pageSize),
+		NextKey:     nextKey,
+		WithSecrets: withSecrets,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -4493,7 +4494,7 @@ func (c *Client) ListAllIntegrations(ctx context.Context) ([]types.Integration, 
 	var result []types.Integration
 	var nextKey string
 	for {
-		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey)
+		integrations, nextKey, err := c.ListIntegrations(ctx, 0, nextKey, false /*withSecrets*/)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -4956,4 +4957,10 @@ func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.Remot
 		Name: name,
 	})
 	return rc, trace.Wrap(err)
+}
+
+// TODO
+func (c *Client) CreateGithubAuthRequestForUser(ctx context.Context, req *proto.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error) {
+	resp, err := c.grpc.CreateGithubAuthRequestForUser(ctx, req)
+	return resp, trace.Wrap(err)
 }

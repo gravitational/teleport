@@ -76,6 +76,9 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
+// GitHubServerMetadata defines server metadata for GitHub server.
+type GitHubServerMetadata types.GitHubServerMetadata
+
 // sortedLabels is a sort wrapper that sorts labels by name
 type sortedLabels []Label
 

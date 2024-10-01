@@ -156,7 +156,7 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey())
+	results, nextKey, err := s.cache.ListIntegrations(ctx, int(req.GetLimit()), req.GetNextKey(), req.WithSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,18 +225,19 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 
 	// TODO move to a helper?
 	reqIg := req.GetIntegration()
-	if reqIg.GetSubKind() == types.IntegrationSubKindGitHub {
-		// TODO make your own purpose?
+	switch reqIg.GetSubKind() {
+	case types.IntegrationSubKindGitHub:
+		spec := reqIg.GetGitHubIntegrationSpec()
+		if spec.Proxy == nil {
+			spec.Proxy = &types.GitHubProxy{}
+		}
+		// TODO(greedy52) support per auth CA like HSM.
 		ca, err := s.keyStoreManager.NewSSHKeyPair(ctx, cryptosuites.UserCASSH)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// TODO(greedy52) support per auth CA like HSM.
-		if err := reqIg.SetGitHubSSHCertAuthority([]*types.SSHKeyPair{ca}); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		spec.Proxy.CertAuthorities = append(spec.Proxy.CertAuthorities, ca)
 	}
-
 	ig, err := s.backend.CreateIntegration(ctx, reqIg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -401,6 +402,10 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 		return nil, trace.AccessDenied("GenerateGitHubUserCert is only available to proxy services")
 	}
 
+	if in.Login == "" && in.UserId == "" {
+		return nil, trace.AccessDenied("one of github user login or id must be provided")
+	}
+
 	key, _, _, _, err := ssh.ParseAuthorizedKey(in.PublicKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -412,14 +417,9 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 	}
 
 	spec := integration.GetGitHubIntegrationSpec()
-	/*TODO removed Enabled
-	if !spec.Proxy.Enabled {
-		return nil, trace.BadParameter("GitHub Proxy for integration %s is disabled", in.Integration)
-	}
-	*/
 
 	caSigner, err := s.keyStoreManager.GetSSHSignerForKeySet(ctx, types.CAKeySet{
-		SSH: spec.Proxy.CertAuthority,
+		SSH: spec.Proxy.CertAuthorities,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -435,9 +435,15 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 		KeyId:       in.KeyId,
 		ValidAfter:  uint64(validAfter.Unix()),
 		ValidBefore: uint64(expires.Unix()),
+		Permissions: ssh.Permissions{
+			Extensions: make(map[string]string),
+		},
 	}
-	newSSHCert.Extensions = map[string]string{
-		"login@github.com": in.Login,
+	switch {
+	case in.UserId != "":
+		newSSHCert.Extensions["id@github.com"] = in.UserId
+	case in.Login != "":
+		newSSHCert.Extensions["login@github.com"] = in.Login
 	}
 	if err := newSSHCert.SignCert(rand.Reader, caSigner); err != nil {
 		return nil, trace.Wrap(err)

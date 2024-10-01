@@ -37,3 +37,7 @@ export type GitHubMetadata = {
   organization: string;
 };
 
+export type CreateGitServerRequest = {
+  subKind: string;
+  github: GitHubMetadata;
+}

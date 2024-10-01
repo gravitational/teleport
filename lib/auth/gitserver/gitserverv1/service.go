@@ -96,7 +96,7 @@ func (s *Service) GetGitServer(ctx context.Context, req *gitserverv1.GetGitServe
 }
 
 func (s *Service) UpsertGitServer(ctx context.Context, req *gitserverv1.UpsertGitServerRequest) (*types.ServerV2, error) {
-	authCtx, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate)
+	_, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -104,19 +104,6 @@ func (s *Service) UpsertGitServer(ctx context.Context, req *gitserverv1.UpsertGi
 	server := types.Server(req.Server)
 	if err := services.CheckAndSetDefaults(server); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if err := s.checkAccess(authCtx, server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	prev, err := s.cfg.Cache.GetGitServer(ctx, server.GetName())
-	if err == nil {
-		if err := s.checkAccess(authCtx, prev); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else if !trace.IsNotFound(err) {
-		s.cfg.Log.DebugContext(ctx, "Failed to GetGitServer.", "error", err)
 	}
 
 	upserted, err := s.cfg.Backend.UpsertGitServer(ctx, server)
@@ -132,20 +119,10 @@ func (s *Service) UpsertGitServer(ctx context.Context, req *gitserverv1.UpsertGi
 }
 
 func (s *Service) DeleteGitServer(ctx context.Context, req *gitserverv1.DeleteGitServerRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorize(ctx, types.VerbDelete)
+	_, err := s.authorize(ctx, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	prev, err := s.cfg.Cache.GetGitServer(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := s.checkAccess(authCtx, prev); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := s.cfg.Backend.DeleteGitServer(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}

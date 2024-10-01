@@ -742,6 +742,8 @@ func (a *Server) CreateSessionCerts(ctx context.Context, req *SessionCertsReques
 		routeToCluster:                   req.RouteToCluster,
 		kubernetesCluster:                req.KubernetesCluster,
 		loginIP:                          req.LoginIP,
+		githubUserID:                     req.UserState.GetGitHubUserID(),
+		githubUsername:                   req.UserState.GetGitHubUsername(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

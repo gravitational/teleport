@@ -162,6 +162,18 @@ func NewEICENode(spec ServerSpecV2, labels map[string]string) (Server, error) {
 	return server, nil
 }
 
+func NewGitServer(subKind string, spec ServerSpecV2) (Server, error) {
+	server := &ServerV2{
+		Kind:    KindGitServer,
+		SubKind: subKind,
+		Spec:    spec,
+	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return server, nil
+}
+
 // GetVersion returns resource version
 func (s *ServerV2) GetVersion() string {
 	return s.Version

@@ -2844,7 +2844,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 }
 
 // ListIntegrations returns a paginated list of all Integrations resources.
-func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string, withSecrets bool) ([]types.Integration, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
@@ -2853,7 +2853,8 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.reader.ListIntegrations(ctx, pageSize, nextKey)
+	// TODO bypass cache when withSecrets = true and watch.LoadSecrets = false
+	return rg.reader.ListIntegrations(ctx, pageSize, nextKey, withSecrets)
 }
 
 // GetIntegration returns the specified Integration resources.

@@ -218,6 +218,12 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if credID := c.DeviceCredentialID; credID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
 	}
+	if c.GitHubUserID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = c.GitHubUserID
+	}
+	if c.GitHubUsername != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = c.GitHubUsername
+	}
 
 	if c.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {

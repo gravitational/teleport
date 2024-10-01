@@ -1696,6 +1696,90 @@ func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOp
 	}
 }
 
+// TODO
+func (tc *TeleportClient) ReissueWithGitHubAuth(ctx context.Context, githubOrg string) error {
+	keyRing, err := tc.localAgent.GetKeyRing(tc.SiteName, WithAllCerts...)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	newUserKeys, certReq, err := clusterClient.prepareUserCertsRequest(ctx, ReissueParams{
+		// TODO
+		//AccessRequests: profile.ActiveRequests.AccessRequests,
+		RouteToCluster: tc.SiteName,
+		RouteToGitServer: proto.RouteToGitServer{
+			GitHubOrganization: githubOrg,
+		},
+	}, keyRing)
+
+	// TODO REFACTOR!!!!
+	sshLoginSSO := SSHLoginSSO{
+		SSHLogin: SSHLogin{
+			ProxyAddr: tc.WebProxyAddr,
+			/* No need to pass in request related fields since we are not gonna use SSHLogin for the actual request
+			SSHPubKey:               certReq.SSHPublicKey,
+			TLSPubKey:               certReq.TLSPublicKey,
+			SSHAttestationStatement: certReq.SSHPublicKeyAttestationStatement.,
+			TLSAttestationStatement: certReq.TLSPublicKeyAttestationStatement,
+			*/
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
+			ExtraHeaders:      tc.ExtraProxyHeaders,
+		},
+		ConnectorID:                   "TODO", // is this needed?
+		ConnectorName:                 "TODO", // is this needed?
+		Protocol:                      constants.Github,
+		BindAddr:                      tc.BindAddr,
+		CallbackAddr:                  tc.CallbackAddr,
+		Browser:                       tc.Browser,
+		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
+		ProxySupportsKeyPolicyMessage: true,
+	}
+
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	loginFunc := func(redirectorReq SSOLoginConsoleReq) (*SSOLoginConsoleResponse, error) {
+		log.Debugf("=== CreateGithubAuthRequestForUser", "redirect_url", redirectorReq.RedirectURL)
+		authRequest, err := rootClient.CreateGithubAuthRequestForUser(ctx, &proto.CreateGithubAuthRequestForUserRequest{
+			CertRequest: certReq,
+			RedirectUrl: redirectorReq.RedirectURL,
+			//ConnectorId: tc.ConnectorId, do we want this?
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &SSOLoginConsoleResponse{
+			RedirectURL: authRequest.RedirectURL,
+		}, nil
+	}
+
+	resp, err := SSHAgentSSOLogin(ctx, sshLoginSSO, &RedirectorConfig{
+		SSOLoginConsoleRequestFn: loginFunc,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyRing.ClusterName = tc.SiteName
+	keyRing.SSHPrivateKey = newUserKeys.ssh
+	keyRing.Cert = resp.Cert
+	return trace.Wrap(tc.localAgent.AddKeyRing(keyRing))
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //

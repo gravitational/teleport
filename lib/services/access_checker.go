@@ -771,21 +771,6 @@ func (a *accessChecker) EnumerateEntities(resource AccessCheckable, listFn roleE
 // - types.KindWindowsDesktop
 // - types.KindApp with IsAWSConsole() == true
 func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
-	// Some logins are soly based on Traits instead of RoleSet.
-	switch resource.GetKind() {
-	case types.KindGitServer:
-
-		switch resource.GetSubKind() {
-		case types.SubKindGitHub:
-			if err := a.CheckAccess(resource, AccessState{MFAVerified: true}); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return a.info.Traits[constants.TraitGitHubUsername], nil
-		default:
-			return nil, trace.BadParameter("received unsupported subkind for git_server: %v", resource.GetSubKind())
-		}
-	}
-
 	// Create a map indexed by all logins in the RoleSet,
 	// mapped to false if any role has it in its deny section,
 	// true otherwise.
@@ -1359,6 +1344,11 @@ type UserState interface {
 
 	// IsBot returns true if the user belongs to a bot.
 	IsBot() bool
+
+	// GetGitHubUserID finds a GitHub user ID from connected identities.
+	GetGitHubUserID() string
+	// GetGitHubUsername finds a GitHub username from connected identities.
+	GetGitHubUsername() string
 }
 
 // AccessInfoFromUser return a new AccessInfo populated from the roles and

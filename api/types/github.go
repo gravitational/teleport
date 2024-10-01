@@ -343,10 +343,12 @@ func (r *GithubAuthRequest) Check() error {
 		return trace.BadParameter("missing ConnectorID")
 	case r.StateToken == "":
 		return trace.BadParameter("missing StateToken")
+	case r.AuthenticatedUser != "" && r.ConnectorSpec == nil:
+		return trace.BadParameter("ConnectorSpec cannot be nil for AuthenticatedUser")
 	// we could collapse these two checks into one, but the error message would become ambiguous.
 	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	case !r.SSOTestFlow && r.ConnectorSpec != nil:
+	case (!r.SSOTestFlow && r.AuthenticatedUser == "") && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
 		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")

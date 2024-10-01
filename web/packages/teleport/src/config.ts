@@ -222,7 +222,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
-    nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
+    nodesPathNoParams: '',
+
+    gitServerPath: '/v1/webapi/sites/:clusterId/gitserver',
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
@@ -731,6 +733,10 @@ const cfg = {
 
   getClusterNodesUrlNoParams(clusterId: string) {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
+  },
+
+  getGitServerUrl(clusterId: string) {
+    return generatePath(cfg.api.gitServerPath, { clusterId });
   },
 
   getDatabaseServicesUrl(clusterId: string) {

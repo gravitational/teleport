@@ -55,7 +55,10 @@ func (r *IntegrationAWSOIDCSpec) CheckAndSetDefaults() error {
 }
 
 type IntegrationGitHub struct {
-	Organization string `json:"organization"`
+	Organization          string `json:"organization"`
+	ConnectorClientID     string `json:"connectorClientID"`
+	ConnectorClientSecret string `json:"connectorClientSecret"`
+	ConnectorRedirectURL  string `json:"connectorRedirectURL"`
 
 	PublicKeys   []string `json:"publicKeys,omitempty"`
 	Fingerprints []string `json:"fingerprints,omitempty"`
@@ -174,17 +177,17 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			return nil, trace.BadParameter("missing github spec from created integration %v", ig)
 		}
 
-		if github.Proxy == nil || len(github.Proxy.CertAuthority) == 0 {
+		if github.Proxy == nil || len(github.Proxy.CertAuthorities) == 0 {
 			return nil, trace.BadParameter("missing SSH certificate authorities from created integration %v", ig)
 		}
 
 		ret.GitHub = &IntegrationGitHub{
 			Organization: github.Organization,
-			PublicKeys:   make([]string, 0, len(github.Proxy.CertAuthority)),
-			Fingerprints: make([]string, 0, len(github.Proxy.CertAuthority)),
+			PublicKeys:   make([]string, 0, len(github.Proxy.CertAuthorities)),
+			Fingerprints: make([]string, 0, len(github.Proxy.CertAuthorities)),
 		}
 
-		for _, ca := range github.Proxy.CertAuthority {
+		for _, ca := range github.Proxy.CertAuthorities {
 			fingerprint, err := sshutils.AuthorizedKeyFingerprint(ca.PublicKey)
 			if err != nil {
 				return nil, trace.BadParameter("failed to parse public from created integration: %v", ig)

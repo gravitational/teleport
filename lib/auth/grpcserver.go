@@ -2918,6 +2918,19 @@ func (g *GRPCServer) CreateGithubAuthRequest(ctx context.Context, req *types.Git
 	return response, nil
 }
 
+// TODO
+func (g *GRPCServer) CreateGithubAuthRequestForUser(ctx context.Context, req *authpb.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response, err := auth.CreateGithubAuthRequestForUser(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
+}
+
 // GetGithubAuthRequest gets a GithubAuthRequest by id.
 func (g *GRPCServer) GetGithubAuthRequest(ctx context.Context, req *authpb.GetGithubAuthRequestRequest) (*types.GithubAuthRequest, error) {
 	auth, err := g.authenticate(ctx)

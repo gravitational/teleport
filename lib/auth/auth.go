@@ -2092,6 +2092,12 @@ type certRequest struct {
 	// botInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any
 	botInstanceID string
+	// githubUserID indicates the GitHub user ID identified by the GitHub
+	// identity connector.
+	githubUserID string
+	// githubUsername indicates the GitHub username identified by the GitHub
+	// identity connector.
+	githubUsername string
 }
 
 // check verifies the cert request is valid.
@@ -2268,6 +2274,8 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		tlsPublicKeyAttestationStatement: req.TLSAttestationStatement,
 		appName:                          req.AppName,
 		appSessionID:                     req.AppSessionID,
+		githubUserID:                     userState.GetGitHubUserID(),
+		githubUsername:                   userState.GetGitHubUsername(),
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -3000,9 +3008,9 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
 
-	// Add git logins.
-	if githubUsername, ok := req.checker.Traits()[constants.TraitGitHubUsername]; ok {
-		allowedLogins = append(allowedLogins, githubUsername...)
+	// TODO(greedy52) any better way?
+	if req.user.GetGitHubUserID() != "" {
+		allowedLogins = append(allowedLogins, req.user.GetGitHubUserID())
 	}
 
 	requestedResourcesStr, err := types.ResourceIDsToString(req.checker.GetAllowedResourceIDs())
@@ -3065,6 +3073,8 @@ func generateCert(ctx context.Context, a *Server, req certRequest, caType types.
 			DeviceID:                req.deviceExtensions.DeviceID,
 			DeviceAssetTag:          req.deviceExtensions.AssetTag,
 			DeviceCredentialID:      req.deviceExtensions.CredentialID,
+			GitHubUserID:            req.githubUserID,
+			GitHubUsername:          req.githubUsername,
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
 		if err != nil {

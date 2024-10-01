@@ -2209,6 +2209,13 @@ message GetGithubAuthRequestRequest {
   string StateToken = 1 [(gogoproto.jsontag) = "state_token"];
 }
 
+message CreateGithubAuthRequestForUserRequest {
+  // CertRequest is the reissue cert request
+  UserCertsRequest cert_request = 1 [(gogoproto.jsontag) = "cert_request,omitempty"];
+  // RedirectUrl is the redirect url used by client browser.
+  string redirect_url = 2 [(gogoproto.jsontag) = "redirect_url,omitempty"];
+}
+
 // CreateOIDCConnectorRequest is a request for CreateOIDCConnector.
 message CreateOIDCConnectorRequest {
   // Connector to be created.
@@ -3182,6 +3189,9 @@ service AuthService {
   rpc CreateGithubAuthRequest(types.GithubAuthRequest) returns (types.GithubAuthRequest);
   // GetGithubAuthRequest returns Github auth request if found.
   rpc GetGithubAuthRequest(GetGithubAuthRequestRequest) returns (types.GithubAuthRequest);
+
+  // CreateGithubAuthRequestForUser TODO is there a better place?
+  rpc CreateGithubAuthRequestForUser(CreateGithubAuthRequestForUserRequest) returns (types.GithubAuthRequest);
 
   // GetSSODiagnosticInfo returns SSO diagnostic info records.
   rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
