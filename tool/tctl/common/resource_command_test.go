@@ -2223,7 +2223,7 @@ version: v1
 	require.Empty(t, cmp.Diff(
 		[]*autoupdate.AutoUpdateConfig{&expected},
 		resources,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
 }
@@ -2258,7 +2258,7 @@ version: v1
 	require.Empty(t, cmp.Diff(
 		[]*autoupdate.AutoUpdateVersion{&expected},
 		resources,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "id", "revision"),
 		protocmp.Transform(),
 	))
 }

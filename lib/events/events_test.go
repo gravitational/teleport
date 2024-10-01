@@ -203,6 +203,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AuthPreferenceUpdateEvent:                   &apievents.AuthPreferenceUpdate{},
 	ClusterNetworkingConfigUpdateEvent:          &apievents.ClusterNetworkingConfigUpdate{},
 	SessionRecordingConfigUpdateEvent:           &apievents.SessionRecordingConfigUpdate{},
+	AccessGraphSettingsUpdateEvent:              &apievents.AccessGraphSettingsUpdate{},
 	DatabaseSessionSpannerRPCEvent:              &apievents.SpannerRPC{},
 	UnknownEvent:                                &apievents.Unknown{},
 	DatabaseSessionCassandraBatchEvent:          &apievents.CassandraBatch{},
@@ -218,6 +219,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	IntegrationDeleteEvent:                      &apievents.IntegrationDelete{},
 	SPIFFEFederationCreateEvent:                 &apievents.SPIFFEFederationCreate{},
 	SPIFFEFederationDeleteEvent:                 &apievents.SPIFFEFederationDelete{},
+	CrownJewelCreateEvent:                       &apievents.CrownJewelCreate{},
+	CrownJewelUpdateEvent:                       &apievents.CrownJewelUpdate{},
+	CrownJewelDeleteEvent:                       &apievents.CrownJewelDelete{},
 }
 
 // TestJSON tests JSON marshal events

@@ -20,6 +20,8 @@ package web
 
 import (
 	"context"
+	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"testing"
 
@@ -30,8 +32,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGetSPIFFEBundle(t *testing.T) {
@@ -67,5 +71,18 @@ func TestGetSPIFFEBundle(t *testing.T) {
 	require.Len(t, gotBundle.X509Authorities(), len(wantCACerts))
 	for _, caCert := range wantCACerts {
 		require.True(t, gotBundle.HasX509Authority(caCert), "certificate not found in bundle")
+	}
+
+	require.Len(t, gotBundle.JWTAuthorities(), len(ca.GetTrustedJWTKeyPairs()))
+	for _, jwtKeyPair := range ca.GetTrustedJWTKeyPairs() {
+		wantKey, err := utils.ParsePublicKey(jwtKeyPair.PublicKey)
+		require.NoError(t, err)
+		rsaWantKey, ok := wantKey.(*rsa.PublicKey)
+		require.True(t, ok, "unsupported key type %T", wantKey)
+		wantKeyID := jwt.KeyID(rsaWantKey)
+		require.NoError(t, err)
+		gotPubKey, ok := gotBundle.JWTBundle().FindJWTAuthority(wantKeyID)
+		require.True(t, ok, "wanted public key not found in bundle")
+		require.True(t, gotPubKey.(interface{ Equal(x crypto.PublicKey) bool }).Equal(wantKey), "public keys do not match")
 	}
 }

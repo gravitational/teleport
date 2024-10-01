@@ -62,6 +62,7 @@ export interface IAppContext {
   connectMyComputerService: ConnectMyComputerService;
   headlessAuthenticationService: HeadlessAuthenticationService;
   tshd: TshdClient;
-
+  /** Exposes Electron's webUtils.getPathForFile. */
+  getPathForFile: (file: File) => string;
   pullInitialState(): Promise<void>;
 }
