@@ -363,6 +363,8 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 					continue
 				}
 				currentResources = newResources
+			case <-watcher.Done():
+				return
 			case <-ctx.Done():
 				return
 			}
@@ -373,8 +375,9 @@ func (s *WindowsService) startDynamicReconciler(ctx context.Context) (*services.
 
 func (s *WindowsService) toWindowsDesktop(dynamicDesktop types.DynamicWindowsDesktop) (*types.WindowsDesktopV3, error) {
 	width, height := dynamicDesktop.GetScreenSize()
-	labels := make(map[string]string)
-	maps.Copy(labels, dynamicDesktop.GetAllLabels())
+	desktopLabels := dynamicDesktop.GetAllLabels()
+	labels := make(map[string]string, len(desktopLabels)+1)
+	maps.Copy(labels, desktopLabels)
 	labels[types.OriginLabel] = types.OriginDynamic
 	return types.NewWindowsDesktopV3(dynamicDesktop.GetName(), labels, types.WindowsDesktopSpecV3{
 		Addr:   dynamicDesktop.GetAddr(),
