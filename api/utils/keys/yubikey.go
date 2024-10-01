@@ -324,7 +324,10 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	// Without this, the connection will be released after releaseConnectionDelay,
 	// leading to a failure when providing PIN or touch input:
 	// "verify pin: transmitting request: the supplied handle was invalid".
-	y.connect()
+	err := y.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer y.releaseConnection()
 	var touchPromptDelayTimer *time.Timer
 	if y.attestation.TouchPolicy != piv.TouchPolicyNever {
@@ -397,7 +400,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := yk.VerifyPIN(pin); err != nil {
+		if err := y.verifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		signature, err := signer.Sign(rand, digest, opts)
@@ -711,75 +714,117 @@ func (c *sharedPIVConnection) releaseConnection() {
 }
 
 func (c *sharedPIVConnection) privateKey(slot piv.Slot, public crypto.PublicKey, auth piv.KeyAuth) (crypto.PrivateKey, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.PrivateKey(slot, public, auth)
+	privateKey, err := c.conn.PrivateKey(slot, public, auth)
+	return privateKey, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) serial() (uint32, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.Serial()
+	serial, err := c.conn.Serial()
+	return serial, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) reset() error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.Reset()
+	return trace.Wrap(c.conn.Reset())
 }
 
 func (c *sharedPIVConnection) setCertificate(key [24]byte, slot piv.Slot, cert *x509.Certificate) error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.SetCertificate(key, slot, cert)
+	return trace.Wrap(c.conn.SetCertificate(key, slot, cert))
 }
 
 func (c *sharedPIVConnection) certificate(slot piv.Slot) (*x509.Certificate, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.Certificate(slot)
+	cert, err := c.conn.Certificate(slot)
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) generateKey(key [24]byte, slot piv.Slot, opts piv.Key) (crypto.PublicKey, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.GenerateKey(key, slot, opts)
+	pubKey, err := c.conn.GenerateKey(key, slot, opts)
+	return pubKey, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attest(slot piv.Slot) (*x509.Certificate, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.Attest(slot)
+	cert, err := c.conn.Attest(slot)
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) attestationCertificate() (*x509.Certificate, error) {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.AttestationCertificate()
+	cert, err := c.conn.AttestationCertificate()
+	return cert, trace.Wrap(err)
 }
 
 func (c *sharedPIVConnection) setPIN(oldPIN string, newPIN string) error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.SetPIN(oldPIN, newPIN)
+	return trace.Wrap(c.conn.SetPIN(oldPIN, newPIN))
 }
 
 func (c *sharedPIVConnection) setPUK(oldPUK string, newPUK string) error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.SetPUK(oldPUK, newPUK)
+	return trace.Wrap(c.conn.SetPUK(oldPUK, newPUK))
 }
 
 func (c *sharedPIVConnection) unblock(puk string, newPIN string) error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.Unblock(puk, newPIN)
+	return trace.Wrap(c.conn.Unblock(puk, newPIN))
 }
 
 func (c *sharedPIVConnection) verifyPIN(pin string) error {
-	c.connect()
+	err := c.connect()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer c.releaseConnection()
-	return c.conn.VerifyPIN(pin)
+	return trace.Wrap(c.conn.VerifyPIN(pin))
 }
 
 func (c *sharedPIVConnection) setPINAndPUKFromDefault(ctx context.Context) (string, error) {
