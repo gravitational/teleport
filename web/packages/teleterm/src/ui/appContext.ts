@@ -77,6 +77,7 @@ export default class AppContext implements IAppContext {
    * request gets canceled by the client.
    */
   subscribeToTshdEvent: SubscribeToTshdEvent;
+  getPathForFile: (file: File) => string;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   headlessAuthenticationService: HeadlessAuthenticationService;
@@ -93,6 +94,7 @@ export default class AppContext implements IAppContext {
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
     this.configService = this.mainProcessClient.configService;
+    this.getPathForFile = config.getPathForFile;
     this.usageService = new UsageService(
       tshClient,
       this.configService,
