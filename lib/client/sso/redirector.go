@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -105,6 +106,8 @@ type RedirectorConfig struct {
 	// ConnectorDisplayName is an optional display name which may be used in some
 	// redirect URL pages.
 	ConnectorDisplayName string
+	// Stderr is used output a clickable redirect URL for the user to complete login.
+	Stderr io.Writer
 }
 
 // Redirector handles SSH redirect flow with the Teleport server
@@ -147,6 +150,10 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 	proxyURL, err := url.Parse(proxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err, "'%v' is not a valid proxy address", config.ProxyAddr)
+	}
+
+	if config.Stderr == nil {
+		config.Stderr = os.Stderr
 	}
 
 	// Create secret key that will be sent with the request and then used the
@@ -233,16 +240,16 @@ func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) erro
 
 	// If a command was found to launch the browser, create and start it.
 	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
+		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\n", err)
 	}
 
 	// Print the URL to the screen, in case the command that launches the browser did not run.
 	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
 	if rd.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
 	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
+		fmt.Fprintf(rd.Stderr, "If browser window does not open automatically, open it by ")
+		fmt.Fprintf(rd.Stderr, "clicking on the link:\n %v\n", clickableURL)
 	}
 
 	return nil

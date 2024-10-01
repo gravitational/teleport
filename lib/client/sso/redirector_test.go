@@ -46,7 +46,7 @@ func TestRedirector(t *testing.T) {
 		ProxyAddr: mockProxy.URL,
 	})
 	require.NoError(t, err)
-	defer rd.Close()
+	t.Cleanup(rd.Close)
 
 	// Ensure that ClientCallbackURL is a valid url.
 	_, err = url.Parse(rd.ClientCallbackURL)
@@ -188,12 +188,6 @@ func TestRedirector(t *testing.T) {
 		}, {
 			name: "OK terminal redirect on success with hardware_key_touch",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
-				successResponseURL, err := web.ConstructSSHResponse(web.AuthParams{
-					ClientRedirectURL: rd.ClientCallbackURL,
-					Username:          username,
-				})
-				require.NoError(t, err)
-
 				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
 			},
 			privateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
