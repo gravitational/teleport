@@ -71,4 +71,6 @@ export type ElectronGlobals = {
   readonly tshClient: TshClient;
   readonly ptyServiceClient: PtyServiceClient;
   readonly subscribeToTshdEvent: SubscribeToTshdEvent;
+  /** Exposes Electron's webUtils.getPathForFile. */
+  getPathForFile(file: File): string;
 };
