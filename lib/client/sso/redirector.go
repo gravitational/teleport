@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -106,10 +107,6 @@ type RedirectorConfig struct {
 	ConnectorDisplayName string
 }
 
-// InitiateSSOLoginFn is a function used to initiate an SSO login, resulting in a redirectURL
-// used to complete the SSO login flow.
-type InitiateSSOLoginFn func(ctx context.Context, clientRedirectURL string) (redirectURL string, err error)
-
 // Redirector handles SSH redirect flow with the Teleport server
 type Redirector struct {
 	RedirectorConfig
@@ -137,15 +134,19 @@ type Redirector struct {
 
 // NewRedirector returns new local web server redirector
 func NewRedirector(config RedirectorConfig) (*Redirector, error) {
-	// validate proxy address
-	host, port, err := net.SplitHostPort(config.ProxyAddr)
-	if err != nil || host == "" || port == "" {
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", config.ProxyAddr)
+	if config.ProxyAddr == "" {
+		return nil, trace.BadParameter("missing required field ProxyAddr")
 	}
-	proxyAddr := "https://" + net.JoinHostPort(host, port)
+
+	// Add protocol if it's not present.
+	proxyAddr := config.ProxyAddr
+	if !strings.HasPrefix(proxyAddr, "https://") && !strings.HasPrefix(proxyAddr, "http://") {
+		proxyAddr = "https://" + proxyAddr
+	}
+
 	proxyURL, err := url.Parse(proxyAddr)
 	if err != nil {
-		return nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
+		return nil, trace.Wrap(err, "'%v' is not a valid proxy address", config.ProxyAddr)
 	}
 
 	// Create secret key that will be sent with the request and then used the
