@@ -1,3 +1,19 @@
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package iam_test
 
 import (
@@ -8,9 +24,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCreateSignedSTSIdentityRequest(t *testing.T) {
@@ -76,7 +93,7 @@ func TestCreateSignedSTSIdentityRequest(t *testing.T) {
 			// endpoint in us-east-1, but this will fail if the AWS credentials
 			// were issued by the AWS China partition because they will not be
 			// recognized by STS in the default partition. It will fail when
-			// Auth sends the request to AWS, but this unit test only exercizes
+			// Auth sends the request to AWS, but this unit test only exercises
 			// the client-side request generation.
 			expectEndpoint: "sts-fips.us-east-1.amazonaws.com",
 		},
