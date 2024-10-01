@@ -486,6 +486,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
+	case *PluginSpecV1_MsTeams:
+		return PluginTypeMSTeams
 
 	default:
 		return PluginTypeUnknown

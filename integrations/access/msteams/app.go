@@ -62,7 +62,9 @@ type App struct {
 
 // NewApp initializes a new teleport-msteams app and returns it.
 func NewApp(conf Config) (*App, error) {
-	app := &App{conf: conf}
+	app := &App{
+		conf: conf,
+	}
 
 	app.mainJob = lib.NewServiceJob(app.run)
 
@@ -80,13 +82,11 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
-	a.watcherJob, err = a.newWatcherJob(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	a.SpawnCriticalJob(a.mainJob)
-	a.SpawnCriticalJob(a.watcherJob)
 
 	select {
 	case <-ctx.Done():
@@ -139,7 +139,7 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr)
+	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.conf.StatusSink)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -181,6 +181,8 @@ func (a *App) initBot(ctx context.Context) error {
 		WithField("id", teamsApp.ID).
 		Info("MS Teams app found in org app store")
 
+	a.bot.CheckHealth(ctx)
+
 	if !a.conf.Preload {
 		return nil
 	}
@@ -203,8 +205,11 @@ func (a *App) initBot(ctx context.Context) error {
 	return nil
 }
 
-// newWatcherJob creates WatcherJob
-func (a *App) newWatcherJob(ctx context.Context) (lib.ServiceJob, error) {
+// run starts the main process
+func (a *App) run(ctx context.Context) error {
+	log := logger.Get(ctx)
+
+	process := lib.MustGetProcess(ctx)
 
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
@@ -225,31 +230,28 @@ func (a *App) newWatcherJob(ctx context.Context) (lib.ServiceJob, error) {
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
+	}
+
+	process.SpawnCriticalJob(watcherJob)
+
+	ok, err := watcherJob.WaitReady(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	if len(acceptedWatchKinds) == 0 {
-		return nil, trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
+		return trace.BadParameter("failed to initialize watcher for all the required resources: %+v",
 			watchKinds)
 	}
 	// Check if KindAccessMonitoringRule resources are being watched,
 	// the role the plugin is running as may not have access.
 	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
 		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
-			return nil, trace.Wrap(err, "initializing Access Monitoring Rule cache")
+			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
 	}
-	return watcherJob, nil
-}
-
-// run starts the main process
-func (a *App) run(ctx context.Context) error {
-	log := logger.Get(ctx)
-
-	ok, err := a.watcherJob.WaitReady(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	a.watcherJob = watcherJob
+	a.watcherJob.SetReady(ok)
 	if ok {
 		log.Info("Plugin is ready")
 	} else {

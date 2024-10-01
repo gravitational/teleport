@@ -26,8 +26,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
@@ -77,10 +79,14 @@ type Bot struct {
 	webProxyURL *url.URL
 	// clusterName cluster name
 	clusterName string
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 // NewBot creates new bot struct
-func NewBot(c msapi.Config, clusterName, webProxyAddr string) (*Bot, error) {
+func NewBot(c msapi.Config, clusterName, webProxyAddr string, statusSink common.StatusSink) (*Bot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -101,6 +107,7 @@ func NewBot(c msapi.Config, clusterName, webProxyAddr string) (*Bot, error) {
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
+		StatusSink:  statusSink,
 	}
 
 	return bot, nil
@@ -362,4 +369,32 @@ func checkChannelURL(recipient string) (*Channel, bool) {
 	}
 
 	return &channel, true
+}
+
+
+// CheckHealth checks if the bot can connect to its messaging service
+func (b *Bot) CheckHealth(ctx context.Context) error {
+	_, err := b.graphClient.GetTeamsApp(ctx, b.Config.TeamsAppID)
+	if err != nil {
+		if b.StatusSink != nil {
+			if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
+				Code: types.PluginStatusCode_UNKNOWN,
+			}); err != nil {
+				logger.Get(ctx).WithError(err).
+					Errorf("Error while emitting ms teams plugin status: %v", err)
+			}
+		}
+		return trace.Wrap(err)
+	}
+
+	if b.StatusSink != nil {
+		if err := b.StatusSink.Emit(ctx, &types.PluginStatusV1{
+			Code: types.PluginStatusCode_RUNNING,
+		}); err != nil {
+			logger.Get(ctx).WithError(err).
+				Errorf("Error while emitting ms teams plugin status: %v", err)
+		}
+	}
+
+	return nil
 }
