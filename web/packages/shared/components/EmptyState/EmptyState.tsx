@@ -1,3 +1,21 @@
+/**
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import styled from 'styled-components';
 import { Flex, Text, Box } from 'design';
 
@@ -37,7 +55,7 @@ export const FeatureContainer = styled(Flex)`
   @media (max-width: 1302px) {
     --feature-slider-width: 372px;
     --feature-width: 372px;
-    --feature-height: 112px;
+    --feature-height: 120px;
     --feature-preview-scale: scale(0.7);
     --feature-text-display: inline;
   }
@@ -55,8 +73,7 @@ export const FeatureSlider = styled.div<{ $currIndex: number }>`
 
   top: calc(var(--feature-height) * ${p => p.$currIndex});
 
-  background-color: ${p =>
-    p.theme.colors.interactive.tonal.primary[0].background};
+  background-color: ${p => p.theme.colors.interactive.tonal.primary[0]};
 `;
 
 export type FeatureProps = {
@@ -101,7 +118,7 @@ export const Feature = styled(Box)<{ $isSliding?: boolean; $active?: boolean }>`
 
   background-color: ${p =>
     !p.$isSliding && p.$active
-      ? p => p.theme.colors.interactive.tonal.primary[0].background
+      ? p => p.theme.colors.interactive.tonal.primary[0]
       : 'inherit'};
 
   ${Title} {
