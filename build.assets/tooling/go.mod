@@ -17,11 +17,11 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
-	golang.org/x/mod v0.20.0
-	golang.org/x/oauth2 v0.22.0
-	helm.sh/helm/v3 v3.15.4
+	golang.org/x/mod v0.21.0
+	golang.org/x/oauth2 v0.23.0
+	helm.sh/helm/v3 v3.16.1
 	howett.net/plist v1.0.1
-	k8s.io/apiextensions-apiserver v0.31.0
+	k8s.io/apiextensions-apiserver v0.31.1
 )
 
 require (
@@ -61,7 +61,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.31.0 // indirect
+	k8s.io/apimachinery v0.31.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
