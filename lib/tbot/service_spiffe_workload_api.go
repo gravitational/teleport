@@ -19,6 +19,7 @@
 package tbot
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"fmt"
@@ -649,6 +650,8 @@ func (s *SPIFFEWorkloadAPIService) FetchX509Bundles(
 	}
 }
 
+const defaultJWTSVIDTTL = time.Minute * 5
+
 // FetchJWTSVID implements the SPIFFE Workload API FetchJWTSVID method.
 // See The SPIFFE Workload API (6.2.1).
 func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
@@ -718,14 +721,17 @@ func (s *SPIFFEWorkloadAPIService) FetchJWTSVID(
 		}
 	}
 
+	// Allow users to manually override the TTL for JWT-SVIDs produced by this
+	// service.
+	ttl := cmp.Or(s.cfg.JWTSVIDTTL, defaultJWTSVIDTTL)
+
 	reqs := make([]*machineidv1pb.JWTSVIDRequest, 0, len(svidReqs))
 	for _, svidReq := range svidReqs {
 		reqs = append(reqs, &machineidv1pb.JWTSVIDRequest{
 			SpiffeIdPath: svidReq.Path,
 			Audiences:    req.Audience,
-			// TODO: This should be configurable.
-			Ttl:  durationpb.New(time.Minute * 30),
-			Hint: svidReq.Hint,
+			Ttl:          durationpb.New(ttl),
+			Hint:         svidReq.Hint,
 		})
 	}
 
