@@ -91,6 +91,7 @@ func Test_supportEntitlementsCompatibility(t *testing.T) {
 					string(entitlements.SessionLocks):           {Enabled: true},
 					string(entitlements.UpsellAlert):            {Enabled: true},
 					string(entitlements.UsageReporting):         {Enabled: true},
+					string(entitlements.LicenseAutoUpdate):      {Enabled: true},
 				},
 			},
 			expected: map[string]*proto.EntitlementInfo{
@@ -117,6 +118,7 @@ func Test_supportEntitlementsCompatibility(t *testing.T) {
 				string(entitlements.SessionLocks):           {Enabled: true},
 				string(entitlements.UpsellAlert):            {Enabled: true},
 				string(entitlements.UsageReporting):         {Enabled: true},
+				string(entitlements.LicenseAutoUpdate):      {Enabled: true},
 			},
 		},
 		{
@@ -192,6 +194,7 @@ func Test_supportEntitlementsCompatibility(t *testing.T) {
 				string(entitlements.UsageReporting):         {Enabled: false},
 				string(entitlements.UpsellAlert):            {Enabled: false},
 				string(entitlements.CloudAuditLogRetention): {Enabled: false},
+				string(entitlements.LicenseAutoUpdate):      {Enabled: false},
 			},
 		},
 		{
@@ -264,6 +267,8 @@ func Test_supportEntitlementsCompatibility(t *testing.T) {
 				string(entitlements.UsageReporting):         {Enabled: false},
 				string(entitlements.UpsellAlert):            {Enabled: false},
 				string(entitlements.CloudAuditLogRetention): {Enabled: false},
+				string(entitlements.LicenseAutoUpdate):      {Enabled: false},
+
 				// Identity off, fields false
 				string(entitlements.Identity):     {Enabled: false},
 				string(entitlements.SessionLocks): {Enabled: false},
