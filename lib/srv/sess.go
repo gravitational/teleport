@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -66,10 +67,6 @@ const (
 	PresenceMaxDifference  = time.Minute
 )
 
-// SessionControlsInfoBroadcast is sent in tandem with session creation
-// to inform any joining users about the session controls.
-const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
-
 const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
@@ -85,6 +82,21 @@ var serverSessions = prometheus.NewGauge(
 		Help: "Number of active sessions to this host",
 	},
 )
+
+func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
+	var modeCtrl bytes.Buffer
+	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	modeCtrl.WriteString("Teleport > Controls\r\n")
+	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+	if m == types.SessionModeratorMode {
+		modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+	}
+	_, err := w.Write(modeCtrl.Bytes())
+	if err != nil {
+		return fmt.Errorf("could not write bytes: %w", err)
+	}
+	return nil
+}
 
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
@@ -1291,7 +1303,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1941,16 +1952,23 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	// Send the participant mode and controls to the additional participant
+	if s.login != p.login {
+		err := MsgParticipantCtrls(p.ch, mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
 	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {

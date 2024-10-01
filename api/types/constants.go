@@ -485,6 +485,9 @@ const (
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
+	// KindUserTask is a task representing an issue with some other resource.
+	KindUserTask = "user_task"
+
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
 

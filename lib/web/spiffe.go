@@ -17,6 +17,7 @@
 package web
 
 import (
+	"crypto/rsa"
 	"net/http"
 	"time"
 
@@ -26,6 +27,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -71,12 +74,29 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 		return nil, trace.Wrap(err, "fetching SPIFFE CA")
 	}
 
+	// Add X509 authorities to the trust bundle.
 	for _, certPEM := range services.GetTLSCerts(spiffeCA) {
 		cert, err := tlsca.ParseCertificatePEM(certPEM)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing certificate")
 		}
 		bundle.AddX509Authority(cert)
+	}
+
+	// Add JWT authorities to the trust bundle.
+	for _, keyPair := range spiffeCA.GetTrustedJWTKeyPairs() {
+		pubKey, err := keys.ParsePublicKey(keyPair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "parsing public key")
+		}
+		rsaPubKey, ok := pubKey.(*rsa.PublicKey)
+		if !ok {
+			return nil, trace.BadParameter("unsupported key format %T", pubKey)
+		}
+		kid := jwt.KeyID(rsaPubKey)
+		if err := bundle.AddJWTAuthority(kid, pubKey); err != nil {
+			return nil, trace.Wrap(err, "adding JWT authority to bundle")
+		}
 	}
 
 	bundleBytes, err := bundle.Marshal()
