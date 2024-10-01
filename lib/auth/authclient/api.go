@@ -36,6 +36,7 @@ import (
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -802,6 +803,9 @@ type DiscoveryAccessPoint interface {
 
 	// UpdateDiscoveryConfigStatus updates the status of a discovery config.
 	UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error)
+
+	// UpsertUserTask creates or updates an User Task
+	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1170,6 +1174,11 @@ type Cache interface {
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
 
+	// GetUserTask returns the user tasks resource by name.
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+	// ListUserTasks returns the user tasks resources.
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string) ([]*usertasksv1.UserTask, string, error)
+
 	// NotificationGetter defines list methods for notifications.
 	services.NotificationGetter
 
@@ -1434,6 +1443,11 @@ func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error)
 // UpdateDiscoveryConfigStatus updates the status of a discovery config.
 func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
+}
+
+// UpserUserTask creates or updates an User Task.
+func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	return w.NoCache.UpsertUserTask(ctx, req)
 }
 
 // Close closes all associated resources

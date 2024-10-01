@@ -52,6 +52,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	update "github.com/gravitational/teleport/api/types/autoupdate"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -122,6 +124,7 @@ type testPack struct {
 	userGroups              services.UserGroups
 	okta                    services.Okta
 	integrations            services.Integrations
+	userTasks               services.UserTasks
 	discoveryConfigs        services.DiscoveryConfigs
 	userLoginStates         services.UserLoginStates
 	secReports              services.SecReports
@@ -299,6 +302,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.integrations = igSvc
 
+	userTasksSvc, err := local.NewUserTasksService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userTasks = userTasksSvc
+
 	dcSvc, err := local.NewDiscoveryConfigService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -405,6 +414,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -812,6 +822,7 @@ func TestCompletenessInit(t *testing.T) {
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
+			UserTasks:               p.userTasks,
 			DiscoveryConfigs:        p.discoveryConfigs,
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
@@ -892,6 +903,7 @@ func TestCompletenessReset(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -1098,6 +1110,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -1189,6 +1202,7 @@ func initStrategy(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -2273,6 +2287,52 @@ func TestIntegrations(t *testing.T) {
 		},
 		deleteAll: p.integrations.DeleteAllIntegrations,
 	})
+}
+
+// TestUserTasks tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestUserTasks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
+		newResource: func(name string) (*usertasksv1.UserTask, error) {
+			return newUserTasks(t, name), nil
+		},
+		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
+			_, err := p.userTasks.CreateUserTask(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.userTasks.DeleteAllUserTasks,
+	})
+}
+
+func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
+	t.Helper()
+
+	return &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: &usertasksv1.UserTaskSpec{
+			Integration: "my-integration",
+			TaskType:    usertasks.TaskTypeDiscoverEC2,
+			IssueType:   "my-issue-type",
+			DiscoverEc2: &usertasksv1.DiscoverEC2{},
+		},
+	}
 }
 
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
@@ -3382,6 +3442,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t, "test")),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
 	}

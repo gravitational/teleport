@@ -25,6 +25,7 @@ import {
   TshLoginCommand,
   GatewayCliClientCommand,
   PtyProcessCreationStatus,
+  SshOptions,
 } from '../types';
 
 import { getPtyProcessOptions, buildPtyOptions } from './buildPtyOptions';
@@ -36,6 +37,12 @@ beforeAll(() => {
 jest.mock('./resolveShellEnv', () => ({
   resolveShellEnvCached: () => Promise.resolve({}),
 }));
+
+const makeSshOptions = (options: Partial<SshOptions> = {}): SshOptions => ({
+  noResume: false,
+  forwardAgent: false,
+  ...options,
+});
 
 describe('getPtyProcessOptions', () => {
   describe('pty.gateway-cli-client', () => {
@@ -60,7 +67,7 @@ describe('getPtyProcessOptions', () => {
         settings: makeRuntimeSettings(),
         options: {
           customShellPath: '',
-          ssh: { noResume: false },
+          ssh: makeSshOptions(),
           windowsPty: { useConpty: true },
         },
         cmd: cmd,
@@ -95,7 +102,7 @@ describe('getPtyProcessOptions', () => {
         settings: makeRuntimeSettings(),
         options: {
           customShellPath: '',
-          ssh: { noResume: false },
+          ssh: makeSshOptions(),
           windowsPty: { useConpty: true },
         },
         cmd: cmd,
@@ -127,7 +134,7 @@ describe('getPtyProcessOptions', () => {
         settings: makeRuntimeSettings(),
         options: {
           customShellPath: '',
-          ssh: { noResume: true },
+          ssh: makeSshOptions({ noResume: true }),
           windowsPty: { useConpty: true },
         },
         cmd: cmd,
@@ -136,6 +143,66 @@ describe('getPtyProcessOptions', () => {
       });
 
       expect(args).toContain('--no-resume');
+    });
+
+    it('enables agent forwarding on tsh ssh invocations if the option is set', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: TshLoginCommand = {
+        kind: 'pty.tsh-login',
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        login: 'bob',
+        serverId: '01234567-89ab-cdef-0123-456789abcdef',
+        rootClusterId: 'baz',
+        leafClusterId: undefined,
+      };
+
+      const { args } = getPtyProcessOptions({
+        settings: makeRuntimeSettings(),
+        options: {
+          customShellPath: '',
+          ssh: makeSshOptions({ forwardAgent: true }),
+          windowsPty: { useConpty: true },
+        },
+        cmd: cmd,
+        env: processEnv,
+        shellBinPath: '/bin/zsh',
+      });
+
+      expect(args).toContain('--forward-agent');
+    });
+
+    it('does not enable agent forwarding on tsh ssh invocations if the option is not set', () => {
+      const processEnv = {
+        processExclusive: 'process',
+        shared: 'fromProcess',
+      };
+      const cmd: TshLoginCommand = {
+        kind: 'pty.tsh-login',
+        clusterName: 'bar',
+        proxyHost: 'baz',
+        login: 'bob',
+        serverId: '01234567-89ab-cdef-0123-456789abcdef',
+        rootClusterId: 'baz',
+        leafClusterId: undefined,
+      };
+
+      const { args } = getPtyProcessOptions({
+        settings: makeRuntimeSettings(),
+        options: {
+          customShellPath: '',
+          ssh: makeSshOptions({ forwardAgent: false }),
+          windowsPty: { useConpty: true },
+        },
+        cmd: cmd,
+        env: processEnv,
+        shellBinPath: '/bin/zsh',
+      });
+
+      expect(args).not.toContain('--forward-agent');
     });
   });
 });
@@ -162,7 +229,7 @@ describe('buildPtyOptions', () => {
       }),
       options: {
         customShellPath: '',
-        ssh: { noResume: false },
+        ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
       },
       cmd,
@@ -189,7 +256,7 @@ describe('buildPtyOptions', () => {
       settings: makeRuntimeSettings(),
       options: {
         customShellPath: '/custom/shell/path/better-shell',
-        ssh: { noResume: false },
+        ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
       },
       cmd,
@@ -216,7 +283,7 @@ describe('buildPtyOptions', () => {
       settings: makeRuntimeSettings(),
       options: {
         customShellPath: '',
-        ssh: { noResume: false },
+        ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
       },
       cmd,
@@ -253,7 +320,7 @@ describe('buildPtyOptions', () => {
       }),
       options: {
         customShellPath: '',
-        ssh: { noResume: false },
+        ssh: makeSshOptions(),
         windowsPty: { useConpty: true },
       },
       cmd,
