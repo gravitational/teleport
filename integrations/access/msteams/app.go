@@ -60,15 +60,14 @@ type App struct {
 
 // NewApp initializes a new teleport-msteams app and returns it.
 func NewApp(conf Config) (*App, error) {
-	log, err := conf.Log.NewSLog()
+	log, err := conf.Log.NewSLogLogger()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log = log.With("plugin", pluginName)
 	app := &App{
 		conf: conf,
-		log:  log,
+		log:  log.With("plugin", pluginName),
 	}
 
 	app.mainJob = lib.NewServiceJob(app.run)
@@ -247,11 +246,10 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 	op := event.Type
 	reqID := event.Resource.GetName()
-	log := a.log.With("request_id", reqID)
+	log := a.log.With("request_id", reqID, "request_op", op.String())
 
 	switch op {
 	case types.OpPut:
-		log = log.With("request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.Errorf("unexpected resource type %T", event.Resource)
@@ -282,8 +280,6 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 		return nil
 
 	case types.OpDelete:
-		log = log.With("request_op", "delete")
-
 		log.DebugContext(ctx, "Expiration request received")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
