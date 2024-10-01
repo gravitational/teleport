@@ -78,7 +78,7 @@ func NewApp(conf Config) (*App, error) {
 
 // Run starts the main job process
 func (a *App) Run(ctx context.Context) error {
-	a.log.InfoContext(ctx, "Starting Teleport MS Teams Plugin", "plugin_name", pluginName)
+	a.log.InfoContext(ctx, "Starting Teleport MS Teams Plugin")
 
 	err := a.init(ctx)
 	if err != nil {
@@ -247,7 +247,7 @@ func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 
 	op := event.Type
 	reqID := event.Resource.GetName()
-	log := a.log.With("req_id", reqID)
+	log := a.log.With("request_id", reqID)
 
 	switch op {
 	case types.OpPut:
@@ -305,7 +305,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		RequestReason: req.GetRequestReason(),
 	}
 
-	log := a.log.With("req_id", id)
+	log := a.log.With("request_id", id)
 	log.DebugContext(ctx, "Claiming access request", "user", req.GetUser(), "roles", req.GetRoles(), "reason", req.GetRequestReason())
 
 	// Let's try to create PluginData. This equals to locking AccessRequest to this
