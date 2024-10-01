@@ -1529,15 +1529,15 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
-	// TODO(vapopov) DELETE IN v18.0.0
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
 	} else if err == nil {
-		response.AutoUpdate.ToolsAutoupdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
 	}
 
 	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
-	// TODO(vapopov) DELETE IN v18.0.0
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
 	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
 	} else if err == nil {
