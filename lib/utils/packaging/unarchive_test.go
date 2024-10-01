@@ -1,0 +1,97 @@
+//go:build !windows
+
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package packaging
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPackaging(t *testing.T) {
+	script := "#!/bin/sh\necho test"
+
+	sourceDir, err := os.MkdirTemp(os.TempDir(), "source")
+	require.NoError(t, err)
+
+	toolsDir, err := os.MkdirTemp(os.TempDir(), "dest")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(sourceDir))
+		require.NoError(t, os.RemoveAll(toolsDir))
+	})
+
+	// Create test script for packaging.
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tsh"), []byte(script), 0o755))
+
+	t.Run("tar.gz", func(t *testing.T) {
+		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
+		err = GenerateTarGzFile(sourceDir, archivePath)
+		require.NoError(t, err)
+		require.FileExists(t, archivePath, "archive not created")
+
+		err = replaceTarGz(toolsDir, archivePath, []string{"tsh"})
+		require.NoError(t, err)
+		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+
+		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
+		require.NoError(t, err)
+		assert.Equal(t, script, string(data))
+	})
+
+	t.Run("pkg", func(t *testing.T) {
+		if runtime.GOOS != "darwin" {
+			t.Skip("unsupported platform")
+		}
+		archivePath := filepath.Join(toolsDir, "tsh.pkg")
+		err = GeneratePkgFile(sourceDir, archivePath, "com.example.pkgtest")
+		require.NoError(t, err)
+		require.FileExists(t, archivePath, "archive not created")
+
+		err = replacePkg(toolsDir, archivePath, "hash", []string{"tsh"})
+		require.NoError(t, err)
+		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+
+		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
+		require.NoError(t, err)
+		assert.Equal(t, script, string(data))
+	})
+
+	t.Run("zip", func(t *testing.T) {
+		archivePath := filepath.Join(toolsDir, "tsh.zip")
+		err = GenerateZipFile(sourceDir, archivePath)
+		require.NoError(t, err)
+		require.FileExists(t, archivePath, "archive not created")
+
+		err = replaceZip(toolsDir, archivePath, "hash", []string{"tsh"})
+		require.NoError(t, err)
+		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+
+		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
+		require.NoError(t, err)
+		assert.Equal(t, script, string(data))
+	})
+}
