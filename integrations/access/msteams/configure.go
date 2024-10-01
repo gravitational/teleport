@@ -91,21 +91,7 @@ func Configure(targetDir, appID, appSecret, tenantID string) error {
 	if err := renderTemplateTo(configWriter, confTpl, p); err != nil {
 		return trace.Wrap(err)
 	}
-
-	manifestWriter, err := os.Create(path.Join(targetDir, "manifest.json"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer manifestWriter.Close()
-	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
-		return trace.Wrap(err)
-	}
-	printStep(&step, "Generated configuration files")
-
-	copyAssets(targetDir)
-	printStep(&step, "Copied assets")
-
-	configureAppZip(targetDir, "app.zip")
+	ConfigureAppZip(targetDir, "app.zip", p)
 	printStep(&step, "Created app.zip")
 
 	fmt.Println()
@@ -145,7 +131,18 @@ func copyAssets(targetDir string) error {
 	return nil
 }
 
-func configureAppZip(targetDir, fileName string) error {
+func ConfigureAppZip(targetDir, fileName string, p Payload) error {
+	manifestWriter, err := os.Create(path.Join(targetDir, "manifest.json"))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer manifestWriter.Close()
+	if err := renderTemplateTo(manifestWriter, manifestTpl, p); err != nil {
+		return trace.Wrap(err)
+	}
+
+	copyAssets(targetDir)
+
 	z, err := os.Create(path.Join(targetDir, fileName))
 	if err != nil {
 		return trace.Wrap(err)

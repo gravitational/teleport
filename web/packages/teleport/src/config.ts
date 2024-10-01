@@ -375,6 +375,9 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    msTeamsAppZipPath:
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app_zip',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
@@ -493,6 +496,10 @@ const cfg = {
 
   getIntegrationStatusRoute(type: PluginKind, name: string) {
     return generatePath(cfg.routes.integrationStatus, { type, name });
+  },
+
+  getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
+    return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
   },
 
   getNodesRoute(clusterId: string) {

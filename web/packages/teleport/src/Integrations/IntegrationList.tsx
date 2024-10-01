@@ -39,6 +39,8 @@ import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import api from 'teleport/services/api';
 
 import {
   getStatusCodeDescription,
@@ -78,6 +80,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
     return { cursor: 'pointer' };
   }
 
+  const { clusterId } = useStickyClusterId();
   return (
     <Table
       pagination={{ pageSize: 20 }}
@@ -124,6 +127,23 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                         View Status
                       </MenuItem>
                     )}
+                      <MenuItem onClick={() => function () {
+			  api.fetch(cfg.getMsTeamsAppZipRoute(clusterId, item.name))
+			      .then(response => response.blob())
+			      .then(blob => {
+				  const url = URL.createObjectURL(blob);
+				  const a = document.createElement("a");
+				  a.href = url;
+				  a.download = "app.zip";
+				  document.body.appendChild(a);
+				  a.click();
+				  document.body.removeChild(a);
+				  URL.revokeObjectURL(url);
+			      });
+		      }()
+		      }>
+                      Download app.zip
+                    </MenuItem>
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
                       Delete...
                     </MenuItem>

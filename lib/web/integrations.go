@@ -21,11 +21,15 @@ package web
 import (
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -223,4 +227,45 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		Items:   items,
 		NextKey: nextKey,
 	}, nil
+}
+
+// integrationsMsTeamsAppZipGet generates and returns the app.zip required for the MsTeams plugin with the given name.
+func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	targetDir, err := os.MkdirTemp("", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(targetDir)
+
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
+		Name:        p.ByName("plugin"),
+		WithSecrets: false,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec, ok := plugin.Spec.Settings.(*types.PluginSpecV1_MsTeams)
+	if !ok {
+		return nil, trace.BadParameter("plugin specified was not of type MsTeams")
+	}
+
+	msteams.ConfigureAppZip(targetDir, "app.zip", msteams.Payload{
+		AppID:      spec.MsTeams.AppId,
+		TenantID:   spec.MsTeams.TenantId,
+		TeamsAppID: spec.MsTeams.TeamsAppId,
+	})
+
+	fileBytes, err := os.ReadFile(path.Join(targetDir, "app.zip"))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	w.Header().Add("Content-Type", "application/zip")
+	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
+	w.Write(fileBytes)
+	return nil, nil
 }
