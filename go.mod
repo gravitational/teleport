@@ -89,7 +89,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/fsouza/fake-gcs-server v1.50.0
+	github.com/fsouza/fake-gcs-server v1.49.3
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -206,9 +206,9 @@ require (
 	golang.org/x/text v0.18.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/api v0.198.0
+	google.golang.org/api v0.197.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1
-	google.golang.org/grpc v1.67.0
+	google.golang.org/grpc v1.66.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
