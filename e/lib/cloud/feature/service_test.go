@@ -211,6 +211,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 
@@ -257,6 +258,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 
@@ -296,6 +298,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 
@@ -341,6 +344,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 
@@ -384,6 +388,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 
@@ -428,6 +433,7 @@ func TestRun_UpdateCloudFeatures(t *testing.T) {
 			entitlements.SessionLocks:           {},
 			entitlements.UpsellAlert:            {},
 			entitlements.UsageReporting:         {},
+			entitlements.LicenseAutoUpdate:      {},
 		},
 	})
 }

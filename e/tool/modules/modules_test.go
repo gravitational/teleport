@@ -275,6 +275,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 			entitlements.SessionLocks:           {Enabled: true, Limit: 222},
 			entitlements.UpsellAlert:            {Enabled: true, Limit: 222},
 			entitlements.UsageReporting:         {Enabled: true, Limit: 222},
+			entitlements.LicenseAutoUpdate:      {Enabled: true, Limit: 222},
 		},
 	}
 
@@ -323,6 +324,7 @@ func TestGetLicenseFeatures_Entitlements(t *testing.T) {
 			"SessionLocks":           {Enabled: true, Limit: 222},
 			"UpsellAlert":            {Enabled: true, Limit: 222},
 			"UsageReporting":         {Enabled: true, Limit: 222},
+			"LicenseAutoUpdate":      {Enabled: true, Limit: 222},
 		},
 	})
 	require.NoError(t, err)
