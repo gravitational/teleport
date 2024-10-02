@@ -67,11 +67,31 @@ The following backend operation metrics are available:
 |Delete a range of items|`batch_write_requests`|
 |Update the keepalive status of an item|`write_requests`|
 
-You can use these metrics to define an availability formula, i.e., the
-percentage of reads or writes that succeeded. Take the sum of requests that
-succeeded (including batch requests) over the total sum of requests, multiplied
-by 100. If your backend begins to appear unavailable, you can investigate your
-backend infrastructure.
+During failed backend writes, a Teleport process also increments the
+`backend_write_requests_failed_precondition_total` metric if the cause of the
+failure is expected. For example, the metric increments during a create
+operation if a record already exists, during an update or delete operation if
+the record is not found, and during an atomic write if the resource was modified
+concurrently. All of these conditions can hold in a well-functioning Teleport
+cluster. 
+
+`backend_write_requests_failed_precondition_total`  increments whenever
+`backend_write_requests_failed_total` increments, and you can use it to
+distinguish potentially expected write failures from unexpected, problematic
+ones.
+
+You can use backend operation metrics to define an availability formula, i.e.,
+the percentage of reads or writes that succeeded. For example, in Prometheus,
+you can define a query similar to the following. This takes the percentage of
+write requests that failed for unexpected reasons and subtracts it from 1 to get
+a percentage of successful writes:
+
+```
+1- (sum(rate(backend_write_requests_failed_total -sum(rate(teleport_backend_write_requests_failed_precondition_total)) / sum(rate(backend_write_requests_total))
+```
+
+If your backend begins to appear unavailable, you can investigate your backend
+infrastructure.
 
 ### Backend operation performance
 
@@ -127,8 +147,7 @@ The Auth Service tracks this metric for the following resources:
 
 You can use this metric to:
 - Compare the number of resources that are protected by Teleport with those that
-  are not so you can plan your Teleport rollout, e.g., by configuring [Auto
-  Discovery](../../../enroll-resources/auto-discovery/auto-discovery.mdx).
+  are not so you can plan your Teleport rollout.
 - Correlate changes in Teleport usage with resource utilization on Auth Service
   and Proxy Service compute instances to determine scaling needs.
 
@@ -160,31 +179,26 @@ by type over a given interval:
 max(teleport_reverse_tunnels_connected) by (type))
 ```
 
-### Count and version of Teleport Agents
-
-Alongside the number of connected resources and reverse tunnels, you can track
-the number of Agents in your Teleport cluster. Since you can run multiple
-Teleport services on a single Agent instance, this metric helps you understand
-the architecture of your Teleport Agent deployment so you can diagnose issues
-with resource utilization.
+## Teleport instance versions
 
 At regular intervals (around 7 seconds with jitter), the Auth Service refreshes
-its count of registered Agents. You can measure this count with the metric,
-`teleport_registered_servers`. To get the number of registered Agents by
-version, you can use this query in Grafana:
+its count of registered Teleport instances, including Agents and Teleport
+processes that run the Auth Service and Proxy Service. You can measure this
+count with the metric, `teleport_registered_servers`. To get the number of
+registered instances by version, you can use this query in Grafana:
 
 ```text
 sum by (version)(teleport_registered_servers)
 ```
 
-Since this metric is grouped by version, you can also tell how many of your
-Agents are behind the version of the Auth Service and Proxy Service, which can
-help you identify any that are at risk of violating the Teleport [version
-compatibility guarantees](../../../upgrading/overview.mdx). 
+You can use this metric to tell how many of your registered Teleport instances
+are behind the version of the Auth Service and Proxy Service, which can help you
+identify any that are at risk of violating the Teleport [version compatibility
+guarantees](../../../upgrading/overview.mdx). 
 
 We strongly encourage self-hosted Teleport users to enroll their Agents in
 automatic updates. You can track the count of Teleport Agents that are not
 enrolled in automatic updates using the metric, `teleport_enrolled_in_upgrades`.
-[Read the documentation](../../../upgrading/automatic-agent-updates.mdx) for how
-to enroll Agents in automatic updates.
+[Read the documentation](../../../upgrading.mdx) for how to enroll Agents in
+automatic updates.
 
