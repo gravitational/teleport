@@ -261,7 +261,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	idService := local.NewTestIdentityService(p.backend)
+	idService, err := local.NewTestIdentityService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
@@ -1652,32 +1655,6 @@ func TestRoles(t *testing.T) {
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.accessS.DeleteAllRoles(ctx)
-		},
-	})
-}
-
-// TestReverseTunnels tests reverse tunnels caching
-func TestReverseTunnels(t *testing.T) {
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.ReverseTunnel]{
-		newResource: func(name string) (types.ReverseTunnel, error) {
-			return types.NewReverseTunnel(name, []string{"example.com:2023"})
-		},
-		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
-		},
-		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllReverseTunnels()
 		},
 	})
 }

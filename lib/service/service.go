@@ -4595,6 +4595,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
 			IntegrationAppHandler:     connectionsHandler,
+			FeatureWatchInterval:      utils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -5159,14 +5160,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		grpcServerMTLS, err = process.initSecureGRPCServer(
 			initSecureGRPCServerCfg{
-				limiter:     proxyLimiter,
-				conn:        conn,
-				listener:    listeners.grpcMTLS,
-				accessPoint: accessPoint,
-				lockWatcher: lockWatcher,
-				emitter:     asyncEmitter,
+				limiter:  proxyLimiter,
+				conn:     conn,
+				listener: listeners.grpcMTLS,
+				kubeProxyAddr: kubeDialAddr(
+					cfg.Proxy,
+					clusterNetworkConfig.GetProxyListenerMode(),
+				),
+				accessPoint:     accessPoint,
+				lockWatcher:     lockWatcher,
+				emitter:         asyncEmitter,
+				tlsCipherSuites: cfg.CipherSuites,
 			},
 		)
 		if err != nil {
@@ -6594,15 +6601,15 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	)
 
 	kubeServer, err := kubegrpc.New(kubegrpc.Config{
-		Signer:      cfg.conn.Client,
-		AccessPoint: cfg.accessPoint,
-		Authz:       authorizer,
-		Log:         process.log,
-		Emitter:     cfg.emitter,
-		// listener is using the underlying web listener, so we can just use its address.
-		// since tls routing is enabled.
-		KubeProxyAddr: cfg.listener.Addr().String(),
-		ClusterName:   clusterName,
+		AccessPoint:           cfg.accessPoint,
+		Authz:                 authorizer,
+		Log:                   process.log,
+		Emitter:               cfg.emitter,
+		KubeProxyAddr:         cfg.kubeProxyAddr.String(),
+		ClusterName:           clusterName,
+		GetConnTLSCertificate: cfg.conn.ClientGetCertificate,
+		GetConnTLSRoots:       cfg.conn.ClientGetPool,
+		ConnTLSCipherSuites:   cfg.tlsCipherSuites,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6618,12 +6625,14 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 
 // initSecureGRPCServerCfg is a configuration for initSecureGRPCServer function.
 type initSecureGRPCServerCfg struct {
-	conn        *Connector
-	limiter     *limiter.Limiter
-	listener    net.Listener
-	accessPoint authclient.ProxyAccessPoint
-	lockWatcher *services.LockWatcher
-	emitter     apievents.Emitter
+	conn            *Connector
+	limiter         *limiter.Limiter
+	listener        net.Listener
+	kubeProxyAddr   utils.NetAddr
+	accessPoint     authclient.ProxyAccessPoint
+	lockWatcher     *services.LockWatcher
+	emitter         apievents.Emitter
+	tlsCipherSuites []uint16
 }
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config

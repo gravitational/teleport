@@ -212,7 +212,7 @@ export function getPtyProcessOptions({
         `--proxy=${cmd.rootClusterId}`,
         'ssh',
         ...(options.ssh.noResume ? ['--no-resume'] : []),
-        '--forward-agent',
+        ...(options.ssh.forwardAgent ? ['--forward-agent'] : []),
         loginHost,
       ];
 
