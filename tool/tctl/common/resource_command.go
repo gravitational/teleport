@@ -1549,7 +1549,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		}
 		fmt.Printf("github connector %q has been deleted\n", rc.ref.Name)
 	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(rc.ref.Name); err != nil {
+		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)

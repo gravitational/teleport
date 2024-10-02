@@ -1499,7 +1499,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*KeyRing, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1513,7 +1513,7 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
+	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
 	return keyRing, trace.Wrap(err)
 }
 
@@ -3674,10 +3674,10 @@ func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing
 	}
 
 	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+		SSHLogin:             sshLogin,
+		User:                 tc.Username,
+		Password:             password,
+		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
 	return clt, session, trace.Wrap(err)
 }
@@ -4005,10 +4005,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+		SSHLogin:             sshLogin,
+		User:                 tc.Username,
+		Password:             password,
+		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
 
 	return response, trace.Wrap(err)
@@ -5184,10 +5184,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
+	mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
@@ -5196,11 +5193,6 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFA(ctx, chal)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
 	return trace.Wrap(err)
 }

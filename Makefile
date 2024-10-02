@@ -1293,11 +1293,13 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.js' \
 		-ignore '**/*.py' \
 		-ignore '**/*.sh' \
+		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
-		-ignore '**/*.sql' \
+		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
+		-ignore '**/node_modules/**' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
@@ -1305,11 +1307,11 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
+		-ignore 'target/**' \
 		-ignore 'version.go' \
-		-ignore 'webassets/**' \
-		-ignore '**/node_modules/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
-		-ignore '**/.terraform.lock.hcl' \
+		-ignore 'web/packages/teleport/src/ironrdp/**' \
+		-ignore 'webassets/**' \
 		-ignore 'ignoreme'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
