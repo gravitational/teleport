@@ -1588,32 +1588,6 @@ message DeleteWindowsDesktopRequest {
   string HostID = 2 [(gogoproto.jsontag) = "host_id"];
 }
 
-// GetDynamicWindowsDesktopRequest is a request for a specific dynamic Windows desktop.
-message GetDynamicWindowsDesktopRequest {
-  // Name is the name of the dynamic Windows desktop to be requested.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-}
-
-// GetDynamicWindowsDesktopResponse contains the requested dynamic Windows desktop.
-message GetDynamicWindowsDesktopResponse {
-  // Servers is a list of Windows desktop hosts.
-  types.DynamicWindowsDesktopV1 Desktop = 1 [(gogoproto.jsontag) = "desktop"];
-}
-
-// GetDynamicWindowsDesktopsResponse contains all registered Windows desktop hosts.
-message GetDynamicWindowsDesktopsResponse {
-  // Servers is a list of Windows desktop hosts.
-  repeated types.DynamicWindowsDesktopV1 Desktops = 1 [(gogoproto.jsontag) = "desktops"];
-}
-
-// DeleteDynamicWindowsDesktopRequest is a request to delete a Windows
-// desktop host. If HostID is not specified, all Windows desktops with
-// specified Name will be deleted
-message DeleteDynamicWindowsDesktopRequest {
-  // Name is the name of the Windows desktop host.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-}
-
 // WindowsDesktopCertRequest is a request to generate a client certificate used
 // for Windows RDP authentication.
 message WindowsDesktopCertRequest {
@@ -3359,21 +3333,6 @@ service AuthService {
   rpc DeleteWindowsDesktopService(DeleteWindowsDesktopServiceRequest) returns (google.protobuf.Empty);
   // DeleteAllWindowsDesktopServices removes all registered Windows desktop services.
   rpc DeleteAllWindowsDesktopServices(google.protobuf.Empty) returns (google.protobuf.Empty);
-
-  // GetDynamicWindowsDesktops returns all registered dynamic Windows desktops.
-  rpc GetDynamicWindowsDesktops(google.protobuf.Empty) returns (GetDynamicWindowsDesktopsResponse);
-  // GetDynamicWindowsDesktop returns registered dynamic Windows desktop by name.
-  rpc GetDynamicWindowsDesktop(GetDynamicWindowsDesktopRequest) returns (GetDynamicWindowsDesktopResponse);
-  // CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
-  rpc CreateDynamicWindowsDesktop(types.DynamicWindowsDesktopV1) returns (google.protobuf.Empty);
-  // UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
-  rpc UpdateDynamicWindowsDesktop(types.DynamicWindowsDesktopV1) returns (google.protobuf.Empty);
-  // UpsertDynamicWindowsDesktop updates a dynamic Windows desktop, creating it if it doesn't exist.
-  rpc UpsertDynamicWindowsDesktop(types.DynamicWindowsDesktopV1) returns (google.protobuf.Empty);
-  // DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
-  rpc DeleteDynamicWindowsDesktop(DeleteDynamicWindowsDesktopRequest) returns (google.protobuf.Empty);
-  // DeleteAllDynamicWindowsDesktops removes all registered Windows desktop hosts.
-  rpc DeleteAllDynamicWindowsDesktops(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetWindowsDesktops returns all registered Windows desktop hosts matching the supplied filter.
   rpc GetWindowsDesktops(types.WindowsDesktopFilter) returns (GetWindowsDesktopsResponse);
