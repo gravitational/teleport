@@ -9,43 +9,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 
 | Version | Date               |
 |---------|--------------------|
-| 16.4.0  | September 18, 2024 |
-| 16.4.1  | September 25, 2024 |
 | 17.0.0  | October 31, 2024   |
-
-### 16.4.0
-
-#### Machine ID for Terraform Cloud
-
-Teleport will support secure joining via Terraform Cloud, allowing Machine ID
-workflows to run on Terraform Cloud without shared secrets.
-
-#### SPIFFE Federation for Workload Identity
-
-Teleport Workload Identity will support SPIFFE Federation, allowing trust
-relationships to be established between a Teleport cluster's trust domain and
-trust domains managed by other SPIFFE compatible platforms. Establishing a
-relationship between the trust domains enables workloads belonging to one trust
-domain to validate the identity of workloads in the other trust domain, and vice
-versa.
-
-#### Multi-domain support for web applications
-
-Teleport will support web application access where one application depends on
-another. For example, you may have a web application that depends on a backend
-API service, of which are separate apps protected by Teleport.
-
-#### Okta integration status dashboard
-
-Cluster admins will be able to get a detailed overview of the Okta integration
-status in the Teleport web UI.
-
-### 16.4.1
-
-#### Secrets support for Kubernetes Operator
-
-Kubernetes Operator will be able to lookup values from Kubernetes secrets for
-`GithubConnector.ClientSecret` and `OIDCConnector.ClientSecret`.
 
 ### 17.0.0
 
@@ -81,6 +45,36 @@ members in other Access Lists.
 
 *Delayed from Teleport 16.2.0.*
 
+#### Datadog plugin
+
+TODO(r0mant)
+
+#### Hosted MS Teams Plugins
+
+TODO(r0mant)
+
+#### Signed and noterized assets
+
+TODO(r0mant)
+
+### 17.1.0
+
+#### GitHub Proxy
+
+TODO(r0mant)
+
+#### MFA via IdP
+
+TODO(zmb3)
+
+#### Database access for Postgres via Web UI
+
+TODO(r0mant)
+
+#### Hosted email plugin
+
+TODO(r0mant)
+
 ## Teleport Policy
 
 | Version | Date          |
@@ -106,8 +100,6 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of            | Description                                                    |
 |--------------------|----------------------------------------------------------------|
-| September 30, 2024 | Teleport 16.4 will begin rollout on Cloud.                     |
-| September 30, 2024 | Teleport 16.4 agents will begin rollout to eligible tenants.   |
 | December 2, 2024   | Teleport 17.1 will begin rollout on Cloud.                     |
 | December 2, 2024   | Teleport 17.1 agents will begin rollout to eligible tenants.   |
 
