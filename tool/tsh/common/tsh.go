@@ -2504,6 +2504,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
