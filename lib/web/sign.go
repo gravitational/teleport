@@ -44,7 +44,7 @@ POST /webapi/sites/mycluster/sign/db
 
 	{
 		"hostname": "pg.example.com",
-		"ttl": "2190h"
+		"TTL": "2190h"
 	}
 
 Should be equivalent to running:
