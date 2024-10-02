@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/events/export"
 
 	"github.com/gravitational/teleport/integrations/event-handler/lib"
 )
@@ -49,6 +51,9 @@ const (
 
 	// cursorName is the cursor variable name
 	cursorName = "cursor"
+
+	// cursorV2Dir is the cursor v2 directory
+	cursorV2Dir = "cursor_v2"
 
 	// idName is the id variable name
 	idName = "id"
@@ -67,6 +72,12 @@ const (
 type State struct {
 	// dv is a diskv instance
 	dv *diskv.Diskv
+
+	// cursorV2 is an export cursor. if the event handler was started before
+	// introduction of the v2 cursor or is talking to an auth that does not
+	// implement the newer bulk export apis, the v1 cursor stored in the above
+	// dv may be the source of truth still.
+	cursorV2 *export.Cursor
 }
 
 // NewCursor creates new cursor instance
@@ -85,7 +96,17 @@ func NewState(c *StartCmdConfig) (*State, error) {
 		CacheSizeMax: cacheSizeMaxBytes,
 	})
 
-	s := State{dv}
+	cursorV2, err := export.NewCursor(export.CursorConfig{
+		Dir: filepath.Join(dir, cursorV2Dir),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s := State{
+		dv:       dv,
+		cursorV2: cursorV2,
+	}
 
 	return &s, nil
 }
@@ -128,6 +149,56 @@ func createStorageDir(c *StartCmdConfig) (string, error) {
 	}
 
 	return dir, nil
+}
+
+func (s *State) GetCursorV2State() export.ExporterState {
+	return s.cursorV2.GetState()
+}
+
+func (s *State) SetCursorV2State(state export.ExporterState) error {
+	return s.cursorV2.Sync(state)
+}
+
+func (s *State) GetLegacyCursorValues() (*LegacyCursorValues, error) {
+	latestCursor, err := s.GetCursor()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	latestID, err := s.GetID()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lastWindowTime, err := s.GetLastWindowTime()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var windowStartTime time.Time
+	if lastWindowTime != nil {
+		windowStartTime = *lastWindowTime
+	}
+
+	lcv := &LegacyCursorValues{
+		Cursor:          latestCursor,
+		ID:              latestID,
+		WindowStartTime: windowStartTime,
+	}
+
+	return lcv, nil
+}
+
+func (s *State) SetLegacyCursorValues(v LegacyCursorValues) error {
+	if err := s.SetCursor(v.Cursor); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.SetID(v.ID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return s.SetLastWindowTime(&v.WindowStartTime)
 }
 
 // GetStartTime gets current start time
