@@ -33,13 +33,23 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [wancli.Login].
+type WebauthnLoginFunc func(
+	ctx context.Context,
+	origin string,
+	assertion *wantypes.CredentialAssertion,
+	prompt wancli.LoginPrompt,
+	opts *wancli.LoginOpts,
+) (*proto.MFAAuthenticateResponse, string, error)
+
 // PromptConfig contains common mfa prompt config options.
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
-	WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	WebauthnLoginFunc WebauthnLoginFunc
 	// AllowStdinHijack allows stdin hijack during MFA prompts.
 	// Stdin hijack provides a better login UX, but it can be difficult to reason
 	// about and is often a source of bugs.

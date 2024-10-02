@@ -67,14 +67,6 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
-		// Use variables below to cancel OTP reads and make sure the goroutine exited.
-		otpCtx, otpCancel := context.WithCancel(ctx)
-		otpDone := make(chan struct{})
-		otpCancelAndWait := func() {
-			otpCancel()
-			<-otpDone
-		}
-
 		dualPrompt := runOpts.PromptTOTP && runOpts.PromptWebauthn
 
 		// Print the prompt message directly here in case of dualPrompt.
@@ -92,12 +84,22 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		}
 
 		// Fire TOTP goroutine.
+		var otpCancelAndWait func()
 		if runOpts.PromptTOTP {
+			otpCtx, otpCancel := context.WithCancel(ctx)
+			otpDone := make(chan struct{})
+			otpCancelAndWait = func() {
+				otpCancel()
+				<-otpDone
+			}
+
 			wg.Add(1)
 			go func() {
-				defer wg.Done()
-				defer otpCancel()
-				defer close(otpDone)
+				defer func() {
+					wg.Done()
+					otpCancel()
+					close(otpDone)
+				}()
 
 				quiet := c.cfg.Quiet || dualPrompt
 				resp, err := c.promptTOTP(otpCtx, quiet)
@@ -190,12 +192,25 @@ func (c *CLIPrompt) promptDevicePrefix() string {
 // authenticators out there.
 type webauthnPromptWithOTP struct {
 	wancli.LoginPrompt
-	otpCancelAndWait func()
+
+	otpCancelAndWaitOnce sync.Once
+	otpCancelAndWait     func()
 }
 
-func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
-	// If we get to this stage, Webauthn PIN verification is underway.
-	// Cancel otp goroutine so that it doesn't capture the PIN from stdin.
-	w.otpCancelAndWait()
-	return w.LoginPrompt.PromptPIN()
+func (w *webauthnPromptWithOTP) PromptTouch() (wancli.TouchAcknowledger, error) {
+	ack, err := w.LoginPrompt.PromptTouch()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return func() error {
+		err := ack()
+
+		// Stop the OTP goroutine when the first touch is acknowledged.
+		if w.otpCancelAndWait != nil {
+			w.otpCancelAndWaitOnce.Do(w.otpCancelAndWait)
+		}
+
+		return trace.Wrap(err)
+	}, nil
 }
