@@ -291,10 +291,12 @@ func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
 	// Whilst optional, the SPIRE reference implementation does set this value
 	// and it will be beneficial for compatibility with a range of consumers
 	// which may require this value.
-	kid, err := KeyID(k.config.PublicKey)
-	if err != nil {
-		return "", trace.Wrap(err, "calculating 'kid'")
+	rsaPubKey, ok := k.config.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return "", trace.BadParameter("expected an RSA public key")
 	}
+	kid := KeyID(rsaPubKey)
+
 	opts := (&jose.SignerOptions{}).
 		WithHeader("kid", kid)
 
