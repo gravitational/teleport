@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
@@ -253,6 +254,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	sudoers := HostSudoersManagement{
 		backend: backend,
@@ -278,6 +280,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		users := HostUserManagement{
 			backend: backend,
 			storage: pres,
+			log:     utils.NewSlogLoggerForTests(),
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
@@ -318,6 +321,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users := HostUserManagement{
 		backend:   mgmt,
 		storage:   pres,
+		log:       utils.NewSlogLoggerForTests(),
 		userGrace: 0,
 	}
 
@@ -343,6 +347,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users = HostUserManagement{
 		backend: newTestUserMgmt(),
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
 	require.NoError(t, users.DeleteAllUsers())
@@ -702,6 +707,7 @@ func initBackend(t *testing.T, groups []string) (HostUserManagement, *testHostUs
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	for _, group := range groups {
@@ -719,6 +725,7 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	existingGroups := []string{"alice", "simon"}

@@ -957,7 +957,8 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	}()
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
+	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
 	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
@@ -1031,7 +1032,8 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	// Start the new node.
-	nodeConfig := newNodeConfig(t, pack.Root.Cluster.Config.Auth.ListenAddr, "token", types.JoinMethodToken)
+	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
+	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
 	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
