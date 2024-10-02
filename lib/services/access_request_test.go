@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -792,12 +793,14 @@ func TestMaxLength(t *testing.T) {
 	req, err := types.NewAccessRequest("some-id", "dave", "dictator", "never")
 	require.NoError(t, err)
 
-	var s []byte
-	for i := 0; i <= maxAccessRequestReasonSize; i++ {
-		s = append(s, 'a')
-	}
+	req.SetRequestReason(strings.Repeat("a", maxAccessRequestReasonSize))
+	require.Error(t, ValidateAccessRequest(req))
 
-	req.SetRequestReason(string(s))
+	resourceIDs, err := types.ResourceIDsFromString(`["/cluster/node/some-node", "/cluster/node/some-other-node" ]`)
+	require.NoError(t, err)
+
+	req.SetRequestReason("")
+	req.SetRequestedResourceIDs(slices.Repeat(resourceIDs, maxResourcesPerRequest/2+1))
 	require.Error(t, ValidateAccessRequest(req))
 }
 

@@ -46,6 +46,7 @@ import (
 
 const (
 	maxAccessRequestReasonSize = 4096
+	maxResourcesPerRequest     = 300
 
 	// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
 	day = 24 * time.Hour
@@ -67,7 +68,7 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 
 	_, err := uuid.Parse(ar.GetName())
 	if err != nil {
-		return trace.BadParameter("invalid access request id %q", ar.GetName())
+		return trace.BadParameter("invalid access request ID %q", ar.GetName())
 	}
 	if len(ar.GetRequestReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request reason is too long, max %v bytes", maxAccessRequestReasonSize)
@@ -75,7 +76,9 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 	if len(ar.GetResolveReason()) > maxAccessRequestReasonSize {
 		return trace.BadParameter("access request resolve reason is too long, max %v bytes", maxAccessRequestReasonSize)
 	}
-	// TODO: consider enforcing a maximum number of requested resources in a single request
+	if l := len(ar.GetRequestedResourceIDs()); l > maxResourcesPerRequest {
+		return trace.BadParameter("access request contains too many resources (%v), max %v", l, maxResourcesPerRequest)
+	}
 	return nil
 }
 
