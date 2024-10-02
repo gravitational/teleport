@@ -496,6 +496,10 @@ func (CTA) EnumDescriptor() ([]byte, []int) {
 
 // IntegrationEnrollKind represents the types of integration that
 // can be enrolled.
+//
+// Note: IntegrationEnrollKind enum must be kept in sync with the values defined
+// in api/proto/teleport/usageevents/v1/usageevents.proto. Values 18-25 have
+// become out of sync and are manually mapped to each other.
 type IntegrationEnrollKind int32
 
 const (
