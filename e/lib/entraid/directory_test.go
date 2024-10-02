@@ -128,6 +128,20 @@ func TestEntraIDService(t *testing.T) {
 	bobTeleport, err = identitySvc.CreateUser(ctx, bobTeleport)
 	require.NoError(t, err)
 
+	// Michael is a guest user in Entra, should be imported as a local user
+	michaelID := uuid.NewString()
+	michaelUPN := "michael_someothercompany.io#EXT#@example.com"
+	michaelEntra := &msgraph.User{}
+	michaelEntra.ID = &michaelID
+	michaelEntra.UserPrincipalName = &michaelUPN
+	graphClient.users = append(graphClient.users, michaelEntra)
+
+	michaelTeleport, err := convertUser(michaelEntra, tenantID, ssoConnectorID)
+	require.NoError(t, err)
+	michaelTeleport, err = identitySvc.CreateUser(ctx, michaelTeleport)
+	require.NoError(t, err)
+	require.Equal(t, "michael@someothercompany.io", michaelTeleport.GetName())
+
 	// Carol exists in both, but was recently unassigned from Team C in Entra
 	carolID := uuid.NewString()
 	carolUPN := "carol@example.com"

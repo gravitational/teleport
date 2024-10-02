@@ -3,6 +3,8 @@ package entraid
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -130,13 +132,30 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string) (type
 		username = upn
 	}
 
+	isExternal := false
+
+	// entraID users have a suffix that indicates they are external users in B2B Guest scenarios.
+	// This suffix is removed when the user logins via the SAML assertion so we need to remove it here.
+	// more info: https://docs.microsoft.com/en-us/azure/active-directory/external-identities/what-is-b2b
+	// and https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works
+	// Example: "user_theirdomain#EXT#@domain -> "user@theirdomain"
+	const externalUserSuffix = "#EXT#"
+	if idx := strings.Index(*username, externalUserSuffix); idx != -1 {
+		user := (*username)[:idx] // remove #EXT#@domain
+		if idx := strings.LastIndex(user, "_"); idx != -1 {
+			*username = user[:idx] + "@" + user[idx+1:] // replace the last _ with @
+		}
+		isExternal = true
+	}
+
 	samAccountName := in.OnPremisesSAMAccountName
 
 	out, err := types.NewUser(*username)
 	labels := map[string]string{
-		types.EntraUniqueIDLabel: *in.ID,
-		types.EntraTenantIDLabel: tenantID,
-		types.EntraUPNLabel:      *upn,
+		types.EntraUniqueIDLabel:                                *in.ID,
+		types.EntraTenantIDLabel:                                tenantID,
+		types.EntraUPNLabel:                                     *upn,
+		types.TeleportInternalLabelPrefix + "entra-is-external": strconv.FormatBool(isExternal),
 	}
 	if samAccountName != nil {
 		labels[types.EntraSAMAccountNameLabel] = *samAccountName
@@ -166,4 +185,5 @@ func convertUser(in *msgraph.User, tenantID string, ssoConnectorID string) (type
 func preserveUserMetadata(dst, src types.User) {
 	dst.SetRevision(src.GetRevision())
 	dst.SetCreatedBy(src.GetCreatedBy())
+	dst.SetWeakestDevice(src.GetWeakestDevice())
 }
