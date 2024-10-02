@@ -2170,9 +2170,37 @@ func TestValidateDuplicateRequestedResources(t *testing.T) {
 		desktops:    make(map[string]types.WindowsDesktop),
 		clusterName: "someCluster",
 	}
-	testRole, err := types.NewRole("testRole", types.RoleSpecV6{})
+
+	for i := 1; i < 3; i++ {
+		node, err := types.NewServerWithLabels(
+			fmt.Sprintf("resource%d", i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"foo": "bar"},
+		)
+		require.NoError(t, err)
+		g.nodes[node.GetName()] = node
+	}
+
+	searchAsRole, err := types.NewRole("searchAs", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"root"},
+			NodeLabels: types.Labels{"*": []string{"*"}},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[searchAsRole.GetName()] = searchAsRole
+
+	testRole, err := types.NewRole("testRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{searchAsRole.GetName()},
+			},
+		},
+	})
 	require.NoError(t, err)
 	g.roles[testRole.GetName()] = testRole
+
 	user := g.user(t, testRole.GetName())
 
 	clock := clockwork.NewFakeClock()
@@ -2183,15 +2211,15 @@ func TestValidateDuplicateRequestedResources(t *testing.T) {
 	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
 		[]types.ResourceID{
 			{ClusterName: "someCluster", Kind: "node", Name: "resource1"},
-			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a true duplicate
-			{ClusterName: "someCluster", Kind: "app", Name: "resource1"},  // not a duplicate
+			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a  duplicate
+			{ClusterName: "someCluster", Kind: "node", Name: "resource2"}, // not a duplicate
 		})
 	require.NoError(t, err)
 
-	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity))
+	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, ExpandVars(true)))
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
 	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
-	require.Equal(t, "/someCluster/app/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
 }
 
 func TestValidateAccessRequestClusterNames(t *testing.T) {

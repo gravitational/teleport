@@ -1110,19 +1110,6 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		return trace.BadParameter("only promoted requests can set the promoted access list title")
 	}
 
-	// deduplicate requested resource IDs
-	var deduplicated []types.ResourceID
-	seen := make(map[string]struct{})
-	for _, resource := range req.GetRequestedResourceIDs() {
-		id := types.ResourceIDToString(resource)
-		if _, isDuplicate := seen[id]; isDuplicate {
-			continue
-		}
-		seen[id] = struct{}{}
-		deduplicated = append(deduplicated, resource)
-	}
-	req.SetRequestedResourceIDs(deduplicated)
-
 	// check for "wildcard request" (`roles=*`).  wildcard requests
 	// need to be expanded into a list consisting of all existing roles
 	// that the user does not hold and is allowed to request.
@@ -1168,6 +1155,19 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	}
 
 	if m.opts.expandVars {
+		// deduplicate requested resource IDs
+		var deduplicated []types.ResourceID
+		seen := make(map[string]struct{})
+		for _, resource := range req.GetRequestedResourceIDs() {
+			id := types.ResourceIDToString(resource)
+			if _, isDuplicate := seen[id]; isDuplicate {
+				continue
+			}
+			seen[id] = struct{}{}
+			deduplicated = append(deduplicated, resource)
+		}
+		req.SetRequestedResourceIDs(deduplicated)
+
 		// determine the roles which should be requested for a resource access
 		// request, and write them to the request
 		if err := m.setRolesForResourceRequest(ctx, req); err != nil {
