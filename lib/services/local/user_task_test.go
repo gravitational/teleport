@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,13 +209,7 @@ func TestListUserTask(t *testing.T) {
 		protocmp.Transform(),
 	}
 	sortUserTasksFn := func(a *usertasksv1.UserTask, b *usertasksv1.UserTask) int {
-		if a.Metadata.GetName() < b.Metadata.GetName() {
-			return 1
-		}
-		if a.Metadata.GetName() > b.Metadata.GetName() {
-			return -1
-		}
-		return 0
+		return strings.Compare(a.Metadata.GetName(), b.Metadata.GetName())
 	}
 	counts := []int{0, 1, 5, 10}
 	for _, count := range counts {
