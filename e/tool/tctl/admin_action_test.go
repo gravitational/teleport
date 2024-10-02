@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -221,7 +220,7 @@ func (s *adminActionTestSuite) testAccessLists(t *testing.T) {
 				Roles: []string{teleport.PresetAccessRoleName},
 			},
 			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now().AddDate(1, 0, 0),
+				NextAuditDate: time.Now().AddDate(1, 0, 0),
 			},
 			Owners: []accesslist.Owner{
 				{
