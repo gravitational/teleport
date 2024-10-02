@@ -1129,7 +1129,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		}
 		s3URI := url.URL{Scheme: "s3", Host: s3Bucket, Path: s3Prefix}
 
-		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA)
+		jwksContents, err := h.jwks(r.Context(), types.OIDCIdPCA, true)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -120,7 +120,7 @@ func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.
 
 	return &oidc.OpenIDConfiguration{
 		Issuer:  issuer,
-		JWKSURI: issuer + "/jwks.json",
+		JWKSURI: issuer + "/jwt-jwks.json",
 		Claims: []string{
 			"iss",
 			"sub",
@@ -138,7 +138,7 @@ func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.
 	}, nil
 }
 
-// Mounted at /workload-identity/jwks.json
+// Mounted at /workload-identity/jwt-jwks.json
 func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.SPIFFECA)
+	return h.jwks(r.Context(), types.SPIFFECA, false)
 }

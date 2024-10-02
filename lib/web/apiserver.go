@@ -992,7 +992,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// SPIFFE Federation Trust Bundle
 	h.GET("/webapi/spiffe/bundle.json", h.WithLimiter(h.getSPIFFEBundle))
-	h.GET("/workload-identity/jwks.json", h.WithLimiter(h.getSPIFFEJWKS))
+	h.GET("/workload-identity/jwt-jwks.json", h.WithLimiter(h.getSPIFFEJWKS))
 	h.GET("/workload-identity/.well-known/openid-configuration", h.WithLimiter(h.getSPIFFEOIDCDiscoveryDocument))
 
 	// DiscoveryConfig CRUD
@@ -1887,7 +1887,7 @@ func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.
 func (h *Handler) wellKnownJWKS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return h.jwks(r.Context(), types.JWTSigner)
+	return h.jwks(r.Context(), types.JWTSigner, true)
 }
 
 func (h *Handler) motd(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
