@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -78,7 +77,7 @@ func (yrt *YumRepoTool) Run() error {
 
 	// Both Hashicorp and Docker publish their key to this path
 	relativeGpgPublicKeyPath := "gpg"
-	err = yrt.gpg.WritePublicKeyToFile(path.Join(yrt.config.localBucketPath, relativeGpgPublicKeyPath))
+	err = yrt.gpg.WritePublicKeyToFile(filepath.Join(yrt.config.localBucketPath, relativeGpgPublicKeyPath))
 	if err != nil {
 		return trace.Wrap(err, "failed to write GPG public key")
 	}
@@ -149,12 +148,12 @@ func (yrt *YumRepoTool) getSourceArtifactPaths() ([]string, error) {
 	validArtifactPaths := make([]string, 0, len(fileDirEntries))
 	for _, fileDirEntry := range fileDirEntries {
 		fileName := fileDirEntry.Name()
-		if path.Ext(fileName) != ArtifactExtension {
+		if filepath.Ext(fileName) != ArtifactExtension {
 			logrus.Debugf("The file %q does not have a %q extension, skipping...", fileName, ArtifactExtension)
 			continue
 		}
 
-		filePath := path.Join(artifactPath, fileName)
+		filePath := filepath.Join(artifactPath, fileName)
 		validArtifactPaths = append(validArtifactPaths, filePath)
 		logrus.Debugf("Found artifact %q", filePath)
 	}
@@ -249,17 +248,17 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 
 	repoCount := 0
 	for os, osVersions := range yrt.supportedOSs {
-		osPath := path.Join(yrt.config.localBucketPath, os)
+		osPath := filepath.Join(yrt.config.localBucketPath, os)
 		for _, osVersion := range osVersions {
 			for arch, packages := range archs {
-				relativeRepoPath := path.Join(
+				relativeRepoPath := filepath.Join(
 					osVersion,
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
 					yrt.config.versionChannel,
 				)
-				repoPath := path.Join(osPath, relativeRepoPath)
+				repoPath := filepath.Join(osPath, relativeRepoPath)
 
 				err := yrt.updateRepoWithArtifacts(packages, repoPath)
 				if err != nil {
@@ -330,7 +329,7 @@ func (yrt *YumRepoTool) updateRepoWithArtifacts(packagePaths []string, repoPath 
 
 func (yrt *YumRepoTool) copyArtifactsToRepo(artifactPaths []string, repoPath string) error {
 	// The "repo_rpms" directory here is arbitrary and not tied to anything else.
-	repoArtifactFolder := path.Join(repoPath, "repo_rpms")
+	repoArtifactFolder := filepath.Join(repoPath, "repo_rpms")
 
 	_, err := copyArtifacts(artifactPaths, repoArtifactFolder, false)
 	if err != nil {
@@ -342,7 +341,7 @@ func (yrt *YumRepoTool) copyArtifactsToRepo(artifactPaths []string, repoPath str
 
 // Flattens artifactPaths into one directory and returns the created files in that directory
 func (yrt *YumRepoTool) copyArtifactsToBucket(artifactPaths []string, bucketArtifactSubdirectory string) ([]string, error) {
-	bucketArtifactFolder := path.Join(yrt.config.localBucketPath, bucketArtifactSubdirectory)
+	bucketArtifactFolder := filepath.Join(yrt.config.localBucketPath, bucketArtifactSubdirectory)
 
 	// A "hard" copy is performed here because the bucket will usually be stored on a non-ephemeral filesystem path.
 	// If the artifacts are linked rather than copied then every time the uploaded bucket is synced on future runs
@@ -369,7 +368,7 @@ func copyArtifacts(artifactPaths []string, destinationDirectory string, shouldHa
 
 	destinationArtifactPaths := make([]string, len(artifactPaths))
 	for i, artifactPath := range artifactPaths {
-		artifactDestinationPath := path.Join(destinationDirectory, path.Base(artifactPath))
+		artifactDestinationPath := filepath.Join(destinationDirectory, filepath.Base(artifactPath))
 		if shouldHardCopy {
 			hardCopyFile(artifactPath, artifactDestinationPath)
 		} else {
@@ -398,7 +397,7 @@ func (yrt *YumRepoTool) updateRepoMetadata(repoPath string) error {
 }
 
 func (yrt *YumRepoTool) signRepoMetadata(repoPath string) error {
-	repomdPath := path.Join(repoPath, "repodata", "repomd.xml")
+	repomdPath := filepath.Join(repoPath, "repodata", "repomd.xml")
 	err := yrt.gpg.SignFile(repomdPath)
 	if err != nil {
 		return trace.Wrap(err, "failed to sign file %q", repomdPath)

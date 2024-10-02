@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/ProtonMail/go-crypto/openpgp"
@@ -18,7 +17,7 @@ const (
 )
 
 func VersionsFilePath(prefix, namespace, name string) string {
-	return path.Join(prefix, namespace, name, versionsFilename)
+	return filepath.Join(prefix, namespace, name, versionsFilename)
 }
 
 // Versions is a Go representation of the Terraform Registry Protocol

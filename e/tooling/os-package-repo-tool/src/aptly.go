@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -123,7 +122,7 @@ func getAptlyConfigPath() (string, error) {
 		return "", trace.Wrap(err, "failed to get user home directory path")
 	}
 
-	userAptlyConfigPath := path.Join(userHomeDir, ".aptly.conf")
+	userAptlyConfigPath := filepath.Join(userHomeDir, ".aptly.conf")
 	_, err = os.Stat(userAptlyConfigPath)
 	if err == nil {
 		return userAptlyConfigPath, nil
@@ -287,7 +286,7 @@ func (a *Aptly) importDebsFromPackagesFile(repo *Repo, packagesPath string) erro
 
 	logrus.Debugf("Found %d debs listed in %q: %q", len(debRelativeFilePaths), packagesPath, strings.Join(debRelativeFilePaths, "\", \""))
 	for _, debRelativeFilePath := range debRelativeFilePaths {
-		debPath := path.Join(repo.publishedSourcePath, repo.os, debRelativeFilePath)
+		debPath := filepath.Join(repo.publishedSourcePath, repo.os, debRelativeFilePath)
 		logrus.Debugf("Constructed deb absolute path %q", debPath)
 		err = a.ImportDeb(repo.Name(), debPath)
 		if err != nil {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -543,7 +542,7 @@ func mustLoginHome(t *testing.T, authServer *auth.Server, proxyAddr, user, conne
 }
 
 func mustLoginIdentity(t *testing.T, authServer *auth.Server, proxyAddr, user, connectorName string, opts ...tshcommon.CliOption) (identityFilePath string, loginOpt tshcommon.CliOption) {
-	identityFilePath = path.Join(t.TempDir(), "identity.pem")
+	identityFilePath = filepath.Join(t.TempDir(), "identity.pem")
 
 	mustLogin(t, proxyAddr, append(opts, setIdentityOut(identityFilePath), setMockSSOLogin(t, authServer, user, connectorName))...)
 
