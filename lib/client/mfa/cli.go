@@ -22,11 +22,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -73,6 +75,22 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			<-otpDone
 		}
 
+		dualPrompt := runOpts.PromptTOTP && runOpts.PromptWebauthn
+
+		// Print the prompt message directly here in case of dualPrompt.
+		// This avoids problems with a goroutine failing before any message is
+		// printed.
+		if dualPrompt {
+			var message string
+			if runtime.GOOS == constants.WindowsOS {
+				message = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
+				webauthnwin.PromptPlatformMessage = ""
+			} else {
+				message = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
+			}
+			fmt.Fprintln(c.writer, message)
+		}
+
 		// Fire TOTP goroutine.
 		if runOpts.PromptTOTP {
 			wg.Add(1)
@@ -81,10 +99,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 				defer otpCancel()
 				defer close(otpDone)
 
-				// Let Webauthn take the prompt below if applicable.
-				quiet := c.cfg.Quiet || runOpts.PromptWebauthn
-
-				resp, err := c.promptTOTP(otpCtx, chal, quiet)
+				quiet := c.cfg.Quiet || dualPrompt
+				resp, err := c.promptTOTP(otpCtx, quiet)
 				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "TOTP authentication failed")}
 			}()
 		}
@@ -93,11 +109,15 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		if runOpts.PromptWebauthn {
 			wg.Add(1)
 			go func() {
-				defer wg.Done()
+				defer func() {
+					wg.Done()
+					// Important for dual-prompt, harmless otherwise.
+					webauthnwin.ResetPromptPlatformMessage()
+				}()
 
 				// Get webauthn prompt and wrap with otp context handler.
 				prompt := &webauthnPromptWithOTP{
-					LoginPrompt:      c.getWebauthnPrompt(ctx, runOpts.PromptTOTP),
+					LoginPrompt:      c.getWebauthnPrompt(ctx, dualPrompt),
 					otpCancelAndWait: otpCancelAndWait,
 				}
 
@@ -110,7 +130,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
-func (c *CLIPrompt) promptTOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+func (c *CLIPrompt) promptTOTP(ctx context.Context, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	var msg string
 	if !quiet {
 		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", c.promptDevicePrefix())
@@ -128,7 +148,7 @@ func (c *CLIPrompt) promptTOTP(ctx context.Context, chal *proto.MFAAuthenticateC
 	}, nil
 }
 
-func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, withTOTP bool) wancli.LoginPrompt {
+func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, dualPrompt bool) wancli.LoginPrompt {
 	writer := c.writer
 	if c.cfg.Quiet {
 		writer = io.Discard
@@ -138,13 +158,10 @@ func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, withTOTP bool) wancli
 	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", c.promptDevicePrefix())
 	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", c.promptDevicePrefix())
 
-	if withTOTP {
-		prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
-
-		// Customize Windows prompt directly.
-		// Note that the platform popup is a modal and will only go away if canceled.
-		webauthnwin.PromptPlatformMessage = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-		defer webauthnwin.ResetPromptPlatformMessage()
+	// Skip when both OTP and WebAuthn are possible, as the prompt happens
+	// externally.
+	if dualPrompt {
+		prompt.FirstTouchMessage = ""
 	}
 
 	return prompt

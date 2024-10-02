@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -147,6 +148,9 @@ func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context
 			// Surface error immediately.
 			return nil, trace.Wrap(resp.Err)
 		case err != nil:
+			log.
+				WithError(err).
+				Debug("MFA goroutine failed, continuing so other goroutines have a chance to succeed")
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.
