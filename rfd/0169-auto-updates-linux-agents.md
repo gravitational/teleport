@@ -68,8 +68,6 @@ The existing auto-updates mechanism will remain unchanged throughout the process
 
 Future phases might change as we are working on the implementation and collecting real-world feedback and experience.
 
-### Resources
-
 We will introduce two user-facing resources:
 
 1. The `autoupdate_config` resource, owned by the Teleport user. This resource allows Teleport users to configure:
@@ -646,6 +644,291 @@ status:
     last_update_time: 2020-12-09T16:09:53+00:00
     # last_update_reason is the trigger for the last update
     last_update_reason: rollback
+```
+
+#### Protobuf
+
+```protobuf
+syntax = "proto3";
+
+package teleport.autoupdate.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
+
+// AutoUpdateService serves agent and client automatic version updates.
+service AutoUpdateService {
+  // GetAutoUpdateConfig updates the autoupdate config.
+  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // CreateAutoUpdateConfig creates the autoupdate config.
+  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // UpdateAutoUpdateConfig updates the autoupdate config.
+  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // UpsertAutoUpdateConfig overwrites the autoupdate config.
+  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+  // ResetAutoUpdateConfig restores the autoupdate config to default values.
+  rpc ResetAutoUpdateConfig(ResetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // GetAutoUpdateAgentPlan returns the autoupdate plan for agents.
+  rpc GetAutoUpdateAgentPlan(GetAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // CreateAutoUpdateAgentPlan creates the autoupdate plan for agents.
+  rpc CreateAutoUpdateAgentPlan(CreateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // UpdateAutoUpdateAgentPlan updates the autoupdate plan for agents.
+  rpc UpdateAutoUpdateAgentPlan(UpdateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  // UpsertAutoUpdateAgentPlan overwrites the autoupdate plan for agents.
+  rpc UpsertAutoUpdateAgentPlan(UpsertAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
+  
+  // TriggerAgentGroup changes the state of an agent group from `unstarted` to `active` or `canary`.
+  rpc TriggerAgentGroup(TriggerAgentGroupRequest) returns (AutoUpdateAgentPlan);
+  // ForceAgentGroup changes the state of an agent group from `unstarted`, `canary`, or `active` to the `done` state.
+  rpc ForceAgentGroup(ForceAgentGroupRequest) returns (AutoUpdateAgentPlan);
+  // ResetAgentGroup resets the state of an agent group.
+  // For `canary`, this means new canaries are picked
+  // For `active`, this means the initial node count is computed again.
+  rpc ResetAgentGroup(ResetAgentGroupRequest) returns (AutoUpdateAgentPlan);
+  // RollbackAgentGroup changes the state of an agent group to `rolledback`.
+  rpc RollbackAgentGroup(RollbackAgentGroupRequest) returns (AutoUpdateAgentPlan);
+}
+
+// GetAutoUpdateConfigRequest requests the contents of the AutoUpdateConfig.
+message GetAutoUpdateConfigRequest {}
+
+// CreateAutoUpdateConfigRequest requests creation of the the AutoUpdateConfig.
+message CreateAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
+}
+
+// UpdateAutoUpdateConfigRequest requests an update of the the AutoUpdateConfig.
+message UpdateAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
+}
+
+// UpsertAutoUpdateConfigRequest requests an upsert of the the AutoUpdateConfig.
+message UpsertAutoUpdateConfigRequest {
+  AutoUpdateConfig autoupdate_config = 1;
+}
+
+// ResetAutoUpdateConfigRequest requests a reset of the the AutoUpdateConfig to default values.
+message ResetAutoUpdateConfigRequest {}
+
+// AutoUpdateConfig holds dynamic configuration settings for automatic updates.
+message AutoUpdateConfig {
+  // kind is the kind of the resource.
+  string kind = 1;
+  // sub_kind is the sub kind of the resource.
+  string sub_kind = 2;
+  // version is the version of the resource.
+  string version = 3;
+  // metadata is the metadata of the resource.
+  teleport.header.v1.Metadata metadata = 4;
+  // spec is the spec of the resource.
+  AutoUpdateConfigSpec spec = 7;
+}
+
+// AutoUpdateConfigSpec is the spec for the autoupdate config.
+message AutoUpdateConfigSpec {
+  // agent_autoupdate_mode specifies whether agent autoupdates are enabled, disabled, or paused.
+  Mode agent_autoupdate_mode = 1;
+  // agent_schedules specifies schedules for updates of grouped agents.
+  AgentAutoUpdateSchedules agent_schedules = 3;
+}
+
+// AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
+message AgentAutoUpdateSchedules {
+  // regular schedules for non-critical versions.
+  repeated AgentAutoUpdateGroup regular = 1;
+}
+
+// AgentAutoUpdateGroup specifies the update schedule for a group of agents.
+message AgentAutoUpdateGroup {
+  // name of the group
+  string name = 1;
+  // days to run update
+  repeated Day days = 2;
+  // start_hour to initiate update
+  int32 start_hour = 3;
+  // wait_days after last group succeeds before this group can run
+  int64 wait_days = 4;
+  // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
+  int64 alert_after_hours = 5;
+  // jitter_seconds to introduce before update as rand([0, jitter_seconds])
+  int64 jitter_seconds = 6;
+  // canary_count of agents to use in the canary deployment.
+  int64 canary_count = 7;
+  // max_in_flight specifies agents that can be updated at the same time, by percent.
+  string max_in_flight = 8;
+}
+
+// Day of the week
+enum Day {
+  DAY_UNSPECIFIED = 0;
+  DAY_ALL = 1;
+  DAY_SUNDAY = 2;
+  DAY_MONDAY = 3;
+  DAY_TUESDAY = 4;
+  DAY_WEDNESDAY = 5;
+  DAY_THURSDAY = 6;
+  DAY_FRIDAY = 7;
+  DAY_SATURDAY = 8;
+}
+
+// Mode of operation
+enum Mode {
+  // UNSPECIFIED update mode
+  MODE_UNSPECIFIED = 0;
+  // DISABLE updates
+  MODE_DISABLE = 1;
+  // ENABLE updates
+  MODE_ENABLE = 2;
+  // PAUSE updates
+  MODE_PAUSE = 3;
+}
+
+// GetAutoUpdateAgentPlanRequest requests the autoupdate_agent_plan singleton resource.
+message GetAutoUpdateAgentPlanRequest {}
+
+// GetAutoUpdateAgentPlanRequest requests creation of the autoupdate_agent_plan singleton resource.
+message CreateAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
+}
+
+// GetAutoUpdateAgentPlanRequest requests an update of the autoupdate_agent_plan singleton resource.
+message UpdateAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
+}
+
+// GetAutoUpdateAgentPlanRequest requests an upsert of the autoupdate_agent_plan singleton resource.
+message UpsertAutoUpdateAgentPlanRequest {
+  // autoupdate_agent_plan resource contents
+  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
+}
+
+// AutoUpdateAgentPlan holds dynamic configuration settings for agent autoupdates.
+message AutoUpdateAgentPlan {
+  // kind is the kind of the resource.
+  string kind = 1;
+  // sub_kind is the sub kind of the resource.
+  string sub_kind = 2;
+  // version is the version of the resource.
+  string version = 3;
+  // metadata is the metadata of the resource.
+  teleport.header.v1.Metadata metadata = 4;
+  // spec is the spec of the resource.
+  AutoUpdateAgentPlanSpec spec = 5;
+  // status is the status of the resource.
+  AutoUpdateAgentPlanStatus status = 6;
+}
+
+// AutoUpdateAgentPlanSpec is the spec for the autoupdate version.
+message AutoUpdateAgentPlanSpec {
+  // start_version is the version to update from.
+  string start_version = 1;
+  // target_version is the version to update to.
+  string target_version = 2;
+  // schedule to use for the rollout
+  Schedule schedule = 3;
+  // strategy to use for the rollout
+  Strategy strategy = 4;
+  // autoupdate_mode to use for the rollout
+  Mode autoupdate_mode = 5;
+}
+
+// Schedule type for the rollout
+enum Schedule {
+  // UNSPECIFIED update schedule
+  SCHEDULE_UNSPECIFIED = 0;
+  // REGULAR update schedule
+  SCHEDULE_REGULAR = 1;
+  // IMMEDIATE update schedule for updating all agents immediately
+  SCHEDULE_IMMEDIATE = 2;
+}
+
+// Strategy type for the rollout
+enum Strategy {
+  // UNSPECIFIED update strategy
+  STRATEGY_UNSPECIFIED = 0;
+  // GROUPED update schedule, with no backpressure
+  STRATEGY_GROUPED = 1;
+  // BACKPRESSURE update schedule
+  STRATEGY_BACKPRESSURE = 2;
+}
+
+// AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
+message AutoUpdateAgentPlanStatus {
+  // name of the group
+  string name = 0;
+  // start_time of the rollout
+  google.protobuf.Timestamp start_time = 1;
+  // initial_count is the number of connected agents at the start of the window.
+  int64 initial_count = 2;
+  // present_count is the current number of connected agents.
+  int64 present_count = 3;
+  // failed_count specifies the number of failed agents.
+  int64 failed_count = 4;
+  // canaries is a list of canary agents.
+  repeated Canary canaries = 5;
+  // progress is the current progress through the rollout.
+  float progress = 6;
+  // state is the current state of the rollout.
+  State state = 7;
+  // last_update_time is the time of the previous update for this group.
+  google.protobuf.Timestamp last_update_time = 8;
+  // last_update_reason is the trigger for the last update
+  string last_update_reason = 9;
+}
+
+// Canary agent
+message Canary {
+  // update_uuid of the canary agent
+  string update_uuid = 0;
+  // host_uuid of the canary agent
+  string host_uuid = 1;
+  // hostname of the canary agent
+  string hostname = 2;
+  // success state of the canary agent
+  bool success = 3;
+}
+
+// State of the rollout
+enum State {
+  // UNSPECIFIED state
+  STATE_UNSPECIFIED = 0;
+  // UNSTARTED state
+  STATE_UNSTARTED = 1;
+  // CANARY state
+  STATE_CANARY = 2;
+  // ACTIVE state
+  STATE_ACTIVE = 3;
+  // DONE state
+  STATE_DONE = 4;
+  // ROLLEDBACK state
+  STATE_ROLLEDBACK = 5;
+}
+
+message TriggerAgentGroupRequest {
+  // group is the agent update group name whose maintenance should be triggered.
+  string group = 1;
+  // desired_state describes the desired start state.
+  // Supported values are STATE_UNSPECIFIED, STATE_CANARY, and STATE_ACTIVE.
+  // When left empty, defaults to canary if they are supported.
+  State desired_state = 2;
+}
+
+message ForceAgentGroupRequest {
+  // group is the agent update group name whose state should be forced to `done`.
+  string group = 1;
+}
+
+message ResetAgentGroupRequest {
+  // group is the agent update group name whose state should be reset.
+  string group = 1;
+}
+
+message RollbackAgentGroupRequest {
+  // group is the agent update group name whose state should change to `rolledback`.
+  string group = 1;
+}
 ```
 
 ### Backend logic to progress the rollout
@@ -1299,261 +1582,6 @@ All installation steps will be logged locally, such that they are viewable with 
 Care will be taken to ensure that updater logs are sharable with Teleport Support for debugging and auditing purposes.
 
 When TUF is added, that events related to supply chain security may be sent to the Teleport cluster via the Teleport Agent.
-
-## Protobuf API Changes
-
-Note: all updates use revisions to prevent data loss in case of concurrent access.
-
-### autoupdate/v1
-
-```protobuf
-syntax = "proto3";
-
-package teleport.autoupdate.v1;
-
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdatev1";
-
-// AutoUpdateService serves agent and client automatic version updates.
-service AutoUpdateService {
-  // GetAutoUpdateConfig updates the autoupdate config.
-  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // CreateAutoUpdateConfig creates the autoupdate config.
-  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // UpdateAutoUpdateConfig updates the autoupdate config.
-  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // UpsertAutoUpdateConfig overwrites the autoupdate config.
-  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-  // ResetAutoUpdateConfig restores the autoupdate config to default values.
-  rpc ResetAutoUpdateConfig(ResetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
-
-  // GetAutoUpdateAgentPlan returns the autoupdate plan for agents.
-  rpc GetAutoUpdateAgentPlan(GetAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // CreateAutoUpdateAgentPlan creates the autoupdate plan for agents.
-  rpc CreateAutoUpdateAgentPlan(CreateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // UpdateAutoUpdateAgentPlan updates the autoupdate plan for agents.
-  rpc UpdateAutoUpdateAgentPlan(UpdateAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-  // UpsertAutoUpdateAgentPlan overwrites the autoupdate plan for agents.
-  rpc UpsertAutoUpdateAgentPlan(UpsertAutoUpdateAgentPlanRequest) returns (AutoUpdateAgentPlan);
-}
-
-// GetAutoUpdateConfigRequest requests the contents of the AutoUpdateConfig.
-message GetAutoUpdateConfigRequest {}
-
-// CreateAutoUpdateConfigRequest requests creation of the the AutoUpdateConfig.
-message CreateAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// UpdateAutoUpdateConfigRequest requests an update of the the AutoUpdateConfig.
-message UpdateAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// UpsertAutoUpdateConfigRequest requests an upsert of the the AutoUpdateConfig.
-message UpsertAutoUpdateConfigRequest {
-  AutoUpdateConfig autoupdate_config = 1;
-}
-
-// ResetAutoUpdateConfigRequest requests a reset of the the AutoUpdateConfig to default values.
-message ResetAutoUpdateConfigRequest {}
-
-// AutoUpdateConfig holds dynamic configuration settings for automatic updates.
-message AutoUpdateConfig {
-  // kind is the kind of the resource.
-  string kind = 1;
-  // sub_kind is the sub kind of the resource.
-  string sub_kind = 2;
-  // version is the version of the resource.
-  string version = 3;
-  // metadata is the metadata of the resource.
-  teleport.header.v1.Metadata metadata = 4;
-  // spec is the spec of the resource.
-  AutoUpdateConfigSpec spec = 7;
-}
-
-// AutoUpdateConfigSpec is the spec for the autoupdate config.
-message AutoUpdateConfigSpec {
-  // agent_autoupdate_mode specifies whether agent autoupdates are enabled, disabled, or paused.
-  Mode agent_autoupdate_mode = 1;
-  // agent_schedules specifies schedules for updates of grouped agents.
-  AgentAutoUpdateSchedules agent_schedules = 3;
-}
-
-// AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
-message AgentAutoUpdateSchedules {
-  // regular schedules for non-critical versions.
-  repeated AgentAutoUpdateGroup regular = 1;
-}
-
-// AgentAutoUpdateGroup specifies the update schedule for a group of agents.
-message AgentAutoUpdateGroup {
-  // name of the group
-  string name = 1;
-  // days to run update
-  repeated Day days = 2;
-  // start_hour to initiate update
-  int32 start_hour = 3;
-  // wait_days after last group succeeds before this group can run
-  int64 wait_days = 4;
-  // alert_after_hours specifies the number of hours to wait before alerting that the rollout is not complete.
-  int64 alert_after_hours = 5;
-  // jitter_seconds to introduce before update as rand([0, jitter_seconds])
-  int64 jitter_seconds = 6;
-  // canary_count of agents to use in the canary deployment.
-  int64 canary_count = 7;
-  // max_in_flight specifies agents that can be updated at the same time, by percent.
-  string max_in_flight = 8;
-}
-
-// Day of the week
-enum Day {
-  DAY_UNSPECIFIED = 0;
-  DAY_ALL = 1;
-  DAY_SUNDAY = 2;
-  DAY_MONDAY = 3;
-  DAY_TUESDAY = 4;
-  DAY_WEDNESDAY = 5;
-  DAY_THURSDAY = 6;
-  DAY_FRIDAY = 7;
-  DAY_SATURDAY = 8;
-}
-
-// Mode of operation
-enum Mode {
-  // UNSPECIFIED update mode
-  MODE_UNSPECIFIED = 0;
-  // DISABLE updates
-  MODE_DISABLE = 1;
-  // ENABLE updates
-  MODE_ENABLE = 2;
-  // PAUSE updates
-  MODE_PAUSE = 3;
-}
-
-// GetAutoUpdateAgentPlanRequest requests the autoupdate_agent_plan singleton resource.
-message GetAutoUpdateAgentPlanRequest {}
-
-// GetAutoUpdateAgentPlanRequest requests creation of the autoupdate_agent_plan singleton resource.
-message CreateAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
-}
-
-// GetAutoUpdateAgentPlanRequest requests an update of the autoupdate_agent_plan singleton resource.
-message UpdateAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
-}
-
-// GetAutoUpdateAgentPlanRequest requests an upsert of the autoupdate_agent_plan singleton resource.
-message UpsertAutoUpdateAgentPlanRequest {
-  // autoupdate_agent_plan resource contents
-  AutoUpdateAgentPlan autoupdate_agent_plan = 1;
-}
-
-// AutoUpdateAgentPlan holds dynamic configuration settings for agent autoupdates.
-message AutoUpdateAgentPlan {
-  // kind is the kind of the resource.
-  string kind = 1;
-  // sub_kind is the sub kind of the resource.
-  string sub_kind = 2;
-  // version is the version of the resource.
-  string version = 3;
-  // metadata is the metadata of the resource.
-  teleport.header.v1.Metadata metadata = 4;
-  // spec is the spec of the resource.
-  AutoUpdateAgentPlanSpec spec = 5;
-  // status is the status of the resource.
-  AutoUpdateAgentPlanStatus status = 6;
-}
-
-// AutoUpdateAgentPlanSpec is the spec for the autoupdate version.
-message AutoUpdateAgentPlanSpec {
-  // start_version is the version to update from.
-  string start_version = 1;
-  // target_version is the version to update to.
-  string target_version = 2;
-  // schedule to use for the rollout
-  Schedule schedule = 3;
-  // strategy to use for the rollout
-  Strategy strategy = 4;
-  // autoupdate_mode to use for the rollout
-  Mode autoupdate_mode = 5;
-}
-
-// Schedule type for the rollout
-enum Schedule {
-  // UNSPECIFIED update schedule
-  SCHEDULE_UNSPECIFIED = 0;
-  // REGULAR update schedule
-  SCHEDULE_REGULAR = 1;
-  // IMMEDIATE update schedule for updating all agents immediately
-  SCHEDULE_IMMEDIATE = 2;
-}
-
-// Strategy type for the rollout
-enum Strategy {
-  // UNSPECIFIED update strategy
-  STRATEGY_UNSPECIFIED = 0;
-  // GROUPED update schedule, with no backpressure
-  STRATEGY_GROUPED = 1;
-  // BACKPRESSURE update schedule
-  STRATEGY_BACKPRESSURE = 2;
-}
-
-// AutoUpdateAgentPlanStatus is the status for the AutoUpdateAgentPlan.
-message AutoUpdateAgentPlanStatus {
-  // name of the group
-  string name = 0;
-  // start_time of the rollout
-  google.protobuf.Timestamp start_time = 1;
-  // initial_count is the number of connected agents at the start of the window.
-  int64 initial_count = 2;
-  // present_count is the current number of connected agents.
-  int64 present_count = 3;
-  // failed_count specifies the number of failed agents.
-  int64 failed_count = 4;
-  // canaries is a list of canary agents.
-  repeated Canary canaries = 5;
-  // progress is the current progress through the rollout.
-  float progress = 6;
-  // state is the current state of the rollout.
-  State state = 7;
-  // last_update_time is the time of the previous update for this group.
-  google.protobuf.Timestamp last_update_time = 8;
-  // last_update_reason is the trigger for the last update
-  string last_update_reason = 9;
-}
-
-// Canary agent
-message Canary {
-  // update_uuid of the canary agent
-  string update_uuid = 0;
-  // host_uuid of the canary agent
-  string host_uuid = 1;
-  // hostname of the canary agent
-  string hostname = 2;
-  // success state of the canary agent
-  bool success = 3;
-}
-
-// State of the rollout
-enum State {
-  // UNSPECIFIED state
-  STATE_UNSPECIFIED = 0;
-  // UNSTARTED state
-  STATE_UNSTARTED = 1;
-  // CANARY state
-  STATE_CANARY = 2;
-  // ACTIVE state
-  STATE_ACTIVE = 3;
-  // DONE state
-  STATE_DONE = 4;
-  // ROLLEDBACK state
-  STATE_ROLLEDBACK = 5;
-}
-
-```
 
 ## Alternatives
 
