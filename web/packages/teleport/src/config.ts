@@ -321,7 +321,7 @@ const cfg = {
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsDatabaseVpcsPath:
-      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:

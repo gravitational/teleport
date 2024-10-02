@@ -27,6 +27,7 @@ import { FetchStatus } from 'design/DataTable/types';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { SecurityGroup } from 'teleport/services/integrations';
+import { SecurityGroupRule } from 'teleport/services/integrations';
 
 import { SecurityGroupRulesDialog } from './SecurityGroupRulesDialog';
 
@@ -43,7 +44,8 @@ type Props = {
 };
 
 export type ViewRulesSelection = {
-  sg: SecurityGroup;
+  name: string;
+  rules: ExpandedSecurityGroupRule[];
   ruleType: 'inbound' | 'outbound';
 };
 
@@ -102,15 +104,20 @@ export const SecurityGroupPicker = ({
             altKey: 'inboundRules',
             headerText: 'Inbound Rules',
             render: sg => {
+              const rules = expandSecurityGroupRules(sg.inboundRules);
               return (
                 <Cell>
                   <Link
                     style={{ cursor: 'pointer' }}
                     onClick={() =>
-                      setViewRulesSelection({ sg, ruleType: 'inbound' })
+                      setViewRulesSelection({
+                        name: sg.name,
+                        rules: rules,
+                        ruleType: 'inbound',
+                      })
                     }
                   >
-                    View ({sg.inboundRules.length})
+                    View ({rules.length})
                   </Link>
                 </Cell>
               );
@@ -120,15 +127,20 @@ export const SecurityGroupPicker = ({
             altKey: 'outboundRules',
             headerText: 'Outbound Rules',
             render: sg => {
+              const rules = expandSecurityGroupRules(sg.outboundRules);
               return (
                 <Cell>
                   <Link
                     style={{ cursor: 'pointer' }}
                     onClick={() =>
-                      setViewRulesSelection({ sg, ruleType: 'outbound' })
+                      setViewRulesSelection({
+                        name: sg.name,
+                        rules: rules,
+                        ruleType: 'outbound',
+                      })
                     }
                   >
-                    View ({sg.outboundRules.length})
+                    View ({rules.length})
                   </Link>
                 </Cell>
               );
@@ -177,4 +189,40 @@ function CheckboxCell({
       </Flex>
     </Cell>
   );
+}
+
+type ExpandedSecurityGroupRule = {
+  // IPProtocol is the protocol used to describe the rule.
+  ipProtocol: string;
+  // FromPort is the inclusive start of the Port range for the Rule.
+  fromPort: string;
+  // ToPort is the inclusive end of the Port range for the Rule.
+  toPort: string;
+  // Source is IP range, security group ID, or prefix list that the rule applies to.
+  source: string;
+  // Description contains a small text describing the source.
+  description: string;
+};
+
+// expandSecurityGroupRule takes a security group rule in the compact form that
+// AWS API returns, wherein rules are grouped by port range, and expands the
+// rule into a list of rules that is not grouped by port range.
+// This is the same display format that the AWS console uses when you view a
+// security group's rules.
+function expandSecurityGroupRule(
+  rule: SecurityGroupRule
+): ExpandedSecurityGroupRule[] {
+  return rule.cidrs.map(source => ({
+    ipProtocol: rule.ipProtocol,
+    fromPort: rule.fromPort,
+    toPort: rule.toPort,
+    source: source.cidr,
+    description: source.description,
+  }));
+}
+
+function expandSecurityGroupRules(
+  rules: SecurityGroupRule[]
+): ExpandedSecurityGroupRule[] {
+  return rules.flatMap(rule => expandSecurityGroupRule(rule));
 }
