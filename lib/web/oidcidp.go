@@ -38,7 +38,7 @@ const (
 
 // openidConfiguration returns the openid-configuration for setting up the AWS OIDC Integration
 func (h *Handler) openidConfiguration(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
-	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

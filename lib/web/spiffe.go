@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 )
@@ -114,7 +113,7 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 
 // Mounted at /workload-identity/.well-known/openid-configuration
 func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (any, error) {
-	issuer, err := spiffe.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	issuer, err := oidc.IssuerFromPublicAddress(h.cfg.PublicProxyAddr, "/workload-identity")
 	if err != nil {
 		return nil, trace.Wrap(err, "determining issuer from public address")
 	}

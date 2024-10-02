@@ -41,10 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 const (
@@ -513,9 +513,9 @@ func (wis *WorkloadIdentityService) SignJWTSVIDs(
 
 	// Determine the public address of the proxy for inclusion in the JWT as
 	// the issuer for purposes of OIDC compatibility.
-	issuer, err := spiffe.IssuerForCluster(wis.cache)
+	issuer, err := oidc.IssuerForCluster(ctx, wis.cache, "/workload-identity")
 	if err != nil {
-		return nil, trace.Wrap(err, "getting issuer for cluster")
+		return nil, trace.Wrap(err, "determining issuer")
 	}
 
 	res := &pb.SignJWTSVIDsResponse{}
