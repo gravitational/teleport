@@ -5069,4 +5069,10 @@ func TestListenIPAppliedAfterDefaultProxySet(t *testing.T) {
 
 	expectedPort := defaults.SSHProxyTunnelListenPort
 	assert.Equal(t, expectedPort, actualPort, "expected proxy's reverse tunnel listen port to be the default SSH proxy tunnel listen port")
+
+	actualSSHHost := config.SSH.Addr.Host()
+	assert.Equal(t, testListenIP, actualSSHHost, "expected SSH's host to be listen IP")
+
+	actualSSHPort := config.SSH.Addr.Port(-1)
+	require.NotEqual(t, -1, actualSSHPort, "expected SSH's port to be set")
 }
