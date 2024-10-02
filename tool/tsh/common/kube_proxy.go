@@ -27,7 +27,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -369,7 +369,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		kubeProxy.kubeConfigPath = os.Getenv(proxyKubeConfigEnvVar)
 		if kubeProxy.kubeConfigPath == "" {
 			_, port, _ := net.SplitHostPort(kubeProxy.forwardProxy.GetAddr())
-			kubeProxy.kubeConfigPath = path.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
+			kubeProxy.kubeConfigPath = filepath.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
 		}
 	}
 
