@@ -26,8 +26,8 @@ type OpenIDConfiguration struct {
 	Claims                           []string `json:"claims"`
 	IdTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
 	ResponseTypesSupported           []string `json:"response_types_supported"`
-	ScopesSupported                  []string `json:"scopes_supported"`
-	SubjectTypesSupported            []string `json:"subject_types_supported"`
+	ScopesSupported                  []string `json:"scopes_supported,omitempty"`
+	SubjectTypesSupported            []string `json:"subject_types_supported,omitempty"`
 }
 
 // OpenIDConfigurationForIssuer returns the OpenID Configuration for
