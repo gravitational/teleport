@@ -268,9 +268,9 @@ func (e Event) String() string {
 }
 
 // Config is used for 'storage' config section. It's a combination of
-// values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
+// values for various backends: 'etcd', 'filesystem', 'dynamodb', etc.
 type Config struct {
-	// Type can be "bolt" or "etcd" or "dynamodb"
+	// Type indicates which backend to use (etcd, dynamodb, etc)
 	Type string `yaml:"type,omitempty"`
 
 	// Params is a generic key/value property bag which allows arbitrary
