@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestPackaging verifies unarchiving of all supported teleport package formats.
 func TestPackaging(t *testing.T) {
 	script := "#!/bin/sh\necho test"
 

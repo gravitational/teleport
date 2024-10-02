@@ -62,61 +62,61 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer f.Close()
+	addCloser, wrapClose := multiCloser()
+	addCloser(f.Close)
+
 	fi, err := f.Stat()
 	if err != nil {
-		return trace.Wrap(err)
+		return wrapClose(err)
 	}
-
 	zipReader, err := zip.NewReader(f, fi.Size())
 	if err != nil {
-		return trace.Wrap(err)
+		return wrapClose(err)
 	}
-
 	tempDir, err := os.MkdirTemp(toolsDir, hash)
 	if err != nil {
-		return trace.Wrap(err)
+		return wrapClose(err)
 	}
 
-	for _, r := range zipReader.File {
+	for _, zipFile := range zipReader.File {
 		// Skip over any files in the archive that are not defined apps.
 		if !slices.ContainsFunc(apps, func(s string) bool {
-			return strings.HasSuffix(r.Name, s)
+			return strings.HasSuffix(zipFile.Name, s)
 		}) {
 			continue
 		}
 
-		// Verify that we have enough space for uncompressed file.
-		if err := checkFreeSpace(tempDir, r.UncompressedSize64); err != nil {
-			return trace.Wrap(err)
+		// Verify that we have enough space for uncompressed zipFile.
+		if err := checkFreeSpace(tempDir, zipFile.UncompressedSize64); err != nil {
+			return wrapClose(err)
 		}
 
-		rr, err := r.Open()
+		file, err := zipFile.Open()
 		if err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
-		defer rr.Close()
+		addCloser(file.Close)
 
-		dest := filepath.Join(tempDir, r.Name)
-		t, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+		dest := filepath.Join(tempDir, zipFile.Name)
+		destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
-		defer t.Close()
+		addCloser(destFile.Close)
 
-		if _, err := io.Copy(t, rr); err != nil {
-			return trace.Wrap(err)
+		if _, err := io.Copy(destFile, file); err != nil {
+			return wrapClose(err)
 		}
-		appPath := filepath.Join(toolsDir, r.Name)
+		appPath := filepath.Join(toolsDir, zipFile.Name)
 		if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 		if err := os.Symlink(dest, appPath); err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 	}
 
-	return nil
+	return wrapClose()
 }
 
 // checkFreeSpace verifies that we have enough requested space at specific directory.
@@ -131,4 +131,21 @@ func checkFreeSpace(path string, requested uint64) error {
 	}
 
 	return nil
+}
+
+// multiCloser creates functions for aggregating closing functions with reverse call
+// and aggregating received error messages.
+func multiCloser() (func(c func() error), func(errors ...error) error) {
+	var closers []func() error
+	return func(c func() error) {
+			closers = append(closers, c)
+		}, func(errors ...error) error {
+			closeErrors := make([]error, 0, len(closers))
+			for i := len(closers) - 1; i >= 0; i-- {
+				if err := closers[i](); err != nil {
+					closeErrors = append(closeErrors, err)
+				}
+			}
+			return trace.NewAggregate(append(errors, closeErrors...)...)
+		}
 }

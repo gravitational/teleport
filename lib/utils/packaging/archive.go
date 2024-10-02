@@ -38,12 +38,9 @@ func GenerateZipFile(sourcePath, destPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer archive.Close()
 
 	zipWriter := zip.NewWriter(archive)
-	defer zipWriter.Close()
-
-	return filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -54,16 +51,17 @@ func GenerateZipFile(sourcePath, destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
 
 		zipFileWriter, err := zipWriter.Create(filepath.Base(path))
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.NewAggregate(err, file.Close())
 		}
 
 		_, err = io.Copy(zipFileWriter, file)
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, file.Close())
 	})
+
+	return trace.NewAggregate(err, zipWriter.Close(), archive.Close())
 }
 
 // GenerateTarGzFile compresses files into a `.tar.gz` format specifically in file
@@ -73,15 +71,9 @@ func GenerateTarGzFile(sourcePath, destPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer archive.Close()
-
 	gzipWriter := gzip.NewWriter(archive)
-	defer gzipWriter.Close()
-
 	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
-
-	return filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -92,20 +84,21 @@ func GenerateTarGzFile(sourcePath, destPath string) error {
 		if err != nil {
 			return err
 		}
-		defer file.Close()
 
 		header, err := tar.FileInfoHeader(info, info.Name())
 		if err != nil {
-			return err
+			return trace.NewAggregate(err, file.Close())
 		}
 		header.Name = filepath.Join("teleport", filepath.Base(info.Name()))
 		if err := tarWriter.WriteHeader(header); err != nil {
-			return err
+			return trace.NewAggregate(err, file.Close())
 		}
 
 		_, err = io.Copy(tarWriter, file)
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, file.Close())
 	})
+
+	return trace.NewAggregate(err, tarWriter.Close(), gzipWriter.Close(), archive.Close())
 }
 
 // GeneratePkgFile runs the macOS `pkgbuild` command to generate a .pkg file from the source.
@@ -116,9 +109,6 @@ func GeneratePkgFile(sourcePath, destPath, identifier string) error {
 		"--version", teleport.Version,
 		destPath,
 	)
-	if _, err := cmd.CombinedOutput(); err != nil {
-		return err
-	}
 
-	return nil
+	return trace.Wrap(cmd.Run())
 }

@@ -55,10 +55,12 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	addCloser, wrapClose := multiCloser()
+	addCloser(f.Close)
 
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		return trace.Wrap(err)
+		return wrapClose(err)
 	}
 
 	tarReader := tar.NewReader(gzipReader)
@@ -79,27 +81,28 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 
 		// Verify that we have enough space for uncompressed file.
 		if err := checkFreeSpace(tempDir, uint64(header.Size)); err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 
 		dest := filepath.Join(toolsDir, strings.TrimPrefix(header.Name, "teleport/"))
 		t, err := renameio.TempFile(tempDir, dest)
 		if err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 		if err := os.Chmod(t.Name(), 0o755); err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
-		defer t.Cleanup()
+		addCloser(t.Cleanup)
 
 		if _, err := io.Copy(t, tarReader); err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 		if err := t.CloseAtomicallyReplace(); err != nil {
-			return trace.Wrap(err)
+			return wrapClose(err)
 		}
 	}
-	return nil
+
+	return wrapClose()
 }
 
 func replacePkg(toolsDir string, archivePath string, hash string, apps []string) error {
