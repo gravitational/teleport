@@ -20,8 +20,7 @@ package usageevents
 
 import (
 	"context"
-
-	"github.com/sirupsen/logrus"
+	"log/slog"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -31,8 +30,8 @@ import (
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
 // audit log events to Teleport.
 type UsageLogger struct {
-	// Entry is a log entry
-	*logrus.Entry
+	// logger emits log messages
+	logger *slog.Logger
 
 	// inner is a wrapped audit log implementation
 	inner apievents.Emitter
@@ -63,7 +62,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	if err := u.reportAuditEvent(ctx, event); err != nil {
 		// We don't ever want this to fail or bubble up errors, so the best we
 		// can do is complain to the logs.
-		u.Warnf("Failed to filter audit event: %+v", err)
+		u.logger.WarnContext(ctx, "Failed to filter audit event", "error", err)
 	}
 
 	if u.inner != nil {
@@ -76,16 +75,18 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter usagereporter.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
-	if log == nil {
-		log = logrus.StandardLogger()
+// TODO(tross) replace log any with slog.Logger once e is updated
+func New(reporter usagereporter.UsageReporter, log any, inner apievents.Emitter) (*UsageLogger, error) {
+	logger := slog.Default()
+
+	if log != nil {
+		if l, ok := log.(*slog.Logger); ok {
+			logger = l
+		}
 	}
 
 	return &UsageLogger{
-		Entry: log.WithField(
-			teleport.ComponentKey,
-			teleport.Component(teleport.ComponentUsageReporting),
-		),
+		logger:   logger.With(teleport.ComponentKey, teleport.ComponentUsageReporting),
 		reporter: reporter,
 		inner:    inner,
 	}, nil

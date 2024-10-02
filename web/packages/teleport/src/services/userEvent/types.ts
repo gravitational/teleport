@@ -75,6 +75,7 @@ export enum IntegrationEnrollKind {
   MachineIDSpacelift = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT',
   MachineIDKubernetes = 'INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES',
   EntraId = 'INTEGRATION_ENROLL_KIND_ENTRA_ID',
+  DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
 }
 
 // These constants should match the constant defined in backend found in:

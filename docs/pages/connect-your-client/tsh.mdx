@@ -646,8 +646,8 @@ scp"` and use the familiar syntax:
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
 
-Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
-Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
+Teleport supports both the SCP and SFTP protocols.
+OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
 if desired.
 
 ## Sharing sessions
@@ -1110,9 +1110,6 @@ proxy_templates:
   #
   # Query by predicate expression similar to tsh ls --query.
   # Has priority over search but will be ignored if a host is provided.
-  #
-  # See https://goteleport.com/docs/reference/predicate-language/#resource-filtering for
-  # predicate expression examples.
   query: "labels.env == $1"
 
   # Optional fuzzy search terms to resolve the target host with.
@@ -1125,6 +1122,12 @@ proxy_templates:
 # match takes effect.
 - template: ...
 ```
+
+In the configuration above, `query` accepts an predicate expression.  This has
+priority over search but will be ignored if a host is provided.  See the
+[predicate language
+documentation](../reference/predicate-language.mdx#resource-filtering for
+predicate expression examples.
 
 `tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the
 host server address `%h:%p` with the configured templates. For each replace rule set,

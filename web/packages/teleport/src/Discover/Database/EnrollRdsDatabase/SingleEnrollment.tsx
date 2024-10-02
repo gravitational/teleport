@@ -201,7 +201,7 @@ export function SingleEnrollment({
     <>
       {showTable && (
         <>
-          <Text mt={3}>Select an RDS to enroll:</Text>
+          <Text mt={3}>Select an RDS database to enroll:</Text>
           <DatabaseList
             wantAutoDiscover={false}
             items={tableData?.items || []}

@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -37,7 +38,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -211,9 +211,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	downloader := manager.NewDownloader(client)
 
 	h := &Handler{
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.SchemeS3),
-		}),
+		logger:     slog.With(teleport.ComponentKey, teleport.SchemeS3),
 		Config:     cfg,
 		uploader:   uploader,
 		downloader: downloader,
@@ -221,11 +219,11 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	}
 
 	start := time.Now()
-	h.Infof("Setting up bucket %q, sessions path %q in region %q.", h.Bucket, h.Path, h.Region)
+	h.logger.InfoContext(ctx, "Setting up S3 bucket", "bucket", h.Bucket, "path", h.Path, "region", h.Region)
 	if err := h.ensureBucket(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
+	h.logger.InfoContext(ctx, "Setting up bucket S3 completed.", "bucket", h.Bucket, "duration", time.Since(start))
 	return h, nil
 }
 
@@ -233,8 +231,8 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 type Handler struct {
 	// Config is handler configuration
 	Config
-	// Entry is a logging entry
-	*log.Entry
+	// logger emits log messages
+	logger     *slog.Logger
 	uploader   *manager.Uploader
 	downloader *manager.Downloader
 	client     *s3.Client
@@ -282,7 +280,7 @@ func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.
 		return trace.Wrap(err)
 	}
 
-	h.Debugf("Downloading %v/%v [%v].", h.Bucket, h.path(sessionID), versionID)
+	h.logger.DebugContext(ctx, "Downloading recording from S3", "bucket", h.Bucket, "path", h.path(sessionID), "version_id", versionID)
 
 	_, err = h.downloader.Download(ctx, writer, &s3.GetObjectInput{
 		Bucket:    aws.String(h.Bucket),
@@ -389,7 +387,7 @@ func (h *Handler) ensureBucket(ctx context.Context) error {
 		return nil
 	}
 	if !trace.IsNotFound(err) {
-		h.Errorf("Failed to ensure that bucket %q exists (%v). S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", h.Bucket, err)
+		h.logger.ErrorContext(ctx, "Failed to ensure that S3 bucket exists. S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", "bucket", h.Bucket, "error", err)
 		return nil
 	}
 	input := &s3.CreateBucketInput{
