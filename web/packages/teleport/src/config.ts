@@ -98,6 +98,8 @@ const cfg = {
     dateFormat: 'YYYY-MM-DD',
   },
 
+  defaultDatabaseTTL: '2190h',
+
   routes: {
     root: '/web',
     discover: '/web/discover',
@@ -678,6 +680,11 @@ const cfg = {
 
   getDatabaseSignUrl(clusterId: string) {
     return generatePath(cfg.api.dbSign, { clusterId });
+  },
+
+  getDatabaseCertificateTTL() {
+    // the length of the certificate to request for the database
+    return cfg.defaultDatabaseTTL;
   },
 
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
