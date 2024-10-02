@@ -15,7 +15,7 @@ state: draft
 
 This RFD proposes a new mechanism for scheduled, automatic updates of Teleport agents.
 
-Users of Teleport will be able to use the tctl CLI to specify desired versions, update schedules, and rollout strategy.
+Users of Teleport will be able to use the tctl CLI to specify desired versions, update schedules, and a rollout strategy.
 
 Agents will be updated by a new `teleport-update` binary, built from `tools/teleport-update` in the Teleport repository.
 
@@ -33,43 +33,49 @@ Additionally, this RFD parallels the auto-update functionality for client tools 
 
 ## Why
 
-1. We want customers always running the latest release of Teleport to always be secure, have access to the latest
-   features, and not deal with the pain of updating the agents.
-2. Reduce Teleport Cloud operational costs of contacting customers with old agents.
-   Make updating easier for self-hosted customers so we don't have to provide support for older Teleport versions.
-3. Increase reliability to 99.99%.
+1. We want customers to run the latest release of Teleport so that they are secure and have access to the latest
+   features.
+2. We do not want customers to deal with the pain of updating agents installed on their own infrastructure.
+3. We want to reduce the operational cost of customers running old agents.
+   For Cloud customers, this will allow us to support fewer simultaneous cluster versions and reduce support load.
+   For self-hosted customers, this will reduce support load associated with debugging old versions of Teleport.
+4. Providing 99.99% availability for customers requires us to maintain that level of availability at the agent-level
+   as well as the cluster-level.
 
 The current systemd updater does not meet those requirements:
-- its use of package managers leads users to accidentally upgrade Teleport
-- the installation process is complex and users end up installing the wrong version of Teleport
-- the current update process does not provide safeties to protect against broken updates
-- many customers are not adopting the existing updater because they want to control when updates happen
-- we don't offer a nice user experience for self-hosted users, this ends up in a marginal automatic updates
+- Its use of package managers leads users to accidentally upgrade Teleport.
+- Its installation process is complex and users end up installing the wrong version of Teleport.
+- Its update process does not provide safeties to protect against broken updates.
+- Customers are not adopting the existing updater because they want to control when updates happen.
+- We do not offer a nice user experience for self-hosted users. This results in a marginal automatic updates
   adoption and does not reduce the cost of upgrading self-hosted clusters.
 
 ## How
 
-The new agent automatic updates will rely on a separate updating binary controlling which Teleport version is
-installed. The automatic updates will be implemented via incremental improvements over the existing mechanism:
+The new agent automatic updates will rely on a separate `teleport-update` binary controlling which Teleport version is
+installed. Automatic updates will be implemented via incrementally:
 
-- Phase 1: introduce a new updater binary not relying on package managers
-- Phase 2: introduce the concept of agent update groups and make the users chose in which order groups are updated
-- Phase 3: add the ability for the agent updater to immediately revert a faulty update
-- Phase 4: add a feedback mechanism for the Teleport inventory to track the agents of each group and their update status
-- Phase 5: add the canary deployment strategy: a few agents are updated first, if they don't die, the whole group is updated
-- Phase 6: add the ability to perform slow and incremental version rollouts within an agent update group
+- Phase 1: Introduce a new updater binary which does not rely on package managers. Allow tctl to roll out updates to all agents.
+- Phase 2: Add the ability for the agent updater to immediately revert a faulty update.
+- Phase 3: Introduce the concept of agent update groups and make users chose in which order groups are updated.
+- Phase 4: Add a feedback mechanism for the Teleport inventory to track the agents of each group and their update status.
+- Phase 5: Add the canary deployment strategy: a few agents are updated first, if they don't die, the whole group is updated.
+- Phase 6: Add the ability to perform slow and incremental version rollouts within an agent update group.
 
 The updater will be usable after phase 1, and will gain new capabilities after each phase.
+After phase 2, the new updater will have feature-parity with the old updater.
+The existing auto-updates mechanism will remain unchanged throughout the process, and deprecated in the future.
+
 Future phases might change as we are working on the implementation and collecting real-world feedback and experience.
 
 ### Resources
 
-We will introduce 2 user-facing resources:
+We will introduce two user-facing resources:
 
 1. The `autoupdate_config` resource, owned by the Teleport user. This resource allows Teleport users to configure:
-   - if automatic updates are enabled, disabled, or temporarily suspended
-   - in which order their agents should be updated (`dev` before `staging` before `prod`)
-   - when should the updates start
+   - Whether automatic updates are enabled, disabled, or temporarily suspended
+   - The order in which their agents should be updated (`dev` before `staging` before `prod`)
+   - When updates should start
    
    The resource will look like:
    ```yaml
@@ -157,7 +163,7 @@ Those are the requirements coming from engineering, product, and cloud teams:
 
 5. Self-hosted customers should be supported, for example, customers whose their own internal customer is running a Teleport agent.
 
-6. Upgrading a leaf cluster is out of scope.
+6. Upgrading a leaf cluster is out-of-scope.
 
 7. Rolling back after a broken update should be supported. Roll forward get's you 99.9%, we need rollback for 99.99%.
 
@@ -174,17 +180,17 @@ Those are the requirements coming from engineering, product, and cloud teams:
 
 13. I should be able to install Teleport via whatever mechanism I want to.
 
-14. If new nodes join a bucket outside the upgrade window and you are within your compat. window, wait until your next group update start.
+14. If new nodes join a bucket outside the upgrade window, and you are within your compatibility window, wait until your next group update start.
     If you are not within your compat. window attempt to upgrade right away.
 
-15. If an agent comes back online after some period of time and is still compat. with
+15. If an agent comes back online after some period of time, and it is still compatible with
     control lane, it wait until the next upgrade window when it will be upgraded.
 
-16. Regular cloud tenant update schedule should run in les than a week.
+16. Regular cloud tenant update schedule should run in less than a week.
     Select tenants might support longer schedules.
 
-17. A cloud customer should be able to pause, resume, and rollback and existing rollout schedule.
-    A cloud customer should not be able to create new rollout schedules.
+17. A Cloud customer should be able to pause, resume, and rollback and existing rollout schedule.
+    A Cloud customer should not be able to create new rollout schedules.
 
     Teleport can create as many rollout schedules as it wants.
 
@@ -618,8 +624,20 @@ status:
     present_count: 53
     # failed_count is the number of agents rolled-back since the start of the rollout
     failed_count: 23
-    # canaries is a list of updater UUIDs used for canary deployments
-    canaries: ["abc123-..."]
+    # canaries is a list of agents used for canary deployments
+    canaries: # part of phase 5
+      # updater_id is the updater UUID
+    - updater_id: abc123-...
+      # host_id is the agent host UUID
+      host_id: def534-...
+      # hostname of the agent
+      hostname: foo.example.com
+      # success status
+      success: false
+      # last_update_time is [TODO: what does this represent?]
+      last_update_time: 2020-12-10T16:09:53+00:00
+      # last_update_reason is [TODO: what does this represent?]
+      last_update_reason: canaryTesting
     # progress is the current progress through the rollout
     progress: 0.532
     # state is the current state of the rollout (unstarted, active, done, rollback)
