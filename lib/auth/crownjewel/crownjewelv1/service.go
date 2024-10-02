@@ -122,12 +122,11 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 
 	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewel)
 
-	s.emmitCreateAuditEvent(ctx, rsp, authCtx, err)
-
+	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
 	return rsp, trace.Wrap(err)
 }
 
-func (s *Service) emmitCreateAuditEvent(ctx context.Context, req *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
+func (s *Service) emitCreateAuditEvent(ctx context.Context, req *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.CrownJewelCreate{
 		Metadata: apievents.Metadata{
 			Type: libevents.CrownJewelCreateEvent,
@@ -215,12 +214,11 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 
 	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 
-	s.emmitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
+	s.emitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
 	return rsp, trace.Wrap(err)
 }
 
-func (s *Service) emmitUpdateAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
+func (s *Service) emitUpdateAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.CrownJewelUpdate{
 		Metadata: apievents.Metadata{
 			Type: libevents.CrownJewelUpdateEvent,
@@ -267,8 +265,7 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 
 	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 
-	s.emmitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
+	s.emitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,12 +274,12 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 
 }
 
-func (s *Service) emmitUpsertAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
+func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *crownjewelv1.CrownJewel, authCtx *authz.Context, err error) {
 	if old == nil {
-		s.emmitCreateAuditEvent(ctx, new, authCtx, err)
+		s.emitCreateAuditEvent(ctx, new, authCtx, err)
 		return
 	}
-	s.emmitUpdateAuditEvent(ctx, old, new, authCtx, err)
+	s.emitUpdateAuditEvent(ctx, old, new, authCtx, err)
 }
 
 // DeleteCrownJewel deletes crown jewel resource.
