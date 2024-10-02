@@ -1,20 +1,25 @@
 import { useState } from 'react';
 import Validation from 'shared/components/Validation';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import { AttributeMapping } from './AttributeMapping';
 
+import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
+
 export default {
-  title: 'TeleportE/Discover/SAML Application/shared/AttributeMapping',
+  title: 'TeleportE/SamlApplication/components/AttributeMapping',
 };
 
 export const Default = () => {
-  const [spConfig, setSPConfig] = useState({
-    name: '',
-    entityID: '',
-    acsURL: '',
-    entityDescriptor: '',
-    attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
-  });
+  const [spConfig, setSPConfig] = useState<CreateSamlIdpServiceProviderRequest>(
+    {
+      name: '',
+      entityID: '',
+      acsURL: '',
+      entityDescriptor: '',
+      attributeMapping: [{ name: '', name_format: 'unspecified', value: '' }],
+    }
+  );
   function addAttrMap() {
     setSPConfig({
       ...spConfig,
@@ -32,7 +37,7 @@ export const Default = () => {
         spConfig={spConfig}
         setSPConfig={setSPConfig}
         addAttrMap={addAttrMap}
-        attempt={{ status: '' }}
+        disabled={false}
       />
     </Validation>
   );
@@ -63,7 +68,7 @@ export const Disabled = () => {
         spConfig={spConfig}
         setSPConfig={setSPConfig}
         addAttrMap={addAttrMap}
-        attempt={{ status: 'processing' }}
+        disabled={true}
       />
     </Validation>
   );
@@ -100,7 +105,7 @@ export const ErrorField = () => {
         addAttrMap={addAttrMap}
         attrMapErr={attrMapErr}
         setAttrMapErr={setAttrMapErr}
-        attempt={{ status: '' }}
+        disabled={false}
       />
     </Validation>
   );
@@ -121,5 +126,6 @@ const props = {
   },
   setAttrMapErr: () => null,
   addAttrMap: () => null,
-  attempt: { status: '' },
+  preset: SamlServiceProviderPreset.Unspecified,
+  isGuided: false,
 };

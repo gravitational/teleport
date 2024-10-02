@@ -6,12 +6,12 @@ import { Info } from 'design/Alert';
 import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import { IdpMetadata as IdpMetadataComponent } from './IdpMetadata';
 
 export default {
-  title: 'TeleportE/SamlApplication/components',
+  title: 'TeleportE/SamlApplication/components/IdPMetadata',
 };
 
 export const IdpMetadata = () => {

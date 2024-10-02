@@ -1,47 +1,27 @@
 import React from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { Box, Link, Text } from 'design';
 
-import {
-  useDiscover,
-  AgentMeta,
-  SamlMeta,
-} from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
-import useTeleportE from 'e-teleport/useTeleportE';
+import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import {
   ConfigureServiceProvider,
   AddMetadataGeneric,
   UPDATE_NOTE,
-} from '../../shared/ConfigureServiceProvider';
-
-import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
+} from 'e-teleport/SamlApplication/components/ConfigureServiceProvider';
 
 export function Container() {
-  const { idpService } = useTeleportE();
-  const { attempt, run } = useAttempt('');
-  const {
-    prevStep,
-    nextStep,
-    updateAgentMeta,
-    agentMeta,
-    resourceSpec,
-    isUpdateFlow,
-  } = useDiscover();
-  const gcpWorkforceMeta: Extract<SamlMeta, AgentMeta> = agentMeta;
-
-  const upsertSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
-    spConfig.preset = resourceSpec.samlMeta?.preset;
-    run(() => idpService.upsertRequest(spConfig, isUpdateFlow));
-  };
+  const { prevStep, nextStep, updateAgentMeta, agentMeta, isUpdateFlow } =
+    useDiscover();
+  const { guidedConfig } = useSamlApplication();
 
   const header: React.ReactNode = isUpdateFlow
     ? 'Update Workforce Pool'
     : 'Add Workforce Pool To Teleport';
 
-  const subtitle: React.ReactNode = gcpWorkforceMeta.samlGcpWorkforce
-    ?.isAutoConfig ? (
+  const subtitle: React.ReactNode = guidedConfig ? (
     <Text>
       The fields below use the values from the GCP configuration provided in the
       previous step. If you update the workforce <br />
@@ -81,14 +61,12 @@ export function Container() {
     <ConfigureServiceProvider
       header={header}
       subtitle={subtitle}
-      attempt={attempt}
-      upsertSP={upsertSP}
       prevStep={prevStep}
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
       agentMeta={agentMeta}
       SpMetadataConfigComponent={AddMetadataGeneric}
-      resourceSpec={resourceSpec}
+      preset={SamlServiceProviderPreset.GcpWorkforce}
       isUpdateFlow={isUpdateFlow}
     />
   );

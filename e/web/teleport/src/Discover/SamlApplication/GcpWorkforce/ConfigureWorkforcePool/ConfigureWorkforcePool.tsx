@@ -16,17 +16,27 @@ import {
   Rule,
 } from 'shared/components/Validation/rules';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
-import {
-  useDiscover,
-  AgentMeta,
-  type SamlMeta,
-} from 'teleport/Discover/useDiscover';
+import { useDiscover, SamlMeta } from 'teleport/Discover/useDiscover';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
+import {
+  useSamlApplication,
+  genEntityIDAndAcsUrlForGcpWorkforce,
+  checkDefaultAttributePerPreset,
+} from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import { IdpMetadata } from 'e-teleport/SamlApplication/components/IdpMetadata';
 
 export function Container() {
-  const { prevStep, nextStep, agentMeta, updateAgentMeta, isUpdateFlow } =
-    useDiscover();
+  const { prevStep, nextStep, isUpdateFlow, agentMeta } = useDiscover();
+  const {
+    guidedToggle,
+    setGuidedToggle,
+    upsertRequest,
+    setUpsertRequest,
+    guidedConfig,
+    setGuidedConfig,
+  } = useSamlApplication();
+
   // value of agentMeta will be defined if user is coming to
   // this screen from update Discover flow or coming back from the
   // next screen. But it's value will be undefined if the user is coming
@@ -35,6 +45,66 @@ export function Container() {
     ? agentMeta
     : defaultSamlMetaForGcpWorkforce;
 
+  useEffect(() => {
+    if (guidedToggle == null) {
+      if (!isUpdateFlow) {
+        setGuidedToggle(true);
+        setGuidedConfig(defaultSamlMetaForGcpWorkforce);
+      } else {
+        // guidedToggle disabeld by default on update.
+        // TODO(sshah): Disable guided flow entirely on update.
+        // Because the user may update pool provider name in the GCP and since
+        // the pool provider name is also used as a SAML app name, and we
+        // do not allow updating app name during update, it is easy to
+        // make the configuration in GCP and Teleport go out of sync.
+        setGuidedConfig({ samlGcpWorkforce: samlMeta.samlGcpWorkforce });
+      }
+    }
+  }, [guidedToggle, setGuidedToggle, setGuidedConfig, isUpdateFlow, samlMeta]);
+
+  const handleNext = (validator: Validator) => {
+    if (guidedToggle) {
+      const entityIdAndAcsUrl = genEntityIDAndAcsUrlForGcpWorkforce(
+        guidedConfig.samlGcpWorkforce.poolName,
+        guidedConfig.samlGcpWorkforce.poolProviderName
+      );
+
+      // we don't set default attribute value in update flow as user may have previously
+      // opted for manual configuration.
+      const defaultAttribute =
+        !isUpdateFlow &&
+        checkDefaultAttributePerPreset(
+          SamlServiceProviderPreset.GcpWorkforce,
+          upsertRequest.attributeMapping
+        )
+          ? upsertRequest.attributeMapping
+          : [
+              {
+                name: 'roles',
+                name_format: 'unspecified',
+                value: 'user.spec.roles',
+              },
+            ];
+
+      setUpsertRequest({
+        ...upsertRequest,
+        name: isUpdateFlow
+          ? upsertRequest.name
+          : guidedConfig.samlGcpWorkforce.poolProviderName,
+        entityID: entityIdAndAcsUrl.entityId,
+        acsURL: entityIdAndAcsUrl.acsUrl,
+        preset: SamlServiceProviderPreset.GcpWorkforce,
+        attributeMapping: defaultAttribute,
+      });
+    }
+
+    if (!validator.validate()) {
+      return;
+    }
+
+    nextStep();
+  };
+
   return (
     <ConfigurePool
       /**
@@ -42,16 +112,13 @@ export function Container() {
        * the root Discover resource selection page.
        */
       prevStep={isUpdateFlow ? null : prevStep}
-      nextStep={nextStep}
-      agentMeta={samlMeta}
-      updateAgentMeta={updateAgentMeta}
+      nextStep={handleNext}
     />
   );
 }
 
 export const defaultSamlMetaForGcpWorkforce: SamlMeta = {
   samlGcpWorkforce: {
-    isAutoConfig: true,
     orgId: '',
     poolName: '',
     poolProviderName: '',
@@ -59,31 +126,12 @@ export const defaultSamlMetaForGcpWorkforce: SamlMeta = {
 };
 
 export type ConfigurePoolProps = {
-  nextStep: () => void;
+  nextStep: (validator: Validator) => void;
   prevStep: () => void;
-  agentMeta: SamlMeta;
-  updateAgentMeta?: (meta: AgentMeta) => void;
 };
 
-export function ConfigurePool({
-  prevStep,
-  nextStep,
-  agentMeta,
-  updateAgentMeta,
-}: ConfigurePoolProps) {
-  const [autoConfig, setAutoConfig] = useState<boolean>(
-    agentMeta?.samlGcpWorkforce?.isAutoConfig
-  );
-
-  useEffect(() => {
-    updateAgentMeta({
-      ...agentMeta,
-      samlGcpWorkforce: {
-        ...agentMeta.samlGcpWorkforce,
-        isAutoConfig: autoConfig,
-      },
-    });
-  }, [autoConfig]);
+export function ConfigurePool({ prevStep, nextStep }: ConfigurePoolProps) {
+  const { guidedToggle, setGuidedToggle, guidedConfig } = useSamlApplication();
 
   const [scriptUrl, setScriptUrl] = useState('');
   function genWorkforceConfigScript(validator: Validator) {
@@ -94,23 +142,16 @@ export function ConfigurePool({
     validator.reset();
 
     const newScriptUrl = cfg.getGcpWorkforceConfigScriptUrl({
-      orgId: agentMeta.samlGcpWorkforce.orgId,
-      poolName: agentMeta.samlGcpWorkforce.poolName,
-      poolProviderName: agentMeta.samlGcpWorkforce.poolProviderName,
+      orgId: guidedConfig.samlGcpWorkforce.orgId,
+      poolName: guidedConfig.samlGcpWorkforce.poolName,
+      poolProviderName: guidedConfig.samlGcpWorkforce.poolProviderName,
     });
 
     setScriptUrl(newScriptUrl);
   }
 
   function handleConfigModeChange() {
-    setAutoConfig(!autoConfig);
-    updateAgentMeta({
-      ...agentMeta,
-      samlGcpWorkforce: {
-        ...agentMeta.samlGcpWorkforce,
-        isAutoConfig: !autoConfig,
-      },
-    });
+    setGuidedToggle(!guidedToggle);
   }
   return (
     <>
@@ -127,120 +168,121 @@ export function ConfigurePool({
       <Box mt={6} mb={1} data-testid="testid-box">
         <Toggle
           className="toggle_test"
-          isToggled={autoConfig}
+          isToggled={!!guidedToggle}
           onToggle={handleConfigModeChange}
           data-testid="toggle_test"
         >
           <Text ml={2}>
-            Guided configuration flow is {autoConfig ? 'enabled' : 'disabled'}.
+            Guided configuration flow is {guidedToggle ? 'enabled' : 'disabled'}
+            .
           </Text>
         </Toggle>
       </Box>
-
-      {autoConfig ? (
-        <>
-          <ScriptGenInput
-            genWorkforceConfigScript={genWorkforceConfigScript}
-            agentMeta={agentMeta}
-            updateAgentMeta={updateAgentMeta}
-          />
-          {scriptUrl && <Script scriptUrl={scriptUrl} />}
-        </>
-      ) : (
-        <IdpMetadata />
-      )}
-      <ActionButtons onProceed={nextStep} onPrev={prevStep} />
+      <Validation>
+        {({ validator }) => (
+          <>
+            {guidedToggle ? (
+              <>
+                <ScriptGenInput
+                  genWorkforceConfigScript={genWorkforceConfigScript}
+                  validator={validator}
+                />
+                {scriptUrl && <Script scriptUrl={scriptUrl} />}
+              </>
+            ) : (
+              <IdpMetadata />
+            )}
+            <ActionButtons
+              onProceed={() => nextStep(validator)}
+              onPrev={prevStep}
+            />
+          </>
+        )}
+      </Validation>
     </>
   );
 }
 
 type ScriptGenPropTypes = {
   genWorkforceConfigScript: (validator: Validator) => void;
-  agentMeta?: SamlMeta;
-  updateAgentMeta?: (meta: AgentMeta) => void;
+  validator: Validator;
 };
 
 export function ScriptGenInput({
   genWorkforceConfigScript,
-  agentMeta,
-  updateAgentMeta,
+  validator,
 }: ScriptGenPropTypes) {
+  const { guidedConfig, setGuidedConfig } = useSamlApplication();
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    updateAgentMeta({
-      ...agentMeta,
+    setGuidedConfig({
+      ...guidedConfig,
       samlGcpWorkforce: {
-        ...agentMeta.samlGcpWorkforce,
+        ...guidedConfig.samlGcpWorkforce,
         [e.target.name]: e.target.value,
       },
     });
   }
   return (
     <StyledBox>
-      <Validation>
-        {({ validator }) => (
-          <>
-            <Text bold>Step 1:</Text>
-            Generate an installation command to configure Workforce Identity
-            Federation pool and pool provider
-            <FieldInput
-              mb={3}
-              rule={requiredAll(
-                requiredField('Organization ID is required'),
-                isValidGcpOrgID
-              )}
-              label="GCP organization ID"
-              toolTipContent="Obtain organization ID from GCP console."
-              autoFocus
-              name="orgId"
-              value={agentMeta.samlGcpWorkforce?.orgId}
-              placeholder="10xxxxxxxxx44"
-              width="500px"
-              mr="3"
-              onChange={handleNameChange}
-            />
-            <FieldInput
-              mb={3}
-              rule={requiredAll(
-                requiredField('Pool name is required'),
-                isValidGCPResourceName
-              )}
-              label="Workforce pool name"
-              toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
+      <Text bold>Step 1:</Text>
+      Generate an installation command to configure Workforce Identity
+      Federation pool and pool provider
+      <FieldInput
+        mb={3}
+        rule={requiredAll(
+          requiredField('Organization ID is required'),
+          isValidGcpOrgID
+        )}
+        label="GCP organization ID"
+        toolTipContent="Obtain organization ID from GCP console."
+        autoFocus
+        name="orgId"
+        value={guidedConfig.samlGcpWorkforce.orgId}
+        placeholder="10xxxxxxxxx44"
+        width="500px"
+        mr="3"
+        onChange={handleNameChange}
+      />
+      <FieldInput
+        mb={3}
+        rule={requiredAll(
+          requiredField('Pool name is required'),
+          isValidGCPResourceName
+        )}
+        label="Workforce pool name"
+        toolTipContent="Pool name you want to configure in GCP. Name must be a unique name
               across GCP and follow GCP resource naming convention."
-              name="poolName"
-              value={agentMeta.samlGcpWorkforce?.poolName}
-              placeholder="myorg-workforce-dev-pool"
-              width="500px"
-              mr="3"
-              onChange={e => handleNameChange(e)}
-            />
-            <FieldInput
-              mb={3}
-              rule={requiredAll(
-                requiredField('Pool provider name is required'),
-                isValidGCPResourceName
-              )}
-              label="App name - Workforce pool provider name"
-              toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
+        name="poolName"
+        value={guidedConfig.samlGcpWorkforce.poolName}
+        placeholder="myorg-workforce-dev-pool"
+        width="500px"
+        mr="3"
+        onChange={e => handleNameChange(e)}
+      />
+      <FieldInput
+        mb={3}
+        rule={requiredAll(
+          requiredField('Pool provider name is required'),
+          isValidGCPResourceName
+        )}
+        label="App name - Workforce pool provider name"
+        toolTipContent="Pool provider name you want to configure in GCP. Name must be a unique
               name across GCP and follow GCP resource naming convention. Pool provider name will also
               be used as a SAML service provider name in the next step."
-              name="poolProviderName"
-              value={agentMeta.samlGcpWorkforce?.poolProviderName}
-              placeholder="myorg-gcp-dev"
-              width="500px"
-              mr="3"
-              onChange={e => handleNameChange(e)}
-            />
-            <ButtonBorder
-              mt={3}
-              mb={3}
-              onClick={() => genWorkforceConfigScript(validator)}
-            >
-              Generate Command
-            </ButtonBorder>
-          </>
-        )}
-      </Validation>
+        name="poolProviderName"
+        value={guidedConfig.samlGcpWorkforce.poolProviderName}
+        placeholder="myorg-gcp-dev"
+        width="500px"
+        mr="3"
+        onChange={e => handleNameChange(e)}
+      />
+      <ButtonBorder
+        mt={3}
+        mb={3}
+        onClick={() => genWorkforceConfigScript(validator)}
+      >
+        Generate Command
+      </ButtonBorder>
     </StyledBox>
   );
 }

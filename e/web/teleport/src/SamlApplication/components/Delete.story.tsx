@@ -1,7 +1,7 @@
 import { Delete } from './Delete';
 
 export default {
-  title: 'TeleportE/Discover/SAML Application/shared/SamlAppActions/Delete',
+  title: 'TeleportE/SamlApplication/components/Delete',
 };
 
 export const Default = () => {

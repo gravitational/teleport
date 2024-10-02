@@ -1,3 +1,3 @@
 export { Container as AddServiceProvider } from './AddServiceProvider';
-export { AddEntityDescriptor } from '../../shared/EntityDescriptorEditor';
-export { AttributeMapping } from '../../shared/AttributeMapping';
+export { AddEntityDescriptor } from 'e-teleport/SamlApplication/components/EntityDescriptorEditor';
+export { AttributeMapping } from 'e-teleport/SamlApplication/components/AttributeMapping';

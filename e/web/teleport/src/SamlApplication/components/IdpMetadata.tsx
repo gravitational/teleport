@@ -6,7 +6,7 @@ import { ToolTipInfo } from 'shared/components/ToolTip';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { StyledBox } from 'teleport/Discover/Shared';
 
-import { useSamlApplication } from 'e-teleport/SamlApplication/useSamlApplication';
+import { useSamlApplication } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import { ButtonDownloadMetadataFile } from 'e-teleport/SamlApplication/components/ButtonDownloadMetadataFile';
 

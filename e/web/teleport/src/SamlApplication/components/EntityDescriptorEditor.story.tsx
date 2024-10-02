@@ -1,7 +1,5 @@
 import { useState } from 'react';
-
 import { ButtonSecondary } from 'design/Button';
-
 import Validation, { Validator } from 'shared/components/Validation';
 
 import {
@@ -10,7 +8,7 @@ import {
 } from './EntityDescriptorEditor';
 
 export default {
-  title: 'TeleportE/Discover/SAML Application/shared/AddEntityDescriptor',
+  title: 'TeleportE/SamlApplication/components/EntityDescriptor',
 };
 
 export const Default = () => {

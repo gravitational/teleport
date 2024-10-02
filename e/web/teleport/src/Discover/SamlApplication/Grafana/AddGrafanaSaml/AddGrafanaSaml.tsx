@@ -1,35 +1,17 @@
 import React from 'react';
-import useAttempt from 'shared/hooks/useAttemptNext';
 import { Mark } from 'design/Mark';
-
 import { useDiscover } from 'teleport/Discover/useDiscover';
-
-import useTeleportE from 'e-teleport/useTeleportE';
+import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
 import {
   ConfigureServiceProvider,
   AddMetadataGeneric,
   UPDATE_NOTE,
-} from '../../shared/ConfigureServiceProvider';
-
-import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
+} from 'e-teleport/SamlApplication/components/ConfigureServiceProvider';
 
 export function Container() {
-  const { idpService } = useTeleportE();
-  const { attempt, run } = useAttempt('');
-  const {
-    prevStep,
-    nextStep,
-    updateAgentMeta,
-    agentMeta,
-    isUpdateFlow,
-    resourceSpec,
-  } = useDiscover();
-
-  const upsertSP = (spConfig: CreateSamlIdpServiceProviderRequest) => {
-    spConfig.preset = resourceSpec.samlMeta?.preset;
-    run(() => idpService.upsertRequest(spConfig, isUpdateFlow));
-  };
+  const { prevStep, nextStep, updateAgentMeta, agentMeta, isUpdateFlow } =
+    useDiscover();
 
   const header: React.ReactNode = isUpdateFlow
     ? 'Update Grafana Service Provider'
@@ -53,13 +35,12 @@ export function Container() {
     <ConfigureServiceProvider
       header={header}
       subtitle={subtitle}
-      attempt={attempt}
-      upsertSP={upsertSP}
       prevStep={prevStep}
       nextStep={nextStep}
       updateAgentMeta={updateAgentMeta}
       agentMeta={agentMeta}
       SpMetadataConfigComponent={AddMetadataGeneric}
+      preset={SamlServiceProviderPreset.Unspecified}
       isUpdateFlow={isUpdateFlow}
     />
   );

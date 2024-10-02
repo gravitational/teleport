@@ -1,4 +1,3 @@
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -9,7 +8,7 @@ import {
 
 import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
+import { SamlApplicationProvider } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
 

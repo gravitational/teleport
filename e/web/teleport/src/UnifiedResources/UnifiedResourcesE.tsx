@@ -32,9 +32,9 @@ import {
   AppRequestButton,
   RequestButton,
 } from 'e-teleport/Workflow/NewRequest/RequestButton';
+import { SamlAppEditAndDelete } from 'e-teleport/Discover/SamlApplication/EditAndDelete';
 import { useRequestCheckout } from 'e-teleport/Workflow/NewRequest/useRequestCheckout';
-import { SamlAppActionsComponent } from 'e-teleport/Discover/SamlApplication/shared/SamlAppActions';
-import { SamlAppActionProvider } from 'e-teleport/Discover/SamlApplication/shared/SamlAppActions/useSamlAppActionsE';
+import { SamlAppActionProvider } from 'e-teleport/SamlApplication/hooks/useSamlAppActionsE';
 
 export function UnifiedResourcesE() {
   const ctx = useTeleportE();
@@ -142,7 +142,7 @@ export function UnifiedResourcesE() {
       <Flex gap={4}>
         <ResizingResourceWrapper showCheckout={showCheckout}>
           <SamlAppActionProvider>
-            <SamlAppActionsComponent />
+            <SamlAppEditAndDelete />
             <ClusterResources
               bulkActions={
                 includeRequestable

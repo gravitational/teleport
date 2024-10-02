@@ -1,96 +1,80 @@
-import React from 'react';
-import { MemoryRouter } from 'react-router';
-import { ContextProvider } from 'teleport';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import cfg from 'teleport/config';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
-import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
 
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import { SamlApplicationProvider } from 'e-teleport/SamlApplication/useSamlApplication';
-import { idpMetadata } from 'e-teleport/SamlApplication/fixtures';
+import {
+  MockSamlApplicationContextProvider,
+  idpMetadata,
+} from 'e-teleport/SamlApplication/fixtures';
+import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 
 import {
   ConfigurePool,
+  defaultSamlMetaForGcpWorkforce,
   isValidGCPResourceName,
   isValidGcpOrgID,
-  defaultSamlMetaForGcpWorkforce,
 } from './ConfigureWorkforcePool';
 
-import type { ResourceSpec } from 'teleport/Discover/SelectResource/types';
+import type { SamlIdpServiceProvider } from 'teleport/services/samlidp/types';
 
-describe('Configure GCP workforce pool', () => {
-  const Provider = props => {
-    const ctx = createTeleportContextE({ customAcl: props.customAcl });
-    ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
-    const discoverCtx: DiscoverContextState = {
-      nextStep: () => null,
-      prevStep: () => null,
-      agentMeta: defaultSamlMetaForGcpWorkforce,
-      updateAgentMeta: AgentMeta => AgentMeta,
-      resourceSpec: {
-        samlMeta: { preset: SamlServiceProviderPreset.GcpWorkforce },
-      } as ResourceSpec,
-      currentStep: 0,
-      onSelectResource: () => null,
-      exitFlow: () => null,
-      viewConfig: null,
-      indexedViews: [],
-      setResourceSpec: () => null,
-      emitErrorEvent: () => null,
-      emitEvent: () => null,
-      eventState: null,
-    };
+import type { SamlIdpMetadataResponse } from 'e-teleport/services/idp/types';
 
-    return (
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: 'app' } },
-        ]}
-      >
-        <ContextProvider ctx={ctx}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <SamlApplicationProvider>{props.children}</SamlApplicationProvider>
-          </DiscoverProvider>
-        </ContextProvider>
-      </MemoryRouter>
-    );
+const renderConfigureServiceProvider = (samlProviderProps: any) => {
+  const samlApplicaitonContextProps = {
+    runFetchMetadataValues: jest
+      .fn()
+      .mockImplementation(() => Promise<[SamlIdpMetadataResponse, Error]>),
+    runUpsert: jest
+      .fn()
+      .mockImplementation(() => Promise<[SamlIdpServiceProvider, Error]>),
+    upsertRequest: emptyUpsertRequest,
+    guidedConfig: defaultSamlMetaForGcpWorkforce,
   };
+  render(
+    <MockSamlApplicationContextProvider
+      samlProviderProps={{
+        ...samlApplicaitonContextProps,
+        ...samlProviderProps,
+      }}
+    >
+      <ConfigurePool prevStep={() => null} nextStep={() => null} />
+    </MockSamlApplicationContextProvider>
+  );
+};
 
-  test('Toggle on and off enables and disables auto config flow', async () => {
-    render(
-      <Provider>
-        <ConfigurePool
-          agentMeta={defaultSamlMetaForGcpWorkforce}
-          updateAgentMeta={jest.fn()}
-          prevStep={() => null}
-          nextStep={() => null}
-        />
-      </Provider>
-    );
+test('toggle off disables guided config flow', async () => {
+  const onToggle = jest.fn();
+  renderConfigureServiceProvider({
+    setGuidedToggle: onToggle,
+    guidedToggle: true,
+  });
 
-    const guidedFlowEl = screen.getByText(
-      'Guided configuration flow is enabled.'
-    );
-    expect(guidedFlowEl).toBeInTheDocument();
+  const guidedFlowEl = screen.getByText(
+    'Guided configuration flow is enabled.'
+  );
+  expect(guidedFlowEl).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Generate an installation command to configure Workforce Identity Federation pool and pool provider'
+    )
+  ).toBeInTheDocument();
 
-    expect(
-      screen.getByText(
-        'Generate an installation command to configure Workforce Identity Federation pool and pool provider'
-      )
-    ).toBeInTheDocument();
+  fireEvent.click(guidedFlowEl);
+  expect(onToggle).toHaveBeenCalledWith(false);
+});
 
-    fireEvent.click(guidedFlowEl);
+test('metadata UI visible on manual mode', async () => {
+  renderConfigureServiceProvider({
+    guidedToggle: false,
+    fetchMetadataValuesAttempt: {
+      status: 'success',
+      data: idpMetadata,
+      statusText: '',
+    },
+  });
 
-    await waitFor(() => {
-      expect(
-        screen.getByText('Guided configuration flow is disabled.')
-      ).toBeInTheDocument();
-    });
-
+  expect(
+    screen.getByText('Guided configuration flow is disabled.')
+  ).toBeInTheDocument();
+  await waitFor(() => {
     expect(screen.getByText('Teleport SAML IdP Metadata')).toBeInTheDocument();
   });
 });

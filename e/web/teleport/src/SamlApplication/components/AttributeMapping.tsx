@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, ButtonIcon, Flex, Text, LabelInput, Link } from 'design';
+import { Box, ButtonIcon, Flex, Text, LabelInput, Link, H2 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect, {
@@ -7,19 +7,9 @@ import FieldSelect, {
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
-import { State as AttemptState } from 'shared/hooks/useAttemptNext';
 import styled from 'styled-components';
-
-import { AgentMeta } from 'teleport/Discover/useDiscover';
-import { type ResourceSpec } from 'teleport/Discover/SelectResource/types';
-
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
-import { H2 } from 'design';
-
 import { P } from 'design/Text/Text';
-
-import type { SamlGcpWorkforce } from 'teleport/services/samlidp/types';
 
 import type { CreateSamlIdpServiceProviderRequest } from 'e-teleport/services/idp/types';
 
@@ -29,9 +19,9 @@ export function AttributeMapping({
   addAttrMap,
   attrMapErr,
   setAttrMapErr,
-  attempt,
-  agentMeta,
-  resourceSpec,
+  disabled,
+  preset,
+  isGuided,
 }: AttrMapProps) {
   function handleInputChange(i: InputOption | InputElementChange) {
     let value;
@@ -60,25 +50,24 @@ export function AttributeMapping({
     setSPConfig({ ...spConfig, attributeMapping: newList });
   }
 
-  function disableInput(index: number) {
-    switch (resourceSpec?.samlMeta?.preset) {
+  function disableAttributeRow(index: number) {
+    switch (preset) {
       case SamlServiceProviderPreset.GcpWorkforce:
         // only one preset attribute is configured for GcpWorkforce
         // TODO(sshah): create a pre-populated GcpWorkforce preset
         // so we can get length of attributes instead of using hardcoded
         // zero index value.
-        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
-        return gcpWorkforceMeta?.isAutoConfig && index == 0;
+        return isGuided && index == 0;
     }
   }
 
   const attributeMappingDocsUrl =
     'https://goteleport.com/docs/access-controls/idps/saml-attribute-mapping/';
-  function subHeading() {
-    switch (resourceSpec?.samlMeta?.preset) {
+
+  function SubHeading() {
+    switch (preset) {
       case SamlServiceProviderPreset.GcpWorkforce:
-        const gcpWorkforceMeta = agentMeta as SamlGcpWorkforce;
-        if (gcpWorkforceMeta?.isAutoConfig) {
+        if (isGuided) {
           return (
             <P mb={4}>
               An attribute named "roles" with values containing Teleport roles
@@ -112,7 +101,7 @@ export function AttributeMapping({
       <H2 mb={2} mt={8}>
         Attribute mapping (optional)
       </H2>
-      {subHeading()}
+      <SubHeading />
       <Box>
         {spConfig.attributeMapping.length > 0 && (
           <Flex mt={2}>
@@ -150,9 +139,7 @@ export function AttributeMapping({
                       index: index,
                     })
                   }
-                  disabled={
-                    attempt.status === 'processing' || disableInput(index)
-                  }
+                  disabled={disabled || disableAttributeRow(index)}
                 />
                 <Box width="140px" mr={3}>
                   <StyledFieldSelect
@@ -174,9 +161,7 @@ export function AttributeMapping({
                       value: urnToFriendlyName(attribute.name_format),
                       label: urnToFriendlyName(attribute.name_format),
                     }}
-                    isDisabled={
-                      attempt.status === 'processing' || disableInput(index)
-                    }
+                    isDisabled={disabled || disableAttributeRow(index)}
                   />
                 </Box>
                 <Box width="400px" ml={3}>
@@ -210,9 +195,7 @@ export function AttributeMapping({
                             label: attribute.value,
                           }
                     }
-                    isDisabled={
-                      attempt.status === 'processing' || disableInput(index)
-                    }
+                    isDisabled={disabled || disableAttributeRow(index)}
                     createOptionPosition="last"
                     formatCreateLabel={(i: string) => 'predicate: ' + `"${i}"`}
                     options={predicateList}
@@ -229,9 +212,7 @@ export function AttributeMapping({
                       pointer-events: none;
                     }
                   `}
-                  disabled={
-                    attempt.status === 'processing' || disableInput(index)
-                  }
+                  disabled={disabled || disableAttributeRow(index)}
                 >
                   <Icons.Trash size="medium" />
                 </ButtonIcon>
@@ -247,7 +228,7 @@ export function AttributeMapping({
         <ButtonTextWithAddIcon
           onClick={addAttrMap}
           label={addButtonTxt}
-          disabled={attempt.status === 'processing'}
+          disabled={disabled}
         />
       </Box>
     </>
@@ -273,7 +254,7 @@ function AttrMappingErrorLabel({ attrMapErr: attrMapErr }) {
   );
 }
 
-type attrMapErr = { emptyName: boolean; emptyValue: boolean };
+export type attrMapErr = { emptyName: boolean; emptyValue: boolean };
 
 const nameFormats: Option[] = [
   { value: 'unspecified', label: 'unspecified' },
@@ -333,9 +314,9 @@ type AttrMapProps = {
   attrMapErr: attrMapErr;
   setAttrMapErr: (boolean) => void;
   addAttrMap: () => void;
-  attempt: AttemptState['attempt'];
-  resourceSpec?: ResourceSpec;
-  agentMeta?: AgentMeta;
+  disabled: boolean;
+  preset: SamlServiceProviderPreset;
+  isGuided: boolean;
 };
 
 type InputOption = {

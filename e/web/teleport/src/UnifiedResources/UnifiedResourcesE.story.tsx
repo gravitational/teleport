@@ -15,7 +15,7 @@ import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/us
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
-  samlIdpServiceProvider,
+  mockSamlIdpServiceProvider,
   idpMetadata,
 } from 'e-teleport/SamlApplication/fixtures';
 
@@ -75,7 +75,7 @@ const Provider = props => {
   ctx.resourceService.fetchUnifiedResources = () => Promise.resolve(resources);
   ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.idpService.getSamlIdpServiceProvider = () =>
-    Promise.resolve(samlIdpServiceProvider);
+    Promise.resolve(mockSamlIdpServiceProvider);
   ctx.idpService.getIdPMetadataValues = () => Promise.resolve(idpMetadata);
   ctx.idpService.updateSamlIdpServiceProvider = () => Promise.resolve(null);
 

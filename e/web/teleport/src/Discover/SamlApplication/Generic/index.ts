@@ -1,3 +1,3 @@
 export { AddServiceProvider } from './AddServiceProvider';
-export { AddEntityDescriptor } from '../shared/EntityDescriptorEditor';
+export { AddEntityDescriptor } from 'e-teleport/SamlApplication/components/EntityDescriptorEditor';
 export { DownloadMetadata } from './DownloadMetadata';

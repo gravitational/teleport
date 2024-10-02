@@ -1,76 +1,52 @@
-import React, { useState } from 'react';
-import { MemoryRouter } from 'react-router';
-import cfg from 'teleport/config';
+import { useState } from 'react';
+
+import { emptyUpsertRequest } from 'e-teleport/SamlApplication/hooks/useSamlApplication';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
-  SamlMeta,
-} from 'teleport/Discover/useDiscover';
-import { ContextProvider } from 'teleport';
+  MockSamlApplicationContextProvider,
+  idpMetadata,
+} from 'e-teleport/SamlApplication/fixtures';
 
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-
-import { ConfigurePool, ConfigurePoolProps } from './ConfigureWorkforcePool';
+import {
+  ConfigurePool,
+  ConfigurePoolProps,
+  defaultSamlMetaForGcpWorkforce,
+} from './ConfigureWorkforcePool';
 
 export default {
   title: 'TeleportE/Discover/SAML Application/GCP Workforce',
 };
 
 export const ConfigureWorkforcePool = () => {
-  const [agentMeta, setAgentMeta] = useState<SamlMeta>({
-    samlGcpWorkforce: {
-      isAutoConfig: true,
-      orgId: '',
-      poolName: '',
-      poolProviderName: '',
-    },
-  });
-
-  return (
-    <Provider>
-      <ConfigurePool
-        agentMeta={agentMeta}
-        {...props}
-        updateAgentMeta={setAgentMeta}
-      />
-    </Provider>
+  const [upsertRequest, setUpsertRequest] = useState(emptyUpsertRequest);
+  const [guidedToggle, setGuidedToggle] = useState(null);
+  const [guidedConfig, setGuidedConfig] = useState(
+    defaultSamlMetaForGcpWorkforce
   );
-};
 
-const Provider = props => {
-  const ctx = createTeleportContextE({ customAcl: props.customAcl });
-  const discoverCtx: DiscoverContextState = {
-    ...props,
-    currentStep: 0,
-    onSelectResource: () => null,
-    resourceSpec: undefined,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
+  const fetchMetadataValuesAttempt = {
+    status: 'success',
+    data: idpMetadata,
+    statusText: '',
   };
 
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'app' } },
-      ]}
+    <MockSamlApplicationContextProvider
+      samlProviderProps={{
+        fetchMetadataValuesAttempt,
+        upsertRequest,
+        setUpsertRequest,
+        guidedToggle,
+        setGuidedToggle,
+        guidedConfig,
+        setGuidedConfig,
+      }}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          {props.children}
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <ConfigurePool {...props} />
+    </MockSamlApplicationContextProvider>
   );
 };
 
 const props: ConfigurePoolProps = {
   nextStep: () => null,
   prevStep: () => null,
-  updateAgentMeta: SamlGcpWorkforce => SamlGcpWorkforce,
-  agentMeta: {},
 };

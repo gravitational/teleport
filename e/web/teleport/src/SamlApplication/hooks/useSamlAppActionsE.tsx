@@ -110,7 +110,6 @@ function samlResponseToAgentMeta(resp: SamlIdpServiceProvider) {
   };
   if (resp.spec.preset === SamlServiceProviderPreset.GcpWorkforce) {
     samlMeta.samlGcpWorkforce = {
-      isAutoConfig: true,
       orgId: '' /* we do not store the organization Id */,
       poolName: poolNameFromEntityId(resp.spec.entity_id),
       poolProviderName: resp.metadata.name,
