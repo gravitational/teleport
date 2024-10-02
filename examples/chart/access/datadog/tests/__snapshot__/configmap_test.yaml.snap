@@ -1,0 +1,30 @@
+should match the snapshot:
+  1: |
+    apiVersion: v1
+    data:
+      teleport-datadog.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/datadog/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [datadog]
+        apiKey = "/var/lib/teleport/plugins/datadog/datadog-api-key"
+        applicationKey = "/var/lib/teleport/plugins/datadog/datadog-application-key"
+
+        [role_to_recipients]
+        "*" = ["dev-access-requests"]
+        "dev" = ["dev-access-requests","example-user@example.com"]
+
+        [log]
+        output = "/var/log/teleport-datadog.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-datadog
+        app.kubernetes.io/version: 17.0.0-dev
+        helm.sh/chart: teleport-plugin-datadog-17.0.0-dev
+      name: RELEASE-NAME-teleport-plugin-datadog
