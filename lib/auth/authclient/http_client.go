@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -354,58 +353,6 @@ func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.Register
 	}
 
 	return &certs, nil
-}
-
-type upsertReverseTunnelRawReq struct {
-	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
-	TTL           time.Duration   `json:"ttl"`
-}
-
-// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-// to the remote proxy to bypass firewall restrictions
-func (c *HTTPClient) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
-	data, err := services.MarshalReverseTunnel(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertReverseTunnelRawReq{
-		ReverseTunnel: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("reversetunnels"), args)
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnels returns the list of created reverse tunnels
-func (c *HTTPClient) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(items))
-	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	return tunnels, nil
-}
-
-// DeleteReverseTunnel deletes reverse tunnel by domain name
-func (c *HTTPClient) DeleteReverseTunnel(domainName string) error {
-	// this is to avoid confusing error in case if domain empty for example
-	// HTTP route will fail producing generic not found error
-	// instead we catch the error here
-	if strings.TrimSpace(domainName) == "" {
-		return trace.BadParameter("empty domain name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("reversetunnels", domainName))
-	return trace.Wrap(err)
 }
 
 type upsertTunnelConnectionRawReq struct {

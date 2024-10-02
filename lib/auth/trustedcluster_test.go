@@ -487,7 +487,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	err = a.UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
-	err = a.createReverseTunnel(trustedCluster)
+	err = a.createReverseTunnel(ctx, trustedCluster)
 	require.NoError(t, err)
 
 	t.Run("Invalid role change", func(t *testing.T) {
