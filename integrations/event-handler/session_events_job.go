@@ -16,16 +16,26 @@ package main
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+)
+
+const (
+	// sessionBacklogMultiplier is used to calculate the allowed "backlog" of sessions waiting to be processed
+	// before session processing starts to block primary event ingestion. a multiplier of 16x the concurrency
+	// setting was selected based on real-world testing and seems to be a decent middle ground, preventing explosive
+	// growth of session cursors on disk without unduly blocking in the event of minor perf hickups.
+	sessionBacklogMultiplier = 16
 )
 
 // session is the utility struct used for session ingestion
@@ -41,17 +51,22 @@ type session struct {
 // SessionEventsJob incapsulates session events consumption logic
 type SessionEventsJob struct {
 	lib.ServiceJob
-	app       *App
-	sessions  chan session
-	semaphore chan struct{}
+	app                    *App
+	sessions               chan session
+	semaphore              chan struct{}
+	logLimiter             *rate.Limiter
+	backpressureLogLimiter *rate.Limiter
+	sessionsProcessed      atomic.Uint64
 }
 
 // NewSessionEventsJob creates new EventsJob structure
 func NewSessionEventsJob(app *App) *SessionEventsJob {
 	j := &SessionEventsJob{
-		app:       app,
-		semaphore: make(chan struct{}, app.Config.Concurrency),
-		sessions:  make(chan session),
+		app:                    app,
+		semaphore:              make(chan struct{}, app.Config.Concurrency),
+		sessions:               make(chan session, app.Config.Concurrency*sessionBacklogMultiplier),
+		logLimiter:             rate.NewLimiter(rate.Every(time.Second), 1),
+		backpressureLogLimiter: rate.NewLimiter(rate.Every(time.Minute), 1),
 	}
 
 	j.ServiceJob = lib.NewServiceJob(j.run)
@@ -71,6 +86,21 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		return nil
 	})
 
+	// set up background logging of session processing rate
+	go func() {
+		logTicker := time.NewTicker(time.Minute)
+		defer logTicker.Stop()
+
+		for {
+			select {
+			case <-logTicker.C:
+				log.WithField("sessions_per_minute", j.sessionsProcessed.Swap(0)).Info("session processing")
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	if err := j.restartPausedSessions(); err != nil {
 		log.WithError(err).Error("Restarting paused sessions")
 	}
@@ -82,7 +112,9 @@ func (j *SessionEventsJob) run(ctx context.Context) error {
 		case s := <-j.sessions:
 			logger := log.WithField("id", s.ID).WithField("index", s.Index)
 
-			logger.Info("Starting session ingest")
+			if j.logLimiter.Allow() {
+				logger.Debug("Starting session ingest")
+			}
 
 			select {
 			case j.semaphore <- struct{}{}:
@@ -172,6 +204,8 @@ func (j *SessionEventsJob) processSession(ctx context.Context, s session, proces
 			}
 			return trace.Wrap(err)
 		default:
+			// increment the number of sessions processed
+			j.sessionsProcessed.Add(1)
 			// No errors, we've finished processing the session.
 			return nil
 		}
@@ -241,10 +275,12 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 		return nil
 	}
 
+	logrus.WithField("count", len(sessions)).Debug("Restarting paused sessions")
+
 	for id, idx := range sessions {
 		func(id string, idx int64) {
 			j.app.SpawnCritical(func(ctx context.Context) error {
-				logrus.WithField("id", id).WithField("index", idx).Info("Restarting session ingestion")
+				logrus.WithField("id", id).WithField("index", idx).Debug("Restarting session ingestion")
 
 				s := session{ID: id, Index: idx}
 
@@ -268,8 +304,10 @@ func (j *SessionEventsJob) restartPausedSessions() error {
 // consumeSession ingests session
 func (j *SessionEventsJob) consumeSession(ctx context.Context, s session) (bool, error) {
 	url := j.app.Config.FluentdSessionURL + "." + s.ID + ".log"
-	chEvt, chErr := j.app.EventWatcher.StreamUnstructuredSessionEvents(ctx, s.ID, s.Index)
+	chEvt, chErr := j.app.client.StreamUnstructuredSessionEvents(ctx, s.ID, s.Index)
 
+	cursorSyncLimiter := rate.NewLimiter(rate.Every(time.Second), 1)
+	cursorSyncLimiter.Allow() // start the limiter off in a drained state
 Loop:
 	for {
 		select {
@@ -278,11 +316,13 @@ Loop:
 
 		case evt, ok := <-chEvt:
 			if !ok {
-				logrus.WithField("id", s.ID).Info("Finished session events ingest")
+				if j.logLimiter.Allow() {
+					logrus.WithField("id", s.ID).Debug("Finished session events ingest")
+				}
 				break Loop // Break the main loop
 			}
 
-			e, err := NewTeleportEvent(evt, "")
+			e, err := NewTeleportEvent(evt)
 			if err != nil {
 				return false, trace.Wrap(err)
 			}
@@ -299,10 +339,12 @@ Loop:
 				}
 			}
 
-			// Set session index
-			err = j.app.State.SetSessionIndex(s.ID, e.Index)
-			if err != nil {
-				return true, trace.Wrap(err)
+			if cursorSyncLimiter.Allow() {
+				// Set session index
+				err = j.app.State.SetSessionIndex(s.ID, e.Index)
+				if err != nil {
+					return true, trace.Wrap(err)
+				}
 			}
 		case <-ctx.Done():
 			if lib.IsCanceled(ctx.Err()) {
@@ -327,17 +369,26 @@ func (j *SessionEventsJob) RegisterSession(ctx context.Context, e *TeleportEvent
 
 	s := session{ID: e.SessionID, Index: 0, UploadTime: e.Time}
 
-	go func() {
-		select {
-		case j.sessions <- s:
-			return
-		case <-ctx.Done():
-			if !lib.IsCanceled(ctx.Err()) {
-				logrus.Error(ctx.Err())
-			}
-			return
-		}
-	}()
+	select {
+	case j.sessions <- s:
+		return nil
+	default:
+	}
 
-	return nil
+	if j.backpressureLogLimiter.Allow() {
+		logrus.Warn("backpressure in session processing, consider increasing concurrency if this issue persists")
+	}
+
+	select {
+	case j.sessions <- s:
+		return nil
+	case <-ctx.Done():
+		if !lib.IsCanceled(ctx.Err()) {
+			logrus.Error(ctx.Err())
+		}
+		// from the caller's perspective this isn't really an error since we did
+		// successfully sync session index to disk... session will be ingested
+		// on a subsequent run.
+		return nil
+	}
 }
