@@ -602,7 +602,7 @@ func (y *YubiKey) getPrivateKey(slot piv.Slot) (*PrivateKey, error) {
 	return key, nil
 }
 
-// SetPin sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
+// SetPIN sets the YubiKey PIV PIN. This doesn't require user interaction like touch, just the correct old PIN.
 func (y *YubiKey) SetPIN(oldPin, newPin string) error {
 	err := y.setPIN(oldPin, newPin)
 	return trace.Wrap(err)
@@ -668,8 +668,8 @@ func (c *sharedPIVConnection) connect() (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Backoff and retry for up to 1 second.
-	retryCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	// Backoff and retry for a time slightly greater than releaseConnectionDelay.
+	retryCtx, cancel := context.WithTimeout(context.Background(), releaseConnectionDelay+100*time.Millisecond)
 	defer cancel()
 
 	err = linearRetry.For(retryCtx, func() error {
@@ -739,6 +739,8 @@ func (c *sharedPIVConnection) reset() error {
 		return trace.Wrap(err)
 	}
 	defer c.releaseConnection()
+	// Clear cached keys.
+	cachedKeys = make(map[piv.Slot]*PrivateKey)
 	return trace.Wrap(c.conn.Reset())
 }
 
@@ -974,15 +976,6 @@ func (s PIVSlot) validate() error {
 
 func (s PIVSlot) parse() (piv.Slot, error) {
 	slotKey, err := strconv.ParseUint(string(s), 16, 32)
-	if err != nil {
-		return piv.Slot{}, trace.Wrap(err)
-	}
-
-	return parsePIVSlot(uint32(slotKey))
-}
-
-func parsePIVSlotString(slotKeyString string) (piv.Slot, error) {
-	slotKey, err := strconv.ParseUint(slotKeyString, 16, 32)
 	if err != nil {
 		return piv.Slot{}, trace.Wrap(err)
 	}
