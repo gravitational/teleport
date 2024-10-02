@@ -515,6 +515,71 @@ tctl auto-update agent status
 ```
 </details>
 
+#### As a Teleport user, I want to install a new agent automatically updated
+
+The manual way:
+
+```bash
+wget https://cdn.teleport.dev/teleport-updater-<os>-<arch>
+chmod +x teleport-updater
+./teleport-updater enable example.teleport.sh --group production
+# Detecting the Teleport version and edition used by cluster "example.teleport.sh"
+# Installing the following teleport version:
+#   Version: 16.2.1
+#   Edition: Enterprise
+#   OS: Linux
+#   Architecture: x86
+# Teleport installed
+# Enabling automatic updates, the agent is part of the "production" update group.
+# You can now configure the teleport agent with `teleport configure` or by writing your own `teleport.yaml`.
+# When the configuration is done, enable and start teleport by running:
+# `systemctl start teleport && systemctl enable teleport`
+```
+
+The one-liner:
+
+```
+curl https://cdn.teleport.dev/auto-install | bash -s example.teleport.sh
+# Downloading the teleport updater
+# Detecting the Teleport version and edition used by cluster "example.teleport.sh"
+# Installing the following teleport version:
+#   Version: 16.2.1
+#   Edition: Enterprise
+#   OS: Linux
+#   Architecture: x86
+# Teleport installed
+# Enabling automatic updates, the agent is part of the "default" update group.
+# You can now configure the teleport agent with `teleport configure` or by writing your own `teleport.yaml`.
+# When the configuration is finished, enable and start teleport by running:
+# `systemctl start teleport && systemctl enable teleport`
+```
+
+I can also install teleport using the package manager, then enroll the agent into AUs. See the section below:
+
+#### As a Teleport user I want to enroll my existing agent into AUs
+
+I have an agent, installed from a package manager or by manually unpacking the tarball.
+I have the teleport updater installed and available in my path.
+I run:
+
+```shell
+teleport-updater enable --group production
+# Detecting the Teleport version and edition used by cluster "example.teleport.sh"
+# Installing the following teleport version:
+#   Version: 16.2.1
+#   Edition: Enterprise
+#   OS: Linux
+#   Architecture: x86
+# Teleport installed, reloading the service.
+# Enabling automatic updates, the agent is part of the "production" update group.
+```
+
+> [!NOTE]
+> The updater saw the teleport unit running and the existing teleport configuration.
+> It used the configuration to pick the right proxy address. As teleport is already running, the teleport service is
+> reloaded to use the new binary.
+
+
 ### Teleport Resources
 
 #### Autoupdate Config
@@ -1058,14 +1123,7 @@ minute will be considered in these formulas.
 
 ### Manually interacting with the rollout
 
-
-#### RPCs
-Users and administrators can interact with the rollout plan using the following RPCs:
-
-```protobuf
-```
-
-#### CLI
+[TODO add cli commands]
 
 ### Editing the plan
 
@@ -1082,51 +1140,6 @@ Releasing new agent versions multiple times a week has the potential to starve d
 
 Note that the `default` schedule applies to agents that do not specify a group name.
 [TODO: It seems we removed the default bool, So we have a mandatory default group? Can we pick the last one instead?]
-
-```shell
-# configuration
-# TODO: "tctl autoudpate update" is bad UX, especially as this doen't even trigger agent update but updates the AU resource.
-#       We should chose a user-friendly signature
-$ tctl autoupdate update --set-agent-auto-update=off
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --group staging --set-start-hour=3
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --group staging --set-jitter-seconds=60
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --group default --set-jitter-seconds=60
-Automatic updates configuration has been updated.
-$ tctl autoupdate reset
-Automatic updates configuration has been reset to defaults.
-
-# status
-$ tctl autoupdate status
-Status: disabled
-Version: v1.2.4
-Schedule: regular
-
-Groups:
-staging: succeeded at 2024-01-03 23:43:22 UTC
-prod: scheduled for 2024-01-03 23:43:22 UTC (depends on prod)
-other: failed at 2024-01-05 22:53:22 UTC
-
-$ tctl autoupdate status --group staging
-Status: succeeded
-Date: 2024-01-03 23:43:22 UTC
-Requires: (none)
-
-Updated: 230 (95%)
-Unchanged: 10 (2%)
-Failed: 15 (3%)
-Timed-out: 0
-
-# re-running failed group
-$ tctl autoupdate run --group staging
-Executing auto-update for group 'staging' immediately.
-```
-
-Notes:
-- `autoupdate_agent_plan` is separate from `autoupdate_config` so that Cloud customers can be restricted from updating
-  `autoupdate_agent_plan`, while maintaining control over the rollout.
 
 ### Updater APIs
 
