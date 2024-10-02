@@ -36,7 +36,10 @@ type Ceremony struct {
 	SolveAuthenticateChallenge func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
-// Run runs the MFA ceremony.
+// Run the MFA ceremony.
+//
+// req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
+// the moderated session mfa ceremony which uses a custom stream rpc to create challenges.
 func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
 	switch {
 	case c.CreateAuthenticateChallenge == nil:

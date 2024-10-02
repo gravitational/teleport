@@ -116,7 +116,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	for {
 		select {
 		case <-ticker.Chan():
-			mfaResp, err := mfaCeremony.Run(ctx, nil)
+			mfaResp, err := mfaCeremony.Run(ctx, nil /* req is not needed for MaintainSessionPresence */)
 			if err != nil {
 				return trace.Wrap(err)
 			}
