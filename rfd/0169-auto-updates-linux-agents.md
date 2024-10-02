@@ -15,7 +15,7 @@ state: draft
 
 This RFD proposes a new mechanism for scheduled, automatic updates of Teleport agents.
 
-Users of Teleport will be able to use the tctl CLI to specify desired versions, update schedules, and rollout speed.
+Users of Teleport will be able to use the tctl CLI to specify desired versions, update schedules, and rollout strategy.
 
 Agents will be updated by a new `teleport-update` binary, built from `tools/teleport-update` in the Teleport repository.
 
@@ -44,9 +44,103 @@ The current systemd updater does not meet those requirements:
 - the installation process is complex and users end up installing the wrong version of Teleport
 - the current update process does not provide safeties to protect against broken updates
 - many customers are not adopting the existing updater because they want to control when updates happen
-- we don't offer a ni
+- we don't offer a nice user experience for self-hosted users, this ends up in a marginal automatic updates
+  adoption and does not reduce the cost of upgrading self-hosted clusters.
 
-## Product requirements
+## How
+
+The new agent automatic updates will rely on a separate updating binary controlling which Teleport version is
+installed. The automatic updates will be implemented via incremental improvements over the existing mechanism:
+
+- Phase 1: introduce a new updater binary not relying on package managers
+- Phase 2: introduce the concept of agent update groups and make the users chose in which order groups are updated
+- Phase 3: add the ability for the agent updater to immediately revert a faulty update
+- Phase 4: add a feedback mechanism for the Teleport inventory to track the agents of each group and their update status
+- Phase 5: add the canary deployment strategy: a few agents are updated first, if they don't die, the whole group is updated
+- Phase 6: add the ability to perform slow and incremental version rollouts within an agent update group
+
+The updater will be usable after phase 1, and will gain new capabilities after each phase.
+Future phases might change as we are working on the implementation and collecting real-world feedback and experience.
+
+### Resources
+
+We will introduce 2 user-facing resources:
+
+1. The `autoupdate_config` resource, owned by the Teleport user. This resource allows Teleport users to configure:
+   - if automatic updates are enabled, disabled, or temporarily suspended
+   - in which order their agents should be updated (`dev` before `staging` before `prod`)
+   - when should the updates start
+   
+   The resource will look like:
+   ```yaml
+   kind: autoupdate_config
+   spec:
+     agent_autoupdate_mode: enable
+     agent_schedules:
+       regular:
+       - name: dev
+         days: ["Mon", "Tue", "Wed", "Thu"]
+         start_hour: 0
+         alert_after: 4h
+         canary_count: 5 # added in phase 5
+         max_in_flight: 20% # added in phase 6
+       - name: prod
+         days: ["Mon", "Tue", "Wed", "Thu"]
+         start_hour: 0
+         wait_days: 1 # update this group at least 1 day after the previous one
+         alert_after: 4h
+         canary_count: 5 # added in phase 5
+         max_in_flight: 20% # added in phase 6
+   ```
+
+2. The `autoupdate_agent_plan` resource, its spec is owned by the Teleport cluster administrator (e.g. Teleport Cloud team).
+   Its status is owned by Teleport and contains the current rollout status. Some parts of the status can be changed via
+   select RPCs, for example fast-tracking a group update.
+   ```yaml
+   kind: autoupdate_agent_plan
+   spec:
+     current_version: v1
+     target_version: v2
+     schedule: regular
+     strategy: grouped
+     autoupdate_mode: enabled
+   status:
+     groups:
+     - name: dev
+       start_time: 2020-12-09T16:09:53+00:00
+       initial_count: 100 # part of phase 4
+       present_count: 100 # part of phase 4
+       failed_count: 0 # part of phase 4
+       progress: 0
+       state: canaries
+       canaries: # part of phase 5
+       - updater_id: abc
+         host_id: def
+         hostname: foo.example.com
+         success: false
+         last_update_time: 2020-12-10T16:09:53+00:00
+         last_update_reason: canaryTesting
+     - name: prod
+       start_time: 0000-00-00
+       initial_count: 0
+       present_count: 0
+       failed_count: 0
+       progress: 0
+       state: unstarted
+       last_update_time: 2020-12-10T16:09:53+00:00
+       last_update_reason: newAgentPlan
+   ```
+
+You can find more details about each resource field [in the dedicated resource section](#teleport-resources).
+
+## Details
+
+This section contains the proposed implementation details and is mainly relevant for Teleport developers and curious
+users who want to know the motivations behind this specific design.
+
+### Product requirements
+
+Those are the requirements coming from engineering, product, and cloud teams:
 
 1. Phased rollout for our tenants. We should be able to control the agent version per-tenant.
 
@@ -84,7 +178,7 @@ The current systemd updater does not meet those requirements:
     If you are not within your compat. window attempt to upgrade right away.
 
 15. If an agent comes back online after some period of time and is still compat. with
-    control plane, it wait until the next upgrade window when it will be upgraded.
+    control lane, it wait until the next upgrade window when it will be upgraded.
 
 16. Regular cloud tenant update schedule should run in les than a week.
     Select tenants might support longer schedules.
@@ -98,41 +192,25 @@ The current systemd updater does not meet those requirements:
 
 19. Operating system packages should be supported.
 
-## User Stories
+### User Stories
 
-### As Teleport Cloud I want to be able to update customers agents to a newer Teleport version
+#### As Teleport Cloud I want to be able to update customers agents to a newer Teleport version
 
 <details>
 <summary>Before</summary>
 
-```yaml
-kind: autoupdate_agent_plan
-spec:
-  current_version: v1
-  target_version: v2
-  schedule: regular
-  strategy: grouped
-  autoupdate_mode: enabled
-status:
-  groups:
-    - name: dev
-      start_time: 2020-12-09T16:09:53+00:00
-      initial_count: 100
-      present_count: 103
-      failed_count: 2
-      progress: 1
-      state: active
-      last_update_time: 2020-12-09T16:09:53+00:00
-      last_update_reason: success
-    - name: staging
-      start_time: 0000-00-00
-      initial_count: 0
-      present_count: 0
-      failed_count: 0
-      progress: 0
-      state: unstarted
-      last_update_time: 2020-12-09T16:09:53+00:00
-      last_update_reason: newAgentPlan
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v1
+# New version: v2
+# Status: enabled
+# 
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          complete            YYYY-MM-DD HHh      120                115                 2
+# staging      complete            YYYY-MM-D2 HHh      20                 20                  0
+# prod         not started                             234                0                   0
 ```
 </details>
 
@@ -145,35 +223,20 @@ tctl autoupdate agent new-rollout v3
 <details>
 <summary>After</summary>
 
-```yaml
-kind: autoupdate_agent_plan
-spec:
-  current_version: v2
-  target_version: v3
-  schedule: regular
-  strategy: grouped
-  autoupdate_mode: enabled
-status:
-  groups:
-    - name: dev
-      start_time: 0000-00-00
-      initial_count: 0
-      present_count: 0
-      failed_count: 0
-      progress: 0
-      state: unstarted
-      last_update_time: 2020-12-10T16:09:53+00:00
-      last_update_reason: newAgentPlan
-    - name: staging
-      start_time: 0000-00-00
-      initial_count: 0
-      present_count: 0
-      failed_count: 0
-      progress: 0
-      state: unstarted
-      last_update_time: 2020-12-10T16:09:53+00:00
-      last_update_reason: newAgentPlan
+```shell
+tctl auto-update agent status
+# Rollout plan created the YYYY-MM-DD
+# Previous version: v2
+# New version: v3
+# Status: enabled
+# 
+# Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
+# ----------   -----------------   -----------------   ----------------   -----------------   --------------
+# dev          not started                             120                115                 2
+# staging      not started                             20                 20                  0
+# prod         not started                             234                0                   0
 ```
+
 </details>
 
 Now, new agents will install v2 by default, and v3 after the maintenance.
@@ -186,12 +249,12 @@ Now, new agents will install v2 by default, and v3 after the maintenance.
 > 
 > ```bash
 > tctl autoupdate agent new-rollout v3 --current-version v1
-> # created new update plan from v2 to v3
+> # created new update plan from v1 to v3
 > ```
 
-### As Teleport Cloud I want to minimize the damage of a broken version to improve Teleport's availability to 99.99%
+#### As Teleport Cloud I want to minimize the damage of a broken version to improve Teleport's availability to 99.99%
 
-#### Failure mode 1: the new version crashes
+##### Failure mode 1: the new version crashes
 
 I create a new deployment, with a broken version. The version is deployed to the canaries.
 The canaries crash, the updater reverts the update, the agents connect back online and
@@ -242,7 +305,7 @@ to
 
 The rollout resumes.
 
-#### Failure mode 1 bis: the new version crashes, but not on the canaries
+##### Failure mode 1 bis: the new version crashes, but not on the canaries
 
 This scenario is the same as the previous one but the Teleport agent bug only manifests on select agents.
 For example: [the agent fails to read cloud-provider specific metadata and crashes](TODO add link).
@@ -255,7 +318,7 @@ Once the previous Teleport version is running, the agent will advertise its upda
 If too many agents failed, this will block the group from transitioning from `active` to `done`, protecting the future
 groups from the faulty updates.
 
-#### Failure mode 2: the new version crashes, and the old version cannot start
+##### Failure mode 2: the new version crashes, and the old version cannot start
 
 I create a new deployment, with a broken version. The version is deployed to the canaries.
 The canaries attempt the update, and the new Teleport instance crashes.
@@ -269,7 +332,7 @@ The group update is stuck until the canary comes back online and runs the latest
 The customer and Teleport cloud receive an alert. The customer and Teleport cloud can retrieve the
 hostid and hostname of the faulty canaries. With this information they can go troubleshoot the failed agents.
 
-#### Failure mode 2 bis: the new version crashes, and the old version cannot start, but not on the canaries
+##### Failure mode 2 bis: the new version crashes, and the old version cannot start, but not on the canaries
 
 This scenario is the same as the previous one but the Teleport agent bug only manifests on select agents.
 For example: a clock drift blocks agents from re-connecting to Teleport.
@@ -283,7 +346,7 @@ groups from the faulty updates.
 
 In this case, it's hard to identify which agent dropped.
 
-#### Failure mode 3: shadow failure
+##### Failure mode 3: shadow failure
 
 Teleport cloud deploys a new version. Agents from the first group get updated.
 The agents are seemingly running properly, but some functions are impaired.
@@ -359,7 +422,7 @@ This will trigger the rollback.
 tctl auto-update agent resume
 ```
 
-### As a Teleport user and a Teleport on-call responder, I want to be able to pin a specific Teleport version of an agent to understand if a specific behaviour is caused by a specific Teleport version
+#### As a Teleport user and a Teleport on-call responder, I want to be able to pin a specific Teleport version of an agent to understand if a specific behaviour is caused by a specific Teleport version
 
 I connect to the node and lookup its status:
 ```shell
@@ -395,7 +458,7 @@ teleport-updater enable
 # Group: staging
 ```
 
-### As a Teleport user I want to fast-track a group update
+#### As a Teleport user I want to fast-track a group update
 
 I have a new rollout, completely unstarted, and my current maintenance schedule updates over seevral days.
 However, the new version contains something that I need as soon s possible (e.g. a fix for a bug that affects me).
@@ -404,7 +467,7 @@ However, the new version contains something that I need as soon s possible (e.g.
 <summary>Before:</summary>
 
 ```shell
-tctl auto-update agent status
+tctl auto-updates agent status
 # Rollout plan created the YYYY-MM-DD
 # Previous version: v2
 # New version: v3
@@ -421,11 +484,14 @@ tctl auto-update agent status
 I can trigger the dev group immediately using the command:
 
 ```shell
-tctl auto-update agent trigger-group dev
-# Dev group update triggered
+tctl auto-updates agent start-update dev --no-canary
+# Dev group update triggered (canary or active)
 ```
 
-[TODO: how to deal with the canary vs active vs done states?]
+Alternatively
+```shell
+tctl auto-update agent force-done dev
+```
 
 <details>
 <summary>After:</summary>
@@ -445,16 +511,12 @@ tctl auto-update agent status
 ```
 </details>
 
+### Teleport Resources
 
-## Teleport Resources
-
-### Scheduling
+#### Autoupdate Config
 
 This resource is owned by the Teleport cluster user.
-This is how Teleport customers can specify their automatic update preferences such as:
-- if automatic updates are enabled, disabled, or temporarily suspended
-- in which order their agents should be updated (`dev` before `staging` before `prod`)
-- when should the updates start
+This is how Teleport customers can specify their automatic update preferences.
 
 ```yaml
 kind: autoupdate_config
@@ -483,11 +545,6 @@ spec:
         # wait_days specifies how many days to wait after the previous group finished before starting.
         #  default: 0
         wait_days: 0-1
-        # TODO: is this needed? In which case a customer would need to set a custom jitter?
-        # jitter_seconds specifies a maximum jitter duration after the start hour.
-        # The agent updater client will pick a random time within this duration to wait to update.
-        #  default: 5
-        jitter_seconds: 0-60
         # canary_count specifies the desired number of canaries to update before any other agents
         # are updated.
         #  default: 5
@@ -512,7 +569,7 @@ spec:
   agent_schedules:
     regular:
     - name: default
-      days: ["*"] # TODO: restrict to work week? Minus Friday?
+      days: ["Mon", "Tue", "Wed", "Thu"]
       start_hour: 0
       jitter_seconds: 5
       canary_count: 5
@@ -520,9 +577,196 @@ spec:
       alert_after: 4h
 ```
 
+#### Autoupdate agent plan
 
-The update proceeds from the first group to the last group, ensuring that each group successfully updates before allowing the next group to proceed.
-By default, only 5 agent groups are allowed, this mitigates very long rollout plans.
+The `autoupdate_agent_plan` spec is owned by the Teleport cluster administrator.
+In Teleport Cloud, this is the cloud operations team. For self-hosted setups this is the user with access to the local
+admin socket (tctl on local machine).
+
+> [!NOTE]
+> This is currently an anti-pattern as we are trying to remove the use of the local administrator in Teleport.
+> However, Teleport does not provide any role/permission that we can use for Teleport Cloud operations and cannot be
+> granted to users. To part with local admin rights, we need a way to have cloud or admi-only operations.
+> This would also improve Cloud team operations by interacting with Teleport API rather than executing local tctl.
+>
+> Solving this problem is out of the scope of this RFD.
+
+```yaml
+kind: autoupdate_agent_plan
+spec:
+  # start_version is the desired version for agents before their window.
+  start_version: A.B.C
+  # target_version is the desired version for agents after their window.
+  target_version: X.Y.Z
+  # schedule to use for the rollout
+  schedule: regular|immediate
+  # strategy to use for the rollout
+  # default: backpressure
+  strategy: backpressure|grouped
+  # paused specifies whether the rollout is paused
+  # default: enabled
+  autoupdate_mode: enabled|disabled|paused
+status:
+  groups:
+    # name of group
+  - name: staging
+    # start_time is the time the upgrade will start
+    start_time: 2020-12-09T16:09:53+00:00
+    # initial_count is the number of connected agents at the start of the window
+    initial_count: 432
+    # missing_count is the number of agents disconnected since the start of the rollout
+    present_count: 53
+    # failed_count is the number of agents rolled-back since the start of the rollout
+    failed_count: 23
+    # canaries is a list of updater UUIDs used for canary deployments
+    canaries: ["abc123-..."]
+    # progress is the current progress through the rollout
+    progress: 0.532
+    # state is the current state of the rollout (unstarted, active, done, rollback)
+    state: active
+    # last_update_time is the time of the previous update for the group
+    last_update_time: 2020-12-09T16:09:53+00:00
+    # last_update_reason is the trigger for the last update
+    last_update_reason: rollback
+```
+
+### Backend logic to progress the rollout
+
+The update proceeds from the first group to the last group, ensuring that each group successfully updates before
+allowing the next group to proceed. By default, only 5 agent groups are allowed, this mitigates very long rollout plans.
+
+#### Agent update mode
+
+The agent auto update mode is specified by both Cloud (via `autoupdate_agent_plan`)
+and by the customer (via `autoupdate_config`). The agent update mode control whether
+the cluster in enrolled into automatic agent updates.
+
+The agent update mode can take 3 values:
+
+1. disabled: teleport should not manage agent updates
+2. paused: the updates are temporarily suspended, we honour the existing rollout state
+3. enabled: teleport can update agents
+
+The cluster agent rollout mode is computed by taking the lowest value.
+For example:
+
+- cloud says `enabled` and the customer says `enabled` -> the updates are `enabled`
+- cloud says `enabled` and the customer says `suspended` -> the updates are `suspended`
+- cloud says `disabled` and the customer says `suspended` -> the updates are `disabled`
+- cloud says `disabled` and the customer says `enabled` -> the updates are `disabled`
+
+The Teleport cluster only progresses the rollout if the mode is `enabled`.
+
+#### Group States
+
+Let `v1` be the previous version and `v2` the target version.
+
+A group can be in 5 states:
+- `unstarted`: the group update has not been started yet.
+- `canary`: a few canaries are getting updated. New agents should run `v1`. Existing agents should not attempt to update
+  and keep their existing version.
+- `active`: the group is actively getting updated. New agents should run `v2`, existing agents are instructed to update
+  to `v2`.
+- `done`: the group has been updated. New agents should run `v2`.
+- `rolledback`: the group has been rolledback. New agents should run `v1`, existing agents should update to `v1`.
+
+The finite state machine is the following:
+
+```mermaid
+flowchart TD
+    unstarted((unstarted))
+    canary((canary))
+    active((active))
+    done((done))
+    rolledback((rolledback))
+
+    unstarted -->|TriggerGroupRPC</br>Start conditions are met| canary
+    canary -->|Canary came back alive| active
+    canary -->|ForceGroupRPC| done
+    canary -->|RollbackGroupRPC| rolledback
+    active -->|ForceGroupRPC</br>Success criteria met| done
+    done -->|RollbackGroupRPC| rolledback
+    active -->|RollbackGroupRPC| rolledback
+  
+    canary -->|ResetGroupRPC| canary
+    active -->|ResetGroupRPC| active
+```
+
+#### Starting a group
+
+A group can be started if the following criteria are met
+- all of its previous group are in the `done` state
+- it has been at least `wait_days` until the previous group update started
+- the current week day is in the `days` list
+- the current hours equals the `hour` field
+
+When all hose criteria are met, the auth will transition the group into a new state.
+If `canary_count` is not null, the group transitions to the `canary` state.
+Else it transitions to the `active` state.
+
+In phase 4, at the start of a group rollout, the Teleport auth servers record the initial number connected agents.
+The number of updated and non-updated agents is tracked by the auth servers. This will be used later to evaluate the
+update success criteria.
+
+#### Canary testing (phase 5)
+
+A group in `canary` state will get assigned canaries.
+The proxies will instruct those canaries to update now.
+During each reconciliation loop, the auth will lookup the instance healthcheck in the backend of the canaries.
+
+Once all canaries have a healthcheck containing the new version (the healthcheck must not be older than 20 minutes),
+they successfully came back online and the group can transition to the `active` state.
+
+If canaries never update, report rollback, or disappear, the group will stay stuck in `canary` state.
+An alert will eventually fire, warning the user about the stuck update.
+
+#### Updating a group
+
+A group in `active` mode is currently being updated. The conditions to leave te `active` mode and transition to the
+`done` mode will vary based on the phase and rollout strategy.
+
+- Phase 2: we don't have any information about agents. The group transitions to `done` 60 minutes after its start.
+- Phase 4: we know about the connected agent count and the connected agent versions. The group transitions to `done` if:
+  - at least `(100 - max_in_flight)%` of the agents are still connected 
+  - at least `(100 - max_in_flight)%` of the agents are running the new version
+- Phase 6: we incrementally update the progress, this adds a new criteria: the group progress is at 100%
+
+The phase 6 backpressure update is the following:
+
+Given:
+```
+initial_count[group] = sum(agent_data[group].stats[*]).count
+```
+
+Each auth server will calculate the progress as
+`( max_in_flight * initial_count[group] + agent_data[group].stats[target_version].count ) / initial_count[group]` and
+write the progress to `autoupdate_agent_plan` status. This formula determines the progress percentage by adding a
+`max_in_flight` percentage-window above the number of currently updated agents in the group.
+
+However, if `as_numeral(agent_data[group].stats[not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the
+calculated progress, that progress value will be used instead. This protects against a statistical deadlock, where no
+UUIDs fall within the next `max_in_flight` window of UUID space, by always permitting the next non-updated agent to
+update.
+
+To ensure that the rollout is halted if more than `max_in_flight` un-updated agents drop off, an addition restriction
+must be imposed for the rollout to proceed:
+`agent_data[group].stats[*].count > initial_count[group] - max_in_flight * initial_count[group]`
+
+To prevent double-counting of agents when considering all counts across all auth servers, only agents connected for one
+minute will be considered in these formulas.
+
+### Manually interacting with the rollout
+
+
+#### RPCs
+Users and administrators can interact with the rollout plan using the following RPCs:
+
+```protobuf
+```
+
+#### CLI
+
+### Editing the plan
 
 The updater will receive `agent_autoupdate: true` from the time is it designated for update until the `target_version` in `autoupdate_agent_plan` (below) changes.
 Changing the `target_version` resets the schedule immediately, clearing all progress.
@@ -583,202 +827,52 @@ Notes:
 - `autoupdate_agent_plan` is separate from `autoupdate_config` so that Cloud customers can be restricted from updating
   `autoupdate_agent_plan`, while maintaining control over the rollout.
 
-### Rollout
+### Updater APIs
 
-The `autoupdate_agent_plan` spec is owned by the Teleport cluster administrator.
-In Teleport Cloud, this is the cloud operations team. For self-hosted setups this is the user with access to the local
-admin socket (tctl on local machine).
-
-> [!NOTE]
-> This is currently an anti-pattern as we are trying to remove the use of the local administrator in Teleport.
-> However, Teleport does not provide any role/permission that we can use for Teleport Cloud operations and cannot be
-> granted to users. To part with local admin rights, we need a way to have cloud or admi-only operations.
-> This would also improve Cloud team operations by interacting with Teleport API rather than executing local tctl.
-> 
-> Solving this problem is out of the scope of this RFD.
-
-```yaml
-kind: autoupdate_agent_plan
-spec:
-  # start_version is the desired version for agents before their window.
-  start_version: A.B.C
-  # target_version is the desired version for agents after their window.
-  target_version: X.Y.Z
-  # schedule to use for the rollout
-  schedule: regular|immediate
-  # strategy to use for the rollout
-  # default: backpressure
-  strategy: backpressure|grouped
-  # paused specifies whether the rollout is paused
-  # default: enabled
-  autoupdate_mode: enabled|disabled|paused
-status:
-  groups:
-    # name of group
-  - name: staging
-    # start_time is the time the upgrade will start
-    start_time: 2020-12-09T16:09:53+00:00
-    # initial_count is the number of connected agents at the start of the window
-    initial_count: 432
-    # missing_count is the number of agents disconnected since the start of the rollout
-    present_count: 53
-    # failed_count is the number of agents rolled-back since the start of the rollout
-    failed_count: 23
-    # canaries is a list of updater UUIDs used for canary deployments
-    canaries: ["abc123-..."]
-    # progress is the current progress through the rollout
-    progress: 0.532
-    # state is the current state of the rollout (unstarted, active, done, rollback)
-    state: active
-    # last_update_time is the time of the previous update for the group
-    last_update_time: 2020-12-09T16:09:53+00:00
-    # last_update_reason is the trigger for the last update
-    last_update_reason: rollback
-```
-
-```shell
-$ tctl autoupdate update --set-agent-version=15.1.1
-Automatic updates configuration has been updated.
-$ tctl autoupdate update --set-agent-version=15.1.2 --critical
-Automatic updates configuration has been updated.
-```
-
-### Group states
-
-Let `v1` be the current version and `v2` the target version.
-
-A group can be in 5 state:
-- unstarted: the group update has not been started yet.
-- canary: a few canaries are getting updated. New agents should run `v1`. Existing agents should not attempt to update and keep their existing version.
-- active: the group is actively getting updated. New agents should run `v2`, existing agents are instructed to update to `v2`.
-- done: the group has been updated. New agents should run `v2`.
-- rolledback: the group has been rolledback. New agents should run `v1`, existing agents should update to `v1`.
-
-The finite state machine is the following:
-```mermaid
-flowchart TD
-    unstarted((unstarted))
-    canary((canary))
-    active((active))
-    done((done))
-    rolledback((rolledback))
-
-    unstarted -->|StartGroup</br>MaintenanceTriggerOK| canary
-    canary -->|canary came back alive| active
-    canary -->|ForceGroup| done
-    canary -->|RollbackGroup| rolledback
-    active -->|ForceGroup</br>Success criteria met| done
-    done -->|RollbackGroup| rolledback
-    active -->|RollbackGroup| rolledback
-  
-    canary -->|ResetGroup| canary
-    active -->|ResetGroup| active
-```
-
-### Agent auto update modes
-
-The agent auto update mode is specified by both Cloud (via `autoupdate_agent_plan`)
-and by the customer (via `autoupdate_config`).
-
-The agent update mode can take 3 values:
-
-1. disabled: teleport should not manage agent updates
-2. paused: the updates are temporarily suspended, we honour the existing rollout state
-3. enabled: teleport can update agents
-
-The cluster agent rollout mode is computed by taking the lowest value.
-For example:
-
-- cloud says `enabled` and the customer says `enabled` -> the updates are `enabled`
-- cloud says `enabled` and the customer says `suspended` -> the updates are `suspended`
-- cloud says `disabled` and the customer says `suspended` -> the updates are `disabled`
-- cloud says `disabled` and the customer says `enabled` -> the updates are `disabled`
-
-## Details - Teleport API
+#### Update requests
 
 Teleport proxies will be updated to serve the desired agent version and edition from `/v1/webapi/find`.
 The version and edition served from that endpoint will be configured using new `autoupdate_agent_plan` resource.
 
-Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is dependent on:
+Whether the Teleport updater querying the endpoint is instructed to upgrade (via the `agent_autoupdate` field) is
+dependent on:
 - The `host=[uuid]` parameter sent to `/v1/webapi/find`
 - The `group=[name]` parameter sent to `/v1/webapi/find`
-- The schedule defined in the new `autoupdate_config` resource
-- The status of past agent upgrades for the given version
+- The group state from the `autoupdate_agent_plan` status
 
-To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via unauthenticated requests to `/v1/webapi/find`.
-Teleport auth servers use their access to the instance inventory data to drive the rollout, while Teleport proxies modulate the `/v1/webapi/find` response given the host UUID and group name.
+To ensure that the updater is always able to retrieve the desired version, instructions to the updater are delivered via
+unauthenticated requests to `/v1/webapi/find`. Teleport proxies modulate the `/v1/webapi/find` response given the host
+UUID and group name.
 
-Rollouts are specified as interdependent groups of hosts, selected by upgrade group identifier specified in the agent's `/var/lib/teleport/versions/update.yaml` file, which is written via `teleport-update enable`:
-```shell
-$ teleport-update enable --proxy teleport.example.com --group staging
-```
-
-At the start of a group rollout, the Teleport auth servers record the initial number connected agents.
-The number of updated and non-updated agents is tracked by the auth servers.
-
-If backpressure is enabled, a fixed number of connected agents (`max_in_flight % x total`) are instructed to upgrade at the same time via `/v1/webapi/find`.
-Additional agents are instructed to update as earlier updates complete, never exceeding `max_in_flight`.
-
-If canaries are enabled, a user-specified number of agents are updated first.
-These agents must all update successfully for the rollout to proceed to the remaining agents.
-
-Rollouts may be paused with `tctl autoupdate pause` or manually triggered with `tctl autoupdate run`.
-
-### Rollout
-
-Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` by the `teleport-update` binary.
-
-The following data related to the rollout are stored in each instance heartbeat:
-- `agent_update_start_time`: timestamp of individual agent's upgrade time
-- `agent_update_start_version`: current agent version
-- `agent_update_rollback`: whether the agent was rolled-back automatically
-- `agent_update_uuid`: Auto-update UUID
-- `agent_update_group`: Auto-update group name
-
-Auth servers use their local instance inventory to calculate rollout statistics and write them to `/autoupdate/[group]/[auth ID]` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`).
-
-Every minute, auth servers persist the version counts:
-- `agent_data[group].stats[version]`
-  - `count`: number of currently connected agents at `version` in `group`
-  - `failed_count`: number of currently connected agents at `version` in `group` that experienced a rollback or inability to upgrade
-  - `lowest_uuid`: lowest UUID of all currently connected agents at `version` in `group`
-  - `count`: number of connected agents at `version` in `group` at start of window
-- `agent_data[group]`
-  - `canaries`: list of updater UUIDs to use for canary deployments
-
-Expiration time of the persisted key is 1 hour.
-
-To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_plan` status on a one-minute interval.
-- To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_plan` status, if not already written.
-- To calculate the canaries, each auth server will write a random selection of all canaries to `autoupdate_agent_plan` status, if not already written.
-- To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_plan` status using the formulas, declining to write if the current written progress is further ahead.
-
-If `/autoupdate/[group]/[auth ID]` is older than 1 minute, we do not consider its contents.
-This prevents double-counting agents when auth servers are killed.
-
-#### Progress Formulas
-
-Given:
-```
-initial_count[group] = sum(agent_data[group].stats[*]).count
-```
-
-Each auth server will calculate the progress as `( max_in_flight * initial_count[group] + agent_data[group].stats[target_version].count ) / initial_count[group]` and write the progress to `autoupdate_agent_plan` status.
-This formula determines the progress percentage by adding a `max_in_flight` percentage-window above the number of currently updated agents in the group.
-
-However, if `as_numeral(agent_data[group].stats[not(target_version)].lowest_uuid) / as_numeral(max_uuid)` is above the calculated progress, that progress value will be used instead.
-This protects against a statistical deadlock, where no UUIDs fall within the next `max_in_flight` window of UUID space, by always permitting the next non-updated agent to update.
-
-To ensure that the rollout is halted if more than `max_in_flight` un-updated agents drop off, an addition restriction must be imposed for the rollout to proceed:
-`agent_data[group].stats[*].count > initial_count[group] - max_in_flight * initial_count[group]`
-
-To prevent double-counting of agents when considering all counts across all auth servers, only agents connected for one minute will be considered in these formulas.
-
-#### Proxies
-
-When the updater queries the proxy via `/v1/webapi/find?host=[uuid]&group=[name]`, the proxies query the `autoupdate_agent_plan` status to determine the value of `agent_autoupdate: true`.
-The boolean is returned as `true` in the case that the provided `host` contains a UUID that is under the progress percentage for the `group`:
+When the updater queries the proxy via `/v1/webapi/find?host=[uuid]&group=[name]`, the proxies query the
+`autoupdate_agent_plan` status to determine the value of `agent_autoupdate: true`.
+The boolean is returned as `true` in the case that the provided `host` contains a UUID that is under the progress
+percentage for the `group`:
 `as_numeral(host_uuid) / as_numeral(max_uuid) < progress`
+
+The returned JSON looks like:
+
+`/v1/webapi/find?host=[uuid]&group=[name]`
+```json
+{
+  "server_edition": "enterprise",
+  "agent_version": "15.1.1",
+  "agent_autoupdate": true,
+  "agent_update_jitter_seconds": 10
+}
+```
+
+Notes:
+
+- Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of
+  the value in `agent_autoupdate`.
+- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
+- The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
+- The UUID is read from `/tmp/teleport_update_uuid`, which `teleport-update` regenerates when missing.
+- the jitter is served by the teleport cluster and depends on the rollout strategy (60 sec by default, 10sec when using
+  the backpressure strategy).
+
+Let `v1` be the previous version and `v2` the target version, the response matrix is the following:
 
 ##### Rollout status: disabled
 
@@ -806,24 +900,41 @@ The boolean is returned as `true` in the case that the provided `host` contains 
 | done        | v2      | true                       |
 | rolledback  | v1      | true                       |
 
-### REST Endpoints
+#### Updater status reporting
 
-`/v1/webapi/find?host=[uuid]&group=[name]`
-```json
-{
-  "server_edition": "enterprise",
-  "agent_version": "15.1.1",
-  "agent_autoupdate": true,
-  "agent_update_jitter_seconds": 10
-}
-```
-Notes:
-- Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of the value in `agent_autoupdate`.
-- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
-- The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
-- The UUID is read from `/tmp/teleport_update_uuid`, which `teleport-update` regenerates when missing.
+Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` by the `teleport-update` binary.
 
-## Details - Linux Agents
+The following data related to the rollout are stored in each instance heartbeat:
+- `agent_update_start_time`: timestamp of individual agent's upgrade time
+- `agent_update_start_version`: current agent version
+- `agent_update_rollback`: whether the agent was rolled-back automatically
+- `agent_update_uuid`: Auto-update UUID
+- `agent_update_group`: Auto-update group name
+
+[TODO: mention that we'll also send this info in the hello and store it in the auth invenotry]
+
+Auth servers use their local instance inventory to calculate rollout statistics and write them to `/autoupdate/[group]/[auth ID]` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`).
+
+Every minute, auth servers persist the version counts:
+- `agent_data[group].stats[version]`
+  - `count`: number of currently connected agents at `version` in `group`
+  - `failed_count`: number of currently connected agents at `version` in `group` that experienced a rollback or inability to upgrade
+  - `lowest_uuid`: lowest UUID of all currently connected agents at `version` in `group`
+  - `count`: number of connected agents at `version` in `group` at start of window
+- `agent_data[group]`
+  - `canaries`: list of updater UUIDs to use for canary deployments
+
+Expiration time of the persisted key is 1 hour.
+
+To progress the rollout, auth servers will range-read keys from `/autoupdate/[group]/*`, sum the counts, and write back to the `autoupdate_agent_plan` status on a one-minute interval.
+- To calculate the initial number of agents connected at the start of the window, each auth server will write the summed count of agents to `autoupdate_agent_plan` status, if not already written.
+- To calculate the canaries, each auth server will write a random selection of all canaries to `autoupdate_agent_plan` status, if not already written.
+- To determine the progress through the rollout, auth servers will write the calculated progress to the `autoupdate_agent_plan` status using the formulas, declining to write if the current written progress is further ahead.
+
+If `/autoupdate/[group]/[auth ID]` is older than 1 minute, we do not consider its contents.
+This prevents double-counting agents when auth servers are killed.
+
+### Linux Agents
 
 We will ship a new auto-updater package for Linux servers written in Go that does not interface with the system package manager.
 It will be distributed as a separate package from Teleport, and manage the installation of the correct Teleport agent version manually.
@@ -832,7 +943,7 @@ It will download the correct version of Teleport as a tarball, unpack it in `/va
 
 Source code for the updater will live in the main Teleport repository, with the updater binary built from `tools/teleport-update`.
 
-### Installation
+#### Installation
 
 ```shell
 $ apt-get install teleport
@@ -853,7 +964,7 @@ $ teleport-update enable --proxy example.teleport.sh --template 'https://example
 ```
 (Checksum will use template path + `.sha256`)
 
-### Filesystem
+#### Filesystem
 
 ```
 $ tree /var/lib/teleport
@@ -905,7 +1016,7 @@ $ ls -l /usr/local/lib/systemd/system/teleport.service
 /usr/local/lib/systemd/system/teleport.service -> /var/lib/teleport/versions/15.0.0/etc/systemd/teleport.service
 ```
 
-#### update.yaml
+##### update.yaml
 
 This file stores configuration for `teleport-update`.
 
@@ -936,7 +1047,7 @@ status:
   error: "" 
 ```
 
-#### backup.yaml
+##### backup.yaml
 
 This file stores metadata about an individual backup of the Teleport agent's sqlite DB.
 
@@ -952,7 +1063,7 @@ spec:
   creation_time: 2020-12-09T16:09:53+00:00
 ```
 
-### Runtime
+#### Runtime
 
 The `teleport-update` binary will run as a periodically executing systemd service which runs every 10 minutes.
 The systemd service will run:
@@ -1133,7 +1244,7 @@ The following documentation will need to be updated to cover the new updater wor
 
 Additionally, the Cloud dashboard tenants downloads tab will need to be updated to reference the new instructions.
 
-## Details - Kubernetes Agents
+### Details - Kubernetes Agents
 
 The Kubernetes agent updater will be updated for compatibility with the new scheduling system.
 
@@ -1462,7 +1573,7 @@ Making the update boolean instruction available via the `/webapi/find` TLS endpo
 8. Communicate to users that they should update to the new system.
 9. Begin deprecation of old auto-updater resources, packages, and endpoints.
 10. Add healthcheck endpoint to Teleport agents and incorporate into rollback logic.
-10. Add progress and completion checking.
-10. Add canary functionality.
-10. Add backpressure functionality if necessary.
-11. Add DB backups if necessary.
+11. Add progress and completion checking.
+12. Add canary functionality.
+13. Add backpressure functionality if necessary.
+14. Add DB backups if necessary.
