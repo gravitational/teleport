@@ -246,23 +246,6 @@ func awsIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) (fetchCr
 	}
 }
 
-// authConnection is a helper function that sends "auth" command to provided
-// Redis connection with provided username and password.
-func authConnection(ctx context.Context, conn *redis.Conn, username, password string) error {
-	// Copied from redis.baseClient.initConn.
-	_, err := conn.Pipelined(ctx, func(pipe redis.Pipeliner) error {
-		if password != "" {
-			if username != "" {
-				pipe.AuthACL(ctx, username, password)
-			} else {
-				pipe.Auth(ctx, password)
-			}
-		}
-		return nil
-	})
-	return trace.Wrap(err)
-}
-
 // Process add supports for additional cluster commands. Our Redis implementation passes most commands to
 // go-redis `Process()` function which doesn't handel all Cluster commands like for ex. DBSIZE, FLUSHDB, etc.
 // This function provides additional processing for those commands enabling more Redis commands in Cluster mode.

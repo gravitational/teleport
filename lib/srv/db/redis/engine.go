@@ -151,7 +151,13 @@ func (e *Engine) SendError(redisErr error) {
 	// If the first message is a HELLO test, do not return authentication
 	// errors to the HELLO command as it can be swallowed by the client as part
 	// of its fallback mechanism. First return the unknown command error then
-	// send the authentication errors to the next incoming command.
+	// send the authentication errors to the next incoming command (usually
+	// AUTH).
+	//
+	// Background: The HELLO test is used for establishing the RESP3 protocol
+	// but Teleport currently only supports RESP2. The client generally
+	// fallbacks to RESP2 when they receive an unknown command error for the
+	// HELLO message.
 	e.maybeHandleFirstHello()
 
 	if err := e.sendToClient(redisErr); err != nil {
@@ -160,15 +166,15 @@ func (e *Engine) SendError(redisErr error) {
 	}
 }
 
-// maybeHandleFirstHello returns an unknown command error if the first message
-// is a Hello test.
+// maybeHandleFirstHello replies an unknown command error to the client if the
+// first message is a HELLO test.
 func (e *Engine) maybeHandleFirstHello() {
 	// Return if not the first message.
 	if e.clientMessageRead {
 		return
 	}
 
-	// Let's not wait forever for the hello message.
+	// Let's not wait forever for the HELLO message.
 	ctx, cancel := context.WithTimeout(e.Context, 10*time.Second)
 	defer cancel()
 
@@ -178,7 +184,7 @@ func (e *Engine) maybeHandleFirstHello() {
 		return
 	}
 
-	// Return if not a hello.
+	// Return if not a HELLO.
 	if strings.ToLower(cmd.Name()) != helloCmd {
 		return
 	}
