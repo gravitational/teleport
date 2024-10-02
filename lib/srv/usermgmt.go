@@ -588,7 +588,7 @@ func (u *HostUserManagement) UserCleanup() {
 		err := u.DeleteAllUsers()
 		switch {
 		case trace.IsNotFound(err):
-			u.log.DebugContext(u.ctx, "Error during temporary user cleanup, stopping cleanup job", "error", err)
+			u.log.Debug("Error during temporary user cleanup, stopping cleanup job", "error", err)
 			return
 		case err != nil:
 			u.log.ErrorContext(u.ctx, "Error during temporary user cleanup", "error", err)

@@ -22,6 +22,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/user"
@@ -237,11 +238,42 @@ func readDefaultSkel() (string, error) {
 	return skel, trace.Wrap(err)
 }
 
+func recursiveChown(dir string, uid, gid int) error {
+	// First, walk the directory to gather a list of files and directories to update before we open up to modifications
+	var pathsToUpdate []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pathsToUpdate = append(pathsToUpdate, path)
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pathsToUpdate = append(pathsToUpdate, dir)
+	// filepath.WalkDir is documented to walk the paths in lexical order, iterating
+	// in the reverse order ensures that files are always Lchowned before their parent directory
+	for i := len(pathsToUpdate) - 1; i >= 0; i-- {
+		path := pathsToUpdate[i]
+		if err := os.Lchown(path, uid, gid); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// Unexpected condition where file was removed after discovery.
+				continue
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS string) error {
 	uid, err := strconv.Atoi(uidS)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	gid, err := strconv.Atoi(gidS)
 	if err != nil {
 		return trace.Wrap(err)
@@ -249,6 +281,12 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
+		if os.IsExist(err) {
+			if chownErr := recursiveChown(userHome, uid, gid); chownErr != nil {
+				return trace.Wrap(chownErr)
+			}
+		}
+
 		return trace.Wrap(err)
 	}
 
@@ -277,9 +315,5 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 		}
 	}
 
-	if err := utils.RecursiveChown(userHome, uid, gid); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(recursiveChown(userHome, uid, gid))
 }

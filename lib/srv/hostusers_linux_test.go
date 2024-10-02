@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build linux
+// +build linux
 
 /*
  * Teleport
@@ -19,7 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package utils
+package srv
 
 import (
 	"os"
@@ -93,14 +93,14 @@ func TestRecursiveChown(t *testing.T) {
 	t.Run("notFoundError", func(t *testing.T) {
 		t.Parallel()
 
-		require.Error(t, RecursiveChown("/invalid/path/to/nowhere", 1000, 1000))
+		require.Error(t, recursiveChown("/invalid/path/to/nowhere", 1000, 1000))
 	})
 	t.Run("simpleChown", func(t *testing.T) {
 		t.Parallel()
 		_, _, newUid, newGid, _ := setupRecursiveChownUser(t)
 		dir1Path, dir1FilePath, _, _ := setupRecursiveChownFiles(t)
 
-		require.NoError(t, RecursiveChown(dir1Path, newUid, newGid))
+		require.NoError(t, recursiveChown(dir1Path, newUid, newGid))
 		// validate ownership matches expected ids
 		verifyOwnership(t, dir1Path, newUid, newGid)
 		verifyOwnership(t, dir1FilePath, newUid, newGid)
@@ -114,7 +114,7 @@ func TestRecursiveChown(t *testing.T) {
 		}
 		_, dir1FilePath, dir2Path, dir2SymlinkToFile := setupRecursiveChownFiles(t)
 
-		require.NoError(t, RecursiveChown(dir2Path, newUid, newGid))
+		require.NoError(t, recursiveChown(dir2Path, newUid, newGid))
 		// Validate symlink has changed
 		verifyOwnership(t, dir2SymlinkToFile, newUid, newGid)
 		// Validate pointed file has not changed

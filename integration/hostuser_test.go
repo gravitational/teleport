@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -202,6 +203,45 @@ func TestRootHostUsersBackend(t *testing.T) {
 		})
 		require.ErrorIs(t, err, os.ErrExist)
 		require.NoFileExists(t, "/tmp/ignoreme")
+	})
+
+	t.Run("Test CreateHomeDirectory recursively takes ownership of existing directory", func(t *testing.T) {
+		otheruser := "other-user"
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser, otheruser}, nil) })
+		err := usersbk.CreateUser(testuser, nil, host.UserOpts{})
+		require.NoError(t, err)
+
+		err = usersbk.CreateUser(otheruser, nil, host.UserOpts{})
+		require.NoError(t, err)
+
+		tuser, err := usersbk.Lookup(testuser)
+		require.NoError(t, err)
+
+		ouser, err := usersbk.Lookup(otheruser)
+		require.NoError(t, err)
+
+		require.NoError(t, os.WriteFile("/etc/skel/testfile", []byte("test\n"), 0o700))
+
+		testHome := filepath.Join("/home", testuser)
+		err = usersbk.CreateHomeDirectory(testHome, ouser.Uid, ouser.Gid)
+		t.Cleanup(func() {
+			os.RemoveAll(testHome)
+		})
+		require.NoError(t, err)
+
+		info, err := os.Stat(testHome)
+		require.NoError(t, err)
+		initialOwnerUID := info.Sys().(*syscall.Stat_t).Uid
+
+		err = usersbk.CreateHomeDirectory(testHome, tuser.Uid, tuser.Gid)
+		require.ErrorIs(t, err, os.ErrExist)
+
+		info, err = os.Stat(testHome)
+		require.NoError(t, err)
+		finalOwnerUID := info.Sys().(*syscall.Stat_t).Uid
+
+		require.NotEqual(t, initialOwnerUID, finalOwnerUID)
+		require.Equal(t, tuser.Uid, fmt.Sprintf("%d", finalOwnerUID))
 	})
 }
 
