@@ -113,8 +113,8 @@ function generateSignCertificateCurlCommand(
   if (!token) return '';
 
   const requestUrl = cfg.getDatabaseSignUrl(clusterId);
-  const TTL = cfg.getDatabaseCertificateTTL();
-  const requestData = JSON.stringify({ hostname, TTL });
+  const ttl = cfg.getDatabaseCertificateTTL();
+  const requestData = JSON.stringify({ hostname, ttl });
 
   // curl flag -OJ  makes curl use the file name
   // defined from the response header.
