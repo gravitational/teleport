@@ -157,6 +157,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/parquet-go/parquet-go v0.23.0
+	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.6
@@ -208,7 +209,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	google.golang.org/api v0.197.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1
-	google.golang.org/grpc v1.66.2
+	google.golang.org/grpc v1.66.3
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -452,7 +453,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pascaldekloe/name v1.0.1 // indirect
-	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
