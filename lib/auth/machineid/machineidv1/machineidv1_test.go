@@ -512,6 +512,7 @@ func TestCreateBot(t *testing.T) {
 						gotUser,
 						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -876,6 +877,7 @@ func TestUpdateBot(t *testing.T) {
 						gotUser,
 						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -1304,6 +1306,7 @@ func TestUpsertBot(t *testing.T) {
 						gotUser,
 						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 					),
 				)
 			}
@@ -1973,6 +1976,7 @@ func TestGetBotUsersLegacy(t *testing.T) {
 						res,
 						cmpopts.IgnoreFields(types.Metadata{}, "ID", "Revision"),
 						cmpopts.IgnoreFields(types.CreatedBy{}, "Time"),
+						cmpopts.IgnoreFields(types.UserStatusV2{}, "MfaWeakestDevice"),
 						cmpopts.SortSlices(func(a, b types.User) bool {
 							return a.GetName() < b.GetName()
 						}),
