@@ -18,6 +18,8 @@
 
 import React from 'react';
 
+import { MemoryRouter } from 'react-router';
+
 import { Users } from './Users';
 
 export default {
@@ -36,6 +38,14 @@ export const Processing = () => {
 
 export const Loaded = () => {
   return <Users {...sample} />;
+};
+
+export const UsersNotEqualMauNotice = () => {
+  return (
+    <MemoryRouter>
+      <Users {...sample} showMauInfo={true} />
+    </MemoryRouter>
+  );
 };
 
 export const Failed = () => {
@@ -126,4 +136,6 @@ const sample = {
   InviteCollaborators: null,
   onEmailPasswordResetClose: () => null,
   EmailPasswordReset: null,
+  showMauInfo: false,
+  onDismissUsersMauNotice: () => null,
 };

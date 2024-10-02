@@ -35,6 +35,9 @@ export const KeysEnum = {
   ACCESS_GRAPH_SQL_ENABLED: 'grv_teleport_access_graph_sql_enabled',
   EXTERNAL_AUDIT_STORAGE_CTA_DISABLED:
     'grv_teleport_external_audit_storage_disabled',
+  USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED:
+    'grv_users_not_equal_to_mau_acknowledged',
+  LOCAL_NOTIFICATION_STATES: 'grv_teleport_notification_states',
 };
 
 // SurveyRequest is the request for sending data to the back end
