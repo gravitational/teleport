@@ -174,9 +174,12 @@ func (a *App) initBot(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 		a.log.InfoContext(ctx, "Recipient and chat found",
-			"recipient", recipient,
-			"recipient_chat_id", recipientData.Chat.ID,
-			"recipient_kind", recipientData.Kind)
+			slog.Group("recipient",
+				"raw", recipient,
+				"recipient_chat_id", recipientData.Chat.ID,
+				"recipient_kind", recipientData.Kind,
+			),
+		)
 	}
 
 	a.log.InfoContext(ctx, "Recipient data preloaded and cached")
