@@ -13467,7 +13467,7 @@ type SPIFFESVIDIssued struct {
 	SerialNumber string `protobuf:"bytes,8,opt,name=SerialNumber,proto3" json:"serial_number"`
 	// Hint is the hint of the issued SVID
 	Hint string `protobuf:"bytes,9,opt,name=Hint,proto3" json:"hint"`
-	// JTI is the JTI of the issued svid.
+	// JTI is the JTI of the issued SVID.
 	// Only present if the SVID is a JWT.
 	JTI string `protobuf:"bytes,10,opt,name=JTI,proto3" json:"jti,omitempty"`
 	// Audiences is the list of audiences in the issued SVID.
