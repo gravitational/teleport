@@ -3,6 +3,7 @@ package accessgraph
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -378,4 +380,74 @@ func initService(t *testing.T) testServiceComponents {
 		accessGraphService:  accessGraphService,
 		accessGraphListener: accessGraphListener,
 	}
+}
+
+// TestUserSecretsCleanup tests that user secrets are cleaned up from the types.User object
+// before sending it to the access graph service.
+func TestUserSecretsCleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	svc := initService(t)
+
+	user, err := types.NewUser("user1")
+	require.NoError(t, err)
+	hash, err := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.MinCost)
+	require.NoError(t, err)
+	user.SetLocalAuth(&types.LocalAuthSecrets{
+		PasswordHash: hash,
+	})
+
+	_, err = svc.authServer.Identity.CreateUser(ctx, user)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		_, err := svc.authServer.GetUser(ctx, "user1", false)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond, "expected to receive user before timeout")
+
+	go func() {
+		err := initializeAndWatchAccessGraph(
+			ctx,
+			slog.Default(),
+			ServiceClientConfig{
+				Addr:     svc.accessGraphListener.Addr().String(),
+				Insecure: true,
+			},
+			func() (*tls.Certificate, error) {
+				return &fixtures.LocalhostTLSCertificate, nil
+			},
+			svc.authServer,
+			svc.bk,
+		)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		assert.NoError(t, err)
+	}()
+
+	require.Eventually(t, func() bool {
+		usersFound := false
+		noSecret := false
+		hasSync := false
+		for _, msg := range svc.accessGraphService.getReceivedMessages() {
+			if msg.GetSync() != nil {
+				hasSync = true
+				continue
+			}
+			for _, msg := range msg.GetUpsert().Resources {
+				if msg.GetUser() != nil {
+					usersFound = true
+					if msg.GetUser().Spec.LocalAuth == nil {
+						noSecret = true
+					} else {
+						assert.Fail(t, "user secret was not cleaned up", "user: %v", msg.GetUser())
+					}
+				}
+			}
+		}
+		return usersFound && noSecret && hasSync
+	}, 10*time.Second, 100*time.Millisecond, "expected to receive non-secret user before timeout")
+
 }

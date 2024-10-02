@@ -455,7 +455,8 @@ func sendUsers(ctx context.Context, authServer interface {
 }, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
 ) error {
 	req := userspb.ListUsersRequest{
-		PageSize: apidefaults.DefaultChunkSize,
+		PageSize:    apidefaults.DefaultChunkSize,
+		WithSecrets: true, /* ask for secrets */
 	}
 
 	for {
@@ -511,7 +512,10 @@ func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService
 	for _, user := range users {
 		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
 			Resource: &accessgraphv1.ResourceEntry_User{
-				User: user,
+				// reset local auth to avoid sending secrets to the access graph service
+				// we load secrets only to populate the user's MFA status when not set
+				// in the database.
+				User: user.WithoutSecrets().(*types.UserV2),
 			},
 		})
 	}
