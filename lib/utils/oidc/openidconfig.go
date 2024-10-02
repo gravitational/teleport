@@ -19,6 +19,7 @@
 package oidc
 
 // OpenIDConfiguration is the default OpenID Configuration used by Teleport.
+// Based on https://openid.net/specs/openid-connect-discovery-1_0.html
 type OpenIDConfiguration struct {
 	Issuer                           string   `json:"issuer"`
 	JWKSURI                          string   `json:"jwks_uri"`

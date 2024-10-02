@@ -29,7 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/spiffe"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/oidc"
 )
 
 // getSPIFFEBundle returns the SPIFFE-compatible trust bundle which allows other
@@ -108,4 +110,36 @@ func (h *Handler) getSPIFFEBundle(w http.ResponseWriter, r *http.Request, _ http
 		h.logger.DebugContext(h.cfg.Context, "Failed to write SPIFFE bundle response", "error", err)
 	}
 	return nil, nil
+}
+
+// Mounted at /workload-identity/.well-known/openid-configuration
+func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (any, error) {
+	issuer, err := spiffe.IssuerFromPublicAddress(h.cfg.PublicProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err, "determining issuer from public address")
+	}
+
+	return &oidc.OpenIDConfiguration{
+		Issuer:  issuer,
+		JWKSURI: issuer + "/jwks.json",
+		Claims: []string{
+			"iss",
+			"sub",
+			"jti",
+			"aud",
+			"exp",
+			"iat",
+		},
+		IdTokenSigningAlgValuesSupported: []string{
+			"RS256",
+		},
+		ResponseTypesSupported: []string{
+			"id_token",
+		},
+	}, nil
+}
+
+// Mounted at /workload-identity/jwks.json
+func (h *Handler) getSPIFFEJWKS(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+	return h.jwks(r.Context(), types.SPIFFECA)
 }
