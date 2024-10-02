@@ -493,6 +493,22 @@ func TestDeletingLastPasswordlessDevice(t *testing.T) {
 			checkErr: require.NoError,
 		},
 		{
+			name: "succeeds when the user is an SSO user",
+			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
+				user, err := authServer.GetUser(ctx, username, false)
+				require.NoError(t, err, "GetUser")
+				user.SetCreatedBy(types.CreatedBy{
+					Connector: &types.ConnectorRef{},
+				})
+				_, err = authServer.UpsertUser(ctx, user)
+				require.NoError(t, err, "UpsertUser")
+				_, err = RegisterTestDevice(
+					ctx, userClient, "another-dev", proto.DeviceType_DEVICE_TYPE_TOTP, pwdlessDev, WithTestDeviceClock(clock))
+				require.NoError(t, err, "RegisterTestDevice")
+			},
+			checkErr: require.NoError,
+		},
+		{
 			name: "fails even if there is password, but no other MFAs",
 			setup: func(t *testing.T, username string, userClient *authclient.Client, pwdlessDev *TestDevice) {
 				err := authServer.UpsertPassword(username, []byte("living on the edge"))
