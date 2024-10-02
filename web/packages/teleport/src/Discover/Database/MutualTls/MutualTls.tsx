@@ -162,9 +162,14 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
         />
         <Text mt={1}>
           Restart the database server to apply the configuration. The
-          certificate is by default 90 days so this will require installing an
-          updated certificate and restarting the database server before that to
-          continue access.
+          certificate is valid for 90 days so this will require installing an{' '}
+          <Link
+            href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/postgres-self-hosted/#step-25-create-a-certificatekey-pair"
+            target="_blank"
+          >
+            updated certificate
+          </Link>{' '}
+          and restarting the database server before that to continue access.
         </Text>
       </Box>
     );
@@ -256,9 +261,16 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                   />
                   <Text mt={1}>
                     Restart the database server to apply the configuration. The
-                    certificate is by default 90 days so this will require
-                    installing an updated certificate and restarting the
-                    database server before that to continue access.
+                    certificate is valid for 90 days so this will require
+                    installing an{' '}
+                    <Link
+                      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair"
+                      target="_blank"
+                    >
+                      updated certificate
+                    </Link>{' '}
+                    and restarting the database server before that to continue
+                    access.
                   </Text>
                   <Text mt={2}>
                     See{' '}
@@ -292,9 +304,16 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
                   />
                   <Text mt={1}>
                     Restart the database server to apply the configuration. The
-                    certificate is by default 90 days so this will require
-                    installing an updated certificate and restarting the
-                    database server before that to continue access.
+                    certificate is valid for 90 days so this will require
+                    installing an{' '}
+                    <Link
+                      href="https://goteleport.com/docs/enroll-resources/database-access/enroll-self-hosted-databases/mysql-self-hosted/#step-24-create-a-certificatekey-pair"
+                      target="_blank"
+                    >
+                      updated certificate
+                    </Link>{' '}
+                    and restarting the database server before that to continue
+                    access.
                   </Text>
                   <Text mt={2}>
                     See{' '}
