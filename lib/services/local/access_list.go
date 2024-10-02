@@ -140,8 +140,8 @@ func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.A
 
 // GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
 // This is not implemented in the local service.
-func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (accesslist.CombinedGrants, error) {
-	return accesslist.CombinedGrants{}, trace.NotImplemented("GetInheritedGrants should not be called")
+func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.CombinedGrants, error) {
+	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
 // ListAccessLists returns a paginated list of access lists.
@@ -361,36 +361,38 @@ func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListN
 					allOwners = append(allOwners, &owner)
 				}
 			}
-		} else {
-			var pageToken string
-			var members []*accesslist.AccessListMember
+			continue
+		}
 
-			for {
-				fetchedMembers, pageToken, err := a.ListAccessListMembers(ctx, item.name, 0, pageToken)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				members = append(members, fetchedMembers...)
-				if pageToken == "" {
-					break
-				}
+		var pageToken string
+		var members []*accesslist.AccessListMember
+
+		for {
+			var fetchedMembers []*accesslist.AccessListMember
+			fetchedMembers, pageToken, err = a.ListAccessListMembers(ctx, item.name, 0, pageToken)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			members = append(members, fetchedMembers...)
+			if pageToken == "" {
+				break
+			}
+		}
 
-			for _, member := range members {
-				if member.Spec.MembershipKind == accesslist.MembershipKindList {
-					if _, ok := seen[member.GetName()]; ok {
-						continue
-					}
-					seen[member.GetName()] = struct{}{}
-					queue = append(queue, queueItem{name: member.GetName(), depth: item.depth + 1})
-				} else {
-					allOwners = append(allOwners, &accesslist.Owner{
-						Name:             member.GetName(),
-						Description:      member.Metadata.Description,
-						MembershipKind:   member.Spec.MembershipKind,
-						IneligibleStatus: member.Spec.IneligibleStatus,
-					})
+		for _, member := range members {
+			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+				if _, ok := seen[member.GetName()]; ok {
+					continue
 				}
+				seen[member.GetName()] = struct{}{}
+				queue = append(queue, queueItem{name: member.GetName(), depth: item.depth + 1})
+			} else {
+				allOwners = append(allOwners, &accesslist.Owner{
+					Name:             member.GetName(),
+					Description:      member.Metadata.Description,
+					MembershipKind:   member.Spec.MembershipKind,
+					IneligibleStatus: member.Spec.IneligibleStatus,
+				})
 			}
 		}
 	}

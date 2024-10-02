@@ -115,15 +115,15 @@ func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.Acce
 }
 
 // GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
-func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (accesslist.CombinedGrants, error) {
+func (c *Client) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.CombinedGrants, error) {
 	resp, err := c.grpcClient.GetInheritedGrants(ctx, &accesslistv1.GetInheritedGrantsRequest{
 		AccessListId: accessListID,
 	})
 	if err != nil {
-		return accesslist.CombinedGrants{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return accesslist.CombinedGrants{
+	return &accesslist.CombinedGrants{
 		MemberGrants: accesslist.Grants{
 			Roles:  resp.MemberGrants.Roles,
 			Traits: traitv1.FromProto(resp.MemberGrants.Traits),
