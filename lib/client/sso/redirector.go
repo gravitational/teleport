@@ -39,7 +39,6 @@ import (
 	"gvisor.dev/gvisor/pkg/log"
 
 	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apiutils "github.com/gravitational/teleport/api/utils"
