@@ -3515,6 +3515,9 @@ message UserStatusV2 {
   // perform any password-related activity since then. See RFD 0159 for
   // details. Do NOT use this value for authentication purposes!
   PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+  // mfa_weakest_device reflects what the system knows about the user's weakest MFA device.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED.
+  MFADeviceKind mfa_weakest_device = 2 [(gogoproto.jsontag) = "mfa_weakest_device,omitempty"];
 }
 
 // PasswordState indicates what is known about existence of user's password.
@@ -3525,6 +3528,18 @@ enum PasswordState {
   PASSWORD_STATE_UNSET = 1;
   // Password is known to be configured.
   PASSWORD_STATE_SET = 2;
+}
+
+// MFADeviceKind indicates what is known about existence of user's MFA device.
+enum MFADeviceKind {
+  // Unable to tell whether the MFA device has been configured.
+  MFA_DEVICE_KIND_UNSPECIFIED = 0;
+  // MFA device is known to be not configured.
+  MFA_DEVICE_KIND_UNSET = 1;
+  // MFA device is known to be configured using TOTP as the weakest form of MFA.
+  MFA_DEVICE_KIND_TOTP = 2;
+  // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
+  MFA_DEVICE_KIND_WEBAUTHN = 3;
 }
 
 // UserSpecV2 is a specification for V2 user

@@ -2643,11 +2643,18 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Optional:    true,
 		},
 		"status": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"password_state": {
-				Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
-				Optional:    true,
-				Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-			}}),
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mfa_weakest_device": {
+					Description: "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"password_state": {
+					Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+			}),
 			Description: "",
 			Optional:    true,
 		},
@@ -27484,6 +27491,23 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["mfa_weakest_device"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UserV2.Status.mfa_weakest_device"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UserV2.Status.mfa_weakest_device", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+							} else {
+								var t github_com_gravitational_teleport_api_types.MFADeviceKind
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_types.MFADeviceKind(v.Value)
+								}
+								obj.MfaWeakestDevice = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -28315,6 +28339,28 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							v.Value = int64(obj.PasswordState)
 							v.Unknown = false
 							tf.Attrs["password_state"] = v
+						}
+					}
+					{
+						t, ok := tf.AttrTypes["mfa_weakest_device"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UserV2.Status.mfa_weakest_device"})
+						} else {
+							v, ok := tf.Attrs["mfa_weakest_device"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UserV2.Status.mfa_weakest_device", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.mfa_weakest_device", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
+								v.Null = int64(obj.MfaWeakestDevice) == 0
+							}
+							v.Value = int64(obj.MfaWeakestDevice)
+							v.Unknown = false
+							tf.Attrs["mfa_weakest_device"] = v
 						}
 					}
 				}
