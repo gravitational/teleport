@@ -117,6 +117,7 @@ const cfg = {
     // local user + password authn preference.
     localConnectorName: '',
     providers: [] as AuthProvider[],
+    // TODO(Joerger): Replace second_factor with second_factors
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,

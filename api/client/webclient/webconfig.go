@@ -18,6 +18,7 @@ package webclient
 
 import (
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -179,7 +180,12 @@ type WebConfigAuthProvider struct {
 // WebConfigAuthSettings describes auth configuration
 type WebConfigAuthSettings struct {
 	// SecondFactor is the type of second factor to use in authentication.
+	// TODO(Joerger): DELETE IN v18.0.0, replaced by SecondFactors
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
+	// SecondFactors is a list of supported second factors in order of preference.
+	SecondFactors []types.SecondFactorType `json:"second_factors,omitempty"`
+	// PreferredLocalMFA is the preferred MFA method from available methods.
+	PreferredLocalMFA string `json:"preferredLocalMfa,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication
@@ -188,10 +194,6 @@ type WebConfigAuthSettings struct {
 	AllowPasswordless bool `json:"allowPasswordless,omitempty"`
 	// AuthType is the authentication type.
 	AuthType string `json:"authType"`
-	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
-	// when various options are available.
-	// It is empty if there is nothing to suggest.
-	PreferredLocalMFA string `json:"preferredLocalMfa,omitempty"`
 	// LocalConnectorName is the name of the local connector.
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
 	// PrivateKeyPolicy is the configured private key policy for the cluster.

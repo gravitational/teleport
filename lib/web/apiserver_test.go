@@ -4565,8 +4565,11 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	// Set auth preference with passwordless.
 	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:          constants.Local,
-		SecondFactor:  constants.SecondFactorOptional,
+		Type: constants.Local,
+		SecondFactors: []types.SecondFactorType{
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+		},
 		ConnectorName: constants.PasswordlessConnector,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
@@ -4596,7 +4599,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor: constants.SecondFactorOptional,
+			SecondFactors: []types.SecondFactorType{
+				types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			},
 			Providers: []webclient.WebConfigAuthProvider{{
 				Name:      "test-github",
 				Type:      constants.Github,
@@ -4785,6 +4791,7 @@ func TestGetWebConfig_LegacyFeatureLimits(t *testing.T) {
 	expectedCfg := webclient.WebConfig{
 		Auth: webclient.WebConfigAuthSettings{
 			SecondFactor:     constants.SecondFactorOff,
+			SecondFactors:    nil,
 			LocalAuthEnabled: true,
 			AuthType:         constants.Local,
 			PrivateKeyPolicy: keys.PrivateKeyPolicyNone,

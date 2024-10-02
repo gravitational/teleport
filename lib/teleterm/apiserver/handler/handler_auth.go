@@ -137,7 +137,8 @@ func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsR
 	}
 
 	result := &api.AuthSettings{
-		PreferredMfa:       string(preferences.PreferredLocalMFA),
+		PreferredMfa: string(preferences.PreferredLocalMFA),
+		// TODO(Joerger): replace with SecondFactors
 		SecondFactor:       string(preferences.SecondFactor),
 		LocalAuthEnabled:   preferences.LocalAuthEnabled,
 		AuthType:           preferences.AuthType,
