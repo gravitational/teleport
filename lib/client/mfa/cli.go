@@ -76,7 +76,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			var message string
 			if runtime.GOOS == constants.WindowsOS {
 				message = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-				webauthnwin.PromptPlatformMessage = ""
+				webauthnwin.SetPromptPlatformMessage("")
 			} else {
 				message = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
 			}
