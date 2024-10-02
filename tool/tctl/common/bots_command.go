@@ -647,10 +647,7 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client *authclient.Cli
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		ttl := c.tokenTTL
-		if ttl == 0 {
-			ttl = defaults.DefaultBotJoinTTL
-		}
+		ttl := cmp.Or(c.tokenTTL, defaults.DefaultBotJoinTTL)
 		tokenSpec := types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodToken,
