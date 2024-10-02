@@ -3635,7 +3635,8 @@ func (a *ServerWithRoles) UpdateOIDCConnector(ctx context.Context, connector typ
 		return nil, trace.AccessDenied("OIDC is only available in Teleport Enterprise")
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3815,7 +3816,8 @@ func (a *ServerWithRoles) UpdateSAMLConnector(ctx context.Context, connector typ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4018,7 +4020,8 @@ func (a *ServerWithRoles) UpdateGithubConnector(ctx context.Context, connector t
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -4404,7 +4407,8 @@ func (a *ServerWithRoles) UpdateRole(ctx context.Context, role types.Role) (type
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.context.AuthorizeAdminAction(); err != nil {
+	// Support reused MFA for bulk tctl create requests.
+	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5923,15 +5927,15 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 	// Check if MFA is required for admin actions. We don't currently have
 	// a reason to check the name of the admin action in question.
 	if _, ok := req.Target.(*proto.IsMFARequiredRequest_AdminAction); ok {
-		if a.context.AdminActionAuthState == authz.AdminActionAuthUnauthorized {
-			return &proto.IsMFARequiredResponse{
-				Required:    true,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
-			}, nil
-		} else {
+		if a.context.AdminActionAuthState == authz.AdminActionAuthNotRequired {
 			return &proto.IsMFARequiredResponse{
 				Required:    false,
 				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+			}, nil
+		} else {
+			return &proto.IsMFARequiredResponse{
+				Required:    true,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 			}, nil
 		}
 	}

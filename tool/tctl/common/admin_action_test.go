@@ -722,6 +722,7 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			skipBulk:        true,
 			resource:        originalAuthPref,
 			resourceCreate:  createAuthPref,
 			resourceCleanup: resetAuthPref,
@@ -854,6 +855,10 @@ type resourceCommandTestCase struct {
 	resourceCreate  func() error
 	resourceCleanup func() error
 
+	// skip bulk create tests. Used by cluster auth preference tests which
+	// would break down after the first creation.
+	skipBulk bool
+
 	// Tests get/list resource, for privileged resources
 	// like tokens that should require MFA to be seen.
 	testGetList bool
@@ -882,6 +887,18 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 			cleanup:    tc.resourceCleanup,
 		})
 	})
+
+	if !tc.skipBulk {
+		require.NoError(t, utils.WriteYAML(f, []types.Resource{tc.resource, tc.resource, tc.resource}))
+		t.Run("tctl create -f bulk", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("create -f %v", f.Name()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+	}
 
 	t.Run("tctl rm", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
@@ -947,6 +964,9 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 
 type adminActionTestSuite struct {
 	authServer *auth.Server
+	// wanLoginCount tracks the number of webauthn login prompts. Should be
+	// reset between tests.
+	wanLoginCount int
 	// userClientWithMFA supports MFA prompt for admin actions.
 	userClientWithMFA *authclient.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
@@ -955,6 +975,8 @@ type adminActionTestSuite struct {
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
+	s := &adminActionTestSuite{}
+
 	t.Helper()
 	ctx := context.Background()
 	modules.SetTestModules(t, &modules.TestModules{
@@ -988,7 +1010,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
-	authServer := process.GetAuthServer()
+	s.authServer = process.GetAuthServer()
 
 	// create admin role and user.
 	username := "admin"
@@ -1015,19 +1037,24 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		},
 	})
 	require.NoError(t, err)
-	adminRole, err = authServer.CreateRole(ctx, adminRole)
+	adminRole, err = s.authServer.CreateRole(ctx, adminRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(username)
 	user.SetRoles([]string{adminRole.GetName()})
 	require.NoError(t, err)
-	_, err = authServer.CreateUser(ctx, user)
+	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
 
-	mockWebauthnLogin := setupWebAuthn(t, authServer, username)
+	mockWebauthnLogin := setupWebAuthn(t, s.authServer, username)
+	mockWebauthnLoginWithCount := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		s.wanLoginCount++
+		return mockWebauthnLogin(ctx, origin, assertion, prompt, opts)
+	}
+
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
-		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
+		promptCfg.WebauthnLoginFunc = mockWebauthnLoginWithCount
 		promptCfg.WebauthnSupported = true
 		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
 	}
@@ -1051,7 +1078,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := authclient.NewClient(client.Config{
+	s.userClientNoMFA, err = authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1065,7 +1092,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := authclient.NewClient(client.Config{
+	s.userClientWithMFA, err = authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1083,19 +1110,14 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)
 	require.NoError(t, err)
-	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
+	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
 		Log:         utils.NewSlogLoggerForTests(),
 	})
 	require.NoError(t, err)
 
-	return &adminActionTestSuite{
-		authServer:        authServer,
-		userClientNoMFA:   userClientNoMFA,
-		userClientWithMFA: userClientWithMFA,
-		localAdminClient:  localAdminClient,
-	}
+	return s
 }
 
 type adminActionTestCase struct {
@@ -1109,8 +1131,10 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	t.Helper()
 
 	t.Run("OK with MFA", func(t *testing.T) {
+		s.wanLoginCount = 0
 		err := runTestCase(t, ctx, s.userClientWithMFA, tc)
 		require.NoError(t, err)
+		require.Equal(t, 1, s.wanLoginCount)
 	})
 
 	t.Run("NOK without MFA", func(t *testing.T) {
