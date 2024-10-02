@@ -215,6 +215,7 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	}
 }
 
+// ToOwnerProto converts an internal access list owner into a v1 access list owner object.
 func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
 	var ineligibleStatus accesslistv1.IneligibleStatus
 	if owner.IneligibleStatus != "" {
@@ -238,6 +239,7 @@ func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
 	}
 }
 
+// FromOwnerProto converts a v1 access list owner into an internal access list owner object.
 func FromOwnerProto(protoOwner *accesslistv1.AccessListOwner) accesslist.Owner {
 	ineligibleStatus := ""
 	if protoOwner.IneligibleStatus != accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_UNSPECIFIED {

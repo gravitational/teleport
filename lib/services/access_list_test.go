@@ -513,10 +513,8 @@ func TestIsAccessListMemberChecker(t *testing.T) {
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-			},
+			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
+			errAssertionFunc: requireAccessDenied,
 		},
 		{
 			name: "is expired member",

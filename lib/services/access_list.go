@@ -291,7 +291,7 @@ func (a AccessListMembershipChecker) GetAccessListNestedLists(ctx context.Contex
 // If ownership is inherited (through the tlsca.Identity having Membership in an Access List which is an Owner
 // of the provided accessList), the tlsca.Identity must also meet the membership requirements of the nested list.
 func (a AccessListMembershipChecker) IsAccessListOwner(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) (MembershipOrOwnershipType, error) {
-	ownershipType := MembershipOrOwnershipTypeNone
+	var ownershipType MembershipOrOwnershipType
 
 	// Is the supplied identity explicitly in the Owners list?
 	if slices.ContainsFunc(accessList.GetOwners(), func(owner accesslist.Owner) bool {
@@ -302,7 +302,7 @@ func (a AccessListMembershipChecker) IsAccessListOwner(ctx context.Context, iden
 		err := a.recursiveIsAccessListOwnerCheck(ctx, identity, accessList)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return MembershipOrOwnershipTypeNone, trace.NotFound("User '%s' is not an owner of list '%s'.", identity.Username, accessList.GetName())
+				return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is not an owner of list '%s'.", identity.Username, accessList.GetName())
 			}
 			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 		}
@@ -414,7 +414,7 @@ func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, ide
 		if err := a.recursiveIsAccessListMemberCheck(ctx, identity, accessList); err != nil {
 			if trace.IsNotFound(err) {
 				// The member has not been found, so we know they're not a member of this list.
-				return MembershipOrOwnershipTypeNone, trace.NotFound("User '%s' is not a member of list '%s'.", username, accessList.GetName())
+				return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is not a member of list '%s'.", username, accessList.GetName())
 			}
 			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 		}
