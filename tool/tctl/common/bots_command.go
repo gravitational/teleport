@@ -19,6 +19,7 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -67,22 +68,22 @@ type BotsCommand struct {
 	addLogins     string
 	setLogins     string
 
-	botsList         *kingpin.CmdClause
-	botsAdd          *kingpin.CmdClause
-	botsRemove       *kingpin.CmdClause
-	botsLock         *kingpin.CmdClause
-	botsUpdate       *kingpin.CmdClause
-	botsInstance     *kingpin.CmdClause
-	botsInstanceShow *kingpin.CmdClause
-	botsInstanceList *kingpin.CmdClause
-	botsInstanceAdd  *kingpin.CmdClause
+	botsList          *kingpin.CmdClause
+	botsAdd           *kingpin.CmdClause
+	botsRemove        *kingpin.CmdClause
+	botsLock          *kingpin.CmdClause
+	botsUpdate        *kingpin.CmdClause
+	botsInstances     *kingpin.CmdClause
+	botsInstancesShow *kingpin.CmdClause
+	botsInstancesList *kingpin.CmdClause
+	botsInstancesAdd  *kingpin.CmdClause
 
 	stdout io.Writer
 }
 
 // Initialize sets up the "tctl bots" command.
 func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.").Alias("bot")
+	bots := app.Command("bots", "Manage Machine ID bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
 	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
@@ -111,18 +112,18 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.botsUpdate.Flag("set-logins", "Sets the bot's logins to the given comma-separated list, replacing any existing logins.").StringVar(&c.setLogins)
 	c.botsUpdate.Flag("add-logins", "Adds a comma-separated list of logins to an existing bot.").StringVar(&c.addLogins)
 
-	c.botsInstance = bots.Command("instance", "Manage bot instances.").Alias("instances")
+	c.botsInstances = bots.Command("instances", "Manage bot instances.").Alias("instance")
 
-	c.botsInstanceShow = c.botsInstance.Command("show", "Shows information about a specific bot instance").Alias("get").Alias("describe")
-	c.botsInstanceShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
+	c.botsInstancesShow = c.botsInstances.Command("show", "Shows information about a specific bot instance").Alias("get").Alias("describe")
+	c.botsInstancesShow.Arg("id", "The full ID of the bot instance, in the form of [bot name]/[uuid]").Required().StringVar(&c.instanceID)
 
-	c.botsInstanceList = c.botsInstance.Command("list", "List bot instances").Alias("ls")
-	c.botsInstanceList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
+	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances").Alias("ls")
+	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
 
-	c.botsInstanceAdd = c.botsInstance.Command("add", "Join a new instance onto an existing bot.").Alias("join")
-	c.botsInstanceAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
-	c.botsInstanceAdd.Flag("token", "The token to use, if any. If unset, a new one-time-use token will be created.").StringVar(&c.tokenID)
-	c.botsInstanceAdd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesAdd = c.botsInstances.Command("add", "Join a new instance onto an existing bot.").Alias("join")
+	c.botsInstancesAdd.Arg("name", "The name of the existing bot for which to add a new instance.").Required().StringVar(&c.botName)
+	c.botsInstancesAdd.Flag("token", "The token to use, if any. If unset, a new one-time-use token will be created.").StringVar(&c.tokenID)
+	c.botsInstancesAdd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
@@ -142,11 +143,11 @@ func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client *authclient
 		err = c.LockBot(ctx, client)
 	case c.botsUpdate.FullCommand():
 		err = c.UpdateBot(ctx, client)
-	case c.botsInstanceShow.FullCommand():
+	case c.botsInstancesShow.FullCommand():
 		err = c.ShowBotInstance(ctx, client)
-	case c.botsInstanceList.FullCommand():
+	case c.botsInstancesList.FullCommand():
 		err = c.ListBotInstances(ctx, client)
-	case c.botsInstanceAdd.FullCommand():
+	case c.botsInstancesAdd.FullCommand():
 		err = c.AddBotInstance(ctx, client)
 	default:
 		return false, nil
@@ -232,7 +233,10 @@ Please note:
   - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
     must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
-  - {{.addr}} must be reachable from the new node
+  - {{.addr}} must be reachable from the new node{{if eq .join_method "token"}}
+  - This is a single-token that will be consumed upon usage. For scalable
+    alternatives, see our documentation on other supported join methods:
+    https://goteleport.com/docs/enroll-resources/machine-id/deployment/{{end}}
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
@@ -660,28 +664,30 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client *authclient.Cli
 		if err := client.UpsertToken(ctx, token); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		// There's not much to do in this case, but we can validate the token.
-		// The bot and token should already exist in this case, so we'll just
-		// print joining instructions.
 
-		// If there is, check the token matches the potential bot
-		token, err = client.GetToken(ctx, c.tokenID)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
-					c.tokenID, err)
-			}
-			return trace.Wrap(err)
+		return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
+	}
+
+	// There's not much to do in this case, but we can validate the token.
+	// The bot and token should already exist in this case, so we'll just
+	// print joining instructions.
+
+	// If there is, check the token matches the potential bot
+	token, err = client.GetToken(ctx, c.tokenID)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("token with name %q not found, create the token or do not set TokenName: %v",
+				c.tokenID, err)
 		}
-		if !token.GetRoles().Include(types.RoleBot) {
-			return trace.BadParameter("token %q is not valid for role %q",
-				c.tokenID, types.RoleBot)
-		}
-		if token.GetBotName() != c.botName {
-			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				c.tokenID, token.GetBotName(), c.botName)
-		}
+		return trace.Wrap(err)
+	}
+	if !token.GetRoles().Include(types.RoleBot) {
+		return trace.BadParameter("token %q is not valid for role %q",
+			c.tokenID, types.RoleBot)
+	}
+	if token.GetBotName() != c.botName {
+		return trace.BadParameter("token %q is valid for bot with name %q, not %q",
+			c.tokenID, token.GetBotName(), c.botName)
 	}
 
 	return trace.Wrap(outputToken(c.stdout, c.format, client, bot, token))
@@ -792,10 +798,7 @@ func outputToken(wr io.Writer, format string, client *authclient.Client, bot *ma
 	if len(proxies) == 0 {
 		return trace.Errorf("bot was created but this cluster does not have any proxy servers running so unable to display success message")
 	}
-	addr := proxies[0].GetPublicAddr()
-	if addr == "" {
-		addr = proxies[0].GetAddr()
-	}
+	addr := cmp.Or(proxies[0].GetPublicAddr(), proxies[0].GetAddr())
 
 	joinMethod := token.GetJoinMethod()
 	if joinMethod == types.JoinMethodUnspecified {
@@ -860,14 +863,13 @@ func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat
 
 // parseInstanceID converts an instance ID string in the form of
 // '[bot name]/[uuid]' to separate bot name and UUID strings.
-func parseInstanceID(s string) (string, string, error) {
-	parts := strings.Split(s, "/")
-
-	if len(parts) != 2 {
+func parseInstanceID(s string) (name string, uuid string, err error) {
+	name, uuid, ok := strings.Cut(s, "/")
+	if !ok {
 		return "", "", trace.BadParameter("invalid bot instance syntax, must be: [bot name]/[uuid]")
 	}
 
-	return parts[0], parts[1], nil
+	return
 }
 
 // indentString prefixes each line (ending with \n) with the provided prefix.
