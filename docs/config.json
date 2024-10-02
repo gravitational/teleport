@@ -1389,23 +1389,13 @@
       "permanent": true
     },
     {
-      "source": "/get-started/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "permanent": true
-    },
-    {
       "source": "/database-access/guides/redis-cluster/",
       "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
       "permanent": true
     },
     {
-      "source": "/get-started/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "permanent": true
-    },
-    {
       "source": "/getting-started/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
