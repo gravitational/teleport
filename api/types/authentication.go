@@ -347,6 +347,23 @@ func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthn
 	}
 }
 
+// SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
+func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []SecondFactorType {
+	switch sf {
+	case constants.SecondFactorOff:
+		return nil
+	case constants.SecondFactorOptional, constants.SecondFactorOn:
+		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP}
+	case constants.SecondFactorOTP:
+		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
+	case constants.SecondFactorWebauthn:
+		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN}
+	default:
+		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
+		return nil
+	}
+}
+
 // SetSecondFactors sets the list of supported second factors.
 func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
 	c.Spec.SecondFactors = s

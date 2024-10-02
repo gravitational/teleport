@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -93,32 +95,23 @@ func (c *Cluster) LocalLogin(ctx context.Context, user, password, otpToken strin
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	secondFactors := pingResp.Auth.SecondFactors
 
 	c.clusterClient.AuthConnector = constants.LocalConnector
 
+	hasOTP := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebauthn := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+
 	var sshLoginFunc client.SSHLoginFunc
-	switch pingResp.Auth.SecondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		sshLoginFunc = c.localLogin(user, password, otpToken)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn:
+	switch {
+	case hasWebauthn && otpToken == "":
 		sshLoginFunc = c.localMFALogin(user, password)
-	case constants.SecondFactorOn, constants.SecondFactorOptional:
-		// tsh always uses client.SSHAgentMFALogin for any `second_factor` option other than `off` and
-		// `otp`. If it's set to `on` or `optional` and it turns out the user wants to use an OTP, it
-		// bails out to stdin to ask them for it.
-		//
-		// Connect cannot do that, but it still wants to use the auth code from lib/client that it
-		// shares with tsh. So to temporarily work around this problem, we check if the OTP token was
-		// submitted. If yes, then we use client.SSHAgentLogin, which lets us provide the token and skip
-		// asking for it over stdin. If not, we use client.SSHAgentMFALogin which should handle auth
-		// methods that don't use OTP.
-		if otpToken != "" {
-			sshLoginFunc = c.localLogin(user, password, otpToken)
-		} else {
-			sshLoginFunc = c.localMFALogin(user, password)
-		}
+	case hasOTP:
+		sshLoginFunc = c.localLogin(user, password, otpToken)
+	case len(secondFactors) == 0:
+		sshLoginFunc = c.localLogin(user, password, "" /*otpToken*/)
 	default:
-		return trace.BadParameter("unsupported second factor type: %q", pingResp.Auth.SecondFactor)
+		return trace.BadParameter("unsupported second factors: %q", secondFactors)
 	}
 
 	if err := c.login(ctx, sshLoginFunc); err != nil {

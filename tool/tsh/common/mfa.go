@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/prompt"
@@ -244,7 +243,7 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 
 		c.devType, err = prompt.PickOne(
 			ctx, os.Stdout, prompt.Stdin(),
-			"Choose device type", deviceTypesFromSecondFactor(pingResp.Auth.SecondFactor))
+			"Choose device type", deviceTypesFromSecondFactors(pingResp.Auth.SecondFactors))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -289,15 +288,18 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-func deviceTypesFromSecondFactor(sf constants.SecondFactorType) []string {
-	switch sf {
-	case constants.SecondFactorOTP:
-		return totpDeviceTypes
-	case constants.SecondFactorWebauthn:
-		return webDeviceTypes
-	default:
-		return defaultDeviceTypes
+func deviceTypesFromSecondFactors(sfs []types.SecondFactorType) []string {
+	var deviceTypes []string
+
+	if slices.Contains(sfs, types.SecondFactorType_SECOND_FACTOR_TYPE_OTP) {
+		deviceTypes = append(deviceTypes, totpDeviceTypes...)
 	}
+
+	if slices.Contains(sfs, types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN) {
+		deviceTypes = append(deviceTypes, webDeviceTypes...)
+	}
+
+	return deviceTypes
 }
 
 func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportClient) (*types.MFADevice, error) {

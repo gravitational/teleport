@@ -187,6 +187,11 @@ func Find(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(Joerger): DELETE IN v18.0.0, new server will set SecondFactors instead of SecondFactor
+	if len(pr.Auth.SecondFactors) == 0 {
+		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor)
+	}
+
 	return pr, nil
 }
 
@@ -241,6 +246,11 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
+	}
+
+	// TODO(Joerger): DELETE IN v18.0.0, new server will set SecondFactors instead of SecondFactor
+	if len(pr.Auth.SecondFactors) == 0 {
+		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor)
 	}
 
 	return pr, nil
@@ -387,10 +397,11 @@ type AuthenticationSettings struct {
 	// Type is the type of authentication, can be either local or oidc.
 	Type string `json:"type"`
 	// SecondFactor is the type of second factor to use in authentication.
+	// TODO(Joerger): DELETE IN v18.0.0 replaced by SecondFactors
 	SecondFactor constants.SecondFactorType `json:"second_factor,omitempty"`
-	// PreferredLocalMFA is a server-side hint for clients to pick an MFA method
-	// when various options are available.
-	// It is empty if there is nothing to suggest.
+	// SecondFactors is a list of supported second factors in order of preference.
+	SecondFactors []types.SecondFactorType `json:"second_factors,omitempty"`
+	// PreferredLocalMFA is the preferred MFA method from available methods.
 	PreferredLocalMFA string `json:"preferred_local_mfa,omitempty"`
 	// AllowPasswordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`

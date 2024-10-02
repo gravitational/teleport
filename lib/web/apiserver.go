@@ -1221,6 +1221,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Type:                    constants.Local,
 		SecondFactor:            cap.GetSecondFactor(),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		SecondFactors:           cap.GetSecondFactors(),
 		AllowPasswordless:       cap.GetAllowPasswordless(),
 		AllowHeadless:           cap.GetAllowHeadless(),
 		Local:                   &webclient.LocalSettings{},
@@ -1266,6 +1267,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:            cap.GetSecondFactor(),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		SecondFactors:           cap.GetSecondFactors(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		DeviceTrust:             deviceTrustSettings(cap),
@@ -1284,6 +1286,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		// Local fallback / MFA.
 		SecondFactor:            cap.GetSecondFactor(),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		SecondFactors:           cap.GetSecondFactors(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		DeviceTrust:             deviceTrustSettings(cap),
@@ -1301,6 +1304,7 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		// Local fallback / MFA.
 		SecondFactor:            cap.GetSecondFactor(),
 		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
+		SecondFactors:           cap.GetSecondFactors(),
 		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
 		PIVSlot:                 cap.GetPIVSlot(),
 		DeviceTrust:             deviceTrustSettings(cap),

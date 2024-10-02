@@ -55,6 +55,10 @@ func TestPing(t *testing.T) {
 			spec: &types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorOptional,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
 				U2F: &types.U2F{
 					AppID: "https://example.com",
 				},
@@ -64,8 +68,8 @@ func TestPing(t *testing.T) {
 			},
 			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
 				assert.Equal(t, cap.GetType(), resp.Auth.Type)
-				assert.Equal(t, cap.GetSecondFactor(), resp.Auth.SecondFactor)
-				assert.NotEmpty(t, cap.GetPreferredLocalMFA(), "preferred local MFA empty")
+				assert.Equal(t, cap.GetSecondFactors(), resp.Auth.SecondFactors)
+				assert.NotEmpty(t, resp.Auth.PreferredLocalMFA, "preferred local MFA empty")
 				assert.NotNil(t, resp.Auth.Local, "Auth.Local expected")
 
 				u2f, _ := cap.GetU2F()
@@ -244,5 +248,4 @@ func TestPing_minimalAPI(t *testing.T) {
 			require.NoError(t, resp.Body.Close())
 		})
 	}
-
 }

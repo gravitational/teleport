@@ -3531,7 +3531,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			}
 
 			return func(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
+				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactors)
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
@@ -3573,7 +3573,7 @@ func (tc *TeleportClient) getWebLoginFunc(pr *webclient.PingResponse) (WebLoginF
 			}
 
 			return func(ctx context.Context, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
-				return tc.localLoginWeb(ctx, keyRing, pr.Auth.SecondFactor)
+				return tc.localLoginWeb(ctx, keyRing, pr.Auth.SecondFactors)
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
@@ -3614,24 +3614,30 @@ func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, keyRing *KeyRing)
 }
 
 // localLoginWeb performs the mfa ceremony and then makes a request to authenticate via the web api.
-func (tc *TeleportClient) localLoginWeb(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) localLoginWeb(ctx context.Context, keyRing *KeyRing, secondFactors []types.SecondFactorType) (*WebClient, types.WebSession, error) {
 	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
 	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		clt, session, err := tc.directLoginWeb(ctx, secondFactor, keyRing)
-		return clt, session, trace.Wrap(err)
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	hasOTP := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebauthn := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+
+	switch {
+	case hasWebauthn:
 		clt, session, err := tc.mfaLocalLoginWeb(ctx, keyRing)
 		return clt, session, trace.Wrap(err)
+	case hasOTP:
+		clt, session, err := tc.directLoginWeb(ctx, keyRing, true /*withOTP*/)
+		return clt, session, trace.Wrap(err)
+	case len(secondFactors) == 0:
+		clt, session, err := tc.directLoginWeb(ctx, keyRing, false /*withOTP*/)
+		return clt, session, trace.Wrap(err)
 	default:
-		return nil, nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+		return nil, nil, trace.BadParameter("unsupported second factors: %q", secondFactors)
 	}
 }
 
 // directLoginWeb asks for a password + OTP token then makes a request to authenticate via the web api.
-func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) directLoginWeb(ctx context.Context, keyRing *KeyRing, withOTP bool) (*WebClient, types.WebSession, error) {
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -3639,7 +3645,7 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 
 	// Only ask for a second factor if it's enabled.
 	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
+	if withOTP {
 		otpToken, err = tc.AskOTP(ctx)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -3919,26 +3925,34 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, secondFactors []types.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	var err error
 	var response *authclient.SSHLoginResponse
+
+	hasOTP := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebauthn := slices.Contains(secondFactors, types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 
 	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
 	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+	switch {
+	case hasWebauthn:
 		response, err = tc.mfaLocalLogin(ctx, keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case hasOTP:
+		response, err = tc.directLogin(ctx, keyRing, true /*withOTP*/)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case len(secondFactors) == 0:
+		response, err = tc.directLogin(ctx, keyRing, false /*withOTP*/)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+		return nil, trace.BadParameter("unsupported second factors: %q", secondFactors)
 	}
 
 	// Ignore username returned from proxy
@@ -3947,7 +3961,7 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, seco
 }
 
 // directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) directLogin(ctx context.Context, keyRing *KeyRing, withOTP bool) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/directLogin",
@@ -3962,7 +3976,7 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 
 	// Only ask for a second factor if it's enabled.
 	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
+	if withOTP {
 		otpToken, err = tc.AskOTP(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
