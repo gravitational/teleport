@@ -110,9 +110,10 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if err := services.ValidateAssertionConsumerServicesEndpoint(sp.GetACSURL()); err != nil {
-		return trace.Wrap(err)
+		// logging instead of returning an error cause we do not want to break cache writes on a cluster
+		// that already has a service provider with unsupported characters/scheme in the acs_url.
+		s.log.Warn(err)
 	}
-
 	if sp.GetEntityDescriptor() == "" {
 		// fetchAndSetEntityDescriptor is expected to return error if it fails
 		// to fetch a valid entity descriptor.
@@ -126,7 +127,9 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		}
 	}
 
-	if err := s.validateEntityDescriptor(sp); err != nil {
+	// we only verify if the entity ID field in the spec matches with the entity descriptor.
+	// filtering is done only for logging purpose.
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputPermissiveFilter); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -157,10 +160,14 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	if err := services.ValidateAssertionConsumerServicesEndpoint(sp.GetACSURL()); err != nil {
-		return trace.Wrap(err)
+		// logging instead of returning an error cause we do not want to break cache writes on a cluster
+		// that already has a service provider with unsupported characters/scheme in the acs_url.
+		s.log.Warn(err)
 	}
 
-	if err := s.validateEntityDescriptor(sp); err != nil {
+	// we only verify if the entity ID field in the spec matches with the entity descriptor.
+	// filtering is done only for logging purpose.
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputPermissiveFilter); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -324,25 +331,6 @@ func (s *SAMLIdPServiceProviderService) embedAttributeMapping(sp types.SAMLIdPSe
 	}
 
 	sp.SetEntityDescriptor(string(edWithAttributes))
-	return nil
-}
-
-// validateEntityDescriptor validates entity descriptor XML, entity ID and logs unsupported ACS bindings.
-func (s *SAMLIdPServiceProviderService) validateEntityDescriptor(sp types.SAMLIdPServiceProvider) error {
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		return trace.BadParameter("invalid entity descriptor for SAML IdP Service Provider %q: %v", sp.GetEntityID(), err)
-	}
-
-	if ed.EntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
-	}
-
-	// ensure any filtering related issues get logged
-	if err := services.FilterSAMLEntityDescriptor(ed, false /* quiet */); err != nil {
-		return trace.BadParameter("Entity descriptor for SAML IdP Service Provider %q contains unsupported ACS bindings: %v", sp.GetEntityID(), err)
-	}
-
 	return nil
 }
 

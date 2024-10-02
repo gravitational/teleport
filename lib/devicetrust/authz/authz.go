@@ -15,8 +15,6 @@
 package authz
 
 import (
-	"sync"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -24,7 +22,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/devicetrust/config"
+	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -63,9 +61,7 @@ func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {
 }
 
 func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified bool) error {
-	mode := config.GetEffectiveMode(dt)
-	maybeLogModeMismatch(mode, dt)
-
+	mode := dtconfig.GetEnforcementMode(dt)
 	switch {
 	case mode != constants.DeviceTrustModeRequired:
 		return nil // OK, extensions not enforced.
@@ -77,16 +73,4 @@ func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified boo
 	default:
 		return nil
 	}
-}
-
-var logModeOnce sync.Once
-
-func maybeLogModeMismatch(effective string, dt *types.DeviceTrust) {
-	if dt == nil || dt.Mode == "" || effective == dt.Mode {
-		return
-	}
-
-	logModeOnce.Do(func() {
-		log.Warnf("Device Trust: mode %q requires Teleport Enterprise. Using effective mode %q.", dt.Mode, effective)
-	})
 }

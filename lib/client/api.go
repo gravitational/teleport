@@ -1999,8 +1999,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 		}
 	}
 
-	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
-
 	// running shell with a given session means "join" it:
 	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
