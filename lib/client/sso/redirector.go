@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -35,8 +36,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gvisor.dev/gvisor/pkg/log"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -202,7 +201,7 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 // startServer starts an http server to handle the sso client callback.
 func (rd *Redirector) startServer() error {
 	if rd.BindAddr != "" {
-		logrus.Debugf("Binding to %v.", rd.BindAddr)
+		slog.Debug("Binding to provided bind address.", "addr", rd.BindAddr)
 		listener, err := net.Listen("tcp", rd.BindAddr)
 		if err != nil {
 			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
@@ -314,22 +313,22 @@ func OpenURLInBrowser(browser string, URL string) error {
 
 // WaitForResponse waits for a response from the callback handler.
 func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLoginResponse, error) {
-	logrus.Infof("Waiting for response at: %v.", rd.server.URL)
+	slog.InfoContext(ctx, "Waiting for response", "callback url", rd.server.URL)
 	select {
 	case err := <-rd.ErrorC():
-		log.Debugf("Got an error: %v.", err)
+		slog.DebugContext(ctx, "Got an error", "err", err)
 		return nil, trace.Wrap(err)
 	case response := <-rd.ResponseC():
-		log.Debugf("Got response from browser.")
+		slog.DebugContext(ctx, "Got response from browser.")
 		return response, nil
 	case <-time.After(defaults.SSOCallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
+		slog.DebugContext(ctx, "Timed out waiting for callback", "timeout", defaults.SSOCallbackTimeout)
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
-		log.Debugf("Redirector closed")
+		slog.DebugContext(ctx, "Redirector closed")
 		return nil, trace.Errorf("redirector closed")
 	case <-ctx.Done():
-		log.Debugf("Canceled by user.")
+		slog.DebugContext(ctx, "Canceled by user.")
 		return nil, trace.Wrap(ctx.Err(), "canceled by user")
 	}
 }
