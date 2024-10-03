@@ -39,16 +39,16 @@ Additionally, this RFD parallels the auto-update functionality for client tools 
 3. We want to reduce the operational cost of customers running old agents.
    For Cloud customers, this will allow us to support fewer simultaneous cluster versions and reduce support load.
    For self-hosted customers, this will reduce support load associated with debugging old versions of Teleport.
-4. Providing 99.99% availability for customers requires us to maintain that level of availability at the agent-level
+4. Providing 99.99% availability for customers requires us to maintain high availability at the agent-level
    as well as the cluster-level.
 
 The current systemd updater does not meet those requirements:
-- Its use of package managers leads users to accidentally upgrade Teleport.
-- Its installation process is complex and users end up installing the wrong version of Teleport.
-- Its update process does not provide sufficient safeties to protect against broken updates.
-- Customers are not adopting the existing updater because they want to control when updates happen.
+- The use of package managers (apt and yum) to apply updates leads users to accidentally upgrade Teleport.
+- The installation process is complex, and users often end up installing the wrong version of Teleport.
+- The update process does not provide sufficient safeties to protect against broken agent updates.
+- Customers decline to adopt the existing updater because they want more control over when updates occur.
 - We do not offer a nice user experience for self-hosted users. This results in a marginal automatic updates
-  adoption and does not reduce the cost of upgrading self-hosted clusters.
+  adoption and does not reduce the support cost associated with upgrading self-hosted clusters.
 
 ## How
 
@@ -61,10 +61,12 @@ installed. Automatic updates will be implemented incrementally:
 - Phase 4: Add a feedback mechanism for the Teleport inventory to track the agents of each group and their update status.
 - Phase 5: Add the canary deployment strategy: a few agents are updated first, if they don't die, the whole group is updated.
 - Phase 6: Add the ability to perform slow and incremental version rollouts within an agent update group.
+- Phase 7: If needed, backup local agent DB and restore during agent rollbacks.
 
 The updater will be usable after phase 1 and will gain new capabilities after each phase.
-After phase 2, the new updater will have feature-parity with the old updater.
-The existing auto-updates mechanism will remain unchanged throughout the process, and deprecated in the future.
+After phase 2, the new updater will have feature-parity with the existing updater script.
+The existing auto-updates mechanism will remain unchanged and fully-functional throughout the process.
+It will be deprecated in the future.
 
 Future phases might change as we are working on the implementation and collecting real-world feedback and experience.
 
@@ -73,7 +75,7 @@ We will introduce two user-facing resources:
 1. The `autoupdate_config` resource, owned by the Teleport user. This resource allows Teleport users to configure:
    - Whether automatic updates are enabled, disabled, or temporarily suspended
    - The order in which agents should be updated (`dev` before `staging` before `prod`)
-   - Times when agent updates should start
+   - Days and hours when agent updates should start
    - Configuration for client auto-updates (e.g., `tsh` and `tctl`), which are out-of-scope for this RFD
    
    The resource will look like:
@@ -98,7 +100,7 @@ We will introduce two user-facing resources:
          max_in_flight: 20% # added in phase 6
    ```
 
-2. The `autoupdate_agent_plan` resource, with `spec` owned by the Teleport cluster administrator (e.g. Teleport Cloud team).
+2. The `autoupdate_agent_plan` resource, with `spec` owned by the Teleport cluster administrator (e.g. Teleport Cloud operators).
    Its `status` is owned by Teleport and contains the current rollout status. Some parts of the status can be changed via
    select RPCs (for example, an RPC to fast-track a group update).
    ```yaml
