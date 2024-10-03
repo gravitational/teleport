@@ -10,6 +10,7 @@ The Teleport team delivers a new major release roughly every 4 months.
 | Version | Date               |
 |---------|--------------------|
 | 17.0.0  | October 31, 2024   |
+| 17.1.0  | November 30, 2024  |
 
 ### 17.0.0
 
@@ -45,36 +46,45 @@ members in other Access Lists.
 
 *Delayed from Teleport 16.2.0.*
 
-#### Datadog plugin
+#### Signed and notarized macOS assets
 
-TODO(r0mant)
+macOS teleport.pkg installer will include signed and notarized `tsh.app` and `tctl.app`
+so downloading a separate tsh.pkg to use Touch ID will no longer be necessary.
 
-#### Hosted MS Teams Plugins
+In addition, Teleport 17 event-handler and Terraform provider for macOS will also be
+signed and notarized.
 
-TODO(r0mant)
+#### Datadog Incident Management plugin for access requests
 
-#### Signed and noterized assets
+Teleport will support PagerDuty-like integration with Datadog's on-call and incident APIs
+for access request notifications.
 
-TODO(r0mant)
+#### Hosted Microsoft Teams plugin for access requests
+
+Users will be able to setup Microsoft Teams integration for access request notifications
+using Teleport web UI without needing to self-host the plugin.
 
 ### 17.1.0
 
-#### GitHub Proxy
+#### Github access
 
-TODO(r0mant)
+Teleport will natively support Github access allowing users to transparently interact with
+Github with RBAC and audit logging support.
 
 #### Per-session MFA via IdP
 
 Teleport users will be able to satisfy per-session MFA checks by authenticating with an external
 identity provider as an alternative to using second factors registered with Teleport.
 
-#### Database access for Postgres via Web UI
+#### Database access for PostgreSQL via web UI
 
-TODO(r0mant)
+Database access users will be able to connect to PostgreSQL databases connected to Teleport right
+from the web UI and use psql-style interface to query the database.
 
-#### Hosted email plugin
+#### Hosted email plugin for access requests
 
-TODO(r0mant)
+Users will be able to setup Mailgun or generic SMTP server for access request notifications
+using Teleport web UI without needing to self-host the email plugin.
 
 ## Teleport Policy
 
