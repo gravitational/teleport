@@ -24,6 +24,8 @@ import { P } from 'design/Text/Text';
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;
   $exists?: boolean;
+  $width?: number;
+  $height?: number;
 }>`
   color: inherit;
   text-decoration: none;
@@ -33,8 +35,8 @@ export const IntegrationTile = styled(Flex)<{
   position: relative;
   border-radius: 4px;
   padding: 15px 10px 6px 10px;
-  height: 170px;
-  width: 170px;
+  height:   height: ${({ $height }) => $height || 170}px;
+  width: width: ${({ $width }) => $width || 170}px;;
   background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
   cursor: ${({ disabled, $exists }) =>
