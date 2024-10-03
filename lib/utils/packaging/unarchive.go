@@ -102,21 +102,22 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer destFile.Close()
 
 		if _, err := io.Copy(destFile, file); err != nil {
-			_ = destFile.Close()
 			return trace.Wrap(err)
 		}
 		appPath := filepath.Join(toolsDir, zipFile.Name)
 		if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-			_ = destFile.Close()
 			return trace.Wrap(err)
 		}
 		if err := os.Symlink(dest, appPath); err != nil {
-			_ = destFile.Close()
 			return trace.Wrap(err)
 		}
 		if err := destFile.Close(); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := file.Close(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
