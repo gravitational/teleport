@@ -28,6 +28,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestPackaging verifies unarchiving of all supported teleport package formats.
@@ -47,16 +49,18 @@ func TestPackaging(t *testing.T) {
 
 	// Create test script for packaging.
 	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tsh"), []byte(script), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "tctl"), []byte(script), 0o755))
 
 	t.Run("tar.gz", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.tar.gz")
-		err = GenerateTarGzFile(sourceDir, archivePath)
+		err = utils.CompressDirToTarGzFile(sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceTarGz(toolsDir, archivePath, []string{"tsh"})
+		err = replaceTarGz(toolsDir, archivePath, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)
@@ -68,13 +72,14 @@ func TestPackaging(t *testing.T) {
 			t.Skip("unsupported platform")
 		}
 		archivePath := filepath.Join(toolsDir, "tsh.pkg")
-		err = GeneratePkgFile(sourceDir, archivePath, "com.example.pkgtest")
+		err = utils.CompressDirToPkgFile(sourceDir, archivePath, "com.example.pkgtest")
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replacePkg(toolsDir, archivePath, "hash", []string{"tsh"})
+		err = replacePkg(toolsDir, archivePath, "hash", []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)
@@ -83,13 +88,14 @@ func TestPackaging(t *testing.T) {
 
 	t.Run("zip", func(t *testing.T) {
 		archivePath := filepath.Join(toolsDir, "tsh.zip")
-		err = GenerateZipFile(sourceDir, archivePath)
+		err = utils.CompressDirToZipFile(sourceDir, archivePath)
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceZip(toolsDir, archivePath, "hash", []string{"tsh"})
+		err = replaceZip(toolsDir, archivePath, "hash", []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
+		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
 
 		data, err := os.ReadFile(filepath.Join(toolsDir, "tsh"))
 		require.NoError(t, err)

@@ -27,6 +27,8 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -62,20 +64,18 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	addCloser, wrapClose := multiCloser()
-	addCloser(f.Close)
 
 	fi, err := f.Stat()
 	if err != nil {
-		return wrapClose(err)
+		return trace.NewAggregate(err, f.Close())
 	}
 	zipReader, err := zip.NewReader(f, fi.Size())
 	if err != nil {
-		return wrapClose(err)
+		return trace.NewAggregate(err, f.Close())
 	}
 	tempDir, err := os.MkdirTemp(toolsDir, hash)
 	if err != nil {
-		return wrapClose(err)
+		return trace.NewAggregate(err, f.Close())
 	}
 
 	for _, zipFile := range zipReader.File {
@@ -85,43 +85,43 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 		}) {
 			continue
 		}
-
 		// Verify that we have enough space for uncompressed zipFile.
 		if err := checkFreeSpace(tempDir, zipFile.UncompressedSize64); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, f.Close())
 		}
 
 		file, err := zipFile.Open()
 		if err != nil {
-			return wrapClose(err)
+			return trace.Wrap(err)
 		}
-		addCloser(file.Close)
 
 		dest := filepath.Join(tempDir, zipFile.Name)
 		destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, file.Close(), f.Close())
 		}
-		addCloser(destFile.Close)
 
 		if _, err := io.Copy(destFile, file); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
 		}
 		appPath := filepath.Join(toolsDir, zipFile.Name)
 		if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-			return wrapClose(err)
+			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
 		}
 		if err := os.Symlink(dest, appPath); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
+		}
+		if err := trace.NewAggregate(destFile.Close(), file.Close()); err != nil {
+			return trace.NewAggregate(err, f.Close())
 		}
 	}
 
-	return wrapClose()
+	return trace.Wrap(f.Close())
 }
 
 // checkFreeSpace verifies that we have enough requested space at specific directory.
 func checkFreeSpace(path string, requested uint64) error {
-	free, err := freeDiskWithReserve(path)
+	free, err := utils.FreeDiskWithReserve(path, reservedFreeDisk)
 	if err != nil {
 		return trace.Errorf("failed to calculate free disk in %q: %v", path, err)
 	}
@@ -131,21 +131,4 @@ func checkFreeSpace(path string, requested uint64) error {
 	}
 
 	return nil
-}
-
-// multiCloser creates functions for aggregating closing functions with reverse call
-// and aggregating received error messages.
-func multiCloser() (func(c func() error), func(errors ...error) error) {
-	var closers []func() error
-	return func(c func() error) {
-			closers = append(closers, c)
-		}, func(errors ...error) error {
-			closeErrors := make([]error, 0, len(closers))
-			for i := len(closers) - 1; i >= 0; i-- {
-				if err := closers[i](); err != nil {
-					closeErrors = append(closeErrors, err)
-				}
-			}
-			return trace.NewAggregate(append(errors, closeErrors...)...)
-		}
 }

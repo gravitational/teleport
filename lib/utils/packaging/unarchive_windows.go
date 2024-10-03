@@ -20,25 +20,7 @@
 
 package packaging
 
-import (
-	"github.com/gravitational/trace"
-	"golang.org/x/sys/windows"
-)
-
 // Replace un-archives package from tools directory and replaces defined apps by symlinks.
 func Replace(toolsDir string, archivePath string, hash string, apps []string) error {
 	return replaceZip(toolsDir, archivePath, hash, apps)
-}
-
-// freeDiskWithReserve returns the available disk space.
-func freeDiskWithReserve(dir string) (uint64, error) {
-	var avail uint64
-	err := windows.GetDiskFreeSpaceEx(windows.StringToUTF16Ptr(dir), &avail, nil, nil)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if reservedFreeDisk > avail {
-		return 0, trace.Errorf("no free space left")
-	}
-	return avail - reservedFreeDisk, nil
 }

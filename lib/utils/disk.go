@@ -31,6 +31,7 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/unix"
 )
 
 // PercentUsed returns percentage of disk space used. The percentage of disk
@@ -124,4 +125,21 @@ func CanUserWriteTo(path string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// FreeDiskWithReserve returns the available disk space.
+func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
+	var stat unix.Statfs_t
+	err := unix.Statfs(dir, &stat)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if stat.Bsize < 0 {
+		return 0, trace.Errorf("invalid size")
+	}
+	avail := stat.Bavail * uint64(stat.Bsize)
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }

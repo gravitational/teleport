@@ -36,7 +36,6 @@ import (
 
 	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
-	"golang.org/x/sys/unix"
 )
 
 // Replace un-archives package from tools directory and replaces defined apps by symlinks.
@@ -55,12 +54,10 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	addCloser, wrapClose := multiCloser()
-	addCloser(f.Close)
 
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		return wrapClose(err)
+		return trace.NewAggregate(err, f.Close())
 	}
 
 	tarReader := tar.NewReader(gzipReader)
@@ -78,31 +75,32 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 			}
 			continue
 		}
-
 		// Verify that we have enough space for uncompressed file.
 		if err := checkFreeSpace(tempDir, uint64(header.Size)); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, gzipReader.Close(), f.Close())
 		}
 
 		dest := filepath.Join(toolsDir, strings.TrimPrefix(header.Name, "teleport/"))
 		t, err := renameio.TempFile(tempDir, dest)
 		if err != nil {
-			return wrapClose(err)
+			return trace.Wrap(err)
 		}
 		if err := os.Chmod(t.Name(), 0o755); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
 		}
-		addCloser(t.Cleanup)
 
 		if _, err := io.Copy(t, tarReader); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
 		}
 		if err := t.CloseAtomicallyReplace(); err != nil {
-			return wrapClose(err)
+			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
+		}
+		if err := t.Cleanup(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return wrapClose()
+	return trace.NewAggregate(gzipReader.Close(), f.Close())
 }
 
 func replacePkg(toolsDir string, archivePath string, hash string, apps []string) error {
@@ -165,21 +163,4 @@ func replacePkg(toolsDir string, archivePath string, hash string, apps []string)
 	})
 
 	return trace.Wrap(err)
-}
-
-// freeDiskWithReserve returns the available disk space.
-func freeDiskWithReserve(dir string) (uint64, error) {
-	var stat unix.Statfs_t
-	err := unix.Statfs(dir, &stat)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if stat.Bsize < 0 {
-		return 0, trace.Errorf("invalid size")
-	}
-	avail := stat.Bavail * uint64(stat.Bsize)
-	if reservedFreeDisk > avail {
-		return 0, trace.Errorf("no free space left")
-	}
-	return avail - reservedFreeDisk, nil
 }
