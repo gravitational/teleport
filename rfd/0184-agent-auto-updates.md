@@ -221,12 +221,9 @@ tctl autoupdate agent status
 
 I run
 ```bash
-tctl autoupdate agent new-rollout v3
+tctl autoupdate agent-plan new-target v3
 # created new rollout from v2 to v3
 ```
-
-[TODO(sclevine): What about `update` or `target` instead of `new-rollout`?
-  `new-rollout` seems like we're creating a new resource, not changing target version.]
 
 <details>
 <summary>After</summary>
@@ -240,8 +237,8 @@ tctl autoupdate agent status
 # 
 # Group Name   Status              Update Start Time   Connected Agents   Up-to-date agents   failed updates
 # ----------   -----------------   -----------------   ----------------   -----------------   --------------
-# dev          not started                             120                115                 2
-# staging      not started                             20                 20                  0
+# dev          not started                             120                0                   0
+# staging      not started                             20                 0                   0
 # prod         not started                             234                0                   0
 ```
 
@@ -256,7 +253,7 @@ Now, new agents will install v2 by default, and v3 after the maintenance.
 > If this is an issue I can create a v1 -> v3 rollout instead.
 > 
 > ```bash
-> tctl autoupdate agent new-rollout v3 --current-version v1
+> tctl autoupdate agent-plan new-target v3 --previous-version v1
 > # created new update plan from v1 to v3
 > ```
 
@@ -1101,7 +1098,27 @@ The phase 6 backpressure calculations are covered in the Backpressure Calculatio
 
 ### Manually interacting with the rollout
 
-[TODO add cli commands]
+For user:
+```shell
+tctl autoupdate agent suspend/resume
+tctl autoupdate agent enable/disable
+
+tctl autoupdate agent status
+tctl autoupdate agent status <group>
+
+tctl autoupdate agent start <group> [--no-canary]
+tctl autoupdate agent force <group>
+tctl autoupdate agent reset <group>
+
+tctl autoupdate agent rollback [<group>|--all]
+```
+
+For admin
+```shell
+tctl autoupdate agent-plan target <v3> [--previous-version <v1>]
+tctl autoupdate agent-plan enable/disable
+tctl autoupdate agent-plan suspend/resume
+```
 
 ### Editing the plan
 
@@ -1194,16 +1211,27 @@ Let `v1` be the previous version and `v2` the target version, the response matri
 
 #### Updater status reporting
 
-Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
+The updater reports status through the agent. The agent has two ways of reporting the update information:
+- via instance heartbeats
+- via the hello message, when registering against an auth server
 
-The following data related to the rollout are stored in each instance heartbeat:
+Instance heartbeat happen infrequently, based on the cluster size they can take up to 17 minutes to happen.
+However, they are exposed to the user via existing `tctl inventory` method and will allow users to query which instance
+is running which version and belongs to which group.
+
+Hello messages are sent on connection and are used to build the serve's local inventory.
+This information is available almost instantaneously after the connection and can be cheaply queried by the auth (
+everything is in memory). The inventory is then used to count the local nodes and drive the rollout.
+
+Both instance heartbeats and Hello merssages will be extended to incorporate and send data that is written to
+`/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
+
+The following data related to the update is sent by the agent:
 - `agent_update_start_time`: timestamp of individual agent's upgrade time
 - `agent_update_start_version`: current agent version
 - `agent_update_rollback`: whether the agent was rolled-back automatically
 - `agent_update_uuid`: Auto-update UUID
 - `agent_update_group`: Auto-update group name
-
-[TODO: mention that we'll also send this info in the hello and store it in the auth inventory]
 
 Auth servers use their local instance inventory to calculate rollout statistics and write them to `/autoupdate/[group]/[auth ID]` (e.g., `/autoupdate/staging/58526ba2-c12d-4a49-b5a4-1b694b82bf56`).
 
