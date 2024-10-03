@@ -13,28 +13,12 @@ Teleport encourages users to practice defense in depth so that every component o
 - [Set up your RBAC without admin roles](#set-up-your-rbac-without-admin-roles)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Make MFA mandatory for `tsh login`
+## Use MFA for local user authentication
 
-If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`.
+For local users Teleport requires using a MFA device or One-time password (OTP) when they register their user. An OTP is considered a less secure option
+as they are easier to copy and not physical devices.  With MFA Teleport allows for further options of allowing or denying device models. 
 
-Teleport lets you set the type of MFA device required when they create an account, and to authenticate using that device when they begin a new Teleport session.
-
-To do so, make the following changes depending on your environment:
-
-<Tabs>
-<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
-
-Ensure that the value of `auth_service.authentication.second_factor` is `otp`,
-`webauthn`, or `on`:
-
-```yaml
-auth_service:
-  authentication:
-    second_factor: webauthn
-```
-
-</TabItem>
-<TabItem label="Cloud-Hosted" scope={["cloud","team"]}>
+To set MFA as the required option, make the following changes depending on your environment:
 
 Obtain your existing `cluster_auth_preference` resource:
 
@@ -51,7 +35,7 @@ version: v2
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: "otp"
+  second_factor: "webauthn"
 ```
 
 Apply your change:
@@ -59,20 +43,6 @@ Apply your change:
 ```code
 $ tctl create -f cap.yaml
 ```
-
-</TabItem>
-</Tabs>
-
-The `second_factor` options are:
-
-- `otp`
-- `webauthn`
-- `on`
-
-Choose `on` if you would like to let them choose an OTP or WebAuthn device. The other options restrict users to a single type of MFA device, which is useful for enforcing a particular standard of security. Once you start the Teleport Auth Service with the `second_factor` configuration option set to one of these values, Teleport will mandate MFA by:
-
-- Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
-- Presenting the user with an MFA challenge when they run `tsh login`.
 
 If you have enabled SSO in your Teleport environment, MFA challenges at login only apply for local users, but the IdP may apply its own MFA checks.
 
