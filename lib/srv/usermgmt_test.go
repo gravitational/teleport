@@ -228,8 +228,8 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	// https://glucn.com/posts/2019-05-20-golang-an-interface-holding-a-nil-value-is-not-nil
 	require.NotEqual(t, nil, closer, "user closer was nil")
 
-	// temproary users must always include the teleport-service group
-	require.Equal(t, []string{
+	// temporary users must always include the teleport-service group
+	require.ElementsMatch(t, []string{
 		"hello", "sudo", types.TeleportDropGroup,
 	}, backend.users["bob"])
 
@@ -716,4 +716,206 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	assert.Contains(t, err.Error(), "conflicts with an existing group")
 	assert.Equal(t, nil, closer)
 	assert.Zero(t, backend.setUserGroupsCalls)
+}
+
+func TestHostUsersResolveGroups(t *testing.T) {
+	cases := []struct {
+		name string
+
+		hostUser *HostUser
+		ui       services.HostUsersInfo
+
+		expectGroups []string
+		expectErr    error
+	}{
+		{
+			name: "create drop user",
+
+			hostUser: nil,
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"foo", "bar"},
+			},
+
+			expectGroups: []string{"foo", "bar", types.TeleportDropGroup},
+		},
+		{
+			name: "create keep user",
+
+			hostUser: nil,
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				Groups: []string{"foo", "bar"},
+			},
+
+			expectGroups: []string{"foo", "bar", types.TeleportKeepGroup},
+		},
+		{
+			name: "update drop user",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportDropGroup},
+		},
+		{
+			name: "update keep user",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportKeepGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "convert drop to keep",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "convert keep to drop",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportKeepGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportDropGroup},
+		},
+		{
+			name: "don't update unmanaged user in drop mode",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"baz", "qux", types.TeleportDropGroup}, // including TeleportDropGroup to ensure no-op
+			},
+
+			expectGroups: nil,
+			expectErr:    unmanagedUserErr,
+		},
+		{
+			name: "don't update unmanaged user in keep mode",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				Groups: []string{"baz", "qux"},
+			},
+
+			expectGroups: nil,
+			expectErr:    unmanagedUserErr,
+		},
+		{
+			name: "take over unmanaged user in keep mode when migrating",
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo": {},
+					"bar": {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+				Groups: []string{"baz", "qux", types.TeleportKeepGroup},
+			},
+
+			expectGroups: []string{"baz", "qux", types.TeleportKeepGroup},
+		},
+		{
+			name: "ignore explicitly configured teleport system groups",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"baz", types.TeleportKeepGroup, types.TeleportDropGroup},
+			},
+
+			expectGroups: []string{"baz", types.TeleportDropGroup},
+		},
+		{
+			name: "return no groups if no change is necessary",
+
+			hostUser: &HostUser{
+				Groups: map[string]struct{}{
+					"foo":                   {},
+					"bar":                   {},
+					types.TeleportDropGroup: {},
+				},
+			},
+			ui: services.HostUsersInfo{
+				Mode:   types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP,
+				Groups: []string{"foo", "bar", types.TeleportDropGroup},
+			},
+
+			expectGroups: nil,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			log := utils.NewSlogLoggerForTests()
+			groups, err := ResolveGroups(log, c.hostUser, c.ui)
+			if c.expectErr == nil {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, c.expectErr)
+			}
+
+			if c.expectGroups == nil {
+				assert.Equal(t, c.expectGroups, groups)
+			} else {
+				assert.ElementsMatch(t, c.expectGroups, groups)
+			}
+		})
+	}
 }
