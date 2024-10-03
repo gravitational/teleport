@@ -195,8 +195,8 @@ func TestDynamicClientReuse(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
@@ -537,6 +537,16 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 			wantFn: func(t *testing.T, alog events.AuditLogger) {
 				v, ok := alog.(*athena.Log)
 				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name:          "valid athena config with disabled consumer",
+			uris:          []string{sampleAthenaURI + "&consumerDisabled=true"},
+			externalAudit: externalAuditStorageDisabled,
+			wantFn: func(t *testing.T, alog events.AuditLogger) {
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+				require.True(t, v.IsConsumerDisabled(), "consumer is not disabled")
 			},
 		},
 		{
@@ -1302,12 +1312,13 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 	// Secure gRPC server.
 	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
-		limiter:     limiter,
-		conn:        testConnector,
-		listener:    secureListener,
-		accessPoint: testConnector.Client,
-		lockWatcher: proxyLockWatcher,
-		emitter:     testConnector.Client,
+		limiter:       limiter,
+		conn:          testConnector,
+		listener:      secureListener,
+		kubeProxyAddr: utils.FromAddr(secureListener.Addr()),
+		accessPoint:   testConnector.Client,
+		lockWatcher:   proxyLockWatcher,
+		emitter:       testConnector.Client,
 	})
 	require.NoError(t, err)
 	t.Cleanup(secureGRPC.GracefulStop)

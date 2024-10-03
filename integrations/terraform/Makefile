@@ -106,16 +106,35 @@ endif
 		--terraform_out=config=protoc-gen-terraform-accessmonitoringrules.yaml:./tfschema \
 		teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
+		teleport/userprovisioning/v2/statichostuser.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
 
-.PHONY: release
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport
 ifeq ($(OS)-$(ARCH),darwin-universal)
-release: build-darwin-universal
+darwin-signed-build: build-darwin-universal
+else
+darwin-signed-build: build
+endif
+	$(NOTARIZE_BINARIES)
+
+.PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
 else
 release: build
 endif

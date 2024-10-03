@@ -1,7 +1,7 @@
 ---
-title: Access GCP Web Console and API with a federated authentication.
-description: Manage Google Cloud Platform (GCP) web console access with Teleport SAMl IdP.
-h1: GCP Workforce Identity Federation with Teleport SAML IdP.
+title: Access GCP Web Console and API with federated authentication
+description: Manage Google Cloud Platform (GCP) web console access with Teleport SAML IdP.
+h1: GCP Workforce Identity Federation with Teleport SAML IdP
 ---
 
 GCP Workforce Identity Federation enables provisioning access to GCP web console and APIs
@@ -201,7 +201,8 @@ First, create a workforce pool.
 gcloud iam workforce-pools create <pool_name> \
       --display-name=<pool_name> \
       --organization=<gcp_organization_id> \
-      --description="Teleport workforce pool"
+      --description="Teleport workforce pool" \
+      --location=global
 ```
 
 Next, download Teleport SAML IdP metadata file.
@@ -215,7 +216,7 @@ gcloud iam workforce-pools providers create-saml <pool_provider_name> \
       --workforce-pool=<pool_name> \
       --display-name=<pool_provider_name> \
       --description="Teleport workforce identity provider" \
-      --idp-metadata-path=teleport-samlidp-metadata.xml" \
+      --idp-metadata-path=./teleport-samlidp-metadata.xml \
       --attribute-mapping="google.subject=assertion.subject,google.groups=assertion.attributes.roles" \
       --location=global
 ```

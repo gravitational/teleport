@@ -3523,6 +3523,9 @@ message UserStatusV2 {
   // perform any password-related activity since then. See RFD 0159 for
   // details. Do NOT use this value for authentication purposes!
   PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+  // mfa_weakest_device reflects what the system knows about the user's weakest MFA device.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED.
+  MFADeviceKind mfa_weakest_device = 2 [(gogoproto.jsontag) = "mfa_weakest_device,omitempty"];
 }
 
 // PasswordState indicates what is known about existence of user's password.
@@ -3533,6 +3536,18 @@ enum PasswordState {
   PASSWORD_STATE_UNSET = 1;
   // Password is known to be configured.
   PASSWORD_STATE_SET = 2;
+}
+
+// MFADeviceKind indicates what is known about existence of user's MFA device.
+enum MFADeviceKind {
+  // Unable to tell whether the MFA device has been configured.
+  MFA_DEVICE_KIND_UNSPECIFIED = 0;
+  // MFA device is known to be not configured.
+  MFA_DEVICE_KIND_UNSET = 1;
+  // MFA device is known to be configured using TOTP as the weakest form of MFA.
+  MFA_DEVICE_KIND_TOTP = 2;
+  // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
+  MFA_DEVICE_KIND_WEBAUTHN = 3;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -4536,6 +4551,8 @@ message OIDCConnectorSpecV3 {
   // ClientRedirectSettings defines which client redirect URLs are allowed for
   // non-browser SSO logins other than the standard localhost ones.
   SSOClientRedirectSettings ClientRedirectSettings = 18 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  OIDCConnectorMFASettings MFASettings = 19 [(gogoproto.jsontag) = "mfa,omitempty"];
 }
 
 // MaxAge allows the max_age parameter to be nullable to preserve backwards
@@ -4554,6 +4571,23 @@ message SSOClientRedirectSettings {
   repeated string allowed_https_hostnames = 1;
   // a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
   repeated string insecure_allowed_cidr_ranges = 2;
+}
+
+// OIDCConnectorMFASettings contains OIDC MFA settings.
+message OIDCConnectorMFASettings {
+  // Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // ClientID is the OIDC OAuth app client ID.
+  string client_id = 2;
+  // ClientSecret is the OIDC OAuth app client secret.
+  string client_secret = 3;
+  // AcrValues are Authentication Context Class Reference values. The meaning of the ACR
+  // value is context-specific and varies for identity providers. Some identity providers
+  // support MFA specific contexts, such Okta with its "phr" (phishing-resistant) ACR.
+  string acr_values = 4;
+  // Prompt is an optional OIDC prompt. An empty string omits prompt.
+  // If not specified, it defaults to select_account for backwards compatibility.
+  string prompt = 5;
 }
 
 // OIDCAuthRequest is a request to authenticate with OIDC
@@ -4728,6 +4762,19 @@ message SAMLConnectorSpecV2 {
   SSOClientRedirectSettings ClientRedirectSettings = 15 [(gogoproto.jsontag) = "client_redirect_settings,omitempty"];
   // SingleLogoutURL is the SAML Single log-out URL to initiate SAML SLO (single log-out). If this is not provided, SLO is disabled.
   string SingleLogoutURL = 16 [(gogoproto.jsontag) = "single_logout_url,omitempty"];
+  // MFASettings contains settings to enable SSO MFA checks through this auth connector.
+  SAMLConnectorMFASettings MFASettings = 17 [(gogoproto.jsontag) = "mfa,omitempty"];
+}
+
+// SAMLConnectorMFASettings contains SAML MFA settings.
+message SAMLConnectorMFASettings {
+  // Enabled specified whether this SAML connector supports MFA checks. Defaults to false.
+  bool enabled = 1;
+  // EntityDescriptor is XML with descriptor. It can be used to supply configuration
+  // parameters in one XML file rather than supplying them in the individual elements.
+  string entity_descriptor = 2;
+  // EntityDescriptorUrl is a URL that supplies a configuration XML.
+  string entity_descriptor_url = 3;
 }
 
 // SAMLAuthRequest is a request to authenticate with SAML
@@ -6090,6 +6137,8 @@ message PluginSpecV1 {
     PluginEntraIDSettings entra_id = 13;
     // Settings for the SCIM plugin
     PluginSCIMSettings scim = 14;
+    // Settings for the Datadog Incident Management plugin
+    PluginDatadogAccessSettings datadog = 15;
   }
 
   // generation contains a unique ID that should:
@@ -6262,6 +6311,11 @@ message PluginOktaSyncSettings {
   // as a gateway to interact with Okta for SAML login, SCIM provisioning and user
   // sync. May be missing for old Okta integration installs.
   string app_name = 8;
+
+  // DisableSyncAppGroups disables syncing of app groups from Okta.
+  // This is useful when the app groups are not needed in Teleport.
+  // and integration with Okta is only used for user sync.
+  bool disable_sync_app_groups = 9;
 }
 
 // Defines a set of discord channel IDs
@@ -6338,6 +6392,16 @@ message PluginSCIMSettings {
   // DefaultRole is the default role assigned to users provisioned by this
   // plugin.
   string default_role = 2;
+}
+
+// PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
+message PluginDatadogAccessSettings {
+  option (gogoproto.equal) = true;
+
+  // ApiEndpoint is the Datadog API endpoint.
+  string api_endpoint = 1;
+  // FallbackRecipient specifies the default recipient.
+  string fallback_recipient = 2;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -6705,6 +6769,17 @@ message SAMLIdPServiceProviderSpecV1 {
   // The value can contain service provider specific redirect URL, static state token etc.
   // The value is only applied in the IdP initiated SSO flow.
   string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
+  // LaunchURLs is used to configure custom landing URLs for service provider. It is useful in
+  // the following scenarios:
+  // 1. If a service provider does not support IdP initiated authentication, launch url can be
+  //    configured to launch users directly into the service provider authentication endpoint.
+  // 2. If a service provider does support IdP initiated authentication, it can be useful if
+  //    that service provider acts as a master authentication service provider for internal services.
+  //    In such case, Teleport administrator can configure launch URL, that lets user pick a specific
+  //    internal service URL from the Log In tile in the UI, which would take them to that particular
+  //    service for authentication instead of directly launching to the master service provider.
+  // Each launch URL value must be an HTTPs endpoint.
+  repeated string LaunchURLs = 7 [(gogoproto.jsontag) = "launch_urls"];
 }
 
 // SAMLAttributeMapping represents SAML service provider requested attribute

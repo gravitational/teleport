@@ -24,7 +24,6 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -136,7 +135,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			for _, ca := range condacts {
 				keys = append(keys, ca.Key)
 			}
-			log.Errorf("AtomicWrite failed, firestore experienced too many txn rollbacks. keys=%s", bytes.Join(keys, []byte(",")))
+			b.logger.ErrorContext(ctx, "AtomicWrite failed, firestore experienced too many txn rollbacks.", "keys", bytes.Join(keys, []byte(",")))
 			// RunTransaction does not officially document what error is returned if MaxAttempts is exceeded,
 			// but as currently implemented it should simply bubble up the Aborted error from the most recent
 			// failed commit attempt.
@@ -153,7 +152,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	if n > 2 {
 		// if we retried more than once, txn experienced non-trivial contention and we should warn about it. Infrequent warnings of this kind
 		// are nothing to be concerned about, but high volumes may indicate than an automatic process is creating excessive conflicts.
-		log.Warnf("AtomicWrite retried %d times due to firestore txn rollbacks. Some rollbacks are expected, but persistent rollback warnings may indicate an unhealthy state.", n)
+		b.logger.WarnContext(ctx, "AtomicWrite retried due to firestore txn rollbacks. Some rollbacks are expected, but persistent rollback warnings may indicate an unhealthy state.", "retry_attempts", n)
 	}
 
 	// atomic writes don't have a meaningful concept of revision outside of put operations

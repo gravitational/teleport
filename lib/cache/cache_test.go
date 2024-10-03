@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -51,8 +52,10 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	update "github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
@@ -61,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/types/userprovisioning"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -120,6 +124,7 @@ type testPack struct {
 	userGroups              services.UserGroups
 	okta                    services.Okta
 	integrations            services.Integrations
+	userTasks               services.UserTasks
 	discoveryConfigs        services.DiscoveryConfigs
 	userLoginStates         services.UserLoginStates
 	secReports              services.SecReports
@@ -131,6 +136,7 @@ type testPack struct {
 	databaseObjects         services.DatabaseObjects
 	spiffeFederations       *local.SPIFFEFederationService
 	staticHostUsers         services.StaticHostUser
+	autoUpdateService       services.AutoUpdateService
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -255,7 +261,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	idService := local.NewTestIdentityService(p.backend)
+	idService, err := local.NewTestIdentityService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
@@ -295,6 +304,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 	p.integrations = igSvc
+
+	userTasksSvc, err := local.NewUserTasksService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.userTasks = userTasksSvc
 
 	dcSvc, err := local.NewDiscoveryConfigService(p.backend)
 	if err != nil {
@@ -360,6 +375,11 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.staticHostUsers = staticHostUserService
 
+	p.autoUpdateService, err = local.NewAutoUpdateService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return p, nil
 }
 
@@ -397,6 +417,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -408,6 +429,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SPIFFEFederations:       p.spiffeFederations,
 		DatabaseObjects:         p.databaseObjects,
 		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -803,6 +825,7 @@ func TestCompletenessInit(t *testing.T) {
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
 			Integrations:            p.integrations,
+			UserTasks:               p.userTasks,
 			DiscoveryConfigs:        p.discoveryConfigs,
 			UserLoginStates:         p.userLoginStates,
 			SecReports:              p.secReports,
@@ -814,6 +837,7 @@ func TestCompletenessInit(t *testing.T) {
 			DatabaseObjects:         p.databaseObjects,
 			SPIFFEFederations:       p.spiffeFederations,
 			StaticHostUsers:         p.staticHostUsers,
+			AutoUpdateService:       p.autoUpdateService,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -882,6 +906,7 @@ func TestCompletenessReset(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -893,6 +918,7 @@ func TestCompletenessReset(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1087,6 +1113,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -1098,6 +1125,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -1177,6 +1205,7 @@ func initStrategy(t *testing.T) {
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
 		Integrations:            p.integrations,
+		UserTasks:               p.userTasks,
 		DiscoveryConfigs:        p.discoveryConfigs,
 		UserLoginStates:         p.userLoginStates,
 		SecReports:              p.secReports,
@@ -1188,6 +1217,7 @@ func initStrategy(t *testing.T) {
 		DatabaseObjects:         p.databaseObjects,
 		SPIFFEFederations:       p.spiffeFederations,
 		StaticHostUsers:         p.staticHostUsers,
+		AutoUpdateService:       p.autoUpdateService,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1625,32 +1655,6 @@ func TestRoles(t *testing.T) {
 		},
 		deleteAll: func(ctx context.Context) error {
 			return p.accessS.DeleteAllRoles(ctx)
-		},
-	})
-}
-
-// TestReverseTunnels tests reverse tunnels caching
-func TestReverseTunnels(t *testing.T) {
-	t.Parallel()
-
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.ReverseTunnel]{
-		newResource: func(name string) (types.ReverseTunnel, error) {
-			return types.NewReverseTunnel(name, []string{"example.com:2023"})
-		},
-		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.presenceS.GetReverseTunnels(ctx)
-		},
-		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
-			return p.cache.GetReverseTunnels(ctx)
-		},
-		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
-		deleteAll: func(ctx context.Context) error {
-			return p.presenceS.DeleteAllReverseTunnels()
 		},
 	})
 }
@@ -2262,6 +2266,52 @@ func TestIntegrations(t *testing.T) {
 	})
 }
 
+// TestUserTasks tests that CRUD operations on user notification resources are
+// replicated from the backend to the cache.
+func TestUserTasks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
+		newResource: func(name string) (*usertasksv1.UserTask, error) {
+			return newUserTasks(t, name), nil
+		},
+		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
+			_, err := p.userTasks.CreateUserTask(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*usertasksv1.UserTask, error) {
+			items, _, err := p.userTasks.ListUserTasks(ctx, 0, "")
+			return items, trace.Wrap(err)
+		},
+		deleteAll: p.userTasks.DeleteAllUserTasks,
+	})
+}
+
+func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
+	t.Helper()
+
+	return &usertasksv1.UserTask{
+		Kind:    types.KindUserTask,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: &usertasksv1.UserTaskSpec{
+			Integration: "my-integration",
+			TaskType:    usertasks.TaskTypeDiscoverEC2,
+			IssueType:   "my-issue-type",
+			DiscoverEc2: &usertasksv1.DiscoverEC2{},
+		},
+	}
+}
+
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
 // replicated from the backend to the cache.
 func TestDiscoveryConfig(t *testing.T) {
@@ -2657,6 +2707,78 @@ func TestDatabaseObjects(t *testing.T) {
 				}
 			}
 			return nil
+		},
+	})
+}
+
+// TestAutoUpdateConfig tests that CRUD operations on AutoUpdateConfig resources are
+// replicated from the backend to the cache.
+func TestAutoUpdateConfig(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoUpdateConfig]{
+		newResource: func(name string) (*autoupdate.AutoUpdateConfig, error) {
+			return newAutoUpdateConfig(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateConfig) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateConfig{}, nil
+			}
+			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateConfig, error) {
+			item, err := p.cache.GetAutoUpdateConfig(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateConfig{}, nil
+			}
+			return []*autoupdate.AutoUpdateConfig{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
+		},
+	})
+}
+
+// TestAutoUpdateVersion tests that CRUD operations on AutoUpdateVersion resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateVersion(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoUpdateVersion]{
+		newResource: func(name string) (*autoupdate.AutoUpdateVersion, error) {
+			return newAutoUpdateVersion(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateVersion) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateVersion, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateVersion{}, nil
+			}
+			return []*autoupdate.AutoUpdateVersion{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateVersion, error) {
+			item, err := p.cache.GetAutoUpdateVersion(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateVersion{}, nil
+			}
+			return []*autoupdate.AutoUpdateVersion{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateVersion(ctx))
 		},
 	})
 }
@@ -3297,6 +3419,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
+		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t, "test")),
 	}
 
 	for name, cfg := range cases {
@@ -3841,6 +3966,26 @@ func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHost
 			},
 		},
 	})
+}
+
+func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
+		ToolsAutoupdate: true,
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
+		ToolsVersion: "1.2.3",
+	})
+	require.NoError(t, err)
+	return r
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {

@@ -572,6 +572,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 20;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -694,6 +695,14 @@ message AccessGraphAWSScanEvent {
   uint64 total_accounts = 11;
 }
 
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
 // SecurityReportGetResultEvent is emitted when the user requests a security report.
 message SecurityReportGetResultEvent {
   // name is the name of the security report.
@@ -775,6 +784,7 @@ message UsageEventOneOf {
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 56;
     UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 57;
     AccessGraphAWSScanEvent access_graph_aws_scan_event = 58;
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

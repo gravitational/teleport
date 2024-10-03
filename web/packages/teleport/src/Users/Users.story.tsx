@@ -47,6 +47,14 @@ export const Loaded = () => {
   );
 };
 
+export const UsersNotEqualMauNotice = () => {
+  return (
+    <MemoryRouter>
+      <Users {...sample} showMauInfo={true} />
+    </MemoryRouter>
+  );
+};
+
 export const Failed = () => {
   const attempt = {
     isProcessing: false,
@@ -139,4 +147,6 @@ const sample = {
   InviteCollaborators: null,
   onEmailPasswordResetClose: () => null,
   EmailPasswordReset: null,
+  showMauInfo: false,
+  onDismissUsersMauNotice: () => null,
 };

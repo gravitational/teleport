@@ -39,8 +39,8 @@ import (
 	"github.com/gravitational/teleport/api/fixtures"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -603,8 +603,7 @@ func TestGenerateDatabaseKeys(t *testing.T) {
 		cas: []types.CertAuthority{dbCA},
 	}
 
-	// TODO(nklaassen): don't hardcode RSA.
-	keyRing, err := client.GenerateRSAKeyRing()
+	keyRing, err := generateKeyRing(context.Background(), authClient, cryptosuites.DatabaseClient)
 	require.NoError(t, err)
 
 	tests := []struct {

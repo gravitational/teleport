@@ -87,6 +87,14 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// we're going to start the generator, which means that we are potentially
+	// going to read from cfg.TLS at any point after returning, which means that
+	// either the caller must always give us a cloned [tls.Config], or we just
+	// make one here
+	cfg.TLS = cfg.TLS.Clone()
+	// TODO(espadolini): rework the generator so it only deals with
+	// [*x509.CertPool] instead, with an optional
+	// [tls.Config.GetConfigForClient] wrapper factory
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -99,7 +107,6 @@ func NewClientTLSConfigGenerator(cfg ClientTLSConfigGeneratorConfig) (*ClientTLS
 	c.clientTLSConfigs, err = genmap.New(genmap.Config[string, *tls.Config]{
 		Generator: c.generator,
 	})
-
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

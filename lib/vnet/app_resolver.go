@@ -92,12 +92,10 @@ type DialOptions struct {
 
 // TCPAppResolver implements [TCPHandlerResolver] for Teleport TCP apps.
 type TCPAppResolver struct {
-	appProvider          AppProvider
-	clusterConfigCache   *ClusterConfigCache
-	customDNSZoneChecker *customDNSZoneValidator
-	slog                 *slog.Logger
-	clock                clockwork.Clock
-	lookupTXT            lookupTXTFunc
+	appProvider        AppProvider
+	clusterConfigCache *ClusterConfigCache
+	slog               *slog.Logger
+	clock              clockwork.Clock
 }
 
 // NewTCPAppResolver returns a new *TCPAppResolver which will resolve full-qualified domain names to
@@ -118,7 +116,6 @@ func NewTCPAppResolver(appProvider AppProvider, opts ...tcpAppResolverOption) (*
 	}
 	r.clock = cmp.Or(r.clock, clockwork.NewRealClock())
 	r.clusterConfigCache = cmp.Or(r.clusterConfigCache, NewClusterConfigCache(r.clock))
-	r.customDNSZoneChecker = newCustomDNSZoneValidator(r.lookupTXT)
 	return r, nil
 }
 
@@ -128,13 +125,6 @@ type tcpAppResolverOption func(*TCPAppResolver)
 func withClock(clock clockwork.Clock) tcpAppResolverOption {
 	return func(r *TCPAppResolver) {
 		r.clock = clock
-	}
-}
-
-// withLookupTXTFunc is a functional option to override the DNS TXT record lookup function (for tests).
-func withLookupTXTFunc(lookupTXT lookupTXTFunc) tcpAppResolverOption {
-	return func(r *TCPAppResolver) {
-		r.lookupTXT = lookupTXT
 	}
 }
 
@@ -194,8 +184,8 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 		return nil, errNoMatch
 	}
 
-	if isSubdomain(fqdn, profileName) {
-		// The queried app fqdn is direct subdomain of this cluster proxy address.
+	if isDescendantSubdomain(fqdn, profileName) {
+		// The queried app fqdn is a subdomain of this cluster proxy address.
 		return rootClient, nil
 	}
 
@@ -221,25 +211,9 @@ func (r *TCPAppResolver) clusterClientForAppFQDN(ctx context.Context, profileNam
 			continue
 		}
 		for _, zone := range clusterConfig.DNSZones {
-			if !isSubdomain(fqdn, zone) {
-				// The queried app fqdn is not a subdomain of this zone, skip it.
-				continue
-			}
-
-			// Found a matching cluster.
-
-			if zone == clusterConfig.ProxyPublicAddr {
-				// We don't need to validate a custom DNS zone if this is the proxy public address, this is a
-				// normal app public_addr.
+			if isDescendantSubdomain(fqdn, zone) {
 				return clusterClient, nil
 			}
-			// The queried app fqdn is a subdomain of this custom zone. Check if the zone is valid.
-			if err := r.customDNSZoneChecker.validate(ctx, clusterConfig.ClusterName, zone); err != nil {
-				// Return an error here since the FQDN does match this custom zone, but the zone failed to
-				// validate.
-				return nil, trace.Wrap(err, "validating custom DNS zone %q matching queried FQDN %q", zone, fqdn)
-			}
-			return clusterClient, nil
 		}
 	}
 	return nil, errNoMatch
@@ -392,8 +366,11 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
-func isSubdomain(appFQDN, suffix string) bool {
-	return strings.HasSuffix(appFQDN, "."+fullyQualify(suffix))
+// isDescendantSubdomain checks if appFQDN belongs in the hierarchy of zone. For example, both
+// foo.bar.baz.example.com and bar.baz.example.com belong in the hierarchy of baz.example.com, but
+// quux.example.com does not.
+func isDescendantSubdomain(appFQDN, zone string) bool {
+	return strings.HasSuffix(appFQDN, "."+fullyQualify(zone))
 }
 
 // fullyQualify returns a fully-qualified domain name from [domain]. Fully-qualified domain names always end

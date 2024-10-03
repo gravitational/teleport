@@ -311,6 +311,9 @@ export const eventCodes = {
   STATIC_HOST_USER_CREATE: 'SHU001I',
   STATIC_HOST_USER_UPDATE: 'SHU002I',
   STATIC_HOST_USER_DELETE: 'SHU003I',
+  CROWN_JEWEL_CREATE: 'CJ001I',
+  CROWN_JEWEL_UPDATE: 'CJ002I',
+  CROWN_JEWEL_DELETE: 'CJ003I',
 } as const;
 
 /**
@@ -1714,6 +1717,18 @@ export type RawEvents = {
   >;
   [eventCodes.STATIC_HOST_USER_DELETE]: RawEvent<
     typeof eventCodes.STATIC_HOST_USER_DELETE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_CREATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_CREATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_UPDATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_DELETE,
     HasName
   >;
 };

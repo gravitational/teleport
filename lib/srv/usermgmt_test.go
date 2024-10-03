@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
@@ -253,9 +254,11 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	sudoers := HostSudoersManagement{
 		backend: backend,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	closer, err := users.UpsertUser("bob", services.HostUsersInfo{
@@ -278,6 +281,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		users := HostUserManagement{
 			backend: backend,
 			storage: pres,
+			log:     utils.NewSlogLoggerForTests(),
 		}
 		// test user already exists but teleport-service group has not yet
 		// been created
@@ -318,6 +322,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users := HostUserManagement{
 		backend:   mgmt,
 		storage:   pres,
+		log:       utils.NewSlogLoggerForTests(),
 		userGrace: 0,
 	}
 
@@ -343,6 +348,7 @@ func TestUserMgmt_DeleteAllTeleportSystemUsers(t *testing.T) {
 	users = HostUserManagement{
 		backend: newTestUserMgmt(),
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 	// teleport-system group doesnt exist, DeleteAllUsers will return nil, instead of erroring
 	require.NoError(t, users.DeleteAllUsers())
@@ -638,8 +644,8 @@ func Test_DontUpdateUnmanagedUsers(t *testing.T) {
 	}
 }
 
-// teleport-keep can be included explicitly in the Groups slice in order to flag an
-// existing user as being managed by teleport
+// teleport-keep can be included explicitly in the Groups slice, or TakeOwnership can be set on HostUsersInfo,
+// in order to flag an existing user as being managed by teleport.
 func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	t.Parallel()
 
@@ -647,6 +653,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	users, backend := initBackend(t, allGroups)
 
 	assert.NoError(t, backend.CreateUser("alice-keep", []string{}, host.UserOpts{}))
+	assert.NoError(t, backend.CreateUser("alice-static", []string{}, host.UserOpts{}))
 	assert.NoError(t, backend.CreateUser("alice-drop", []string{}, host.UserOpts{}))
 	userinfo := services.HostUsersInfo{
 		Groups: slices.Clone(allGroups),
@@ -662,12 +669,25 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	assert.ElementsMatch(t, allGroups[:2], backend.users["alice-keep"])
 	assert.NotContains(t, backend.users["alice-keep"], types.TeleportDropGroup)
 
+	// Take ownership of existing user when in STATIC mode
+	userinfo.Mode = services.HostUserModeStatic
+	userinfo.TakeOwnership = true
+	closer, err = users.UpsertUser("alice-static", userinfo)
+	assert.NoError(t, err)
+	assert.Equal(t, nil, closer)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
+	assert.Contains(t, backend.users["alice-static"], "foo")
+	assert.Contains(t, backend.users["alice-static"], types.TeleportStaticGroup)
+	assert.NotContains(t, backend.users["alice-static"], types.TeleportKeepGroup)
+	assert.NotContains(t, backend.users["alice-static"], types.TeleportDropGroup)
+
 	// Don't take ownership of existing user when in DROP mode
 	userinfo.Mode = services.HostUserModeDrop
+	userinfo.TakeOwnership = false
 	closer, err = users.UpsertUser("alice-drop", userinfo)
 	assert.ErrorIs(t, err, unmanagedUserErr)
 	assert.Equal(t, nil, closer)
-	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.Empty(t, backend.users["alice-drop"])
 
 	// Don't assign teleport-keep to users created in DROP mode
@@ -675,7 +695,7 @@ func Test_AllowExplicitlyManageExistingUsers(t *testing.T) {
 	closer, err = users.UpsertUser("bob", userinfo)
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, closer)
-	assert.Equal(t, 1, backend.setUserGroupsCalls)
+	assert.Equal(t, 2, backend.setUserGroupsCalls)
 	assert.ElementsMatch(t, []string{"foo", types.TeleportDropGroup}, backend.users["bob"])
 	assert.NotContains(t, backend.users["bob"], types.TeleportKeepGroup)
 }
@@ -688,6 +708,7 @@ func initBackend(t *testing.T, groups []string) (HostUserManagement, *testHostUs
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	for _, group := range groups {
@@ -705,6 +726,7 @@ func TestCreateUserWithExistingPrimaryGroup(t *testing.T) {
 	users := HostUserManagement{
 		backend: backend,
 		storage: pres,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	existingGroups := []string{"alice", "simon"}

@@ -4400,18 +4400,23 @@ message PluginDelete {
 
 // PluginMetadata contains information about plugin resources.
 message PluginMetadata {
+  reserved 2;
+  reserved "plugin";
   // plugin_type is the plugin type of the plugin resource.
   // The value matches the types.PluginV1.Spec.Type field.
   string plugin_type = 1 [(gogoproto.jsontag) = "plugin_type"];
-
-  // plugin is the resource without secrets.
-  types.PluginV1 plugin = 2 [(gogoproto.jsontag) = "plugin,omitempty"];
 
   // has_credentials indicates whether the plugin has credentials.
   bool has_credentials = 3 [(gogoproto.jsontag) = "has_credentials"];
 
   // reuses_credentials indicates whether the plugin reuses credentials.
   bool reuses_credentials = 4 [(gogoproto.jsontag) = "reuses_credentials"];
+
+  // plugin_data is the plugin data of the plugin resource.
+  google.protobuf.Struct plugin_data = 5 [
+    (gogoproto.jsontag) = "plugin_data,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
@@ -4598,6 +4603,9 @@ message OneOf {
     events.StaticHostUserCreate StaticHostUserCreate = 179;
     events.StaticHostUserUpdate StaticHostUserUpdate = 180;
     events.StaticHostUserDelete StaticHostUserDelete = 181;
+    events.CrownJewelCreate CrownJewelCreate = 182;
+    events.CrownJewelUpdate CrownJewelUpdate = 183;
+    events.CrownJewelDelete CrownJewelDelete = 184;
   }
 }
 
@@ -6609,6 +6617,12 @@ message SPIFFESVIDIssued {
   string SerialNumber = 8 [(gogoproto.jsontag) = "serial_number"];
   // Hint is the hint of the issued SVID
   string Hint = 9 [(gogoproto.jsontag) = "hint"];
+  // JTI is the JTI of the issued SVID.
+  // Only present if the SVID is a JWT.
+  string JTI = 10 [(gogoproto.jsontag) = "jti,omitempty"];
+  // Audiences is the list of audiences in the issued SVID.
+  // Only present if the SVID is a JWT.
+  repeated string Audiences = 11 [(gogoproto.jsontag) = "audiences,omitempty"];
 }
 
 // AuthPreferenceUpdate is emitted when the auth preference is updated.
@@ -7164,6 +7178,129 @@ message StaticHostUserDelete {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// CrownJewelCreate is emitted when a Access Graph CrownJewel is created.
+message CrownJewelCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CrownJewelQuery is the query used to track the crown jewel.
+  string CrownJewelQuery = 6 [(gogoproto.jsontag) = "crown_jewel_query"];
+}
+
+// CrownJewelUpdate is emitted when a Access Graph CrownJewel is updated.
+message CrownJewelUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CurrentCrownJewelQuery is the current query used to track the crown jewel.
+  string CurrentCrownJewelQuery = 6 [(gogoproto.jsontag) = "current_crown_jewel_query"];
+
+  // UpdatedCrownJewelQuery is the new query used to track the crown jewel.
+  string UpdatedCrownJewelQuery = 7 [(gogoproto.jsontag) = "updated_crown_jewel_query"];
+}
+
+// CrownJewelDelete is emitted when a Access Graph CrownJewel is deleted.
+message CrownJewelDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -101,21 +102,19 @@ type authClientI interface {
 	AddMFADeviceSync(context.Context, *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
 }
 
-func (d *TestDevice) registerDevice(
-	ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
-	// Re-authenticate using MFA.
-	authnChal, err := authClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
+func (d *TestDevice) registerDevice(ctx context.Context, authClient authClientI, devName string, devType proto.DeviceType, authenticator *TestDevice) error {
+	mfaCeremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: authClient.CreateAuthenticateChallenge,
+		SolveAuthenticateChallenge: func(_ context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			return authenticator.SolveAuthn(chal)
 		},
+	}
+
+	authnSolved, err := mfaCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authnSolved, err := authenticator.SolveAuthn(authnChal)
 	if err != nil {
 		return trace.Wrap(err)
 	}
