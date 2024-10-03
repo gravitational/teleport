@@ -449,8 +449,8 @@ importers:
         specifier: ^5.5.0
         version: 5.5.0
       electron:
-        specifier: 32.0.1
-        version: 32.0.1
+        specifier: 32.1.2
+        version: 32.1.2
       electron-builder:
         specifier: ^25.0.5
         version: 25.0.5(electron-builder-squirrel-windows@25.0.5(dmg-builder@25.0.5))
@@ -3773,8 +3773,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@32.0.1:
-    resolution: {integrity: sha512-5Hd5Jaf9niYVR2hZxoRd3gOrcxPOxQV1XPV5WaoSfT9jLJHFadhlKtuSDIk3U6rQZke+aC7GqPPAv55nWFCMsA==}
+  electron@32.1.2:
+    resolution: {integrity: sha512-CXe6doFzhmh1U7daOvUzmF6Cj8hssdYWMeEPRnRO6rB9/bbwMlWctcQ7P8NJXhLQ88/vYUJQrJvlJPh8qM0BRQ==}
     engines: {node: '>= 12.20.55'}
     hasBin: true
 
@@ -8330,7 +8330,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 29.7.0
       '@jest/types': 29.6.3
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       jest-mock: 29.7.0
 
   '@jest/expect-utils@29.7.0':
@@ -8348,7 +8348,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@sinonjs/fake-timers': 10.3.0
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       jest-message-util: 29.7.0
       jest-mock: 29.7.0
       jest-util: 29.7.0
@@ -9367,7 +9367,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
 
   '@types/glob@7.2.0':
     dependencies:
@@ -9401,7 +9401,7 @@ snapshots:
 
   '@types/jsdom@20.0.1':
     dependencies:
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       '@types/tough-cookie': 4.0.5
       parse5: 7.1.2
 
@@ -9445,7 +9445,7 @@ snapshots:
 
   '@types/plist@3.0.2':
     dependencies:
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       xmlbuilder: 15.1.1
     optional: true
 
@@ -9521,7 +9521,7 @@ snapshots:
 
   '@types/tar-stream@2.2.2':
     dependencies:
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
 
   '@types/tough-cookie@4.0.5': {}
 
@@ -10898,7 +10898,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@32.0.1:
+  electron@32.1.2:
     dependencies:
       '@electron/get': 2.0.2
       '@types/node': 20.16.10
@@ -12392,7 +12392,7 @@ snapshots:
   jest-mock@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       jest-util: 29.7.0
 
   jest-playwright-preset@4.0.0(jest-circus@29.7.0(babel-plugin-macros@3.1.0))(jest-environment-node@29.7.0)(jest-runner@29.7.0)(jest@29.7.0(@types/node@20.16.10)(babel-plugin-macros@3.1.0)):
@@ -12542,7 +12542,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       chalk: 4.1.2
       ci-info: 3.3.0
       graceful-fs: 4.2.11
@@ -13382,7 +13382,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 22.7.4
+      '@types/node': 20.16.10
       long: 5.2.3
 
   protobufjs@7.4.0:
