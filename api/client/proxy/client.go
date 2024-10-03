@@ -16,8 +16,6 @@ package proxy
 
 import (
 	"context"
-	"crypto"
-	"crypto/rand"
 	"crypto/tls"
 	"encoding/asn1"
 	"net"
@@ -40,7 +38,6 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // ClientConfig contains configuration needed for a Client
@@ -85,7 +82,7 @@ type ClientConfig struct {
 
 // CheckAndSetDefaults ensures required options are present and
 // sets the default value of any that are omitted.
-func (c *ClientConfig) CheckAndSetDefaults() error {
+func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
 	}
@@ -127,11 +124,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 				// before initiating the gRPC dial.
 				// This approach works because the connection is cached for a few seconds,
 				// allowing subsequent calls without requiring additional user action.
-				if priv, ok := cert.PrivateKey.(*keys.YubiKeyPrivateKey); ok {
-					b := make([]byte, 256)
-					_, err := priv.Sign(rand.Reader, b, crypto.SHA256)
+				if priv, ok := cert.PrivateKey.(HardwareKeyWarmer); ok {
+					err := priv.WarmupHardwareKey(ctx)
 					if err != nil {
-						return nil, trace.Wrap(err, "failed to access a YubiKey private key")
+						return nil, trace.Wrap(err)
 					}
 				}
 				tlsCfg.Certificates = nil
@@ -202,7 +198,7 @@ const protocolProxySSHGRPC string = "teleport-proxy-ssh-grpc"
 // of the caller, then prefer to use NewSSHClient instead which omits
 // the gRPC dialing altogether.
 func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -457,4 +453,10 @@ func (c *Client) Ping(ctx context.Context) error {
 	// how long it takes to get a reply.
 	_, _ = c.transport.ClusterDetails(ctx)
 	return nil
+}
+
+// HardwareKeyWarmer performs a bogus call to the hardware key,
+// to proactively prompt the user for a PIN/touch (if needed).
+type HardwareKeyWarmer interface {
+	WarmupHardwareKey(ctx context.Context) error
 }

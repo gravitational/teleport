@@ -284,15 +284,18 @@ func (y *YubiKeyPrivateKey) Public() crypto.PublicKey {
 	return y.slotCert.PublicKey
 }
 
+// WarmupHardwareKey performs a bogus sign() call to prompt the user for
+// a PIN/touch (if needed).
+func (y *YubiKeyPrivateKey) WarmupHardwareKey(ctx context.Context) error {
+	b := make([]byte, 256)
+	_, err := y.sign(ctx, rand.Reader, b, crypto.SHA256)
+	return trace.Wrap(err, "failed to access a YubiKey private key")
+}
+
 // Sign implements crypto.Signer.
 func (y *YubiKeyPrivateKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	// To prevent concurrent calls to Sign from failing due to PIV only handling a
-	// single connection, use a lock to queue through signature requests one at a time.
-	y.signMux.Lock()
-	defer y.signMux.Unlock()
 
 	signature, err := y.sign(ctx, rand, digest, opts)
 	if err != nil {
@@ -320,6 +323,11 @@ const (
 )
 
 func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	// To prevent concurrent calls to sign from failing due to PIV only handling a
+	// single connection, use a lock to queue through signature requests one at a time.
+	y.signMux.Lock()
+	defer y.signMux.Unlock()
+
 	// Lock the connection for the entire duration of the sign process.
 	// Without this, the connection will be released after releaseConnectionDelay,
 	// leading to a failure when providing PIN or touch input:
