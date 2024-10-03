@@ -367,7 +367,7 @@ The customer can observe the agent update status and see that a recent update
 might have caused this:
 
 ```shell
-tctl auto-update agent status
+tctl autoupdate agent status
 # Rollout plan created the YYYY-MM-DD
 # Previous version: v2
 # New version: v3
@@ -383,7 +383,7 @@ tctl auto-update agent status
 Then, the customer or Teleport Cloud team can suspend the rollout:
 
 ```shell
-tctl auto-update agent suspend
+tctl autoupdate agent suspend
 # Automatic updates suspended
 # No existing agent will get updated. New agents might install the new version
 # depending on their group.
@@ -394,11 +394,11 @@ The customer can investigate, and get help from Teleport's support via a support
 If the update is really the cause of the issue, the customer or Teleport cloud can perform a rollback:
 
 ```shell
-tctl auto-update agent rollback
+tctl autoupdate agent rollback
 # Rolledback groups: [dev, staging]
 # Warning: the automatic agent updates are suspended.
 # Agents will not rollback until you run:
-# $> tctl auto-update agent resume
+# $> tctl autoupdate agent resume
 ```
 
 > [!NOTE]
@@ -409,7 +409,7 @@ tctl auto-update agent rollback
 <summary>After:</summary>
 
 ```shell
-tctl auto-update agent status
+tctl autoupdate agent status
 # Rollout plan created the YYYY-MM-DD
 # Previous version: v2
 # New version: v3
@@ -427,7 +427,7 @@ Finally, when the user is happy with the new plan, they can resume the updates.
 This will trigger the rollback.
 
 ```shell
-tctl auto-update agent resume
+tctl autoupdate agent resume
 ```
 
 #### As a Teleport user and a Teleport on-call responder, I want to be able to pin a specific Teleport version of an agent to understand if a specific behaviour is caused by a specific Teleport version
@@ -475,7 +475,7 @@ However, the new version contains something that I need as soon as possible (e.g
 <summary>Before:</summary>
 
 ```shell
-tctl auto-updates agent status
+tctl autoupdate agent status
 # Rollout plan created the YYYY-MM-DD
 # Previous version: v2
 # New version: v3
@@ -492,20 +492,20 @@ tctl auto-updates agent status
 I can trigger the dev group immediately using the command:
 
 ```shell
-tctl auto-updates agent start-update dev --no-canary
+tctl autoupdate agent start-update dev --no-canary
 # Dev group update triggered (canary or active)
 ```
 
 Alternatively
 ```shell
-tctl auto-update agent force-done dev
+tctl autoupdate agent force-done dev
 ```
 
 <details>
 <summary>After:</summary>
 
 ```shell
-tctl auto-update agent status
+tctl autoupdate agent status
 # Rollout plan created the YYYY-MM-DD
 # Previous version: v2
 # New version: v3
