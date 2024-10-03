@@ -3,7 +3,7 @@ authors: Stephen Levine (stephen.levine@goteleport.com) & Hugo Hervieux (hugo.he
 state: draft
 ---
 
-# RFD 0169 - Automatic Updates for Agents
+# RFD 0184 - Agent Automatic Updates
 
 ## Required Approvers
 
