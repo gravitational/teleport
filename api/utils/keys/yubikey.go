@@ -399,7 +399,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	// The piv-go library wraps error codes like this with a user readable message: "security status not satisfied".
 	const pivGenericAuthErrCodeString = "6982"
 
-	signature, err := signer.Sign(rand, digest, opts)
+	signature, err := abandonableSign(ctx, signer, rand, digest, opts)
 	switch {
 	case err == nil:
 		return signature, nil
@@ -411,10 +411,42 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 		if err := y.verifyPIN(pin); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signature, err := signer.Sign(rand, digest, opts)
+		signature, err := abandonableSign(ctx, signer, rand, digest, opts)
 		return signature, trace.Wrap(err)
 	default:
 		return nil, trace.Wrap(err)
+	}
+}
+
+// abandonableSign is a wrapper around signer.Sign.
+// It enhances the functionality of signer.Sign by allowing the caller to stop
+// waiting for the result if the provided context is canceled.
+// It is especially important for WarmupHardwareKey,
+// where waiting for the user providing a PIN/touch could block program termination.
+// Important: this function only abandons the signer.Sign result, doesn't cancel it.
+func abandonableSign(ctx context.Context, signer crypto.Signer, rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	type signResult struct {
+		signature []byte
+		err       error
+	}
+
+	signResultCh := make(chan signResult)
+	go func() {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+		signature, err := signer.Sign(rand, digest, opts)
+		select {
+		case <-ctx.Done():
+		case signResultCh <- signResult{signature: signature, err: trace.Wrap(err)}:
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-signResultCh:
+		return result.signature, trace.Wrap(result.err)
 	}
 }
 
