@@ -324,11 +324,11 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 		return c.Spec.SecondFactors
 	}
 
-	return secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+	return SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
 }
 
-// secondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
-func secondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthnConfigured bool) []SecondFactorType {
+// SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
+func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthnConfigured bool) []SecondFactorType {
 	switch sf {
 	case constants.SecondFactorOff:
 		return nil
@@ -747,7 +747,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// Set SecondFactors from SecondFactor.
 	if len(c.Spec.SecondFactors) == 0 {
-		c.Spec.SecondFactors = secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+		c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
 	}
 
 	// Validate expected fields for webauthn.
@@ -1208,9 +1208,12 @@ const (
 	SecondFactorTypeSSOString = "sso"
 )
 
-// encode SecondFactorType into a string or boolean. This is necessary for
-// backwards compatibility with the json/yaml tag "require_session_mfa",
-// which used to be a boolean.
+// ToString returns the user friendly string representation of the second factor type.
+func (s *SecondFactorType) ToString() string {
+	str, _ := s.encode()
+	return str
+}
+
 func (s *SecondFactorType) encode() (string, error) {
 	switch *s {
 	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
@@ -1226,9 +1229,6 @@ func (s *SecondFactorType) encode() (string, error) {
 	}
 }
 
-// decode SecondFactorType from a string or boolean. This is necessary for
-// backwards compatibility with the json/yaml tag "require_session_mfa",
-// which used to be a boolean.
 func (s *SecondFactorType) decode(val any) error {
 	err := decodeEnum(s, val, map[any]SecondFactorType{
 		"":                             SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED,
