@@ -3919,12 +3919,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 	return response, trace.Wrap(err)
 }
 
-// mfaLocalLogin asks for a password and performs an MFA ceremony. If MFA is not required
-// by the cluster settings, the ceremony is a no-op.
+// localLogin asks for a password and performs an MFA ceremony.
 func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/mfaLocalLogin",
+		"teleportClient/localLogin",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -3945,10 +3944,6 @@ func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ co
 		Password:             password,
 		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
-
-	// Ignore username returned from proxy
-	response.Username = ""
-
 	return response, trace.Wrap(err)
 }
 
