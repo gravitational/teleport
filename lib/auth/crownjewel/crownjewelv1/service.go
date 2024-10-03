@@ -123,7 +123,6 @@ func (s *Service) CreateCrownJewel(ctx context.Context, req *crownjewelv1.Create
 	rsp, err := s.backend.CreateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitCreateAuditEvent(ctx, rsp, authCtx, err)
-
 	return rsp, trace.Wrap(err)
 }
 
@@ -216,7 +215,6 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	return rsp, trace.Wrap(err)
 }
 
@@ -268,7 +266,6 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
