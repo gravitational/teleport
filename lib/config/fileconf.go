@@ -1002,6 +1002,7 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 type AuthenticationConfig struct {
 	Type           string                     `yaml:"type"`
 	SecondFactor   constants.SecondFactorType `yaml:"second_factor,omitempty"`
+	SecondFactors  []types.SecondFactorType   `yaml:"second_factors,omitempty"`
 	ConnectorName  string                     `yaml:"connector_name,omitempty"`
 	U2F            *UniversalSecondFactor     `yaml:"u2f,omitempty"`
 	Webauthn       *Webauthn                  `yaml:"webauthn,omitempty"`
@@ -1090,9 +1091,28 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	default:
 	}
 
+	if a.SecondFactor != "" {
+		secondFactors := types.SecondFactorsFromLegacySecondFactor(a.SecondFactor, w != nil || u != nil)
+		var secondFactorStrings []string
+		for _, sf := range secondFactors {
+			secondFactorStrings = append(secondFactorStrings, sf.ToString())
+		}
+
+		log.Warnf(``+
+			`The "second_factor" setting is marked for removal in favor of second_factors. `+
+			`Please update your configuration to use second_factors. e.g. "second_factors: %v".`, secondFactorStrings)
+
+		if a.SecondFactors != nil {
+			log.Warnf(`` +
+				`second_factor and second_factors are both set. second_factors will take precedence. ` +
+				`second_factor should be unset to remove this warning.`)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:                    a.Type,
 		SecondFactor:            a.SecondFactor,
+		SecondFactors:           a.SecondFactors,
 		ConnectorName:           a.ConnectorName,
 		U2F:                     u,
 		Webauthn:                w,

@@ -1252,6 +1252,12 @@ const (
 	SecondFactorTypeSSOString = "sso"
 )
 
+// ToString returns the user friendly string representation of the second factor type.
+func (s *SecondFactorType) ToString() string {
+	str, _ := s.encode()
+	return str
+}
+
 func (s *SecondFactorType) encode() (string, error) {
 	switch *s {
 	case SecondFactorType_SECOND_FACTOR_TYPE_UNSPECIFIED:
