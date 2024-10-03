@@ -1073,7 +1073,7 @@ update success criteria.
 #### Canary testing (phase 5)
 
 A group in `canary` state will be randomly assigned `canary_count` canary agents.
-Auth servers will select those canaries by reading them from instance heartbeats and writing them to the `canaries` list in `agent_rollout_plan` status.
+Auth servers will select those canaries by reading them from the auth instance inventory and writing them to the `canaries` list in `agent_rollout_plan` status.
 The proxies will instruct those canaries to update immediately.
 During each reconciliation loop, the auth will lookup the instance heartbeat of each canary in the backend and update `agent_rollout_plan` status if needed.
 
