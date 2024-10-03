@@ -450,7 +450,7 @@ teleport-update use-version v16.2.3
 I acknowledge that I am leaving automatic updates:
 ```shell
 teleport-update use-version v16.2.3 --disable-automatic-updates
-# Disabling automatic updates for the node. You can enable them back by running `teleport-update enable`
+# Disabling automatic updates. You can re-enable them by running `teleport-update enable`
 # Downloading version 16.2.3
 # Restarting teleport
 # Cleaning up old binaries
