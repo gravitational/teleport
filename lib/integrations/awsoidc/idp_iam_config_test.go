@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http/httptest"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestIdPIAMConfigReqDefaults(t *testing.T) {
@@ -46,6 +48,7 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 			IntegrationRole:         "integrationrole",
 			ProxyPublicAddress:      "https://proxy.example.com",
 			IntegrationPolicyPreset: "",
+			AutoConfirm:             true,
 		}
 	}
 
@@ -72,6 +75,7 @@ func TestIdPIAMConfigReqDefaults(t *testing.T) {
 					"teleport.dev/origin":      "integration_awsoidc",
 				},
 				IntegrationPolicyPreset: PolicyPresetUnspecified,
+				AutoConfirm:             true,
 			},
 		},
 		{
@@ -178,6 +182,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			IntegrationName:    "myintegration",
 			IntegrationRole:    "integrationrole",
 			ProxyPublicAddress: tlsServer.URL,
+			AutoConfirm:        true,
 		}
 	}
 
@@ -207,15 +212,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 			errCheck:           require.NoError,
 		},
 		{
-			name:               "role exists, no ownership tags",
-			mockAccountID:      "123456789012",
-			mockExistingIdPUrl: []string{},
-			mockExistingRoles:  map[string]mockRole{"integrationrole": {}},
-			req:                baseIdPIAMConfigReqWithTLServer,
-			errCheck:           badParameterCheck,
-		},
-		{
-			name:               "role exists, ownership tags, no assume role",
+			name:               "role exists with empty trust policy",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
@@ -237,14 +234,12 @@ func TestConfigureIdPIAM(t *testing.T) {
 			},
 		},
 		{
-			name:               "role exists, ownership tags, with existing assume role",
+			name:               "role exists with existing trust policy and without matching tags",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
 				tags: []iamtypes.Tag{
-					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
-					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
-					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
+					{Key: aws.String("teleport.dev/origin"), Value: aws.String("should be overwritten")},
 				},
 				assumeRolePolicyDoc: policyDocWithStatementsJSON(
 					assumeRoleStatementJSON("some-other-issuer"),
@@ -259,10 +254,20 @@ func TestConfigureIdPIAM(t *testing.T) {
 					assumeRoleStatementJSON(tlsServerIssuer),
 				)
 				require.JSONEq(t, *expectedAssumeRolePolicyDoc, aws.ToString(role.assumeRolePolicyDoc))
+				gotTags := map[string]string{}
+				for _, tag := range role.tags {
+					gotTags[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
+				}
+				wantTags := map[string]string{
+					"teleport.dev/origin":      "integration_awsoidc",
+					"teleport.dev/cluster":     "mycluster",
+					"teleport.dev/integration": "myintegration",
+				}
+				require.Equal(t, wantTags, gotTags)
 			},
 		},
 		{
-			name:               "role exists, ownership tags, assume role already exists",
+			name:               "role exists with matching trust policy",
 			mockAccountID:      "123456789012",
 			mockExistingIdPUrl: []string{},
 			mockExistingRoles: map[string]mockRole{"integrationrole": {
@@ -312,7 +317,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}
@@ -329,13 +334,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 
 func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	ctx := context.Background()
-
 	tlsServer := httptest.NewTLSServer(nil)
-	// tlsServerURL, err := url.Parse(tlsServer.URL)
-	// require.NoError(t, err)
-
-	// tlsServerIssuer := tlsServerURL.Host
-	// TLS Server starts with self-signed certificates.
 
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
@@ -423,6 +422,32 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	}
 }
 
+func TestConfigureIdPIAMOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := IdPIAMConfigureRequest{
+		Cluster:            "mycluster",
+		IntegrationName:    "myintegration",
+		IntegrationRole:    "integrationrole",
+		ProxyPublicAddress: "https://example.com",
+		AutoConfirm:        true,
+		stdout:             &buf,
+		fakeThumbprint:     "15dbd260c7465ecca6de2c0b2181187f66ee0d1a",
+	}
+
+	clt := mockIdPIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: "123456789012"},
+		existingRoles:        map[string]mockRole{},
+		existingIDPUrl:       []string{},
+	}
+
+	require.NoError(t, ConfigureIdPIAM(ctx, &clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
 type mockRole struct {
 	assumeRolePolicyDoc *string
 	tags                []iamtypes.Tag
@@ -430,7 +455,7 @@ type mockRole struct {
 }
 
 type mockIdPIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingIDPUrl []string
 	existingRoles  map[string]mockRole
 }
@@ -516,6 +541,25 @@ func (m *mockIdPIAMConfigClient) UpdateAssumeRolePolicy(ctx context.Context, par
 	m.existingRoles[aws.ToString(params.RoleName)] = role
 
 	return &iam.UpdateAssumeRolePolicyOutput{}, nil
+}
+
+func (m *mockIdPIAMConfigClient) TagRole(ctx context.Context, params *iam.TagRoleInput, _ ...func(*iam.Options)) (*iam.TagRoleOutput, error) {
+	roleName := aws.ToString(params.RoleName)
+	role, found := m.existingRoles[roleName]
+	if !found {
+		return nil, trace.NotFound("role not found")
+	}
+
+	tags := tags.AWSTags{}
+	for _, existingTag := range role.tags {
+		tags[*existingTag.Key] = *existingTag.Value
+	}
+	for _, newTag := range params.Tags {
+		tags[*newTag.Key] = *newTag.Value
+	}
+	role.tags = tags.ToIAMTags()
+	m.existingRoles[roleName] = role
+	return &iam.TagRoleOutput{}, nil
 }
 
 func TestNewIdPIAMConfigureClient(t *testing.T) {

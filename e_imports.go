@@ -92,7 +92,6 @@ import (
 	_ "github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jonboulle/clockwork"
 	_ "github.com/julienschmidt/httprouter"
-	_ "github.com/mailgun/holster/v3/clock"
 	_ "github.com/mitchellh/mapstructure"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
 	_ "github.com/okta/okta-sdk-golang/v2/okta/query"

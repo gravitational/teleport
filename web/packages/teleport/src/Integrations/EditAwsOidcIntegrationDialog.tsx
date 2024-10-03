@@ -138,7 +138,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
                     {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
                   </Text>
                 }
-                disabled={scriptUrl}
+                disabled={!!scriptUrl}
               />
               {showReadonlyS3Fields && !scriptUrl && (
                 <>

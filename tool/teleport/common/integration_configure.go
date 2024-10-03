@@ -146,17 +146,13 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		return trace.Wrap(err)
 	}
 
-	// policyPreset, err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset))
-	// if err != nil {
-	// 	return trace.Wrap(err)
-	// }
-
 	confReq := awsoidc.IdPIAMConfigureRequest{
 		Cluster:                 clf.IntegrationConfAWSOIDCIdPArguments.Cluster,
 		IntegrationName:         clf.IntegrationConfAWSOIDCIdPArguments.Name,
 		IntegrationRole:         clf.IntegrationConfAWSOIDCIdPArguments.Role,
 		ProxyPublicAddress:      clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
 		IntegrationPolicyPreset: awsoidc.PolicyPreset(clf.IntegrationConfAWSOIDCIdPArguments.PolicyPreset),
+		AutoConfirm:             clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -184,6 +180,15 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.AccountID != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if params.Bootstrap {
 		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
 			Athena: athena.NewFromConfig(cfg),
