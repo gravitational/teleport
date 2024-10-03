@@ -308,7 +308,7 @@ I and the customer get an alert if the canary testing has not succeeded after an
 Teleport cloud operators and the customer can access the canary `hostname` and `host_uuid`
 to identify broken canary agents.
 
-Customers receive cluster alerts, while Cloud receive alerts driven by Teleport metrics.
+Customers receive cluster alerts, while Cloud receives alerts driven by Teleport metrics.
 
 The rollout resumes.
 
@@ -1642,7 +1642,7 @@ When TUF is added, that events related to supply chain security may be sent to t
 `teleport-update` is intended to be a minimal binary, with few dependencies, that is used to bootstrap initial Teleport agent installations.
 It may be baked into AMIs or containers.
 
-If the entirely `teleport` binary were used instead, security scanners would match vulnerabilities all Teleport dependencies, so customers would have to handle rebuilding artifacts (e.g., AMIs) more often.
+If the entire `teleport` binary were used instead, security scanners would match vulnerabilities all Teleport dependencies, so customers would have to handle rebuilding artifacts (e.g., AMIs) more often.
 Deploying these updates is often more disruptive than a soft restart of the agent triggered by the auto-updater.
 
 `teleport-update` will also handle `tbot` updates in the future, and it would be undesirable to distribute `teleport` with `tbot` just to enable automated updates.
