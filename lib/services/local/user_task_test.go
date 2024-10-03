@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -139,7 +138,7 @@ func TestUpdateUserTask(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	obj, err := service.GetUserTask(ctx, getUserTaskObject(t, 0).GetMetadata().GetName())
@@ -163,7 +162,7 @@ func TestUpdateUserTaskMissingRevision(t *testing.T) {
 	service := getUserTasksService(t)
 	prepopulateUserTask(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getUserTaskObject(t, 0)
 	obj.Metadata.Expires = expiry
