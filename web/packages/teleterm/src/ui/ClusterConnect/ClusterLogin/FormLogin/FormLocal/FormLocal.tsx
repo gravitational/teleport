@@ -104,36 +104,6 @@ export const FormLocal = ({
             width="100%"
             disabled={isProcessing}
           />
-          {secondFactor !== 'off' && (
-            <Flex alignItems="flex-start" mb={4}>
-              <FieldSelect
-                maxWidth="60%"
-                width="100%"
-                data-testid="mfa-select"
-                label="Two-factor Type"
-                value={mfaType}
-                options={mfaOptions}
-                onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
-                mr={3}
-                mb={0}
-                isDisabled={isProcessing}
-              />
-              {mfaType.value === 'otp' && (
-                <FieldInput
-                  width="40%"
-                  label="Authenticator Code"
-                  rule={requiredToken}
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  value={token}
-                  onChange={e => setToken(e.target.value)}
-                  placeholder="123 456"
-                  mb={0}
-                  disabled={isProcessing}
-                />
-              )}
-            </Flex>
-          )}
           <ButtonPrimary
             width="100%"
             mt={2}

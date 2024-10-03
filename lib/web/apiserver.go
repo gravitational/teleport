@@ -406,7 +406,6 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 // Check if this request should be forwarded to an application handler to
@@ -778,6 +777,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
+	// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
 
 	// list available sites
@@ -4077,6 +4077,8 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // # Success response
 //
 // { "cert": "base64 encoded signed cert", "host_signers": [{"domain_name": "example.com", "checking_keys": ["base64 encoded public signing key"]}] }
+//
+// TODO(Joerger): DELETE IN v18.0.0, deprecated in favor of mfa login endpoints.
 func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req client.CreateSSHCertReq
 	if err := httplib.ReadJSON(r, &req); err != nil {

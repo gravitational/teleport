@@ -28,7 +28,7 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, clusterClient, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -36,11 +36,6 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	if !cluster.URI.IsRoot() {
 		return nil, trace.BadParameter("cluster URI must be a root URI")
 	}
-
-	// The credentials + MFA login flow in the Electron app assumes that the default CLI prompt is
-	// used and works around that. Thus we have to remove the teleterm-specific MFAPromptConstructor
-	// added by daemon.Service.ResolveClusterURI.
-	clusterClient.MFAPromptConstructor = nil
 
 	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
 		return nil, trace.Wrap(err)

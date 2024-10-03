@@ -565,41 +565,6 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 	}
 }
 
-// SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:     login.User,
-		Password: login.Password,
-		OTPToken: login.OTPToken,
-		UserPublicKeys: UserPublicKeys{
-			SSHPubKey:               login.SSHPubKey,
-			TLSPubKey:               login.TLSPubKey,
-			SSHAttestationStatement: login.SSHAttestationStatement,
-			TLSAttestationStatement: login.TLSAttestationStatement,
-		},
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out authclient.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &out, nil
-}
-
 // OpenURLInBrowser opens a URL in a web browser.
 func OpenURLInBrowser(browser string, URL string) error {
 	var execCmd *exec.Cmd
@@ -644,6 +609,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	// This request will block until the headless login is approved.
 	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
+	// TODO(Joerger): Headless needs to use a different non-deprecated endpoint.
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
@@ -781,6 +747,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
 	}
+
 	// Convert back from auth gRPC proto response.
 	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
