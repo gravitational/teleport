@@ -2553,6 +2553,181 @@ func TestValidate_RequestedPendingTTLAndMaxDuration(t *testing.T) {
 	require.Equal(t, now.Add(requestedPendingTTL), req.Expiry())
 }
 
+// TestValidate_WithKubernetesRequestMode tests that requests not meeting
+// kube request modes are rejected.
+func TestValidate_WithKubernetesRequestMode(t *testing.T) {
+	// set up test roles
+	roleDesc := map[string]types.RoleSpecV6{
+		"kube-access": {},
+		// Undefined modes allows any subresources and kube_cluster
+		"requester-base": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"kube-access"},
+				},
+			},
+		},
+		// Allows requesting ONLY namespace
+		"request-mode-namespace": {
+			Options: types.RoleOptions{
+				RequestMode: &types.AccessRequestMode{
+					KubernetesResources: []types.KubernetesResource{
+						{Kind: types.KindKubeNamespace},
+					},
+				},
+			},
+		},
+		// Allows requesting for any subresources, but NOT kube_cluster
+		"request-mode-wildcard": {
+			Options: types.RoleOptions{
+				RequestMode: &types.AccessRequestMode{
+					KubernetesResources: []types.KubernetesResource{
+						{Kind: types.Wildcard},
+					},
+				},
+			},
+		},
+		// Allows requesting for kinds pods
+		"request-mode-pods": {
+			Options: types.RoleOptions{
+				RequestMode: &types.AccessRequestMode{
+					KubernetesResources: []types.KubernetesResource{
+						{Kind: types.KindKubePod},
+					},
+				},
+			},
+		},
+	}
+	roles := make(map[string]types.Role)
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		roles[name] = role
+	}
+
+	testCases := []struct {
+		desc               string
+		currentRoles       []string
+		requestResourceIDs []types.ResourceID
+		wantErr            bool
+	}{
+		{
+			desc:         "request mode undefined allows all kube kinds",
+			currentRoles: []string{"requester-base"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster},
+				{Kind: types.KindKubeNamespace},
+			},
+		},
+		{
+			desc:         "request mode wildcard allows any kube subresources",
+			currentRoles: []string{"requester-base", "request-mode-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace},
+				{Kind: types.KindKubeSecret},
+			},
+		},
+		{
+			desc:         "request mode wildcard rejects kube_cluster kind",
+			wantErr:      true,
+			currentRoles: []string{"requester-base", "request-mode-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace},
+				{Kind: types.KindKubernetesCluster},
+			},
+		},
+		{
+			desc:         "request mode namespace allows namespace kind",
+			currentRoles: []string{"requester-base", "request-mode-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace},
+			},
+		},
+		{
+			desc:         "request mode namespace rejects non namespace kind",
+			wantErr:      true,
+			currentRoles: []string{"requester-base", "request-mode-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubePod},
+			},
+		},
+		{
+			desc:         "with a kube request mode, allows non kube resource",
+			currentRoles: []string{"requester-base", "request-mode-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindNode},
+				{Kind: types.KindKubeNamespace},
+				{Kind: types.KindDatabase},
+			},
+		},
+		{
+			desc:         "request mode namespace and pod, allows both",
+			currentRoles: []string{"requester-base", "request-mode-namespace", "request-mode-pods"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubePod},
+				{Kind: types.KindKubeNamespace},
+			},
+		},
+		{
+			desc:         "request mode namespace and pod, rejects non namespace and pod",
+			wantErr:      true,
+			currentRoles: []string{"requester-base", "request-mode-namespace", "request-mode-pods"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubePod},
+				{Kind: types.KindKubeSecret},
+				{Kind: types.KindKubeNamespace},
+			},
+		},
+		{
+			desc:         "request mode wildcard takes precedence over other request mode kinds",
+			currentRoles: []string{"requester-base", "request-mode-namespace", "request-mode-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubePod},
+				{Kind: types.KindKubeSecret},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			uls, err := userloginstate.New(header.Metadata{
+				Name: "test-user",
+			}, userloginstate.Spec{
+				Roles: tc.currentRoles,
+			})
+			require.NoError(t, err)
+			userStates := map[string]*userloginstate.UserLoginState{
+				uls.GetName(): uls,
+			}
+
+			g := &mockGetter{
+				roles:       roles,
+				userStates:  userStates,
+				clusterName: "my-cluster",
+			}
+
+			req, err := types.NewAccessRequestWithResources(
+				"some-id", uls.GetName(), []string{"kube-access"}, tc.requestResourceIDs)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			validator, err := NewRequestValidator(context.Background(), clock, g, uls.GetName(), ExpandVars(true))
+			require.NoError(t, err)
+
+			err = validator.Validate(context.Background(), req, identity)
+			if tc.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "Not allowed to request Kubernetes resource")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 type roleTestSet map[string]struct {
 	condition types.RoleConditions
 	options   types.RoleOptions
