@@ -2639,6 +2639,8 @@ message AccessCapabilities {
   // AutoRequest indicates whether the request strategy indicates that a
   // request should be automatically generated on login.
   bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
+  // RequestMode defines what resource kinds a user can request for applicable resources.
+  AccessRequestMode RequestMode = 7 [(gogoproto.jsontag) = "request_mode,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -2664,6 +2666,13 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+}
+
+message AccessRequestMode {
+  repeated KubernetesResource KubernetesResources = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "kubernetes_resources,omitempty"
+  ];
 }
 
 // ResourceID is a unique identifier for a teleport resource.
@@ -3016,6 +3025,13 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
+
+  // RequestMode optionally allows admins to define a create request mode for applicable resources.
+  // It can enforce a requester to request only certain kinds of resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". The mode can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  AccessRequestMode RequestMode = 32 [(gogoproto.jsontag) = "request_mode,omitempty"];
 }
 
 message RecordSession {
