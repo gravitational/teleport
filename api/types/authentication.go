@@ -72,13 +72,15 @@ type AuthPreference interface {
 	SetType(string)
 
 	// GetSecondFactor gets the type of second factor.
+	// Deprecated: use GetSecondFactors
 	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
+	// Deprecated: use SetSecondFactors
 	SetSecondFactor(constants.SecondFactorType)
 	// GetSecondFactors gets a list of supported second factors.
 	GetSecondFactors() []SecondFactorType
 	// SetSecondFactors sets the list of supported second factors.
-	SetSecondFactors([]SecondFactorType)
+	SetSecondFactors(...SecondFactorType)
 	// GetPreferredLocalMFA returns the preferred MFA method from available methods.
 	// This is often used as a tip to clients to pick an MFA method.
 	// Preference order: WebAuthn > OTP
@@ -347,25 +349,8 @@ func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthn
 	}
 }
 
-// SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
-func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []SecondFactorType {
-	switch sf {
-	case constants.SecondFactorOff:
-		return nil
-	case constants.SecondFactorOptional, constants.SecondFactorOn:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-	case constants.SecondFactorOTP:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-	case constants.SecondFactorWebauthn:
-		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN}
-	default:
-		slog.WarnContext(context.Background(), "Found unknown second_factor setting", "second_factor", sf)
-		return nil
-	}
-}
-
 // SetSecondFactors sets the list of supported second factors.
-func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
+func (c *AuthPreferenceV2) SetSecondFactors(s ...SecondFactorType) {
 	c.Spec.SecondFactors = s
 }
 

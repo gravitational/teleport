@@ -296,7 +296,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Log = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactors()
 	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
@@ -314,7 +314,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	lcConf.Log = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
-	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetSecondFactors()
 	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false

@@ -586,7 +586,6 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 			},
 		)
 	}
-
 }
 
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
@@ -1646,7 +1645,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 	clusterName := "cluster"
 	kubeClusterName := "cluster"
 	clusterConf := suite.teleKubeConfig(Host)
-	clusterConf.Auth.Preference.SetSecondFactor("off") // So we can do web login.
+	clusterConf.Auth.Preference.SetSecondFactors() // So we can do web login.
 
 	cluster := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
@@ -1807,7 +1806,6 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		err = ws.Close()
 		require.NoError(t, err)
 	})
-
 }
 
 type ReaderWithDeadline interface {

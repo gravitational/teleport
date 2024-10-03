@@ -187,9 +187,10 @@ func Find(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Set SecondFactors from SecondFactor in case the server is pre-v17 and did not set it.
 	// TODO(Joerger): DELETE IN v18.0.0, new server will set SecondFactors instead of SecondFactor
 	if len(pr.Auth.SecondFactors) == 0 {
-		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor)
+		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor, true /*webauthnConfigured*/)
 	}
 
 	return pr, nil
@@ -248,9 +249,10 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
 	}
 
+	// Set SecondFactors from SecondFactor in case the server is pre-v17 and did not set it.
 	// TODO(Joerger): DELETE IN v18.0.0, new server will set SecondFactors instead of SecondFactor
 	if len(pr.Auth.SecondFactors) == 0 {
-		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor)
+		pr.Auth.SecondFactors = types.SecondFactorsFromLegacySecondFactor(pr.Auth.SecondFactor, true /*webauthnConfigured*/)
 	}
 
 	return pr, nil

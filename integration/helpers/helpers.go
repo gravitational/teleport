@@ -369,7 +369,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.DataDir = t.TempDir()
 	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 	cfg.Auth.ListenAddr.Addr = NewListener(t, service.ListenerAuth, &cfg.FileDescriptors)
-	cfg.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
+	cfg.Auth.Preference.SetSecondFactors()
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{{

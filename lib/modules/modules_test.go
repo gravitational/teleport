@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
@@ -61,7 +60,7 @@ func TestValidateAuthPreferenceOnCloud(t *testing.T) {
 	authPref, err := testServer.AuthServer.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
 	require.NoError(t, err)
 
-	authPref.SetSecondFactor(constants.SecondFactorOff)
+	authPref.SetSecondFactors()
 	_, err = testServer.AuthServer.UpdateAuthPreference(ctx, authPref)
 	require.EqualError(t, err, modules.ErrCannotDisableSecondFactor.Error())
 }

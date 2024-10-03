@@ -293,7 +293,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactors()
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
@@ -306,7 +306,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
-	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetSecondFactors()
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock

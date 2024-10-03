@@ -330,7 +330,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
-		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.Preference.SetSecondFactors()
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = rc.Web
@@ -350,7 +350,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
-		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.Preference.SetSecondFactors()
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = lc.Web

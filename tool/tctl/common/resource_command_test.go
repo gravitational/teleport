@@ -65,7 +65,7 @@ import (
 func TestDatabaseServerResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 	caCertFilePath := filepath.Join(t.TempDir(), "ca-cert.pem")
-	require.NoError(t, os.WriteFile(caCertFilePath, []byte(fixtures.TLSCACertPEM), 0644))
+	require.NoError(t, os.WriteFile(caCertFilePath, []byte(fixtures.TLSCACertPEM), 0o644))
 
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -348,7 +348,6 @@ func TestIntegrationResource(t *testing.T) {
 	clt := testenv.MakeDefaultAuthClient(t, auth)
 
 	t.Run("get", func(t *testing.T) {
-
 		// Add a lot of Integrations to test pagination
 		ig1, err := types.NewIntegrationAWSOIDC(
 			types.Metadata{Name: uuid.NewString()},
@@ -403,7 +402,7 @@ func TestIntegrationResource(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		integrationYAMLPath := filepath.Join(t.TempDir(), "integration.yaml")
-		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAML), 0644))
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAML), 0o644))
 		_, err := runResourceCommand(t, clt, []string{"create", integrationYAMLPath})
 		require.NoError(t, err)
 
@@ -415,7 +414,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		// Update the RoleARN to another role
 		integrationYAMLV2 := strings.ReplaceAll(integrationYAML, "OpsTeam", "DevTeam")
-		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAMLV2), 0644))
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAMLV2), 0o644))
 
 		// Trying to create it again should return an error
 		_, err = runResourceCommand(t, clt, []string{"create", integrationYAMLPath})
@@ -517,7 +516,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		discoveryConfigYAMLPath := filepath.Join(t.TempDir(), "discoveryConfig.yaml")
-		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAML), 0644))
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAML), 0o644))
 		_, err := runResourceCommand(t, clt, []string{"create", discoveryConfigYAMLPath})
 		require.NoError(t, err)
 
@@ -529,7 +528,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		// Update the discovery group to another group
 		discoveryConfigYAMLV2 := strings.ReplaceAll(discoveryConfigYAML, "mydg1", "mydg2")
-		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAMLV2), 0644))
+		require.NoError(t, os.WriteFile(discoveryConfigYAMLPath, []byte(discoveryConfigYAMLV2), 0o644))
 
 		// Trying to create it again should return an error
 		_, err = runResourceCommand(t, clt, []string{"create", discoveryConfigYAMLPath})
@@ -589,7 +588,7 @@ func TestCreateLock(t *testing.T) {
 
 	// Create the locks
 	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
-	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", lockYAMLPath})
 	require.NoError(t, err)
 
@@ -647,7 +646,7 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0o644))
 
 	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
@@ -788,7 +787,8 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 		expectError        require.ErrorAssertionFunc
 		expectSecondFactor require.ValueAssertionFunc
 	}{
-		{desc: "handle off with quotes", input: `
+		{
+			desc: "handle off with quotes", input: `
 kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
@@ -797,8 +797,10 @@ spec:
   type: local
 version: v2`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle off without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle off without quotes", input: `
 kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
@@ -807,8 +809,10 @@ spec:
   type: local
 version: v2`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
-		{desc: "handle on without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff),
+		},
+		{
+			desc: "handle on without quotes", input: `
 kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
@@ -819,8 +823,10 @@ spec:
   type: local
 version: v2`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
-		{desc: "unsupported numeric type as second_factor", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOn),
+		},
+		{
+			desc: "unsupported numeric type as second_factor", input: `
 kind: cluster_auth_preference
 metadata:
   name: cluster-auth-preference
@@ -834,7 +840,7 @@ version: v2`,
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
-			require.NoError(t, os.WriteFile(capYAMLPath, []byte(tt.input), 0644))
+			require.NoError(t, os.WriteFile(capYAMLPath, []byte(tt.input), 0o644))
 
 			_, err := runResourceCommand(t, clt, []string{"create", "-f", capYAMLPath})
 			tt.expectError(t, err)
@@ -937,7 +943,7 @@ spec:
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
-			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
+			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0o644))
 
 			_, err := runResourceCommand(t, clt, []string{"create", "-f", spYAMLPath})
 			tt.expectError(t, err)
@@ -1048,7 +1054,7 @@ func (test *dynamicResourceTest[T]) run(t *testing.T) {
 
 	// Create the resources.
 	yamlPath := filepath.Join(t.TempDir(), "resources.yaml")
-	require.NoError(t, os.WriteFile(yamlPath, []byte(test.resourceYAML), 0644))
+	require.NoError(t, os.WriteFile(yamlPath, []byte(test.resourceYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", yamlPath})
 	require.NoError(t, err)
 
@@ -1465,7 +1471,7 @@ version: v3`
 
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
-	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
@@ -1490,7 +1496,7 @@ version: v3`
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalGithubConnector(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1549,7 +1555,7 @@ version: v7
 
 	// Create the role
 	roleYAMLPath := filepath.Join(t.TempDir(), "role.yaml")
-	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0644))
+	require.NoError(t, os.WriteFile(roleYAMLPath, []byte(roleYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", roleYAMLPath})
 	require.NoError(t, err)
 
@@ -1573,7 +1579,7 @@ version: v7
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalRole(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0644))
+	require.NoError(t, os.WriteFile(roleYAMLPath, connectorBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", roleYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1601,7 +1607,7 @@ spec:
 
 	// Create the server info
 	serverInfoYAMLPath := filepath.Join(t.TempDir(), "server-info.yaml")
-	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0644)
+	err = os.WriteFile(serverInfoYAMLPath, []byte(serverInfoYAML), 0o644)
 	require.NoError(t, err)
 	_, err = runResourceCommand(t, clt, []string{"create", serverInfoYAMLPath})
 	require.NoError(t, err)
@@ -1627,7 +1633,7 @@ spec:
 	expected.SetRevision(uuid.NewString())
 	newRevisionServerInfo, err := services.MarshalServerInfo(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0644)
+	err = os.WriteFile(serverInfoYAMLPath, newRevisionServerInfo, 0o644)
 	require.NoError(t, err)
 
 	_, err = runResourceCommand(t, clt, []string{"create", serverInfoYAMLPath})
@@ -1652,7 +1658,7 @@ spec:
 
 	// Create the user
 	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
-	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
 
@@ -1678,7 +1684,7 @@ spec:
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalUser(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(userYAMLPath, connectorBytes, 0644))
+	require.NoError(t, os.WriteFile(userYAMLPath, connectorBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1736,7 +1742,7 @@ version: v1
 
 	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
@@ -1787,7 +1793,7 @@ version: v2
 
 	// Create the cnc
 	cncYAMLPath := filepath.Join(t.TempDir(), "cnc.yaml")
-	require.NoError(t, os.WriteFile(cncYAMLPath, []byte(cncYAML), 0644))
+	require.NoError(t, os.WriteFile(cncYAMLPath, []byte(cncYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", cncYAMLPath})
 	require.NoError(t, err)
 
@@ -1810,7 +1816,7 @@ version: v2
 	expected.SetRevision(uuid.NewString())
 	raw, err := services.MarshalClusterNetworkingConfig(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(cncYAMLPath, raw, 0644))
+	require.NoError(t, os.WriteFile(cncYAMLPath, raw, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", cncYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1832,14 +1838,14 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factors: [webauthn, otp]
   type: local
 version: v2
 `
 
 	// Create the cap
 	capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
-	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0644))
+	require.NoError(t, os.WriteFile(capYAMLPath, []byte(capYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", capYAMLPath})
 	require.NoError(t, err)
 
@@ -1852,15 +1858,20 @@ version: v2
 	var expected types.AuthPreferenceV2
 	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
 
-	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+	expectSecondFactors := []types.SecondFactorType{
+		types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		types.SecondFactorType_SECOND_FACTOR_TYPE_SSO,
+	}
+
+	require.NotEqual(t, expectSecondFactors, initial.GetSecondFactors())
+	require.Equal(t, expectSecondFactors, expected.GetSecondFactors())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
 	expected.SetRevision(uuid.NewString())
 	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
+	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", capYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1890,7 +1901,7 @@ version: v2
 
 	// Create the src
 	srcYAMLPath := filepath.Join(t.TempDir(), "src.yaml")
-	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0644))
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(srcYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.NoError(t, err)
 
@@ -1911,7 +1922,7 @@ version: v2
 	expected.SetRevision(uuid.NewString())
 	raw, err := services.MarshalSessionRecordingConfig(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0644))
+	require.NoError(t, os.WriteFile(srcYAMLPath, raw, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -1958,13 +1969,13 @@ version: v3
 
 	// Creating an AppServer with integration is valid.
 	srcYAMLPath := filepath.Join(t.TempDir(), "appServerWithIntegrationYAML.yaml")
-	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithIntegrationYAML), 0644))
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithIntegrationYAML), 0o644))
 	_, err := runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.NoError(t, err)
 
 	// Creating an AppServer without integration is invalid.
 	srcYAMLPath = filepath.Join(t.TempDir(), "appServerWithoutIntegrationYAML.yaml")
-	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithoutIntegrationYAML), 0644))
+	require.NoError(t, os.WriteFile(srcYAMLPath, []byte(appServerWithoutIntegrationYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", srcYAMLPath})
 	require.ErrorContains(t, err, "integration")
 
@@ -2015,7 +2026,7 @@ version: v1
 
 	// Create the resource
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
@@ -2108,7 +2119,7 @@ spec:
 
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
-	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
@@ -2133,7 +2144,7 @@ spec:
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalOIDCConnector(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -2185,7 +2196,7 @@ spec:
 
 	// Create the connector
 	connectorYAMLPath := filepath.Join(t.TempDir(), "connector.yaml")
-	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, []byte(connectorYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.NoError(t, err)
 
@@ -2210,7 +2221,7 @@ spec:
 	expected.SetRevision(uuid.NewString())
 	connectorBytes, err := services.MarshalSAMLConnector(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0644))
+	require.NoError(t, os.WriteFile(connectorYAMLPath, connectorBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", connectorYAMLPath})
 	require.True(t, trace.IsAlreadyExists(err))
@@ -2250,7 +2261,7 @@ spec:
 
 	// Create the host user
 	userYAMLPath := filepath.Join(t.TempDir(), "host_user.yaml")
-	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.NoError(t, err)
 
@@ -2275,7 +2286,7 @@ spec:
 	expected.GetMetadata().Revision = uuid.NewString()
 	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
 	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
+	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0o644))
 
 	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
 	require.Error(t, err)
@@ -2299,7 +2310,7 @@ version: v1
 
 	// Create the resource.
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
@@ -2334,7 +2345,7 @@ version: v1
 
 	// Create the resource.
 	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
-	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0o644))
 	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
 	require.NoError(t, err)
 
