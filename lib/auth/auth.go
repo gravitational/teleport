@@ -1889,7 +1889,10 @@ func (a *Server) GetAnonymizationKey(ctx context.Context, opts ...services.Marsh
 		return a.GetClusterID(ctx, opts...)
 	}
 
-	return string(a.license.AnonymizationKey), nil
+	return cmp.Or(
+		string(modules.GetModules().Features().CloudAnonymizationKey),
+		string(a.license.AnonymizationKey),
+	), nil
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
