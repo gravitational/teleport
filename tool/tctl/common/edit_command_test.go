@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/gravitational/teleport/api/constants"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -132,7 +131,6 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -170,7 +168,6 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 
 		collection := &roleCollection{roles: []types.Role{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the role and validate that the expected field is updated.
@@ -210,7 +207,6 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 
 		collection := &userCollection{users: []types.User{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the user and validate that the expected field is updated.
@@ -248,7 +244,6 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 
 		collection := &netConfigCollection{netConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cnc and validate that the expected field is updated.
@@ -283,11 +278,13 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		}
 
 		expected.SetRevision(initial.GetRevision())
-		expected.SetSecondFactor(constants.SecondFactorOff)
+		expected.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+		)
 
 		collection := &authPrefCollection{authPref: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cap and validate that the expected field is updated.
@@ -296,7 +293,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAuthPreference(ctx)
 	require.NoError(t, err, "retrieving cap after edit")
-	assert.NotEqual(t, initial.GetSecondFactor(), actual.GetSecondFactor(), "second factor should have been modified by edit")
+	assert.NotEqual(t, initial.GetSecondFactors(), actual.GetSecondFactors(), "second factor should have been modified by edit")
 	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
 	assert.Equal(t, types.OriginDynamic, actual.Origin())
 
@@ -325,7 +322,6 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 
 		collection := &recConfigCollection{recConfig: expected}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the src and validate that the expected field is updated.
@@ -415,7 +411,6 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -484,7 +479,6 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 
 		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.

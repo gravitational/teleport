@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -56,7 +57,6 @@ func extractPort(svr *httptest.Server) (int, error) {
 }
 
 func waitForSessionToBeEstablished(ctx context.Context, namespace string, site authclient.ClientI) ([]types.SessionTracker, error) {
-
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -151,7 +151,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			cfg := suite.defaultServiceConfig()
 			cfg.Auth.Enabled = true
-			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 			cfg.Auth.NoAudit = true
 			cfg.Auth.SessionRecordingConfig = recCfg
 			cfg.Proxy.Enabled = true

@@ -657,7 +657,6 @@ func TestKubePROXYProtocol(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportCluster, kubeCluster string, k8ClientConfig *rest.Config) *kubernetes.Clientset {
@@ -1404,7 +1403,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
@@ -1510,7 +1509,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -1580,7 +1579,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false
@@ -1663,7 +1662,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = false

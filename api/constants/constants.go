@@ -191,6 +191,7 @@ var SystemConnectors = []string{
 }
 
 // SecondFactorType is the type of 2FA authentication.
+// Deprecated: Use types.SecondFactorType
 type SecondFactorType string
 
 const (

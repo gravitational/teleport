@@ -71,14 +71,14 @@ type AuthPreference interface {
 	// SetType sets the type of authentication: local, saml, or oidc.
 	SetType(string)
 
-	// GetSecondFactor gets the type of second factor.
-	GetSecondFactor() constants.SecondFactorType
 	// SetSecondFactor sets the type of second factor.
+	// Deprecated: use SetSecondFactors
+	// TODO(Joerger): Delete once all uses are removed (tests with second factor off)
 	SetSecondFactor(constants.SecondFactorType)
 	// GetSecondFactors gets a list of supported second factors.
 	GetSecondFactors() []SecondFactorType
 	// SetSecondFactors sets the list of supported second factors.
-	SetSecondFactors([]SecondFactorType)
+	SetSecondFactors(...SecondFactorType)
 	// GetPreferredLocalMFA returns the preferred MFA method from available methods.
 	// This is often used as a tip to clients to pick an MFA method.
 	// Preference order: WebAuthn > OTP
@@ -324,11 +324,11 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 		return c.Spec.SecondFactors
 	}
 
-	return SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+	return secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
 }
 
-// SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
-func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthnConfigured bool) []SecondFactorType {
+// secondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
+func secondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthnConfigured bool) []SecondFactorType {
 	switch sf {
 	case constants.SecondFactorOff:
 		return nil
@@ -348,13 +348,25 @@ func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthn
 }
 
 // SetSecondFactors sets the list of supported second factors.
-func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
+func (c *AuthPreferenceV2) SetSecondFactors(s ...SecondFactorType) {
 	c.Spec.SecondFactors = s
 }
 
-// GetSecondFactor returns the type of second factor.
-func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
-	return c.Spec.SecondFactor
+// LegacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
+func LegacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
+	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
+	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
+
+	switch {
+	case hasOTP && hasWebAuthn:
+		return constants.SecondFactorOn
+	case hasWebAuthn:
+		return constants.SecondFactorWebauthn
+	case hasOTP:
+		return constants.SecondFactorOTP
+	default:
+		return constants.SecondFactorOff
+	}
 }
 
 // SetSecondFactor sets the type of second factor.
@@ -679,6 +691,11 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
+	if c.Spec.SecondFactor == "" && c.Spec.SecondFactors == nil {
+		c.Spec.SecondFactors = []SecondFactorType{
+			SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+		}
+	}
 	if c.Spec.AllowLocalAuth == nil {
 		c.Spec.AllowLocalAuth = NewBoolOption(true)
 	}
@@ -730,7 +747,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// Set SecondFactors from SecondFactor.
 	if len(c.Spec.SecondFactors) == 0 {
-		c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+		c.Spec.SecondFactors = secondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
 	}
 
 	// Validate expected fields for webauthn.

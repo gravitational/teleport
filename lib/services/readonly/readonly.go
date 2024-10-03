@@ -36,11 +36,13 @@ import (
 // to ensure that we do not modify the underlying AuthPreference as it may be shared across
 // multiple goroutines.
 type AuthPreference interface {
-	GetSecondFactor() constants.SecondFactorType
 	GetDisconnectExpiredCert() bool
 	GetLockingMode() constants.LockingMode
 	GetDeviceTrust() *types.DeviceTrust
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+	IsSecondFactorEnforced() bool
+	IsSecondFactorTOTPAllowed() bool
+	IsSecondFactorWebauthnAllowed() bool
 	IsAdminActionMFAEnforced() bool
 	GetRequireMFAType() types.RequireMFAType
 	IsSAMLIdPEnabled() bool

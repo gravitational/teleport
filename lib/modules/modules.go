@@ -34,7 +34,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -329,8 +328,7 @@ func ValidateResource(res types.Resource) error {
 
 		switch r := res.(type) {
 		case types.AuthPreference:
-			switch r.GetSecondFactor() {
-			case constants.SecondFactorOff, constants.SecondFactorOptional:
+			if !r.IsSecondFactorEnforced() {
 				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}

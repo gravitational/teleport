@@ -46,6 +46,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -330,7 +331,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
-		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = rc.Web
@@ -350,7 +351,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
-		config.Auth.Preference.SetSecondFactor("off")
+		config.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 		config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		config.Proxy.Enabled = true
 		config.Proxy.WebAddr.Addr = lc.Web

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -296,7 +297,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Log = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
@@ -314,7 +315,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	lcConf.Log = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
-	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetSecondFactor(constants.SecondFactorOff)
 	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false

@@ -944,7 +944,10 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	const rpID = "localhost"
 	const origin = "https://" + rpID + ":3080" // matches RPID.
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})
@@ -1153,7 +1156,10 @@ func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
 
 	// Enable webauthn
 	updateAuthPref(t, func(authPref types.AuthPreference) {
-		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetSecondFactors(
+			types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+		)
 		authPref.SetWebauthn(&types.Webauthn{
 			RPID: "localhost",
 		})

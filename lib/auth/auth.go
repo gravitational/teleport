@@ -3814,7 +3814,7 @@ func (a *Server) DeleteMFADeviceSync(ctx context.Context, req *proto.DeleteMFADe
 //   - Last resident key credential in a passwordless-capable cluster (avoids
 //     passwordless users from locking themselves out).
 func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName string) (*types.MFADevice, error) {
-	devs, err := a.Services.GetMFADevices(ctx, user, true)
+	mfaDevices, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3824,38 +3824,39 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		return nil, trace.Wrap(err)
 	}
 
-	kindToSF := map[string]constants.SecondFactorType{
-		fmt.Sprintf("%T", &types.MFADevice_Totp{}):     constants.SecondFactorOTP,
-		fmt.Sprintf("%T", &types.MFADevice_U2F{}):      constants.SecondFactorWebauthn,
-		fmt.Sprintf("%T", &types.MFADevice_Webauthn{}): constants.SecondFactorWebauthn,
-	}
-	sfToCount := make(map[constants.SecondFactorType]int)
-	var knownDevices int
-	var deviceToDelete *types.MFADevice
-	var numResidentKeys int
-
 	isResidentKey := func(d *types.MFADevice) bool {
 		return d.GetWebauthn() != nil && d.GetWebauthn().ResidentKey
 	}
 
+	totpAllowed := readOnlyAuthPref.IsSecondFactorTOTPAllowed()
+	webauthnAllowed := readOnlyAuthPref.IsSecondFactorWebauthnAllowed()
+
+	var deviceToDelete *types.MFADevice
+	var numTOTPDevices int
+	var numWebauthnDevices int
+	var numResidentKeys int
+
 	// Find the device to delete and count devices.
-	for _, d := range devs {
+	for _, d := range mfaDevices {
 		// Match device by name or ID.
 		if d.GetName() == deviceName || d.Id == deviceName {
 			deviceToDelete = d
 		}
 
-		sf, ok := kindToSF[fmt.Sprintf("%T", d.Device)]
-		switch {
-		case !ok && d == deviceToDelete:
-			return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
-		case !ok:
+		switch d.Device.(type) {
+		case *types.MFADevice_Totp:
+			numTOTPDevices++
+		case *types.MFADevice_U2F:
+			numWebauthnDevices++
+		case *types.MFADevice_Webauthn:
+			numWebauthnDevices++
+		default:
+			if d == deviceToDelete {
+				return nil, trace.NotImplemented("cannot delete device of type %T", d.Device)
+			}
 			log.Warnf("Ignoring unknown device with type %T in deletion.", d.Device)
 			continue
 		}
-
-		sfToCount[sf]++
-		knownDevices++
 
 		if isResidentKey(d) {
 			numResidentKeys++
@@ -3866,21 +3867,18 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 1
-	switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
-	case constants.SecondFactorOn:
-		if knownDevices <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+	if readOnlyAuthPref.IsSecondFactorEnforced() {
+		const minDevices = 1
+		var numAllowedDevices int
+		if totpAllowed {
+			numAllowedDevices += numTOTPDevices
 		}
-	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] <= minDevices {
-			return nil, trace.BadParameter(
-				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
+		if webauthnAllowed {
+			numAllowedDevices += numWebauthnDevices
 		}
-	default:
-		return nil, trace.BadParameter("unexpected second factor type: %s", sf)
+		if numAllowedDevices <= minDevices {
+			return nil, trace.BadParameter("cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
+		}
 	}
 
 	// canDeleteLastPasskey figures out whether the user can safely delete their
@@ -3910,17 +3908,13 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 
 		// Minimum number of WebAuthn devices includes the passkey that we attempt
 		// to delete, hence 2.
-		if sfToCount[constants.SecondFactorWebauthn] >= 2 {
+		if numWebauthnDevices >= 2 {
 			return true, nil
 		}
 
-		// Whether we take TOTPs into consideration or not depends on whether it's
-		// enabled.
-		switch sf := readOnlyAuthPref.GetSecondFactor(); sf {
-		case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-			if sfToCount[constants.SecondFactorOTP] >= 1 {
-				return true, nil
-			}
+		// Whether we take TOTPs into consideration or not depends on whether it's enabled.
+		if totpAllowed && numTOTPDevices >= 1 {
+			return true, nil
 		}
 
 		return false, nil
@@ -4036,7 +4030,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 		return nil, trace.Wrap(err)
 	}
 
-	if cap.GetSecondFactor() == constants.SecondFactorOff {
+	if !cap.IsSecondFactorEnabled() {
 		return nil, trace.BadParameter("second factor disabled by cluster configuration")
 	}
 
@@ -6750,7 +6744,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	groupedDevs := groupByDeviceType(devs, enableWebauthn)
+	groupedDevs := groupByDeviceType(devs)
 	challenge := &proto.MFAAuthenticateChallenge{}
 
 	// TOTP challenge.
@@ -6759,7 +6753,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user string, challengeExt
 	}
 
 	// WebAuthn challenge.
-	if len(groupedDevs.Webauthn) > 0 {
+	if enableWebauthn && len(groupedDevs.Webauthn) > 0 {
 		webLogin := &wanlib.LoginFlow{
 			U2F:      u2fPref,
 			Webauthn: webConfig,
@@ -6798,20 +6792,16 @@ type devicesByType struct {
 	Webauthn []*types.MFADevice
 }
 
-func groupByDeviceType(devs []*types.MFADevice, groupWebauthn bool) devicesByType {
+func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 	res := devicesByType{}
 	for _, dev := range devs {
 		switch dev.Device.(type) {
 		case *types.MFADevice_Totp:
 			res.TOTP = true
 		case *types.MFADevice_U2F:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
 		case *types.MFADevice_Webauthn:
-			if groupWebauthn {
-				res.Webauthn = append(res.Webauthn, dev)
-			}
+			res.Webauthn = append(res.Webauthn, dev)
 		default:
 			log.Warningf("Skipping MFA device of unknown type %T.", dev.Device)
 		}
@@ -6844,7 +6834,7 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		totpEnabled := authPref.IsSecondFactorTOTPAllowed()
 		webauthnEnabled := authPref.IsSecondFactorWebauthnAllowed()
 
-		devsByType := groupByDeviceType(devices, webauthnEnabled)
+		devsByType := groupByDeviceType(devices)
 		if (totpEnabled && devsByType.TOTP) || (webauthnEnabled && len(devsByType.Webauthn) > 0) {
 			return false, trace.BadParameter("second factor authentication required")
 		}

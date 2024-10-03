@@ -776,39 +776,43 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	validTokenID := token.GetName()
 
 	type testCase struct {
-		desc         string
-		secondFactor constants.SecondFactorType
-		req          *proto.ChangeUserAuthenticationRequest
+		desc          string
+		secondFactors []types.SecondFactorType
+		req           *proto.ChangeUserAuthenticationRequest
 	}
 
 	testCases := []testCase{
 		{
-			secondFactor: constants.SecondFactorOff,
-			desc:         "invalid tokenID value",
+			secondFactors: nil,
+			desc:          "invalid tokenID value",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     "what_token",
 				NewPassword: validPassword,
 			},
 		},
 		{
-			secondFactor: constants.SecondFactorOff,
-			desc:         "invalid password",
+			secondFactors: nil,
+			desc:          "invalid password",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     validTokenID,
 				NewPassword: []byte("short"),
 			},
 		},
 		{
-			secondFactor: constants.SecondFactorOTP,
-			desc:         "missing second factor",
+			secondFactors: []types.SecondFactorType{
+				types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			},
+			desc: "missing second factor",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     validTokenID,
 				NewPassword: validPassword,
 			},
 		},
 		{
-			secondFactor: constants.SecondFactorOTP,
-			desc:         "invalid OTP value",
+			secondFactors: []types.SecondFactorType{
+				types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+			},
+			desc: "invalid OTP value",
 			req: &proto.ChangeUserAuthenticationRequest{
 				TokenID:     validTokenID,
 				NewPassword: validPassword,
@@ -821,7 +825,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		// set new auth preference settings
-		authPreference.SetSecondFactor(tc.secondFactor)
+		authPreference.SetSecondFactors(tc.secondFactors...)
 		authPreference, err = s.a.UpsertAuthPreference(ctx, authPreference)
 		require.NoError(t, err)
 
