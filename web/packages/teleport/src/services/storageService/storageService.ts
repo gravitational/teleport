@@ -43,6 +43,7 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.SHOW_ASSIST_POPUP,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.RECOMMEND_FEATURE,
+  KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
 ];
 
 export const storageService = {
@@ -214,6 +215,21 @@ export const storageService = {
   arePinnedResourcesDisabled(): boolean {
     return (
       window.localStorage.getItem(KeysEnum.PINNED_RESOURCES_NOT_SUPPORTED) ===
+      'true'
+    );
+  },
+
+  getUsersMauAcknowledged(): boolean {
+    return (
+      window.localStorage.getItem(
+        KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED
+      ) === 'true'
+    );
+  },
+
+  setUsersMAUAcknowledged() {
+    window.localStorage.setItem(
+      KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
       'true'
     );
   },
