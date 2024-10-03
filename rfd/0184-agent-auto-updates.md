@@ -308,6 +308,8 @@ I and the customer get an alert if the canary testing has not succeeded after an
 Teleport cloud operators and the customer can access the canary `hostname` and `host_uuid`
 to identify broken canary agents.
 
+Customers receive cluster alerts, while Cloud receive alerts driven by Teleport metrics.
+
 The rollout resumes.
 
 ##### Failure mode 1(b): the new version crashes, but not on the canaries
