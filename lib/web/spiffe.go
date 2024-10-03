@@ -135,6 +135,11 @@ func (h *Handler) getSPIFFEOIDCDiscoveryDocument(_ http.ResponseWriter, _ *http.
 		ResponseTypesSupported: []string{
 			"id_token",
 		},
+		// Whilst this field is not required for GCP's Workload Identity
+		// Federation, it is required for AWS's AssumeRoleWithWebIdentity.
+		SubjectTypesSupported: []string{
+			"public",
+		},
 	}, nil
 }
 
