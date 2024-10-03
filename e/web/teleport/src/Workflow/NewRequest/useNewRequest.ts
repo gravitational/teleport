@@ -181,7 +181,18 @@ export function useNewRequest(ctx: Ctx) {
 
           return {
             startKey: response.startKey,
-            agents: response.agents,
+            agents: response.agents.map(a => {
+              if (a.kind === 'app') {
+                return {
+                  ...a,
+                  userGroups: [
+                    { name: 'group1', description: 'This is group 1' },
+                    { name: 'group2', description: 'This is group 2' },
+                  ],
+                };
+              }
+              return a;
+            }),
             totalCount: response.agents.length,
           };
         } catch (err) {

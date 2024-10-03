@@ -280,9 +280,11 @@ describe('addMetadataGeneric: onchange events', () => {
       await user.paste(entityDescriptor);
       await user.click(entityDescriptorEl);
 
-      expect(onChange).toHaveBeenCalledWith(
-        expect.objectContaining({ entityDescriptor: entityDescriptor })
-      );
+      await waitFor(() => {
+        expect(onChange).toHaveBeenCalledWith(
+          expect.objectContaining({ entityDescriptor: entityDescriptor })
+        );
+      });
     }
   );
 });

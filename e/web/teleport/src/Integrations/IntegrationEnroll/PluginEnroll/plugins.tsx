@@ -121,20 +121,18 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     FormMixin: () => {
       const [channel, setChannel] = useState('');
       return (
-        <InputIconContainer style={{ position: 'relative' }}>
-          <StyledFieldInput
-            width="260px"
-            label="Default Channel"
-            name="fallback_channel" // must be the same name as expected by the backend as form value
-            rule={requiredField('Default channel must be specified')}
-            value={channel}
-            onChange={e => setChannel(e.target.value)}
-            autoFocus
-            placeholder="access-requests"
-            toolTipContent="The default channel will receive all notifications about access requests. Request notifications will also be sent directly to assigned reviewers (if any)."
-          />
-          <StyledHashtagIcon color="text.primary" size="medium" />
-        </InputIconContainer>
+        <FieldInput
+          width="260px"
+          label="Default Channel"
+          name="fallback_channel" // must be the same name as expected by the backend as form value
+          rule={requiredField('Default channel must be specified')}
+          value={channel}
+          onChange={e => setChannel(e.target.value)}
+          autoFocus
+          placeholder="access-requests"
+          toolTipContent="The default channel will receive all notifications about access requests. Request notifications will also be sent directly to assigned reviewers (if any)."
+          icon={Icons.Hashtag}
+        />
       );
     },
     NextSteps: ({ successData }) => {
@@ -580,8 +578,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       const [clientSecret, setClientSecret] = useState('');
       const [apiEndpoint, setApiEndpoint] = useState('');
       return (
-        <InputIconContainer style={{ position: 'relative' }}>
-          <StyledFieldInput
+        <>
+          <FieldInput
             width="500px"
             label="Jamf API Endpoint"
             name="apiEndpoint" // must be the same name as expected by the backend as form value
@@ -592,7 +590,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="https://yourserver.jamfcloud.com"
             toolTipContent="URL of Jamf API. (e.g. https://yourtenant.jamfcloud.com)"
           />
-          <StyledFieldInput
+          <FieldInput
             width="500px"
             label="Jamf API Client ID"
             name="clientId" // must be the same name as expected by the backend as form value
@@ -602,7 +600,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="Client ID"
             toolTipContent="Jamf API Client ID."
           />
-          <StyledFieldInput
+          <FieldInput
             width="500px"
             label="Jamf API Client Secret"
             name="clientSecret" // must be the same name as expected by the backend as form value
@@ -613,7 +611,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             type="password"
             toolTipContent="Jamf API Client Secret."
           />
-        </InputIconContainer>
+        </>
       );
     },
     NextSteps: () => {
@@ -724,8 +722,8 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       const [apiEndpoint, setApiEndpoint] = useState('');
       const [closeCode, setCloseCode] = useState('');
       return (
-        <InputIconContainer style={{ position: 'relative' }}>
-          <StyledFieldInput
+        <>
+          <FieldInput
             width="500px"
             label="ServiceNow API Endpoint"
             name="apiEndpoint" // must be the same name as expected by the backend as form value
@@ -736,7 +734,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="https://yourserver.servicenowcloud.com"
             toolTipContent="URL of ServiceNow API. (e.g. https://example-servicenow-instance.com)"
           />
-          <StyledFieldInput
+          <FieldInput
             width="500px"
             label="ServiceNow Account Username"
             name="username" // must be the same name as expected by the backend as form value
@@ -746,7 +744,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="Username"
             toolTipContent="Username of the account that will be used to authenticate with Servicenow API."
           />
-          <StyledFieldInput
+          <FieldInput
             width="500px"
             label="ServiceNow Account Password"
             name="password" // must be the same name as expected by the backend as form value
@@ -757,7 +755,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             type="password"
             toolTipContent="Password of the account that will be used to authenticate with ServiceNow API."
           />
-          <StyledFieldInput
+          <FieldInput
             width="500px"
             label="ServiceNow Close Code"
             name="closeCode" // must be the same name as expected by the backend as form value
@@ -768,7 +766,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             placeholder="Resolved"
             toolTipContent="ServiceNow Close code to resolve incidents with."
           />
-        </InputIconContainer>
+        </>
       );
     },
     NextSteps: () => {
@@ -1176,7 +1174,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
             width="500px"
             label="Channel(s)"
             name="channels" // must be the same name as expected by the backend as form value
-            rule={requiredField('Channel')}
+            rule={requiredField('Channel is required')}
             value={channels}
             onChange={e => setChannels(e.target.value)}
             placeholder="123456789012345678"
@@ -1438,23 +1436,6 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
 ];
 
 export const pluginMap = Object.fromEntries(plugins.map(p => [p.type, p]));
-
-const InputIconContainer = styled.div`
-  position: relative;
-`;
-
-const StyledHashtagIcon = styled(Icons.Hashtag)`
-  display: inline;
-  padding: 0 6px;
-  position: absolute;
-  top: 36px;
-`;
-
-const StyledFieldInput = styled(FieldInput)`
-  input {
-    padding-left: 23px; /* Make room for an icon */
-  }
-`;
 
 const StyledUl = styled.ul`
   margin: 0;

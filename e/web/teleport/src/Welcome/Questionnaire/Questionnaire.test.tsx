@@ -138,13 +138,16 @@ describe('questionnaire', () => {
     await userEvent.click(screen.getByRole('button', { name: /Submit/i }));
 
     expect(
-      screen.getByLabelText('Company Name is required')
+      screen.getByRole('textbox', { description: 'Company Name is required' })
     ).toBeInTheDocument();
+    expect(screen.getByLabelText('Number of Employees')).toBeInvalid();
     expect(
-      screen.getByLabelText('Number of Employees is required')
+      screen.getByText('Number of Employees is required')
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Team is required')).toBeInTheDocument();
-    expect(screen.getByLabelText('Job Title is required')).toBeInTheDocument();
+    expect(screen.getByLabelText('Which Team are you on?')).toBeInvalid();
+    expect(screen.getByText('Team is required')).toBeInTheDocument();
+    expect(screen.getByLabelText('Job Title')).toBeInvalid();
+    expect(screen.getByText('Job Title is required')).toBeInTheDocument();
     expect(screen.getByText('Resource is required')).toBeInTheDocument();
 
     // assert data was not saved to local storage

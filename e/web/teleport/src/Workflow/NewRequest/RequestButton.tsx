@@ -1,7 +1,6 @@
 import React from 'react';
 import { ButtonPrimary, ButtonBorder, Flex, Text } from 'design';
 import styled from 'styled-components';
-import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
 import { components, OptionProps } from 'react-select';
 import Select, { Option as BaseOption } from 'shared/components/Select';
 import { App } from 'teleport/services/apps';
@@ -154,49 +153,46 @@ export function AppRequestButton({
 
   return (
     <Flex alignItems="center" justifyContent="end">
-      <StyledSelect className={isUserGroupAdded ? 'hasSelectedGroups' : ''}>
-        <Select
-          placeholder={isUserGroupAdded ? 'Edit App Role' : 'Select App Role'}
-          value={null}
-          options={options}
-          isSearchable={false}
-          isClearable={false}
-          isMulti={false}
-          hideSelectedOptions={false}
-          controlShouldRenderValue={false}
-          closeMenuOnSelect={false}
-          onChange={handleSelect}
-          components={{
-            Option: OptionComponent,
-          }}
-        />
-      </StyledSelect>
+      <StyledSelect
+        size="small"
+        className={isUserGroupAdded ? 'hasSelectedGroups' : ''}
+        placeholder={isUserGroupAdded ? 'Edit App Role' : 'Select App Role'}
+        value={null}
+        options={options}
+        isSearchable={false}
+        isClearable={false}
+        isMulti={false}
+        hideSelectedOptions={false}
+        controlShouldRenderValue={false}
+        closeMenuOnSelect={false}
+        onChange={handleSelect}
+        components={{
+          Option: OptionComponent,
+        }}
+      />
     </Flex>
   );
 }
 
-const StyledSelect = styled(BaseStyledSelect)`
+const StyledSelect = styled(Select)`
   input[type='checkbox'] {
     cursor: pointer;
   }
 
   .react-select__control {
-    font-size: 10px;
+    ${props => props.theme.typography.body4}
     width: 123px;
-    height: 26px;
     min-height: 24px;
-    border: 2px solid ${p => p.theme.colors.buttons.secondary.default};
   }
 
   .react-select__menu {
-    font-size: 12px;
     width: 230px;
     right: 0;
   }
 
   .react-select__option {
+    ${props => props.theme.typography.body3}
     padding: 0;
-    font-size: 12px;
   }
 
   .react-select__value-container {
@@ -204,16 +200,19 @@ const StyledSelect = styled(BaseStyledSelect)`
   }
 
   .react-select__dropdown-indicator {
-    padding-top: 0px;
+    padding: 2px;
   }
 
   &.hasSelectedGroups {
-    .react-select-container {
-      background: ${p => p.theme.colors.buttons.primary.default};
+    .react-select__control {
+      background: ${p =>
+        p.theme.colors.interactive.solid.primary.default.background};
+      border: transparent;
     }
+
     .react-select__placeholder,
     .react-select__dropdown-indicator {
-      color: ${p => p.theme.colors.buttons.primary.text};
+      color: ${p => p.theme.colors.text.primaryInverse};
     }
   }
 `;

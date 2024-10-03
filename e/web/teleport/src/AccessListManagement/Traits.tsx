@@ -5,6 +5,7 @@ import FieldInput from 'shared/components/FieldInput';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import { requiredField } from 'shared/components/Validation/rules';
 import { AllUserTraits } from 'teleport/services/user';
+import { inputGeometry } from 'design/Input/Input';
 
 import { EditKind } from './Shared/Shared';
 
@@ -55,6 +56,7 @@ export function TraitsCreator({
         : `Add Another Trait to Grant`;
   }
 
+  const inputSize = 'medium';
   return (
     <Box mb={4}>
       <ButtonTextWithAddIcon
@@ -77,9 +79,9 @@ export function TraitsCreator({
         {traitLabels.map((label, index) => {
           return (
             <Box mb={2} key={index}>
-              <Flex alignItems="center">
+              <Flex alignItems="start">
                 <FieldInput
-                  Input
+                  size={inputSize}
                   rule={requiredField('required')}
                   autoFocus={autoFocus}
                   value={label.name}
@@ -91,6 +93,7 @@ export function TraitsCreator({
                   readonly={isDisabled}
                 />
                 <FieldInput
+                  size={inputSize}
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder="trait value"
@@ -100,20 +103,29 @@ export function TraitsCreator({
                   onChange={e => handleChange(e, index, 'value')}
                   readonly={isDisabled}
                 />
-                <ButtonIcon
-                  size={1}
-                  title="Remove Label"
-                  onClick={() => removeLabel(index)}
-                  css={`
-                    &:disabled {
-                      opacity: 0.65;
-                      pointer-events: none;
-                    }
-                  `}
-                  disabled={isDisabled}
+                {/* Force the trash button container to be the same height as an
+                    input. We can't just set `alignItems="center"` on the parent
+                    flex container above, because the field can expand when
+                    showing a validation error. */}
+                <Flex
+                  alignItems="center"
+                  height={inputGeometry[inputSize].height}
                 >
-                  <Icons.Trash size="medium" />
-                </ButtonIcon>
+                  <ButtonIcon
+                    size={1}
+                    title="Remove Label"
+                    onClick={() => removeLabel(index)}
+                    css={`
+                      &:disabled {
+                        opacity: 0.65;
+                        pointer-events: none;
+                      }
+                    `}
+                    disabled={isDisabled}
+                  >
+                    <Icons.Trash size="medium" />
+                  </ButtonIcon>
+                </Flex>
               </Flex>
             </Box>
           );

@@ -1,11 +1,8 @@
 import React, { useState, PropsWithChildren } from 'react';
 import styled from 'styled-components';
-import { Popover, Text, Box, LabelInput, Label } from 'design';
-import { StyledSelect, Option } from 'shared/components/Select';
+import { Popover, Text, Label } from 'design';
+import { Option } from 'shared/components/Select';
 import { AllUserTraits, User } from 'teleport/services/user';
-import { useRule } from 'shared/components/Validation';
-
-import { RuleFunc, noopRule } from './rules';
 
 // HybridUserOption
 //
@@ -22,33 +19,6 @@ import { RuleFunc, noopRule } from './rules';
 export type HybridUserOption = Option<User | string>;
 export type UserOption = Option<User>;
 export type EditKind = 'Member' | 'Owner' | 'Grants' | 'OwnerGrants';
-
-// TODO(lisa): would benefit moving it to shared package
-// similar to FieldInput and FieldSelect
-export function FieldSelectAndCreatableWrapper<T>({
-  label,
-  value,
-  rule = noopRule,
-  children,
-}: PropsWithChildren<{
-  label: string;
-  value: T[];
-  rule?: RuleFunc<T[]>;
-}>) {
-  const { valid, message } = useRule(rule(value));
-  const hasError = Boolean(!valid);
-  const labelText = hasError ? message : label;
-  return (
-    <Box mb={3}>
-      {label && (
-        <LabelInput htmlFor={'select'} hasError={hasError}>
-          {labelText}
-        </LabelInput>
-      )}
-      <StyledSelect hasError={hasError}>{children}</StyledSelect>
-    </Box>
-  );
-}
 
 // TODO(lisa): move this to 'shared/ToolTip' package
 // and refactor ToolTipInfo with this.

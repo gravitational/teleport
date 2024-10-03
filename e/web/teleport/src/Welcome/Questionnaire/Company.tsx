@@ -15,7 +15,6 @@ export const Company = ({
     <FieldInput
       label="Company Name"
       rule={requiredField('Company Name is required')}
-      id="company-name"
       type="text"
       value={companyName}
       placeholder="ex. GitHub"

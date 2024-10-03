@@ -1,14 +1,15 @@
-import ReactSelectCreatable from 'react-select/creatable';
-import ReactSelectCreatableAsync from 'react-select/async-creatable';
 import { requiredField } from 'shared/components/Validation/rules';
 import { Option } from 'shared/components/Select';
-import { useAsync } from 'shared/hooks/useAsync';
+
+import {
+  FieldSelectCreatable,
+  FieldSelectCreatableAsync,
+} from 'shared/components/FieldSelect/FieldSelectCreatable';
 
 import {
   EditKind,
-  FieldSelectAndCreatableWrapper,
   HybridUserOption,
-} from '../Shared/Shared';
+} from 'e-teleport/AccessListManagement/Shared/Shared';
 
 export function EligibilityOrGrantRolesFieldSelectAndCreate({
   loadOptions,
@@ -35,39 +36,23 @@ export function EligibilityOrGrantRolesFieldSelectAndCreate({
     label = `Required Roles (Optional)`;
   }
 
-  //TODO(gzdunek): Extract FieldSelectCreatableAsync.
-  const [optionsAttempt, runOptionsAttempt] = useAsync(loadOptions);
-
   return (
-    <FieldSelectAndCreatableWrapper<Option>
+    <FieldSelectCreatableAsync
       label={label}
       value={selected}
       rule={optional ? undefined : requiredField(requiredErrMsg)}
-    >
-      <ReactSelectCreatableAsync
-        menuPosition="fixed"
-        autoFocus={autoFocus}
-        classNamePrefix="react-select"
-        placeholder="Start typing a role name and press enter"
-        isMulti={true}
-        isClearable={true}
-        loadOptions={async input => {
-          const [data, error] = await runOptionsAttempt(input);
-          if (!error) {
-            return data;
-          }
-        }}
-        defaultOptions={true}
-        isDisabled={isDisabled}
-        onChange={onChange}
-        value={selected || []}
-        noOptionsMessage={() =>
-          optionsAttempt.status === 'error'
-            ? `Could not load options: ${optionsAttempt.statusText}`
-            : 'Start typing a role name and press enter'
-        }
-      />
-    </FieldSelectAndCreatableWrapper>
+      menuPosition="fixed"
+      autoFocus={autoFocus}
+      classNamePrefix="react-select"
+      placeholder="Start typing a role name and press enter"
+      isMulti={true}
+      isClearable={true}
+      loadOptions={loadOptions}
+      defaultOptions={true}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      noOptionsMessage={() => 'Start typing a role name and press enter'}
+    />
   );
 }
 
@@ -98,24 +83,20 @@ export function EligibleUsersFieldSelectAndCreate<T = HybridUserOption>({
     noOptionsMsg = 'Start typing a username and press enter';
   }
   return (
-    <FieldSelectAndCreatableWrapper<T>
+    <FieldSelectCreatable
       label={label}
       value={selected}
       rule={requiredErrMsg ? requiredField(requiredErrMsg) : undefined}
-    >
-      <ReactSelectCreatable
-        menuPosition="fixed"
-        autoFocus={autoFocus}
-        classNamePrefix="react-select"
-        placeholder="Start typing a username and press enter"
-        isMulti={true}
-        isClearable={true}
-        isDisabled={isDisabled}
-        value={selected || []}
-        onChange={onChange}
-        options={options}
-        noOptionsMessage={() => noOptionsMsg}
-      />
-    </FieldSelectAndCreatableWrapper>
+      menuPosition="fixed"
+      autoFocus={autoFocus}
+      classNamePrefix="react-select"
+      placeholder="Start typing a username and press enter"
+      isMulti={true}
+      isClearable={true}
+      isDisabled={isDisabled}
+      onChange={onChange}
+      options={options}
+      noOptionsMessage={() => noOptionsMsg}
+    />
   );
 }

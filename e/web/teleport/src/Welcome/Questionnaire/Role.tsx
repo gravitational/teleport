@@ -30,7 +30,6 @@ export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
     />
     {TeamOption[team] === TeamOption.OTHER && (
       <FieldInput
-        id="team-name"
         type="text"
         label="Team Name"
         rule={requiredField('Team Name is required')}

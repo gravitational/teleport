@@ -2,7 +2,8 @@ import React from 'react';
 import { Box, ButtonIcon, Flex, Text, LabelInput, Link, H2 } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect, {
+import {
+  FieldSelect,
   FieldSelectCreatable,
 } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -104,7 +105,7 @@ export function AttributeMapping({
       <SubHeading />
       <Box>
         {spConfig.attributeMapping.length > 0 && (
-          <Flex mt={2}>
+          <Flex mt={2} mb={1}>
             <Box width="185px" mr={1} ml={1}>
               <Text typography="body3">Attribute Name</Text>
             </Box>
@@ -117,111 +118,112 @@ export function AttributeMapping({
             </Text>
           </Flex>
         )}
-        {spConfig.attributeMapping.map((attribute, index) => {
-          return (
-            <Box mb={-5} key={index}>
-              <Flex alignItems="center" mt={-3}>
-                <StyledFieldInput
-                  // using markAsError instead of rule so that we can udpate parent
-                  // LabelInput manually.
-                  markAsError={
-                    attrMapErr.emptyName && attribute.name.length === 0
-                  }
-                  value={attribute.name}
-                  placeholder="attribute_name"
-                  width="190px"
-                  mr={0}
-                  mb={1}
-                  onChange={e =>
-                    handleInputChange({
-                      event: e,
-                      labelField: 'name',
-                      index: index,
-                    })
-                  }
-                  disabled={disabled || disableAttributeRow(index)}
-                />
-                <Box width="140px" mr={3}>
-                  <StyledFieldSelect
-                    mt={4}
-                    isSearchable={false}
-                    options={nameFormats}
-                    onChange={e =>
-                      handleInputChange({
-                        option: e as Option,
-                        labelField: 'name_format',
-                        index: index,
-                      })
-                    }
-                    defaultValue={{
-                      value: urnToFriendlyName(attribute.name_format),
-                      label: urnToFriendlyName(attribute.name_format),
-                    }}
-                    value={{
-                      value: urnToFriendlyName(attribute.name_format),
-                      label: urnToFriendlyName(attribute.name_format),
-                    }}
-                    isDisabled={disabled || disableAttributeRow(index)}
-                  />
-                </Box>
-                <Box width="400px" ml={3}>
-                  <FieldSelectCreatable
+        <Flex flexDirection="column" gap={3}>
+          {spConfig.attributeMapping.map((attribute, index) => {
+            return (
+              <Box key={index}>
+                <Flex alignItems="center">
+                  <StyledFieldInput
                     // using markAsError instead of rule so that we can udpate parent
                     // LabelInput manually.
                     markAsError={
-                      attrMapErr.emptyValue && attribute.value.length === 0
+                      attrMapErr.emptyName && attribute.name.length === 0
                     }
-                    mt={4}
-                    ariaLabel="attribute value"
-                    css={`
-                      background: ${props => props.theme.colors.levels.surface};
-                    `}
-                    width="400px"
-                    placeholder="write predicate expression or select from the list"
-                    isSearchable
-                    onChange={e => {
+                    value={attribute.name}
+                    placeholder="attribute_name"
+                    width="190px"
+                    mr={0}
+                    mb={0}
+                    onChange={e =>
                       handleInputChange({
-                        option: e as Option,
-                        labelField: 'value',
+                        event: e,
+                        labelField: 'name',
                         index: index,
-                      });
-                    }}
-                    // set value to be null on empty so that placeholder is shown.
-                    value={
-                      attribute.value.length === 0
-                        ? null
-                        : {
-                            value: attribute.value,
-                            label: attribute.value,
-                          }
+                      })
                     }
-                    isDisabled={disabled || disableAttributeRow(index)}
-                    createOptionPosition="last"
-                    formatCreateLabel={(i: string) => 'predicate: ' + `"${i}"`}
-                    options={predicateList}
+                    disabled={disabled || disableAttributeRow(index)}
                   />
-                </Box>
-                <ButtonIcon
-                  ml={1}
-                  size={1}
-                  title="Remove Attribute"
-                  onClick={() => removeAttribute(index)}
-                  css={`
-                    &:disabled {
-                      opacity: 0.65;
-                      pointer-events: none;
-                    }
-                  `}
-                  disabled={disabled || disableAttributeRow(index)}
-                >
-                  <Icons.Trash size="medium" />
-                </ButtonIcon>
-              </Flex>
-            </Box>
-          );
-        })}
+                  <Box width="140px" mr={3}>
+                    <StyledFieldSelect
+                      mb={0}
+                      isSearchable={false}
+                      options={nameFormats}
+                      onChange={e =>
+                        handleInputChange({
+                          option: e as Option,
+                          labelField: 'name_format',
+                          index: index,
+                        })
+                      }
+                      defaultValue={{
+                        value: urnToFriendlyName(attribute.name_format),
+                        label: urnToFriendlyName(attribute.name_format),
+                      }}
+                      value={{
+                        value: urnToFriendlyName(attribute.name_format),
+                        label: urnToFriendlyName(attribute.name_format),
+                      }}
+                      isDisabled={disabled || disableAttributeRow(index)}
+                    />
+                  </Box>
+                  <Box width="400px" ml={3}>
+                    <FieldSelectCreatable
+                      mb={0}
+                      // using markAsError instead of rule so that we can udpate parent
+                      // LabelInput manually.
+                      markAsError={
+                        attrMapErr.emptyValue && attribute.value.length === 0
+                      }
+                      ariaLabel="attribute value"
+                      width="400px"
+                      placeholder="write predicate expression or select from the list"
+                      isSearchable
+                      onChange={e => {
+                        handleInputChange({
+                          option: e as Option,
+                          labelField: 'value',
+                          index: index,
+                        });
+                      }}
+                      // set value to be null on empty so that placeholder is shown.
+                      value={
+                        attribute.value.length === 0
+                          ? null
+                          : {
+                              value: attribute.value,
+                              label: attribute.value,
+                            }
+                      }
+                      isDisabled={disabled || disableAttributeRow(index)}
+                      createOptionPosition="last"
+                      formatCreateLabel={(i: string) =>
+                        'predicate: ' + `"${i}"`
+                      }
+                      options={predicateList}
+                    />
+                  </Box>
+                  <ButtonIcon
+                    ml={1}
+                    size={1}
+                    title="Remove Attribute"
+                    onClick={() => removeAttribute(index)}
+                    css={`
+                      &:disabled {
+                        opacity: 0.65;
+                        pointer-events: none;
+                      }
+                    `}
+                    disabled={disabled || disableAttributeRow(index)}
+                  >
+                    <Icons.Trash size="medium" />
+                  </ButtonIcon>
+                </Flex>
+              </Box>
+            );
+          })}
+        </Flex>
       </Box>
-      <Box mt={2} height="10px">
+      <Box mt={1} height="10px">
         <AttrMappingErrorLabel attrMapErr={attrMapErr} />
       </Box>
       <Box mt={4}>
@@ -237,7 +239,7 @@ export function AttributeMapping({
 
 function AttrMappingErrorLabel({ attrMapErr: attrMapErr }) {
   return (
-    <Flex mt={-4} mb={4}>
+    <Flex mb={4}>
       <Box minWidth="360px" mr={1} ml={1}>
         {attrMapErr.emptyName ? (
           <LabelInput hasError={attrMapErr.emptyName}>
@@ -301,7 +303,6 @@ const StyledFieldInput = styled(FieldInput)`
 `;
 
 const StyledFieldSelect = styled(FieldSelect)`
-  background: ${props => props.theme.colors.levels.surface};
   .react-select__control {
     border-radius: 0px 4px 4px 0px;
     margin-left: -1px;

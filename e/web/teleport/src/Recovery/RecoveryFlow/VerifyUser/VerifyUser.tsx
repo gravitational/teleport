@@ -128,7 +128,7 @@ export function VerifyUser({
                 mb={3}
               />
             ) : (
-              <Flex alignItems="center">
+              <Flex alignItems="start">
                 <FieldSelect
                   maxWidth="50%"
                   width="100%"
