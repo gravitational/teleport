@@ -38,8 +38,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Replace un-archives package from tools directory and replaces defined apps by symlinks.
-func Replace(toolsDir string, archivePath string, hash string, apps []string) error {
+// ReplaceToolsBinaries un-archives package from tools directory and replaces defined apps by symlinks.
+func ReplaceToolsBinaries(toolsDir string, archivePath string, hash string, apps []string) error {
 	switch runtime.GOOS {
 	case "darwin":
 		return replacePkg(toolsDir, archivePath, hash, apps)
@@ -54,12 +54,12 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer f.Close()
 
 	gzipReader, err := gzip.NewReader(f)
 	if err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return trace.Wrap(err)
 	}
-
 	tarReader := tar.NewReader(gzipReader)
 	for {
 		header, err := tarReader.Next()
@@ -77,7 +77,7 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 		}
 		// Verify that we have enough space for uncompressed file.
 		if err := checkFreeSpace(tempDir, uint64(header.Size)); err != nil {
-			return trace.NewAggregate(err, gzipReader.Close(), f.Close())
+			return trace.Wrap(err)
 		}
 
 		dest := filepath.Join(toolsDir, strings.TrimPrefix(header.Name, "teleport/"))
@@ -86,21 +86,23 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 			return trace.Wrap(err)
 		}
 		if err := os.Chmod(t.Name(), 0o755); err != nil {
-			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
+			_ = t.Cleanup()
+			return trace.Wrap(err)
 		}
-
 		if _, err := io.Copy(t, tarReader); err != nil {
-			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
+			_ = t.Cleanup()
+			return trace.Wrap(err)
 		}
 		if err := t.CloseAtomicallyReplace(); err != nil {
-			return trace.NewAggregate(err, t.Cleanup(), gzipReader.Close(), f.Close())
+			_ = t.Cleanup()
+			return trace.Wrap(err)
 		}
 		if err := t.Cleanup(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	return trace.NewAggregate(gzipReader.Close(), f.Close())
+	return trace.Wrap(gzipReader.Close())
 }
 
 func replacePkg(toolsDir string, archivePath string, hash string, apps []string) error {

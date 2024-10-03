@@ -20,7 +20,7 @@
 
 package packaging
 
-// Replace un-archives package from tools directory and replaces defined apps by symlinks.
-func Replace(toolsDir string, archivePath string, hash string, apps []string) error {
+// ReplaceToolsBinaries un-archives package from tools directory and replaces defined apps by symlinks.
+func ReplaceToolsBinaries(toolsDir string, archivePath string, hash string, apps []string) error {
 	return replaceZip(toolsDir, archivePath, hash, apps)
 }

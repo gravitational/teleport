@@ -35,23 +35,23 @@ const (
 	reservedFreeDisk = 10 * 1024 * 1024
 )
 
-// Cleanup performs a cleanup pass to remove any old copies of apps.
-func Cleanup(toolsDir, skipFileName, skipSuffix string) error {
-	err := filepath.Walk(toolsDir, func(path string, info os.FileInfo, err error) error {
+// RemoveWithSuffix removes all files in dir that have the provided suffix, except for files named `skipName`
+func RemoveWithSuffix(dir, suffix, skipName string) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if !info.IsDir() {
 			return nil
 		}
-		if skipFileName == info.Name() {
+		if skipName == info.Name() {
 			return nil
 		}
-		if !strings.HasSuffix(info.Name(), skipSuffix) {
+		if !strings.HasSuffix(info.Name(), suffix) {
 			return nil
 		}
 		// Found a stale expanded package.
-		if err := os.RemoveAll(filepath.Join(toolsDir, info.Name())); err != nil {
+		if err := os.RemoveAll(path); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -64,18 +64,19 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer f.Close()
 
 	fi, err := f.Stat()
 	if err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return trace.Wrap(err)
 	}
 	zipReader, err := zip.NewReader(f, fi.Size())
 	if err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return trace.Wrap(err)
 	}
 	tempDir, err := os.MkdirTemp(toolsDir, hash)
 	if err != nil {
-		return trace.NewAggregate(err, f.Close())
+		return trace.Wrap(err)
 	}
 
 	for _, zipFile := range zipReader.File {
@@ -94,29 +95,33 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer file.Close()
 
 		dest := filepath.Join(tempDir, zipFile.Name)
 		destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return trace.NewAggregate(err, file.Close(), f.Close())
+			return trace.Wrap(err)
 		}
 
 		if _, err := io.Copy(destFile, file); err != nil {
-			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
+			_ = destFile.Close()
+			return trace.Wrap(err)
 		}
 		appPath := filepath.Join(toolsDir, zipFile.Name)
 		if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
+			_ = destFile.Close()
+			return trace.Wrap(err)
 		}
 		if err := os.Symlink(dest, appPath); err != nil {
-			return trace.NewAggregate(err, destFile.Close(), file.Close(), f.Close())
+			_ = destFile.Close()
+			return trace.Wrap(err)
 		}
-		if err := trace.NewAggregate(destFile.Close(), file.Close()); err != nil {
-			return trace.NewAggregate(err, f.Close())
+		if err := destFile.Close(); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return trace.Wrap(f.Close())
+	return nil
 }
 
 // checkFreeSpace verifies that we have enough requested space at specific directory.
