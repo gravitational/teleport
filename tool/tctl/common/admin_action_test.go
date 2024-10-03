@@ -175,6 +175,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 				setup:      createBot,
 				cleanup:    deleteBot,
 			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				s.testCommand(t, ctx, tc)

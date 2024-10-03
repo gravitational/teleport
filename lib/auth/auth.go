@@ -3898,6 +3898,12 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
+
+		// SSO users can always login through their SSO provider.
+		if u.GetUserType() == types.UserTypeSSO {
+			return true, nil
+		}
+
 		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
 			return false, nil
 		}
