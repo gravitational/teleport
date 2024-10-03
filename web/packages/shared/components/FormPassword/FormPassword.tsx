@@ -121,6 +121,35 @@ function FormPassword(props: Props) {
             type="password"
             placeholder="Password"
           />
+          {mfaEnabled && (
+            <Flex alignItems="flex-start" mb={4}>
+              <Box width="60%" data-testid="mfa-select">
+                <FieldSelect
+                  label="Two-factor Type"
+                  value={mfaType}
+                  options={mfaOptions}
+                  onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
+                  mr={3}
+                  mb={0}
+                  isDisabled={isProcessing}
+                />
+              </Box>
+              <Box width="40%">
+                {mfaType.value === 'otp' && (
+                  <FieldInput
+                    label="Authenticator Code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    rule={requiredToken}
+                    value={token}
+                    onChange={e => setToken(e.target.value)}
+                    placeholder="123 456"
+                    mb={0}
+                  />
+                )}
+              </Box>
+            </Flex>
+          )}
           <FieldInput
             rule={requiredPassword}
             label="New Password"
