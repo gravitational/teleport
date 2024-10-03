@@ -27,7 +27,6 @@ import (
 	"runtime"
 	"runtime/pprof"
 	runtimetrace "runtime/trace"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -69,7 +68,7 @@ func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	ctx := context.Background()
 
-	var cpuProfile, memProfile, traceProfile string
+	var cpuProfile, memProfile, traceProfile, configureOutPath string
 
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
@@ -82,29 +81,53 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
-	joinMethodList := fmt.Sprintf(
-		"(%s)",
-		strings.Join(config.SupportedJoinMethods, ", "),
-	)
-
 	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
-	startCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	startCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
-	startCmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
-	startCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
-	startCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	startCmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
-	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&cf.CertificateTTL)
-	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	startCmd.Flag("insecure", "Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.").BoolVar(&cf.Insecure)
-	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
-	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
-	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
-	startCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(utils.LogFormatText).
-		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
+	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
+	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
+
+	var commands []config.CLICommandRunner
+	commands = append(commands,
+		config.NewLegacyCommand(startCmd, applyConfigAndStart(ctx, cf.ConfigPath)),
+		config.NewLegacyCommand(configureCmd, applyConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+	)
+
+	commands = append(commands,
+		config.NewIdentityCommand(startCmd, applyConfigAndStart(ctx, cf.ConfigPath)),
+		config.NewIdentityCommand(configureCmd, applyConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+	)
+
+	// startLegacy := startCmd.Command("legacy", "Start with either a config file or a legacy output").Default()
+	// startLegacy.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
+	// startLegacy.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
+	// startLegacy.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
+
+	// startIdentity := startCmd.Command("identity", "Start with an identity output for SSH and Teleport API access").Alias("ssh").Alias("id")
+	// startIdentity.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
+	// startIdentity.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&cf.Cluster)
+	// TODO: roles? ssh_config mode?
+	// TODO: storage?
+
+	// startDatabase := startCmd.Command("database", "Starts with a database output").Alias("db")
+	// startDatabase.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
+	// startDatabase.Flag("format", "The database output format if necessary").Default("").EnumVar(&cf.DatabaseFormat, config.SupportedDatabaseFormatStrings()...)
+	// startDatabase.Flag("service", "The database service name").Required().StringVar(&cf.DatabaseService)
+	// startDatabase.Flag("username", "The database user name").Required().StringVar(&cf.DatabaseUsername)
+	// startDatabase.Flag("database", "The name of the database available in the requested database service").Required().StringVar(&cf.DatabaseDatabase)
+	// TODO: roles?
+
+	// startApplication := startCmd.Command("application", "Starts with an application output").Alias("app")
+	// startApplication.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
+
+	// startKubernetes := startCmd.Command("kubernetes", "Starts with a Kubernetes output").Alias("k8s")
+	// startKubernetes.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
+
+	// startDatabaseTunnel := startCmd.Command("database-tunnel", "Starts a database tunnel").Alias("db-tunnel")
+	// startApplicationTunnel := startCmd.Command("application-tunnel", "Starts an app tunnel").Alias("app-tunnel")
+	// startSpiffeX509SVID := startCmd.Command("spiffe-x509-svid", "Starts with a SPIFFE X509 SVID output")
+
+	// TODO: Should there be a workload id subcommand?
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -114,22 +137,6 @@ func Run(args []string, stdout io.Writer) error {
 	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
 	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
 	initCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(utils.LogFormatText).
-		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
-
-	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
-	configureCmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	configureCmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
-	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
-	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
-	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	configureCmd.Flag("insecure", "Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.").BoolVar(&cf.Insecure)
-	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
-	configureCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
-	configureCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
-	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
-	configureCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(utils.LogFormatText).
 		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 
@@ -309,39 +316,59 @@ func Run(args []string, stdout io.Writer) error {
 		}
 		tpm.PrintQuery(query, cf.Debug, os.Stdout)
 		return nil
-	case configureCmd.FullCommand():
-		return onConfigure(ctx, cf, stdout)
 	case sshProxyCmd.FullCommand():
 		return onSSHProxyCommand(ctx, &cf)
 	case sshMultiplexProxyCmd.FullCommand():
 		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	case installSystemdCmdStr:
 		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable, os.Stdout)
+	case initCmd.FullCommand():
+		return onInit(&cf)
+	case dbCmd.FullCommand():
+		return onDBCommand(&cf)
+	case proxyCmd.FullCommand():
+		return onProxyCommand(ctx, &cf)
+	case kubeCredentialsCmd.FullCommand():
+		return onKubeCredentialsCommand(ctx, &cf)
 	}
 
-	botConfig, err := config.FromCLIConf(&cf)
-	if err != nil {
+	// Attempt to run each new-style command.
+	for _, cmd := range commands {
+		match, err := cmd.TryRun(command)
+		if !match {
+			continue
+		}
+
 		return trace.Wrap(err)
 	}
 
-	// The rest of the commands rely on the full config
-	switch command {
-	case startCmd.FullCommand():
-		err = onStart(ctx, botConfig)
-	case initCmd.FullCommand():
-		err = onInit(botConfig, &cf)
-	case dbCmd.FullCommand():
-		err = onDBCommand(botConfig, &cf)
-	case proxyCmd.FullCommand():
-		err = onProxyCommand(ctx, botConfig, &cf)
-	case kubeCredentialsCmd.FullCommand():
-		err = onKubeCredentialsCommand(ctx, botConfig)
-	default:
-		// This should only happen when there's a missing switch case above.
-		err = trace.BadParameter("command %q not configured", command)
-	}
+	return trace.BadParameter("command %q not configured", command)
+}
 
-	return err
+// applyConfigAndStart returns a MutatorAction that will generate a config and
+// run `onStart` with the result.
+func applyConfigAndStart(ctx context.Context, configPath string) config.MutatorAction {
+	return func(mutator config.CLIConfigMutator) error {
+		cfg, err := config.LoadConfigWithMutator(configPath, mutator)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(onStart(ctx, cfg))
+	}
+}
+
+// applyConfigAndConfigure returns a MutatorAction that will generate a config
+// and run `onConfigure` with the result.
+func applyConfigAndConfigure(ctx context.Context, configPath string, outPath string, stdout io.Writer) config.MutatorAction {
+	return func(mutator config.CLIConfigMutator) error {
+		cfg, err := config.BaseConfigWithMutator(mutator)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(onConfigure(ctx, cfg, outPath, stdout))
+	}
 }
 
 func initializeTracing(
@@ -373,11 +400,11 @@ func onVersion() error {
 
 func onConfigure(
 	ctx context.Context,
-	cf config.CLIConf,
+	cfg *config.BotConfig,
+	outPath string,
 	stdout io.Writer,
 ) error {
 	out := stdout
-	outPath := cf.ConfigureOutput
 	if outPath != "" {
 		f, err := os.Create(outPath)
 		if err != nil {
@@ -387,13 +414,6 @@ func onConfigure(
 		out = f
 	}
 
-	// We do not want to load an existing configuration file as this will cause
-	// it to be merged with the provided flags and defaults.
-	cf.ConfigPath = ""
-	cfg, err := config.FromCLIConf(&cf)
-	if err != nil {
-		return nil
-	}
 	// Ensure they have provided a join method to use in the configuration.
 	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
 		return trace.BadParameter("join method must be provided")

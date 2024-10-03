@@ -420,11 +420,15 @@ func getAndTestACLOptions(cf *config.CLIConf, destDir string) (*user.User, *user
 	return ownerUser, ownerGroup, &opts, nil
 }
 
-func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onInit(cf *config.CLIConf) error {
+	botConfig, err := config.FromCLIConf(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var err error
 	initables := botConfig.GetInitables()
 	var target config.Initable
 	// First, resolve the correct output/service. If using a config file with

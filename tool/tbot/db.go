@@ -28,7 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func onDBCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+func onDBCommand(cf *config.CLIConf) error {
+	botConfig, err := config.FromCLIConf(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)

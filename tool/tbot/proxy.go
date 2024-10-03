@@ -31,8 +31,13 @@ import (
 )
 
 func onProxyCommand(
-	ctx context.Context, botConfig *config.BotConfig, cf *config.CLIConf,
+	ctx context.Context, cf *config.CLIConf,
 ) error {
+	botConfig, err := config.FromCLIConf(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)

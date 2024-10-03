@@ -44,6 +44,10 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
+
+	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
+	tokenEnvVar       = "TELEPORT_BOT_TOKEN"
+	proxyServerEnvVar = "TELEPORT_PROXY"
 )
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/config")
@@ -677,6 +681,7 @@ func destinationFromURI(uriString string) (bot.Destination, error) {
 // FromCLIConf loads bot config from CLI parameters, potentially loading and
 // merging a configuration file if specified. CheckAndSetDefaults() will
 // be called. Note that CLI flags, if specified, will override file values.
+// TODO: Remove this function.
 func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	var config *BotConfig
 	var err error
@@ -703,8 +708,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.AuthServer != "" {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "auth-server",
+				"config_value", config.AuthServer,
+				"cli_value", cf.AuthServer,
 			)
 		}
 		config.AuthServer = cf.AuthServer
@@ -714,8 +722,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.ProxyServer != "" {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "proxy-server",
+				"config_value", config.ProxyServer,
+				"cli_value", cf.ProxyServer,
 			)
 		}
 		config.ProxyServer = cf.ProxyServer
@@ -725,8 +736,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.CertificateTTL != 0 {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "certificate-ttl",
+				"config_value", config.CertificateTTL,
+				"cli_value", cf.CertificateTTL,
 			)
 		}
 		config.CertificateTTL = cf.CertificateTTL
@@ -736,8 +750,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.RenewalInterval != 0 {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "renewal-interval",
+				"config_value", config.RenewalInterval,
+				"cli_value", cf.RenewalInterval,
 			)
 		}
 		config.RenewalInterval = cf.RenewalInterval
@@ -748,42 +765,19 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.Storage != nil && config.Storage.Destination != nil {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "data-dir",
+				"config_value", config.Storage.Destination.String(),
+				"cli_value", cf.DataDir,
 			)
 		}
+
 		dest, err := destinationFromURI(cf.DataDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		config.Storage = &StorageConfig{Destination: dest}
-	}
-
-	if cf.DestinationDir != "" {
-		// WARNING:
-		// See: https://github.com/gravitational/teleport/issues/27206 for
-		// potential gotchas that currently exist when dealing with this
-		// override behavior.
-
-		// CLI only supports a single filesystem Destination with SSH client config
-		// and all roles.
-		if len(config.Services) > 0 {
-			log.WarnContext(
-				context.TODO(),
-				"CLI parameters are overriding destinations",
-				"config_path", cf.ConfigPath,
-			)
-		}
-
-		// When using the CLI --Destination-dir we configure an Identity type
-		// output for that directory.
-		config.Services = []ServiceConfig{
-			&IdentityOutput{
-				Destination: &DestinationDirectory{
-					Path: cf.DestinationDir,
-				},
-			},
-		}
 	}
 
 	// If any onboarding flags are set, override the whole section.
@@ -795,8 +789,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			// To be safe, warn about possible confusion.
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding join configuration",
 				"config_path", cf.ConfigPath,
+				"cli_token", cf.Token,
+				"cli_join_method", cf.JoinMethod,
+				"cli_ca_pins_count", len(cf.CAPins),
 			)
 		}
 
@@ -815,8 +812,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if config.DiagAddr != "" {
 			log.WarnContext(
 				context.TODO(),
-				"CLI parameters are overriding destinations",
+				"CLI parameters are overriding configuration",
 				"config_path", cf.ConfigPath,
+				"flag", "diag-addr",
+				"config_value", config.DiagAddr,
+				"cli_value", cf.DiagAddr,
 			)
 		}
 		config.DiagAddr = cf.DiagAddr
@@ -842,6 +842,51 @@ func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, erro
 
 	defer f.Close()
 	return ReadConfig(f, manualMigration)
+}
+
+// LoadConfigWithMutator builds a config from an optional config file and a CLI
+// mutator. If an empty path is provided, an empty base config is used. The CLI
+// mutator may override or append to the loaded configuration, if any.
+// `CheckAndSetDefaults()` will be called on the end result.
+func LoadConfigWithMutator(filePath string, mutator CLIConfigMutator) (*BotConfig, error) {
+	var cfg *BotConfig
+	var err error
+
+	if filePath != "" {
+		cfg, err = ReadConfigFromFile(filePath, false)
+
+		if err != nil {
+			return nil, trace.Wrap(err, "loading bot config from path %s", filePath)
+		}
+	} else {
+		cfg = &BotConfig{}
+	}
+
+	l := log.With("config_path", filePath)
+	if err := mutator.ApplyConfig(cfg, l); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg, nil
+}
+
+// BaseConfigWithMutator returns a base bot config with a given CLI mutator
+// applied. `CheckAndSetDefaults()` will be called on the result.
+func BaseConfigWithMutator(mutator CLIConfigMutator) (*BotConfig, error) {
+	cfg := &BotConfig{}
+	if err := mutator.ApplyConfig(cfg, log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cfg, nil
 }
 
 type Version string
