@@ -29,7 +29,6 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
