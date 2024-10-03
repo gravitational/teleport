@@ -171,6 +171,36 @@ func (r *CreateSSHCertReq) CheckAndSetDefaults() error {
 	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
 }
 
+// HeadlessLoginReq is a headless login request for /webapi/headless/login.
+type HeadlessLoginReq struct {
+	// User is a teleport username
+	User string `json:"user"`
+	// HeadlessAuthenticationID is a headless authentication resource id.
+	HeadlessAuthenticationID string `json:"headless_id"`
+	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
+	// should be used as the subject of issued certificates, and optional
+	// hardware key attestation statements for each key.
+	UserPublicKeys
+	TTL time.Duration `json:"ttl"`
+	// Compatibility specifies OpenSSH compatibility flags.
+	Compatibility string `json:"compatibility,omitempty"`
+	// RouteToCluster is an optional cluster name to route the response
+	// credentials to.
+	RouteToCluster string
+	// KubernetesCluster is an optional k8s cluster name to route the response
+	// credentials to.
+	KubernetesCluster string
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (r *HeadlessLoginReq) CheckAndSetDefaults() error {
+	if r.HeadlessAuthenticationID == "" {
+		return trace.BadParameter("missing headless authentication id for headless login")
+	}
+
+	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
+}
+
 // UserPublicKeys holds user-submitted public keys and attestation statements
 // used in local login requests.
 type UserPublicKeys struct {
@@ -609,8 +639,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	// This request will block until the headless login is approved.
 	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
-	// TODO(Joerger): Headless needs to use a different non-deprecated endpoint.
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+	req := HeadlessLoginReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
 		UserPublicKeys: UserPublicKeys{
@@ -623,7 +652,14 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		Compatibility:     login.Compatibility,
 		RouteToCluster:    login.RouteToCluster,
 		KubernetesCluster: login.KubernetesCluster,
-	})
+	}
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)
+	if trace.IsNotFound(err) {
+		// fallback to deprecated headless login endpoint
+		// TODO(Joerger): DELETE IN v18.0.0
+		re, err = clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), req)
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
