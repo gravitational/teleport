@@ -292,10 +292,6 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Slack';
         icon = <IconContainer name="slack" />;
         break;
-      case 'openai':
-        formattedText = 'OpenAI';
-        icon = <IconContainer name="openai" />;
-        break;
       case 'jamf':
         formattedText = 'Jamf';
         icon = <IconContainer name="jamf" />;
