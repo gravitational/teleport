@@ -178,6 +178,15 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.AccountID != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if params.Bootstrap {
 		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
 			Athena: athena.NewFromConfig(cfg),

@@ -340,8 +340,8 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		// TODO(Joerger): this should live in lib/client/mfa/cli.go using the prompt device prefix.
 		const registeredMsg = "Using platform authentication for *registered* device, follow the OS dialogs"
 		const newMsg = "Using platform authentication for *new* device, follow the OS dialogs"
+		wanwin.SetPromptPlatformMessage(registeredMsg)
 		defer wanwin.ResetPromptPlatformMessage()
-		wanwin.PromptPlatformMessage = registeredMsg
 
 		mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
@@ -363,7 +363,7 @@ func (c *mfaAddCommand) addDeviceRPC(ctx context.Context, tc *client.TeleportCli
 		}
 
 		// Prompt for registration.
-		wanwin.PromptPlatformMessage = newMsg
+		wanwin.SetPromptPlatformMessage(newMsg)
 		registerResp, registerCallback, err := promptRegisterChallenge(ctx, tc.WebProxyAddr, c.devType, registerChallenge)
 		if err != nil {
 			return trace.Wrap(err)

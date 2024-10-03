@@ -276,7 +276,7 @@ func TestConfigureIdPIAM(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}
@@ -297,7 +297,7 @@ type mockRole struct {
 }
 
 type mockIdPIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingIDPUrl []string
 	existingRoles  map[string]mockRole
 }
