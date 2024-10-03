@@ -1588,7 +1588,7 @@ are signed.
 
 The Update Framework (TUF) will be used to implement secure updates in the future.
 
-Anyone who possesses a updater UUID can determine when that host is scheduled to update by repeatedly querying the public `/v1/webapi/find` endpoint.
+Anyone who possesses an updater UUID can determine when that host is scheduled to update by repeatedly querying the public `/v1/webapi/find` endpoint.
 It is not possible to discover the current version of that host, only the designated update window.
 
 ## Logging
