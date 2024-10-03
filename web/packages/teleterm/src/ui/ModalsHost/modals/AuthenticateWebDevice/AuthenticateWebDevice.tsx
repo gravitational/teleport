@@ -49,28 +49,28 @@ export const AuthenticateWebDevice = ({
 
   return (
     <Dialog open={true}>
-      {/* 360px was used as a way to do our best to get clusterName as the first item on the second line */}
-      <DialogContent maxWidth="360px">
+      {/* 400px was used as a way to do our best to get clusterName as the first item on the second line */}
+      <DialogContent maxWidth="400px">
         <Text>
-          Would you like to launch an authorized web session for{' '}
+          Would you like to authorize a device trust web session for{' '}
           <b>{clusterName}</b>?
         </Text>
       </DialogContent>
       {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
-      <Flex>
+      <Flex flexDirection="column">
         <ButtonPrimary
           disabled={attempt.status === 'processing'}
           block={true}
           onClick={run}
-          mr={3}
+          mb={3}
         >
-          Launch Web Session
+          Authorize session
         </ButtonPrimary>
         <ButtonSecondary
           disabled={attempt.status === 'processing'}
           onClick={onCancel}
         >
-          Cancel
+          Continue without device trust
         </ButtonSecondary>
       </Flex>
     </Dialog>
