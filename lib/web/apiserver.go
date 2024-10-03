@@ -1201,6 +1201,7 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	userContext.AccessCapabilities = ui.AccessCapabilities{
 		RequestableRoles:   res.RequestableRoles,
 		SuggestedReviewers: res.SuggestedReviewers,
+		RequestMode:        ui.RequestMode{KubernetesResources: res.RequestMode.KubernetesResources},
 	}
 
 	userContext.AllowedSearchAsRoles = accessChecker.GetAllowedSearchAsRoles()
