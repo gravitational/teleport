@@ -1,5 +1,22 @@
 # Changelog
 
+## 14.3.32 (10/03/24)
+
+* Fixes an issue preventing access requests from displaying user friendly resource names. [#47110](https://github.com/gravitational/teleport/pull/47110)
+* Updated Go to `1.22.8`. [#47053](https://github.com/gravitational/teleport/pull/47053)
+* Fixed the "source path is empty" error when attempting to upload a file in Teleport Connect. [#47014](https://github.com/gravitational/teleport/pull/47014)
+* Enforce a global `device_trust.mode=required` on OSS processes paired with an Enterprise Auth. [#46945](https://github.com/gravitational/teleport/pull/46945)
+* A user joining a session will now see available controls for terminating & leaving the session. [#46923](https://github.com/gravitational/teleport/pull/46923)
+* Teleport no longer creates invalid SAML Connectors when calling `tctl get saml/<connector-name> | tctl create -f` without the `--with-secrets` flag. [#46887](https://github.com/gravitational/teleport/pull/46887)
+* Fixed a regression in the SAML IdP service which prevented cache from initializing in a cluster that may have a service provider configured with unsupported `acs_url` and `relay_state` values. [#46847](https://github.com/gravitational/teleport/pull/46847)
+* Fixes a bug in Kubernetes access that causes the error `expected *metav1.PartialObjectMetadata object` when trying to list resources. [#46696](https://github.com/gravitational/teleport/pull/46696)
+* Fixed an issue that prevented host user creation when the username was also listed in `host_groups`. [#46639](https://github.com/gravitational/teleport/pull/46639)
+* Allow all audit events to be trimmed if necessary. [#46505](https://github.com/gravitational/teleport/pull/46505)
+* Fixed an issue preventing session joining while host user creation was in use. [#46503](https://github.com/gravitational/teleport/pull/46503)
+* Fixed an issue that prevented the Firestore backend from reading existing data. [#46435](https://github.com/gravitational/teleport/pull/46435)
+* The `teleport-kube-agent` chart now correctly propagates configured annotations when deploying a StatefulSet. [#46423](https://github.com/gravitational/teleport/pull/46423)
+* Ensure that additional pod labels are carried over to post-upgrade and post-delete hook job pods when using the `teleport-kube-agent` Helm chart. [#46236](https://github.com/gravitational/teleport/pull/46236)
+
 ## 14.3.31 (09/05/24)
 
 * Updated Go to 1.22.7. [#46298](https://api.github.com/repos/gravitational/teleport/issues/46298)
