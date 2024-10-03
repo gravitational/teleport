@@ -33,12 +33,21 @@ type accessStrategy struct {
 	Prompt string `json:"prompt"`
 }
 
+// RequestMode defines access request mode for specific resources.
+type RequestMode struct {
+	// KubernetesResources contains a list of allowed kubernetes resources
+	// defined by its "kind" field.
+	KubernetesResources []types.KubernetesResource `json:"kubernetesResources"`
+}
+
 // AccessCapabilities defines allowable access request rules defined in a user's roles.
 type AccessCapabilities struct {
 	// RequestableRoles is a list of roles that the user can select when requesting access.
 	RequestableRoles []string `json:"requestableRoles"`
 	// SuggestedReviewers is a list of reviewers that the user can select when creating a request.
 	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// RequestMode defines access request mode for specific resources.
+	RequestMode RequestMode `json:"requestMode"`
 }
 
 type authType string
