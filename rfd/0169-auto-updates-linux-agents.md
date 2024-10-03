@@ -223,8 +223,8 @@ tctl autoupdate agent new-rollout v3
 # created new rollout from v2 to v3
 ```
 
-TODO(sclevine): What about `update` or `target` instead of `new-rollout`?
-  `new-rollout` seems like we're creating a new resource, not changing target version.
+[TODO(sclevine): What about `update` or `target` instead of `new-rollout`?
+  `new-rollout` seems like we're creating a new resource, not changing target version.]
 
 <details>
 <summary>After</summary>
@@ -1114,8 +1114,8 @@ However, any changes to `agent_schedules` that occur while a group is active wil
 
 Releasing new agent versions multiple times a week has the potential to starve dependent groups from updates.
 
-Note that the `default` schedule applies to agents that do not specify a group name.
-[TODO: It seems we removed the default bool, So we have a mandatory default group? Can we pick the last one instead?]
+Note that the `default` group applies to agents that do not specify a group name.
+If a `default` group is not present, the last group is treated as the default.
 
 ### Updater APIs
 
@@ -1156,10 +1156,10 @@ Notes:
 
 - Agents will only update if `agent_autoupdate` is `true`, but new installations will use `agent_version` regardless of
   the value in `agent_autoupdate`.
-- The edition served is the cluster edition (enterprise, enterprise-fips, or oss), and cannot be configured.
+- The edition served is the cluster edition (enterprise, enterprise-fips, or oss) and cannot be configured.
 - The group name is read from `/var/lib/teleport/versions/update.yaml` by the updater.
 - The UUID is read from `/tmp/teleport_update_uuid`, which `teleport-update` regenerates when missing.
-- the jitter is served by the teleport cluster and depends on the rollout strategy (60 sec by default, 10sec when using
+- the jitter is served by the teleport cluster and depends on the rollout strategy (60s by default, 10s when using
   the backpressure strategy).
 
 Let `v1` be the previous version and `v2` the target version, the response matrix is the following:
@@ -1192,7 +1192,7 @@ Let `v1` be the previous version and `v2` the target version, the response matri
 
 #### Updater status reporting
 
-Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` by the `teleport-update` binary.
+Instance heartbeats will be extended to incorporate and send data that is written to `/var/lib/teleport/versions/update.yaml` and `/tmp/teleport_update_uuid` by the `teleport-update` binary.
 
 The following data related to the rollout are stored in each instance heartbeat:
 - `agent_update_start_time`: timestamp of individual agent's upgrade time
@@ -1627,7 +1627,7 @@ Making the update boolean instruction available via the `/webapi/find` TLS endpo
 3. Implement changes to Kubernetes auto-updater.
 4. Test extensively on all supported Linux distributions.
 5. Prep documentation changes.
-6. Release via `teleport` package and script for packageless install.
+6. Release via `teleport` package and script for package-less installation.
 7. Release documentation changes.
 8. Communicate to users that they should update to the new system.
 9. Begin deprecation of old auto-updater resources, packages, and endpoints.
