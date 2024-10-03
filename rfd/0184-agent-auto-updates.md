@@ -147,7 +147,7 @@ users who want to know the motivations behind this specific design.
 
 ### Product requirements
 
-Those are the requirements coming from engineering, product, and Cloud teams:
+The following product requirements were defined by our leadership team:
 
 1. Phased rollout for Cloud tenants. We should be able to control the agent version per-tenant.
 
@@ -199,7 +199,7 @@ Those are the requirements coming from engineering, product, and Cloud teams:
 
 ### User Stories
 
-#### As Teleport Cloud I want to be able to update customers agents to a newer Teleport version
+#### As a Teleport Cloud operator I want to be able to update customers agents to a newer Teleport version
 
 <details>
 <summary>Before</summary>
@@ -260,7 +260,7 @@ Now, new agents will install v2 by default, and v3 after the maintenance.
 > # created new update plan from v1 to v3
 > ```
 
-#### As Teleport Cloud I want to minimize damage caused by broken versions to ensure we maintain 99.99% availability
+#### As a Teleport Cloud operator I want to minimize damage caused by broken versions to ensure we maintain 99.99% availability
 
 ##### Failure mode 1(a): the new version crashes
 
@@ -308,8 +308,8 @@ status:
 </details>
 
 I and the customer get an alert if the canary testing has not succeeded after an hour.
-Teleport cloud operators and the customer can access the canary hostname and host_uuid
-to identify the broken agent.
+Teleport cloud operators and the customer can access the canary `hostname` and `host_uuid`
+to identify broken canary agents.
 
 The rollout resumes.
 
@@ -434,7 +434,7 @@ tctl auto-update agent resume
 
 I connect to the node and lookup its status:
 ```shell
-teleport-updater status
+teleport-update status
 # Running version v16.2.5
 # Automatic updates enabled.
 # Proxy: example.teleport.sh
@@ -443,15 +443,15 @@ teleport-updater status
 
 I try to set a specific version:
 ```shell
-teleport-udpater use-version v16.2.3
+teleport-update use-version v16.2.3
 # Error: the instance is enrolled into automatic updates.
 # You must specify --disable-automatic-updates to opt this agent out of automatic updates and manually control the version.
 ```
 
 I acknowledge that I am leaving automatic updates:
 ```shell
-teleport-udpater use-version v16.2.3 --disable-automatic-updates
-# Disabling automatic updates for the node. You can enable them back by running `teleport-updater enable`
+teleport-update use-version v16.2.3 --disable-automatic-updates
+# Disabling automatic updates for the node. You can enable them back by running `teleport-update enable`
 # Downloading version 16.2.3
 # Restarting teleport
 # Cleaning up old binaries
@@ -460,7 +460,7 @@ teleport-udpater use-version v16.2.3 --disable-automatic-updates
 When the issue is fixed, I can enroll back into automatic updates:
 
 ```shell
-teleport-updater enable
+teleport-update enable
 # Enabling automatic updates
 # Proxy: example.teleport.sh
 # Group: staging
@@ -468,8 +468,8 @@ teleport-updater enable
 
 #### As a Teleport user I want to fast-track a group update
 
-I have a new rollout, completely unstarted, and my current maintenance schedule updates over seevral days.
-However, the new version contains something that I need as soon s possible (e.g. a fix for a bug that affects me).
+I have a new rollout, completely unstarted, and my current maintenance schedule updates over several days.
+However, the new version contains something that I need as soon as possible (e.g., a fix for a bug that affects me).
 
 <details>
 <summary>Before:</summary>
@@ -524,9 +524,9 @@ tctl auto-update agent status
 The manual way:
 
 ```bash
-wget https://cdn.teleport.dev/teleport-updater-<os>-<arch>
-chmod +x teleport-updater
-./teleport-updater enable example.teleport.sh --group production
+wget https://cdn.teleport.dev/teleport-update-<os>-<arch>
+chmod +x teleport-update
+./teleport-update enable example.teleport.sh --group production
 # Detecting the Teleport version and edition used by cluster "example.teleport.sh"
 # Installing the following teleport version:
 #   Version: 16.2.1
@@ -567,7 +567,7 @@ I have the teleport updater installed and available in my path.
 I run:
 
 ```shell
-teleport-updater enable --group production
+teleport-update enable --group production
 # Detecting the Teleport version and edition used by cluster "example.teleport.sh"
 # Installing the following teleport version:
 #   Version: 16.2.1
@@ -1446,7 +1446,7 @@ The `teleport` apt and yum packages contain a system installation of Teleport in
 Post package installation, the `link` subcommand is executed automatically to link the system installation when no auto-updater-managed version of Teleport is linked:
 ```
 /usr/local/bin/teleport -> /var/lib/teleport/versions/system/bin/teleport
-/usr/local/bin/teleport-updater -> /var/lib/teleport/versions/system/bin/teleport-updater
+/usr/local/bin/teleport-update -> /var/lib/teleport/versions/system/bin/teleport-update
 ...
 ```
 
