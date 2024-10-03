@@ -208,8 +208,6 @@ import oktaLight from './assets/okta-light.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
 import onepasswordDark from './assets/onepassword-dark.svg';
 import onepasswordLight from './assets/onepassword-light.svg';
-import openaiDark from './assets/openai-dark.svg';
-import openaiLight from './assets/openai-light.svg';
 import opencomp from './assets/opencomp.svg';
 import openid from './assets/openid.svg';
 import opsgenie from './assets/opsgenie.svg';
@@ -490,8 +488,6 @@ export {
   onehundredonedomain,
   onepasswordDark,
   onepasswordLight,
-  openaiDark,
-  openaiLight,
   opencomp,
   openid,
   opsgenie,
