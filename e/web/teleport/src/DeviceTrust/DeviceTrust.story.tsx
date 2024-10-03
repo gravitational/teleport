@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { http, HttpResponse, delay } from 'msw';
 import { ContextProvider } from 'teleport';
+import { MemoryRouter } from 'react-router';
 import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 
 import ecfg from 'e-teleport/config';
+import TeleportEContext from 'e-teleport/teleportContextE';
 
 import { DeviceTrust } from './DeviceTrust';
 
@@ -33,11 +35,7 @@ export function EmptyNoCTA() {
   cfg.entitlements.DeviceTrust = { enabled: true, limit: 0 };
   const ctx = createTeleportContextE();
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 EmptyNoCTA.parameters = {
   msw: {
@@ -53,11 +51,7 @@ export function EmptyWithCTA() {
   cfg.entitlements.DeviceTrust = { enabled: true, limit: 10 };
   const ctx = createTeleportContextE();
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 EmptyWithCTA.parameters = {
   msw: {
@@ -72,11 +66,7 @@ EmptyWithCTA.parameters = {
 export function Processing() {
   const ctx = createTeleportContextE();
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 Processing.parameters = {
   msw: {
@@ -92,11 +82,7 @@ export function LoadedEnabledAndUnlimited() {
   cfg.entitlements.DeviceTrust = { enabled: true, limit: 0 };
   const ctx = createTeleportContextE();
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 LoadedEnabledAndUnlimited.parameters = {
   msw: {
@@ -109,14 +95,10 @@ LoadedEnabledAndUnlimited.parameters = {
 };
 
 export function LoadedEnabledAndLimitedCTA() {
-  cfg.entitlements.DeviceTrust = { enabled: true, limit: 10 };
   const ctx = createTeleportContextE();
+  cfg.entitlements.DeviceTrust = { enabled: true, limit: 10 };
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 LoadedEnabledAndLimitedCTA.parameters = {
   msw: {
@@ -131,11 +113,7 @@ LoadedEnabledAndLimitedCTA.parameters = {
 export function Failed() {
   const ctx = createTeleportContextE();
 
-  return (
-    <ContextProvider ctx={ctx}>
-      <DeviceTrust />
-    </ContextProvider>
-  );
+  return <Component ctx={ctx} />;
 }
 Failed.parameters = {
   msw: {
@@ -150,6 +128,16 @@ Failed.parameters = {
       ),
     ],
   },
+};
+
+const Component = ({ ctx }: { ctx: TeleportEContext }) => {
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <DeviceTrust />
+      </ContextProvider>
+    </MemoryRouter>
+  );
 };
 
 const devices: TrustedDevice[] = [

@@ -11,11 +11,20 @@ import {
 export const DeviceList = ({
   items = [],
   pageSize = 50,
+  pagerPosition = null,
   fetchStatus = '',
   fetchData,
 }: DeviceListProps) => {
   return (
     <Table
+      css={`
+        tbody tr {
+          cursor: pointer;
+          &:hover {
+            background-color: ${p => p.theme.colors.interactive.tonal.primary};
+          }
+        }
+      `}
       data={items}
       columns={[
         {
@@ -33,7 +42,7 @@ export const DeviceList = ({
         },
       ]}
       emptyText="No Devices Found"
-      pagination={{ pageSize }}
+      pagination={{ pageSize, pagerPosition }}
       fetching={{ onFetchMore: fetchData, fetchStatus }}
       isSearchable
     />
