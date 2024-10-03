@@ -43,6 +43,7 @@ import {
   Integration,
   IntegrationKind,
   integrationService,
+  AwsOidcPolicyPreset,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
@@ -109,7 +110,7 @@ export function AwsOidc() {
     });
   }
 
-  function generateAwsOidcConfigIdpScript(validator: Validator) {
+  function generateAwsOidcConfigIdpScript(validator: Validator, policyPreset: AwsOidcPolicyPreset) {
     if (!validator.validate()) {
       return;
     }
@@ -119,6 +120,7 @@ export function AwsOidc() {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName,
       roleName,
+      policyPreset
     });
 
     setScriptUrl(newScriptUrl);
@@ -210,7 +212,7 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => generateAwsOidcConfigIdpScript(validator)}
+                  onClick={() => generateAwsOidcConfigIdpScript(validator, AwsOidcPolicyPreset.Unspecified)}
                 >
                   Generate Command
                 </ButtonSecondary>

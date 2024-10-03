@@ -380,6 +380,9 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// PolicyPreset is the inline policy what will be applied to the
+	// AWS Role associate with the Integration.
+	PolicyPreset string
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of

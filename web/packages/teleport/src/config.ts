@@ -304,7 +304,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset',
     awsConfigureIamScriptDeployServicePath:
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
@@ -1238,6 +1238,7 @@ export interface UrlAwsOidcConfigureIdp {
   roleName: string;
   s3Bucket?: string;
   s3Prefix?: string;
+  policyPreset?: string;
 }
 
 export interface UrlAwsConfigureIamScriptParams {

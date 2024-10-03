@@ -373,6 +373,15 @@ export type AwsOidcDeployServiceRequest = {
   accountId: string;
 };
 
+/**
+ * AwsOidcPolicyPreset specifies preset policy to apply
+ * to AWS IAM role created for OIDC integration.
+ */
+export enum AwsOidcPolicyPreset {
+  Unspecified = 'unspecified',
+  AwsIdentityCenter = 'aws-identity-center',
+}
+
 // DeployDatabaseServiceDeployment identifies the required fields to deploy a DatabaseService.
 type DeployDatabaseServiceDeployment = {
   // VPCID is the VPCID where the service is going to be deployed.
