@@ -1,12 +1,18 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Flex } from 'design';
-import { Edit } from 'design/Icon';
-import Text from 'design/Text';
+import { Flex } from 'design';
+import { Clock, Edit } from 'design/Icon';
+import Text, { H2 } from 'design/Text';
 import { Support } from 'teleport/Support';
 import cfg from 'teleport/config';
 
-import { DataContainer, DataItem } from 'teleport/Support/Support';
+import {
+  DataItem,
+  IconBox,
+  MobileSeparator,
+  StyledMultiRowBox,
+  StyledRow,
+} from 'teleport/Support/Support';
 
 import { ExternalAuditStorageCta } from 'teleport/components/ExternalAuditStorageCta';
 
@@ -42,21 +48,55 @@ export const SupportE = ({
   return (
     <>
       {isCloud && (
-        <DataContainer title="Scheduled Upgrades">
-          <DataItem
-            title="Window Start Time"
-            data={
-              <Flex alignItems="center">
-                {makeLabel(selectedUpgradeWindowStart)}
-                <EditLink onClick={showScheduleUpgrade} ml="2" size="medium" />
+        <>
+          <MobileSeparator />
+          <StyledMultiRowBox
+            mb={3}
+            css={`
+              @media screen and (max-width: ${props =>
+                  props.theme.breakpoints.mobile}px) {
+                margin-top: 0px;
+              }
+            `}
+          >
+            <StyledRow>
+              <Flex alignItems="center" justifyContent="start">
+                <IconBox>
+                  <Clock />
+                </IconBox>
+                <H2>Scheduled Upgrades</H2>
               </Flex>
-            }
-          />
-          <Text>
-            Window Start Time is the hour in which an upgrade may begin.
-            Changing this value changes it for everyone in your organization.
-          </Text>
-        </DataContainer>
+            </StyledRow>
+            <StyledRow css="padding-left: 40px !important;">
+              <DataItem
+                title="Window Start Time"
+                data={
+                  <Flex alignItems="center">
+                    {makeLabel(selectedUpgradeWindowStart)}
+                    <EditLink
+                      onClick={showScheduleUpgrade}
+                      ml="2"
+                      size="medium"
+                    />
+                  </Flex>
+                }
+              />
+              <Text
+                typography="body2"
+                css={`
+                  @media screen and (max-width: ${props =>
+                      props.theme.breakpoints.mobile}px) {
+                    margin-left: ${props => props.theme.space[2]}px;
+                  }
+                `}
+              >
+                Window Start Time is the hour in which an upgrade may begin.
+                Changing this value changes it for everyone in your
+                organization.
+              </Text>
+            </StyledRow>
+          </StyledMultiRowBox>
+        </>
       )}
       {scheduleUpgradesVisible && (
         <ScheduleUpgrades
@@ -67,9 +107,7 @@ export const SupportE = ({
           attempt={attempt}
         />
       )}
-      <Box mt="4">
-        <ExternalAuditStorageCta />
-      </Box>
+      <ExternalAuditStorageCta />
     </>
   );
 };

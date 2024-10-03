@@ -180,7 +180,7 @@ func (p *enterpriseModules) IsOSSBuild() bool {
 	return false
 }
 
-// LicenseExpiry returns the license expiry time.
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
 func (p *enterpriseModules) LicenseExpiry() time.Time {
 	return p.licenseExpiry
 }
