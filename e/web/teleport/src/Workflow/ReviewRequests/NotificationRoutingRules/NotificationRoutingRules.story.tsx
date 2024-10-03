@@ -55,6 +55,18 @@ const validRuleObjectMattermost = {
   },
 };
 
+const validRuleObjectDatadog = {
+  metadata: { name: 'sample-datadog' },
+  spec: {
+    subjects: ['access_request'],
+    condition: 'contains_any(access_request.spec.roles, set("access"))',
+    notification: {
+      name: 'datadog-plugin',
+      recipients: ['apple', 'banana', 'carrot'],
+    },
+  },
+};
+
 const invalidRuleObject = {
   metadata: { name: 'invalid-fields-default-to-yaml-editor' },
   spec: {
@@ -123,6 +135,13 @@ const withPlugins = http.get(cfg.getPluginUrl(), () =>
       type: 'opsgenie',
       spec: { defaultSchedules: ['schedule1', 'schedule2', 'schedule3'] },
     },
+    {
+      name: 'datadog-plugin',
+      details: '',
+      statusCode: '',
+      type: 'datadog',
+      spec: { fallbackRecipient: 'some-fallback-recipient' },
+    },
   ])
 );
 
@@ -139,6 +158,12 @@ const withRule = http.get(accessMonitoringRuleListWithoutQuery, () =>
       {
         object: {
           ...validRuleObjectMattermost,
+        },
+        yaml: ``,
+      },
+      {
+        object: {
+          ...validRuleObjectDatadog,
         },
         yaml: ``,
       },

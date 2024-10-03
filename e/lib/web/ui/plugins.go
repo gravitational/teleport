@@ -45,6 +45,16 @@ func (*OpsgeniePluginSpec) PluginSpecType() types.PluginType {
 	return types.PluginTypeOpsgenie
 }
 
+type DatadogPluginSpec struct {
+	ApiEndpoint       string `json:"apiEndpoint,omitempty"`
+	FallbackRecipient string `json:"fallbackRecipient,omitempty"`
+}
+
+// PluginSpecType implements PluginSpec for DatadogPluginSpec
+func (*DatadogPluginSpec) PluginSpecType() types.PluginType {
+	return types.PluginTypeDatadog
+}
+
 // Plugin holds a UI-visible representation of a hosted plugin instance
 type Plugin struct {
 	// Name of the plugin
@@ -216,6 +226,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`GitLab users, projects and groups will be imported from %q`, settings.Gitlab.ApiEndpoint)
 	case *types.PluginSpecV1_EntraId:
 		return "Users and groups will be synchronized from the Entra ID directory"
+	case *types.PluginSpecV1_Datadog:
+		return fmt.Sprintf(`Incidents will be created at %q and notify %q recipient`, settings.Datadog.ApiEndpoint, settings.Datadog.FallbackRecipient)
 	default:
 		return ""
 	}
@@ -251,6 +263,12 @@ func pluginSpec(p types.Plugin) PluginSpec {
 			OktaAppName:          settings.Okta.SyncSettings.AppName,
 			TeleportSSOConnector: settings.Okta.SyncSettings.SsoConnectorId,
 			DefaultOwners:        settings.Okta.SyncSettings.DefaultOwners,
+		}
+
+	case *types.PluginSpecV1_Datadog:
+		return &DatadogPluginSpec{
+			ApiEndpoint:       settings.Datadog.ApiEndpoint,
+			FallbackRecipient: settings.Datadog.FallbackRecipient,
 		}
 
 	default:

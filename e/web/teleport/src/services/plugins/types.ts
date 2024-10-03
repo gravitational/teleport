@@ -149,6 +149,8 @@ export function pluginTypeToIntegrationEnrollKind(
       return IntegrationEnrollKind.OpsGenie;
     case 'entra-id':
       return IntegrationEnrollKind.EntraId;
+    case 'datadog':
+      return IntegrationEnrollKind.DatadogIncidentManagement;
     default:
       return IntegrationEnrollKind.Unspecified;
   }

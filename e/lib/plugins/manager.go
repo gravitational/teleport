@@ -76,6 +76,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeMattermost: mattermostInstanceFactory,
 			types.PluginTypeGitlab:     gitlabInstanceFactory,
 			types.PluginTypeEntraID:    entraIDInstanceFactory,
+			types.PluginTypeDatadog:    datadogInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

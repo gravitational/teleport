@@ -8,6 +8,7 @@ import {
   Plugin,
   PluginMattermostSpec,
   PluginSlackSpec,
+  PluginDatadogSpec,
 } from 'teleport/services/integrations';
 import { capitalizeFirstLetter } from 'shared/utils/text';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -159,6 +160,11 @@ function makePluginsForTable(plugins: Plugin[]): TableRowFallback[] {
         ].filter(Boolean);
         break;
       }
+      case 'datadog': {
+        const { fallbackRecipient } = plugin.spec as PluginDatadogSpec;
+        recipients = [fallbackRecipient];
+        break;
+      }
       default: {
         recipients = ['unknown'];
       }
@@ -243,6 +249,20 @@ const renderInfoCell = (plugin: Plugin) => {
               Fallback notification rule for Mattermost. The default email and
               or team/channel will receive all notifications about access
               requests. {commonText}
+            </ToolTipInfo>
+          </Box>
+        </Flex>
+      </Cell>
+    );
+  }
+  if (plugin.kind === 'datadog') {
+    return (
+      <Cell align="right" style={{ whiteSpace: 'nowrap' }}>
+        <Flex alignItems="center" width="60px">
+          <Box css={{ margin: '0 auto' }}>
+            <ToolTipInfo>
+              Fallback notification rule for Datadog. The default email or team
+              will receive all notifications about access requests. {commonText}
             </ToolTipInfo>
           </Box>
         </Flex>

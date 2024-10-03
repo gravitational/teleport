@@ -95,6 +95,7 @@ var defaultPluginDescriptors map[types.PluginType]pluginDescriptor = map[types.P
 	types.PluginTypeSlack:      slackDescriptor{},
 	types.PluginTypeGitlab:     pluginInstallerFn(installGitlabPlugin),
 	types.PluginTypeEntraID:    entraIDPluginDescriptor{},
+	types.PluginTypeDatadog:    pluginInstallerFn(installDatadogPlugin),
 }
 
 func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
@@ -613,6 +614,86 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 					APIToken: token,
 				},
 			},
+		},
+	}
+
+	ui, err := installPlugin(ctx, sessCtx, req, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ui, nil
+}
+
+func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	apiEndpoint := r.FormValue("apiEndpoint")
+	if len(apiEndpoint) == 0 {
+		return nil, trace.BadParameter("missing API Endpoint")
+	}
+	fallbackRecipient := r.FormValue("fallbackRecipient")
+	if len(fallbackRecipient) == 0 {
+		return nil, trace.BadParameter("missing Fallback Recipient")
+	}
+	apiKey := r.FormValue("apiKey")
+	if len(apiKey) == 0 {
+		return nil, trace.BadParameter("missing Datadog API key")
+	}
+	applicationKey := r.FormValue("applicationKey")
+	if len(applicationKey) == 0 {
+		return nil, trace.BadParameter("missing Datadog Application key")
+	}
+
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeDatadog,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Datadog{
+					Datadog: &types.PluginDatadogAccessSettings{
+						ApiEndpoint:       apiEndpoint,
+						FallbackRecipient: fallbackRecipient,
+					},
+				},
+			},
+		},
+		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
+			{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: types.DatadogCredentialAPIKey,
+						Labels: map[string]string{
+							types.DatadogCredentialLabel: types.DatadogCredentialAPIKey,
+						},
+					},
+				},
+				Spec: &types.PluginStaticCredentialsSpecV1{
+					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+						APIToken: apiKey,
+					},
+				},
+			},
+			{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: types.DatadogCredentialApplicationKey,
+						Labels: map[string]string{
+							types.DatadogCredentialLabel: types.DatadogCredentialApplicationKey,
+						},
+					},
+				},
+				Spec: &types.PluginStaticCredentialsSpecV1{
+					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+						APIToken: applicationKey,
+					},
+				},
+			},
+		},
+		CredentialLabels: map[string]string{
+			"datadog/api_endpoint": apiEndpoint,
 		},
 	}
 

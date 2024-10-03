@@ -120,6 +120,19 @@ func TestCreatePluginHandle(t *testing.T) {
 			},
 			expectedResp: `, to Mattermost user \"some-email\", and to the \"some-channel\" channel from team \"some-team\"`,
 		},
+		{
+			name:     "Datadog plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":              {"datadog"},
+				"apiEndpoint":       {"https://www.some-apiendpoint.com"},
+				"fallbackRecipient": {"root@example.com"},
+				"apiKey":            {"some-api-key"},
+				"applicationKey":    {"some-application-key"},
+				"csrf_token":        {webPack.csrfToken},
+			},
+			expectedResp: `Incidents will be created at \"https://www.some-apiendpoint.com\" and notify \"root@example.com\" recipient`,
+		},
 	}
 
 	for _, tc := range testCases {

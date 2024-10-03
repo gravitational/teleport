@@ -349,5 +349,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeEntraID,
 		},
+		{
+			Type: types.PluginTypeDatadog,
+		},
 	}, resp.PluginTypes)
 }

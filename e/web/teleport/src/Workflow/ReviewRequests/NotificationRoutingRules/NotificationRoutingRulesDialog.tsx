@@ -89,7 +89,10 @@ export const NotificationRoutingRulesDialog = ({
     pluginRun(() =>
       pluginsService.fetchPlugins().then(resp => {
         const filteredPlugins = resp.filter(
-          r => r.kind === 'slack' || r.kind === 'mattermost'
+          r =>
+            r.kind === 'slack' ||
+            r.kind === 'mattermost' ||
+            r.kind === 'datadog'
         );
         setPlugins(filteredPlugins);
       })

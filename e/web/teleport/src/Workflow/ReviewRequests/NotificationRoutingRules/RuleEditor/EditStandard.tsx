@@ -325,6 +325,9 @@ function getRecipientToolTipInfo(pluginName: string) {
       </>
     );
   }
+  if (lowerCasedName.includes('datadog')) {
+    return <>Recipients can be emails and team handle names.</>;
+  }
 }
 
 const MultiValueContainer = (

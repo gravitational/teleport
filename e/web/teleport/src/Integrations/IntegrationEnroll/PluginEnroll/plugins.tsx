@@ -17,13 +17,15 @@ import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import msteamsIcon from 'design/assets/images/icons/msteams.svg';
 import JamfIcon from 'design/assets/images/icons/jamf.svg';
 import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
+import datadogIcon from 'design/assets/images/icons/datadog.svg';
 import FieldInput from 'shared/components/FieldInput';
-import FieldSelect from 'shared/components/FieldSelect';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 import { CtaEvent } from 'teleport/services/userEvent';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { OutlineWarn } from 'design/Alert/Alert';
+import { Mark } from 'design/Mark';
 
 import { UPGRADE_POLICY_URL } from 'teleport/services/sales';
 
@@ -1432,6 +1434,184 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
       { title: 'Finished', component: PluginEnrollSuccess, hide: true },
     ],
     FormMixin: EntraFormMixin,
+  },
+  {
+    type: 'datadog',
+    name: 'Datadog',
+    icon: datadogIcon,
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-datadog/',
+    fullName: 'Datadog Incident Management',
+    cloudHostable: true,
+    selfHostable: true,
+    Description: () => (
+      <Text>
+        <P>
+          The Teleport integration with Datadog allows your team to treat
+          Teleport permission requests as Datadog incidents and provides Datadog
+          special actions to approve or deny permission requests.
+        </P>
+      </Text>
+    ),
+    Setup: () => (
+      <Text>
+        <P>
+          You will need to provide your Datadog API key and an Application key
+          that is associated with a Teleport service account. The Application
+          key must provide <Mark>user_access_read</Mark> and{' '}
+          <Mark>incident_write</Mark> access to allow the plugin to read and
+          write Datadog incidents.
+        </P>
+        <ol>
+          <li>
+            Create a Datadog API key by following the{' '}
+            <Link
+              target="_blank"
+              href="https://docs.datadoghq.com/account_management/api-app-keys/"
+            >
+              API Keys
+            </Link>{' '}
+            documentation. Copy and paste the key into the{' '}
+            <Mark>Datadog API Key</Mark> field on this screen.
+          </li>
+          <li>
+            Create a Datadog service account by following the{' '}
+            <Link
+              target="_blank"
+              href="https://docs.datadoghq.com/account_management/org_settings/service_accounts/"
+            >
+              Service Accounts
+            </Link>{' '}
+            documentation. Name it <Mark>Teleport</Mark> and assign the{' '}
+            <Mark>Datadog Standard Role</Mark>, or any Role that has the{' '}
+            <Mark>Incidents Write</Mark> permission.
+          </li>
+          <li>
+            After creating the service account, create a service account
+            application key. You're welcome to limit the scope of the
+            application key, but ensure that the scope includes{' '}
+            <Mark>user_access_read</Mark> and <Mark>incident_write</Mark>. Copy
+            and paste the key into <Mark>Datadog Application Key</Mark> field on
+            this screen.
+          </li>
+        </ol>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Access Management',
+        permissions: [
+          {
+            title: 'user_access_read',
+            description: 'View users and their roles and settings.',
+          },
+        ],
+      },
+      {
+        category: 'Case and Incident Management',
+        permissions: [
+          {
+            title: 'incident_write',
+            description: 'Create, view, and manage incidents in Datadog.',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [apiKey, setAPIKey] = useState('');
+      const [applicationKey, setApplicationKey] = useState('');
+      const [apiEndpoint, setAPIEndpoint] = useState<Option>();
+      const [fallbackRecipient, setFallbackRecipient] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Datadog API Key"
+            name="apiKey" // must be the same name as expected by the backend as form value
+            rule={requiredField('API Key Required')}
+            value={apiKey}
+            type="password"
+            onChange={e => setAPIKey(e.target.value)}
+            placeholder="abc-def...-123"
+            toolTipContent="API Key is used to access the Datadog REST API"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Datadog Application Key"
+            name="applicationKey" // must be the same name as expected by the backend as form value
+            rule={requiredField('Application Key Required')}
+            value={applicationKey}
+            type="password"
+            onChange={e => setApplicationKey(e.target.value)}
+            placeholder="abc-def...-123"
+            toolTipContent="Application Key is used to access the Datadog REST API"
+            mb={3}
+          />
+          <FieldSelect
+            width="500px"
+            label="API Endpoint"
+            name="apiEndpoint" // must be the same name as expected by the backend as form value
+            rule={requiredField<Option>('API Endpoint Required')}
+            value={apiEndpoint}
+            onChange={o => setAPIEndpoint(o as Option)}
+            autoFocus
+            options={[
+              {
+                value: 'https://api.datadoghq.com',
+                label: 'US1 (https://api.datadoghq.com)',
+              },
+              {
+                value: 'https://api.us3.datadoghq.com',
+                label: 'US3 (https://api.us3.datadoghq.com)',
+              },
+              {
+                value: 'https://api.us5.datadoghq.com',
+                label: 'US5 (https://api.us5.datadoghq.com)',
+              },
+              {
+                value: 'https://api.datadoghq.eu',
+                label: 'EU1 (https://api.datadoghq.eu)',
+              },
+              {
+                value: 'https://api.ap1.datadoghq.com',
+                label: 'AP1 (https://api.ap1.datadoghq.com)',
+              },
+            ]}
+            placeholder="Select API Endpoint"
+            isSearchable
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Fallback Recipient"
+            name="fallbackRecipient" // must be the same name as expected by the backend as form value
+            rule={requiredField('Fallback Recipient Required')}
+            value={fallbackRecipient}
+            onChange={e => setFallbackRecipient(e.target.value)}
+            placeholder="example@goteleport.com"
+            toolTipContent="Fallback Recipient is the default recipient of Access Request notifications"
+            mb={3}
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text>
+          <P>
+            For help with configuring access request notification routing rules,
+            consult the{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/admin-guides/access-controls/access-request-plugins/notification-routing-rules"
+            >
+              Notification Routing Rules
+            </Link>{' '}
+            section of Teleport's documentation.
+          </P>
+        </Text>
+      );
+    },
   },
 ];
 
