@@ -778,6 +778,13 @@ const (
 	// IntegrationDeleteEvent is emitted when an integration resource is deleted.
 	IntegrationDeleteEvent = "integration.delete"
 
+	// PluginCreateEvent is emitted when a plugin resource is created.
+	PluginCreateEvent = "plugin.create"
+	//PluginUpdateEvent is emitted when a plugin resource is updated.
+	PluginUpdateEvent = "plugin.update"
+	// PluginDeleteEvent is emitted when a plugin resource is deleted.
+	PluginDeleteEvent = "plugin.delete"
+
 	// CrownJewelCreateEvent is emitted when a crown jewel resource is created.
 	CrownJewelCreateEvent = "access_graph.crown_jewel.create"
 	//CrownJewelUpdateEvent is emitted when a crown jewel resource is updated.

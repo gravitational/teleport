@@ -631,6 +631,13 @@ const (
 	// IntegrationDeleteCode is the integration resource delete event code.
 	IntegrationDeleteCode = "IG003I"
 
+	// PluginCreateCode is the plugin resource create event code.
+	PluginCreateCode = "PG001I"
+	// PluginUpdateCode is the plugin resource update event code.
+	PluginUpdateCode = "PG002I"
+	// PluginDeleteCode is the plugin resource delete event code.
+	PluginDeleteCode = "PG003I"
+
 	// CrownJewelCreateCode is the crown jewel create event code.
 	CrownJewelCreateCode = "CJ001I"
 	// CrownJewelUpdateCode is the crown jewel update event code.

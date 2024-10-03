@@ -703,6 +703,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SPIFFEFederationDelete{
 			SPIFFEFederationDelete: e,
 		}
+	case *PluginCreate:
+		out.Event = &OneOf_PluginCreate{
+			PluginCreate: e,
+		}
+	case *PluginUpdate:
+		out.Event = &OneOf_PluginUpdate{
+			PluginUpdate: e,
+		}
+	case *PluginDelete:
+		out.Event = &OneOf_PluginDelete{
+			PluginDelete: e,
+		}
 	case *CrownJewelCreate:
 		out.Event = &OneOf_CrownJewelCreate{
 			CrownJewelCreate: e,

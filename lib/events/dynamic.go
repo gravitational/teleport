@@ -408,6 +408,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.IntegrationUpdate{}
 	case IntegrationDeleteEvent:
 		e = &events.IntegrationDelete{}
+
+	case PluginCreateEvent:
+		e = &events.PluginCreate{}
+	case PluginUpdateEvent:
+		e = &events.PluginUpdate{}
+	case PluginDeleteEvent:
+		e = &events.PluginDelete{}
+
 	case CrownJewelCreateEvent:
 		e = &events.CrownJewelCreate{}
 	case CrownJewelUpdateEvent:
