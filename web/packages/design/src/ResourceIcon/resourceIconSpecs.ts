@@ -106,6 +106,7 @@ export const resourceIconSpecs = {
   eks: forAllThemes(i.eks),
   elastic: forAllThemes(i.elastic),
   email: { dark: i.emailDark, light: i.emailLight },
+  entraid: forAllThemes(i.entraid),
   eventbrite: forAllThemes(i.eventbrite),
   excalidraw: forAllThemes(i.excalidraw),
 
@@ -193,6 +194,7 @@ export const resourceIconSpecs = {
   okta: { dark: i.oktaDark, light: i.oktaLight },
   '101domain': forAllThemes(i.onehundredonedomain),
   '1password': { dark: i.onepasswordDark, light: i.onepasswordLight },
+  openai: { dark: i.openaiDark, light: i.openaiLight},
   opencomp: forAllThemes(i.opencomp),
   openid: forAllThemes(i.openid),
   opsgenie: forAllThemes(i.opsgenie),

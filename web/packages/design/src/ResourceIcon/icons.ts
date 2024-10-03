@@ -105,6 +105,7 @@ import eks from './assets/eks.svg';
 import elastic from './assets/elastic.svg';
 import emailDark from './assets/email-dark.svg';
 import emailLight from './assets/email-light.svg';
+import entraid from './assets/entra-id.svg';
 import eventbrite from './assets/eventbrite.svg';
 import excalidraw from './assets/excalidraw.svg';
 import figma from './assets/figma.svg';
@@ -207,6 +208,8 @@ import oktaLight from './assets/okta-light.svg';
 import onehundredonedomain from './assets/onehundredonedomain.svg';
 import onepasswordDark from './assets/onepassword-dark.svg';
 import onepasswordLight from './assets/onepassword-light.svg';
+import openaiDark from './assets/openai-dark.svg';
+import openaiLight from './assets/openai-light.svg';
 import opencomp from './assets/opencomp.svg';
 import openid from './assets/openid.svg';
 import opsgenie from './assets/opsgenie.svg';
@@ -384,6 +387,7 @@ export {
   elastic,
   emailDark,
   emailLight,
+  entraid,
   eventbrite,
   excalidraw,
   figma,
@@ -486,6 +490,8 @@ export {
   onehundredonedomain,
   onepasswordDark,
   onepasswordLight,
+  openaiDark,
+  openaiLight,
   opencomp,
   openid,
   opsgenie,
