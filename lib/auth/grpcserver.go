@@ -175,15 +175,6 @@ type GRPCServer struct {
 	// TODO(tross) DELETE IN 17.0.0
 	usersService *usersv1.Service
 
-	// botService is used to forward requests to deprecated bot RPCs to the
-	// new service.
-	botService *machineidv1.BotService
-
-	// presenceService is used to forward requests to deprecated presence RPCs
-	// to the new service.
-	// TODO(noah) DELETE IN 17.0.0
-	presenceService *presencev1.Service
-
 	// TraceServiceServer exposes the exporter server so that the auth server may
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
@@ -5145,6 +5136,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		AuthServer: cfg.AuthServer,
 		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
 		Emitter:    cfg.Emitter,
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -5227,10 +5219,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Entry: logrus.WithFields(logrus.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		server:          server,
-		usersService:    usersService,
-		botService:      botService,
-		presenceService: presenceService,
+		server:       server,
+		usersService: usersService,
 	}
 
 	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
@@ -5326,6 +5316,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5369,6 +5360,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Insecure: cfg.APIConfig.AccessGraph.Insecure,
 		},
 		ReadOnlyCache: cfg.AuthServer.ReadOnlyCache,
+		SignatureAlgorithmSuiteParams: types.SignatureAlgorithmSuiteParams{
+			FIPS:          cfg.AuthServer.fips,
+			UsingHSMOrKMS: cfg.AuthServer.keyStore.UsingHSMOrKMS(),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -22,7 +22,7 @@ import (
 	"context"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -170,8 +170,8 @@ func TestRootUsernameLimit(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	utmpPath := path.Join(dir, "utmp")
-	wtmpPath := path.Join(dir, "wtmp")
+	utmpPath := filepath.Join(dir, "utmp")
+	wtmpPath := filepath.Join(dir, "wtmp")
 
 	err := TouchFile(utmpPath)
 	require.NoError(t, err)
@@ -287,9 +287,9 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	uaccDir := t.TempDir()
-	utmpPath := path.Join(uaccDir, "utmp")
-	wtmpPath := path.Join(uaccDir, "wtmp")
-	btmpPath := path.Join(uaccDir, "btmp")
+	utmpPath := filepath.Join(uaccDir, "utmp")
+	wtmpPath := filepath.Join(uaccDir, "wtmp")
+	btmpPath := filepath.Join(uaccDir, "btmp")
 	require.NoError(t, TouchFile(utmpPath))
 	require.NoError(t, TouchFile(wtmpPath))
 	require.NoError(t, TouchFile(btmpPath))

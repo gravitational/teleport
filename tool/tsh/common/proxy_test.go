@@ -36,7 +36,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -85,8 +84,8 @@ func TestSSH(t *testing.T) {
 	lib.SetInsecureDevMode(false)
 
 	d := t.TempDir()
-	webCertPath := path.Join(d, "cert.pem")
-	webKeyPath := path.Join(d, "key.pem")
+	webCertPath := filepath.Join(d, "cert.pem")
+	webKeyPath := filepath.Join(d, "key.pem")
 	generateWebPKICert(t, webCertPath, webKeyPath)
 
 	s := newTestSuite(t,
@@ -1028,7 +1027,7 @@ func mustLoginSetEnv(t *testing.T, s *suite, args ...string) (tshHome, kubeConfi
 }
 
 func mustLoginIdentity(t *testing.T, s *suite) string {
-	identityFile := path.Join(t.TempDir(), "identity.pem")
+	identityFile := filepath.Join(t.TempDir(), "identity.pem")
 	mustLogin(t, s, "--out", identityFile)
 	return identityFile
 }

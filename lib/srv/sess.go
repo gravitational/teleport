@@ -19,14 +19,16 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -66,10 +68,6 @@ const (
 	PresenceMaxDifference  = time.Minute
 )
 
-// SessionControlsInfoBroadcast is sent in tandem with session creation
-// to inform any joining users about the session controls.
-const SessionControlsInfoBroadcast = "Controls\r\n  - CTRL-C: Leave the session\r\n  - t: Forcefully terminate the session (moderators only)"
-
 const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
@@ -86,13 +84,31 @@ var serverSessions = prometheus.NewGauge(
 	},
 )
 
+func MsgParticipantCtrls(w io.Writer, m types.SessionParticipantMode) error {
+	var modeCtrl bytes.Buffer
+	modeCtrl.WriteString(fmt.Sprintf("\r\nTeleport > Joining session with participant mode: %s\r\n", string(m)))
+	modeCtrl.WriteString("Teleport > Controls\r\n")
+	modeCtrl.WriteString("Teleport >   - CTRL-C: Leave the session\r\n")
+	if m == types.SessionModeratorMode {
+		modeCtrl.WriteString("Teleport >   - t: Forcefully terminate the session\r\n")
+	}
+	_, err := w.Write(modeCtrl.Bytes())
+	if err != nil {
+		return fmt.Errorf("could not write bytes: %w", err)
+	}
+	return nil
+}
+
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
 type SessionRegistry struct {
 	SessionRegistryConfig
 
-	// log holds the structured logger
+	// deprecated: log holds the legacy logrus structured logger
 	log *log.Entry
+
+	// logger holds the structured logger
+	logger *slog.Logger
 
 	// sessions holds a map between session ID and the session object. Used to
 	// find active sessions as well as close all sessions when the registry
@@ -173,6 +189,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		log: log.WithFields(log.Fields{
 			teleport.ComponentKey: teleport.Component(teleport.ComponentSession, cfg.Srv.Component()),
 		}),
+		logger:   slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentSession, cfg.Srv.Component())),
 		sessions: make(map[rsession.ID]*session),
 		users:    cfg.Srv.GetHostUsers(),
 		sudoers:  cfg.Srv.GetHostSudoers(),
@@ -277,15 +294,19 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 // If the returned closer is not nil, it must be called at the end of the session to
 // clean up the local user.
 func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool, io.Closer, error) {
+	ctx := s.Srv.Context()
+	log := s.logger.With("host_username", identityContext.Login)
+
 	if identityContext.Login == teleport.SSHSessionJoinPrincipal {
 		return false, nil, nil
 	}
 
 	if !s.Srv.GetCreateHostUser() || s.users == nil {
-		s.log.Debug("Not creating host user: node has disabled host user creation.")
+		log.DebugContext(ctx, "Not creating host user: node has disabled host user creation.")
 		return false, nil, nil // not an error to not be able to create host users
 	}
 
+	log.DebugContext(ctx, "Attempting to upsert host user")
 	ui, accessErr := identityContext.AccessChecker.HostUsers(s.Srv.GetInfo())
 	if trace.IsAccessDenied(accessErr) {
 		existsErr := s.users.UserExists(identityContext.Login)
@@ -304,16 +325,17 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext) (bool,
 
 	userCloser, err := s.users.UpsertUser(identityContext.Login, *ui)
 	if err != nil {
-		log.Debugf("Error creating user %s: %s", identityContext.Login, err)
+		log.DebugContext(ctx, "Error creating user", "error", err)
 
 		if errors.Is(err, unmanagedUserErr) {
-			log.Warnf("User %q is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include %q. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users", identityContext.Login, types.TeleportKeepGroup)
+			log.WarnContext(ctx, "User is not managed by teleport. Either manually delete the user from this machine or update the host_groups defined in their role to include 'teleport-keep'. https://goteleport.com/docs/enroll-resources/server-access/guides/host-user-creation/#migrating-unmanaged-users")
 			return false, nil, nil
 		}
 
 		if !trace.IsAlreadyExists(err) {
 			return false, nil, trace.Wrap(err)
 		}
+		log.DebugContext(ctx, "Host user already exists")
 	}
 
 	return true, userCloser, nil
@@ -1291,7 +1313,6 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 	s.BroadcastMessage("Creating session with ID: %v", s.id)
-	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
 		return trace.Wrap(err)
@@ -1736,8 +1757,8 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferRequestPar
 }
 
 func (s *session) expandFileTransferRequestPath(p string) (string, error) {
-	expanded := path.Clean(p)
-	dir := path.Dir(expanded)
+	expanded := filepath.Clean(p)
+	dir := filepath.Dir(expanded)
 
 	var tildePrefixed bool
 	var noBaseDir bool
@@ -1764,11 +1785,11 @@ func (s *session) expandFileTransferRequestPath(p string) (string, error) {
 
 		if tildePrefixed {
 			// expand home dir to make an absolute path
-			expanded = path.Join(homeDir, expanded[2:])
+			expanded = filepath.Join(homeDir, expanded[2:])
 		} else {
 			// if no directories are specified SFTP will assume the file
 			// to be in the user's home dir
-			expanded = path.Join(homeDir, expanded)
+			expanded = filepath.Join(homeDir, expanded)
 		}
 	}
 
@@ -1941,16 +1962,23 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	s.participants[p.id] = p
 	p.ctx.AddCloser(p)
 
-	// Write last chunk (so the newly joined parties won't stare at a blank
-	// screen).
+	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
 		return trace.Wrap(err)
 	}
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
 
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	// Send the participant mode and controls to the additional participant
+	if s.login != p.login {
+		err := MsgParticipantCtrls(p.ch, mode)
+		if err != nil {
+			s.log.Errorf("Could not send intro message to participant: %v", err)
+		}
+	}
+
 	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {

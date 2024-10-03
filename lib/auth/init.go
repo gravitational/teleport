@@ -433,7 +433,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
-		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
+		if err := asrv.UpsertReverseTunnel(ctx, tunnel); err != nil {
 			return trace.Wrap(err)
 		}
 		log.Infof("Created reverse tunnel: %v.", tunnel)
@@ -784,12 +784,29 @@ func initializeAuthPreference(ctx context.Context, asrv *Server, newAuthPref typ
 
 		if storedAuthPref == nil {
 			log.Infof("Creating cluster auth preference: %v.", newAuthPref)
+
+			if newAuthPref.Origin() == types.OriginDefaults {
+				// Set a default signature algorithm suite for a new cluster.
+				newAuthPref.SetDefaultSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+					FIPS:          asrv.fips,
+					UsingHSMOrKMS: asrv.keyStore.UsingHSMOrKMS(),
+				})
+			}
+
 			_, err := asrv.CreateAuthPreference(ctx, newAuthPref)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
 
 			return trace.Wrap(err)
+		}
+
+		if newAuthPref.Origin() == types.OriginDefaults {
+			// Never overwrite a stored signature algorithm suite with a default
+			// signature algorithm suite. This prevents the suite from being
+			// "upgraded" by a Teleport version upgrade alone, even if defaults
+			// are used on both versions.
+			newAuthPref.SetSignatureAlgorithmSuite(storedAuthPref.GetSignatureAlgorithmSuite())
 		}
 
 		newAuthPref.SetRevision(storedAuthPref.GetRevision())
@@ -1163,7 +1180,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner, types.OIDCIdPCA:
+			case types.JWTSigner, types.OIDCIdPCA, types.OktaCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

@@ -953,39 +953,6 @@ type remoteClusterGetter interface {
 
 var _ executor[types.RemoteCluster, remoteClusterGetter] = remoteClusterExecutor{}
 
-type reverseTunnelExecutor struct{}
-
-func (reverseTunnelExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.ReverseTunnel, error) {
-	return cache.Presence.GetReverseTunnels(ctx)
-}
-
-func (reverseTunnelExecutor) upsert(ctx context.Context, cache *Cache, resource types.ReverseTunnel) error {
-	return cache.presenceCache.UpsertReverseTunnel(resource)
-}
-
-func (reverseTunnelExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllReverseTunnels()
-}
-
-func (reverseTunnelExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteReverseTunnel(resource.GetName())
-}
-
-func (reverseTunnelExecutor) isSingleton() bool { return false }
-
-func (reverseTunnelExecutor) getReader(cache *Cache, cacheOK bool) reverseTunnelGetter {
-	if cacheOK {
-		return cache.presenceCache
-	}
-	return cache.Config.Presence
-}
-
-type reverseTunnelGetter interface {
-	GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error)
-}
-
-var _ executor[types.ReverseTunnel, reverseTunnelGetter] = reverseTunnelExecutor{}
-
 type proxyExecutor struct{}
 
 func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
@@ -1305,6 +1272,8 @@ func (clusterNameExecutor) getReader(cache *Cache, cacheOK bool) clusterNameGett
 type clusterNameGetter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
+
+var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
 
 type autoUpdateConfigExecutor struct{}
 

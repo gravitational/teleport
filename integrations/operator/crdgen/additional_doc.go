@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+package crdgen
 
-import { render, theme } from 'design/utils/testing';
+const supportsSecretLookupDescription = `This field supports secret lookup. See the operator documentation for more details.`
 
-import Input from './Input';
-
-describe('design/Input', () => {
-  it('respects hasError prop', () => {
-    let { container } = render(<Input hasError={true} />);
-    expect(container.firstChild).toHaveStyle({
-      'border-color': theme.colors.error.main,
-    });
-  });
-});
+// additionalDescription contains additional description we want to add to select fields.
+// This is used to document operator-specific behaviors, such as the secret lookup.
+var additionalDescription = map[string]map[string]string{
+	"GithubConnectorSpecV3": {
+		"ClientSecret": supportsSecretLookupDescription,
+	},
+	"OIDCConnectorSpecV3": {
+		"ClientSecret": supportsSecretLookupDescription,
+	},
+}

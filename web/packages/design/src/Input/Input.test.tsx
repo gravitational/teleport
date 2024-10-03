@@ -18,17 +18,24 @@
 
 import React from 'react';
 
-import Input from '.';
+import { render, screen, theme } from 'design/utils/testing';
 
-export default {
-  title: 'Design/Inputs',
-};
+import Input from './Input';
 
-export const Inputs = () => (
-  <>
-    <Input mb={4} placeholder="Enter SomeText" />
-    <Input mb={4} hasError={true} defaultValue="This field has an error" />
-    <Input mb={4} readOnly defaultValue="Read-only field" />
-    <Input mb={4} disabled defaultValue="Disabled field" />
-  </>
-);
+describe('design/Input', () => {
+  it('forwards a ref', () => {
+    const ref = jest.fn();
+    render(<Input ref={ref} defaultValue="foo" />);
+    expect(ref).toHaveBeenCalledWith(expect.objectContaining({ value: 'foo' }));
+  });
+  it('respects hasError prop', () => {
+    render(<Input hasError={true} />);
+    expect(screen.getByRole('textbox')).toHaveStyle({
+      'border-color': theme.colors.interactive.solid.danger.default.background,
+    });
+    expect(screen.getByRole('graphics-symbol')).toHaveAttribute(
+      'aria-label',
+      'Error'
+    );
+  });
+});

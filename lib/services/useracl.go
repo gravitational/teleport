@@ -112,6 +112,8 @@ type UserACL struct {
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
 	CrownJewel ResourceAccess `json:"crownJewel"`
+	// AccessGraphSettings defines access to manage access graph settings.
+	AccessGraphSettings ResourceAccess `json:"accessGraphSettings"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -182,8 +184,10 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	var accessGraphAccess ResourceAccess
+	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
+		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
 
 	clipboard := userRoles.DesktopClipboard()
@@ -248,5 +252,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		BotInstances:            botInstances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
+		AccessGraphSettings:     accessGraphSettings,
 	}
 }

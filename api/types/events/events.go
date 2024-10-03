@@ -2278,3 +2278,15 @@ func (m *StaticHostUserUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 func (m *StaticHostUserDelete) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
+
+func (m *CrownJewelCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CrownJewelUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *CrownJewelDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

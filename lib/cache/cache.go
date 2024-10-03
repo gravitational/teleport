@@ -975,6 +975,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	identityService, err := local.NewIdentityServiceV2(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -985,7 +991,7 @@ func New(config Config) (*Cache, error) {
 		clusterConfigCache:           clusterConfigCache,
 		autoUpdateCache:              autoUpdateCache,
 		provisionerCache:             local.NewProvisioningService(config.Backend),
-		usersCache:                   local.NewIdentityService(config.Backend),
+		usersCache:                   identityService,
 		accessCache:                  local.NewAccessService(config.Backend),
 		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
 		presenceCache:                local.NewPresenceService(config.Backend),
@@ -995,11 +1001,11 @@ func New(config Config) (*Cache, error) {
 		crownJewelsCache:             crownJewelCache,
 		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
 		databasesCache:               local.NewDatabasesService(config.Backend),
-		appSessionCache:              local.NewIdentityService(config.Backend),
-		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
-		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
-		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
+		appSessionCache:              identityService,
+		snowflakeSessionCache:        identityService,
+		samlIdPSessionCache:          identityService,
+		webSessionCache:              identityService.WebSessions(),
+		webTokenCache:                identityService.WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		accessMontoringRuleCache:     accessMonitoringRuleCache,
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
@@ -1008,7 +1014,7 @@ func New(config Config) (*Cache, error) {
 		integrationsCache:            integrationsCache,
 		userTasksCache:               userTasksCache,
 		discoveryConfigsCache:        discoveryConfigsCache,
-		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
+		headlessAuthenticationsCache: identityService,
 		secReportsCache:              secReportsCache,
 		userLoginStateCache:          userLoginStatesCache,
 		accessListCache:              accessListCache,
@@ -2150,19 +2156,6 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	}
 	defer rg.Release()
 	return rg.reader.GetAuthServers()
-}
-
-// GetReverseTunnels is a part of auth.Cache implementation
-func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
-	defer span.End()
-
-	rg, err := readCollectionCache(c, c.collections.reverseTunnels)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.reader.GetReverseTunnels(ctx, opts...)
 }
 
 // GetProxies is a part of auth.Cache implementation

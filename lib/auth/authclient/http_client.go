@@ -24,8 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -41,10 +39,8 @@ import (
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -323,6 +319,8 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 // signed certificate if successful.
+// DEPRECATED
+// TODO(tigrato): DELETE IN 18.0
 func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -355,58 +353,6 @@ func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.Register
 	}
 
 	return &certs, nil
-}
-
-type upsertReverseTunnelRawReq struct {
-	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
-	TTL           time.Duration   `json:"ttl"`
-}
-
-// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-// to the remote proxy to bypass firewall restrictions
-func (c *HTTPClient) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
-	data, err := services.MarshalReverseTunnel(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertReverseTunnelRawReq{
-		ReverseTunnel: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("reversetunnels"), args)
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnels returns the list of created reverse tunnels
-func (c *HTTPClient) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(items))
-	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	return tunnels, nil
-}
-
-// DeleteReverseTunnel deletes reverse tunnel by domain name
-func (c *HTTPClient) DeleteReverseTunnel(domainName string) error {
-	// this is to avoid confusing error in case if domain empty for example
-	// HTTP route will fail producing generic not found error
-	// instead we catch the error here
-	if strings.TrimSpace(domainName) == "" {
-		return trace.BadParameter("empty domain name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("reversetunnels", domainName))
-	return trace.Wrap(err)
 }
 
 type upsertTunnelConnectionRawReq struct {
@@ -862,48 +808,6 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
-// session stream, starting from 'offset', up to 'max' in length. The upper bound
-// of 'max' is set to events.MaxChunkBytes
-//
-// Deprecated: use StreamSessionEvents API instead
-func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
-		"offset": []string{strconv.Itoa(offsetBytes)},
-		"bytes":  []string{strconv.Itoa(maxBytes)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response.Bytes(), nil
-}
-
-// Deprecated: use StreamSessionEvents API instead.
-// TODO(zmb3): remove from ClientI interface
-func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
-	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	query := make(url.Values)
-	if afterN > 0 {
-		query.Set("after", strconv.Itoa(afterN))
-	}
-	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval = make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return retval, nil
 }
 
 // GetNamespaces returns a list of namespaces
