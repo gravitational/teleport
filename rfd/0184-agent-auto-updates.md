@@ -526,7 +526,7 @@ The manual way:
 ```bash
 wget https://cdn.teleport.dev/teleport-update-<os>-<arch>
 chmod +x teleport-update
-./teleport-update enable example.teleport.sh --group production
+./teleport-update enable --proxy example.teleport.sh --group production
 # Detecting the Teleport version and edition used by cluster "example.teleport.sh"
 # Installing the following teleport version:
 #   Version: 16.2.1
