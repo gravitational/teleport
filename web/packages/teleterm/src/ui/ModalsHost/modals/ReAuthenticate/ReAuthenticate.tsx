@@ -39,7 +39,7 @@ import * as icons from 'design/Icon';
 import Validation from 'shared/components/Validation';
 import { requiredToken } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 
 import { Option } from 'shared/components/Select';
 
@@ -152,6 +152,7 @@ export const ReAuthenticate: FC<{
                           (option as Option<string, string>).value as MfaType
                         )
                       }
+                      menuIsOpen={true}
                     />
                   )}
 

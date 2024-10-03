@@ -18,11 +18,12 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import ReactSelect from 'react-select';
 
 import Box from 'design/Box';
 import { Text } from 'design';
 import * as Icons from 'design/Icon';
-import Select from 'shared/components/Select';
+import { StyledSelect } from 'shared/components/Select';
 import Input from 'design/Input';
 import { ButtonSecondary } from 'design/Button';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -187,14 +188,18 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                       </Box>
                       <Box minWidth="160px">
                         <Text ml="1">Ref Type</Text>
-                        <RefTypeSelect
-                          isDisabled={isLoading}
-                          isMulti={false}
-                          value={repoRules[i].refType}
-                          onChange={o => handleChange(i, 'refType', o)}
-                          options={refTypeOptions}
-                          menuPlacement="auto"
-                        />
+                        <RefTypeSelect>
+                          <ReactSelect
+                            isDisabled={isLoading}
+                            isMulti={false}
+                            value={repoRules[i].refType}
+                            onChange={o => handleChange(i, 'refType', o)}
+                            options={refTypeOptions}
+                            menuPlacement="auto"
+                            className="react-select-container"
+                            classNamePrefix="react-select"
+                          />
+                        </RefTypeSelect>
                       </Box>
                     </Flex>
                   </FormItem>
@@ -216,7 +221,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
 
                   <FormItem>
                     <Text>
-                      Environment <OptionalFieldText />
+                      Environmnet <OptionalFieldText />
                     </Text>
                     <Input
                       disabled={isLoading}
@@ -280,15 +285,14 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
   );
 }
 
-const RefTypeSelect = styled(Select<RefTypeOption>)`
+const RefTypeSelect = styled(StyledSelect)`
   .react-select__control {
     border-radius: 0 4px 4px 0;
-    border-left-color: transparent;
+    border-left: none;
   }
 
-  .react-select__control--is-focused {
-    border-left-color: ${props =>
-      props.theme.colors.interactive.solid.primary.default.background};
+  .react-select__control:hover {
+    border-left: none;
   }
 `;
 

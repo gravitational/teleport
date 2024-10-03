@@ -34,7 +34,7 @@ interface CheckboxInputProps {
   disabled?: boolean;
   id?: string;
   name?: string;
-  readOnly?: boolean;
+  readonly?: boolean;
   role?: string;
   type?: 'checkbox' | 'radio';
   value?: string;

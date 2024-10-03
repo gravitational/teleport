@@ -24,8 +24,6 @@ import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 
-import { inputGeometry } from 'design/Input/Input';
-
 import { ResourceLabel } from 'teleport/services/agents';
 
 export function LabelsCreater({
@@ -101,11 +99,10 @@ export function LabelsCreater({
     }
     return {
       valid: !notValid,
-      message: 'required',
+      message: '', // err msg doesn't matter as it isn't diaplsyed.
     };
   };
 
-  const inputSize = 'medium';
   return (
     <>
       {labels.length > 0 && (
@@ -128,9 +125,9 @@ export function LabelsCreater({
         {labels.map((label, index) => {
           return (
             <Box mb={2} key={index}>
-              <Flex alignItems="start">
+              <Flex alignItems="center">
                 <FieldInput
-                  size={inputSize}
+                  Input
                   rule={requiredUniqueKey}
                   autoFocus={autoFocus}
                   value={label.name}
@@ -143,7 +140,6 @@ export function LabelsCreater({
                   markAsError={label.isDupKey}
                 />
                 <FieldInput
-                  size={inputSize}
                   rule={requiredField('required')}
                   value={label.value}
                   placeholder="label value"
@@ -154,29 +150,20 @@ export function LabelsCreater({
                   readonly={disableBtns || label.isFixed}
                 />
                 {!label.isFixed && (
-                  // Force the trash button container to be the same height as
-                  // an input. We can't just set `alignItems="center"` on the
-                  // parent flex container above, because the field can expand
-                  // when showing a validation error.
-                  <Flex
-                    alignItems="center"
-                    height={inputGeometry[inputSize].height}
+                  <ButtonIcon
+                    size={1}
+                    title="Remove Label"
+                    onClick={() => removeLabel(index)}
+                    css={`
+                      &:disabled {
+                        opacity: 0.65;
+                        pointer-events: none;
+                      }
+                    `}
+                    disabled={disableBtns}
                   >
-                    <ButtonIcon
-                      size={1}
-                      title="Remove Label"
-                      onClick={() => removeLabel(index)}
-                      css={`
-                        &:disabled {
-                          opacity: 0.65;
-                          pointer-events: none;
-                        }
-                      `}
-                      disabled={disableBtns}
-                    >
-                      <Icons.Trash size="medium" />
-                    </ButtonIcon>
-                  </Flex>
+                    <Icons.Trash size="medium" />
+                  </ButtonIcon>
                 )}
               </Flex>
               {label.isDupKey && (

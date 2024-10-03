@@ -28,6 +28,7 @@ import Select, {
   Option as BaseOption,
   CustomSelectComponentProps,
 } from 'shared/components/Select';
+import { StyledSelect as BaseStyledSelect } from 'shared/components/Select/Select';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import { ResourceMap, ResourceKind } from '../resource';
@@ -235,33 +236,33 @@ function ActionCell({
           members of user groups. You can alternatively select user groups
           instead to access this application.
         </ToolTipInfo>
-        <StyledSelect
-          className={hasSelectedGroups ? 'hasSelectedGroups' : ''}
-          size="small"
-          placeholder={
-            hasSelectedGroups
-              ? `${selectedGroups.length} User Groups Added`
-              : 'Alternatively Select User Groups'
-          }
-          value={selectedGroups}
-          options={userGroupOptions}
-          isSearchable={false}
-          isClearable={false}
-          isMulti={true}
-          hideSelectedOptions={false}
-          controlShouldRenderValue={false}
-          onChange={handleSelectedGroups}
-          components={{
-            Option: OptionComponent,
-          }}
-          customProps={{ toggleUserGroup }}
-        />
+        <StyledSelect className={hasSelectedGroups ? 'hasSelectedGroups' : ''}>
+          <Select
+            placeholder={
+              hasSelectedGroups
+                ? `${selectedGroups.length} User Groups Added`
+                : 'Alternatively Select User Groups'
+            }
+            value={selectedGroups}
+            options={userGroupOptions}
+            isSearchable={false}
+            isClearable={false}
+            isMulti={true}
+            hideSelectedOptions={false}
+            controlShouldRenderValue={false}
+            onChange={handleSelectedGroups}
+            components={{
+              Option: OptionComponent,
+            }}
+            customProps={{ toggleUserGroup }}
+          />
+        </StyledSelect>
       </Flex>
     </Cell>
   );
 }
 
-const StyledSelect = styled(Select)`
+const StyledSelect = styled(BaseStyledSelect)`
   margin-left: 8px;
 
   input[type='checkbox'] {
@@ -269,7 +270,17 @@ const StyledSelect = styled(Select)`
   }
 
   .react-select__control {
-    width: 260px;
+    font-size: 12px;
+    width: 250px;
+    height: 26px;
+    min-height: 24px;
+    border: 2px solid ${p => p.theme.colors.buttons.secondary.default};
+  }
+
+  .react-select__menu {
+    font-size: 12px;
+    width: 275px;
+    right: 0;
   }
 
   .react-select__option {
@@ -280,16 +291,19 @@ const StyledSelect = styled(Select)`
     position: static;
   }
 
+  .react-select__dropdown-indicator {
+    padding-top: 0px;
+    padding-bottom: 0px;
+  }
+
   &.hasSelectedGroups {
-    .react-select__control {
-      background: ${p =>
-        p.theme.colors.interactive.solid.primary.default.background};
-      border: transparent;
+    .react-select-container {
+      background: ${p => p.theme.colors.buttons.primary.default};
     }
 
     .react-select__placeholder,
     .react-select__dropdown-indicator {
-      color: ${p => p.theme.colors.text.primaryInverse};
+      color: ${p => p.theme.colors.buttons.primary.text};
     }
   }
 `;

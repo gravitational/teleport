@@ -21,7 +21,7 @@ import { Flex, ButtonPrimary, Box } from 'design';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
+import FieldSelect from 'shared/components/FieldSelect';
 import {
   requiredToken,
   requiredField,
@@ -81,7 +81,7 @@ export const FormLocal = ({
   return (
     <Validation>
       {({ validator }) => (
-        <Box as="form">
+        <Box as="form" height={secondFactor !== 'off' ? '310px' : 'auto'}>
           <FieldInput
             ref={usernameInputRef}
             rule={requiredField('Username is required')}
@@ -105,7 +105,7 @@ export const FormLocal = ({
             disabled={isProcessing}
           />
           {secondFactor !== 'off' && (
-            <Flex alignItems="flex-start" mb={4}>
+            <Flex alignItems="flex-end" mb={4}>
               <FieldSelect
                 maxWidth="60%"
                 width="100%"
@@ -117,6 +117,7 @@ export const FormLocal = ({
                 mr={3}
                 mb={0}
                 isDisabled={isProcessing}
+                menuIsOpen={true}
               />
               {mfaType.value === 'otp' && (
                 <FieldInput

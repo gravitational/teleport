@@ -49,7 +49,7 @@ export function CustomInputFieldForAsterisks({
       label={`Enter a custom ${nameKind} name:`}
       value={value}
       onChange={e => onValueChange(e.target.value)}
-      disabled={disabled}
+      isDisabled={disabled}
       placeholder={`custom-${nameKind.replace(' ', '-')}-name`}
       rule={requiredField(
         `${capitalizeFirstLetter(nameKind)} name is required`

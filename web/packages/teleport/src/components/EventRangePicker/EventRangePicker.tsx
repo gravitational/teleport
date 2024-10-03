@@ -26,8 +26,6 @@ import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
 
 import Select, { Option } from 'shared/components/Select';
 
-import styled from 'styled-components';
-
 import { State } from 'teleport/Audit/useAuditEvents';
 
 import { CustomRange } from './Custom';
@@ -99,9 +97,9 @@ const ValueContainer = ({
   if (isCustom) {
     return (
       <components.ValueContainer {...props}>
-        <ValueText color="text.main">
+        <Text color="text.main">
           {`${displayDate(from)} - ${displayDate(to)}`}
-        </ValueText>
+        </Text>
         {children}
       </components.ValueContainer>
     );
@@ -111,11 +109,6 @@ const ValueContainer = ({
     <components.ValueContainer {...props}>{children}</components.ValueContainer>
   );
 };
-
-/** Positions the value text on the internal react-select grid. */
-const ValueText = styled(Text)`
-  grid-area: 1/1/2/3;
-`;
 
 type Props = {
   ml?: string | number;

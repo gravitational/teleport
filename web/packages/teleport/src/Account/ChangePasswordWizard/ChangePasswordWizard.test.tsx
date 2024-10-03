@@ -152,22 +152,20 @@ describe('with passwordless reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('New Password')
-    ).toHaveAccessibleDescription('Enter at least 12 characters');
+      changePasswordStep.getByLabelText('Enter at least 12 characters')
+    ).toBeInTheDocument();
 
     await user.type(
-      changePasswordStep.getByLabelText('New Password'),
+      changePasswordStep.getByLabelText('Enter at least 12 characters'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('Confirm Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Confirm Password')
-    ).toHaveAccessibleDescription('Password does not match');
+      changePasswordStep.getByLabelText('Password does not match')
+    ).toBeInTheDocument();
   });
 });
 
@@ -247,29 +245,27 @@ describe('with WebAuthn MFA reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('New Password')
-    ).toHaveAccessibleDescription('Enter at least 12 characters');
-    expect(changePasswordStep.getByLabelText('Current Password')).toBeInvalid();
+      changePasswordStep.getByLabelText('Enter at least 12 characters')
+    ).toBeInTheDocument();
     expect(
-      changePasswordStep.getByLabelText('Current Password')
-    ).toHaveAccessibleDescription('Current Password is required');
+      changePasswordStep.getByLabelText('Current Password is required')
+    ).toBeInTheDocument();
 
     await user.type(
-      changePasswordStep.getByLabelText('Current Password'),
+      changePasswordStep.getByLabelText('Current Password is required'),
       'current-pass'
     );
     await user.type(
-      changePasswordStep.getByLabelText('New Password'),
+      changePasswordStep.getByLabelText('Enter at least 12 characters'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
     expect(
-      changePasswordStep.getByLabelText('Confirm Password')
-    ).toHaveAccessibleDescription('Password does not match');
+      changePasswordStep.getByLabelText('Password does not match')
+    ).toBeInTheDocument();
   });
 });
 
@@ -349,40 +345,34 @@ describe('with OTP MFA reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('New Password')
-    ).toHaveAccessibleDescription('Enter at least 12 characters');
-    expect(changePasswordStep.getByLabelText('Current Password')).toBeInvalid();
+      changePasswordStep.getByLabelText('Enter at least 12 characters')
+    ).toBeInTheDocument();
     expect(
-      changePasswordStep.getByLabelText('Current Password')
-    ).toHaveAccessibleDescription('Current Password is required');
+      changePasswordStep.getByLabelText('Current Password is required')
+    ).toBeInTheDocument();
     expect(
-      changePasswordStep.getByLabelText('Authenticator Code')
-    ).toBeInvalid();
-    expect(
-      changePasswordStep.getByLabelText('Authenticator Code')
-    ).toHaveAccessibleDescription('Authenticator code is required');
+      changePasswordStep.getByLabelText(/Authenticator code is required/)
+    ).toBeInTheDocument();
 
     await user.type(
-      changePasswordStep.getByLabelText('Authenticator Code'),
+      changePasswordStep.getByLabelText(/Authenticator code is required/),
       '654321'
     );
     await user.type(
-      changePasswordStep.getByLabelText('Current Password'),
+      changePasswordStep.getByLabelText('Current Password is required'),
       'current-pass'
     );
     await user.type(
-      changePasswordStep.getByLabelText('New Password'),
+      changePasswordStep.getByLabelText('Enter at least 12 characters'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('Confirm Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Confirm Password')
-    ).toHaveAccessibleDescription('Password does not match');
+      changePasswordStep.getByLabelText('Password does not match')
+    ).toBeInTheDocument();
   });
 });
 
@@ -452,30 +442,27 @@ describe('without reauthentication', () => {
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('New Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('New Password')
-    ).toHaveAccessibleDescription('Enter at least 12 characters');
-    expect(changePasswordStep.getByLabelText('Current Password')).toBeInvalid();
+      changePasswordStep.getByLabelText('Enter at least 12 characters')
+    ).toBeInTheDocument();
     expect(
-      changePasswordStep.getByLabelText('Current Password')
-    ).toHaveAccessibleDescription('Current Password is required');
+      changePasswordStep.getByLabelText('Current Password is required')
+    ).toBeInTheDocument();
 
     await user.type(
-      changePasswordStep.getByLabelText('Current Password'),
+      changePasswordStep.getByLabelText('Current Password is required'),
       'current-pass'
     );
     await user.type(
-      changePasswordStep.getByLabelText('New Password'),
+      changePasswordStep.getByLabelText('Enter at least 12 characters'),
       'new-pass1234'
     );
     await user.click(changePasswordStep.getByText('Save Changes'));
     expect(auth.changePassword).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
-    expect(changePasswordStep.getByLabelText('Confirm Password')).toBeInvalid();
     expect(
-      changePasswordStep.getByLabelText('Confirm Password')
-    ).toHaveAccessibleDescription('Password does not match');
+      changePasswordStep.getByLabelText('Password does not match')
+    ).toBeInTheDocument();
   });
 });
 

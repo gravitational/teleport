@@ -27,10 +27,7 @@ import { AsyncProps as ReactSelectAsyncProps } from 'react-select/async';
 import { CreatableProps as ReactSelectCreatableProps } from 'react-select/creatable';
 import { AsyncCreatableProps as ReactSelectAsyncCreatableProps } from 'react-select/async-creatable';
 
-export type SelectSize = 'large' | 'medium' | 'small';
-
-export type CommonProps<Opt, IsMulti extends boolean> = {
-  size?: SelectSize;
+type CommonProps<Opt, IsMulti extends boolean> = {
   hasError?: boolean;
   /**
    * customProps are any props that are not react-select

@@ -20,7 +20,7 @@ import React, { useState } from 'react';
 import { Box, LabelInput } from 'design';
 import { SelectAsync } from 'shared/components/Select';
 
-import { resolveUndefinedOptions } from 'shared/components/FieldSelect/shared';
+import { resolveUndefinedOptions } from 'shared/components/FieldSelect';
 
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 

@@ -18,10 +18,6 @@
 
 import FieldSelect from './FieldSelect';
 export default FieldSelect;
-export { FieldSelect, FieldSelectAsync } from './FieldSelect';
-export { resolveUndefinedOptions } from './shared';
+export * from './FieldSelect';
 
-export {
-  FieldSelectCreatable,
-  FieldSelectCreatableAsync,
-} from './FieldSelectCreatable';
+export { FieldSelectCreatable } from './FieldSelectCreatable';
