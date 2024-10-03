@@ -32,24 +32,24 @@ import (
 
 // Cache defines only read-only service methods.
 type Cache interface {
-	// GetAutoUpdateConfig gets the autoupdate configuration from the backend.
+	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
 	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
 
-	// GetAutoUpdateVersion gets the autoupdate version from the backend.
+	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
-// ServiceConfig holds configuration options for the autoupdate gRPC service.
+// ServiceConfig holds configuration options for the auto update gRPC service.
 type ServiceConfig struct {
 	// Authorizer is the authorizer used to check access to resources.
 	Authorizer authz.Authorizer
-	// Backend is the backend used to store autoupdate resources.
+	// Backend is the backend used to store AutoUpdate resources.
 	Backend services.AutoUpdateService
-	// Cache is the cache used to store autoupdate resources.
+	// Cache is the cache used to store AutoUpdate resources.
 	Cache Cache
 }
 
-// Service implements the gRPC API layer for the Autoupdate.
+// Service implements the gRPC API layer for the AutoUpdate.
 type Service struct {
 	autoupdate.UnimplementedAutoUpdateServiceServer
 
@@ -58,7 +58,7 @@ type Service struct {
 	cache      Cache
 }
 
-// NewService returns a new Autoupdate API service using the given storage layer and authorizer.
+// NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
 func NewService(cfg ServiceConfig) (*Service, error) {
 	switch {
 	case cfg.Backend == nil:
@@ -75,7 +75,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}, nil
 }
 
-// GetAutoUpdateConfig gets the current autoupdate config singleton.
+// GetAutoUpdateConfig gets the current AutoUpdateConfig singleton.
 func (s *Service) GetAutoUpdateConfig(ctx context.Context, req *autoupdate.GetAutoUpdateConfigRequest) (*autoupdate.AutoUpdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -94,7 +94,7 @@ func (s *Service) GetAutoUpdateConfig(ctx context.Context, req *autoupdate.GetAu
 	return config, nil
 }
 
-// CreateAutoUpdateConfig creates autoupdate config singleton.
+// CreateAutoUpdateConfig creates AutoUpdateConfig singleton.
 func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.CreateAutoUpdateConfigRequest) (*autoupdate.AutoUpdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -113,7 +113,7 @@ func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.Cr
 	return config, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateConfig updates autoupdate config singleton.
+// UpdateAutoUpdateConfig updates AutoUpdateConfig singleton.
 func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.UpdateAutoUpdateConfigRequest) (*autoupdate.AutoUpdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -132,7 +132,7 @@ func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 	return config, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateConfig updates or creates autoupdate config singleton.
+// UpsertAutoUpdateConfig updates or creates AutoUpdateConfig singleton.
 func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.UpsertAutoUpdateConfigRequest) (*autoupdate.AutoUpdateConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -151,7 +151,7 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 	return config, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateConfig deletes autoupdate config singleton.
+// DeleteAutoUpdateConfig deletes AutoUpdateConfig singleton.
 func (s *Service) DeleteAutoUpdateConfig(ctx context.Context, req *autoupdate.DeleteAutoUpdateConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -172,7 +172,7 @@ func (s *Service) DeleteAutoUpdateConfig(ctx context.Context, req *autoupdate.De
 	return &emptypb.Empty{}, nil
 }
 
-// GetAutoUpdateVersion gets the current autoupdate version singleton.
+// GetAutoUpdateVersion gets the current AutoUpdateVersion singleton.
 func (s *Service) GetAutoUpdateVersion(ctx context.Context, req *autoupdate.GetAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -191,7 +191,7 @@ func (s *Service) GetAutoUpdateVersion(ctx context.Context, req *autoupdate.GetA
 	return version, nil
 }
 
-// CreateAutoUpdateVersion creates autoupdate version singleton.
+// CreateAutoUpdateVersion creates AutoUpdateVersion singleton.
 func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.CreateAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -206,11 +206,11 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.CreateAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateVersion updates autoupdate version singleton.
+// UpdateAutoUpdateVersion updates AutoUpdateVersion singleton.
 func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.UpdateAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -225,11 +225,11 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.UpdateAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateVersion updates or creates autoupdate version singleton.
+// UpsertAutoUpdateVersion updates or creates AutoUpdateVersion singleton.
 func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.UpsertAutoUpdateVersionRequest) (*autoupdate.AutoUpdateVersion, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -244,11 +244,11 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	autoupdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
-	return autoupdateVersion, trace.Wrap(err)
+	autoUpdateVersion, err := s.backend.UpsertAutoUpdateVersion(ctx, req.Version)
+	return autoUpdateVersion, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateVersion deletes autoupdate version singleton.
+// DeleteAutoUpdateVersion deletes AutoUpdateVersion singleton.
 func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.DeleteAutoUpdateVersionRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {

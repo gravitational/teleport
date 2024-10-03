@@ -703,7 +703,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SPIFFEFederationDelete{
 			SPIFFEFederationDelete: e,
 		}
-
 	case *PluginCreate:
 		out.Event = &OneOf_PluginCreate{
 			PluginCreate: e,
@@ -715,6 +714,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *PluginDelete:
 		out.Event = &OneOf_PluginDelete{
 			PluginDelete: e,
+		}
+	case *CrownJewelCreate:
+		out.Event = &OneOf_CrownJewelCreate{
+			CrownJewelCreate: e,
+		}
+	case *CrownJewelUpdate:
+		out.Event = &OneOf_CrownJewelUpdate{
+			CrownJewelUpdate: e,
+		}
+	case *CrownJewelDelete:
+		out.Event = &OneOf_CrownJewelDelete{
+			CrownJewelDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

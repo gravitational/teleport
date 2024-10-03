@@ -304,6 +304,9 @@ export const eventCodes = {
   INTEGRATION_CREATE: 'IG001I',
   INTEGRATION_UPDATE: 'IG002I',
   INTEGRATION_DELETE: 'IG003I',
+  CROWN_JEWEL_CREATE: 'CJ001I',
+  CROWN_JEWEL_UPDATE: 'CJ002I',
+  CROWN_JEWEL_DELETE: 'CJ003I',
 } as const;
 
 /**
@@ -1678,6 +1681,18 @@ export type RawEvents = {
   >;
   [eventCodes.INTEGRATION_DELETE]: RawEvent<
     typeof eventCodes.INTEGRATION_DELETE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_CREATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_CREATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_UPDATE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.CROWN_JEWEL_DELETE]: RawEvent<
+    typeof eventCodes.CROWN_JEWEL_DELETE,
     HasName
   >;
 };

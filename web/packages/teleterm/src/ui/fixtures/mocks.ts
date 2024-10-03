@@ -33,6 +33,7 @@ export class MockAppContext extends AppContext {
       tshClient: tshdClient,
       ptyServiceClient,
       setupTshdEventContextBridgeService: () => {},
+      getPathForFile: () => '',
     });
   }
 }

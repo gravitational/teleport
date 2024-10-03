@@ -1315,14 +1315,135 @@ func TestCompareAndSwapUser(t *testing.T) {
 	_, err = identity.Backend.Put(ctx, *item)
 	require.NoError(err)
 
-	currentBob, err = identity.GetUser(ctx, "bob", false)
+	currentBob, err = identity.GetUser(ctx, "bob", true)
 	require.NoError(err)
 	require.True(services.UsersEquals(currentBob, bob2))
-
+	bob2.SetWeakestDevice(currentBob.GetWeakestDevice())
 	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
 	require.NoError(err)
 
 	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
 	require.True(services.UsersEquals(currentBob, bob1))
+}
+
+func TestWeakestMFADeviceKind(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	identity := newIdentityService(t, clock)
+
+	bob1, err := types.NewUser("bob")
+	require.NoError(t, err)
+	bob1.SetLogins([]string{"bob"})
+
+	got, err := identity.CreateUser(ctx, bob1)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, got.GetWeakestDevice())
+
+	// Set the MFA state to MFA_DEVICE_KIND_TOTP
+	totpDevice := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "totp",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  clock.Now(),
+		LastUsed: clock.Now(),
+		Device: &types.MFADevice_Totp{
+			Totp: &types.TOTPDevice{
+				Key: "supersecretkey",
+			},
+		},
+	}
+	err = identity.UpsertMFADevice(ctx, "bob", totpDevice)
+	require.NoError(t, err)
+
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	u2fDev := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "u2f",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  time.Now(),
+		LastUsed: time.Now(),
+		Device: &types.MFADevice_U2F{
+			U2F: &types.U2FDevice{
+				KeyHandle: []byte("u2f key handle"),
+				PubKey:    []byte("u2f public key"),
+			},
+		},
+	}
+	err = identity.UpsertMFADevice(ctx, "bob", u2fDev)
+	require.NoError(t, err)
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// Create webauthn device but state should still be MFA_DEVICE_KIND_TOTP
+	// because it shows the weakest state.
+	webauthnDevice := &types.MFADevice{
+		Metadata: types.Metadata{
+			Name: "webauthn",
+		},
+		Id:       uuid.NewString(),
+		AddedAt:  clock.Now(),
+		LastUsed: clock.Now(),
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{
+				CredentialId:     []byte("credential ID"),
+				PublicKeyCbor:    []byte("public key"),
+				AttestationType:  "none",
+				Aaguid:           []byte{1, 2, 3, 4, 5},
+				SignatureCounter: 10,
+			},
+		},
+	}
+	err = identity.UpsertMFADevice(ctx, "bob", webauthnDevice)
+	require.NoError(t, err)
+
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// Delete the TOTP device and the state should be MFA_DEVICE_KIND_WEBAUTHN
+	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
+	require.NoError(t, err)
+
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+
+	// Delete the U2F device and the state should be MFA_DEVICE_KIND_WEBAUTHN
+	err = identity.DeleteMFADevice(ctx, "bob", u2fDev.Id)
+	require.NoError(t, err)
+
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+
+	// Delete the Webauthn device and the state should be MFA_DEVICE_KIND_UNSET
+	err = identity.DeleteMFADevice(ctx, "bob", webauthnDevice.Id)
+	require.NoError(t, err)
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, got.GetWeakestDevice())
+
+	// Set the MFA state to MFA_DEVICE_KIND_WebAuthn
+	err = identity.UpsertMFADevice(ctx, "bob", webauthnDevice)
+	require.NoError(t, err)
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN, got.GetWeakestDevice())
+
+	// Create TOTP device and state should be MFA_DEVICE_KIND_TOTP
+	err = identity.UpsertMFADevice(ctx, "bob", totpDevice)
+	require.NoError(t, err)
+
+	got, err = identity.GetUser(ctx, "bob", false)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
 }

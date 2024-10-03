@@ -4515,6 +4515,9 @@ message OneOf {
     events.AutoUpdateVersionCreate AutoUpdateVersionCreate = 176;
     events.AutoUpdateVersionUpdate AutoUpdateVersionUpdate = 177;
     events.AutoUpdateVersionDelete AutoUpdateVersionDelete = 178;
+    events.CrownJewelCreate CrownJewelCreate = 182;
+    events.CrownJewelUpdate CrownJewelUpdate = 183;
+    events.CrownJewelDelete CrownJewelDelete = 184;
   }
 }
 
@@ -6921,6 +6924,129 @@ message AutoUpdateVersionDelete {
 
   // ConnectionMetadata holds information about the connection
   ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// CrownJewelCreate is emitted when a Access Graph CrownJewel is created.
+message CrownJewelCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CrownJewelQuery is the query used to track the crown jewel.
+  string CrownJewelQuery = 6 [(gogoproto.jsontag) = "crown_jewel_query"];
+}
+
+// CrownJewelUpdate is emitted when a Access Graph CrownJewel is updated.
+message CrownJewelUpdate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // CurrentCrownJewelQuery is the current query used to track the crown jewel.
+  string CurrentCrownJewelQuery = 6 [(gogoproto.jsontag) = "current_crown_jewel_query"];
+
+  // UpdatedCrownJewelQuery is the new query used to track the crown jewel.
+  string UpdatedCrownJewelQuery = 7 [(gogoproto.jsontag) = "updated_crown_jewel_query"];
+}
+
+// CrownJewelDelete is emitted when a Access Graph CrownJewel is deleted.
+message CrownJewelDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the update was successful.
+  Status Status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata.
+  ResourceMetadata resource = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
