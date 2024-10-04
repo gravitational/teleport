@@ -60,33 +60,55 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   return mergeDeep(target, ...sources);
 }
 
-type CompareArray = Array<Record<string, unknown>>;
+/** Recursively freezes an object and its contents. */
+export function freezeDeep<T extends object>(obj: T): T {
+  // Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/freeze
+  // Any copyright is dedicated to the Public Domain:
+  // https://creativecommons.org/publicdomain/zero/1.0/
 
-export function arrayObjectIsEqual(
-  arr1: CompareArray,
-  arr2: CompareArray
-): boolean {
-  const compareArrays = (arr1, arr2) =>
+  // Retrieve the property names defined on object
+  const propNames = Reflect.ownKeys(obj);
+
+  // Freeze properties before freezing self
+  for (const name of propNames) {
+    const value = obj[name];
+
+    if ((value && typeof value === 'object') || typeof value === 'function') {
+      freezeDeep(value);
+    }
+  }
+
+  return Object.freeze(obj);
+}
+
+/** Recursively compares two arrays. */
+export function arrayObjectIsEqual(arr1: unknown[], arr2: unknown[]): boolean {
+  return (
     arr1.length === arr2.length &&
-    arr1.every((obj, idx) => compareObjects(obj, arr2[idx]));
+    arr1.every((obj, idx) => equalsDeep(obj, arr2[idx]))
+  );
+}
 
-  const compareObjects = (obj1, obj2) => {
-    if (!isObject(obj1)) {
-      return obj1 === obj2;
-    }
+/** Recursively compares two values. */
+export function equalsDeep(val1: unknown, val2: unknown) {
+  if (!isObject(val1)) {
+    return val1 === val2;
+  }
 
-    if (Object.keys(obj1).length) {
-      if (Object.keys(obj1).length !== Object.keys(obj2).length) {
-        return false;
-      }
-      return Object.keys(obj1).every(key => {
-        return compareObjects(obj1[key], obj2[key]);
-      });
-    } else {
-      return true;
+  if (Array.isArray(val1) && Array.isArray(val2)) {
+    return arrayObjectIsEqual(val1, val2);
+  }
+
+  if (Object.keys(val1).length) {
+    if (Object.keys(val1).length !== Object.keys(val2).length) {
+      return false;
     }
-  };
-  return compareArrays(arr1, arr2);
+    return Object.keys(val1).every(key => {
+      return equalsDeep(val1[key], val2[key]);
+    });
+  } else {
+    return true;
+  }
 }
 
 export function isInteger(checkVal: any): boolean {

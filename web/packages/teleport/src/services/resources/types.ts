@@ -54,13 +54,36 @@ export type Role = {
   spec: {
     allow: RoleConditions;
     deny: RoleConditions;
-    options: object;
+    options: RoleOptions;
   };
   version: string;
 };
 
 type RoleConditions = {
   node_labels?: Record<string, string[]>;
+};
+
+export type RoleOptions = {
+  cert_format: string;
+  create_db_user: boolean;
+  create_desktop_user: boolean;
+  desktop_clipboard: boolean;
+  desktop_directory_sharing: boolean;
+  enhanced_recording: string[];
+  forward_agent: boolean;
+  idp: {
+    saml?: {
+      enabled: boolean;
+    };
+  };
+  max_session_ttl: string;
+  pin_source_ip: boolean;
+  port_forwarding: boolean;
+  record_session: {
+    default: string;
+    desktop: boolean;
+  };
+  ssh_file_copy: boolean;
 };
 
 export type RoleWithYaml = {

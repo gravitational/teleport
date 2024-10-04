@@ -16,7 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { arrayObjectIsEqual, mergeDeep } from './highbar';
+import {
+  arrayObjectIsEqual,
+  equalsDeep,
+  freezeDeep,
+  mergeDeep,
+} from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -219,5 +224,91 @@ describe('arrayObjectIsEqual correctly compares', () => {
     ];
 
     expect(arrayObjectIsEqual(a, b)).toBe(true);
+  });
+});
+
+describe('freezeDeep', () => {
+  it('freezes an empty object', () => {
+    const obj: { foo?: any } = freezeDeep({});
+    expect(() => (obj.foo = 'bar')).toThrow();
+  });
+  it('freezes a flat object', () => {
+    const obj = freezeDeep({ foo: 'bar' });
+    expect(() => (obj.foo = '123')).toThrow();
+  });
+  it('freezes a deep object', () => {
+    const obj = freezeDeep({ foo: { bar: 'baz' } });
+    expect(() => (obj.foo = { bar: '123' })).toThrow();
+    expect(() => (obj.foo.bar = '123')).toThrow();
+  });
+  it('freezes arrays', () => {
+    const obj = freezeDeep({ foo: ['bar'] });
+    expect(() => obj.foo.push('123')).toThrow();
+  });
+  it('returns the argument', () => {
+    const obj = {};
+    expect(freezeDeep(obj)).toBe(obj);
+  });
+});
+
+describe('equalsDeep', () => {
+  it('compares primitive values', () => {
+    expect(equalsDeep(1, 2)).toBe(false);
+    expect(equalsDeep(2, 2)).toBe(true);
+  });
+  it('compares simple objects', () => {
+    expect(equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' })).toBe(false);
+    expect(equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' })).toBe(true);
+  });
+  it('compares complex objects', () => {
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 5, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [5, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }, 3] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'z' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', z: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(false);
+
+    expect(
+      equalsDeep(
+        { a: 'b', c: 1, d: [2, { e: 'f' }] },
+        { a: 'b', c: 1, d: [2, { e: 'f' }] }
+      )
+    ).toBe(true);
   });
 });

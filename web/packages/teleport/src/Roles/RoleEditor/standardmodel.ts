@@ -16,7 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { equalsDeep } from 'shared/utils/highbar';
+
 import { Role } from 'teleport/services/resources';
+
+import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
   roleModel: RoleEditorModel;
@@ -63,7 +67,7 @@ export function newRole(): Role {
     spec: {
       allow: {},
       deny: {},
-      options: {},
+      options: defaultOptions,
     },
     version: roleVersion,
   };
@@ -85,7 +89,7 @@ export function roleToRoleEditorModel(
   const { kind, metadata, spec, version, ...rest } = role;
   const { name, description, revision, ...mRest } = metadata;
   const { allow, deny, options, ...sRest } = spec;
-  return {
+  const ret = {
     metadata: {
       name,
       description,
@@ -101,9 +105,11 @@ export function roleToRoleEditorModel(
         isEmpty(sRest) &&
         isEmpty(allow) &&
         isEmpty(deny) &&
-        isEmpty(options)
+        equalsDeep(options, defaultOptions)
       ),
   };
+  console.log(ret);
+  return ret;
 }
 
 function isEmpty(obj: object) {
@@ -129,7 +135,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     spec: {
       allow: {},
       deny: {},
-      options: {},
+      options: defaultOptions,
     },
     version,
   };

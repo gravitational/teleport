@@ -61,7 +61,10 @@ const parseHandler = http.post(
   cfg.getYamlParseUrl(YamlSupportedResourceKind.Role),
   () =>
     HttpResponse.json({
-      resource: withDefaults({ metadata: { name: 'dummy-role' } }),
+      resource: withDefaults({
+        metadata: { name: 'dummy-role' },
+        version: 'v7',
+      }),
     })
 );
 
