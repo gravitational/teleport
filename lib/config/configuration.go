@@ -73,10 +73,10 @@ import (
 )
 
 const (
-	// LogFileDefaultMode is the preferred permissions mode for log file.
-	LogFileDefaultMode fs.FileMode = 0o644
-	// LogFileDefaultFlag is the preferred flags set to log file.
-	LogFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0o644
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -809,7 +809,7 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		w = sw
 	default:
 		// Assume this is a file path.
-		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, LogFileDefaultFlag, LogFileDefaultMode)
+		sharedWriter, err := logutils.NewFileSharedWriter(loggerConfig.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
 			return trace.Wrap(err, "failed to init the log file shared writer")
 		}

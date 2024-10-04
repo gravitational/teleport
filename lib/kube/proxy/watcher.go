@@ -190,7 +190,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 		return trace.Wrap(err)
 	}
 	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
-	return trace.Wrap(s.startHeartbeat(ctx, cluster.GetName()))
+	return trace.Wrap(s.startHeartbeat(cluster.GetName()))
 }
 
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {

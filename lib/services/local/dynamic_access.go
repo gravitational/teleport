@@ -260,7 +260,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 	}
 	var requests []types.AccessRequest
 	for _, item := range result.Items {
-		if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -340,7 +340,7 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 				return true, nil
 			}
 
-			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue

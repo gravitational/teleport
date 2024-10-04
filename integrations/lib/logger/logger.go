@@ -21,6 +21,7 @@ package logger
 import (
 	"context"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"strings"
@@ -29,9 +30,17 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+)
+
+// These values are meant to be kept in sync with teleport/lib/config.
+// (We avoid importing that package here because integrations must not require CGo)
+const (
+	// logFileDefaultMode is the preferred permissions mode for log file.
+	logFileDefaultMode fs.FileMode = 0o644
+	// logFileDefaultFlag is the preferred flags set to log file.
+	logFileDefaultFlag = os.O_WRONLY | os.O_CREATE | os.O_APPEND
 )
 
 type Config struct {
@@ -123,7 +132,7 @@ func (conf Config) NewSLogLogger() (*slog.Logger, error) {
 		w = sw
 	default:
 		// Assume this is a file path.
-		sharedWriter, err := logutils.NewFileSharedWriter(conf.Output, config.LogFileDefaultFlag, config.LogFileDefaultMode)
+		sharedWriter, err := logutils.NewFileSharedWriter(conf.Output, logFileDefaultFlag, logFileDefaultMode)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to init the log file shared writer")
 		}

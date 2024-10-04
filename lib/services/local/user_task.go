@@ -38,12 +38,12 @@ type UserTasksService struct {
 const userTasksKey = "user_tasks"
 
 // NewUserTasksService creates a new UserTasksService.
-func NewUserTasksService(backend backend.Backend) (*UserTasksService, error) {
+func NewUserTasksService(b backend.Backend) (*UserTasksService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*usertasksv1.UserTask]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindUserTask,
-			BackendPrefix: userTasksKey,
+			BackendPrefix: backend.NewKey(userTasksKey),
 			MarshalFunc:   services.MarshalProtoResource[*usertasksv1.UserTask],
 			UnmarshalFunc: services.UnmarshalProtoResource[*usertasksv1.UserTask],
 		})

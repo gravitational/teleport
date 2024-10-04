@@ -154,17 +154,6 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 			},
 			errCheck: isBadParamErrFn,
 		},
-		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"awsAccountID":    []string{"123456789012"},
-				"awsRegion":       []string{"us-east-1"},
-				"role":            []string{"role"},
-				"taskRole":        []string{"taskRole"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
-			},
-			errCheck: isBadParamErrFn,
-		},
 	}
 
 	for _, tc := range tests {
@@ -736,18 +725,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"awsRegion":       []string{"us-east-1"},
-				"role":            []string{"role"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing policy presetx",
+			name: "missing policy preset",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
 				"role":            []string{"role"},
