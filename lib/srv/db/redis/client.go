@@ -103,7 +103,7 @@ type clusterClient struct {
 
 // newClient creates a new Redis client based on given ConnectionMode. If connection mode is not supported
 // an error is returned.
-func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, credenialsProvider fetchCredentialsFunc) (redis.UniversalClient, error) {
+func newClient(ctx context.Context, connectionOptions *connection.Options, tlsConfig *tls.Config, credentialsProvider fetchCredentialsFunc) (redis.UniversalClient, error) {
 	connectionAddr := net.JoinHostPort(connectionOptions.Address, connectionOptions.Port)
 	// TODO(jakub): Investigate Redis Sentinel.
 	switch connectionOptions.Mode {
@@ -111,7 +111,7 @@ func newClient(ctx context.Context, connectionOptions *connection.Options, tlsCo
 		return redis.NewClient(&redis.Options{
 			Addr:                       connectionAddr,
 			TLSConfig:                  tlsConfig,
-			CredentialsProviderContext: credenialsProvider,
+			CredentialsProviderContext: credentialsProvider,
 			Protocol:                   protocolV2,
 			DisableIndentity:           true,
 		}), nil
@@ -120,7 +120,7 @@ func newClient(ctx context.Context, connectionOptions *connection.Options, tlsCo
 			ClusterClient: *redis.NewClusterClient(&redis.ClusterOptions{
 				Addrs:                      []string{connectionAddr},
 				TLSConfig:                  tlsConfig,
-				CredentialsProviderContext: credenialsProvider,
+				CredentialsProviderContext: credentialsProvider,
 				Protocol:                   protocolV2,
 				DisableIndentity:           true,
 			}),
