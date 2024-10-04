@@ -365,15 +365,18 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 	case eventArg:
 		key := strconv.FormatUint(event.PID, 10)
 
-		// loadFn does not return an error, so we can skip error handling.
-		args, _ := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
+		args, err := utils.FnCacheGet(s.closeContext, s.argsCache, key, func(ctx context.Context) ([]string, error) {
 			return make([]string, 0), nil
 		})
+		if err != nil {
+			log.WithError(err).Warn("Unable to retrieve args from FnCahe - this is a bug!")
+			args = []string{}
+		}
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
 		args = append(args, C.GoString(argv))
 
-		s.argsCache.Set(key, args, 24*time.Hour)
+		s.argsCache.SetWithTTL(key, args, 24*time.Hour)
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
