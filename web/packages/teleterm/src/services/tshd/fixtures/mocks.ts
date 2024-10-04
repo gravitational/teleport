@@ -83,8 +83,6 @@ export class MockTshClient implements TshdClient {
   getAuthSettings = () =>
     new MockedUnaryCall({
       localAuthEnabled: true,
-      secondFactor: 'webauthn',
-      preferredMfa: 'webauthn',
       authProviders: [],
       hasMessageOfTheDay: false,
       authType: 'local',

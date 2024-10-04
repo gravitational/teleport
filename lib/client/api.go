@@ -3919,77 +3919,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
-	var err error
-	var response *authclient.SSHLoginResponse
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLogin(ctx, keyRing)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	// Ignore username returned from proxy
-	response.Username = ""
-	return response, nil
-}
-
-// directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
+// localLogin asks for a password and performs an MFA ceremony.
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/directLogin",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	password, err := tc.AskPassword(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Only ask for a second factor if it's enabled.
-	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sshLogin, err := tc.NewSSHLogin(keyRing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		SSHLogin: sshLogin,
-		User:     tc.Username,
-		Password: password,
-		OTPToken: otpToken,
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (*authclient.SSHLoginResponse, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/mfaLocalLogin",
+		"teleportClient/localLogin",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -4010,7 +3944,6 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, keyRing *KeyRing) (
 		Password:             password,
 		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
-
 	return response, trace.Wrap(err)
 }
 
