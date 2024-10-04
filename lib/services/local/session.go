@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -407,11 +408,8 @@ func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSessio
 	}
 	out := make([]types.WebSession, 0, len(result.Items))
 	for _, item := range result.Items {
-		suffix, _, err := baseTwoKeys(item.Key)
-		if err != nil && trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		if suffix != sessionsPrefix {
+		idx := slices.Index(item.Key.Components(), sessionsPrefix)
+		if idx != len(item.Key.Components())-2 {
 			continue
 		}
 		session, err := services.UnmarshalWebSession(item.Value, services.WithRevision(item.Revision))

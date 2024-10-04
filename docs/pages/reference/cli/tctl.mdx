@@ -779,7 +779,7 @@ $ tctl inventory list [<flags>]
 | `--older-than` | none | string | Filter for older teleport versions |
 | `--exact-version` | none | string | Filter output by teleport version |
 | `--services` | none | string | Filter output by service (node,kube,proxy,etc) |
-| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |   
+| `--upgrader` | none | `none`, `kube`, or `unit` | Filter output by upgrader (kube,unit,none) |
 
 ### Global flags
 
@@ -791,7 +791,7 @@ These flags are available for all commands `--debug, --config` . Run
 List inventory
 
 ```code
-$ tctl inventory ls 
+$ tctl inventory ls
 Server ID                            Hostname                        Services                   Agent Version Upgrader Upgrader Version
 ------------------------------------ ------------------------------- -------------------------- ------------- -------- ----------------
 00c3a1f7-5f24-47f9-b866-14401fbb5685 teleport-proxy-77df88c69        Proxy                      (=teleport.version=)       none     none
@@ -825,8 +825,8 @@ $ tctl inventory status [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--format` | `text` | `yaml, json` or `text` | Output format |
-| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |  
-        
+| `--[no-]connected` | `--no-connected` | none | Show locally connected instances summary |
+
 ### Global flags
 
 These are available for all commands `--debug, --config` . Run
@@ -863,10 +863,10 @@ allows seeing connected instances on a specific Auth service.
 
 ```code
 $ tctl inventory status --connected
-Server ID                            Services               Version Upgrader 
------------------------------------- ---------------------- ------- -------- 
-b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none     
-178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit     
+Server ID                            Services               Version Upgrader
+------------------------------------ ---------------------- ------- --------
+b48e6e81-63e0-498f-834b-1a8adea09d95 Auth                   (=teleport.version=)  none
+178d9301-2873-4020-895a-014edf067204 Node                   (=teleport.version=)  unit
 ```
 
  </TabItem>
@@ -1422,7 +1422,7 @@ $ tctl get saml/your-connector-name --with-secrets | tctl sso test
 
 ## tctl status
 
-Report cluster status:
+Report cluster and Certificate Authority status:
 
 ```code
 $ tctl status
@@ -1432,9 +1432,26 @@ $ tctl status
 
 ```code
 # Checks status of cluster.
-$ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
-# pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
-# Checks remote auth status using exported identity.
+$ tctl status
+Cluster: example.teleport.sh
+Version: 17.0.0
+CA pins: sha256:a5322b9f89cb94fff13da4bc9c7b2e633626e35161a75f7662a179a01be84ccc
+
+authority rotation                                        protocol status algorithm   storage
+--------- ----------------------------------------------- -------- ------ ----------- --------
+host      standby (never rotated)                         SSH      active Ed25519     software
+                                                          TLS      active ECDSA P-256 software
+user      standby (last rotated: Oct 3 2024 22:12:09 UTC) SSH      active ECDSA P-256 AWS KMS
+                                                          TLS      active ECDSA P-256 AWS KMS
+db        standby (never rotated)                         TLS      active RSA 2048    software
+db_client standby (never rotated)                         TLS      active RSA 2048    software
+openssh   standby (never rotated)                         SSH      active Ed25519     software
+jwt       standby (never rotated)                         JWT      active ECDSA P-256 software
+saml_idp  standby (never rotated)                         TLS      active RSA 2048    software
+oidc_idp  standby (never rotated)                         JWT      active RSA 2048    software
+spiffe    standby (never rotated)                         JWT      active ECDSA P-256 software
+                                                          TLS      active ECDSA P-256 software
+okta      standby (never rotated)                         JWT      active ECDSA P-256 software
 $ tctl status \
     --auth-server=192.168.99.102:3025 \
     --identity=identity.pem

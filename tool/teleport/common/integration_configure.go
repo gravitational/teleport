@@ -151,6 +151,7 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
 		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
 		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		AutoConfirm:        clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
