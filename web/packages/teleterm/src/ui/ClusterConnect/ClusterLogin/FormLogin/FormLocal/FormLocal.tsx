@@ -16,53 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useMemo } from 'react';
-import { Flex, ButtonPrimary, Box } from 'design';
+import React, { useState } from 'react';
+import { ButtonPrimary, Box } from 'design';
 
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
-import { FieldSelect } from 'shared/components/FieldSelect';
-import {
-  requiredToken,
-  requiredField,
-} from 'shared/components/Validation/rules';
+import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import type { Props } from '../FormLogin';
 
 export const FormLocal = ({
-  secondFactor,
   loginAttempt,
   onLogin,
-  clearLoginAttempt,
   hasTransitionEnded,
   loggedInUserName,
   autoFocus = false,
 }: Props & { hasTransitionEnded?: boolean }) => {
   const [pass, setPass] = useState('');
   const [user, setUser] = useState(loggedInUserName || '');
-  const [token, setToken] = useState('');
 
-  const mfaOptions = useMemo(
-    () => createMfaOptions({ auth2faType: secondFactor }),
-    []
-  );
-
-  const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const usernameInputRef = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus && !loggedInUserName,
   });
   const passwordInputRef = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus && !!loggedInUserName,
   });
-
-  function onSetMfaOption(option: MfaOption, validator: Validator) {
-    setToken('');
-    clearLoginAttempt();
-    validator.reset();
-    setMfaType(option);
-  }
 
   function onLoginClick(
     e: React.MouseEvent<HTMLButtonElement>,
@@ -73,7 +52,7 @@ export const FormLocal = ({
       return;
     }
 
-    onLogin(user, pass, token, mfaType?.value);
+    onLogin(user, pass);
   }
 
   const isProcessing = loginAttempt.status === 'processing';
