@@ -73,18 +73,17 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 		},
 	}
 
-	fakeDevices := &fakeDevicesClient{}
-	wPack := newWebPack(
-		t,
-		1, /* numProxies */
-		withDevicesClientOverride(fakeDevices),
-	)
-	proxy := wPack.proxies[0]
-	aPack := proxy.authPack(t, "llama", nil /* roles */)
-	webClient := aPack.clt
-
 	for _, test := range tests {
-		test := test
+		fakeDevices := &fakeDevicesClient{}
+		wPack := newWebPack(
+			t,
+			1, /* numProxies */
+			withDevicesClientOverride(fakeDevices),
+		)
+		proxy := wPack.proxies[0]
+		aPack := proxy.authPack(t, "llama", nil /* roles */)
+		webClient := aPack.clt
+
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
