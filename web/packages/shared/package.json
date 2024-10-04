@@ -12,6 +12,6 @@
   "dependencies": {
     "@gravitational/design": "workspace:*",
     "events": "3.3.0",
-    "highlight-words-core": "^1.2.2"
+    "highlight-words-core": "^1.2.3"
   }
 }

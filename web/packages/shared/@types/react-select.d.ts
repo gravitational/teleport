@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+// Declare custom props via module augmentation, per
+// https://react-select.com/typescript#custom-select-props
 
-import Input from '.';
+import type {} from 'react-select/base';
+// This import is necessary for module augmentation.
+// It allows us to extend the 'Props' interface in the 'react-select/base' module
+// and add our custom property 'myCustomProp' to it.
 
-export default {
-  title: 'Design/Inputs',
-};
-
-export const Inputs = () => (
-  <>
-    <Input mb={4} placeholder="Enter SomeText" />
-    <Input mb={4} hasError={true} defaultValue="This field has an error" />
-    <Input mb={4} readOnly defaultValue="Read-only field" />
-    <Input mb={4} disabled defaultValue="Disabled field" />
-  </>
-);
+declare module 'react-select/base' {
+  export interface Props {
+    customProps?: Record<string, any>;
+  }
+}

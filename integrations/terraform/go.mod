@@ -245,7 +245,6 @@ require (
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mailgun/holster/v3 v3.16.2 // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47 // indirect
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f // indirect
