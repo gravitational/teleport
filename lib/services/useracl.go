@@ -84,6 +84,8 @@ type UserACL struct {
 	Plugins ResourceAccess `json:"plugins"`
 	// Integrations defines whether the user has access to manage integrations.
 	Integrations ResourceAccess `json:"integrations"`
+	// UserTasks defines whether the user has access to manage UserTasks.
+	UserTasks ResourceAccess `json:"userTasks"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust ResourceAccess `json:"deviceTrust"`
 	// Locks defines access to locking resources.
@@ -110,6 +112,8 @@ type UserACL struct {
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
 	CrownJewel ResourceAccess `json:"crownJewel"`
+	// AccessGraphSettings defines access to manage access graph settings.
+	AccessGraphSettings ResourceAccess `json:"accessGraphSettings"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -180,8 +184,10 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	}
 
 	var accessGraphAccess ResourceAccess
+	var accessGraphSettings ResourceAccess
 	if features.AccessGraph {
 		accessGraphAccess = newAccess(userRoles, ctx, types.KindAccessGraph)
+		accessGraphSettings = newAccess(userRoles, ctx, types.KindAccessGraphSettings)
 	}
 
 	clipboard := userRoles.DesktopClipboard()
@@ -198,6 +204,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	bots := newAccess(userRoles, ctx, types.KindBot)
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
+	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 
 	var auditQuery ResourceAccess
 	var securityReports ResourceAccess
@@ -231,6 +238,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
+		UserTasks:               userTasksAccess,
 		DiscoveryConfig:         discoveryConfigsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
@@ -244,5 +252,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		BotInstances:            botInstances,
 		AccessMonitoringRule:    accessMonitoringRules,
 		CrownJewel:              crownJewelAccess,
+		AccessGraphSettings:     accessGraphSettings,
 	}
 }

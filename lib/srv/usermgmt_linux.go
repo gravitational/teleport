@@ -249,9 +249,6 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
-		if os.IsExist(err) {
-			return nil
-		}
 		return trace.Wrap(err)
 	}
 

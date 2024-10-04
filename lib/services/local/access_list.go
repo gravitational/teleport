@@ -79,16 +79,16 @@ type AccessListService struct {
 var _ services.AccessLists = (*AccessListService)(nil)
 
 // NewAccessListService creates a new AccessListService.
-func NewAccessListService(backend backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
+func NewAccessListService(b backend.Backend, clock clockwork.Clock, opts ...ServiceOption) (*AccessListService, error) {
 	var opt serviceOptions
 	for _, o := range opts {
 		o(&opt)
 	}
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:                     backend,
+		Backend:                     b,
 		PageLimit:                   accessListMaxPageSize,
 		ResourceKind:                types.KindAccessList,
-		BackendPrefix:               accessListPrefix,
+		BackendPrefix:               backend.NewKey(accessListPrefix),
 		MarshalFunc:                 services.MarshalAccessList,
 		UnmarshalFunc:               services.UnmarshalAccessList,
 		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
@@ -98,10 +98,10 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock, opts .
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:                     backend,
+		Backend:                     b,
 		PageLimit:                   accessListMemberMaxPageSize,
 		ResourceKind:                types.KindAccessListMember,
-		BackendPrefix:               accessListMemberPrefix,
+		BackendPrefix:               backend.NewKey(accessListMemberPrefix),
 		MarshalFunc:                 services.MarshalAccessListMember,
 		UnmarshalFunc:               services.UnmarshalAccessListMember,
 		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
@@ -111,10 +111,10 @@ func NewAccessListService(backend backend.Backend, clock clockwork.Clock, opts .
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:                     backend,
+		Backend:                     b,
 		PageLimit:                   accessListReviewMaxPageSize,
 		ResourceKind:                types.KindAccessListReview,
-		BackendPrefix:               accessListReviewPrefix,
+		BackendPrefix:               backend.NewKey(accessListReviewPrefix),
 		MarshalFunc:                 services.MarshalAccessListReview,
 		UnmarshalFunc:               services.UnmarshalAccessListReview,
 		RunWhileLockedRetryInterval: opt.runWhileLockedRetryInterval,
@@ -651,7 +651,7 @@ func (a *AccessListService) DeleteAllAccessListReviews(ctx context.Context) erro
 }
 
 func lockName(accessListName string) []string {
-	return []string{"access_list", accessListName}
+	return []string{accessListPrefix, accessListName}
 }
 
 // VerifyAccessListCreateLimit ensures creating access list is limited to no more than 1 (updating is allowed).

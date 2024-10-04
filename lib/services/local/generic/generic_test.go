@@ -109,7 +109,7 @@ func TestGenericCRUD(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -259,8 +259,8 @@ func TestGenericCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Test running while locked.
-	err = service.RunWhileLocked(ctx, []string{"test-lock"}, time.Second*5, func(ctx context.Context, backend backend.Backend) error {
-		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
+	err = service.RunWhileLocked(ctx, []string{"test-lock"}, time.Second*5, func(ctx context.Context, b backend.Backend) error {
+		item, err := b.Get(ctx, service.MakeKey(backend.NewKey(r1.GetName())))
 		require.NoError(t, err)
 
 		r, err = unmarshalResource(item.Value, services.WithRevision(item.Revision))
@@ -300,7 +300,7 @@ func TestGenericListResourcesReturnNextResource(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -343,7 +343,7 @@ func TestGenericListResourcesWithMultiplePrefixes(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -402,7 +402,7 @@ func TestGenericListResourcesWithFilter(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
@@ -451,7 +451,7 @@ func TestGenericValidation(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 		ValidateFunc:  func(tr *testResource) error { return validationErr },
@@ -483,7 +483,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
-		BackendPrefix: "generic_prefix",
+		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 		KeyFunc:       func(tr *testResource) string { return "llama" },

@@ -2,9 +2,6 @@ teleport:
 
     # Configuration for the storage back-end used for the cluster state and the
     # audit log. Several back-end types are supported.
-    # See the "Storage backends" (https://goteleport.com/docs/setup/reference/backends)
-    # section of the documentation to learn how to configure
-    # DynamoDB, S3, etcd, and other highly available back-ends.
     storage:
         # By default teleport uses a SQLite database in the `data_dir`
         # directory on a local filesystem
@@ -26,8 +23,6 @@ teleport:
 
         # Use this setting to configure teleport to store the recorded sessions
         # in an AWS S3 bucket or use GCP Storage with 'gs://'.
-        # See the S3 section on "Storage backends" for more information
-        # (https://goteleport.com/docs/setup/reference/backends/#s3).
         audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
 
         # SQLite-specific section:
@@ -155,7 +150,6 @@ auth_service:
 
         # Sets whether local auth is enabled alongside any other authentication
         # type. Default is true. local_auth must be 'false' for FedRAMP / FIPS.
-        # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
         #local_auth: true
 
         # Enforce per-session MFA or PIV-hardware key restrictions on user login sessions.
@@ -181,10 +175,8 @@ auth_service:
         # Sets the default authentication connector for the cluster:
         # - 'local' for local authentication (password, WebAuthn, etc.)
         # - 'passwordless' for passwordless authentication
-        #   (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default)
         # - 'headless' for headless authentication
-        #   (http://goteleport.com/docs/access-controls/guides/headless-login/#optional-enable-passwordless-by-default)
-        # - A specific SSO connector name - see https://goteleport.com/docs/access-controls/sso/ for details.
+        # - A specific SSO connector name
         # Defaults to "local".
         #connector_name: local
 
@@ -245,14 +237,11 @@ auth_service:
 
         # Locking mode determines how to apply lock views locally available to
         # a Teleport component; can be strict or best_effort.
-        # See the "Locking mode" section for more details
-        # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
         locking_mode: best_effort
 
         # Device Trust configures Teleport's behavior in regards to trusted
         # devices.
         # Device Trust is a Teleport Enterprise feature.
-        # (https://goteleport.com/docs/access-controls/guides/device-trust/)
         device_trust:
           # 'mode' is the cluster-wide device trust mode.
           # The following values are supported:
@@ -308,9 +297,7 @@ auth_service:
 
     # This setting determines if a Teleport proxy performs strict host key
     # checks.
-    # Only applicable if session_recording=proxy, see "Recording Proxy Mode"
-    # for details
-    # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
+    # Only applicable if session_recording=proxy
     proxy_checks_host_keys: yes
 
     # Determines if sessions to cluster resources are forcefully terminated after

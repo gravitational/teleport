@@ -380,6 +380,8 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -768,6 +770,8 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
+	// We'll want to deduplicate the logic next time we refactor the logging setup
 	logger := log.StandardLogger()
 
 	var w io.Writer
@@ -2546,6 +2550,13 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 		}
+	}
+
+	if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+		FIPS:          clf.FIPS,
+		UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+	}); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// apply --skip-version-check flag.

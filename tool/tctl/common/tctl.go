@@ -223,7 +223,7 @@ func TryRun(commands []CLICommand, args []string) error {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
-		Log:                   clientConfig.Log,
+		Log:                   cfg.Logger,
 		InsecureSkipTLSVerify: clientConfig.Insecure,
 		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
 	})
@@ -291,6 +291,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		log.Debugf("Debug logging has been enabled.")
 	}
 	cfg.Log = log.StandardLogger()
+	cfg.Logger = slog.Default()
 
 	if cfg.Version == "" {
 		cfg.Version = defaults.TeleportConfigVersionV1
@@ -408,7 +409,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.Insecure = ccf.Insecure
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Log
+	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
 	return authConfig, nil
@@ -481,7 +482,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		cfg.SetAuthServerAddress(*webProxyAddr)
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Log
+	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
 	if c.TLSRoutingEnabled {

@@ -204,7 +204,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
+      - uses: bufbuild/buf-setup-action@62ee92603c244ad0da98bab36a834a999a5329e6 # v1.43.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}

@@ -10,16 +10,12 @@ ssh_service:
     # bypassing a Teleport proxy.
     public_addr: node.example.com:3022
 
-    # See the explanation of labels in the "Labels" page
-    # (https://goteleport.com/docs/setup/admin/labels).
     labels:
         role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used
     # as node labels.
-    # See the "Labels" page for more information and more examples
-    # (https://goteleport.com/docs/setup/admin/labels).
     commands:
     # this command will add a label 'arch=x86_64' to a node
     - name: arch
@@ -35,7 +31,6 @@ ssh_service:
     disable_create_host_user: true
 
     # Enhanced Session Recording
-    # see https://goteleport.com/docs/features/enhanced-session-recording/
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
        # false.
@@ -58,8 +53,7 @@ ssh_service:
        # cgroups will be placed. Default value: /teleport
        root_path: /teleport
 
-    # Configures PAM integration. See our PAM guide for more details
-    # (https://goteleport.com/docs/features/ssh-pam/).
+    # Configures the PAM integration.
     pam:
         # "no" by default
         enabled: yes

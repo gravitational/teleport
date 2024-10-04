@@ -69,7 +69,7 @@ func findAllSuiteRunners(repoPath string, filename []string) (RunnersMap, error)
 
 	// Find all affected directories
 	for _, f := range filename {
-		dir := path.Join(repoPath, path.Dir(f))
+		dir := filepath.Join(repoPath, path.Dir(f))
 		s[dir] = struct{}{}
 	}
 
@@ -77,7 +77,7 @@ func findAllSuiteRunners(repoPath string, filename []string) (RunnersMap, error)
 
 	// Find all test files in affected directoriees
 	for dir := range s {
-		matches, err := filepath.Glob(path.Join(dir, "*_test.go"))
+		matches, err := filepath.Glob(filepath.Join(dir, "*_test.go"))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

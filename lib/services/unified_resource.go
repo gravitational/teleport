@@ -201,7 +201,7 @@ func (c *UnifiedResourceCache) getSortTree(sortField string) (*btree.BTreeG[*ite
 }
 
 func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Key, matchFn func(types.ResourceWithLabels) (bool, error), req *proto.ListUnifiedResourcesRequest) ([]resource, string, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, "", trace.BadParameter("missing parameter startKey")
 	}
 	if req.Limit <= 0 {
@@ -270,7 +270,7 @@ func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey backend.Ke
 func getStartKey(req *proto.ListUnifiedResourcesRequest) backend.Key {
 	// if startkey exists, return it
 	if req.StartKey != "" {
-		return backend.Key(req.StartKey)
+		return backend.KeyFromString(req.StartKey)
 	}
 	// if startkey doesnt exist, we check the sort direction.
 	// If sort is descending, startkey is end of the list

@@ -1033,6 +1033,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_SPACELIFT = 21;
   INTEGRATION_ENROLL_KIND_MACHINE_ID_KUBERNETES = 22;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 23;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 24;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -1281,6 +1282,27 @@ message AccessGraphAWSScanEvent {
   uint64 total_accounts = 11;
 }
 
+// AccessGraphAccessPathChangedEvent is emitted when the Crown Jewel functionality
+// is enabled and the Access Graph access path is changed.
+message AccessGraphAccessPathChangedEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
+// AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
+// Crown Jewel Resource.
+message AccessGraphCrownJewelCreateEvent {}
+
 // ExternalAuditStorageAuthenticateEvent is emitted when the External Audit
 // Storage feature authenticates to the customer AWS account via OIDC connector.
 // The purpose is to have a regularly emitted event indicating that the External
@@ -1522,6 +1544,12 @@ message SubmitEventRequest {
     AccessGraphSecretsScanSSHPrivateKeysEvent access_graph_secrets_scan_ssh_private_keys = 88;
 
     AccessGraphAWSScanEvent access_graph_aws_scan = 89;
+
+    AccessGraphAccessPathChangedEvent access_graph_access_path_changed = 90;
+
+    AccessGraphCrownJewelCreateEvent access_graph_crown_jewel_create = 91;
+
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 92;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
