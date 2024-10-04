@@ -1524,12 +1524,30 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return webclient.PingResponse{
+	response := webclient.PingResponse{
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
-	}, nil
+	}
+
+	autoUpdateConfig, err := h.cfg.AccessPoint.GetAutoUpdateConfig(r.Context())
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateConfig", "error", err)
+	} else if err == nil {
+		response.AutoUpdate.ToolsAutoUpdate = autoUpdateConfig.GetSpec().GetToolsAutoupdate()
+	}
+
+	autoUpdateVersion, err := h.cfg.AccessPoint.GetAutoUpdateVersion(r.Context())
+	// TODO(vapopov) DELETE IN v18.0.0 check of IsNotImplemented, must be backported to all latest supported versions.
+	if err != nil && !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		h.logger.ErrorContext(r.Context(), "failed to receive AutoUpdateVersion", "error", err)
+	} else if err == nil {
+		response.AutoUpdate.ToolsVersion = autoUpdateVersion.GetSpec().GetToolsVersion()
+	}
+
+	return response, nil
 }
 
 func (h *Handler) pingWithConnector(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
