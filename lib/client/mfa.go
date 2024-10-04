@@ -23,13 +23,12 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
 )
 
-// WebauthnLoginFunc matches the signature of [wancli.Login].
-type WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [webauthncli.Login].
+type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
