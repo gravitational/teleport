@@ -122,7 +122,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
-	// forward requests.S
+	// forward requests.
 	h.cache, err = utils.NewFnCache(utils.FnCacheConfig{
 		TTL:             time.Second, // Doesn't matter, TTL is always set on an item by item basis.
 		Clock:           h.c.Clock,

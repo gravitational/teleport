@@ -583,7 +583,6 @@ func TestFnCacheRemove(t *testing.T) {
 }
 
 func TestFnCacheSet(t *testing.T) {
-
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -286,6 +286,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO (tigrato): remove this once we have a better way to handle
+	// deleting expired entried clusters and kube_servers entries.
+	// In the meantime, we need to make sure that the cache is cleaned
+	// from time to time.
 	transportClients, err := utils.NewFnCache(utils.FnCacheConfig{
 		TTL:   transportCacheTTL,
 		Clock: cfg.Clock,
@@ -385,6 +389,7 @@ type Forwarder struct {
 
 	// cachedTransport is a cache of cachedTransportEntry objects used to
 	// connect to Teleport services.
+	// TODO(tigrato): Implement a cache eviction policy using watchers.
 	cachedTransport *utils.FnCache
 }
 

@@ -59,6 +59,9 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
+	// If the cluster is remote, the key is the teleport cluster name.
+	// If the cluster is local, the key is the teleport cluster name and the kubernetes
+	// cluster name: <teleport-cluster-name>/<kubernetes-cluster-name>.
 	key := transportCacheKey(sess)
 
 	t, err := utils.FnCacheGet(f.ctx, f.cachedTransport, key, func(ctx context.Context) (*cachedTransportEntry, error) {
