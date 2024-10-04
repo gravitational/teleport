@@ -177,14 +177,24 @@ func (c *FnCache) Remove(key any) {
 	delete(c.entries, key)
 }
 
-// Set set an item in the cache.
-func (c *FnCache) Set(key any, v any, ttl time.Duration) {
+// Set places an item in the cache using the default TTL.
+func (c *FnCache) Set(key, value any) {
+	c.SetWithTTL(key, value, c.cfg.TTL)
+}
+
+// SetWithTTL places an item in the cache with an explicit TTL.
+func (c *FnCache) SetWithTTL(key, value any, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	loaded := make(chan struct{})
+	close(loaded)
+
 	c.entries[key] = &fnCacheEntry{
-		v:   v,
-		t:   c.cfg.Clock.Now(),
-		ttl: ttl,
+		v:      value,
+		t:      c.cfg.Clock.Now(),
+		ttl:    ttl,
+		loaded: loaded,
 	}
 }
 
