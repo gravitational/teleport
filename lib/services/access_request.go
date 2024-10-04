@@ -1029,10 +1029,12 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	userState     UserState
 	requireReason bool
-	requestMode   struct{ kubernetesResources []types.KubernetesResource }
-	autoRequest   bool
-	prompt        string
-	opts          struct {
+	requestMode   struct {
+		kubernetesResources []types.RequestModeKubernetesResource
+	}
+	autoRequest bool
+	prompt      string
+	opts        struct {
 		expandVars bool
 	}
 	Roles struct {
@@ -1275,7 +1277,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 	return nil
 }
 
-func enforceKubernetesRequestModes(requestedResourceIDs []types.ResourceID, requestModeKubeResources []types.KubernetesResource) error {
+func enforceKubernetesRequestModes(requestedResourceIDs []types.ResourceID, requestModeKubeResources []types.RequestModeKubernetesResource) error {
 	allowedKindsLookup := make(map[string]string, len(types.KubernetesResourcesKinds))
 	isWildcard := false
 

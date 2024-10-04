@@ -35,9 +35,9 @@ type accessStrategy struct {
 
 // RequestMode defines access request mode for specific resources.
 type RequestMode struct {
-	// KubernetesResources contains a list of allowed kubernetes resources
-	// defined by its "kind" field.
-	KubernetesResources []types.KubernetesResource `json:"kubernetesResources"`
+	// KubernetesResources contains a list of allowed Kubernetes resources
+	// defined by its "kind" field, that a requester is allowed to request.
+	KubernetesResources []types.RequestModeKubernetesResource `json:"kubernetesResources"`
 }
 
 // AccessCapabilities defines allowable access request rules defined in a user's roles.

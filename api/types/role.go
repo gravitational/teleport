@@ -1760,7 +1760,7 @@ func setDefaultKubernetesVerbs(spec *RoleSpecV6) {
 // - Name is not empty
 // - Namespace is not empty
 //
-// Keep in sync with related func validateKubeResourcesForAccessRequestMode
+// Keep applicable fields in sync with related func validateKubeResourcesForAccessRequestMode
 func validateKubeResources(roleVersion string, kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
@@ -1806,21 +1806,11 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 //
 // All other fields (eg: Name) might get future support.
 //
-// Keep in sync with related func validateKubeResources
-func validateKubeResourcesForAccessRequestMode(roleVersion string, kubeResources []KubernetesResource) error {
+// Keep applicable fields in sync with related func validateKubeResources
+func validateKubeResourcesForAccessRequestMode(roleVersion string, kubeResources []RequestModeKubernetesResource) error {
 	for _, kubeResource := range kubeResources {
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
-			return trace.BadParameter("request_mode kubernetes_resource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
-		}
-
-		if kubeResource.Name != "" {
-			return trace.BadParameter("request_mode kubernetes_resources field %q is not supported", "name")
-		}
-		if kubeResource.Namespace != "" {
-			return trace.BadParameter("request_mode kubernetes_resources field %q is not supported", "namespace")
-		}
-		if len(kubeResource.Verbs) > 0 {
-			return trace.BadParameter("request_mode kubernetes_resources field %q is not supported", "verbs")
+			return trace.BadParameter("request_mode.kubernetes_resource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 		}
 
 		// Only Pod resources are supported in role version <=V6.
@@ -1830,7 +1820,7 @@ func validateKubeResourcesForAccessRequestMode(roleVersion string, kubeResources
 		// Teleport does not support role versions < v3.
 		case V6, V5, V4, V3:
 			if kubeResource.Kind != KindKubePod {
-				return trace.BadParameter("request_mode kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
+				return trace.BadParameter("request_mode.kubernetes_resources kind %q is not supported in role version %q. Upgrade the role version to %q", kubeResource.Kind, roleVersion, V7)
 			}
 		}
 	}
