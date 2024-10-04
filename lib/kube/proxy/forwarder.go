@@ -276,6 +276,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// transportCacheTTL is the TTL for the transport cache.
+const transportCacheTTL = 5 * time.Hour
+
 // NewForwarder returns new instance of Kubernetes request
 // forwarding proxy.
 func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
@@ -284,7 +287,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	transportClients, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   5 * time.Hour,
+		TTL:   transportCacheTTL,
 		Clock: cfg.Clock,
 	})
 	if err != nil {

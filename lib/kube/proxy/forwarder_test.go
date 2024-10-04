@@ -1104,7 +1104,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	clock := clockwork.NewFakeClock()
 	cachedTransport, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   5 * time.Hour,
+		TTL:   transportCacheTTL,
 		Clock: clock,
 	})
 	require.NoError(t, err)
