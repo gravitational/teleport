@@ -226,7 +226,7 @@ type DiscoverEC2 struct {
 	Instances map[string]*DiscoverEC2Instance `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// AccountID is the AWS Account ID for the instances.
 	AccountId string `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// Region is the AWS Region where this issue is happening.
+	// Region is the AWS Region where Teleport failed to enroll EC2 instances.
 	Region string `protobuf:"bytes,3,opt,name=region,proto3" json:"region,omitempty"`
 }
 
