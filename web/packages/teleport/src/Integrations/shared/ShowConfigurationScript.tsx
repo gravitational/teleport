@@ -38,8 +38,10 @@ export function ShowConfigurationScript({
           >
             AWS CloudShell
           </Link>{' '}
-          and copy and paste the command that configures the permissions for
-          you:
+          and copy and paste the command provided below. Upon executing in the
+          AWS Shell, the command will download and execute Teleport binary that
+          configures Teleport as an OIDC identity provider for AWS and creates
+          an IAM role required for the integration.
         </Text>
       )}
       <Box mb={2} mt={3}>
