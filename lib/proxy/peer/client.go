@@ -21,7 +21,7 @@ package peer
 import (
 	"context"
 	"crypto/tls"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"sync"
 	"time"
@@ -89,11 +89,11 @@ type ClientConfig struct {
 }
 
 // connShuffler shuffles the order of client connections.
-type connShuffler func([]*clientConn)
+type connShuffler func([]clientConn)
 
 // randomConnShuffler returns a conn shuffler that randomizes the order of connections.
 func randomConnShuffler() connShuffler {
-	return func(conns []*clientConn) {
+	return func(conns []clientConn) {
 		rand.Shuffle(len(conns), func(i, j int) {
 			conns[i], conns[j] = conns[j], conns[i]
 		})
@@ -102,7 +102,7 @@ func randomConnShuffler() connShuffler {
 
 // noopConnShutffler returns a conn shuffler that keeps the original connection ordering.
 func noopConnShuffler() connShuffler {
-	return func([]*clientConn) {}
+	return func([]clientConn) {}
 }
 
 // checkAndSetDefaults checks and sets default values
@@ -158,9 +158,36 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	return nil
 }
 
-// clientConn hold info about a dialed grpc connection
-type clientConn struct {
-	*grpc.ClientConn
+// clientConn manages client connections to a specific peer proxy (with a fixed
+// host ID and address).
+type clientConn interface {
+	// peerID returns the host ID of the peer proxy.
+	peerID() string
+	// peerAddr returns the address of the peer proxy.
+	peerAddr() string
+
+	// dial opens a connection of a given tunnel type to a node with the given
+	// ID through the peer proxy managed by the clientConn.
+	dial(
+		nodeID string,
+		src net.Addr,
+		dst net.Addr,
+		tunnelType types.TunnelType,
+	) (net.Conn, error)
+
+	// close closes all connections and releases any background resources
+	// immediately.
+	close() error
+
+	// shutdown waits until all connections are closed or the context is done,
+	// then acts like close.
+	shutdown(context.Context)
+}
+
+// grpcClientConn manages client connections to a specific peer proxy over gRPC.
+type grpcClientConn struct {
+	cc      *grpc.ClientConn
+	metrics *clientMetrics
 
 	id   string
 	addr string
@@ -173,7 +200,17 @@ type clientConn struct {
 	count   int
 }
 
-func (c *clientConn) maybeAcquire() (release func()) {
+var _ clientConn = (*grpcClientConn)(nil)
+
+// peerID implements [clientConn].
+func (c *grpcClientConn) peerID() string { return c.id }
+
+// peerAddr implements [clientConn].
+func (c *grpcClientConn) peerAddr() string { return c.addr }
+
+// maybeAcquire returns a non-nil release func if the grpcClientConn is
+// currently allowed to open connections; i.e., if it hasn't fully shut down.
+func (c *grpcClientConn) maybeAcquire() (release func()) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -192,10 +229,9 @@ func (c *clientConn) maybeAcquire() (release func()) {
 	})
 }
 
-// Shutdown closes the clientConn after all connections through it are closed,
-// or after the context is done.
-func (c *clientConn) Shutdown(ctx context.Context) {
-	defer c.Close()
+// shutdown implements [clientConn].
+func (c *grpcClientConn) shutdown(ctx context.Context) {
+	defer c.cc.Close()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,14 +250,87 @@ func (c *clientConn) Shutdown(ctx context.Context) {
 	}
 }
 
-// Client is a peer proxy service client using grpc and tls.
+// close implements [clientConn].
+func (c *grpcClientConn) close() error {
+	return c.cc.Close()
+}
+
+// dial implements [clientConn].
+func (c *grpcClientConn) dial(
+	nodeID string,
+	src net.Addr,
+	dst net.Addr,
+	tunnelType types.TunnelType,
+) (net.Conn, error) {
+	release := c.maybeAcquire()
+	if release == nil {
+		c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
+		return nil, trace.ConnectionProblem(nil, "error starting stream: connection is shutting down")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	context.AfterFunc(ctx, release)
+
+	stream, err := clientapi.NewProxyServiceClient(c.cc).DialNode(ctx)
+	if err != nil {
+		cancel()
+		c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
+		return nil, trace.ConnectionProblem(err, "error starting stream: %v", err)
+	}
+
+	err = stream.Send(&clientapi.Frame{
+		Message: &clientapi.Frame_DialRequest{
+			DialRequest: &clientapi.DialRequest{
+				NodeID:     nodeID,
+				TunnelType: tunnelType,
+				Source: &clientapi.NetAddr{
+					Addr:    src.String(),
+					Network: src.Network(),
+				},
+				Destination: &clientapi.NetAddr{
+					Addr:    dst.String(),
+					Network: dst.Network(),
+				},
+			},
+		},
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.ConnectionProblem(err, "error sending dial frame: %v", err)
+	}
+	msg, err := stream.Recv()
+	if err != nil {
+		cancel()
+		return nil, trace.ConnectionProblem(err, "error receiving dial response: %v", err)
+	}
+	if msg.GetConnectionEstablished() == nil {
+		cancel()
+		return nil, trace.ConnectionProblem(nil, "received malformed connection established frame")
+	}
+
+	source := &frameStream{
+		stream: stream,
+		cancel: cancel,
+	}
+
+	streamRW, err := streamutils.NewReadWriter(source)
+	if err != nil {
+		_ = source.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return streamutils.NewConn(streamRW, src, dst), nil
+}
+
+// Client manages connections to known peer proxies and allows to open
+// connections to agents through them.
 type Client struct {
 	sync.RWMutex
 	ctx    context.Context
 	cancel context.CancelFunc
 
 	config   ClientConfig
-	conns    map[string]*clientConn
+	conns    map[string]clientConn
 	metrics  *clientMetrics
 	reporter *reporter
 }
@@ -246,7 +355,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 		config:   config,
 		ctx:      closeContext,
 		cancel:   cancel,
-		conns:    make(map[string]*clientConn),
+		conns:    make(map[string]clientConn),
 		metrics:  metrics,
 		reporter: reporter,
 	}
@@ -274,17 +383,20 @@ func (c *Client) monitor() {
 			c.RLock()
 			c.reporter.resetConnections()
 			for _, conn := range c.conns {
-				switch conn.GetState() {
-				case connectivity.Idle:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Idle.String())
-				case connectivity.Connecting:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Connecting.String())
-				case connectivity.Ready:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Ready.String())
-				case connectivity.TransientFailure:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.TransientFailure.String())
-				case connectivity.Shutdown:
-					c.reporter.incConnection(c.config.ID, conn.id, connectivity.Shutdown.String())
+				switch conn := conn.(type) {
+				case *grpcClientConn:
+					switch conn.cc.GetState() {
+					case connectivity.Idle:
+						c.reporter.incConnection(c.config.ID, conn.id, connectivity.Idle.String())
+					case connectivity.Connecting:
+						c.reporter.incConnection(c.config.ID, conn.id, connectivity.Connecting.String())
+					case connectivity.Ready:
+						c.reporter.incConnection(c.config.ID, conn.id, connectivity.Ready.String())
+					case connectivity.TransientFailure:
+						c.reporter.incConnection(c.config.ID, conn.id, connectivity.TransientFailure.String())
+					case connectivity.Shutdown:
+						c.reporter.incConnection(c.config.ID, conn.id, connectivity.Shutdown.String())
+					}
 				}
 			}
 			c.RUnlock()
@@ -335,7 +447,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 	}
 
 	var toDelete []string
-	toKeep := make(map[string]*clientConn)
+	toKeep := make(map[string]clientConn)
 	for id, conn := range c.conns {
 		proxy, ok := toDial[id]
 
@@ -346,7 +458,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// peer address changed
-		if conn.addr != proxy.GetPeerAddr() {
+		if conn.peerAddr() != proxy.GetPeerAddr() {
 			toDelete = append(toDelete, id)
 			continue
 		}
@@ -384,45 +496,12 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 
 	for _, id := range toDelete {
 		if conn, ok := c.conns[id]; ok {
-			go conn.Shutdown(c.ctx)
+			go conn.shutdown(c.ctx)
 		}
 	}
 	c.conns = toKeep
 
 	return trace.NewAggregate(errs...)
-}
-
-// DialNode dials a node through a peer proxy.
-func (c *Client) DialNode(
-	proxyIDs []string,
-	nodeID string,
-	src net.Addr,
-	dst net.Addr,
-	tunnelType types.TunnelType,
-) (net.Conn, error) {
-	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
-		NodeID:     nodeID,
-		TunnelType: tunnelType,
-		Source: &clientapi.NetAddr{
-			Addr:    src.String(),
-			Network: src.Network(),
-		},
-		Destination: &clientapi.NetAddr{
-			Addr:    dst.String(),
-			Network: dst.Network(),
-		},
-	})
-	if err != nil {
-		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
-	}
-
-	streamRW, err := streamutils.NewReadWriter(stream)
-	if err != nil {
-		_ = stream.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return streamutils.NewConn(streamRW, src, dst), nil
 }
 
 // stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
@@ -470,9 +549,9 @@ func (c *Client) Shutdown(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, conn := range c.conns {
 		wg.Add(1)
-		go func(conn *clientConn) {
+		go func(conn clientConn) {
 			defer wg.Done()
-			conn.Shutdown(ctx)
+			conn.shutdown(ctx)
 		}(conn)
 	}
 	wg.Wait()
@@ -486,7 +565,7 @@ func (c *Client) Stop() error {
 
 	var errs []error
 	for _, conn := range c.conns {
-		if err := conn.Close(); err != nil {
+		if err := conn.close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -500,67 +579,56 @@ func (c *Client) GetConnectionsCount() int {
 	return len(c.conns)
 }
 
-// dial opens a new stream to one of the supplied proxy ids.
-// it tries to find an existing grpc.ClientConn or initializes a new rpc
-// to one of the proxies otherwise.
-// The boolean returned in the second argument is intended for testing purposes,
-// to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (frameStream, bool, error) {
+// DialNode dials a node through a peer proxy.
+func (c *Client) DialNode(
+	proxyIDs []string,
+	nodeID string,
+	src net.Addr,
+	dst net.Addr,
+	tunnelType types.TunnelType,
+) (net.Conn, error) {
+	conn, _, err := c.dial(
+		proxyIDs,
+		nodeID,
+		src,
+		dst,
+		tunnelType,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
+// dial opens a new connection through one of the given proxy ids. It tries to
+// find an existing [clientConn] or initializes new clientConns to the given
+// proxies otherwise. The boolean returned in the second argument is intended
+// for testing purposes, to indicates whether the connection used an existing
+// clientConn or a newly established one.
+func (c *Client) dial(
+	proxyIDs []string,
+	nodeID string,
+	src net.Addr,
+	dst net.Addr,
+	tunnelType types.TunnelType,
+) (net.Conn, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
-		return frameStream{}, existing, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
 	var errs []error
-	for _, conn := range conns {
-		release := conn.maybeAcquire()
-		if release == nil {
-			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
-			errs = append(errs, trace.ConnectionProblem(nil, "error starting stream: connection is shutting down"))
-			continue
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		context.AfterFunc(ctx, release)
-
-		stream, err := clientapi.NewProxyServiceClient(conn.ClientConn).DialNode(ctx)
+	for _, clientConn := range conns {
+		conn, err := clientConn.dial(nodeID, src, dst, tunnelType)
 		if err != nil {
-			cancel()
-			c.metrics.reportTunnelError(errorProxyPeerTunnelRPC)
-			c.config.Log.Debugf("Error opening tunnel rpc to proxy %+v at %+v", conn.id, conn.addr)
-			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
+			errs = append(errs, trace.Wrap(err))
 			continue
 		}
-
-		err = stream.Send(&clientapi.Frame{
-			Message: &clientapi.Frame_DialRequest{
-				DialRequest: dialRequest,
-			},
-		})
-		if err != nil {
-			cancel()
-			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
-			continue
-		}
-		msg, err := stream.Recv()
-		if err != nil {
-			cancel()
-			errs = append(errs, trace.ConnectionProblem(err, "error receiving dial response: %v", err))
-			continue
-		}
-		if msg.GetConnectionEstablished() == nil {
-			cancel()
-			errs = append(errs, trace.ConnectionProblem(nil, "received malformed connection established frame"))
-			continue
-		}
-
-		return frameStream{
-			stream: stream,
-			cancel: cancel,
-		}, existing, nil
+		return conn, existing, nil
 	}
 
-	return frameStream{}, existing, trace.NewAggregate(errs...)
+	return nil, existing, trace.NewAggregate(errs...)
 }
 
 // getConnections returns connections to the supplied proxy ids.
@@ -568,13 +636,13 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (fr
 // otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) {
+func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 	if len(proxyIDs) == 0 {
 		return nil, false, trace.BadParameter("failed to dial: no proxy ids given")
 	}
 
 	ids := make(map[string]struct{})
-	var conns []*clientConn
+	var conns []clientConn
 
 	// look for existing matching connections.
 	c.RLock()
@@ -631,7 +699,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 	defer c.Unlock()
 
 	for _, conn := range conns {
-		c.conns[conn.id] = conn
+		c.conns[conn.peerID()] = conn
 	}
 
 	c.config.connShuffler(conns)
@@ -639,7 +707,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 }
 
 // connect dials a new connection to proxyAddr.
-func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
+func (c *Client) connect(peerID string, peerAddr string) (clientConn, error) {
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
@@ -670,8 +738,9 @@ func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", peerID)
 	}
 
-	return &clientConn{
-		ClientConn: conn,
+	return &grpcClientConn{
+		cc:      conn,
+		metrics: c.metrics,
 
 		id:   peerID,
 		addr: peerAddr,
