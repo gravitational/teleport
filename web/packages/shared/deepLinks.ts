@@ -67,7 +67,7 @@ export type ConnectMyComputerDeepURL = BaseDeepURL & {
 
 export type AuthenticateWebDeviceDeepURL = BaseDeepURL & {
   pathname: '/authenticate_web_device';
-  searchParams: { id: string; token: string };
+  searchParams: { id: string; token: string; redirect?: string };
 };
 
 export type DeepURL = ConnectMyComputerDeepURL | AuthenticateWebDeviceDeepURL;

@@ -18,6 +18,9 @@ package web
 
 import (
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -44,6 +47,8 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	confirmToken := &devicepb.DeviceConfirmationToken{}
 	confirmToken.Id = query.Get("id")
 	confirmToken.Token = query.Get("token")
+	redirectParam := query.Get("redirect_uri")
+
 	switch {
 	case confirmToken.Id == "":
 		return nil, trace.BadParameter("parameter id required")
@@ -76,7 +81,29 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 
 	// Always redirect back to the dashboard, regardless of outcome.
 	app.SetRedirectPageHeaders(w.Header(), "" /* nonce */)
-	http.Redirect(w, r, "/web", http.StatusSeeOther)
+
+	redirectTo := "/web"
+
+	if redirectParam != "" {
+		parsedURL, err := url.Parse(redirectParam)
+		if err == nil {
+			cleanPath := path.Clean(parsedURL.Path)
+			// helps in situations where there is no path such as https://example.com
+			if cleanPath == "." || cleanPath == "" {
+				cleanPath = "/"
+			} else if !strings.HasPrefix(cleanPath, "/") {
+				cleanPath = "/" + cleanPath
+			}
+			// Prepend "/web" only if it's not already present
+			if !strings.HasPrefix(cleanPath, "/web") {
+				redirectTo = path.Join("/web", cleanPath)
+			} else {
+				redirectTo = cleanPath
+			}
+		}
+	}
+
+	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 
 	return nil, nil
 }

@@ -103,7 +103,7 @@ export class DeepLinksService {
   private async askAuthorizeDeviceTrust(
     url: AuthenticateWebDeviceDeepURL
   ): Promise<void> {
-    const { id, token } = url.searchParams;
+    const { id, token, redirect } = url.searchParams;
 
     const result = await this.loginAndSetActiveWorkspace(url);
     if (!result.isAtDesiredWorkspace) {
@@ -127,11 +127,13 @@ export class DeepLinksService {
             token,
           }
         );
+        let url = `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`;
+        if (redirect) {
+          url = `${url}&redirect_uri=${redirect}`;
+        }
         // open url to confirm the token. This endpoint verifies the token and "upgrades"
         // the web session and redirects to "/web"
-        window.open(
-          `https://${rootCluster.proxyHost}/${confirmPath}?id=${result.response.confirmationToken.id}&token=${result.response.confirmationToken.token}`
-        );
+        window.open(url);
       },
     });
   }

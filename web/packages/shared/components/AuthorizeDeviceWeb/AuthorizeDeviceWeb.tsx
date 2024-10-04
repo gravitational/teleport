@@ -20,7 +20,7 @@ import { useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Flex, ButtonPrimary, Text, ButtonLink } from 'design';
 import { Link } from 'react-router-dom';
-import { useParams } from 'react-router';
+import { useParams, useLocation } from 'react-router';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -36,10 +36,13 @@ import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 
 export const PassthroughPage = () => {
   const ctx = useTeleport();
+  const { search } = useLocation();
   const { id, token } = useParams<{
     id: string;
     token: string;
   }>();
+  const redirect = new URLSearchParams(search).get('redirect_uri');
+
   const { cluster, username } = ctx.storeUser.state;
   const deviceTrustAuthorize = makeDeepLinkWithSafeInput({
     proxyHost: cluster?.publicURL,
@@ -48,6 +51,7 @@ export const PassthroughPage = () => {
     searchParams: {
       id,
       token,
+      redirect,
     },
   });
   const platform = getPlatform();
