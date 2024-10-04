@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -79,6 +80,9 @@ type ClientConfig struct {
 	GracefulShutdownTimeout time.Duration
 	// ClusterName is the name of the cluster.
 	ClusterName string
+	// QUICTransport, if set, will be used to dial peer proxies that advertise
+	// support for peering connections over QUIC.
+	QUICTransport *quic.Transport
 
 	// connShuffler determines the order client connections will be used.
 	connShuffler connShuffler
@@ -479,7 +483,8 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 		}
 
 		// establish new connections
-		conn, err := c.connect(id, proxy.GetPeerAddr())
+		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDial)
 			c.config.Log.Debugf("Error dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
@@ -679,7 +684,8 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 			continue
 		}
 
-		conn, err := c.connect(id, proxy.GetPeerAddr())
+		_, supportsQuic := proxy.GetLabel(types.ProxyPeerQUICLabel)
+		conn, err := c.connect(id, proxy.GetPeerAddr(), supportsQuic)
 		if err != nil {
 			c.metrics.reportTunnelError(errorProxyPeerTunnelDirectDial)
 			c.config.Log.Debugf("Error direct dialing peer proxy %+v at %+v", id, proxy.GetPeerAddr())
@@ -707,7 +713,10 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 }
 
 // connect dials a new connection to proxyAddr.
-func (c *Client) connect(peerID string, peerAddr string) (clientConn, error) {
+func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (clientConn, error) {
+	if supportsQUIC && c.config.QUICTransport != nil {
+		panic("QUIC proxy peering is not implemented")
+	}
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {

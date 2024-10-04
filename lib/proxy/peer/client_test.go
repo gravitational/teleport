@@ -143,7 +143,8 @@ func TestCAChange(t *testing.T) {
 	t.Cleanup(func() { server.Close() })
 
 	// dial server and send a test data frame
-	conn, err := client.connect("s1", ts.GetPeerAddr())
+	const supportsQUICFalse = false
+	conn, err := client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -161,7 +162,7 @@ func TestCAChange(t *testing.T) {
 
 	// new connection should fail because client tls config still references old
 	// RootCAs.
-	conn, err = client.connect("s1", ts.GetPeerAddr())
+	conn, err = client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)
@@ -173,7 +174,7 @@ func TestCAChange(t *testing.T) {
 	// RootCAs.
 	currentServerCA.Store(newServerCA)
 
-	conn, err = client.connect("s1", ts.GetPeerAddr())
+	conn, err = client.connect("s1", ts.GetPeerAddr(), supportsQUICFalse)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	require.IsType(t, (*grpcClientConn)(nil), conn)

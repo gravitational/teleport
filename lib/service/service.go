@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/quic-go/quic-go"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel/attribute"
@@ -4311,9 +4312,31 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// from remote teleport nodes
 	var tsrv reversetunnelclient.Server
 	var peerClient *peer.Client
-
+	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
+			// TODO(espadolini): allow this when the implementation is merged
+			if false && os.Getenv("TELEPORT_UNSTABLE_QUIC_PROXY_PEERING") == "yes" {
+				// the stateless reset key is important in case there's a crash
+				// so peers can be told to close their side of the connections
+				// instead of having to wait for a timeout; for this reason, we
+				// store it in the datadir, which should persist just as much as
+				// the host ID and the cluster credentials
+				resetKey, err := process.readOrInitPeerStatelessResetKey()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				pc, err := process.createPacketConn(string(ListenerProxyPeer), listeners.proxyPeer.Addr().String())
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				peerQUICTransport = &quic.Transport{
+					Conn: pc,
+
+					StatelessResetKey: resetKey,
+				}
+			}
+
 			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:           process.ExitContext(),
 				ID:                process.Config.HostUUID,
@@ -4325,6 +4348,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Log:               process.log,
 				Clock:             process.Clock,
 				ClusterName:       clusterName,
+				QUICTransport:     peerQUICTransport,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -4677,6 +4701,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var peerServer *peer.Server
+	var peerQUICServer *peer.QUICServer
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
@@ -4705,11 +4730,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		process.RegisterCriticalFunc("proxy.peer", func() error {
 			if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
-				logger.DebugContext(process.ExitContext(), "Process exiting: failed to start peer proxy service waiting for reverse tunnel server")
+				logger.DebugContext(process.ExitContext(), "Process exiting: failed to start peer proxy service waiting for reverse tunnel server.")
 				return nil
 			}
 
-			logger.InfoContext(process.ExitContext(), "Starting peer proxy service", "listen_address", logutils.StringerAttr(listeners.proxyPeer.Addr()))
+			logger.InfoContext(process.ExitContext(), "Starting peer proxy service.", "listen_address", logutils.StringerAttr(listeners.proxyPeer.Addr()))
 			err := peerServer.Serve(listeners.proxyPeer)
 			if err != nil {
 				return trace.Wrap(err)
@@ -4717,9 +4742,45 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 			return nil
 		})
+
+		if peerQUICTransport != nil {
+			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
+				Log:           process.logger,
+				ClusterDialer: clusterdial.NewClusterDialer(tsrv),
+				CipherSuites:  cfg.CipherSuites,
+				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+					return conn.serverGetCertificate()
+				},
+				GetClientCAs: func(chi *tls.ClientHelloInfo) (*x509.CertPool, error) {
+					pool, _, err := authclient.ClientCertPool(chi.Context(), accessPoint, clusterName, types.HostCA)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+					return pool, nil
+				},
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			process.RegisterCriticalFunc("proxy.peer.quic", func() error {
+				if _, err := process.WaitForEvent(process.ExitContext(), ProxyReverseTunnelReady); err != nil {
+					logger.DebugContext(process.ExitContext(), "Process exiting: failed to start QUIC peer proxy service waiting for reverse tunnel server.")
+					return nil
+				}
+
+				logger.InfoContext(process.ExitContext(), "Starting QUIC peer proxy service.", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
+				err := peerQUICServer.Serve(peerQUICTransport)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				return nil
+			})
+		}
 	}
 
-	staticLabels := make(map[string]string, 2)
+	staticLabels := make(map[string]string, 3)
 	if cfg.Proxy.ProxyGroupID != "" {
 		staticLabels[types.ProxyGroupIDLabel] = cfg.Proxy.ProxyGroupID
 	}
@@ -4728,6 +4789,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	if len(staticLabels) > 0 {
 		logger.InfoContext(process.ExitContext(), "Enabling proxy group labels.", "group_id", cfg.Proxy.ProxyGroupID, "generation", cfg.Proxy.ProxyGroupGeneration)
+	}
+	if peerQUICTransport != nil {
+		staticLabels[types.ProxyPeerQUICLabel] = "x"
+		logger.InfoContext(process.ExitContext(), "Advertising proxy peering QUIC support.")
 	}
 
 	sshProxy, err := regular.New(
@@ -5256,6 +5321,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if peerServer != nil {
 				warnOnErr(process.ExitContext(), peerServer.Close(), logger)
 			}
+			if peerQUICServer != nil {
+				warnOnErr(process.ExitContext(), peerQUICServer.Close(), logger)
+			}
 			if webServer != nil {
 				warnOnErr(process.ExitContext(), webServer.Close(), logger)
 			}
@@ -5307,6 +5375,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if peerServer != nil {
 				warnOnErr(ctx, peerServer.Shutdown(), logger)
 			}
+			if peerQUICServer != nil {
+				warnOnErr(ctx, peerQUICServer.Shutdown(ctx), logger)
+			}
 			if peerClient != nil {
 				peerClient.Shutdown(ctx)
 			}
@@ -5342,6 +5413,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if clientTLSConfigGenerator != nil {
 				clientTLSConfigGenerator.Close()
 			}
+		}
+		if peerQUICTransport != nil {
+			_ = peerQUICTransport.Close()
+			_ = peerQUICTransport.Conn.Close()
 		}
 		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
@@ -5415,6 +5490,26 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	})
 
 	return minimalWebServer, nil
+}
+
+func (process *TeleportProcess) readOrInitPeerStatelessResetKey() (*quic.StatelessResetKey, error) {
+	resetKeyPath := filepath.Join(process.Config.DataDir, "peer_stateless_reset_key")
+	k := new(quic.StatelessResetKey)
+	stored, err := os.ReadFile(resetKeyPath)
+	if err == nil && len(stored) == len(k) {
+		copy(k[:], stored)
+		return k, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		process.logger.WarnContext(process.ExitContext(), "Stateless reset key file unreadable or invalid.", "error", err)
+	}
+	if _, err := rand.Read(k[:]); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if err := renameio.WriteFile(resetKeyPath, k[:], 0o600); err != nil {
+		process.logger.WarnContext(process.ExitContext(), "Failed to persist stateless reset key.", "error", err)
+	}
+	return k, nil
 }
 
 // kubeDialAddr returns Proxy Kube service address used for dialing local kube service
