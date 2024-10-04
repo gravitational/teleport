@@ -260,4 +260,8 @@ export const storageService = {
       JSON.stringify(true)
     );
   },
+
+  getIsTopBarView(): boolean {
+    return this.getParsedJSONValue(KeysEnum.USE_TOP_BAR, false);
+  },
 };
