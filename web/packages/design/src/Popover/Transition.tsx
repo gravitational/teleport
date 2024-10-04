@@ -21,10 +21,9 @@ import React, { useLayoutEffect } from 'react';
 export function Transition({
   onEntering,
   children,
-}: {
-  children: React.ReactNode;
+}: React.PropsWithChildren<{
   onEntering: () => void;
-}) {
+}>) {
   // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
   // It's especially noticeable on Safari.
   useLayoutEffect(() => {
