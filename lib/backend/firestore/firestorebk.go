@@ -162,15 +162,17 @@ type legacyRecord struct {
 	Value     string `firestore:"value,omitempty"`
 }
 
+type brokenKey []byte
+
 // brokenRecord is an incorrect version of record used to marshal backend.Items.
 // The Key type was inadvertently changed from a []byte to backend.Key which
 // causes problems reading existing data prior to the conversion.
 type brokenRecord struct {
-	Key        backend.Key `firestore:"key,omitempty"`
-	Timestamp  int64       `firestore:"timestamp,omitempty"`
-	Expires    int64       `firestore:"expires,omitempty"`
-	Value      []byte      `firestore:"value,omitempty"`
-	RevisionV2 string      `firestore:"revision,omitempty"`
+	Key        brokenKey `firestore:"key,omitempty"`
+	Timestamp  int64     `firestore:"timestamp,omitempty"`
+	Expires    int64     `firestore:"expires,omitempty"`
+	Value      []byte    `firestore:"value,omitempty"`
+	RevisionV2 string    `firestore:"revision,omitempty"`
 }
 
 func newRecord(from backend.Item, clock clockwork.Clock) record {
@@ -226,7 +228,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 				return nil, ConvertGRPCError(err)
 			}
 			r = record{
-				Key:       backend.Key(rl.Key),
+				Key:       []byte(rl.Key),
 				Value:     []byte(rl.Value),
 				Timestamp: rl.Timestamp,
 				Expires:   rl.Expires,
@@ -251,7 +253,7 @@ func (r *record) isExpired(now time.Time) bool {
 
 func (r *record) backendItem() backend.Item {
 	bi := backend.Item{
-		Key:   backend.Key(r.Key),
+		Key:   backend.KeyFromString(string(r.Key)),
 		Value: r.Value,
 	}
 
@@ -485,10 +487,10 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 }
 
 func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key, limit int) ([]*firestore.DocumentSnapshot, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
@@ -511,8 +513,8 @@ func (b *Backend) getRangeDocs(ctx context.Context, startKey, endKey backend.Key
 		return nil, trace.Wrap(err)
 	}
 	brokenDocs, err := b.svc.Collection(b.CollectionName).
-		Where(keyDocProperty, ">=", startKey).
-		Where(keyDocProperty, "<=", endKey).
+		Where(keyDocProperty, ">=", brokenKey(startKey.String())).
+		Where(keyDocProperty, "<=", brokenKey(endKey.String())).
 		Limit(limit).
 		Documents(ctx).GetAll()
 	if err != nil {
@@ -579,7 +581,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 
 // Get returns a single item or not found error
 func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, error) {
-	if len(key) == 0 {
+	if key.IsZero() {
 		return nil, trace.BadParameter("missing parameter key")
 	}
 
@@ -615,7 +617,7 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 				return &bi, nil
 			}
 		}
-		return nil, trace.NotFound("the supplied key: %q does not exist", string(key))
+		return nil, trace.NotFound("the supplied key: %q does not exist", key.String())
 	}
 
 	bi := r.backendItem()
@@ -625,10 +627,10 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 // CompareAndSwap compares the expected item with the existing item and replaces is with replaceWith
 // if the contents of the two items match.
 func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
 	if expected.Key.Compare(replaceWith.Key) != 0 {
@@ -644,7 +646,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		docSnap, err := tx.Get(docRef)
 		if err != nil {
 			if status.Code(err) == codes.NotFound {
-				return trace.CompareFailed("key %q was concurrently deleted", replaceWith.Key)
+				return trace.CompareFailed("key %q was concurrently deleted", replaceWith.Key.String())
 			}
 			return trace.Wrap(ConvertGRPCError(err))
 		}
@@ -680,14 +682,14 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 
 // Delete deletes item by key
 func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
-	if len(key) == 0 {
+	if key.IsZero() {
 		return trace.BadParameter("missing parameter key")
 	}
 
 	docRef := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(key))
 	if _, err := docRef.Delete(ctx, firestore.Exists); err != nil {
 		if status.Code(err) == codes.NotFound {
-			return trace.NotFound("key %s does not exist", string(key))
+			return trace.NotFound("key %q does not exist", key.String())
 		}
 
 		return ConvertGRPCError(err)
@@ -840,7 +842,7 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if len(lease.Key) == 0 {
+	if lease.Key.IsZero() {
 		return trace.BadParameter("lease is missing key")
 	}
 	docSnap, err := b.svc.Collection(b.CollectionName).
@@ -851,7 +853,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	}
 
 	if !docSnap.Exists() {
-		return trace.NotFound("key %s does not exist, cannot extend lease", lease.Key)
+		return trace.NotFound("key %q does not exist, cannot extend lease", lease.Key.String())
 	}
 
 	r, err := newRecordFromDoc(docSnap)
@@ -860,7 +862,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	}
 
 	if r.isExpired(b.clock.Now()) {
-		return trace.NotFound("key %s has already expired, cannot extend lease", lease.Key)
+		return trace.NotFound("key %q has already expired, cannot extend lease", lease.Key.String())
 	}
 
 	updates := []firestore.Update{
@@ -902,7 +904,7 @@ func (b *Backend) Clock() clockwork.Clock {
 func (b *Backend) keyToDocumentID(key backend.Key) string {
 	// URL-safe base64 will not have periods or forward slashes.
 	// This should satisfy the Firestore requirements.
-	return base64.URLEncoding.EncodeToString(key)
+	return base64.URLEncoding.EncodeToString([]byte(key.String()))
 }
 
 // RetryingAsyncFunctionRunner wraps a task target in retry logic
@@ -1004,7 +1006,7 @@ func (b *Backend) watchCollection() error {
 				e = backend.Event{
 					Type: types.OpDelete,
 					Item: backend.Item{
-						Key: r.Key,
+						Key: backend.KeyFromString(string(r.Key)),
 					},
 				}
 			}

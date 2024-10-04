@@ -20,9 +20,11 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -34,7 +36,7 @@ import (
 
 func newUserWithOrigin(t *testing.T, origin string) types.User {
 	t.Helper()
-	user, err := types.NewUser(t.Name())
+	user, err := types.NewUser(uuid.NewString())
 	require.NoError(t, err)
 
 	if origin != "" {
@@ -108,7 +110,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 		t.Run("okta service updating non-okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user
-			user, err := types.NewUser(t.Name())
+			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
@@ -176,7 +178,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 	t.Run("upsert", func(t *testing.T) {
 		t.Run("okta service creating non-okta user is an error", func(t *testing.T) {
-			user, err := types.NewUser(t.Name())
+			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
 
 			_, err = authWithOktaRole.UpsertUser(ctx, user)
@@ -197,7 +199,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 		t.Run("okta service updating non-okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta user
-			user, err := types.NewUser(t.Name())
+			user, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
 			user, err = srv.AuthServer.CreateUser(ctx, user)
 			require.NoError(t, err)
@@ -268,7 +270,7 @@ func TestOktaServiceUserCRUD(t *testing.T) {
 
 		t.Run("okta service updating non-Okta user is an error", func(t *testing.T) {
 			// Given an existing non-okta existing
-			existing, err := types.NewUser(t.Name())
+			existing, err := types.NewUser(uuid.NewString())
 			require.NoError(t, err)
 			existing, err = srv.AuthServer.CreateUser(ctx, existing)
 			require.NoError(t, err)
@@ -366,7 +368,7 @@ func TestOktaMayNotResetPasswords(t *testing.T) {
 
 	t.Run("non-okta user", func(t *testing.T) {
 		// Given an existing non-okta existing
-		existing, err := types.NewUser(t.Name())
+		existing, err := types.NewUser(uuid.NewString())
 		require.NoError(t, err)
 		existing, err = srv.AuthServer.CreateUser(ctx, existing)
 		require.NoError(t, err)
@@ -395,7 +397,7 @@ func newTestLock(t *testing.T, target types.User, origin string) types.Lock {
 			User: target.GetName(),
 		},
 	}
-	lock, err := types.NewLock(t.Name(), lockSpec)
+	lock, err := types.NewLock(strings.ReplaceAll(uuid.NewString(), "-", ""), lockSpec)
 	require.NoError(t, err)
 
 	if origin != "" {
@@ -492,7 +494,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 					Node: "banana",
 				},
 			}
-			lock, err := types.NewLock(t.Name(), lockSpec)
+			lock, err := types.NewLock(strings.ReplaceAll(uuid.NewString(), "-", ""), lockSpec)
 			require.NoError(t, err)
 			lock.SetOrigin(types.OriginOkta)
 
@@ -585,7 +587,7 @@ func TestOktaServiceLockCRUD(t *testing.T) {
 
 			// And an un-locked non-okta user
 			nonOktaUser := newUserWithOrigin(t, "")
-			nonOktaUser.SetName(t.Name() + "non-okta")
+			nonOktaUser.SetName(nonOktaUser.GetName() + "non-okta")
 			_, err = srv.AuthServer.CreateUser(ctx, nonOktaUser)
 			require.NoError(t, err)
 
