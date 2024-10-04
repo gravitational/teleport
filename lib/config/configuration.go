@@ -382,8 +382,8 @@ type IntegrationConfAWSOIDCIdP struct {
 	ProxyPublicURL string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
-	// PolicyPreset is the inline policy that will be applied to the
-	// AWS Role associate with the Integration.
+	// PolicyPreset is the name of a pre-defined policy statement which will be
+	// assigned to the AWS Role associate with the OIDC integration.
 	PolicyPreset string
 }
 

@@ -65,7 +65,7 @@ CreateRole: {
     ]
 }
 
-3. Assign IAM role "integrationrole" with an inline policy "TeleportAWSIdentityCenter".
+3. Assign IAM role "integrationrole" with an inline policy "TeleportAWSIdentityCenterIntegration".
 AssignPolicy: {
     "PolicyDocument": {
         "Effect": "Allow",
@@ -94,7 +94,7 @@ AssignPolicy: {
         "Resource": "*",
         "Sid": "TeleportIdentityCenterClient"
     },
-    "PolicyName": "TeleportAWSIdentityCenter",
+    "PolicyName": "TeleportAWSIdentityCenterIntegration",
     "RoleName": "integrationrole"
 }
 

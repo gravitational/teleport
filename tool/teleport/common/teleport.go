@@ -515,7 +515,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		IntegrationConfAWSOIDCIdPArguments.Role)
 	integrationConfAWSOIDCIdPCmd.Flag("proxy-public-url", "Proxy Public URL (eg https://mytenant.teleport.sh).").Required().StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL)
-	integrationConfAWSOIDCIdPCmd.Flag("policy-preset", "Policy that will be applied to the AWS OIDC Integration role.").StringVar(&ccf.
+	integrationConfAWSOIDCIdPCmd.Flag("policy-preset", "Policy that will be applied to the AWS OIDC integration role.").StringVar(&ccf.
 		IntegrationConfAWSOIDCIdPArguments.PolicyPreset)
 	integrationConfAWSOIDCIdPCmd.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&ccf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm)
 	integrationConfAWSOIDCIdPCmd.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)

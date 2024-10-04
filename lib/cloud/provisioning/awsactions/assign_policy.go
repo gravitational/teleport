@@ -29,23 +29,27 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 )
 
-// PolicyCreator can assign a policy to an existing IAM role.
-type PolicyCreator interface {
+// PolicyAssigner can assign a policy to an existing IAM role.
+type PolicyAssigner interface {
 	// PutRolePolicy updates AWS IAM role with the given policy document.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
-// RolePolicy defines policy
+// RolePolicy defines inputs for policy assignment request.
 type RolePolicy struct {
-	RoleName        string
-	PolicyName      string
+	// RoleName is the name of IAM role which will be assigned with the policy.
+	RoleName string
+	// PolicyName defines a new name for the policy.
+	PolicyName string
+	// PolicyStatement is a policy statement.
 	PolicyStatement *awslib.Statement
 }
 
-// AssignRolePolicy assigns AWS OIDC integration role with a preset policy.
+// AssignRolePolicy assigns AWS IAM role created by OIDC integration
+// with the given policy document derived from a preset policy statement.
 func AssignRolePolicy(
 	clt interface {
-		PolicyCreator
+		PolicyAssigner
 		RoleGetter
 	},
 	req RolePolicy,

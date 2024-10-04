@@ -375,7 +375,7 @@ export type AwsOidcDeployServiceRequest = {
 
 /**
  * AwsOidcPolicyPreset specifies preset policy to apply
- * to AWS IAM role created for OIDC integration.
+ * to the AWS IAM role created for the OIDC integration.
  */
 export enum AwsOidcPolicyPreset {
   Unspecified = 'unspecified',

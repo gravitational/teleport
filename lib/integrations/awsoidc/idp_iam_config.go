@@ -56,10 +56,11 @@ type IdPIAMConfigureRequest struct {
 	// Used for tagging the created Roles/IdP.
 	IntegrationName string
 
-	// IntegrationRole is the Integration's AWS Role used to set up Teleport as an OIDC IdP.
+	// IntegrationRole is the name of the AWS IAM role that will be created by the
+	// AWS OIDC integration.
 	IntegrationRole string
 
-	// IntegrationPolicyPreset is the policy to be applied to the IntegrationRole
+	// IntegrationPolicyPreset is the name of a policy preset to be applied to the IntegrationRole.
 	IntegrationPolicyPreset PolicyPreset
 
 	// ProxyPublicAddress is the URL to use as provider URL.
@@ -86,26 +87,30 @@ type IdPIAMConfigureRequest struct {
 	fakeThumbprint string
 }
 
-// PolicyPreset defines preset types for role policy for the role
-// that is created as part of Teleport AWS OIDC integration.
+// PolicyPreset defines a preset policy type for the AWS IAM role
+// created by the Teleport AWS OIDC integration.
 type PolicyPreset string
 
 const (
-	// PolicyPresetUnspecified represents no preset policy to apply.
+	// PolicyPresetUnspecified specifies no preset policy to apply.
 	PolicyPresetUnspecified PolicyPreset = "unspecified"
-	// PolicyPresetAWSIdentityCenter specifies poicy required for AWS identity center integration.
+	// PolicyPresetAWSIdentityCenter specifies poicy required for the AWS identity center integration.
 	PolicyPresetAWSIdentityCenter PolicyPreset = "aws-identity-center"
 )
 
-// ValidatePolicyPreset validates given policy preset is supported or not.
-func ValidatePolicyPreset(input PolicyPreset) (PolicyPreset, error) {
+// ErrAWSOIDCInvalidPolicyPreset is issued if provided policy preset
+// value is not supported.
+var ErrAWSOIDCInvalidPolicyPreset = &trace.BadParameterError{
+	Message: "--preset-policy defines an unknown preset value",
+}
+
+// ValidatePolicyPreset validates if a given policy preset is supported or not.
+func ValidatePolicyPreset(input PolicyPreset) error {
 	switch input {
-	case "":
-		return PolicyPresetUnspecified, nil
-	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
-		return input, nil
+	case "", PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
+		return nil
 	default:
-		return "", trace.BadParameter("unknown value received for `--preset-policy`")
+		return ErrAWSOIDCInvalidPolicyPreset
 	}
 }
 
@@ -144,7 +149,7 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 		r.IntegrationPolicyPreset = PolicyPresetUnspecified
 	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
 	default:
-		return trace.BadParameter("--preset-policy contains unknown preset value")
+		return ErrAWSOIDCInvalidPolicyPreset
 	}
 
 	return nil
@@ -159,7 +164,7 @@ type IdPIAMConfigureClient interface {
 	awsactions.RoleCreator
 	awsactions.RoleGetter
 	awsactions.RoleTagger
-	awsactions.PolicyCreator
+	awsactions.PolicyAssigner
 }
 
 type defaultIdPIAMConfigureClient struct {
@@ -195,10 +200,10 @@ func NewIdPIAMConfigureClient(ctx context.Context) (IdPIAMConfigureClient, error
 	}, nil
 }
 
-// ConfigureIdPIAM creates a new IAM OIDC IdP in AWS.
+// ConfigureIdPIAM creates a new AWS IAM OIDC IdP, IAM role and optionally updates
+// the role with the given policy preset.
 //
 // The provider URL is Teleport's public address.
-// It also creates a new Role configured to trust the recently created IdP.
 // If the role already exists, it will create another trust relationship for the IdP (if it doesn't exist).
 //
 // The following actions must be allowed by the IAM Role assigned in the Client.
@@ -229,6 +234,8 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		return trace.Wrap(err)
 	}
 
+	// --policy-preset is an optional flag so the assignIdPIAMPolicyAction
+	// should only be appended if assignIdPIAMPolicyAction returns a non-nil value.
 	actions := []provisioning.Action{
 		*createOIDCIdP,
 		*createIdPIAMRole,
@@ -285,13 +292,14 @@ func assignIdPIAMPolicyAction(clt IdPIAMConfigureClient, req IdPIAMConfigureRequ
 
 	switch req.IntegrationPolicyPreset {
 	case PolicyPresetAWSIdentityCenter:
-		policyName = "TeleportAWSIdentityCenter"
+		policyName = "TeleportAWSIdentityCenterIntegration"
 		policyStatement = awslib.StatementForAWSIdentityCenterAccess()
 	default:
 		return nil, nil
 	}
 
-	return awsactions.AssignRolePolicy(clt,
+	return awsactions.AssignRolePolicy(
+		clt,
 		awsactions.RolePolicy{
 			RoleName:        req.IntegrationRole,
 			PolicyName:      policyName,

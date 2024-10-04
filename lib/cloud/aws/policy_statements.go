@@ -169,50 +169,6 @@ func StatementForAWSAppAccess() *Statement {
 	}
 }
 
-// StatementForAWSIdentityCenterAccess returns the statement that grants permissions
-// required for Teleport identity center client.
-// TODO(sshah): make the roles more granular by restricting resources to identity center.
-func StatementForAWSIdentityCenterAccess() *Statement {
-	return &Statement{
-		StatementID: "TeleportIdentityCenterClient",
-		Effect:      EffectAllow,
-		Actions: []string{
-			// ListAccounts
-			"organizations:ListAccounts",
-			"organizations:ListAccountsForParent",
-
-			// ListGroupsAndMembers
-			"identitystore:ListUsers",
-			"identitystore:ListGroups",
-			"identitystore:ListGroupMemberships",
-
-			// ListPermissionSetsAndAssignments
-			"sso:DescribeInstance",
-			"sso:DescribePermissionSet",
-			"sso:ListPermissionSets",
-			"sso:ListAccountAssignmentsForPrincipal",
-
-			// CreateAndDeleteAccountAssignment
-			"sso:CreateAccountAssignment",
-			"sso:DescribeAccountAssignmentCreationStatus",
-			"sso:DeleteAccountAssignment",
-			"sso:DescribeAccountAssignmentDeletionStatus",
-			"iam:AttachRolePolicy",
-			"iam:CreateRole",
-			"iam:GetRole",
-			"iam:ListAttachedRolePolicies",
-			"iam:ListRolePolicies",
-
-			// AllowAccountAssignmentOnOwner
-			"iam:GetSAMLProvider",
-
-			// ListProvisionedRoles
-			"iam:ListRoles",
-		},
-		Resources: allResources,
-	}
-}
-
 // StatementForEKSAccess returns the statement that allows enrolling of EKS clusters into Teleport.
 func StatementForEKSAccess() *Statement {
 	return &Statement{
@@ -473,6 +429,51 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSIdentityCenterAccess returns AWS IAM policy statement that grants
+// permissions required for Teleport identity center client.
+// TODO(sshah): make the roles more granular by restricting resources scoped to
+// partivular AWS identity center region+arn.
+func StatementForAWSIdentityCenterAccess() *Statement {
+	return &Statement{
+		StatementID: "TeleportIdentityCenterClient",
+		Effect:      EffectAllow,
+		Actions: []string{
+			// ListAccounts
+			"organizations:ListAccounts",
+			"organizations:ListAccountsForParent",
+
+			// ListGroupsAndMembers
+			"identitystore:ListUsers",
+			"identitystore:ListGroups",
+			"identitystore:ListGroupMemberships",
+
+			// ListPermissionSetsAndAssignments
+			"sso:DescribeInstance",
+			"sso:DescribePermissionSet",
+			"sso:ListPermissionSets",
+			"sso:ListAccountAssignmentsForPrincipal",
+
+			// CreateAndDeleteAccountAssignment
+			"sso:CreateAccountAssignment",
+			"sso:DescribeAccountAssignmentCreationStatus",
+			"sso:DeleteAccountAssignment",
+			"sso:DescribeAccountAssignmentDeletionStatus",
+			"iam:AttachRolePolicy",
+			"iam:CreateRole",
+			"iam:GetRole",
+			"iam:ListAttachedRolePolicies",
+			"iam:ListRolePolicies",
+
+			// AllowAccountAssignmentOnOwner
+			"iam:GetSAMLProvider",
+
+			// ListProvisionedRoles
+			"iam:ListRoles",
 		},
 		Resources: allResources,
 	}

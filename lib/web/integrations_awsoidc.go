@@ -1092,8 +1092,8 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	policyPreset := queryParams.Get("policyPreset")
-	if err := aws.IsValidIAMRoleName(role); err != nil {
-		return nil, trace.BadParameter("invalid role %q", role)
+	if err := awsoidc.ValidatePolicyPreset(awsoidc.PolicyPreset(policyPreset)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// The script must execute the following command:

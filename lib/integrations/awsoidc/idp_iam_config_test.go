@@ -290,30 +290,6 @@ func TestConfigureIdPIAM(t *testing.T) {
 				require.JSONEq(t, *expectedAssumeRolePolicyDoc, aws.ToString(role.assumeRolePolicyDoc))
 			},
 		},
-		{
-			name:               "role exists, ownership tags, assume role already exists",
-			mockAccountID:      "123456789012",
-			mockExistingIdPUrl: []string{},
-			mockExistingRoles: map[string]mockRole{"integrationrole": {
-				tags: []iamtypes.Tag{
-					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
-					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("mycluster")},
-					{Key: aws.String("teleport.dev/integration"), Value: aws.String("myintegration")},
-				},
-				assumeRolePolicyDoc: policyDocWithStatementsJSON(
-					assumeRoleStatementJSON(tlsServerIssuer),
-				),
-			}},
-			req:      baseIdPIAMConfigReqWithTLServer,
-			errCheck: require.NoError,
-			externalStateCheck: func(t *testing.T, mipc mockIdPIAMConfigClient) {
-				role := mipc.existingRoles["integrationrole"]
-				expectedAssumeRolePolicyDoc := policyDocWithStatementsJSON(
-					assumeRoleStatementJSON(tlsServerIssuer),
-				)
-				require.JSONEq(t, *expectedAssumeRolePolicyDoc, aws.ToString(role.assumeRolePolicyDoc))
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
@@ -335,12 +311,9 @@ func TestConfigureIdPIAM(t *testing.T) {
 func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	ctx := context.Background()
 	tlsServer := httptest.NewTLSServer(nil)
-
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
-
 	const mockAccountID string = "123456789012"
-
 	baseIdPIAMConfigReqWithTLServer := func() IdPIAMConfigureRequest {
 		return IdPIAMConfigureRequest{
 			Cluster:            "mycluster",
@@ -418,7 +391,6 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 				require.NotEmpty(t, role.presetPolicyDoc)
 				require.Equal(t, &policyDocument, role.presetPolicyDoc)
 			}
-
 		})
 	}
 }
@@ -504,11 +476,10 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 	}, nil
 }
 
-// PutRolePolicy assigns policy to an existing IAM Role.
+// PutRolePolicy assigns a policy to an existing IAM Role.
 func (m *mockIdPIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	doesNotExistMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
-	_, found := m.existingRoles[aws.ToString(params.RoleName)]
-	if !found {
+	if _, ok := m.existingRoles[aws.ToString(params.RoleName)]; !ok {
 		return nil, &iamtypes.EntityAlreadyExistsException{
 			Message: &doesNotExistMessage,
 		}
