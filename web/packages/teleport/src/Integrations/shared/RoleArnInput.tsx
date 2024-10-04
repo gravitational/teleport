@@ -18,6 +18,7 @@
 
 import { Link, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
+import { requiredMatchingRoleNameAndRoleArn } from 'shared/components/Validation/rules';
 
 export function RoleArnInput({
   description,
@@ -50,7 +51,7 @@ export function RoleArnInput({
       )}
       <FieldInput
         mt={3}
-        rule={requiredRoleArn(roleName)}
+        rule={requiredMatchingRoleNameAndRoleArn(roleName)}
         value={roleArn}
         label="Role ARN (Amazon Resource Name)"
         placeholder={`arn:aws:iam::123456789012:role/${roleName}`}
@@ -62,21 +63,3 @@ export function RoleArnInput({
     </>
   );
 }
-
-const requiredRoleArn = (roleName: string) => (roleArn: string) => () => {
-  const regex = new RegExp(
-    '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
-  );
-
-  if (regex.test(roleArn)) {
-    return {
-      valid: true,
-    };
-  }
-
-  return {
-    valid: false,
-    message:
-      'invalid role ARN, double check you copied and pasted the correct output',
-  };
-};

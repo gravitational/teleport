@@ -45,7 +45,7 @@ export function AwsOidc() {
     setScriptUrl,
     handleOnCreate,
     createdIntegration,
-    attempt,
+    createIntegrationAttempt,
     generateAwsOidcConfigIdpScript,
   } = useAwsOidcIntegration();
   const { clusterId } = useStickyClusterId();
@@ -123,8 +123,8 @@ export function AwsOidc() {
                 <FieldInput
                   rule={requiredIamRoleName}
                   value={integrationConfig.roleName}
-                  placeholder="IAM Role Name"
-                  label="IAM Role Name"
+                  placeholder="Integration role name"
+                  label="Give a name for an AWS IAM role this integration will create"
                   onChange={e =>
                     setIntegrationConfig({
                       ...integrationConfig,
@@ -169,15 +169,17 @@ export function AwsOidc() {
                         roleArn: v,
                       })
                     }
-                    disabled={attempt.status === 'processing'}
+                    disabled={createIntegrationAttempt.status === 'processing'}
                   />
                 </Container>
               </>
             )}
-            {attempt.status === 'error' && (
+            {createIntegrationAttempt.status === 'error' && (
               <Flex>
                 <Icons.Warning mr={2} color="error.main" size="small" />
-                <Text color="error.main">Error: {attempt.statusText}</Text>
+                <Text color="error.main">
+                  Error: {createIntegrationAttempt.statusText}
+                </Text>
               </Flex>
             )}
             <Box mt={6}>
@@ -185,7 +187,7 @@ export function AwsOidc() {
                 onClick={() => handleOnCreate(validator)}
                 disabled={
                   !scriptUrl ||
-                  attempt.status === 'processing' ||
+                  createIntegrationAttempt.status === 'processing' ||
                   !integrationConfig.roleArn
                 }
               >

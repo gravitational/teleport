@@ -133,6 +133,6 @@ export function useAwsOidcIntegration() {
     handleOnCreate,
     runCreateIntegration,
     generateAwsOidcConfigIdpScript,
-    attempt: createIntegrationAttempt,
+    createIntegrationAttempt,
   };
 }

@@ -197,6 +197,32 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
 };
 
 /**
+ * requiredMatchingRoleNameAndRoleArn checks if a given roleArn is a valid AWS
+ * IAM role ARN format and contains a given roleName.
+ *
+ * @param roleName Role name that is used to match role ARN.
+ * @param roleArn Role ARN which is to be tested for a valid AWS IAM role ARN format.
+ */
+const requiredMatchingRoleNameAndRoleArn =
+  (roleName: string) => (roleArn: string) => () => {
+    const regex = new RegExp(
+      '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
+    );
+
+    if (regex.test(roleArn)) {
+      return {
+        valid: true,
+      };
+    }
+
+    return {
+      valid: false,
+      message:
+        'invalid role ARN, double check you copied and pasted the correct output',
+    };
+  };
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -233,4 +259,5 @@ export {
   requiredIamRoleName,
   requiredEmailLike,
   requiredAll,
+  requiredMatchingRoleNameAndRoleArn,
 };
