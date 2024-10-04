@@ -347,6 +347,7 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 			IntegrationName:    "myintegration",
 			IntegrationRole:    "integrationrole",
 			ProxyPublicAddress: tlsServer.URL,
+			AutoConfirm:        true,
 		}
 	}
 
@@ -396,7 +397,7 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockIdPIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 				existingIDPUrl:       tt.mockExistingIdPUrl,
 			}

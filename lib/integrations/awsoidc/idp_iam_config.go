@@ -20,9 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -161,6 +159,7 @@ type IdPIAMConfigureClient interface {
 	awsactions.RoleCreator
 	awsactions.RoleGetter
 	awsactions.RoleTagger
+	awsactions.PolicyCreator
 }
 
 type defaultIdPIAMConfigureClient struct {
@@ -230,38 +229,24 @@ func ConfigureIdPIAM(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMC
 		return trace.Wrap(err)
 	}
 
-	// if err := applyPolicyStatement(ctx, clt, req.IntegrationRole, req.IntegrationPolicyPreset); err != nil {
-	// trace.Wrap(err)
-	// }
+	actions := []provisioning.Action{
+		*createOIDCIdP,
+		*createIdPIAMRole,
+	}
+	assignIdPIAMPolicy, err := assignIdPIAMPolicyAction(clt, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if assignIdPIAMPolicy != nil {
+		actions = append(actions, *assignIdPIAMPolicy)
+	}
 
 	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name: "awsoidc-idp",
-		Actions: []provisioning.Action{
-			*createOIDCIdP,
-			*createIdPIAMRole,
-		},
+		Name:        "awsoidc-idp",
+		Actions:     actions,
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
 	}))
-}
-
-func applyPolicyStatement(ctx context.Context, clt IdPIAMConfigureClient, integrationRole string, policyPreset PolicyPreset) error {
-	var policyName string
-	var policyStatement *awslib.Statement
-
-	switch policyPreset {
-	case PolicyPresetAWSIdentityCenter:
-		policyName = "TeleportAWSIdentityCenter"
-		policyStatement = awslib.StatementForAWSIdentityCenterAccess()
-	default:
-		return nil
-	}
-
-	return configureRolePolicy(ctx, clt, rolePolicy{
-		RoleName:        integrationRole,
-		PolicyName:      policyName,
-		PolicyStatement: policyStatement,
-	})
 }
 
 func createOIDCIdPAction(ctx context.Context, clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) (*provisioning.Action, error) {
@@ -294,42 +279,22 @@ func createIdPIAMRoleAction(clt IdPIAMConfigureClient, req IdPIAMConfigureReques
 	)
 }
 
-type rolePolicy struct {
-	Region          string
-	RoleName        string
-	PolicyName      string
-	PolicyStatement *awslib.Statement
-}
+func assignIdPIAMPolicyAction(clt IdPIAMConfigureClient, req IdPIAMConfigureRequest) (*provisioning.Action, error) {
+	var policyName string
+	var policyStatement *awslib.Statement
 
-func configureRolePolicy(ctx context.Context, clt IdPIAMConfigureClient, req rolePolicy) error {
-	policyDocument, err := awslib.NewPolicyDocument(
-		req.PolicyStatement,
-	).Marshal()
-	if err != nil {
-		return trace.Wrap(err)
+	switch req.IntegrationPolicyPreset {
+	case PolicyPresetAWSIdentityCenter:
+		policyName = "TeleportAWSIdentityCenter"
+		policyStatement = awslib.StatementForAWSIdentityCenterAccess()
+	default:
+		return nil, nil
 	}
 
-	_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-		PolicyName:     &req.PolicyName,
-		RoleName:       &req.RoleName,
-		PolicyDocument: &policyDocument,
-	})
-	if err != nil {
-		if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
-			return trace.NotFound("role %q not found.", req.RoleName)
-		}
-		return trace.Wrap(err)
-	}
-
-	policyJSON, err := json.Marshal(req.PolicyStatement)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	slog.InfoContext(ctx, "IntegrationRole: IAM Policy added to role",
-		"role", req.RoleName,
-		"policy", string(policyJSON),
-	)
-
-	return nil
+	return awsactions.AssignRolePolicy(clt,
+		awsactions.RolePolicy{
+			RoleName:        req.IntegrationRole,
+			PolicyName:      policyName,
+			PolicyStatement: policyStatement,
+		})
 }
