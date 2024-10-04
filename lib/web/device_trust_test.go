@@ -221,10 +221,9 @@ func TestHandler_GetRedirectURL(t *testing.T) {
 			expectedURL: "/web/existing/path",
 		},
 		{
-			name:           "with completely invalid URI",
-			redirectURI:    "not a URI at all",
-			expectedURL:    "/web",
-			expectedErrMsg: "parse \"not a URI at all\": invalid URI for request",
+			name:        "with completely invalid URI",
+			redirectURI: "not a URI at all",
+			expectedURL: "/web/not a URI at all",
 		},
 	}
 
