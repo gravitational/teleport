@@ -20,6 +20,7 @@ package machineidv1_test
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"testing"
 	"time"
@@ -286,8 +287,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
 	require.NoError(t, err)
 
-	kid, err := libjwt.KeyID(jwtSigner.Public())
-	require.NoError(t, err)
+	kid := libjwt.KeyID(jwtSigner.Public().(*rsa.PublicKey))
 
 	tests := []struct {
 		name           string
