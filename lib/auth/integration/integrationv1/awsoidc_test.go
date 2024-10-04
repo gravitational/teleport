@@ -323,6 +323,16 @@ func TestRBAC(t *testing.T) {
 					return err
 				},
 			},
+			{
+				name: "Ping with arn",
+				fn: func() error {
+					_, err := awsoidService.Ping(userCtx, &integrationv1.PingRequest{
+						Integration: integrationName,
+						Arn:         "some-arn",
+					})
+					return err
+				},
+			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				err := tt.fn()
