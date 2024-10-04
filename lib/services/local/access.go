@@ -112,7 +112,7 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 				return true, nil
 			}
 
-			if !item.Key.HasSuffix(backend.Key(paramsPrefix)) {
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 				// Item represents a different resource type in the
 				// same namespace.
 				continue
@@ -373,8 +373,12 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 
 		newRemoteLocksToStore := make(map[string]backend.Item, len(newRemoteLocks))
 		for _, lock := range newRemoteLocks {
+			key := backend.NewKey(locksPrefix)
 			if !strings.HasPrefix(lock.GetName(), clusterName) {
+				key = key.AppendKey(backend.NewKey(clusterName, lock.GetName()))
 				lock.SetName(clusterName + "/" + lock.GetName())
+			} else {
+				key = key.AppendKey(backend.NewKey(lock.GetName()))
 			}
 			rev := lock.GetRevision()
 			value, err := services.MarshalLock(lock)
@@ -382,7 +386,7 @@ func (s *AccessService) ReplaceRemoteLocks(ctx context.Context, clusterName stri
 				return trace.Wrap(err)
 			}
 			item := backend.Item{
-				Key:      backend.NewKey(locksPrefix, lock.GetName()),
+				Key:      key,
 				Value:    value,
 				Expires:  lock.Expiry(),
 				Revision: rev,
