@@ -42,7 +42,10 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
-import { Integration, AwsOidcPolicyPreset } from 'teleport/services/integrations';
+import {
+  Integration,
+  AwsOidcPolicyPreset,
+} from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
@@ -71,7 +74,10 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     run(() => edit({ roleArn }));
   }
 
-  function generateAwsOidcConfigIdpScript(validator: Validator, policyPreset: AwsOidcPolicyPreset ) {
+  function generateAwsOidcConfigIdpScript(
+    validator: Validator,
+    policyPreset: AwsOidcPolicyPreset
+  ) {
     if (!validator.validate()) {
       return;
     }
@@ -84,7 +90,7 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName: integration.name,
       roleName: arnResourceName,
-      policyPreset
+      policyPreset,
     });
 
     setScriptUrl(newScriptUrl);
@@ -210,7 +216,12 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
               {!scriptUrl && showGenerateCommand && (
                 <ButtonBorder
                   mb={3}
-                  onClick={() => generateAwsOidcConfigIdpScript(validator, AwsOidcPolicyPreset.Unspecified)}
+                  onClick={() =>
+                    generateAwsOidcConfigIdpScript(
+                      validator,
+                      AwsOidcPolicyPreset.Unspecified
+                    )
+                  }
                   disabled={!roleArn}
                 >
                   Reconfigure

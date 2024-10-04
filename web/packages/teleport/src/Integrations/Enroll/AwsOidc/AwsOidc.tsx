@@ -110,7 +110,10 @@ export function AwsOidc() {
     });
   }
 
-  function generateAwsOidcConfigIdpScript(validator: Validator, policyPreset: AwsOidcPolicyPreset) {
+  function generateAwsOidcConfigIdpScript(
+    validator: Validator,
+    policyPreset: AwsOidcPolicyPreset
+  ) {
     if (!validator.validate()) {
       return;
     }
@@ -120,7 +123,7 @@ export function AwsOidc() {
     const newScriptUrl = cfg.getAwsOidcConfigureIdpScriptUrl({
       integrationName,
       roleName,
-      policyPreset
+      policyPreset,
     });
 
     setScriptUrl(newScriptUrl);
@@ -212,7 +215,12 @@ export function AwsOidc() {
               ) : (
                 <ButtonSecondary
                   mb={3}
-                  onClick={() => generateAwsOidcConfigIdpScript(validator, AwsOidcPolicyPreset.Unspecified)}
+                  onClick={() =>
+                    generateAwsOidcConfigIdpScript(
+                      validator,
+                      AwsOidcPolicyPreset.Unspecified
+                    )
+                  }
                 >
                   Generate Command
                 </ButtonSecondary>
