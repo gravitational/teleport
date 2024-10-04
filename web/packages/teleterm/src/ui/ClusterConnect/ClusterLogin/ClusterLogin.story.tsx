@@ -50,11 +50,9 @@ function makeProps(): ClusterLoginPresentationProps {
       status: 'success',
       statusText: '',
       data: {
-        preferredMfa: 'webauthn',
         localAuthEnabled: true,
         authProviders: [],
         type: '',
-        secondFactor: 'optional',
         hasMessageOfTheDay: false,
         allowPasswordless: true,
         localConnectorName: '',
@@ -109,7 +107,6 @@ export const LocalDisabled = () => {
 
 export const LocalOnly = () => {
   const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
 
   return (
@@ -121,7 +118,6 @@ export const LocalOnly = () => {
 
 export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
   const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -138,7 +134,6 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithDbGateway = () => {
 
 export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
   const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -155,7 +150,6 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithKubeGateway = () => {
 
 export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
   const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.gateway-cert-expired',
@@ -172,7 +166,6 @@ export const LocalOnlyWithReasonGatewayCertExpiredWithoutGateway = () => {
 
 export const LocalOnlyWithReasonVnetCertExpired = () => {
   const props = makeProps();
-  props.initAttempt.data.secondFactor = 'off';
   props.initAttempt.data.allowPasswordless = false;
   props.reason = {
     kind: 'reason.vnet-cert-expired',

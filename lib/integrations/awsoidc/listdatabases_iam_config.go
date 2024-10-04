@@ -63,14 +63,14 @@ func (r *ConfigureIAMListDatabasesRequest) CheckAndSetDefaults() error {
 
 // ListDatabasesIAMConfigureClient describes the required methods to create the IAM Policies required for Listing Databases.
 type ListDatabasesIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultListDatabasesIAMConfigureClient struct {
 	*iam.Client
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 // NewListDatabasesIAMConfigureClient creates a new ListDatabasesIAMConfigureClient.
@@ -86,7 +86,7 @@ func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (Lis
 
 	return &defaultListDatabasesIAMConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -102,7 +102,7 @@ func ConfigureListDatabasesIAM(ctx context.Context, clt ListDatabasesIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 
