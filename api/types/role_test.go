@@ -351,26 +351,26 @@ func TestRole_GetKubeResources(t *testing.T) {
 func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 	type args struct {
 		version   string
-		resources []KubernetesResource
+		resources []RequestModeKubernetesResource
 	}
 	tests := []struct {
 		name                string
 		args                args
-		want                []KubernetesResource
+		want                []RequestModeKubernetesResource
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
 		{
 			name: "valid single value",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: KindKubePod,
 					},
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: []RequestModeKubernetesResource{
 				{
 					Kind: KindKubePod,
 				},
@@ -387,14 +387,14 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "valid wildcard value",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: []RequestModeKubernetesResource{
 				{
 					Kind: Wildcard,
 				},
@@ -404,7 +404,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "valid multi values",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: KindKubeNamespace,
 					},
@@ -417,7 +417,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: []RequestModeKubernetesResource{
 				{
 					Kind: KindKubeNamespace,
 				},
@@ -433,7 +433,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "valid multi values with wildcard",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: KindKubeNamespace,
 					},
@@ -443,7 +443,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: []RequestModeKubernetesResource{
 				{
 					Kind: KindKubeNamespace,
 				},
@@ -456,7 +456,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "invalid single value",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: KindKubernetesCluster,
 					},
@@ -468,7 +468,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "invalid multi value",
 			args: args{
 				version: V7,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
@@ -483,49 +483,10 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			assertErrorCreation: require.Error,
 		},
 		{
-			name: "invalid unsupported field `name`",
-			args: args{
-				version: V7,
-				resources: []KubernetesResource{
-					{
-						Kind: Wildcard,
-						Name: "unsupported",
-					},
-				},
-			},
-			assertErrorCreation: require.Error,
-		},
-		{
-			name: "invalid unsupported field `namespace`",
-			args: args{
-				version: V7,
-				resources: []KubernetesResource{
-					{
-						Kind:      Wildcard,
-						Namespace: "unsupported",
-					},
-				},
-			},
-			assertErrorCreation: require.Error,
-		},
-		{
-			name: "invalid unsupported field `verbs`",
-			args: args{
-				version: V7,
-				resources: []KubernetesResource{
-					{
-						Kind:  Wildcard,
-						Verbs: []string{"unsupported"},
-					},
-				},
-			},
-			assertErrorCreation: require.Error,
-		},
-		{
 			name: "invalid kinds not supported for v6",
 			args: args{
 				version: V6,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
@@ -537,7 +498,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "invalid kinds not supported for v5",
 			args: args{
 				version: V6,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
@@ -549,7 +510,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "invalid kinds not supported for v4",
 			args: args{
 				version: V6,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
@@ -561,7 +522,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			name: "invalid kinds not supported for v3",
 			args: args{
 				version: V6,
-				resources: []KubernetesResource{
+				resources: []RequestModeKubernetesResource{
 					{
 						Kind: Wildcard,
 					},
