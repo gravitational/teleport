@@ -206,9 +206,11 @@ func (h *Hierarchy) isReachable(node *HierarchyNode, targetName string, kind Rel
 func (h *Hierarchy) exceedsMaxDepth(parentNode, childNode *HierarchyNode, kind RelationshipKind) bool {
 	switch kind {
 	case RelationshipKindOwner:
+		// For Owners, only consider the depth downwards from the child node, since Ownership is not inherited Owners->Owners->Owners... as Membership is.
 		return h.maxDepthDownwards(childNode, make(map[string]struct{})) > accesslist.MaxAllowedDepth
 	default:
-		return h.maxDepthUpwards(parentNode, make(map[string]struct{}))+h.maxDepthDownwards(childNode, make(map[string]struct{})) > accesslist.MaxAllowedDepth
+		// For Members, consider the depth upwards from the parent node, downwards from the child node, and the edge between them
+		return h.maxDepthUpwards(parentNode, make(map[string]struct{}))+h.maxDepthDownwards(childNode, make(map[string]struct{}))+1 > accesslist.MaxAllowedDepth
 	}
 }
 
@@ -219,7 +221,8 @@ func (h *Hierarchy) maxDepthDownwards(node *HierarchyNode, seen map[string]struc
 	seen[node.AccessList.GetName()] = struct{}{}
 	maxDepth := 0
 	for _, childNode := range node.MemberLists {
-		depth := h.maxDepthDownwards(childNode, seen)
+		// Depth is the max depth of all children, +1 for the edge to the child.
+		depth := h.maxDepthDownwards(childNode, seen) + 1
 		if depth > maxDepth {
 			maxDepth = depth
 		}
@@ -233,21 +236,16 @@ func (h *Hierarchy) maxDepthUpwards(node *HierarchyNode, seen map[string]struct{
 		return 0
 	}
 	seen[node.AccessList.GetName()] = struct{}{}
-	var maxDepth int
-	if len(node.MemberParents) == 0 {
-		// This is a root node
-		maxDepth = 0
-	} else {
-		for _, parentNode := range node.MemberParents {
-			depth := h.maxDepthUpwards(parentNode, seen)
-			if depth > maxDepth {
-				maxDepth = depth
-			}
+	maxDepth := 0
+	for _, parentNode := range node.MemberParents {
+		// Depth upwards is the max depth of all parents, +1 for the edge to the parent.
+		depth := h.maxDepthUpwards(parentNode, seen) + 1
+		if depth > maxDepth {
+			maxDepth = depth
 		}
 	}
 	delete(seen, node.AccessList.GetName())
-	// +1 to include the connecting edge
-	return maxDepth + 1
+	return maxDepth
 }
 
 // IsDescendant determines if a maybeChild AccessList is a descendant of a parent AccessList.
@@ -299,15 +297,31 @@ func (h *Hierarchy) validateAccessListMemberOrOwner(parentListName string, membe
 
 // ValidateAccessListWithMembers validates the addition of a new or existing AccessList with a list of AccessListMembers.
 func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) error {
-	tempNode := &HierarchyNode{
-		AccessList:    accessList,
-		MemberUsers:   make(map[string]struct{}),
-		MemberLists:   make(map[string]*HierarchyNode),
-		OwnerUsers:    make(map[string]struct{}),
-		OwnerLists:    make(map[string]*HierarchyNode),
-		MemberParents: make(map[string]*HierarchyNode),
-		OwnerParents:  make(map[string]*HierarchyNode),
+	var tempNode *HierarchyNode
+	existingNode, exists := h.Nodes[accessList.GetName()]
+	if exists {
+		// Reuse existing node's reverse pointers to parents.
+		tempNode = &HierarchyNode{
+			AccessList:    accessList,
+			MemberUsers:   make(map[string]struct{}),
+			MemberLists:   make(map[string]*HierarchyNode),
+			OwnerUsers:    make(map[string]struct{}),
+			OwnerLists:    make(map[string]*HierarchyNode),
+			MemberParents: existingNode.MemberParents,
+			OwnerParents:  existingNode.OwnerParents,
+		}
+	} else {
+		tempNode = &HierarchyNode{
+			AccessList:    accessList,
+			MemberUsers:   make(map[string]struct{}),
+			MemberLists:   make(map[string]*HierarchyNode),
+			OwnerUsers:    make(map[string]struct{}),
+			OwnerLists:    make(map[string]*HierarchyNode),
+			MemberParents: make(map[string]*HierarchyNode),
+			OwnerParents:  make(map[string]*HierarchyNode),
+		}
 	}
+
 	for _, owner := range accessList.Spec.Owners {
 		if owner.MembershipKind != accesslist.MembershipKindList {
 			tempNode.OwnerUsers[owner.Name] = struct{}{}

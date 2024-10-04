@@ -2,6 +2,7 @@ package accesslists
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -155,6 +156,85 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	hierarchy, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acl12.Spec.Title, acl11.Spec.Title, accesslist.MaxAllowedDepth))
+}
+
+func TestAccessListValidateWithMembers(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	// We're creating a hierarchy with a depth of 10, and then trying to add it as a Member of a 'root' Access List. This should fail.
+	rootAcl := newAccessList(t, "root", clock)
+	nestedAcls := make([]*accesslist.AccessList, 0, accesslist.MaxAllowedDepth)
+	for i := 0; i < accesslist.MaxAllowedDepth+1; i++ {
+		acl := newAccessList(t, fmt.Sprintf("acl-%d", i), clock)
+		nestedAcls = append(nestedAcls, acl)
+	}
+	rootAclMember := newAccessListMember(t, rootAcl.GetName(), nestedAcls[0].GetName(), accesslist.MembershipKindList, clock)
+	members := make([]*accesslist.AccessListMember, 0, accesslist.MaxAllowedDepth-1)
+	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
+		member := newAccessListMember(t, nestedAcls[i].GetName(), nestedAcls[i+1].GetName(), accesslist.MembershipKindList, clock)
+		members = append(members, member)
+	}
+
+	membersGetter := &mockMembersGetter{
+		members: map[string][]*accesslist.AccessListMember{
+			rootAcl.GetName(): {},
+		},
+	}
+	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
+		membersGetter.members[nestedAcls[i].GetName()] = []*accesslist.AccessListMember{members[i]}
+	}
+
+	// Should create successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
+	hierarchy, err := NewHierarchy(context.Background(), append([]*accesslist.AccessList{rootAcl}, nestedAcls...), membersGetter)
+	require.NoError(t, err)
+
+	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
+	err = hierarchy.ValidateAccessListWithMembers(rootAcl, []*accesslist.AccessListMember{rootAclMember})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth))
+
+	const Length = accesslist.MaxAllowedDepth/2 + 1
+
+	// Next, we're creating two separate hierarchies, each with a depth of `MaxAllowedDepth/2`. When testing the validation, we'll try to connect the two hierarchies, which should fail.
+	nestedAcls1 := make([]*accesslist.AccessList, 0, Length)
+	for i := 0; i <= Length; i++ {
+		acl := newAccessList(t, fmt.Sprintf("acl1-%d", i), clock)
+		nestedAcls1 = append(nestedAcls1, acl)
+	}
+
+	// Create the second hierarchy.
+	nestedAcls2 := make([]*accesslist.AccessList, 0, Length)
+	for i := 0; i <= Length; i++ {
+		acl := newAccessList(t, fmt.Sprintf("acl2-%d", i), clock)
+		nestedAcls2 = append(nestedAcls2, acl)
+	}
+
+	membersGetter = &mockMembersGetter{
+		members: map[string][]*accesslist.AccessListMember{},
+	}
+
+	// Create the members for the first hierarchy.
+	for i := 0; i < Length; i++ {
+		member := newAccessListMember(t, nestedAcls1[i].GetName(), nestedAcls1[i+1].GetName(), accesslist.MembershipKindList, clock)
+		membersGetter.members[nestedAcls1[i].GetName()] = []*accesslist.AccessListMember{member}
+	}
+
+	// Create the members for the second hierarchy.
+	for i := 0; i < Length; i++ {
+		member := newAccessListMember(t, nestedAcls2[i].GetName(), nestedAcls2[i+1].GetName(), accesslist.MembershipKindList, clock)
+		membersGetter.members[nestedAcls2[i].GetName()] = []*accesslist.AccessListMember{member}
+	}
+
+	// Should create successfully, as both hierarchies are valid.
+	hierarchy, err = NewHierarchy(context.Background(), append(nestedAcls1, nestedAcls2...), membersGetter)
+	require.NoError(t, err)
+
+	nestedAcls1Last := nestedAcls1[len(nestedAcls1)-1]
+
+	// Now, we'll try to connect the two hierarchies, which should fail.
+	err = hierarchy.ValidateAccessListWithMembers(nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)})
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
 }
 
 func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
