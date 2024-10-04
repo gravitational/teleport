@@ -2050,9 +2050,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			logger.Debug("GitHub WebSession created with device web token")
 			// if a device web token is present, we must send the user to the device authorize page
 			// to upgrade the session.
-			// TODO (avatus) the web client currently doesn't handle any redirects after authorizing a web
-			// session with device trust. Once it does, append a redirect_url here as a query parameter
-			return fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+			redirectPath := fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+			if res.ClientRedirectURL != "" {
+				redirectPath = fmt.Sprintf("%s?redirect_uri=%s", redirectPath, res.ClientRedirectURL)
+			}
+			return redirectPath
 		}
 		return res.ClientRedirectURL
 	}
