@@ -21,12 +21,12 @@ import styled, { css } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
 import { NavLink } from 'react-router-dom';
 import { Text, Flex, Box } from 'design';
+import * as Icons from 'design/Icon';
 import { Theme } from 'design/theme/themes/types';
 
 import cfg from 'teleport/config';
 
 import { useFeatures } from 'teleport/FeaturesContext';
-import { zIndexMap } from 'teleport/Main';
 
 import {
   NavigationCategory,
@@ -38,6 +38,12 @@ import { CategoryIcon } from './CategoryIcon';
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
+
+export const zIndexMap = {
+  topBar: 22,
+  sideNavContainer: 21,
+  sideNavExpandedPanel: 20,
+};
 
 const SideNavContainer = styled(Flex).attrs({
   gap: 2,
@@ -57,17 +63,16 @@ const SideNavContainer = styled(Flex).attrs({
 
 const verticalPadding = '12px';
 
-const rightPanelWidth = '224px';
+const rightPanelWidth = '236px';
 
-const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
+const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
   isVisible: boolean;
 }>`
   position: absolute;
-  top: 0;
   left: var(--sidenav-width);
   height: 100%;
   scrollbar-gutter: auto;
-  overflow-y: auto;
+  overflow: visible;
   width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
@@ -85,12 +90,12 @@ const RightPanel = styled(Box).attrs({ pt: 2, pb: 4, px: 2 })<{
       transform: translateX(-100%);
       `}
 
-  padding-top: ${p => p.theme.topBarHeight[0]}px;
+  top: ${p => p.theme.topBarHeight[0]}px;
   @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
-    padding-top: ${p => p.theme.topBarHeight[1]}px;
+    top: ${p => p.theme.topBarHeight[1]}px;
   }
   @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    padding-top: ${p => p.theme.topBarHeight[2]}px;
+    top: ${p => p.theme.topBarHeight[2]}px;
   }
 `;
 
@@ -175,6 +180,33 @@ export function Navigation() {
   const [expandedSection, setExpandedSection] =
     useState<NavigationSection | null>(null);
   const [expandedSectionIndex, setExpandedSectionIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>();
+  const [drawerHeight, setDrawerHeight] = useState('');
+
+  const useResizeObserver = (ref, callback) => {
+    useEffect(() => {
+      if (ref.current) {
+        const resizeObserver = new ResizeObserver(entries => {
+          if (!entries || !entries.length) {
+            return;
+          }
+          callback(entries[0].target);
+        });
+
+        resizeObserver.observe(ref.current);
+
+        return () => {
+          resizeObserver.disconnect();
+        };
+      }
+    }, [ref, callback]);
+  };
+
+  const updateDrawerHeight = useCallback((element: HTMLElement) => {
+    setDrawerHeight(`${element.offsetHeight}px`);
+  }, []);
+
+  useResizeObserver(containerRef, updateDrawerHeight);
 
   const currentView = getNavSubsectionForRoute(features, history.location);
 
@@ -193,7 +225,8 @@ export function Navigation() {
       section: NavigationSection
     ) => {
       if (event.key === 'Tab') {
-        if (!isSubsection) return;
+        if (!isSubsection || expandedSectionIndex === navSections.length - 1)
+          return;
 
         // When the user presses shift+tab on first subsection item of a section.
         if (event.shiftKey && index === 0) {
@@ -247,12 +280,12 @@ export function Navigation() {
       onKeyUp={e => e.key === 'Escape' && setExpandedSection(null)}
       css={'height: 100%;'}
     >
-      <SideNavContainer>
+      <SideNavContainer ref={containerRef}>
         {navSections.map((section, index) => (
           <Section
             key={section.category}
             section={section}
-            active={section.category === currentView?.category}
+            $active={section.category === currentView?.category}
             setExpandedSection={() => handleSetExpandedSection(section, index)}
             aria-controls={`panel-${expandedSection?.category}`}
             ref={el => (sectionRefs.current[index] = el)}
@@ -268,27 +301,45 @@ export function Navigation() {
       <RightPanel
         isVisible={!!expandedSection && !expandedSection.standalone}
         id={`panel-${expandedSection?.category}`}
+        css={`
+          height: ${drawerHeight};
+        `}
       >
-        <Flex py={verticalPadding} px={3}>
-          <Text typography="h2" color="text.slightlyMuted">
-            {expandedSection?.category}
-          </Text>
-        </Flex>
-        {expandedSection?.subsections.map((section, idx) => (
-          <SubsectionItem
-            ref={el => (subsectionRefs.current[idx] = el)}
-            active={currentView?.route === section.route}
-            to={section.route}
-            exact={section.exact}
-            key={section.title}
-            tabIndex={0}
-            role="button"
-            onKeyDown={e => handleKeyDown(e, idx, true, null)}
+        <Flex
+          flexDirection="column"
+          justifyContent="space-between"
+          height="100%"
+        >
+          <Box
+            css={`
+              overflow-y: scroll;
+              padding: 3px;
+            `}
           >
-            <section.icon size={16} />
-            <Text typography="body2">{section.title}</Text>
-          </SubsectionItem>
-        ))}
+            <Flex py={verticalPadding} px={3}>
+              <Text typography="h2" color="text.slightlyMuted">
+                {expandedSection?.category}
+              </Text>
+            </Flex>
+            {expandedSection?.subsections.map((section, idx) => (
+              <SubsectionItem
+                ref={el => (subsectionRefs.current[idx] = el)}
+                $active={currentView?.route === section.route}
+                to={section.route}
+                exact={section.exact}
+                key={section.title}
+                tabIndex={0}
+                role="button"
+                onKeyDown={e => handleKeyDown(e, idx, true, null)}
+              >
+                <section.icon size={16} />
+                <Text typography="body2">{section.title}</Text>
+              </SubsectionItem>
+            ))}
+          </Box>
+          {cfg.edition === 'oss' && <AGPLFooter />}
+          {cfg.edition === 'community' && <CommunityFooter />}
+        </Flex>
       </RightPanel>
     </Box>
   );
@@ -297,7 +348,7 @@ export function Navigation() {
 const SubsectionItem = React.forwardRef<
   HTMLAnchorElement,
   {
-    active: boolean;
+    $active: boolean;
     to: string;
     exact: boolean;
     tabIndex: number;
@@ -307,7 +358,7 @@ const SubsectionItem = React.forwardRef<
   }
 >((props, ref) => <StyledSubsectionItem ref={ref} {...props} />);
 
-const StyledSubsectionItem = styled(NavLink)<{ active: boolean }>`
+const StyledSubsectionItem = styled(NavLink)<{ $active: boolean }>`
   display: flex;
   position: relative;
   color: ${props => props.theme.colors.text.slightlyMuted};
@@ -321,23 +372,23 @@ const StyledSubsectionItem = styled(NavLink)<{ active: boolean }>`
   border-radius: ${props => props.theme.radii[2]}px;
   cursor: pointer;
 
-  ${props => getSubsectionStyles(props.theme, props.active)}
+  ${props => getSubsectionStyles(props.theme, props.$active)}
 `;
 
 const Section = React.forwardRef<
   HTMLButtonElement,
   {
     section: NavigationSection;
-    active: boolean;
+    $active: boolean;
     setExpandedSection: () => void;
     onKeyDown: (event: React.KeyboardEvent) => void;
     onClick: (event: React.MouseEvent) => void;
   }
->(({ section, active, setExpandedSection, onKeyDown, onClick }, ref) => {
+>(({ section, $active, setExpandedSection, onKeyDown, onClick }, ref) => {
   return (
     <CategoryButton
       ref={ref}
-      active={active}
+      $active={$active}
       onMouseEnter={setExpandedSection}
       onFocus={setExpandedSection}
       onKeyDown={onKeyDown}
@@ -349,7 +400,7 @@ const Section = React.forwardRef<
   );
 });
 
-const CategoryButton = styled.button<{ active: boolean }>`
+const CategoryButton = styled.button<{ $active: boolean }>`
   height: 60px;
   width: 60px;
   cursor: pointer;
@@ -366,7 +417,7 @@ const CategoryButton = styled.button<{ active: boolean }>`
   letter-spacing: ${props => props.theme.typography.body4.letterSpacing};
   line-height: ${props => props.theme.typography.body4.lineHeight};
 
-  ${props => getCategoryStyles(props.theme, props.active)}
+  ${props => getCategoryStyles(props.theme, props.$active)}
 `;
 
 function getCategoryStyles(theme: Theme, active: boolean) {
@@ -437,100 +488,99 @@ function getSubsectionStyles(theme: Theme, active: boolean) {
   `;
 }
 
-// TODO(rudream): Figure out best place for for license footers.
-// function AGPLFooter() {
-//   return (
-//     <LicenseFooter
-//       title="AGPL Edition"
-//       subText="Unofficial Version"
-//       infoContent={
-//         <>
-//           {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
-//           {/* can find the official release on{' '} */}
-//           This is an independently compiled AGPL-3.0 version of Teleport.
-//           <br />
-//           Visit{' '}
-//           <Text
-//             as="a"
-//             href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-//             target="_blank"
-//           >
-//             the Downloads page
-//           </Text>{' '}
-//           for the official release.
-//         </>
-//       }
-//     />
-//   );
-// }
+function AGPLFooter() {
+  return (
+    <LicenseFooter
+      title="AGPL Edition"
+      subText="Unofficial Version"
+      infoContent={
+        <>
+          {/* This is an independently compiled AGPL-3.0 version of Teleport. You */}
+          {/* can find the official release on{' '} */}
+          This is an independently compiled AGPL-3.0 version of Teleport.
+          <br />
+          Visit{' '}
+          <Text
+            as="a"
+            href="https://goteleport.com/download/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+          >
+            the Downloads page
+          </Text>{' '}
+          for the official release.
+        </>
+      }
+    />
+  );
+}
 
-// function CommunityFooter() {
-//   return (
-//     <LicenseFooter
-//       title="Community Edition"
-//       subText="Limited Features"
-//       infoContent={
-//         <>
-//           <Text
-//             as="a"
-//             href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
-//             target="_blank"
-//           >
-//             Upgrade to Teleport Enterprise
-//           </Text>{' '}
-//           for SSO, just-in-time access requests, Access Graph, and much more!
-//         </>
-//       }
-//     />
-//   );
-// }
+function CommunityFooter() {
+  return (
+    <LicenseFooter
+      title="Community Edition"
+      subText="Limited Features"
+      infoContent={
+        <>
+          <Text
+            as="a"
+            href="https://goteleport.com/signup/enterprise/?utm_source=oss&utm_medium=in-product&utm_campaign=limited-features"
+            target="_blank"
+          >
+            Upgrade to Teleport Enterprise
+          </Text>{' '}
+          for SSO, just-in-time access requests, Access Graph, and much more!
+        </>
+      }
+    />
+  );
+}
 
-// function LicenseFooter({
-//   title,
-//   subText,
-//   infoContent,
-// }: {
-//   title: string;
-//   subText: string;
-//   infoContent: JSX.Element;
-// }) {
-//   const [opened, setOpened] = useState(false);
-//   return (
-//     <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
-//       <Flex alignItems="center" gap={2}>
-//         <Text>{title}</Text>
-//         <FooterContent onMouseEnter={() => setOpened(true)}>
-//           <Icons.Info size={16} />
-//           {opened && <TooltipContent>{infoContent}</TooltipContent>}
-//         </FooterContent>
-//       </Flex>
-//       <SubText>{subText}</SubText>
-//     </StyledFooterBox>
-//   );
-// }
+function LicenseFooter({
+  title,
+  subText,
+  infoContent,
+}: {
+  title: string;
+  subText: string;
+  infoContent: JSX.Element;
+}) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <StyledFooterBox py={3} px={4} onMouseLeave={() => setOpened(false)}>
+      <Flex alignItems="center" gap={2}>
+        <Text>{title}</Text>
+        <FooterContent onMouseEnter={() => setOpened(true)}>
+          <Icons.Info size={16} />
+          {opened && <TooltipContent>{infoContent}</TooltipContent>}
+        </FooterContent>
+      </Flex>
+      <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
 
-// const StyledFooterBox = styled(Box)`
-//   line-height: 20px;
-//   border-top: ${props => props.theme.borders[1]}
-//     ${props => props.theme.colors.spotBackground[0]};
-// `;
+const StyledFooterBox = styled(Box)`
+  line-height: 20px;
+  border-top: ${props => props.theme.borders[1]}
+    ${props => props.theme.colors.spotBackground[0]};
+`;
 
-// const SubText = styled(Text)`
-//   color: ${props => props.theme.colors.text.disabled};
-//   font-size: ${props => props.theme.fontSizes[1]}px;
-// `;
+const SubText = styled(Text)`
+  color: ${props => props.theme.colors.text.disabled};
+  font-size: ${props => props.theme.fontSizes[1]}px;
+`;
 
-// const TooltipContent = styled(Box)`
-//   width: max-content;
-//   position: absolute;
-//   bottom: 0;
-//   left: 24px;
-//   padding: 12px 16px 12px 16px;
-//   box-shadow: ${p => p.theme.boxShadow[1]};
-//   background-color: ${props => props.theme.colors.tooltip.background};
-//   z-index: 20;
-// `;
+const TooltipContent = styled(Box)`
+  width: max-content;
+  position: absolute;
+  bottom: 0;
+  left: 24px;
+  padding: 12px 16px 12px 16px;
+  box-shadow: ${p => p.theme.boxShadow[1]};
+  background-color: ${props => props.theme.colors.tooltip.background};
+  z-index: ${zIndexMap.sideNavExpandedPanel + 1};
+`;
 
-// const FooterContent = styled(Flex)`
-//   position: relative;
-// `;
+const FooterContent = styled(Flex)`
+  position: relative;
+`;
