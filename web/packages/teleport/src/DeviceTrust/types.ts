@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { PagerPosition } from 'design/DataTable/types';
+
 export type TrustedDevice = {
   id: string;
   assetTag: string;
@@ -33,6 +35,7 @@ export type TrustedDeviceResponse = {
 export type DeviceListProps = {
   items: TrustedDeviceResponse['items'];
   pageSize?: number;
+  pagerPosition?: PagerPosition;
   fetchStatus?: 'loading' | 'disabled' | '';
   fetchData?: () => void;
 };
