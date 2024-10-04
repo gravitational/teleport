@@ -35,7 +35,7 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-import type { PluginKind, Regions } from './services/integrations';
+import type { PluginKind, Regions, AwsOidcPolicyPreset } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
@@ -1245,7 +1245,7 @@ export interface UrlAwsOidcConfigureIdp {
   roleName: string;
   s3Bucket?: string;
   s3Prefix?: string;
-  policyPreset?: string;
+  policyPreset?: AwsOidcPolicyPreset;
 }
 
 export interface UrlAwsConfigureIamScriptParams {

@@ -480,7 +480,7 @@ func (m *mockIdPIAMConfigClient) CreateRole(ctx context.Context, params *iam.Cre
 func (m *mockIdPIAMConfigClient) PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	doesNotExistMessage := fmt.Sprintf("Role %q does not exist.", *params.RoleName)
 	if _, ok := m.existingRoles[aws.ToString(params.RoleName)]; !ok {
-		return nil, &iamtypes.EntityAlreadyExistsException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: &doesNotExistMessage,
 		}
 	}

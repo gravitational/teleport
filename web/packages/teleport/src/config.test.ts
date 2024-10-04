@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AwsOidcPolicyPreset } from 'teleport/services/integrations';
+
 import cfg, {
   UrlDeployServiceIamConfigureScriptParams,
   UrlAwsOidcConfigureIdp,
@@ -42,7 +44,7 @@ test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', async () =
   const params: UrlAwsOidcConfigureIdp = {
     integrationName: 'int-name',
     roleName: 'role-arn',
-    policyPreset: 'unspecified',
+    policyPreset: AwsOidcPolicyPreset.Unspecified,
   };
   const base =
     'http://localhost/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?';
