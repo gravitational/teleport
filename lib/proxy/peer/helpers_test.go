@@ -262,7 +262,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream frameStream) {
-	err := stream.Send([]byte("ping"))
+func sendMsg(t *testing.T, stream net.Conn) {
+	_, err := stream.Write([]byte("ping"))
 	require.NoError(t, err)
 }
