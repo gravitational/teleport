@@ -2175,27 +2175,25 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (re
 }
 
 func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
-	isWSSupported := false
-	if !f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
-		// We're forwarding it to another Teleport kube_service,
-		// which supports the websocket protocol.
-		isWSSupported = f.allServersSupportTunneledSPDY(sess)
-	} else {
-		if details, err := f.findKubeDetailsByClusterName(sess.kubeClusterName); err == nil {
-			// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
-			details.rwMu.RLock()
-			isWSSupported = kubernetesSupportsPortTunnedledSPDY(details.kubeClusterVersion)
-			details.rwMu.RUnlock()
-		}
-	}
 
-	if isWSSupported {
-		wsDialer, err := f.getWebsocketDialer(sess, req)
-		return wsDialer, trace.Wrap(err)
+	wsDialer, err := f.getWebsocketDialer(sess, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	spdyDialer, err := f.getSPDYDialer(sess, req)
-	return spdyDialer, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
+		result := httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err) || kubeerrors.IsForbidden(err) || isTeleportUpgradeFailure(err)
+		if result {
+			// If the error is a known upgrade failure, we can retry with the other protocol.
+			sess.connCtx, sess.connMonitorCancel = context.WithCancelCause(req.Context())
+		}
+		return result
+	}), nil
 }
 
 // getSPDYDialer returns a dialer that can be used to upgrade the connection

@@ -47,6 +47,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	portforwardconstants "k8s.io/apimachinery/pkg/util/portforward"
 	apiremotecommand "k8s.io/apimachinery/pkg/util/remotecommand"
+	versionUtil "k8s.io/apimachinery/pkg/util/version"
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/apiserver/pkg/endpoints/responsewriter"
 	"k8s.io/client-go/tools/portforward"
@@ -149,21 +150,22 @@ type KubeUpgradeRequests struct {
 }
 
 type KubeMockServer struct {
-	router           *httprouter.Router
-	log              *log.Entry
-	server           *httptest.Server
-	TLS              *tls.Config
-	URL              string
-	Address          string
-	CA               []byte
-	deletedResources map[deletedResource][]string
-	getPodError      *metav1.Status
-	execPodError     *metav1.Status
-	portforwardError *metav1.Status
-	mu               sync.Mutex
-	version          *apimachineryversion.Info
-	KubeExecRequests KubeUpgradeRequests
-	KubePortforward  KubeUpgradeRequests
+	router               *httprouter.Router
+	log                  *log.Entry
+	server               *httptest.Server
+	TLS                  *tls.Config
+	URL                  string
+	Address              string
+	CA                   []byte
+	deletedResources     map[deletedResource][]string
+	getPodError          *metav1.Status
+	execPodError         *metav1.Status
+	portforwardError     *metav1.Status
+	mu                   sync.Mutex
+	version              *apimachineryversion.Info
+	KubeExecRequests     KubeUpgradeRequests
+	KubePortforward      KubeUpgradeRequests
+	supportsTunneledSPDY bool
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -179,8 +181,9 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 		log:              log.NewEntry(log.New()),
 		deletedResources: make(map[deletedResource][]string),
 		version: &apimachineryversion.Info{
-			Major: "1",
-			Minor: "20",
+			Major:      "1",
+			Minor:      "20",
+			GitVersion: "1.20.0",
 		},
 	}
 
@@ -196,6 +199,14 @@ func NewKubeAPIMock(opts ...Option) (*KubeMockServer, error) {
 	s.TLS = s.server.TLS
 	s.Address = strings.TrimPrefix(s.server.URL, "https://")
 	s.URL = s.server.URL
+
+	parsedVersion, err := versionUtil.ParseSemantic(s.version.GitVersion)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse version")
+	}
+	const minSupportVersion = "v1.31.0"
+	s.supportsTunneledSPDY = parsedVersion.AtLeast(versionUtil.MustParse(minSupportVersion))
+
 	return s, nil
 }
 
@@ -758,6 +769,11 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	var err error
 	var conn httpstream.Connection
 	if wsstream.IsWebSocketRequestWithTunnelingProtocol(req) {
+		if !s.supportsTunneledSPDY {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("server does not support tunneled SPDY"))
+			return nil, nil
+		}
 		s.KubePortforward.Websocket.Add(1)
 		// Try to upgrade the websocket connection.
 		// Beyond this point, we don't need to write errors to the response.
@@ -792,7 +808,7 @@ func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p
 	}
 
 	if conn == nil {
-		err = trace.ConnectionProblem(nil, "unable to upgrade SPDY connection")
+		err = trace.ConnectionProblem(nil, "unable to upgrade connection")
 		return nil, err
 	}
 	defer conn.Close()
