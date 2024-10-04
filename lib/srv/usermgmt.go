@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 // NewHostUsers initialize a new HostUsers object
@@ -55,7 +56,7 @@ func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid s
 	}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	return &HostUserManagement{
-		log:       slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentHostUsers)),
+		log:       slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
 		backend:   backend,
 		ctx:       cancelCtx,
 		cancel:    cancelFunc,
@@ -77,6 +78,7 @@ func NewHostSudoers(uuid string) HostSudoers {
 	}
 	return &HostSudoersManagement{
 		backend: backend,
+		log:     slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
 	}
 }
 
@@ -190,6 +192,8 @@ type HostUserManagement struct {
 }
 
 type HostSudoersManagement struct {
+	log *slog.Logger
+
 	backend HostSudoersBackend
 }
 
@@ -221,6 +225,10 @@ func (u *HostSudoersManagement) WriteSudoers(name string, sudoers []string) erro
 		sudoersOut.WriteString(fmt.Sprintf("%s %s\n", name, entry))
 	}
 	err := u.backend.WriteSudoersFile(name, []byte(sudoersOut.String()))
+	if errors.Is(err, host.ErrInvalidSudoers) {
+		u.log.WarnContext(context.Background(), "Invalid sudoers entry. If using a login managed by a static host user resource, inspect its configured sudoers field for invalid entries. Otherwise, inspect the host_sudoers field for roles targeting this host.", "error", err, "host_username", name)
+		return trace.BadParameter("invalid sudoers entry for login %q, inspect roles' host_sudoers field or static host user's sudoers field for invalid syntax", name)
+	}
 	return trace.Wrap(err)
 }
 
