@@ -602,7 +602,9 @@ func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlg
 	switch {
 	case params.FIPS:
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1)
-	case params.UsingHSMOrKMS:
+	case params.UsingHSMOrKMS || params.Cloud:
+		// Cloud may eventually migrate existing CA keys to a KMS, to keep
+		// this option open we default to hsm-v1 suite.
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1)
 	default:
 		c.SetSignatureAlgorithmSuite(SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
