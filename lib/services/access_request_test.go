@@ -792,12 +792,7 @@ func TestMaxLength(t *testing.T) {
 	req, err := types.NewAccessRequest("some-id", "dave", "dictator", "never")
 	require.NoError(t, err)
 
-	var s []byte
-	for i := 0; i <= maxAccessRequestReasonSize; i++ {
-		s = append(s, 'a')
-	}
-
-	req.SetRequestReason(string(s))
+	req.SetRequestReason(strings.Repeat("a", maxAccessRequestReasonSize))
 	require.Error(t, ValidateAccessRequest(req))
 }
 
@@ -2153,6 +2148,70 @@ func (mcg mockClusterGetter) GetRemoteCluster(ctx context.Context, clusterName s
 		return cluster, nil
 	}
 	return nil, trace.NotFound("remote cluster %q was not found", clusterName)
+}
+
+func TestValidateDuplicateRequestedResources(t *testing.T) {
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: "someCluster",
+	}
+
+	for i := 1; i < 3; i++ {
+		node, err := types.NewServerWithLabels(
+			fmt.Sprintf("resource%d", i),
+			types.KindNode,
+			types.ServerSpecV2{},
+			map[string]string{"foo": "bar"},
+		)
+		require.NoError(t, err)
+		g.nodes[node.GetName()] = node
+	}
+
+	searchAsRole, err := types.NewRole("searchAs", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"root"},
+			NodeLabels: types.Labels{"*": []string{"*"}},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[searchAsRole.GetName()] = searchAsRole
+
+	testRole, err := types.NewRole("testRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{searchAsRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[testRole.GetName()] = testRole
+
+	user := g.user(t, testRole.GetName())
+
+	clock := clockwork.NewFakeClock()
+	identity := tlsca.Identity{
+		Expires: clock.Now().UTC().Add(8 * time.Hour),
+	}
+
+	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
+		[]types.ResourceID{
+			{ClusterName: "someCluster", Kind: "node", Name: "resource1"},
+			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a  duplicate
+			{ClusterName: "someCluster", Kind: "node", Name: "resource2"}, // not a duplicate
+		})
+	require.NoError(t, err)
+
+	require.NoError(t, ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, ExpandVars(true)))
+	require.Len(t, req.GetRequestedResourceIDs(), 2)
+	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
+	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
 }
 
 func TestValidateAccessRequestClusterNames(t *testing.T) {
