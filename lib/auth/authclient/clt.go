@@ -643,6 +643,10 @@ func (c *Client) AccessMonitoringRuleClient() services.AccessMonitoringRules {
 	return c.APIClient.AccessMonitoringRulesClient()
 }
 
+func (c *Client) AutoUpdateClient() services.AutoUpdateService {
+	return c.APIClient.AutoUpdateClient()
+}
+
 func (c *Client) ExternalAuditStorageClient() *externalauditstorage.Client {
 	return c.APIClient.ExternalAuditStorageClient()
 }
@@ -1581,7 +1585,6 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
-	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
@@ -1756,6 +1759,12 @@ type ClientI interface {
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
 	AccessMonitoringRuleClient() services.AccessMonitoringRules
+
+	// AutoUpdateClient returns an auto update client.
+	// Clients connecting to older Teleport versions, still get an auto update client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AutoUpdateClient() services.AutoUpdateService
 
 	// DatabaseObjectImportRuleClient returns a database object import rule client.
 	DatabaseObjectImportRuleClient() dbobjectimportrulev1.DatabaseObjectImportRuleServiceClient
