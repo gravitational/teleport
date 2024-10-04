@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/autoupdate"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -67,7 +68,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
-	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -2918,112 +2919,6 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 	return resp, nil
 }
 
-// CreateAutoUpdateConfig creates AutoUpdateConfig resource.
-func (c *Client) CreateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{
-		Config: config,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// GetAutoUpdateConfig gets AutoUpdateConfig resource.
-func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpdateAutoUpdateConfig updates AutoUpdateConfig resource.
-func (c *Client) UpdateAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{
-		Config: config,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpsertAutoUpdateConfig updates or creates AutoUpdateConfig resource.
-func (c *Client) UpsertAutoUpdateConfig(ctx context.Context, config *autoupdatev1pb.AutoUpdateConfig) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{
-		Config: config,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// DeleteAutoUpdateConfig deletes AutoUpdateConfig resource.
-func (c *Client) DeleteAutoUpdateConfig(ctx context.Context) error {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	_, err := client.DeleteAutoUpdateConfig(ctx, &autoupdatev1pb.DeleteAutoUpdateConfigRequest{})
-	return trace.Wrap(err)
-}
-
-// CreateAutoUpdateVersion creates AutoUpdateVersion resource.
-func (c *Client) CreateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{
-		Version: version,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// GetAutoUpdateVersion gets AutoUpdateVersion resource.
-func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpdateAutoUpdateVersion updates AutoUpdateVersion resource.
-func (c *Client) UpdateAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{
-		Version: version,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// UpsertAutoUpdateVersion updates or creates AutoUpdateVersion resource.
-func (c *Client) UpsertAutoUpdateVersion(ctx context.Context, version *autoupdatev1pb.AutoUpdateVersion) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	resp, err := client.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{
-		Version: version,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
-}
-
-// DeleteAutoUpdateVersion deletes AutoUpdateVersion resource.
-func (c *Client) DeleteAutoUpdateVersion(ctx context.Context) error {
-	client := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn)
-	_, err := client.DeleteAutoUpdateVersion(ctx, &autoupdatev1pb.DeleteAutoUpdateVersionRequest{})
-	return trace.Wrap(err)
-}
-
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.
 func (c *Client) GetClusterAccessGraphConfig(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
 	rsp, err := c.ClusterConfigClient().GetClusterAccessGraphConfig(ctx, &clusterconfigpb.GetClusterAccessGraphConfigRequest{})
@@ -4819,6 +4714,14 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 // (as per the default gRPC behavior).
 func (c *Client) CrownJewelServiceClient() *crownjewelapi.Client {
 	return crownjewelapi.NewClient(crownjewelv1.NewCrownJewelServiceClient(c.conn))
+}
+
+// AutoUpdateClient returns an auto update client.
+// Clients connecting to older Teleport versions, still get an auto update client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+func (c *Client) AutoUpdateClient() *autoupdate.Client {
+	return autoupdate.NewClient(autoupdatev1.NewAutoUpdateServiceClient(c.conn))
 }
 
 // UserLoginStateClient returns a user login state client.
