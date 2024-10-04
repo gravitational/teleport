@@ -591,6 +591,8 @@ type SignatureAlgorithmSuiteParams struct {
 	// UsingHSMOrKMS should be true if the auth server is configured to
 	// use an HSM or KMS.
 	UsingHSMOrKMS bool
+	// Cloud should be true when running in Teleport Cloud.
+	Cloud bool
 }
 
 // SetDefaultSignatureAlgorithmSuite sets default signature algorithm suite
@@ -608,8 +610,9 @@ func (c *AuthPreferenceV2) SetDefaultSignatureAlgorithmSuite(params SignatureAlg
 }
 
 var (
-	errNonFIPSSignatureAlgorithmSuite = &trace.BadParameterError{Message: `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`}
-	errNonHSMSignatureAlgorithmSuite  = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
+	errNonFIPSSignatureAlgorithmSuite  = &trace.BadParameterError{Message: `non-FIPS compliant authentication setting: "signature_algorithm_suite" must be "fips-v1" or "legacy"`}
+	errNonHSMSignatureAlgorithmSuite   = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported when "ca_key_params" configures an HSM or KMS, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
+	errNonCloudSignatureAlgorithmSuite = &trace.BadParameterError{Message: `configured "signature_algorithm_suite" is unsupported in Teleport Cloud, supported values: ["hsm-v1", "fips-v1", "legacy"]`}
 )
 
 // CheckSignatureAlgorithmSuite returns an error if the current signature
@@ -629,7 +632,12 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
 		}
 		if params.UsingHSMOrKMS {
+			// Cloud may eventually migrate existing CA keys to a KMS, to keep
+			// this option open we prevent the balanced-v1 suite.
 			return trace.Wrap(errNonHSMSignatureAlgorithmSuite)
+		}
+		if params.Cloud {
+			return trace.Wrap(errNonCloudSignatureAlgorithmSuite)
 		}
 	default:
 		return trace.Errorf("unhandled signature_algorithm_suite %q: this is a bug", c.GetSignatureAlgorithmSuite())
