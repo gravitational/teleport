@@ -89,7 +89,7 @@ export function roleToRoleEditorModel(
   const { kind, metadata, spec, version, ...rest } = role;
   const { name, description, revision, ...mRest } = metadata;
   const { allow, deny, options, ...sRest } = spec;
-  const ret = {
+  return {
     metadata: {
       name,
       description,
@@ -108,8 +108,6 @@ export function roleToRoleEditorModel(
         equalsDeep(options, defaultOptions)
       ),
   };
-  console.log(ret);
-  return ret;
 }
 
 function isEmpty(obj: object) {
