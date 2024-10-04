@@ -19,6 +19,7 @@
 import { Store } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
+import { KubeResourceKind } from 'teleport/services/kube';
 
 import { UserContext } from 'teleport/services/user';
 
@@ -71,6 +72,12 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getKubeServerAccess() {
     return this.state.acl.kubeServers;
+  }
+
+  getAllowedKubeSubresourceKinds(): KubeResourceKind[] {
+    const kubeResources =
+      this.state.accessCapabilities.requestMode.kubernetesResources;
+    return kubeResources.map(kubeResource => kubeResource.kind);
   }
 
   getTokenAccess() {
