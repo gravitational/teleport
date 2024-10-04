@@ -26,12 +26,15 @@ import (
 	"testing"
 
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -233,5 +236,86 @@ func TestPing_minimalAPI(t *testing.T) {
 			require.NoError(t, resp.Body.Close())
 		})
 	}
+}
 
+// TestPing_autoUpdateResources tests that find endpoint return correct data related to auto updates.
+func TestPing_autoUpdateResources(t *testing.T) {
+	env := newWebPack(t, 1, func(cfg *proxyConfig) {
+		cfg.minimalHandler = true
+	})
+	proxy := env.proxies[0]
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "find"), nil)
+	require.NoError(t, err)
+	req.Host = proxy.handler.handler.cfg.ProxyPublicAddrs[0].Host()
+
+	tests := []struct {
+		name     string
+		config   *autoupdatev1pb.AutoUpdateConfigSpec
+		version  *autoupdatev1pb.AutoUpdateVersionSpec
+		cleanup  bool
+		expected webclient.AutoUpdateSettings
+	}{
+		{
+			name:     "resources not defined",
+			expected: webclient.AutoUpdateSettings{},
+		},
+		{
+			name:     "enable auto update",
+			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true},
+			cleanup:  true,
+		},
+		{
+			name:     "set auto update version",
+			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+			expected: webclient.AutoUpdateSettings{ToolsVersion: "1.2.3"},
+			cleanup:  true,
+		},
+		{
+			name:     "enable auto update and set version",
+			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: true},
+			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "1.2.3"},
+			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: true, ToolsVersion: "1.2.3"},
+		},
+		{
+			name:     "modify auto update config and version",
+			config:   &autoupdatev1pb.AutoUpdateConfigSpec{ToolsAutoupdate: false},
+			version:  &autoupdatev1pb.AutoUpdateVersionSpec{ToolsVersion: "3.2.1"},
+			expected: webclient.AutoUpdateSettings{ToolsAutoUpdate: false, ToolsVersion: "3.2.1"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.config != nil {
+				config, err := autoupdate.NewAutoUpdateConfig(tc.config)
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertAutoUpdateConfig(ctx, config)
+				require.NoError(t, err)
+			}
+			if tc.version != nil {
+				version, err := autoupdate.NewAutoUpdateVersion(tc.version)
+				require.NoError(t, err)
+				_, err = env.server.Auth().UpsertAutoUpdateVersion(ctx, version)
+				require.NoError(t, err)
+			}
+
+			resp, err := client.NewInsecureWebClient().Do(req)
+			require.NoError(t, err)
+
+			pr := &webclient.PingResponse{}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(pr))
+			require.NoError(t, resp.Body.Close())
+
+			assert.Equal(t, tc.expected, pr.AutoUpdate)
+
+			if tc.cleanup {
+				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateConfig(ctx), &trace.NotFoundError{})
+				require.NotErrorIs(t, env.server.Auth().DeleteAutoUpdateVersion(ctx), &trace.NotFoundError{})
+			}
+		})
+	}
 }
