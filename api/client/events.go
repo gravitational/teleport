@@ -109,6 +109,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_AutoUpdateVersion{
 				AutoUpdateVersion: r,
 			}
+		case *autoupdate.AutoUpdateAgentPlan:
+			out.Resource = &proto.Event_AutoUpdateAgentPlan{
+				AutoUpdateAgentPlan: r,
+			}
 		case *usertasksv1.UserTask:
 			out.Resource = &proto.Event_UserTask{
 				UserTask: r,

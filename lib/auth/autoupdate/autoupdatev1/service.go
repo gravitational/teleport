@@ -37,6 +37,9 @@ type Cache interface {
 
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
+
+	// GetAutoUpdateAgentPlan gets the AutoUpdateAgentPlan from the backend.
+	GetAutoUpdateAgentPlan(ctx context.Context) (*autoupdate.AutoUpdateAgentPlan, error)
 }
 
 // ServiceConfig holds configuration options for the auto update gRPC service.
@@ -264,6 +267,103 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 	}
 
 	if err := s.backend.DeleteAutoUpdateVersion(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// GetAutoUpdateAgentPlan gets the current AutoUpdateVersion singleton.
+func (s *Service) GetAutoUpdateAgentPlan(ctx context.Context, req *autoupdate.GetAutoUpdateAgentPlanRequest) (*autoupdate.AutoUpdateAgentPlan, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentPlan, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	plan, err := s.cache.GetAutoUpdateAgentPlan(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return plan, nil
+}
+
+// CreateAutoUpdateAgentPlan creates AutoUpdateAgentPlan singleton.
+func (s *Service) CreateAutoUpdateAgentPlan(ctx context.Context, req *autoupdate.CreateAutoUpdateAgentPlanRequest) (*autoupdate.AutoUpdateAgentPlan, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentPlan, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentPlan, err := s.backend.CreateAutoUpdateAgentPlan(ctx, req.Plan)
+	return autoUpdateAgentPlan, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentPlan updates AutoUpdateAgentPlan singleton.
+func (s *Service) UpdateAutoUpdateAgentPlan(ctx context.Context, req *autoupdate.UpdateAutoUpdateAgentPlanRequest) (*autoupdate.AutoUpdateAgentPlan, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentPlan, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentPlan, err := s.backend.UpdateAutoUpdateAgentPlan(ctx, req.Plan)
+	return autoUpdateAgentPlan, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentPlan updates or creates AutoUpdateAgentPlan singleton.
+func (s *Service) UpsertAutoUpdateAgentPlan(ctx context.Context, req *autoupdate.UpsertAutoUpdateAgentPlanRequest) (*autoupdate.AutoUpdateAgentPlan, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentPlan, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	autoUpdateAgentPlan, err := s.backend.UpsertAutoUpdateAgentPlan(ctx, req.Plan)
+	return autoUpdateAgentPlan, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentPlan deletes AutoUpdateAgentPlan singleton.
+func (s *Service) DeleteAutoUpdateAgentPlan(ctx context.Context, req *autoupdate.DeleteAutoUpdateAgentPlanRequest) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindAutoUpdateAgentPlan, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.AuthorizeAdminAction(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteAutoUpdateAgentPlan(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil

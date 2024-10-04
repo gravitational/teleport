@@ -2792,6 +2792,42 @@ func TestAutoUpdateVersion(t *testing.T) {
 	})
 }
 
+// TestAutoUpdateAgentPlan tests that CRUD operations on AutoUpdateAgentPlan resource are
+// replicated from the backend to the cache.
+func TestAutoUpdateAgentPlan(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs153[*autoupdate.AutoUpdateAgentPlan]{
+		newResource: func(name string) (*autoupdate.AutoUpdateAgentPlan, error) {
+			return newAutoUpdateAgentPlan(t), nil
+		},
+		create: func(ctx context.Context, item *autoupdate.AutoUpdateAgentPlan) error {
+			_, err := p.autoUpdateService.UpsertAutoUpdateAgentPlan(ctx, item)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentPlan, error) {
+			item, err := p.autoUpdateService.GetAutoUpdateAgentPlan(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentPlan{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentPlan{item}, trace.Wrap(err)
+		},
+		cacheList: func(ctx context.Context) ([]*autoupdate.AutoUpdateAgentPlan, error) {
+			item, err := p.cache.GetAutoUpdateAgentPlan(ctx)
+			if trace.IsNotFound(err) {
+				return []*autoupdate.AutoUpdateAgentPlan{}, nil
+			}
+			return []*autoupdate.AutoUpdateAgentPlan{item}, trace.Wrap(err)
+		},
+		deleteAll: func(ctx context.Context) error {
+			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateAgentPlan(ctx))
+		},
+	})
+}
+
 // TestGlobalNotifications tests that CRUD operations on global notification resources are
 // replicated from the backend to the cache.
 func TestGlobalNotifications(t *testing.T) {
@@ -3992,6 +4028,17 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 
 	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
 		ToolsVersion: "1.2.3",
+	})
+	require.NoError(t, err)
+	return r
+}
+
+func newAutoUpdateAgentPlan(t *testing.T) *autoupdate.AutoUpdateAgentPlan {
+	t.Helper()
+
+	r, err := update.NewAutoUpdateAgentPlan(&autoupdate.AutoUpdateAgentPlanSpec{
+		StartVersion:  "1.2.3",
+		TargetVersion: "2.3.4",
 	})
 	require.NoError(t, err)
 	return r

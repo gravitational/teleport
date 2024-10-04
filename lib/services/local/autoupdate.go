@@ -32,14 +32,16 @@ import (
 )
 
 const (
-	autoUpdateConfigPrefix  = "auto_update_config"
-	autoUpdateVersionPrefix = "auto_update_version"
+	autoUpdateConfigPrefix    = "auto_update_config"
+	autoUpdateVersionPrefix   = "auto_update_version"
+	autoUpdateAgentPlanPrefix = "auto_update_agent_plan"
 )
 
 // AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
 type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
+	plan    *generic.ServiceWrapper[*autoupdate.AutoUpdateAgentPlan]
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
@@ -74,10 +76,26 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	plan, err := generic.NewServiceWrapper(
+		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateAgentPlan]{
+			Backend:       backend,
+			ResourceKind:  types.KindAutoUpdateAgentPlan,
+			BackendPrefix: autoUpdateAgentPlanPrefix,
+			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
+			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
+			ValidateFunc:  update.ValidateAutoUpdateAgentPlan,
+			KeyFunc: func(version *autoupdate.AutoUpdateAgentPlan) string {
+				return types.MetaNameAutoUpdateAgentPlan
+			},
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &AutoUpdateService{
 		config:  config,
 		version: version,
+		plan:    plan,
 	}, nil
 }
 
@@ -155,4 +173,42 @@ func (s *AutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupda
 // DeleteAutoUpdateVersion deletes the AutoUpdateVersion singleton resource.
 func (s *AutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoUpdateVersion))
+}
+
+// CreateAutoUpdateAgentPlan creates the AutoUpdateAgentPlan singleton resource.
+func (s *AutoUpdateService) CreateAutoUpdateAgentPlan(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentPlan,
+) (*autoupdate.AutoUpdateAgentPlan, error) {
+	plan, err := s.plan.CreateResource(ctx, v)
+	return plan, trace.Wrap(err)
+}
+
+// UpdateAutoUpdateAgentPlan updates the AutoUpdateAgentPlan singleton resource.
+func (s *AutoUpdateService) UpdateAutoUpdateAgentPlan(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentPlan,
+) (*autoupdate.AutoUpdateAgentPlan, error) {
+	plan, err := s.plan.UpdateResource(ctx, v)
+	return plan, trace.Wrap(err)
+}
+
+// UpsertAutoUpdateAgentPlan sets the AutoUpdateAgentPlan singleton resource.
+func (s *AutoUpdateService) UpsertAutoUpdateAgentPlan(
+	ctx context.Context,
+	v *autoupdate.AutoUpdateAgentPlan,
+) (*autoupdate.AutoUpdateAgentPlan, error) {
+	plan, err := s.plan.UpsertResource(ctx, v)
+	return plan, trace.Wrap(err)
+}
+
+// GetAutoUpdateAgentPlan gets the AutoUpdateAgentPlan singleton resource.
+func (s *AutoUpdateService) GetAutoUpdateAgentPlan(ctx context.Context) (*autoupdate.AutoUpdateAgentPlan, error) {
+	plan, err := s.plan.GetResource(ctx, types.MetaNameAutoUpdateAgentPlan)
+	return plan, trace.Wrap(err)
+}
+
+// DeleteAutoUpdateAgentPlan deletes the AutoUpdateAgentPlan singleton resource.
+func (s *AutoUpdateService) DeleteAutoUpdateAgentPlan(ctx context.Context) error {
+	return trace.Wrap(s.plan.DeleteResource(ctx, types.MetaNameAutoUpdateAgentPlan))
 }

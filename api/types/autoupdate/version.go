@@ -69,3 +69,41 @@ func ValidateAutoUpdateVersion(v *autoupdate.AutoUpdateVersion) error {
 
 	return nil
 }
+
+// NewAutoUpdateAgentPlan creates a new auto update version resource.
+func NewAutoUpdateAgentPlan(spec *autoupdate.AutoUpdateAgentPlanSpec) (*autoupdate.AutoUpdateAgentPlan, error) {
+	version := &autoupdate.AutoUpdateAgentPlan{
+		Kind:    types.KindAutoUpdateAgentPlan,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameAutoUpdateAgentPlan,
+		},
+		Spec: spec,
+	}
+	if err := ValidateAutoUpdateAgentPlan(version); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return version, nil
+}
+
+// ValidateAutoUpdateAgentPlan checks that required parameters are set
+// for the specified AutoUpdateAgentPlan.
+func ValidateAutoUpdateAgentPlan(v *autoupdate.AutoUpdateAgentPlan) error {
+	if v == nil {
+		return trace.BadParameter("AutoUpdateAgentPlan is nil")
+	}
+	if v.Metadata == nil {
+		return trace.BadParameter("Metadata is nil")
+	}
+	if v.Metadata.Name != types.MetaNameAutoUpdateAgentPlan {
+		return trace.BadParameter("Name is not valid")
+	}
+	if v.Spec == nil {
+		return trace.BadParameter("Spec is nil")
+	}
+
+	// TODO(hugoShaka): add more validation logic here
+
+	return nil
+}
