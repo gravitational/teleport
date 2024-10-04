@@ -119,6 +119,12 @@ var ecaBootstrapArgs = []externalAuditStorageBootstrapArg{
 		optional:   true,
 		validate:   aws.IsValidPartition,
 	},
+	{
+		queryParam: "awsAccountID",
+		cliFlag:    "aws-account-id",
+		optional:   true,
+		validate:   aws.IsValidAccountID,
+	},
 }
 
 func readExternalAuditStorageBootstrapArgsFromQuery(query url.Values, clusterName string) ([]string, error) {

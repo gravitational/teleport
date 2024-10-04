@@ -7,6 +7,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import Text from 'design/Text';
 import Link from 'design/Link';
 import { ButtonPrimary, ButtonSecondary, ButtonWarning } from 'design/Button';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 
 import Dialog, {
   DialogContent,
@@ -171,11 +172,11 @@ function getBootstrapScript(
     return '';
   }
   const query = new URLSearchParams();
-  query.set('region', externalAuditStorage.region);
-  query.set(
-    'role',
-    selectedAwsIntegration.spec.roleArn.split(':role/')[1] || ''
+  const { awsAccountId, arnResourceName: iamRoleName } = splitAwsIamArn(
+    selectedAwsIntegration.spec.roleArn
   );
+  query.set('region', externalAuditStorage.region);
+  query.set('role', iamRoleName || '');
   query.set('policy', externalAuditStorage.policyName);
   query.set('recordings', externalAuditStorage.sessionsRecordingsURI);
   query.set('events', externalAuditStorage.auditEventsLongTermURI);
@@ -184,6 +185,7 @@ function getBootstrapScript(
   query.set('workgroup', externalAuditStorage.athenaWorkgroup);
   query.set('db', externalAuditStorage.glueDatabase);
   query.set('table', externalAuditStorage.glueTable);
+  query.set('awsAccountID', awsAccountId);
   const path = generatePath(cfg.api.externalAuditStorage.bootstrap, {
     clusterId: cfg.oss.proxyCluster,
   });

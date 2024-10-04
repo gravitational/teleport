@@ -115,16 +115,17 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 		{
 			desc: "pass",
 			params: url.Values{
-				"role":        {"test-iam-role"},
-				"region":      {"us-west-2"},
-				"policy":      {"test-policy"},
-				"recordings":  {"s3://teleport-longterm-test/recordings"},
-				"events":      {"s3://teleport-longterm-test/events"},
-				"results":     {"s3://teleport-transient-test/results"},
-				"workgroup":   {"teleport_events_test"},
-				"db":          {"teleport_events_test"},
-				"table":       {"teleport_events_test"},
-				"integration": {"my-integration"},
+				"role":         {"test-iam-role"},
+				"region":       {"us-west-2"},
+				"policy":       {"test-policy"},
+				"recordings":   {"s3://teleport-longterm-test/recordings"},
+				"events":       {"s3://teleport-longterm-test/events"},
+				"results":      {"s3://teleport-transient-test/results"},
+				"workgroup":    {"teleport_events_test"},
+				"db":           {"teleport_events_test"},
+				"table":        {"teleport_events_test"},
+				"integration":  {"my-integration"},
+				"awsAccountID": {"123456789012"},
 			},
 			expectArgs: `integration configure externalauditstorage ` +
 				`--bootstrap --cluster-name=localhost ` +
@@ -135,7 +136,8 @@ func TestBuildExternalAuditStorageBootstrapScript(t *testing.T) {
 				`--athena-results=s3://teleport-transient-test/results ` +
 				`--athena-workgroup=teleport_events_test ` +
 				`--glue-database=teleport_events_test ` +
-				`--glue-table=teleport_events_test`,
+				`--glue-table=teleport_events_test ` +
+				`--aws-account-id=123456789012`,
 		},
 		{
 			desc: "missing role",
