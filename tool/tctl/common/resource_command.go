@@ -3069,13 +3069,13 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &staticHostUserCollection{items: hostUsers}, nil
 	case types.KindAutoUpdateConfig:
-		config, err := client.GetAutoUpdateConfig(ctx)
+		config, err := client.AutoUpdateClient().GetAutoUpdateConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &autoUpdateConfigCollection{config}, nil
 	case types.KindAutoUpdateVersion:
-		version, err := client.GetAutoUpdateVersion(ctx)
+		version, err := client.AutoUpdateClient().GetAutoUpdateVersion(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3433,9 +3433,9 @@ func (rc *ResourceCommand) createAutoUpdateConfig(ctx context.Context, client *a
 	}
 
 	if rc.IsForced() {
-		_, err = client.UpsertAutoUpdateConfig(ctx, config)
+		_, err = client.AutoUpdateClient().UpsertAutoUpdateConfig(ctx, config)
 	} else {
-		_, err = client.CreateAutoUpdateConfig(ctx, config)
+		_, err = client.AutoUpdateClient().CreateAutoUpdateConfig(ctx, config)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3450,7 +3450,7 @@ func (rc *ResourceCommand) updateAutoUpdateConfig(ctx context.Context, client *a
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.UpdateAutoUpdateConfig(ctx, config); err != nil {
+	if _, err := client.AutoUpdateClient().UpdateAutoUpdateConfig(ctx, config); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_config has been updated")
@@ -3464,9 +3464,9 @@ func (rc *ResourceCommand) createAutoUpdateVersion(ctx context.Context, client *
 	}
 
 	if rc.IsForced() {
-		_, err = client.UpsertAutoUpdateVersion(ctx, version)
+		_, err = client.AutoUpdateClient().UpsertAutoUpdateVersion(ctx, version)
 	} else {
-		_, err = client.CreateAutoUpdateVersion(ctx, version)
+		_, err = client.AutoUpdateClient().CreateAutoUpdateVersion(ctx, version)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -3481,7 +3481,7 @@ func (rc *ResourceCommand) updateAutoUpdateVersion(ctx context.Context, client *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
+	if _, err := client.AutoUpdateClient().UpdateAutoUpdateVersion(ctx, version); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("autoupdate_version has been updated")

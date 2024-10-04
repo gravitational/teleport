@@ -580,7 +580,7 @@ func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", "autoupdate_config"}, withEditor(editor))
 	require.NoError(t, err, "expected editing autoupdate config to succeed")
 
-	actual, err := clt.GetAutoUpdateConfig(ctx)
+	actual, err := clt.AutoUpdateClient().GetAutoUpdateConfig(ctx)
 	require.NoError(t, err, "failed to get autoupdate config after edit")
 	assert.NotEqual(t, initial.GetSpec().GetToolsAutoupdate(), actual.GetSpec().GetToolsAutoupdate(),
 		"tools_autoupdate should have been modified by edit")
@@ -614,7 +614,7 @@ func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", "autoupdate_version"}, withEditor(editor))
 	require.NoError(t, err, "expected editing autoupdate version to succeed")
 
-	actual, err := clt.GetAutoUpdateVersion(ctx)
+	actual, err := clt.AutoUpdateClient().GetAutoUpdateVersion(ctx)
 	require.NoError(t, err, "failed to get autoupdate version after edit")
 	assert.NotEqual(t, initial.GetSpec().GetToolsVersion(), actual.GetSpec().GetToolsVersion(),
 		"tools_autoupdate should have been modified by edit")

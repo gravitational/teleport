@@ -308,12 +308,6 @@ type ReadProxyAccessPoint interface {
 
 	// GetUserGroup returns the specified user group resources.
 	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
-
-	// GetAutoUpdateConfig gets the AutoUpdateConfig from the backend.
-	GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error)
-
-	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
-	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
