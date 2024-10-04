@@ -307,11 +307,15 @@ func (s *IdentityService) CreateUser(ctx context.Context, user types.User) (type
 	// technically possible to create a user along with a password using a direct
 	// RPC call or `tctl create`, so we need to support this case, too.
 	auth := user.GetLocalAuth()
-	if auth != nil && len(auth.PasswordHash) > 0 {
-		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+	if auth != nil {
+		if len(auth.PasswordHash) > 0 {
+			user.SetPasswordState(types.PasswordState_PASSWORD_STATE_SET)
+		}
 	} else {
 		user.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSET)
 	}
+
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, auth)
 
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
@@ -351,6 +355,11 @@ func (s *IdentityService) LegacyUpdateUser(ctx context.Context, user types.User)
 	}
 
 	rev := user.GetRevision()
+
+	// if the user has no local auth, we need to check if the user
+	// was previously created and enrolled an MFA device.
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
+
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -379,6 +388,8 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user types.User) (type
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
 
 	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
@@ -444,6 +455,9 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.buildAndSetWeakestMFADeviceKind(ctx, user, user.GetLocalAuth())
+
 	rev := user.GetRevision()
 	value, err := services.MarshalUser(user.WithoutSecrets().(types.User))
 	if err != nil {
@@ -512,6 +526,8 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
+
+		s.buildAndSetWeakestMFADeviceKind(ctx, newWithoutSecrets, new.GetLocalAuth())
 
 		if item.Value == nil {
 			v, err := services.MarshalUser(newWithoutSecrets)
@@ -599,7 +615,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 		}
 	}
 	for _, d := range auth.MFA {
-		if err := s.UpsertMFADevice(ctx, user, d); err != nil {
+		if err := s.upsertMFADevice(ctx, user, d); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1139,6 +1155,15 @@ func globalSessionDataKey(scope, id string) backend.Key {
 }
 
 func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
+	if err := s.upsertMFADevice(ctx, user, d); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
+		s.log.WithError(err).Warn("Unable to update user status after adding MFA device")
+	}
+	return nil
+}
+func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
 	}
@@ -1194,6 +1219,71 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	return nil
 }
 
+// upsertUserStatusMFADevice updates the user's MFA state based on the devices
+// they have.
+// It's called after adding or removing an MFA device and ensures the user's
+// MFA state is up-to-date and reflects the weakest MFA device they have.
+func (s *IdentityService) upsertUserStatusMFADevice(ctx context.Context, user string) error {
+	devs, err := s.GetMFADevices(ctx, user, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaState := getWeakestMFADeviceKind(devs)
+
+	_, err = s.UpdateAndSwapUser(
+		ctx,
+		user,
+		false, /*withSecrets*/
+		func(u types.User) (bool, error) {
+			u.SetWeakestDevice(mfaState)
+			return true, nil
+		})
+
+	return trace.Wrap(err)
+}
+
+// buildAndSetWeakestMFADeviceKind builds the MFA state for a user and sets it on the user if successful.
+func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, user types.User, localAuthSecrets *types.LocalAuthSecrets) {
+	// upsertingMFA is the list of MFA devices that are being upserted when updating the user.
+	var upsertingMFA []*types.MFADevice
+	if localAuthSecrets != nil {
+		upsertingMFA = localAuthSecrets.MFA
+	}
+	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
+	if err != nil {
+		s.log.WithError(err).Warn("Failed to determine weakest mfa device kind for user")
+		return
+	}
+	user.SetWeakestDevice(state)
+}
+
+func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user string, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
+	devs, err := s.GetMFADevices(ctx, user, false)
+	if err != nil {
+		return types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, trace.Wrap(err)
+	}
+	return getWeakestMFADeviceKind(append(devs, upsertingMFA...)), nil
+}
+
+// getWeakestMFADeviceKind returns the weakest MFA state based on the devices the user
+// has.
+// When a user has no MFA device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
+// When a user has at least one TOTP device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
+// When a user ONLY has webauthn devices, it's set to `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
+func getWeakestMFADeviceKind(devs []*types.MFADevice) types.MFADeviceKind {
+	mfaState := types.MFADeviceKind_MFA_DEVICE_KIND_UNSET
+	for _, d := range devs {
+		if (d.GetWebauthn() != nil || d.GetU2F() != nil) && mfaState == types.MFADeviceKind_MFA_DEVICE_KIND_UNSET {
+			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN
+		}
+		if d.GetTotp() != nil {
+			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_TOTP
+			break
+		}
+	}
+	return mfaState
+}
+
 func getCredentialID(d *types.MFADevice) ([]byte, bool) {
 	switch d := d.Device.(type) {
 	case *types.MFADevice_U2F:
@@ -1213,7 +1303,13 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 	}
 
 	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
+		s.log.WithError(err).Warn("Unable to update user status after deleting MFA device")
+	}
+	return nil
 }
 
 func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {

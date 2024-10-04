@@ -216,7 +216,6 @@ func (s *Service) UpdateCrownJewel(ctx context.Context, req *crownjewelv1.Update
 	rsp, err := s.backend.UpdateCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpdateAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	return rsp, trace.Wrap(err)
 }
 
@@ -268,7 +267,6 @@ func (s *Service) UpsertCrownJewel(ctx context.Context, req *crownjewelv1.Upsert
 	rsp, err := s.backend.UpsertCrownJewel(ctx, req.CrownJewel)
 
 	s.emitUpsertAuditEvent(ctx, oldCrownJewel, req.GetCrownJewel(), authCtx, err)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -283,6 +281,7 @@ func (s *Service) emitUpsertAuditEvent(ctx context.Context, old, new *crownjewel
 		return
 	}
 	s.emitUpdateAuditEvent(ctx, old, new, authCtx, err)
+
 }
 
 // DeleteCrownJewel deletes crown jewel resource.
