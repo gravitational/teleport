@@ -51,7 +51,7 @@ type TestClientConn interface {
 
 // MakeTestClient returns MySQL client connection according to the provided
 // parameters.
-func MakeTestClient(config common.TestClientConfig) (*clientConn, error) {
+func MakeTestClient(config common.TestClientConfig) (TestClientConn, error) {
 	tlsConfig, err := common.MakeTestClientTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -74,7 +74,7 @@ func MakeTestClient(config common.TestClientConfig) (*clientConn, error) {
 
 // MakeTestClientWithoutTLS returns a MySQL client connection without setting
 // TLS config to the MySQL client.
-func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (*clientConn, error) {
+func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (TestClientConn, error) {
 	conn, err := client.Connect(addr,
 		routeToDatabase.Username,
 		"",
