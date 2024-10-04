@@ -1,0 +1,8 @@
+extends: conditional
+message: "%s is not an RFC 5737-compliant IP address for documentation. Use 192.0.2.0 or 203.0.113.0."
+level: error
+scope: 
+- raw
+ignorecase: true
+first: '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}'
+second: '(192.0.2.0|203.0.113.0)'
