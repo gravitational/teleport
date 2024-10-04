@@ -39,11 +39,11 @@ type PluginStaticCredentialsService struct {
 }
 
 // NewPluginStaticCredentialsService creates a new PluginStaticCredentialsService.
-func NewPluginStaticCredentialsService(backend backend.Backend) (*PluginStaticCredentialsService, error) {
+func NewPluginStaticCredentialsService(b backend.Backend) (*PluginStaticCredentialsService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.PluginStaticCredentials]{
-		Backend:       backend,
+		Backend:       b,
 		ResourceKind:  types.KindPluginStaticCredentials,
-		BackendPrefix: pluginStaticCredentialsPrefix,
+		BackendPrefix: backend.NewKey(pluginStaticCredentialsPrefix),
 		MarshalFunc:   services.MarshalPluginStaticCredentials,
 		UnmarshalFunc: services.UnmarshalPluginStaticCredentials,
 	})

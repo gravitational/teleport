@@ -238,6 +238,11 @@ func (p *cliModules) IsOSSBuild() bool {
 	return false
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+func (p *cliModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // PrintVersion prints the Teleport version.
 func (p *cliModules) PrintVersion() {
 	fmt.Printf("Teleport CLI\n")

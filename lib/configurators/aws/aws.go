@@ -523,7 +523,7 @@ func buildCommonActions(config ConfiguratorConfig, targetCfg targetConfig) ([]co
 	// If the policy has no statements means that the agent doesn't require
 	// any IAM permission. In this case, return without errors and with empty
 	// actions.
-	if len(policy.Document.Statements) == 0 {
+	if policy.Document.IsEmpty() {
 		return []configurators.ConfiguratorAction{}, nil
 	}
 

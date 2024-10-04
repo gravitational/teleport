@@ -117,7 +117,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key starting with "/" into etcd via the
 	// _prefixed_ client...
 	item := backend.Item{
-		Key:   backend.Key("/foo"),
+		Key:   backend.NewKey("foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -125,7 +125,7 @@ func TestPrefix(t *testing.T) {
 
 	// Expect that I can retrieve it from the _un_prefixed client by
 	// manually prepending a prefix to the key and asking for it.
-	wantKey := prefixedUut.cfg.Key + string(item.Key)
+	wantKey := prefixedUut.cfg.Key + item.Key.String()
 	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
 	got, err := prefixedUut.Get(ctx, item.Key)
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestPrefix(t *testing.T) {
 	// When I push an item with a key that does _not_ start with a separator
 	// char (i.e. "/") into etcd via the _prefixed_ client...
 	item = backend.Item{
-		Key:   backend.Key("foo"),
+		Key:   backend.NewKey("foo"),
 		Value: []byte("bar"),
 	}
 	_, err = prefixedUut.Put(ctx, item)
@@ -143,7 +143,7 @@ func TestPrefix(t *testing.T) {
 
 	// Expect, again, that I can retrieve it from the _un_prefixed client
 	// by manually prepending a prefix to the key and asking for it.
-	wantKey = prefixedUut.cfg.Key + string(item.Key)
+	wantKey = prefixedUut.cfg.Key + item.Key.String()
 	requireKV(ctx, t, unprefixedUut, wantKey, string(item.Value))
 	got, err = prefixedUut.Get(ctx, item.Key)
 	require.NoError(t, err)
