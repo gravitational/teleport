@@ -2050,11 +2050,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			logger.Debug("GitHub WebSession created with device web token")
 			// if a device web token is present, we must send the user to the device authorize page
 			// to upgrade the session.
-			redirectPath := fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
-			if res.ClientRedirectURL != "" {
-				redirectPath = fmt.Sprintf("%s?redirect_uri=%s", redirectPath, res.ClientRedirectURL)
+			redirectPath, err := BuildDeviceWebRedirectPath(dwt, res.ClientRedirectURL)
+			if err == nil {
+				return redirectPath
 			}
-			return redirectPath
+			h.log.Debug("could not build redirect path: %v", err)
 		}
 		return res.ClientRedirectURL
 	}
@@ -2081,6 +2081,25 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+// BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.
+// It takes a DeviceWebToken and an optional client redirect URL as input.
+// The function formats a redirect path with the device ID and token from the provided DeviceWebToken.
+// If the clientRedirectURL is provided, it's appended to the redirect path
+// as a query parameter named "redirect_uri".
+func BuildDeviceWebRedirectPath(dwt *types.DeviceWebToken, clientRedirectURL string) (string, error) {
+	if dwt == nil {
+		return "", trace.BadParameter("DeviceWebToken cannot be nil")
+	}
+	if dwt.Id == "" || dwt.Token == "" {
+		return "", trace.BadParameter("DeviceWebToken ID and Token cannot be empty")
+	}
+	redirectPath := fmt.Sprintf("/web/device/authorize/%s/%s", dwt.Id, dwt.Token)
+	if clientRedirectURL != "" {
+		redirectPath = fmt.Sprintf("%s?redirect_uri=%s", redirectPath, clientRedirectURL)
+	}
+	return redirectPath, nil
 }
 
 func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

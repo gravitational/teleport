@@ -47,7 +47,7 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	confirmToken := &devicepb.DeviceConfirmationToken{}
 	confirmToken.Id = query.Get("id")
 	confirmToken.Token = query.Get("token")
-	redirectParam := query.Get("redirect_uri")
+	redirectURI := query.Get("redirect_uri")
 
 	switch {
 	case confirmToken.Id == "":
@@ -82,28 +82,38 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	// Always redirect back to the dashboard, regardless of outcome.
 	app.SetRedirectPageHeaders(w.Header(), "" /* nonce */)
 
-	redirectTo := "/web"
-
-	if redirectParam != "" {
-		parsedURL, err := url.Parse(redirectParam)
-		if err == nil {
-			cleanPath := path.Clean(parsedURL.Path)
-			// helps in situations where there is no path such as https://example.com
-			if cleanPath == "." || cleanPath == "" {
-				cleanPath = "/"
-			} else if !strings.HasPrefix(cleanPath, "/") {
-				cleanPath = "/" + cleanPath
-			}
-			// Prepend "/web" only if it's not already present
-			if !strings.HasPrefix(cleanPath, "/web") {
-				redirectTo = path.Join("/web", cleanPath)
-			} else {
-				redirectTo = cleanPath
-			}
-		}
+	redirectTo, err := h.getRedirectURL(redirectURI)
+	if err != nil {
+		h.log.Debugf("unable to parse redirectURI %s", redirectURI)
 	}
-
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 
 	return nil, nil
+}
+
+// getRedirectURL tries to parse the given redirectURI. It will always return a redirect url
+// even if the parse fails (in case of failture, the returned string is "/web")
+func (h *Handler) getRedirectURL(redirectURI string) (string, error) {
+	if redirectURI == "" {
+		return "/web", nil
+	}
+
+	parsedURL, err := url.Parse(redirectURI)
+	if err != nil {
+		return "/web", trace.Wrap(err)
+	}
+
+	cleanPath := path.Clean(parsedURL.Path)
+	// helps in situations where there is no path such as https://example.com
+	if cleanPath == "." || cleanPath == ".." {
+		cleanPath = "/"
+	} else if !strings.HasPrefix(cleanPath, "/") {
+		cleanPath = "/" + cleanPath
+	}
+
+	// Prepend "/web" only if it's not already present
+	if !strings.HasPrefix(cleanPath, "/web") {
+		return path.Join("/web", cleanPath), nil
+	}
+	return cleanPath, nil
 }

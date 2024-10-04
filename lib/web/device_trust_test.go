@@ -52,6 +52,11 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			expectedRedirectTo: "/web/custom/path",
 		},
 		{
+			name:               "with app access redirect_uri",
+			redirectURI:        "https://example.com/web/launch/myapp.example.com",
+			expectedRedirectTo: "/web/launch/myapp.example.com",
+		},
+		{
 			name:               "with invalid redirect_uri",
 			redirectURI:        "://invalid",
 			expectedRedirectTo: "/web",
@@ -68,19 +73,20 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 		},
 	}
 
+	fakeDevices := &fakeDevicesClient{}
+	wPack := newWebPack(
+		t,
+		1, /* numProxies */
+		withDevicesClientOverride(fakeDevices),
+	)
+	proxy := wPack.proxies[0]
+	aPack := proxy.authPack(t, "llama", nil /* roles */)
+	webClient := aPack.clt
+
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			fakeDevices := &fakeDevicesClient{}
-			wPack := newWebPack(
-				t,
-				1, /* numProxies */
-				withDevicesClientOverride(fakeDevices),
-			)
-			proxy := wPack.proxies[0]
-			aPack := proxy.authPack(t, "llama", nil /* roles */)
-			webClient := aPack.clt
 			ctx := context.Background()
 
 			query := make(url.Values)
@@ -107,8 +113,8 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 
 			resp, err := httpClient.Do(req)
 			require.NoError(t, err, "GET /webapi/devices/webconfirm failed")
-			defer resp.Body.Close()
 			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
 
 			assert.True(t, redirected, "GET /webapi/devices/webconfirm didn't cause a redirect")
 			assert.Equal(t, http.StatusOK, resp.StatusCode, "GET /webapi/devices/webconfirm code mismatch")
@@ -163,4 +169,77 @@ func (f *fakeDevicesClient) resetConfirmRequests() []*devicepb.ConfirmDeviceWebA
 	f.confirmDeviceRequests = nil
 
 	return reqs
+}
+
+func TestHandler_GetRedirectURL(t *testing.T) {
+	h := &Handler{}
+
+	tests := []struct {
+		name           string
+		redirectURI    string
+		expectedURL    string
+		expectedErrMsg string
+	}{
+		{
+			name:        "no redirect_uri",
+			redirectURI: "",
+			expectedURL: "/web",
+		},
+		{
+			name:        "with redirect_uri",
+			redirectURI: "https://example.com/web/custom/path",
+			expectedURL: "/web/custom/path",
+		},
+		{
+			name:        "with app access redirect_uri",
+			redirectURI: "https://example.com/web/launch/myapp.example.com",
+			expectedURL: "/web/launch/myapp.example.com",
+		},
+		{
+			name:           "with invalid redirect_uri",
+			redirectURI:    "://invalid",
+			expectedURL:    "/web",
+			expectedErrMsg: "parse \"://invalid\": missing protocol scheme",
+		},
+		{
+			name:        "with external redirect_uri",
+			redirectURI: "https://example.com/path",
+			expectedURL: "/web/path",
+		},
+		{
+			name:        "with empty path redirect_uri",
+			redirectURI: "https://example.com",
+			expectedURL: "/web",
+		},
+		{
+			name:        "with relative path",
+			redirectURI: "/custom/path",
+			expectedURL: "/web/custom/path",
+		},
+		{
+			name:        "with web prefix already",
+			redirectURI: "/web/existing/path",
+			expectedURL: "/web/existing/path",
+		},
+		{
+			name:           "with completely invalid URI",
+			redirectURI:    "not a URI at all",
+			expectedURL:    "/web",
+			expectedErrMsg: "parse \"not a URI at all\": invalid URI for request",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := h.getRedirectURL(tt.redirectURI)
+			assert.Equal(t, tt.expectedURL, result)
+
+			if tt.expectedErrMsg != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
