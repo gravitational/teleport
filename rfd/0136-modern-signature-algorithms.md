@@ -166,10 +166,14 @@ The following key types will be used when the configured algorithm suite is
     * JWT: ECDSA with NIST P-256
   * OIDC IdP CA
     * JWT: 2048-bit RSA
-      * the OIDC spec required RSA support
+      * the OIDC spec requires RSA support
   * SAML IdP CA
     * TLS: 2048-bit RSA
       * much of the SAML ecosystem still only supports RSA
+  * SPIFFE CA
+    * TLS: ECDSA with NIST P-256
+    * JWT: 2048-bit RSA
+      * should be OIDC-compatible, the OIDC spec requires RSA support
   * Okta CA
     * JWT: ECDSA with NIST P-256
 * Subject key types
@@ -212,7 +216,8 @@ The following key types will be used when the configured algorithm suite is
   * tbot impersonated identities
     * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
   * tbot SPIFFE SVIDs
-    * TLS: ECDSA with NIST P-256 (X.509 cert signed by host CA)
+    * TLS: ECDSA with NIST P-256 (X.509 cert signed by spiffe CA)
+    * JWT: 2048-bit RSA (JWT signed by spiffe CA)
 
 This suite will *not* be compatible with clusters running in FIPS mode and/or
 configured to use an HSM or KMS for CAs.
