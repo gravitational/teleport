@@ -1,0 +1,504 @@
+package accesslists
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+)
+
+// RelationshipKind represents the type of relationship: member or owner.
+type RelationshipKind int
+
+const (
+	RelationshipKindMember RelationshipKind = iota
+	RelationshipKindOwner
+)
+
+// MembershipOrOwnershipType represents the type of membership or ownership a User has for an Access List.
+type MembershipOrOwnershipType int
+
+const (
+	MembershipOrOwnershipTypeNone MembershipOrOwnershipType = iota
+	MembershipOrOwnershipTypeExplicit
+	MembershipOrOwnershipTypeInherited
+)
+
+type MembersGetter interface {
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+}
+
+// HierarchyNode represents an access list and its relationships.
+type HierarchyNode struct {
+	// AccessList is the Underlying AccessList object.
+	AccessList *accesslist.AccessList
+	// MemberUsers are users who are direct members of this list.
+	MemberUsers map[string]struct{}
+	// MemberLists are AccessLists that are direct members of this list.
+	MemberLists map[string]*HierarchyNode
+	// OwnerUsers are users who are direct Owners of this list.
+	OwnerUsers map[string]struct{}
+	// OwnerLists are AccessLists that are direct Owners of this list.
+	OwnerLists map[string]*HierarchyNode
+	// MemberParents are AccessLists that have this list as a member.
+	MemberParents map[string]*HierarchyNode
+	// OwnerParents are AccessLists that have this list as an owner.
+	OwnerParents map[string]*HierarchyNode
+}
+
+type Hierarchy struct {
+	Nodes map[string]*HierarchyNode
+}
+
+// NewHierarchy creates a new tree-like structure of AccessLists and their relationships, including Members and Owners.
+// It validates the relationships between AccessLists and ensures that no cyclic references are created, or that the depth of a
+// branch does not exceed the maximum allowed depth.
+//
+// It returns a Hierarchy struct, useful for querying the validity of Membership and Ownership changes, and for determining
+// a User's Membership or Ownership status for an AccessList, including inherited relationships.
+func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, membersGetter MembersGetter) (*Hierarchy, error) {
+	h := &Hierarchy{Nodes: make(map[string]*HierarchyNode)}
+
+	for _, al := range accessLists {
+		h.Nodes[al.GetName()] = &HierarchyNode{
+			AccessList:    al,
+			MemberUsers:   make(map[string]struct{}),
+			MemberLists:   make(map[string]*HierarchyNode),
+			OwnerUsers:    make(map[string]struct{}),
+			OwnerLists:    make(map[string]*HierarchyNode),
+			MemberParents: make(map[string]*HierarchyNode),
+			OwnerParents:  make(map[string]*HierarchyNode),
+		}
+	}
+
+	// Avoid non-deterministic order of processing here by iterating over the AccessLists instead of the Nodes map.
+	for _, al := range accessLists {
+		node, _ := h.Nodes[al.GetName()]
+
+		for _, owner := range al.Spec.Owners {
+			if owner.MembershipKind != accesslist.MembershipKindList {
+				node.OwnerUsers[owner.Name] = struct{}{}
+				continue
+			}
+			ownerNode, exists := h.Nodes[owner.Name]
+			if !exists {
+				return nil, trace.NotFound("Owner Access List '%s' not found for Access List '%s'", owner.Name, al.GetName())
+			}
+			if err := h.validateAddition(node, ownerNode, RelationshipKindOwner); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			node.OwnerLists[owner.Name] = ownerNode
+			ownerNode.OwnerParents[node.AccessList.GetName()] = node
+		}
+
+		members, err := loadAllMembersForList(ctx, al.GetName(), membersGetter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, member := range members {
+			if member.Spec.MembershipKind != accesslist.MembershipKindList {
+				node.MemberUsers[member.Spec.Name] = struct{}{}
+				continue
+			}
+			memberNode, exists := h.Nodes[member.Spec.Name]
+			if !exists {
+				return nil, trace.NotFound("Member Access List '%s' not found for Access List '%s'", member.Spec.Name, al.GetName())
+			}
+			if err := h.validateAddition(node, memberNode, RelationshipKindMember); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			node.MemberLists[member.Spec.Name] = memberNode
+			memberNode.MemberParents[node.AccessList.GetName()] = node
+		}
+	}
+
+	return h, nil
+}
+
+func loadAllMembersForList(ctx context.Context, accessListName string, membersGetter MembersGetter) ([]*accesslist.AccessListMember, error) {
+	var allMembers []*accesslist.AccessListMember
+	pageToken := ""
+	for {
+		members, nextToken, err := membersGetter.ListAccessListMembers(ctx, accessListName, 0, pageToken)
+		if err != nil {
+			// If the AccessList doesn't exist yet, should return an empty list of members
+			if trace.IsNotFound(err) {
+				break
+			}
+			return nil, trace.Wrap(err)
+		}
+		allMembers = append(allMembers, members...)
+		if nextToken == "" {
+			break
+		}
+		pageToken = nextToken
+	}
+	return allMembers, nil
+}
+
+func (h *Hierarchy) validateAddition(parentNode, childNode *HierarchyNode, kind RelationshipKind) error {
+	kindStr := "a Member"
+	if kind == RelationshipKindOwner {
+		kindStr = "an Owner"
+	}
+	if h.detectCycle(parentNode, childNode) {
+		return trace.BadParameter("Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'", childNode.AccessList.Spec.Title, kindStr, parentNode.AccessList.Spec.Title, parentNode.AccessList.Spec.Title, childNode.AccessList.Spec.Title)
+	}
+	if h.exceedsMaxDepth(parentNode, childNode, kind) {
+		return trace.BadParameter("Access List '%s' can't be added as %s of '%s' because it would exceed the maximum nesting depth of %d", childNode.AccessList.Spec.Title, kindStr, parentNode.AccessList.Spec.Title, accesslist.MaxAllowedDepth)
+	}
+	return nil
+}
+
+func (h *Hierarchy) detectCycle(parentNode, childNode *HierarchyNode) bool {
+	isReachableAsMember := h.isReachable(childNode, parentNode.AccessList.GetName(), RelationshipKindMember, make(map[string]struct{}))
+	isReachableAsOwner := h.isReachable(childNode, parentNode.AccessList.GetName(), RelationshipKindOwner, make(map[string]struct{}))
+	return isReachableAsMember || isReachableAsOwner
+}
+
+func (h *Hierarchy) isReachable(node *HierarchyNode, targetName string, kind RelationshipKind, visited map[string]struct{}) bool {
+	if node.AccessList.GetName() == targetName {
+		return true
+	}
+	if _, ok := visited[node.AccessList.GetName()]; ok {
+		return false
+	}
+	visited[node.AccessList.GetName()] = struct{}{}
+
+	var nextNodes []*HierarchyNode
+
+	switch kind {
+	case RelationshipKindMember:
+		for _, child := range node.MemberLists {
+			nextNodes = append(nextNodes, child)
+		}
+	case RelationshipKindOwner:
+		// Unlike when calculating inherited ownership on an Identity,
+		// here, if a list is a direct owner of another list, it's considered reachable.
+		for _, owner := range node.OwnerLists {
+			if owner.AccessList.GetName() == targetName {
+				return true
+			}
+		}
+		// If not a direct owner, traverse owner lists via their member lists
+		for _, owner := range node.OwnerLists {
+			for _, member := range owner.MemberLists {
+				if h.isReachable(member, targetName, RelationshipKindMember, visited) {
+					return true
+				}
+			}
+		}
+		return false
+	default:
+		return false
+	}
+
+	for _, child := range nextNodes {
+		if h.isReachable(child, targetName, kind, visited) {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *Hierarchy) exceedsMaxDepth(parentNode, childNode *HierarchyNode, kind RelationshipKind) bool {
+	switch kind {
+	case RelationshipKindOwner:
+		return h.maxDepthDownwards(childNode, make(map[string]struct{})) > accesslist.MaxAllowedDepth
+	default:
+		return h.maxDepthUpwards(parentNode, make(map[string]struct{}))+h.maxDepthDownwards(childNode, make(map[string]struct{})) > accesslist.MaxAllowedDepth
+	}
+}
+
+func (h *Hierarchy) maxDepthDownwards(node *HierarchyNode, seen map[string]struct{}) int {
+	if _, ok := seen[node.AccessList.GetName()]; ok {
+		return 0
+	}
+	seen[node.AccessList.GetName()] = struct{}{}
+	maxDepth := 0
+	for _, childNode := range node.MemberLists {
+		depth := h.maxDepthDownwards(childNode, seen)
+		if depth > maxDepth {
+			maxDepth = depth
+		}
+	}
+	delete(seen, node.AccessList.GetName())
+	return maxDepth
+}
+
+func (h *Hierarchy) maxDepthUpwards(node *HierarchyNode, seen map[string]struct{}) int {
+	if _, ok := seen[node.AccessList.GetName()]; ok {
+		return 0
+	}
+	seen[node.AccessList.GetName()] = struct{}{}
+	var maxDepth int
+	if len(node.MemberParents) == 0 {
+		// This is a root node
+		maxDepth = 0
+	} else {
+		for _, parentNode := range node.MemberParents {
+			depth := h.maxDepthUpwards(parentNode, seen)
+			if depth > maxDepth {
+				maxDepth = depth
+			}
+		}
+	}
+	delete(seen, node.AccessList.GetName())
+	// +1 to include the connecting edge
+	return maxDepth + 1
+}
+
+// IsDescendant determines if a maybeChild AccessList is a descendant of a parent AccessList.
+func (h *Hierarchy) IsDescendant(parentListName, maybeChildListName string, kind RelationshipKind) (bool, error) {
+	parentNode, exists := h.Nodes[parentListName]
+	if !exists {
+		return false, trace.NotFound("Access List '%s' not found", parentListName)
+	}
+	childNode, exists := h.Nodes[maybeChildListName]
+	if !exists {
+		return false, trace.NotFound("Access List '%s' not found", maybeChildListName)
+	}
+
+	visited := make(map[string]struct{})
+	isDescendant := h.isReachable(parentNode, childNode.AccessList.GetName(), kind, visited)
+	return isDescendant, nil
+}
+
+// ValidateAccessListMember validates the addition of an AccessListMember to an existing AccessList.
+func (h *Hierarchy) ValidateAccessListMember(parentListName string, member *accesslist.AccessListMember) error {
+	if member.Spec.MembershipKind != accesslist.MembershipKindList {
+		return nil
+	}
+	return h.validateAccessListMemberOrOwner(parentListName, member.Spec.Name, RelationshipKindMember)
+}
+
+// ValidateAccessListOwner validates the addition of an existing AccessList as an Owner to another existing AccessList.
+func (h *Hierarchy) ValidateAccessListOwner(parentListName string, owner *accesslist.Owner) error {
+	if owner.MembershipKind != accesslist.MembershipKindList {
+		return nil
+	}
+	return h.validateAccessListMemberOrOwner(parentListName, owner.Name, RelationshipKindOwner)
+}
+
+func (h *Hierarchy) validateAccessListMemberOrOwner(parentListName string, memberOrOwnerName string, kind RelationshipKind) error {
+	parentNode, parentExists := h.Nodes[parentListName]
+	if !parentExists {
+		return trace.NotFound("Access List '%s' not found", parentListName)
+	}
+	memberOrOwnerNode, memberOrOwnerExists := h.Nodes[memberOrOwnerName]
+	if !memberOrOwnerExists {
+		return trace.NotFound("Access List '%s' not found", memberOrOwnerName)
+	}
+	if err := h.validateAddition(parentNode, memberOrOwnerNode, kind); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// ValidateAccessListWithMembers validates the addition of a new or existing AccessList with a list of AccessListMembers.
+func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessList, members []*accesslist.AccessListMember) error {
+	tempNode := &HierarchyNode{
+		AccessList:    accessList,
+		MemberUsers:   make(map[string]struct{}),
+		MemberLists:   make(map[string]*HierarchyNode),
+		OwnerUsers:    make(map[string]struct{}),
+		OwnerLists:    make(map[string]*HierarchyNode),
+		MemberParents: make(map[string]*HierarchyNode),
+		OwnerParents:  make(map[string]*HierarchyNode),
+	}
+	for _, owner := range accessList.Spec.Owners {
+		if owner.MembershipKind != accesslist.MembershipKindList {
+			tempNode.OwnerUsers[owner.Name] = struct{}{}
+			continue
+		}
+		ownerNode, ownerExists := h.Nodes[owner.Name]
+		if !ownerExists {
+			return trace.NotFound("Owner Access List '%s' not found", owner.Name)
+		}
+		if err := h.validateAddition(tempNode, ownerNode, RelationshipKindOwner); err != nil {
+			return trace.Wrap(err)
+		}
+		tempNode.OwnerLists[owner.Name] = ownerNode
+	}
+	for _, member := range members {
+		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+			tempNode.MemberUsers[member.Spec.Name] = struct{}{}
+			continue
+		}
+		memberNode, memberExists := h.Nodes[member.Spec.Name]
+		if !memberExists {
+			return trace.NotFound("Member Access List '%s' not found", member.Spec.Name)
+		}
+		if err := h.validateAddition(tempNode, memberNode, RelationshipKindMember); err != nil {
+			return trace.Wrap(err)
+		}
+		tempNode.MemberLists[member.Spec.Name] = memberNode
+	}
+	return nil
+}
+
+// IsAccessListOwner determines if a User is a valid Owner of an existing or new AccessList,
+// including via inheritance.
+func (h *Hierarchy) IsAccessListOwner(user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+	node, exists := h.Nodes[accessListName]
+	if !exists {
+		return MembershipOrOwnershipTypeNone, trace.NotFound("Access List '%s' not found", accessListName)
+	}
+
+	// Check explicit owners
+	if _, ok := node.OwnerUsers[user.GetName()]; ok {
+		// Verify ownership requirements using provided AccessList
+		if !userMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
+		}
+		return MembershipOrOwnershipTypeExplicit, nil
+	}
+
+	// Check inherited ownership
+	visited := make(map[string]struct{})
+	isOwner, err := h.isInheritedOwner(user, node, visited)
+	if err != nil {
+		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+	}
+	if isOwner {
+		// ALso needs to meet ownership requirements of the parent.
+		if !userMeetsRequirements(user, node.AccessList.Spec.OwnershipRequires) {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
+		}
+		return MembershipOrOwnershipTypeInherited, nil
+	}
+	return MembershipOrOwnershipTypeNone, nil
+}
+
+func (h *Hierarchy) isInheritedOwner(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
+	if _, ok := visited[node.AccessList.GetName()]; ok {
+		return false, nil
+	}
+	visited[node.AccessList.GetName()] = struct{}{}
+	for _, ownerList := range node.OwnerLists {
+		// Check if identity is a member of ownerList
+		memberType, err := h.IsAccessListMember(user, ownerList.AccessList.GetName())
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if memberType != MembershipOrOwnershipTypeNone {
+			// Verify membership requirements
+			if !userMeetsRequirements(user, ownerList.AccessList.Spec.MembershipRequires) {
+				continue
+			}
+			return true, nil
+		}
+		// Recurse into ownerList's owners
+		isOwner, err := h.isInheritedOwner(user, ownerList, visited)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if isOwner {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// IsAccessListMember determines if a User is a valid Member of an existing AccessList,
+// including via inheritance.
+func (h *Hierarchy) IsAccessListMember(user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+	node, exists := h.Nodes[accessListName]
+	if !exists {
+		return MembershipOrOwnershipTypeNone, trace.NotFound("Access List '%s' not found", accessListName)
+	}
+	// Check explicit members
+	if _, ok := node.MemberUsers[user.GetName()]; ok {
+		// Verify membership requirements
+		if !userMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
+		}
+		return MembershipOrOwnershipTypeExplicit, nil
+	}
+	// Check inherited membership
+	visited := make(map[string]struct{})
+	isMember, err := h.isInheritedMember(user, node, visited)
+	if err != nil {
+		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+	}
+	if isMember {
+		// Also needs to meet membership requirements of the parent.
+		if !userMeetsRequirements(user, node.AccessList.Spec.MembershipRequires) {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), node.AccessList.Spec.Title)
+		}
+		return MembershipOrOwnershipTypeInherited, nil
+	}
+	return MembershipOrOwnershipTypeNone, nil
+}
+
+func (h *Hierarchy) isInheritedMember(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
+	if _, ok := visited[node.AccessList.GetName()]; ok {
+		return false, nil
+	}
+	visited[node.AccessList.GetName()] = struct{}{}
+	for _, memberList := range node.MemberLists {
+		// Check if identity is a member of memberList
+		if _, ok := memberList.MemberUsers[user.GetName()]; ok {
+			// Verify membership requirements
+			if !userMeetsRequirements(user, memberList.AccessList.Spec.MembershipRequires) {
+				continue
+			}
+			return true, nil
+		}
+		// Recurse into memberList's members
+		isMember, err := h.isInheritedMember(user, memberList, visited)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if isMember {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// userMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
+func userMeetsRequirements(identity types.User, requires accesslist.Requires) bool {
+	// Assemble the user's roles for easy look up.
+	userRolesMap := map[string]struct{}{}
+	for _, role := range identity.GetRoles() {
+		userRolesMap[role] = struct{}{}
+	}
+
+	// Check that the user meets the role requirements.
+	for _, role := range requires.Roles {
+		if _, ok := userRolesMap[role]; !ok {
+			return false
+		}
+	}
+
+	// Assemble traits for easy lookup.
+	userTraitsMap := map[string]map[string]struct{}{}
+	for k, values := range identity.GetTraits() {
+		if _, ok := userTraitsMap[k]; !ok {
+			userTraitsMap[k] = map[string]struct{}{}
+		}
+
+		for _, v := range values {
+			userTraitsMap[k][v] = struct{}{}
+		}
+	}
+
+	// Check that user meets trait requirements.
+	for k, values := range requires.Traits {
+		if _, ok := userTraitsMap[k]; !ok {
+			return false
+		}
+
+		for _, v := range values {
+			if _, ok := userTraitsMap[k][v]; !ok {
+				return false
+			}
+		}
+	}
+
+	// The user meets all requirements.
+	return true
+}

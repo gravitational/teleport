@@ -32,9 +32,9 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // AccessListsAndLockGetter is an interface for retrieving access lists and locks.
@@ -134,29 +134,25 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		}
 	}
 
-	var inheritedRoles []string
-	var inheritedTraits map[string][]string
-
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name:   user.GetName(),
 			Labels: user.GetAllLabels(),
 		}, userloginstate.Spec{
-			OriginalRoles:   utils.CopyStrings(user.GetRoles()),
-			OriginalTraits:  originalTraits,
-			Roles:           utils.CopyStrings(user.GetRoles()),
-			Traits:          traits,
-			InheritedRoles:  inheritedRoles,
-			InheritedTraits: inheritedTraits,
-			UserType:        user.GetUserType(),
+			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
+			OriginalTraits: originalTraits,
+			Roles:          utils.CopyStrings(user.GetRoles()),
+			Traits:         traits,
+			UserType:       user.GetUserType(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Generate the user login state.
-	if err := g.addAccessListsToState(ctx, user, uls); err != nil {
+	inheritedRoles, inheritedTraits, err := g.addAccessListsToState(ctx, user, uls)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -167,7 +163,7 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 
 	if g.usageEvents != nil {
 		// Emit the usage event metadata.
-		if err := g.emitUsageEvent(ctx, user, uls); err != nil {
+		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
 			g.log.Debug("Error emitting usage event during user login state generation, skipping")
 		}
 	}
@@ -175,35 +171,49 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 	return uls, nil
 }
 
-// addAccessListsToState will add the user's applicable access lists to the user login state.
-func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) error {
+// addAccessListsToState will add the user's applicable access lists to the user login state,
+// returning any inherited roles and traits.
+func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
 	accessLists, err := g.accessLists.GetAccessLists(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// Create an identity for testing membership to access lists.
-	identity := tlsca.Identity{
-		Username: user.GetName(),
-		Groups:   user.GetRoles(),
-		Traits:   user.GetTraits(),
-		UserType: user.GetUserType(),
+	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accessLists, g.accessLists)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
+
+	var allInheritedRoles []string
+	allInheritedTraits := make(map[string][]string)
 
 	for _, accessList := range accessLists {
-		if ownershipType, err := g.memberChecker.IsAccessListOwner(ctx, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.OwnerGrants, state, ownershipType)
-		}
+		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
+		if membershipKind, err := accessListHierarchy.IsAccessListMember(user, accessList.GetName()); err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
+			inheritedRoles, inheritedTraits := g.grantRolesAndTraits(accessList.Spec.Grants, state, membershipKind)
+			allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
+			for k, values := range inheritedTraits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
+			}
 
-		if membershipType, err := g.memberChecker.IsAccessListMember(ctx, identity, accessList); err == nil {
-			g.grantRolesAndTraits(identity, accessList.Spec.Grants, state, membershipType)
+		}
+		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
+		if ownershipType, err := accessListHierarchy.IsAccessListOwner(user, accessList.GetName()); err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
+			inheritedRoles, inheritedTraits := g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state, ownershipType)
+			allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
+			for k, values := range inheritedTraits {
+				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
+			}
+
 		}
 	}
 
-	return nil
+	return allInheritedRoles, allInheritedTraits, nil
 }
 
-func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accesslist.Grants, state *userloginstate.UserLoginState, membershipOrOwnershipType services.MembershipOrOwnershipType) accesslist.Grants {
+// grantRolesAndTraits will append the roles and traits from the provided Grants to the UserLoginState,
+// returning inherited roles and traits if membershipOrOwnershipType is inherited.
+func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userloginstate.UserLoginState, membershipOrOwnershipType accesslists.MembershipOrOwnershipType) ([]string, map[string][]string) {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
 
 	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
@@ -214,35 +224,20 @@ func (g *Generator) grantRolesAndTraits(identity tlsca.Identity, grants accessli
 		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
 	}
 
-	if membershipOrOwnershipType == services.MembershipOrOwnershipTypeInherited {
-		state.Spec.InheritedRoles = append(state.Spec.InheritedRoles, grants.Roles...)
-
-		if state.Spec.InheritedTraits == nil && len(grants.Traits) > 0 {
-			state.Spec.InheritedTraits = map[string][]string{}
-		}
-
-		for k, values := range grants.Traits {
-			state.Spec.InheritedTraits[k] = append(state.Spec.InheritedTraits[k], values...)
-		}
+	// Return inherited roles and traits if the user is a member/owner through inheritance.
+	if membershipOrOwnershipType == accesslists.MembershipOrOwnershipTypeInherited {
+		return grants.Roles, grants.Traits
 	}
 
-	return accesslist.Grants{
-		Roles:  grants.Roles,
-		Traits: grants.Traits,
-	}
+	return nil, nil
 }
 
 // postProcess will perform cleanup to the user login state after its generation.
 func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserLoginState) error {
 	// Deduplicate roles and traits
 	state.Spec.Roles = utils.Deduplicate(state.Spec.Roles)
-	state.Spec.InheritedRoles = utils.Deduplicate(state.Spec.InheritedRoles)
-
 	for k, v := range state.Spec.Traits {
 		state.Spec.Traits[k] = utils.Deduplicate(v)
-	}
-	for k, v := range state.Spec.InheritedTraits {
-		state.Spec.InheritedTraits[k] = utils.Deduplicate(v)
 	}
 
 	// If there are no roles, don't bother filtering out non-existent roles
@@ -267,7 +262,7 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 }
 
 // emitUsageEvent will emit the usage event for user state generation.
-func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *userloginstate.UserLoginState) error {
+func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *userloginstate.UserLoginState, inheritedRoles []string, inheritedTraits map[string][]string) error {
 	staticRoleCount := len(user.GetRoles())
 	staticTraitCount := 0
 	for _, values := range user.GetTraits() {
@@ -280,17 +275,22 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 		stateTraitCount += len(values)
 	}
 
-	countInheritedRolesGranted := len(state.Spec.InheritedRoles)
+	inheritedRoles = utils.Deduplicate(inheritedRoles)
+	for k, v := range inheritedTraits {
+		inheritedTraits[k] = utils.Deduplicate(v)
+	}
+
+	countInheritedRolesGranted := len(inheritedRoles)
 	countInheritedTraitsGranted := 0
-	for _, values := range state.Spec.InheritedTraits {
+	for _, values := range inheritedTraits {
 		countInheritedTraitsGranted += len(values)
 	}
 
 	countRolesGranted := stateRoleCount - staticRoleCount
 	countTraitsGranted := stateTraitCount - staticTraitCount
 
-	// No roles or traits were granted, so skip emitting the event.
-	if countRolesGranted == 0 && countTraitsGranted == 0 {
+	// No roles or traits were granted or inherited, so skip emitting the event.
+	if countRolesGranted == 0 && countTraitsGranted == 0 && countInheritedRolesGranted == 0 && countInheritedTraitsGranted == 0 {
 		return nil
 	}
 

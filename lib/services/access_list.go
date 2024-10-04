@@ -49,7 +49,7 @@ type AccessListsGetter interface {
 	// GetAccessListsToReview returns access lists that the user needs to review.
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
 	// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
-	GetInheritedGrants(context.Context, string) (*accesslist.CombinedGrants, error)
+	GetInheritedGrants(context.Context, string) (*accesslist.Grants, error)
 }
 
 // AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
@@ -505,7 +505,7 @@ func (a AccessListMembershipChecker) recursiveIsAccessListMemberCheck(ctx contex
 // If membership is inherited (through the tlsca.Identity having Membership in a nested Access List),
 // the tlsca.Identity must also meet the membership requirements of the nested list.
 //
-// TODO(mdwn): Remove this in favor of using the access list membership checker.
+// TODO(kiosion): Remove this in favor of using AccessListHierarchy for nested list membership checks.
 func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (MembershipOrOwnershipType, error) {
 	// See if the member getter also implements lock getter. If so, use it. Otherwise, nil is fine.
 	lockGetter, _ := members.(LockGetter)
@@ -522,7 +522,7 @@ func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock cloc
 // If ownership is inherited (through the tlsca.Identity having Membership in an Access List which is an Owner
 // of the provided accessList), the tlsca.Identity must also meet the membership requirements of the nested list.
 //
-// TODO(kiosion): Remove this in favor of using the access list membership checker.
+// TODO(kiosion): Remove this in favor of using AccessListHierarchy for nested list ownership checks.
 func IsAccessListOwner(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListsAndMembersGetter) (MembershipOrOwnershipType, error) {
 	lockGetter, _ := members.(LockGetter)
 	return AccessListMembershipChecker{
@@ -532,7 +532,7 @@ func IsAccessListOwner(ctx context.Context, identity tlsca.Identity, clock clock
 	}.IsAccessListOwner(ctx, identity, accessList)
 }
 
-// UserMeetsRequirements will return true if the user meets the requirements for the access list.
+// UserMeetsRequirements is a helper which will return whether the tlsca.Identity meets the AccessList Ownership/MembershipRequires.
 func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
 	// Assemble the user's roles for easy look up.
 	userRolesMap := map[string]struct{}{}

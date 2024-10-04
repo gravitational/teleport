@@ -140,7 +140,7 @@ func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.A
 
 // GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
 // This is not implemented in the local service.
-func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.CombinedGrants, error) {
+func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID string) (*accesslist.Grants, error) {
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 

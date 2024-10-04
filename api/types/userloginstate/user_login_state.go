@@ -53,12 +53,6 @@ type Spec struct {
 	// Traits are the traits attached to the user login state.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 
-	// InheritedRoles are any Roles that were inherited via inclusion in nested Access Lists.
-	InheritedRoles []string `json:"inherited_roles" yaml:"inherited_roles"`
-
-	// InheritedTraits are any Traits that were inherited via inclusion in nested Access Lists.
-	InheritedTraits trait.Traits `json:"inherited_traits" yaml:"inherited_traits"`
-
 	// UserType is the type of user that this state represents.
 	UserType types.UserType `json:"user_type" yaml:"user_type"`
 }
@@ -111,16 +105,6 @@ func (u *UserLoginState) GetRoles() []string {
 // GetTraits returns the traits attached to the user login state.
 func (u *UserLoginState) GetTraits() map[string][]string {
 	return u.Spec.Traits
-}
-
-// GetInheritedRoles returns the inherited roles attached to the user login state.
-func (u *UserLoginState) GetInheritedRoles() []string {
-	return u.Spec.InheritedRoles
-}
-
-// GetInheritedTraits returns the inherited traits attached to the user login state.
-func (u *UserLoginState) GetInheritedTraits() map[string][]string {
-	return u.Spec.InheritedTraits
 }
 
 // GetUserType returns the user type for the user login state.

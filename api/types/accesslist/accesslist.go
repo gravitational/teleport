@@ -240,12 +240,6 @@ type Grants struct {
 	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
-// CombinedGrants contains the combined member and owner grants from an access list.
-type CombinedGrants struct {
-	MemberGrants Grants
-	OwnerGrants  Grants
-}
-
 // Status contains dynamic fields calculated during retrieval.
 type Status struct {
 	// MemberCount is the number of members in the access list.

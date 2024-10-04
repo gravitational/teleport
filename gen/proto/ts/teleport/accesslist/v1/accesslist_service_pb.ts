@@ -116,15 +116,9 @@ export interface GetInheritedGrantsResponse {
     /**
      * grants is the list of inherited member grants.
      *
-     * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants member_grants = 1;
+     * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants grants = 1;
      */
-    memberGrants?: AccessListGrants;
-    /**
-     * owner_grants is the list of inherited owner grants.
-     *
-     * @generated from protobuf field: teleport.accesslist.v1.AccessListGrants owner_grants = 2;
-     */
-    ownerGrants?: AccessListGrants;
+    grants?: AccessListGrants;
 }
 /**
  * GetAccessListRequest is the request for retrieving an access list.
@@ -925,8 +919,7 @@ export const GetInheritedGrantsRequest = new GetInheritedGrantsRequest$Type();
 class GetInheritedGrantsResponse$Type extends MessageType<GetInheritedGrantsResponse> {
     constructor() {
         super("teleport.accesslist.v1.GetInheritedGrantsResponse", [
-            { no: 1, name: "member_grants", kind: "message", T: () => AccessListGrants },
-            { no: 2, name: "owner_grants", kind: "message", T: () => AccessListGrants }
+            { no: 1, name: "grants", kind: "message", T: () => AccessListGrants }
         ]);
     }
     create(value?: PartialMessage<GetInheritedGrantsResponse>): GetInheritedGrantsResponse {
@@ -940,11 +933,8 @@ class GetInheritedGrantsResponse$Type extends MessageType<GetInheritedGrantsResp
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* teleport.accesslist.v1.AccessListGrants member_grants */ 1:
-                    message.memberGrants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.memberGrants);
-                    break;
-                case /* teleport.accesslist.v1.AccessListGrants owner_grants */ 2:
-                    message.ownerGrants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.ownerGrants);
+                case /* teleport.accesslist.v1.AccessListGrants grants */ 1:
+                    message.grants = AccessListGrants.internalBinaryRead(reader, reader.uint32(), options, message.grants);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -958,12 +948,9 @@ class GetInheritedGrantsResponse$Type extends MessageType<GetInheritedGrantsResp
         return message;
     }
     internalBinaryWrite(message: GetInheritedGrantsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* teleport.accesslist.v1.AccessListGrants member_grants = 1; */
-        if (message.memberGrants)
-            AccessListGrants.internalBinaryWrite(message.memberGrants, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* teleport.accesslist.v1.AccessListGrants owner_grants = 2; */
-        if (message.ownerGrants)
-            AccessListGrants.internalBinaryWrite(message.ownerGrants, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.AccessListGrants grants = 1; */
+        if (message.grants)
+            AccessListGrants.internalBinaryWrite(message.grants, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

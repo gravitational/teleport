@@ -132,9 +132,7 @@ message GetInheritedGrantsRequest {
 // GetInheritedGrantsResponse is the response for getting inherited grants.
 message GetInheritedGrantsResponse {
   // grants is the list of inherited member grants.
-  AccessListGrants member_grants = 1;
-  // owner_grants is the list of inherited owner grants.
-  AccessListGrants owner_grants = 2;
+  AccessListGrants grants = 1;
 }
 
 // GetAccessListRequest is the request for retrieving an access list.
