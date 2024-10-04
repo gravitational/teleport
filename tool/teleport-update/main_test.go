@@ -119,24 +119,3 @@ func TestRun_Disable(t *testing.T) {
 		})
 	}
 }
-
-func TestRun_Lock(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	lockfile := filepath.Join(dir, lockFileName)
-	unlock, err := lock(lockfile, true)
-	require.NoError(t, err)
-
-	_, err = lock(lockfile, true)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unavailable")
-
-	err = unlock()
-	require.NoError(t, err)
-
-	unlock2, err := lock(lockfile, true)
-	require.NoError(t, err)
-	err = unlock2()
-	require.NoError(t, err)
-}

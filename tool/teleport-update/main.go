@@ -285,7 +285,7 @@ func cmdDisable(ctx context.Context, ccfg *cliConfig) error {
 		versionsDir = filepath.Join(ccfg.DataDir, versionsDirName)
 		updateYAML  = filepath.Join(versionsDir, configFileName)
 	)
-	unlock, err := lock(filepath.Join(versionsDir, lockFileName), false)
+	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,7 +317,7 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 	)
 
 	// Ensure enable can't run concurrently.
-	unlock, err := lock(filepath.Join(versionsDir, lockFileName), false)
+	unlock, err := libutils.FSWriteLock(filepath.Join(versionsDir, lockFileName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -408,44 +408,6 @@ func cmdEnable(ctx context.Context, ccfg *cliConfig) error {
 // cmdUpdate updates Teleport to the version specified by cluster reachable at the proxy address.
 func cmdUpdate(ctx context.Context, ccfg *cliConfig) error {
 	return trace.NotImplemented("TODO")
-}
-
-func lock(lockFile string, nonblock bool) (func() error, error) {
-	if err := os.MkdirAll(filepath.Dir(lockFile), 0755); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lf, err := os.OpenFile(lockFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	how := syscall.LOCK_EX
-	if nonblock {
-		how |= syscall.LOCK_NB
-	}
-
-	if err := fdSyscall(lf, func(fd uintptr) error {
-		return syscall.Flock(int(fd), how)
-	}); err != nil {
-		_ = lf.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return lf.Close, nil
-}
-
-// fdSyscall should be used instead of f.Fd() when performing syscalls on fds.
-// Context: https://github.com/golang/go/issues/24331
-func fdSyscall(f *os.File, fn func(uintptr) error) error {
-	rc, err := f.SyscallConn()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if cErr := rc.Control(func(fd uintptr) {
-		err = fn(fd)
-	}); cErr != nil {
-		return trace.Wrap(cErr)
-	}
-	return trace.Wrap(err)
 }
 
 func validateUpdatesSpec(spec *UpdateSpec) error {
