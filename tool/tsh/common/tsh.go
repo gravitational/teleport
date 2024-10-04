@@ -717,8 +717,7 @@ func transformArgs(args []string) ([]string, error) {
 			Code: 0,
 		}
 	}
-	i := slices.Index(cmdline, "-T")
-	if i > 0 {
+	if i := slices.Index(cmdline, "-T"); i > 0 {
 		cmdline = slices.Replace(cmdline, i, i+1, []string{"--no-tty"}...)
 	}
 
