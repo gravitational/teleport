@@ -43,12 +43,12 @@ type AutoUpdateService struct {
 }
 
 // NewAutoUpdateService returns a new AutoUpdateService.
-func NewAutoUpdateService(backend backend.Backend) (*AutoUpdateService, error) {
+func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	config, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateConfig]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateConfig,
-			BackendPrefix: autoUpdateConfigPrefix,
+			BackendPrefix: backend.NewKey(autoUpdateConfigPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			ValidateFunc:  update.ValidateAutoUpdateConfig,
@@ -61,9 +61,9 @@ func NewAutoUpdateService(backend backend.Backend) (*AutoUpdateService, error) {
 	}
 	version, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateVersion]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateVersion,
-			BackendPrefix: autoUpdateVersionPrefix,
+			BackendPrefix: backend.NewKey(autoUpdateVersionPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			ValidateFunc:  update.ValidateAutoUpdateVersion,

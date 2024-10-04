@@ -63,19 +63,23 @@ message UserTaskSpec {
 message DiscoverEC2 {
   // Instances maps an instance id to the result of enrolling that instance into teleport.
   map<string, DiscoverEC2Instance> instances = 1;
+  // AccountID is the AWS Account ID for the instances.
+  string account_id = 2;
+  // Region is the AWS Region where Teleport failed to enroll EC2 instances.
+  string region = 3;
 }
 
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
 message DiscoverEC2Instance {
+  // AccountID and Region were moved into the DiscoverEC2 message.
+  reserved 3, 4;
+  reserved "account_id", "region";
+
   // InstanceID is the EC2 Instance ID that uniquely identifies the instance.
   string instance_id = 1;
   // Name is the instance Name.
   // Might be empty, if the instance doesn't have the Name tag.
   string name = 2;
-  // AccountID is the AWS Account ID for this instance.
-  string account_id = 3;
-  // Region is the AWS Region where this issue is happening.
-  string region = 4;
   // InvocationURL is the URL that points to the invocation.
   // Empty if there was an error before installing the
   string invocation_url = 5;

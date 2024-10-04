@@ -64,13 +64,13 @@ func (r *AccessGraphAWSIAMConfigureRequest) CheckAndSetDefaults() error {
 // AccessGraphIAMConfigureClient describes the required methods to create the IAM Policies
 // required for enrolling Access Graph AWS Sync into Teleport.
 type AccessGraphIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultTAGIAMConfigureClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	*iam.Client
 }
 
@@ -82,7 +82,7 @@ func NewAccessGraphIAMConfigureClient(ctx context.Context) (AccessGraphIAMConfig
 	}
 
 	return &defaultTAGIAMConfigureClient{
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 		Client:               iam.NewFromConfig(cfg),
 	}, nil
 }
@@ -96,7 +96,7 @@ func ConfigureAccessGraphSyncIAM(ctx context.Context, clt AccessGraphIAMConfigur
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

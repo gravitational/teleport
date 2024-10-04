@@ -131,6 +131,8 @@ const cfg = {
     dateFormat: 'YYYY-MM-DD',
   },
 
+  defaultDatabaseTTL: '2190h',
+
   routes: {
     root: '/web',
     discover: '/web/discover',
@@ -319,7 +321,7 @@ const cfg = {
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
     awsDatabaseVpcsPath:
-      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
@@ -783,6 +785,11 @@ const cfg = {
 
   getDatabaseSignUrl(clusterId: string) {
     return generatePath(cfg.api.dbSign, { clusterId });
+  },
+
+  getDatabaseCertificateTTL() {
+    // the length of the certificate to request for the database
+    return cfg.defaultDatabaseTTL;
   },
 
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {

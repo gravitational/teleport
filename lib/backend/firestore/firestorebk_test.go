@@ -178,7 +178,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	uut := newBackend(t, cfg)
 
 	item := backend.Item{
-		Key:     []byte("legacy-record"),
+		Key:     backend.NewKey("legacy-record"),
 		Value:   []byte("foo"),
 		Expires: uut.clock.Now().Add(time.Minute).Round(time.Second).UTC(),
 	}
@@ -187,7 +187,7 @@ func TestReadLegacyRecord(t *testing.T) {
 	// version of this backend.
 	ctx := context.Background()
 	rl := legacyRecord{
-		Key:       string(item.Key),
+		Key:       item.Key.String(),
 		Value:     string(item.Value),
 		Expires:   item.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
@@ -237,7 +237,7 @@ func TestReadBrokenRecord(t *testing.T) {
 		Key:   prefix("legacy-record").String(),
 		Value: "sheep",
 	}
-	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(backend.Key(lr.Key))).Set(ctx, lr)
+	_, err = uut.svc.Collection(uut.CollectionName).Doc(uut.keyToDocumentID(backend.KeyFromString(lr.Key))).Set(ctx, lr)
 	require.NoError(t, err)
 
 	// Create a broken record with a backend.Key key type.
@@ -250,7 +250,7 @@ func TestReadBrokenRecord(t *testing.T) {
 	// Write using broken record format, emulating data written by an older
 	// version of this backend.
 	br := brokenRecord{
-		Key:       brokenItem.Key,
+		Key:       brokenKey(brokenItem.Key.String()),
 		Value:     brokenItem.Value,
 		Expires:   brokenItem.Expires.UTC().Unix(),
 		Timestamp: uut.clock.Now().UTC().Unix(),
@@ -285,7 +285,7 @@ func TestReadBrokenRecord(t *testing.T) {
 		switch r := result.Key.String(); r {
 		case item.Key.String():
 			assert.Equal(t, item.Value, result.Value)
-		case br.Key.String():
+		case string(br.Key):
 			assert.Equal(t, br.Value, result.Value)
 		case lr.Key:
 			assert.Equal(t, lr.Value, string(result.Value))
