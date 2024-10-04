@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net"
 	"time"
 
@@ -299,7 +300,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	}
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	key, err = c.performMFACeremony(ctx,
+	key, err = c.performSessionMFACeremony(ctx,
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
@@ -307,7 +308,6 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 			MFACheck:       target.MFACheck,
 		},
 		key,
-		c.tc.NewMFAPrompt(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -368,32 +368,43 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 	}, nil
 }
 
-// performMFACeremony runs the mfa ceremony to completion.
+// performSessionMFACeremony runs the mfa ceremony to completion.
 // If successful the returned [Key] will be authorized to connect to the target.
-func (c *ClusterClient) performMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key, mfaPrompt mfa.Prompt) (*Key, error) {
+func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClient *ClusterClient, params ReissueParams, key *Key) (*Key, error) {
 	certsReq, err := rootClient.prepareUserCertsRequest(params, key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	key, _, err = PerformMFACeremony(ctx, PerformMFACeremonyParams{
+	mfaRequiredReq := params.isMFARequiredRequest(c.tc.HostLogin)
+
+	var promptOpts []mfa.PromptOpt
+	switch {
+	case params.NodeName != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+	case params.KubernetesCluster != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+	case params.RouteToDatabase.ServiceName != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+	case params.RouteToApp.Name != "":
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+	}
+
+	key, _, err = PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFAPrompt:         mfaPrompt,
+		MFACeremony:       c.tc.NewMFACeremony(),
 		MFAAgainstRoot:    c.cluster == rootClient.cluster,
-		MFARequiredReq:    params.isMFARequiredRequest(c.tc.HostLogin),
-		ChallengeExtensions: mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
-		},
-		CertsReq: certsReq,
-		Key:      key,
-	})
+		MFARequiredReq:    mfaRequiredReq,
+		CertsReq:          certsReq,
+		Key:               key,
+	}, promptOpts...)
 	return key, trace.Wrap(err)
 }
 
 // IssueUserCertsWithMFA generates a single-use certificate for the user. If MFA is required
 // to access the resource the provided [mfa.Prompt] will be used to perform the MFA ceremony.
-func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPrompt mfa.Prompt) (*Key, proto.MFARequired, error) {
+func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*Key, proto.MFARequired, error) {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"ClusterClient/IssueUserCertsWithMFA",
@@ -489,7 +500,7 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	}
 
 	// Perform the MFA ceremony and retrieve a new key.
-	key, err := c.performMFACeremony(ctx, certClient, params, key, mfaPrompt)
+	key, err := c.performSessionMFACeremony(ctx, certClient, params, key)
 	if err != nil {
 		return nil, proto.MFARequired_MFA_REQUIRED_YES, trace.Wrap(err)
 	}
@@ -498,39 +509,36 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 	return key, proto.MFARequired_MFA_REQUIRED_YES, nil
 }
 
-// PerformMFARootClient is a subset of Auth methods required for MFA.
-// Used by [PerformMFACeremony].
-type PerformMFARootClient interface {
+// PerformSessionMFARootClient is a subset of Auth methods required for MFA.
+// Used by [PerformSessionMFACeremony].
+type PerformSessionMFARootClient interface {
 	CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 }
 
-// PerformMFACurrentClient is a subset of Auth methods required for MFA.
-// Used by [PerformMFACeremony].
-type PerformMFACurrentClient interface {
+// PerformSessionMFACurrentClient is a subset of Auth methods required for MFA.
+// Used by [PerformSessionMFACeremony].
+type PerformSessionMFACurrentClient interface {
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 }
 
-// PerformMFACeremonyParams are the input parameters for [PerformMFACeremony].
-type PerformMFACeremonyParams struct {
+// PerformSessionMFACeremonyParams are the input parameters for [PerformSessionMFACeremony].
+type PerformSessionMFACeremonyParams struct {
 	// CurrentAuthClient is the Auth client for the target cluster.
 	// Unused if MFAAgainstRoot is true.
-	CurrentAuthClient PerformMFACurrentClient
+	CurrentAuthClient PerformSessionMFACurrentClient
 	// RootAuthClient is the Auth client for the root cluster.
 	// This is the client used to acquire the authn challenge and issue the user
 	// certificates.
-	RootAuthClient PerformMFARootClient
-	// MFAPrompt is used to prompt the user for an MFA solution.
-	MFAPrompt mfa.Prompt
+	RootAuthClient PerformSessionMFARootClient
+	// MFACeremony handles the MFA ceremony.
+	MFACeremony *mfa.Ceremony
 
 	// MFAAgainstRoot tells whether to run the MFA required check against root or
 	// current cluster.
 	MFAAgainstRoot bool
 	// MFARequiredReq is the request for the MFA verification check.
 	MFARequiredReq *proto.IsMFARequiredRequest
-	// ChallengeExtensions is used to provide additional extensions to apply to the
-	// MFA challenge used in the ceremony. The scope extension must be supplied.
-	ChallengeExtensions mfav1.ChallengeExtensions
 	// CertsReq is the request for new certificates.
 	CertsReq *proto.UserCertsRequest
 
@@ -539,7 +547,7 @@ type PerformMFACeremonyParams struct {
 	Key *Key
 }
 
-// PerformMFACeremony issues single-use certificates via GenerateUserCerts,
+// PerformSessionMFACeremony issues single-use certificates via GenerateUserCerts,
 // following its recommended RPC flow.
 //
 // It is a lower-level, less opinionated variant of
@@ -555,10 +563,9 @@ type PerformMFACeremonyParams struct {
 //  4. Call RootAuthClient.GenerateUserCerts
 //
 // Returns the modified params.Key and the GenerateUserCertsResponse, or an error.
-func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*Key, *proto.Certs, error) {
+func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACeremonyParams, promptOpts ...mfa.PromptOpt) (*Key, *proto.Certs, error) {
 	rootClient := params.RootAuthClient
 	currentClient := params.CurrentAuthClient
-
 	mfaRequiredReq := params.MFARequiredReq
 
 	// If connecting to a host in a leaf cluster and MFA failed check to see
@@ -576,8 +583,8 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		mfaRequiredReq = nil // Already checked, don't check again at root.
 	}
 
-	// Acquire MFA challenge.
-	authnChal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	params.MFACeremony.CreateAuthenticateChallenge = rootClient.CreateAuthenticateChallenge
+	mfaResp, err := params.MFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -585,32 +592,24 @@ func PerformMFACeremony(ctx context.Context, params PerformMFACeremonyParams) (*
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
-	})
-	if err != nil {
+	}, promptOpts...)
+	if errors.Is(err, &mfa.ErrMFANotRequired) {
+		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	} else if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	log.Debugf("MFA requirement from CreateAuthenticateChallenge, MFARequired=%s", authnChal.GetMFARequired())
-	if authnChal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, nil, trace.Wrap(services.ErrSessionMFANotRequired)
-	}
-
-	if authnChal.TOTP == nil && authnChal.WebauthnChallenge == nil {
-		// TODO(Joerger): CreateAuthenticateChallenge should return
-		// this error directly instead of an empty challenge, without
-		// regressing https://github.com/gravitational/teleport/issues/36482.
+	// If mfaResp is nil, the ceremony was a no-op (no devices registered).
+	// TODO(Joerger): CreateAuthenticateChallenge, should return
+	// this error directly instead of an empty challenge, without
+	// regressing https://github.com/gravitational/teleport/issues/36482.
+	if mfaResp == nil {
 		return nil, nil, trace.Wrap(authclient.ErrNoMFADevices)
-	}
-
-	// Prompt user for solution (eg, security key touch).
-	authnSolved, err := params.MFAPrompt.Run(ctx, authnChal)
-	if err != nil {
-		return nil, nil, trace.Wrap(ceremonyFailedErr{err})
 	}
 
 	// Issue certificate.
 	certsReq := params.CertsReq
-	certsReq.MFAResponse = authnSolved
+	certsReq.MFAResponse = mfaResp
 	certsReq.Purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	log.Debug("Issuing single-use certificate from unary GenerateUserCerts")
 	newCerts, err := rootClient.GenerateUserCerts(ctx, *certsReq)

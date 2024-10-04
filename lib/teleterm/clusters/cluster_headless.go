@@ -72,11 +72,9 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAut
 	err := AddMetadataToRetryableError(ctx, func() error {
 		// If changing state to approved, create an MFA challenge and prompt for MFA.
 		var mfaResponse *proto.MFAAuthenticateResponse
+		var err error
 		if state == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
-			chall, err := rootAuthClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-					ContextUser: &proto.ContextUser{},
-				},
+			mfaResponse, err = c.clusterClient.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 				},
@@ -84,14 +82,9 @@ func (c *Cluster) UpdateHeadlessAuthenticationState(ctx context.Context, rootAut
 			if err != nil {
 				return trace.Wrap(err)
 			}
-
-			mfaResponse, err = c.clusterClient.PromptMFA(ctx, chall)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 		}
 
-		err := rootAuthClient.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
+		err = rootAuthClient.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
