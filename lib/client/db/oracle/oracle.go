@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -86,6 +87,11 @@ func createClientWallet(signer crypto.Signer, certPem []byte, password string, w
 }
 
 func createJKSWallet(signer crypto.Signer, certPEM, caPEM []byte, password string) ([]byte, error) {
+	// unwrap *keys.PrivateKey if necessary.
+	if pk, ok := signer.(*keys.PrivateKey); ok {
+		signer = pk.Signer
+	}
+
 	privateKey, err := x509.MarshalPKCS8PrivateKey(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
