@@ -37,6 +37,7 @@ export type StandardEditorModel = {
  */
 export type RoleEditorModel = {
   metadata: MetadataModel;
+  accessSpecs: AccessSpec[];
   version: string;
   /**
    * Indicates whether the current resource, as described by YAML, is
@@ -52,6 +53,24 @@ export type MetadataModel = {
   description?: string;
   revision?: string;
 };
+
+export type AccessSpec = KubernetesAccessSpec | ServerAccessSpec;
+
+type AccessSpecBase<T extends AccessSpecKind> = {
+  /**
+   * Determines kind of resource that is accessed using this spec. Intended to
+   * be mostly consistent with UnifiedResources.kind, but that has no real
+   * meaning on the server side; we needed some discriminator, so we picked
+   * this one.
+   */
+  kind: T;
+};
+
+export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'> & {};
+
+export type ServerAccessSpec = AccessSpecBase<'node'> & {};
+
+export type AccessSpecKind = AccessSpec['kind'];
 
 const roleVersion = 'v7';
 
@@ -95,6 +114,7 @@ export function roleToRoleEditorModel(
       description,
       revision,
     },
+    accessSpecs: [],
     version,
     requiresReset:
       revision !== originalRole?.metadata?.revision ||
