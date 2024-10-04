@@ -423,18 +423,40 @@ func TestConfigureIdPIAMWithPresetPolicy(t *testing.T) {
 	}
 }
 
+var goldenIdPIAMConfigureRequest IdPIAMConfigureRequest = IdPIAMConfigureRequest{
+	Cluster:            "mycluster",
+	IntegrationName:    "myintegration",
+	IntegrationRole:    "integrationrole",
+	ProxyPublicAddress: "https://example.com",
+	AutoConfirm:        true,
+	fakeThumbprint:     "15dbd260c7465ecca6de2c0b2181187f66ee0d1a",
+}
+
 func TestConfigureIdPIAMOutput(t *testing.T) {
 	ctx := context.Background()
 	var buf bytes.Buffer
-	req := IdPIAMConfigureRequest{
-		Cluster:            "mycluster",
-		IntegrationName:    "myintegration",
-		IntegrationRole:    "integrationrole",
-		ProxyPublicAddress: "https://example.com",
-		AutoConfirm:        true,
-		stdout:             &buf,
-		fakeThumbprint:     "15dbd260c7465ecca6de2c0b2181187f66ee0d1a",
+	req := goldenIdPIAMConfigureRequest
+	req.stdout = &buf
+
+	clt := mockIdPIAMConfigClient{
+		CallerIdentityGetter: mockSTSClient{accountID: "123456789012"},
+		existingRoles:        map[string]mockRole{},
+		existingIDPUrl:       []string{},
 	}
+
+	require.NoError(t, ConfigureIdPIAM(ctx, &clt, req))
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestConfigureIdPIAMWithPolicyPresetOutput(t *testing.T) {
+	ctx := context.Background()
+	var buf bytes.Buffer
+	req := goldenIdPIAMConfigureRequest
+	req.stdout = &buf
+	req.IntegrationPolicyPreset = PolicyPresetAWSIdentityCenter
 
 	clt := mockIdPIAMConfigClient{
 		CallerIdentityGetter: mockSTSClient{accountID: "123456789012"},

@@ -57,10 +57,22 @@ func AssignRolePolicy(
 		return nil, trace.Wrap(err)
 	}
 
-	details, err := formatDetails(iam.PutRolePolicyInput{
+	input := &iam.PutRolePolicyInput{
 		PolicyName:     &req.PolicyName,
 		RoleName:       &req.RoleName,
 		PolicyDocument: &policyDocument,
+	}
+
+	type assignPolicyInput struct {
+		// PolicyDocument shadows the input's field of the same name
+		// to marshal the policy statement as an unescpaed JSON.
+		PolicyDocument *awslib.Statement
+		*iam.PutRolePolicyInput
+	}
+
+	details, err := formatDetails(assignPolicyInput{
+		PolicyDocument:     req.PolicyStatement,
+		PutRolePolicyInput: input,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -71,11 +83,7 @@ func AssignRolePolicy(
 		Summary: fmt.Sprintf("Assign IAM role %q with an inline policy %q", req.RoleName, req.PolicyName),
 		Details: details,
 		RunnerFn: func(ctx context.Context) error {
-			_, err = clt.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
-				PolicyName:     &req.PolicyName,
-				RoleName:       &req.RoleName,
-				PolicyDocument: &policyDocument,
-			})
+			_, err = clt.PutRolePolicy(ctx, input)
 			if err != nil {
 				if trace.IsNotFound(awslib.ConvertIAMv2Error(err)) {
 					return trace.NotFound("role %q not found.", req.RoleName)

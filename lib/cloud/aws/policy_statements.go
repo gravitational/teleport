@@ -171,8 +171,8 @@ func StatementForAWSAppAccess() *Statement {
 
 // StatementForAWSIdentityCenterAccess returns the statement that grants permissions
 // required for Teleport identity center client.
+// TODO(sshah): make the roles more granular by restricting resources to identity center.
 func StatementForAWSIdentityCenterAccess() *Statement {
-	// requiredTag := types.TeleportNamespace + "/integration"
 	return &Statement{
 		StatementID: "TeleportIdentityCenterClient",
 		Effect:      EffectAllow,
