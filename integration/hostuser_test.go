@@ -206,7 +206,14 @@ func TestRootHostUsersBackend(t *testing.T) {
 	})
 
 	t.Run("Test CreateHomeDirectory recursively takes ownership of existing directory", func(t *testing.T) {
+		getOwnerUID := func(path string) uint32 {
+			info, err := os.Stat(path)
+			require.NoError(t, err)
+			return info.Sys().(*syscall.Stat_t).Uid
+		}
+
 		otheruser := "other-user"
+
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{testuser, otheruser}, nil) })
 		err := usersbk.CreateUser(testuser, nil, host.UserOpts{})
 		require.NoError(t, err)
@@ -229,19 +236,42 @@ func TestRootHostUsersBackend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		info, err := os.Stat(testHome)
-		require.NoError(t, err)
-		initialOwnerUID := info.Sys().(*syscall.Stat_t).Uid
+		// add a file owned by root that _shouldn't_ be owned at the end
+		require.NoError(t, os.WriteFile(filepath.Join(testHome, "rootfile"), []byte("test\n"), 0o700))
 
+		// grab initial owners
+		initialRootFileOwner := getOwnerUID(filepath.Join(testHome, "rootfile"))
+		initialHomeOwner := getOwnerUID(testHome)
+		initialTestFileOwner := getOwnerUID(filepath.Join(testHome, "testfile"))
+
+		// don't take ownership when the user still exists
 		err = usersbk.CreateHomeDirectory(testHome, tuser.Uid, tuser.Gid)
 		require.ErrorIs(t, err, os.ErrExist)
 
-		info, err = os.Stat(testHome)
-		require.NoError(t, err)
-		finalOwnerUID := info.Sys().(*syscall.Stat_t).Uid
+		finalHomeOwner := getOwnerUID(testHome)
+		finalTestFileOwner := getOwnerUID(filepath.Join(testHome, "testfile"))
+		finalRootFileOwner := getOwnerUID(filepath.Join(testHome, "rootfile"))
 
-		require.NotEqual(t, initialOwnerUID, finalOwnerUID)
-		require.Equal(t, tuser.Uid, fmt.Sprintf("%d", finalOwnerUID))
+		require.Equal(t, initialRootFileOwner, finalRootFileOwner) // "rootfile" ownership unchanged
+		require.Equal(t, initialHomeOwner, finalHomeOwner)         // initial owner still owns directory
+		require.Equal(t, initialTestFileOwner, finalTestFileOwner) // initial owner still owns directory contents
+		require.NotEqual(t, tuser.Uid, fmt.Sprintf("%d", finalHomeOwner))
+		require.NotEqual(t, tuser.Uid, fmt.Sprintf("%d", finalTestFileOwner))
+
+		// take ownership of directory and contained files if the original user no longer exists
+		cleanupUsersAndGroups([]string{otheruser}, nil)
+		err = usersbk.CreateHomeDirectory(testHome, tuser.Uid, tuser.Gid)
+		require.ErrorIs(t, err, os.ErrExist)
+
+		finalHomeOwner = getOwnerUID(testHome)
+		finalTestFileOwner = getOwnerUID(filepath.Join(testHome, "testfile"))
+		finalRootFileOwner = getOwnerUID(filepath.Join(testHome, "rootfile"))
+
+		require.Equal(t, initialRootFileOwner, finalRootFileOwner)         // root is still the owner
+		require.NotEqual(t, initialHomeOwner, finalHomeOwner)              // owner is no longer initial user
+		require.NotEqual(t, initialTestFileOwner, finalTestFileOwner)      // owner is no longer initial user
+		require.Equal(t, tuser.Uid, fmt.Sprintf("%d", finalHomeOwner))     // ensure new owner is test-user
+		require.Equal(t, tuser.Uid, fmt.Sprintf("%d", finalTestFileOwner)) // ensure new owner is test-user
 	})
 }
 

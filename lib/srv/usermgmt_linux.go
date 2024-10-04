@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -238,33 +239,91 @@ func readDefaultSkel() (string, error) {
 	return skel, trace.Wrap(err)
 }
 
-func recursiveChown(dir string, uid, gid int) error {
-	// First, walk the directory to gather a list of files and directories to update before we open up to modifications
-	var pathsToUpdate []string
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return trace.Wrap(err)
+func canTakeOwnership(observedUIDs map[uint32]bool, uid int, fi fs.FileInfo) (bool, error) {
+	stat := fi.Sys().(*syscall.Stat_t)
+	if stat == nil {
+		return false, nil
+	}
+
+	exists, seen := observedUIDs[stat.Uid]
+	if seen {
+		return !exists, nil
+	}
+
+	_, err := user.LookupId(strconv.FormatUint(uint64(stat.Uid), 10))
+	exists = true
+	if err != nil {
+		if !errors.Is(err, user.UnknownUserIdError(stat.Uid)) {
+			return false, trace.Wrap(err)
 		}
-		pathsToUpdate = append(pathsToUpdate, path)
-		return nil
-	})
+
+		exists = false
+	}
+	observedUIDs[stat.Uid] = exists
+
+	return !exists, nil
+}
+
+// recursiveChown changes ownership of a directory and its contents. If called in safe mode, the contained files' ownership will
+// be left unchanged if the original owner still exists.
+func recursiveChown(dir string, uid, gid int, safe bool) error {
+	observedUIDs := map[uint32]bool{
+		0: true, // root should always exist, so we can preload that UID
+	}
+
+	dirFI, err := os.Lstat(dir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	pathsToUpdate = append(pathsToUpdate, dir)
-	// filepath.WalkDir is documented to walk the paths in lexical order, iterating
-	// in the reverse order ensures that files are always Lchowned before their parent directory
-	for i := len(pathsToUpdate) - 1; i >= 0; i-- {
-		path := pathsToUpdate[i]
+	// we can short circuit in safe mode if the directory itself can't be taken over
+	if safe {
+		canTakeDir, err := canTakeOwnership(observedUIDs, uid, dirFI)
+		if err != nil {
+			return trace.WrapWithMessage(err, "taking ownership of %q", dir)
+		}
+
+		if !canTakeDir {
+			return trace.WrapWithMessage(os.ErrExist, "can not safely take ownership of %q when owning user still exists", dir)
+		}
+	}
+
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if safe {
+			fi, err := d.Info()
+			if err != nil {
+				return nil
+			}
+
+			takeOwnership, err := canTakeOwnership(observedUIDs, uid, fi)
+			if err != nil {
+				return nil
+			}
+
+			if !takeOwnership {
+				return nil
+			}
+		}
+
 		if err := os.Lchown(path, uid, gid); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// Unexpected condition where file was removed after discovery.
-				continue
+				return nil
 			}
 			return trace.Wrap(err)
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
 	return nil
 }
 
@@ -282,7 +341,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
 		if os.IsExist(err) {
-			if chownErr := recursiveChown(userHome, uid, gid); chownErr != nil {
+			if chownErr := recursiveChown(userHome, uid, gid, true); chownErr != nil {
 				return trace.Wrap(chownErr)
 			}
 		}
@@ -315,5 +374,5 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 		}
 	}
 
-	return trace.Wrap(recursiveChown(userHome, uid, gid))
+	return trace.Wrap(recursiveChown(userHome, uid, gid, false))
 }
