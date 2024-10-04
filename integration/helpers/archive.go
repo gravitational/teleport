@@ -33,12 +33,17 @@ import (
 )
 
 // CompressDirToZipFile compresses directory into a `.zip` format.
-func CompressDirToZipFile(sourcePath, destPath string) error {
+func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer archive.Close()
+	defer func() {
+		_ = archive.Close()
+		if err != nil {
+			_ = os.Remove(destPath)
+		}
+	}()
 
 	zipWriter := zip.NewWriter(archive)
 	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
@@ -52,13 +57,12 @@ func CompressDirToZipFile(sourcePath, destPath string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer file.Close()
 		zipFileWriter, err := zipWriter.Create(filepath.Base(path))
 		if err != nil {
-			_ = file.Close()
 			return trace.Wrap(err)
 		}
 		if _, err = io.Copy(zipFileWriter, file); err != nil {
-			_ = file.Close()
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(file.Close())
@@ -66,7 +70,7 @@ func CompressDirToZipFile(sourcePath, destPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := zipWriter.Close(); err != nil {
+	if err = zipWriter.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -74,12 +78,17 @@ func CompressDirToZipFile(sourcePath, destPath string) error {
 }
 
 // CompressDirToTarGzFile compresses directory into a `.tar.gz` format.
-func CompressDirToTarGzFile(sourcePath, destPath string) error {
+func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer archive.Close()
+	defer func() {
+		_ = archive.Close()
+		if err != nil {
+			_ = os.Remove(destPath)
+		}
+	}()
 	gzipWriter := gzip.NewWriter(archive)
 	tarWriter := tar.NewWriter(gzipWriter)
 	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
@@ -93,17 +102,15 @@ func CompressDirToTarGzFile(sourcePath, destPath string) error {
 		if err != nil {
 			return err
 		}
+		defer file.Close()
 		header, err := tar.FileInfoHeader(info, info.Name())
 		if err != nil {
-			_ = file.Close()
 			return trace.Wrap(err)
 		}
 		if err := tarWriter.WriteHeader(header); err != nil {
-			_ = file.Close()
-			return trace.NewAggregate(err, file.Close())
+			return trace.Wrap(err)
 		}
 		if _, err = io.Copy(tarWriter, file); err != nil {
-			_ = file.Close()
 			return trace.Wrap(err)
 		}
 		return trace.Wrap(file.Close())
@@ -111,10 +118,10 @@ func CompressDirToTarGzFile(sourcePath, destPath string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tarWriter.Close(); err != nil {
+	if err = tarWriter.Close(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := gzipWriter.Close(); err != nil {
+	if err = gzipWriter.Close(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -124,7 +131,7 @@ func CompressDirToTarGzFile(sourcePath, destPath string) error {
 // CompressDirToPkgFile runs for the macOS `pkgbuild` command to generate a .pkg file from the source.
 func CompressDirToPkgFile(sourcePath, destPath, identifier string) error {
 	if runtime.GOOS != "darwin" {
-		return trace.BadParameter("only darwin packaging is supported")
+		return trace.BadParameter("only darwin platform is supported for pkg file")
 	}
 	cmd := exec.Command("pkgbuild",
 		"--root", sourcePath,

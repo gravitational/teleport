@@ -31,12 +31,7 @@ func PercentUsed(path string) (float64, error) {
 	return 0.0, trace.NotImplemented("disk usage not supported on Windows")
 }
 
-// CanUserWriteTo is not supported on Windows.
-func CanUserWriteTo(path string) (bool, error) {
-	return false, trace.NotImplemented("path permission checking is not supported on Windows")
-}
-
-// FreeDiskWithReserve returns the available disk space.
+// FreeDiskWithReserve returns the available disk space on the disk at dir, minus `reservedFreeDisk`.
 func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
 	var avail uint64
 	err := windows.GetDiskFreeSpaceEx(windows.StringToUTF16Ptr(dir), &avail, nil, nil)
@@ -47,4 +42,9 @@ func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
 		return 0, trace.Errorf("no free space left")
 	}
 	return avail - reservedFreeDisk, nil
+}
+
+// CanUserWriteTo is not supported on Windows.
+func CanUserWriteTo(path string) (bool, error) {
+	return false, trace.NotImplemented("path permission checking is not supported on Windows")
 }

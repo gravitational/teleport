@@ -31,7 +31,6 @@ import (
 	"syscall"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sys/unix"
 )
 
 // PercentUsed returns percentage of disk space used. The percentage of disk
@@ -45,6 +44,23 @@ func PercentUsed(path string) (float64, error) {
 	}
 	ratio := float64(stat.Blocks-stat.Bfree) / float64(stat.Blocks)
 	return Round(ratio * 100), nil
+}
+
+// FreeDiskWithReserve returns the available disk space on the disk at dir, minus `reservedFreeDisk`.
+func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
+	var stat syscall.Statfs_t
+	err := syscall.Statfs(dir, &stat)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	if stat.Bsize < 0 {
+		return 0, trace.Errorf("invalid size")
+	}
+	avail := stat.Bavail * uint64(stat.Bsize)
+	if reservedFreeDisk > avail {
+		return 0, trace.Errorf("no free space left")
+	}
+	return avail - reservedFreeDisk, nil
 }
 
 // CanUserWriteTo attempts to check if a user has write access to certain path.
@@ -125,21 +141,4 @@ func CanUserWriteTo(path string) (bool, error) {
 	}
 
 	return false, nil
-}
-
-// FreeDiskWithReserve returns the available disk space.
-func FreeDiskWithReserve(dir string, reservedFreeDisk uint64) (uint64, error) {
-	var stat unix.Statfs_t
-	err := unix.Statfs(dir, &stat)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	if stat.Bsize < 0 {
-		return 0, trace.Errorf("invalid size")
-	}
-	avail := stat.Bavail * uint64(stat.Bsize)
-	if reservedFreeDisk > avail {
-		return 0, trace.Errorf("no free space left")
-	}
-	return avail - reservedFreeDisk, nil
 }
