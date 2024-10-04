@@ -626,7 +626,9 @@ func (conf *BotConfig) GetInitables() []Initable {
 	return out
 }
 
-func destinationFromURI(uriString string) (bot.Destination, error) {
+// DestinationFromURI parses a URI from the input string and returns a matching
+// bot.Destination implementation, if possible.
+func DestinationFromURI(uriString string) (bot.Destination, error) {
 	uri, err := url.Parse(uriString)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")
@@ -773,7 +775,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			)
 		}
 
-		dest, err := destinationFromURI(cf.DataDir)
+		dest, err := DestinationFromURI(cf.DataDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -842,51 +844,6 @@ func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, erro
 
 	defer f.Close()
 	return ReadConfig(f, manualMigration)
-}
-
-// LoadConfigWithMutator builds a config from an optional config file and a CLI
-// mutator. If an empty path is provided, an empty base config is used. The CLI
-// mutator may override or append to the loaded configuration, if any.
-// `CheckAndSetDefaults()` will be called on the end result.
-func LoadConfigWithMutator(filePath string, mutator CLIConfigMutator) (*BotConfig, error) {
-	var cfg *BotConfig
-	var err error
-
-	if filePath != "" {
-		cfg, err = ReadConfigFromFile(filePath, false)
-
-		if err != nil {
-			return nil, trace.Wrap(err, "loading bot config from path %s", filePath)
-		}
-	} else {
-		cfg = &BotConfig{}
-	}
-
-	l := log.With("config_path", filePath)
-	if err := mutator.ApplyConfig(cfg, l); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg, nil
-}
-
-// BaseConfigWithMutator returns a base bot config with a given CLI mutator
-// applied. `CheckAndSetDefaults()` will be called on the result.
-func BaseConfigWithMutator(mutator CLIConfigMutator) (*BotConfig, error) {
-	cfg := &BotConfig{}
-	if err := mutator.ApplyConfig(cfg, log); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cfg, nil
 }
 
 type Version string

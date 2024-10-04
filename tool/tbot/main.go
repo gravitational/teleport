@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -87,47 +88,38 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&configureOutPath)
 
-	var commands []config.CLICommandRunner
+	// TODO: configureOutPath may have new arg positioning semantics. Verify any change and consider promoting to global
+	// if necessary.
+	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
+
+	var commands []cli.CommandRunner
 	commands = append(commands,
-		config.NewLegacyCommand(startCmd, applyConfigAndStart(ctx, cf.ConfigPath)),
-		config.NewLegacyCommand(configureCmd, applyConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+
+		cli.NewSPIFFEX509SVIDCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
+		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
 	)
 
-	commands = append(commands,
-		config.NewIdentityCommand(startCmd, applyConfigAndStart(ctx, cf.ConfigPath)),
-		config.NewIdentityCommand(configureCmd, applyConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
-	)
-
-	// startLegacy := startCmd.Command("legacy", "Start with either a config file or a legacy output").Default()
-	// startLegacy.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
-	// startLegacy.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	// startLegacy.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
-
-	// startIdentity := startCmd.Command("identity", "Start with an identity output for SSH and Teleport API access").Alias("ssh").Alias("id")
-	// startIdentity.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
-	// startIdentity.Flag("cluster", "The name of a specific cluster for which to issue an identity if using a leaf cluster").StringVar(&cf.Cluster)
-	// TODO: roles? ssh_config mode?
-	// TODO: storage?
-
-	// startDatabase := startCmd.Command("database", "Starts with a database output").Alias("db")
-	// startDatabase.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
-	// startDatabase.Flag("format", "The database output format if necessary").Default("").EnumVar(&cf.DatabaseFormat, config.SupportedDatabaseFormatStrings()...)
-	// startDatabase.Flag("service", "The database service name").Required().StringVar(&cf.DatabaseService)
-	// startDatabase.Flag("username", "The database user name").Required().StringVar(&cf.DatabaseUsername)
-	// startDatabase.Flag("database", "The name of the database available in the requested database service").Required().StringVar(&cf.DatabaseDatabase)
-	// TODO: roles?
-
-	// startApplication := startCmd.Command("application", "Starts with an application output").Alias("app")
-	// startApplication.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
-
-	// startKubernetes := startCmd.Command("kubernetes", "Starts with a Kubernetes output").Alias("k8s")
-	// startKubernetes.Flag("destination", "A destination URI, such as file:///foo/bar").Required().StringVar(&cf.Destination)
-
-	// startDatabaseTunnel := startCmd.Command("database-tunnel", "Starts a database tunnel").Alias("db-tunnel")
-	// startApplicationTunnel := startCmd.Command("application-tunnel", "Starts an app tunnel").Alias("app-tunnel")
-	// startSpiffeX509SVID := startCmd.Command("spiffe-x509-svid", "Starts with a SPIFFE X509 SVID output")
-
-	// TODO: Should there be a workload id subcommand?
+	// TODO: workload id / spiffe service subcommand?
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -345,11 +337,11 @@ func Run(args []string, stdout io.Writer) error {
 	return trace.BadParameter("command %q not configured", command)
 }
 
-// applyConfigAndStart returns a MutatorAction that will generate a config and
+// buildConfigAndStart returns a MutatorAction that will generate a config and
 // run `onStart` with the result.
-func applyConfigAndStart(ctx context.Context, configPath string) config.MutatorAction {
-	return func(mutator config.CLIConfigMutator) error {
-		cfg, err := config.LoadConfigWithMutator(configPath, mutator)
+func buildConfigAndStart(ctx context.Context, configPath string) cli.MutatorAction {
+	return func(mutator cli.ConfigMutator) error {
+		cfg, err := cli.LoadConfigWithMutator(configPath, mutator)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -358,11 +350,11 @@ func applyConfigAndStart(ctx context.Context, configPath string) config.MutatorA
 	}
 }
 
-// applyConfigAndConfigure returns a MutatorAction that will generate a config
+// buildConfigAndConfigure returns a MutatorAction that will generate a config
 // and run `onConfigure` with the result.
-func applyConfigAndConfigure(ctx context.Context, configPath string, outPath string, stdout io.Writer) config.MutatorAction {
-	return func(mutator config.CLIConfigMutator) error {
-		cfg, err := config.BaseConfigWithMutator(mutator)
+func buildConfigAndConfigure(ctx context.Context, configPath string, outPath string, stdout io.Writer) cli.MutatorAction {
+	return func(mutator cli.ConfigMutator) error {
+		cfg, err := cli.BaseConfigWithMutator(mutator)
 		if err != nil {
 			return trace.Wrap(err)
 		}

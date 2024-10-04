@@ -214,7 +214,7 @@ func TestDestinationFromURI(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			got, err := destinationFromURI(tt.in)
+			got, err := DestinationFromURI(tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
