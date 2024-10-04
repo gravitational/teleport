@@ -634,11 +634,11 @@ func (c *AuthPreferenceV2) CheckSignatureAlgorithmSuite(params SignatureAlgorith
 			return trace.Wrap(errNonFIPSSignatureAlgorithmSuite)
 		}
 		if params.UsingHSMOrKMS {
-			// Cloud may eventually migrate existing CA keys to a KMS, to keep
-			// this option open we prevent the balanced-v1 suite.
 			return trace.Wrap(errNonHSMSignatureAlgorithmSuite)
 		}
 		if params.Cloud {
+			// Cloud may eventually migrate existing CA keys to a KMS, to keep
+			// this option open we prevent the balanced-v1 suite.
 			return trace.Wrap(errNonCloudSignatureAlgorithmSuite)
 		}
 	default:
