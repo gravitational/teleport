@@ -47,6 +47,7 @@ import {
 import cfg from 'teleport/config';
 
 import { FinishDialog } from './FinishDialog';
+import { ConfigureAwsOidcSummary } from './ConfigureAwsOidcSummary';
 
 export function AwsOidc() {
   const [integrationName, setIntegrationName] = useState('');
@@ -163,12 +164,9 @@ export function AwsOidc() {
             lines={[
               {
                 text:
-                  `teleport.dev/cluster: ` +
-                  clusterId +
-                  `\n` +
-                  `teleport.dev/origin: integration_awsoidc\n` +
-                  `teleport.dev/integration: ` +
-                  integrationName,
+                  `teleport.dev/cluster: ${clusterId}\n` +
+                  `teleport.dev/integration: ${integrationName}\n` +
+                  `teleport.dev/origin: integration_awsoidc`,
               },
             ]}
           />
@@ -219,7 +217,13 @@ export function AwsOidc() {
             {scriptUrl && (
               <>
                 <Container mb={5}>
-                  <Text bold>Step 2</Text>
+                  <Flex gap={1} alignItems="center">
+                    <Text bold>Step 2</Text>
+                    <ConfigureAwsOidcSummary
+                      roleName={roleName}
+                      integrationName={integrationName}
+                    />
+                  </Flex>
                   <Text mb={2}>
                     Open{' '}
                     <Link
