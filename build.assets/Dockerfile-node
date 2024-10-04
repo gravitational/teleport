@@ -14,7 +14,7 @@
 
 # Pin the tag to Debian Buster to make sure the Glibc compatibility.
 ARG NODE_VERSION
-FROM node:${NODE_VERSION}-buster AS buildbox
+FROM node:${NODE_VERSION}-bullseye AS buildbox
 
 # BUILDARCH is automatically set by DOCKER when building the image with Build Kit (MacOS by deafult).
 # https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
