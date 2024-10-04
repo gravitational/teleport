@@ -82,7 +82,8 @@ func getUserShells(path string) (map[string]string, error) {
 func TestRootHostUsersBackend(t *testing.T) {
 	utils.RequireRoot(t)
 	sudoersTestDir := t.TempDir()
-	usersbk := srv.HostUsersProvisioningBackend{}
+	usersbk, err := srv.NewHostUsersBackend(utils.NewSlogLoggerForTests())
+	require.NoError(t, err)
 	sudoersbk := srv.HostSudoersProvisioningBackend{
 		SudoersPath: sudoersTestDir,
 		HostUUID:    "hostuuid",

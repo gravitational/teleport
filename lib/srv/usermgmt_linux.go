@@ -20,9 +20,11 @@ package srv
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -40,6 +42,7 @@ import (
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend
 type HostUsersProvisioningBackend struct {
+	log *slog.Logger
 }
 
 // HostSudoersProvisioningBackend is used to implement HostSudoersBackend
@@ -50,8 +53,8 @@ type HostSudoersProvisioningBackend struct {
 	SudoersPath string
 }
 
-// newHostUsersBackend initializes a new OS specific HostUsersBackend
-func newHostUsersBackend() (HostUsersBackend, error) {
+// NewHostUsersBackend initializes a new OS specific HostUsersBackend
+func NewHostUsersBackend(log *slog.Logger) (HostUsersBackend, error) {
 	var missing []string
 	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo"} {
 		if _, err := exec.LookPath(requiredBin); err != nil {
@@ -62,7 +65,7 @@ func newHostUsersBackend() (HostUsersBackend, error) {
 		return nil, trace.NotFound("missing required binaries: %s", strings.Join(missing, ","))
 	}
 
-	return &HostUsersProvisioningBackend{}, nil
+	return &HostUsersProvisioningBackend{log: log}, nil
 }
 
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
@@ -251,7 +254,8 @@ func canTakeOwnership(observedUIDs map[uint32]bool, uid int, fi fs.FileInfo) (bo
 	}
 
 	_, err := user.LookupId(strconv.FormatUint(uint64(stat.Uid), 10))
-	exists = true
+	// only set exists to true if the current owner differs from the given uid
+	exists = stat.Uid != uint32(uid)
 	if err != nil {
 		if !errors.Is(err, user.UnknownUserIdError(stat.Uid)) {
 			return false, trace.Wrap(err)
@@ -266,7 +270,9 @@ func canTakeOwnership(observedUIDs map[uint32]bool, uid int, fi fs.FileInfo) (bo
 
 // recursiveChown changes ownership of a directory and its contents. If called in safe mode, the contained files' ownership will
 // be left unchanged if the original owner still exists.
-func recursiveChown(dir string, uid, gid int, safe bool) error {
+func recursiveChown(log *slog.Logger, dir string, uid, gid int, safe bool) error {
+	ctx := context.Background()
+	l := log.With("uid", uid, "gid", gid, "safe", safe)
 	observedUIDs := map[uint32]bool{
 		0: true, // root should always exist, so we can preload that UID
 	}
@@ -293,14 +299,17 @@ func recursiveChown(dir string, uid, gid int, safe bool) error {
 			return trace.Wrap(err)
 		}
 
+		l = log.With("path", path)
 		if safe {
 			fi, err := d.Info()
 			if err != nil {
+				l.WarnContext(ctx, "Could not retrieve file info for safe file ownership change", "error", err)
 				return nil
 			}
 
 			takeOwnership, err := canTakeOwnership(observedUIDs, uid, fi)
 			if err != nil {
+				l.WarnContext(ctx, "Could not determine if file ownership change is safe", "error", err)
 				return nil
 			}
 
@@ -312,6 +321,7 @@ func recursiveChown(dir string, uid, gid int, safe bool) error {
 		if err := os.Lchown(path, uid, gid); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				// Unexpected condition where file was removed after discovery.
+				l.WarnContext(ctx, "File was removed before ownership change", "error", err)
 				return nil
 			}
 			return trace.Wrap(err)
@@ -341,7 +351,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
 		if os.IsExist(err) {
-			if chownErr := recursiveChown(userHome, uid, gid, true); chownErr != nil {
+			if chownErr := recursiveChown(u.log, userHome, uid, gid, true); chownErr != nil {
 				return trace.Wrap(chownErr)
 			}
 		}
@@ -374,5 +384,5 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 		}
 	}
 
-	return trace.Wrap(recursiveChown(userHome, uid, gid, false))
+	return trace.Wrap(recursiveChown(u.log, userHome, uid, gid, false))
 }

@@ -44,8 +44,10 @@ import (
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string) HostUsers {
+	log := slog.With(teleport.ComponentKey, teleport.Component(teleport.ComponentHostUsers))
+
 	//nolint:staticcheck // SA4023. False positive on macOS.
-	backend, err := newHostUsersBackend()
+	backend, err := NewHostUsersBackend(log)
 	switch {
 	case trace.IsNotImplemented(err), trace.IsNotFound(err):
 		slog.DebugContext(ctx, "Skipping host user management", "error", err)
@@ -56,7 +58,7 @@ func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid s
 	}
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	return &HostUserManagement{
-		log:       slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
+		log:       log,
 		backend:   backend,
 		ctx:       cancelCtx,
 		cancel:    cancelFunc,
@@ -588,7 +590,7 @@ func (u *HostUserManagement) UserCleanup() {
 		err := u.DeleteAllUsers()
 		switch {
 		case trace.IsNotFound(err):
-			u.log.Debug("Error during temporary user cleanup, stopping cleanup job", "error", err)
+			u.log.DebugContext(u.ctx, "Error during temporary user cleanup, stopping cleanup job", "error", err)
 			return
 		case err != nil:
 			u.log.ErrorContext(u.ctx, "Error during temporary user cleanup", "error", err)

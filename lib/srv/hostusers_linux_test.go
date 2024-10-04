@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,17 +91,18 @@ func verifyOwnership(t *testing.T, path string, uid, gid int) {
 }
 
 func TestRecursiveChown(t *testing.T) {
+	log := utils.NewSlogLoggerForTests()
 	t.Run("notFoundError", func(t *testing.T) {
 		t.Parallel()
 
-		require.Error(t, recursiveChown("/invalid/path/to/nowhere", 1000, 1000))
+		require.Error(t, recursiveChown(log, "/invalid/path/to/nowhere", 1000, 1000, false))
 	})
 	t.Run("simpleChown", func(t *testing.T) {
 		t.Parallel()
 		_, _, newUid, newGid, _ := setupRecursiveChownUser(t)
 		dir1Path, dir1FilePath, _, _ := setupRecursiveChownFiles(t)
 
-		require.NoError(t, recursiveChown(dir1Path, newUid, newGid))
+		require.NoError(t, recursiveChown(log, dir1Path, newUid, newGid, false))
 		// validate ownership matches expected ids
 		verifyOwnership(t, dir1Path, newUid, newGid)
 		verifyOwnership(t, dir1FilePath, newUid, newGid)
@@ -114,7 +116,7 @@ func TestRecursiveChown(t *testing.T) {
 		}
 		_, dir1FilePath, dir2Path, dir2SymlinkToFile := setupRecursiveChownFiles(t)
 
-		require.NoError(t, recursiveChown(dir2Path, newUid, newGid))
+		require.NoError(t, recursiveChown(log, dir2Path, newUid, newGid, false))
 		// Validate symlink has changed
 		verifyOwnership(t, dir2SymlinkToFile, newUid, newGid)
 		// Validate pointed file has not changed
