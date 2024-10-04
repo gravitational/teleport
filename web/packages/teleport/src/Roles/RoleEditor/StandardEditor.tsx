@@ -25,7 +25,6 @@ import { requiredField } from 'shared/components/Validation/rules';
 import * as Icon from 'design/Icon';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import styled, { useTheme } from 'styled-components';
-import { AttemptStatus, useAsync } from 'shared/hooks/useAsync';
 
 import { Role, RoleWithYaml } from 'teleport/services/resources';
 
@@ -42,8 +41,8 @@ import { RequiresResetToStandard } from './RequiresResetToStandard';
 type StandardEditorProps = {
   originalRole: RoleWithYaml;
   standardEditorModel: StandardEditorModel;
-  parseAttemptStatus: AttemptStatus;
-  onSave?(r: Role): Promise<void>;
+  isProcessing: boolean;
+  onSave?(r: Role): void;
   onCancel?(): void;
   onChange?(s: StandardEditorModel): void;
 };
@@ -51,7 +50,7 @@ type StandardEditorProps = {
 export const StandardEditor = ({
   originalRole,
   standardEditorModel,
-  parseAttemptStatus,
+  isProcessing,
   onSave,
   onCancel,
   onChange,
@@ -59,12 +58,12 @@ export const StandardEditor = ({
   const isEditing = !!originalRole;
   const { roleModel } = standardEditorModel;
 
-  const [saveAttempt, handleSave] = useAsync(async (validator: Validator) => {
+  const handleSave = (validator: Validator) => {
     if (!validator.validate()) {
       return;
     }
-    return onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
-  });
+    onSave?.(roleEditorModelToRole(standardEditorModel.roleModel));
+  };
 
   function handleChange(modified: Partial<RoleEditorModel>) {
     const updatedResourceModel: RoleEditorModel = {
@@ -99,36 +98,26 @@ export const StandardEditor = ({
     <Validation>
       {({ validator }) => (
         <>
-          {/* Don't display the editor if we are still processing data or were
-              unable to do so; it's not OK to display incorrect or stale data.
-            */}
-          {parseAttemptStatus !== 'processing' &&
-            parseAttemptStatus !== 'error' && (
-              <>
-                {roleModel.requiresReset && (
-                  <RequiresResetToStandard reset={resetForStandardEditor} />
-                )}
-                <EditorWrapper
-                  mute={standardEditorModel.roleModel.requiresReset}
-                  data-testid="standard"
-                >
-                  <Box my={2}>
-                    <MetadataSection
-                      value={roleModel.metadata}
-                      isProcessing={saveAttempt.status === 'processing'}
-                      onChange={metadata =>
-                        handleChange({ ...roleModel, metadata })
-                      }
-                    />
-                  </Box>
-                </EditorWrapper>
-              </>
-            )}
+          {roleModel.requiresReset && (
+            <RequiresResetToStandard reset={resetForStandardEditor} />
+          )}
+          <EditorWrapper
+            mute={standardEditorModel.roleModel.requiresReset}
+            data-testid="standard"
+          >
+            <Box my={2}>
+              <MetadataSection
+                value={roleModel.metadata}
+                isProcessing={isProcessing}
+                onChange={metadata => handleChange({ ...roleModel, metadata })}
+              />
+            </Box>
+          </EditorWrapper>
           <EditorSaveCancelButton
             onSave={() => handleSave(validator)}
             onCancel={onCancel}
             disabled={
-              saveAttempt.status === 'processing' ||
+              isProcessing ||
               standardEditorModel.roleModel.requiresReset ||
               !standardEditorModel.isDirty
             }

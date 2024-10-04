@@ -93,53 +93,60 @@ export const RoleEditor = ({
         yaml: yamlModel.content,
       }
     );
-    const roleModel = roleToRoleEditorModel(parsedRole, originalRole?.object);
-    setStandardModel(m => ({
-      ...m,
-      roleModel,
-      isDirty: yamlModel.isDirty,
-    }));
+    return roleToRoleEditorModel(parsedRole, originalRole?.object);
   });
 
   // Converts standard editor model to a YAML representation.
-  const [yamlifyAttempt, yamlifyRole] = useAsync(async () => {
-    const yamilfiedRole = await yamlService.stringify(
-      YamlSupportedResourceKind.Role,
-      { resource: roleEditorModelToRole(standardModel.roleModel) }
-    );
-
-    setYamlModel({
-      content: yamilfiedRole,
-      isDirty: originalRole?.yaml != yamilfiedRole,
-    });
-  });
+  const [yamlifyAttempt, yamlifyRole] = useAsync(
+    async () =>
+      await yamlService.stringify(YamlSupportedResourceKind.Role, {
+        resource: roleEditorModelToRole(standardModel.roleModel),
+      })
+  );
 
   const [saveAttempt, handleSave] = useAsync(
     async (r: Partial<RoleWithYaml>) => {
-      await onSave(r);
+      await onSave?.(r);
       userEventService.captureUserEvent({
         event: CaptureEvent.CreateNewRoleSaveClickEvent,
       });
     }
   );
 
-  function onTabChange(activeIndex: EditorTab) {
+  const isProcessing =
+    parseAttempt.status === 'processing' ||
+    yamlifyAttempt.status === 'processing' ||
+    saveAttempt.status === 'processing';
+
+  async function onTabChange(activeIndex: EditorTab) {
     switch (activeIndex) {
       case EditorTab.Standard: {
         if (!yamlModel.content) {
           //  nothing to parse.
           return;
         }
-        // Launch an async parsing operation.
-        parseYaml();
+        const [roleModel, err] = await parseYaml();
+        // Abort if there's an error. Don't switch the tab or set the model.
+        if (err) return;
+
+        setStandardModel({
+          roleModel,
+          isDirty: yamlModel.isDirty,
+        });
         break;
       }
       case EditorTab.Yaml: {
         if (standardModel.roleModel.requiresReset) {
           break;
         }
-        // Launch an async yamlification operation.
-        yamlifyRole();
+        const [content, err] = await yamlifyRole();
+        // Abort if there's an error. Don't switch the tab or set the model.
+        if (err) return;
+
+        setYamlModel({
+          content,
+          isDirty: originalRole?.yaml != content,
+        });
         break;
       }
       default:
@@ -178,11 +185,7 @@ export const RoleEditor = ({
         <EditorTabs
           onTabChange={onTabChange}
           selectedEditorTab={selectedEditorTab}
-          isProcessing={
-            parseAttempt.status === 'processing' ||
-            yamlifyAttempt.status === 'processing' ||
-            saveAttempt.status === 'processing'
-          }
+          isProcessing={isProcessing}
         />
       </Box>
       {selectedEditorTab === EditorTab.Standard && (
@@ -191,7 +194,7 @@ export const RoleEditor = ({
           onSave={async object => void (await handleSave({ object }))}
           onCancel={handleCancel}
           standardEditorModel={standardModel}
-          parseAttemptStatus={parseAttempt.status}
+          isProcessing={isProcessing}
           onChange={setStandardModel}
         />
       )}
@@ -200,7 +203,7 @@ export const RoleEditor = ({
           yamlEditorModel={yamlModel}
           onChange={setYamlModel}
           onSave={async yaml => void (await handleSave({ yaml }))}
-          yamlifyAttemptStatus={yamlifyAttempt.status}
+          isProcessing={isProcessing}
           onCancel={handleCancel}
           originalRole={originalRole}
         />

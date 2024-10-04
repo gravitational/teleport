@@ -20,8 +20,6 @@ import React from 'react';
 import { Flex } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 
-import { AttemptStatus, useAsync } from 'shared/hooks/useAsync';
-
 import { RoleWithYaml } from 'teleport/services/resources';
 
 import { EditorSaveCancelButton } from './Shared';
@@ -30,15 +28,15 @@ import { YamlEditorModel } from './yamlmodel';
 type YamlEditorProps = {
   originalRole: RoleWithYaml;
   yamlEditorModel: YamlEditorModel;
-  yamlifyAttemptStatus: AttemptStatus;
+  isProcessing: boolean;
   onChange?(y: YamlEditorModel): void;
-  onSave?(content: string): Promise<void>;
+  onSave?(content: string): void;
   onCancel?(): void;
 };
 
 export const YamlEditor = ({
   originalRole,
-  yamlifyAttemptStatus,
+  isProcessing,
   yamlEditorModel,
   onChange,
   onSave,
@@ -46,9 +44,7 @@ export const YamlEditor = ({
 }: YamlEditorProps) => {
   const isEditing = !!originalRole;
 
-  const [saveAttempt, handleSave] = useAsync(async () =>
-    onSave?.(yamlEditorModel.content)
-  );
+  const handleSave = () => onSave?.(yamlEditorModel.content);
 
   function handleSetYaml(newContent: string) {
     onChange?.({
@@ -59,25 +55,17 @@ export const YamlEditor = ({
 
   return (
     <Flex flexDirection="column" flex="1" data-testid="yaml">
-      {/* Don't display the editor if we are still processing data or were
-          unable to do so; it's not OK to display incorrect or stale data.
-        */}
-      {yamlifyAttemptStatus !== 'processing' &&
-        yamlifyAttemptStatus !== 'error' && (
-          <Flex flex="1" data-testid="text-editor-container">
-            <TextEditor
-              readOnly={saveAttempt.status === 'processing'}
-              data={[{ content: yamlEditorModel.content, type: 'yaml' }]}
-              onChange={handleSetYaml}
-            />
-          </Flex>
-        )}
+      <Flex flex="1" data-testid="text-editor-container">
+        <TextEditor
+          readOnly={isProcessing}
+          data={[{ content: yamlEditorModel.content, type: 'yaml' }]}
+          onChange={handleSetYaml}
+        />
+      </Flex>
       <EditorSaveCancelButton
         onSave={handleSave}
         onCancel={onCancel}
-        disabled={
-          saveAttempt.status === 'processing' || !yamlEditorModel.isDirty
-        }
+        disabled={isProcessing || !yamlEditorModel.isDirty}
         isEditing={isEditing}
       />
     </Flex>
