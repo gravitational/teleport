@@ -205,7 +205,7 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.botCfg.CertificateTTL,
 	)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err, "generating X509 SVID")
 	}
 
 	jwtSvids, err := generateJWTSVID(
@@ -214,6 +214,9 @@ func (s *SPIFFESVIDOutputService) requestSVID(
 		s.cfg.SVID,
 		s.cfg.JWTs,
 		s.botCfg.CertificateTTL)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err, "generating JWT SVIDs")
+	}
 
 	return res, privateKey, jwtSvids, nil
 }
