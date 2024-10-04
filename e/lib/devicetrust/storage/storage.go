@@ -1984,7 +1984,7 @@ func (s *S) getWebAuthnAttempt(
 
 func deviceIDFromKey(key backend.Key) string {
 	components := key.Components()
-	return string(components[len(components)-1])
+	return components[len(components)-1]
 }
 
 func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceView) *devicepb.Device {

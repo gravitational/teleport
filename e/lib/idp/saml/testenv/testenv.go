@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -97,21 +98,21 @@ func NewTEnv(ctx context.Context, t *testing.T, clock clockwork.Clock) TEnv {
 
 // NewTEnvWithURL creates new SAML IdP test environment with baseURL.
 func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, baseURL string) TEnv {
-	backend, err := memory.New(memory.Config{
+	bk, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
 
 	// Establish local providers for interaction with the backend.
-	clusterService, err := local.NewClusterConfigurationService(backend)
+	clusterService, err := local.NewClusterConfigurationService(bk)
 	require.NoError(t, err)
-	caService := local.NewCAService(backend)
-	spService, err := local.NewSAMLIdPServiceProviderService(backend)
+	caService := local.NewCAService(bk)
+	spService, err := local.NewSAMLIdPServiceProviderService(bk)
 	require.NoError(t, err)
-	userService, err := local.NewIdentityServiceV2(backend)
+	userService, err := local.NewIdentityServiceV2(bk)
 	require.NoError(t, err)
-	accessService := local.NewAccessService(backend)
-	eventService := local.NewEventsService(backend)
+	accessService := local.NewAccessService(bk)
+	eventService := local.NewEventsService(bk)
 
 	// Set up default singletons
 	_, err = clusterService.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
@@ -165,10 +166,10 @@ func NewTEnvWithURL(ctx context.Context, t *testing.T, clock clockwork.Clock, ba
 	keyStore := keystore.NewSoftwareKeystoreForTests(t)
 
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
-		Backend:       backend,
+		Backend:       bk,
 		PageLimit:     20,
 		ResourceKind:  types.KindSAMLIdPServiceProvider,
-		BackendPrefix: "saml_idp_service_provider",
+		BackendPrefix: backend.NewKey("saml_idp_service_provider"),
 		MarshalFunc:   services.MarshalSAMLIdPServiceProvider,
 		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
 	})
