@@ -5136,7 +5136,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	// necessarily replicated in the unified resources cache. To cover this
 	// scenario, perform multiple attempts (if necessary) to read the complete
 	// list of resources.
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// Reset the resources list to avoid having items from previous
 		// iterations.
 		results = nil
@@ -5149,7 +5149,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -5160,7 +5162,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		return len(results) == 20
+		assert.Len(t, results, 20)
 	}, time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
 
 	// Check that only server, desktop, and app server resources contain the expected logins
