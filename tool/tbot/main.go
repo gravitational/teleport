@@ -46,12 +46,6 @@ import (
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
-const (
-	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
-	tokenEnvVar       = "TELEPORT_BOT_TOKEN"
-	proxyServerEnvVar = "TELEPORT_PROXY"
-)
-
 func main() {
 	if err := Run(os.Args[1:], os.Stdout); err != nil {
 		utils.FatalError(err)
@@ -66,23 +60,22 @@ access Teleport protected resources in the same way your engineers do!
 Find out more at https://goteleport.com/docs/machine-id/introduction/`
 
 func Run(args []string, stdout io.Writer) error {
-	var cf config.CLIConf
 	ctx := context.Background()
 
 	var cpuProfile, memProfile, traceProfile, configureOutPath string
 
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
-	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
-	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
-	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
-	app.Flag("trace", "Capture and export distributed traces.").Hidden().BoolVar(&cf.Trace)
-	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to.").Hidden().StringVar(&cf.TraceExporter)
+	globalCfg := cli.NewGlobalArgs(app)
+
+	// Miscellaneous args exposed globally but handled here.
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.HelpFlag.Short('h')
 
 	versionCmd := app.Command("version", "Print the version of your tbot binary.")
+
+	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-c <path>).")
@@ -94,96 +87,61 @@ func Run(args []string, stdout io.Writer) error {
 
 	var commands []cli.CommandRunner
 	commands = append(commands,
-		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewInitCommand(app, func(init *cli.InitCommand) error {
+			return onInit(globalCfg, init)
+		}),
 
-		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewMigrateCommand(app, func(migrateCfg *cli.MigrateCommand) error {
+			return onMigrate(ctx, globalCfg, migrateCfg, stdout)
+		}),
 
-		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewSSHProxyCommand(app, func(sshProxyCommand *cli.SSHProxyCommand) error {
+			return onSSHProxyCommand(ctx, globalCfg, sshProxyCommand)
+		}),
 
-		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewProxyCommand(app, func(proxyCmd *cli.ProxyCommand) error {
+			return onProxyCommand(ctx, globalCfg, proxyCmd)
+		}),
 
-		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewDBCommand(app, func(dbCmd *cli.DBCommand) error {
+			return onDBCommand(globalCfg, dbCmd)
+		}),
 
-		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewSSHMultiplexerProxyCommand(app, func(c *cli.SSHMultiplerProxyCommand) error {
+			return onSSHMultiplexProxyCommand(ctx, c.Socket, c.Data)
+		}),
 
-		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		cli.NewKubeCredentialsCommand(kubeCmd, func(kubeCredentialsCmd *cli.KubeCredentialsCommand) error {
+			return onKubeCredentialsCommand(ctx, globalCfg, kubeCredentialsCmd)
+		}),
 
-		cli.NewSPIFFEX509SVIDCommand(startCmd, buildConfigAndStart(ctx, cf.ConfigPath)),
-		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, cf.ConfigPath, configureOutPath, stdout)),
+		// `start` and `configure` commands
+		cli.NewLegacyCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewLegacyCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewIdentityCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewIdentityCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewDatabaseCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewDatabaseCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewKubernetesCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewKubernetesCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewApplicationCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewApplicationCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewApplicationTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewApplicationTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewDatabaseTunnelCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewDatabaseTunnelCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
+
+		cli.NewSPIFFEX509SVIDCommand(startCmd, buildConfigAndStart(ctx, globalCfg)),
+		cli.NewSPIFFEX509SVIDCommand(configureCmd, buildConfigAndConfigure(ctx, configureOutPath, stdout)),
 	)
 
 	// TODO: workload id / spiffe service subcommand?
-
-	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
-	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
-	initCmd.Flag("owner", "Defines Linux \"user:group\" owner of \"--destination-dir\". Defaults to the Linux user running tbot if unspecified.").StringVar(&cf.Owner)
-	initCmd.Flag("bot-user", "Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to \"--destination-dir\".").StringVar(&cf.BotUser)
-	initCmd.Flag("reader-user", "Enables POSIX ACLs and defines Linux user that will read short-lived certificates from \"--destination-dir\".").StringVar(&cf.ReaderUser)
-	initCmd.Flag("init-dir", "If using a config file and multiple destinations are configured, controls which destination dir to configure.").StringVar(&cf.InitDir)
-	initCmd.Flag("clean", "If set, remove unexpected files and directories from the destination.").BoolVar(&cf.Clean)
-	initCmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(utils.LogFormatText).
-		EnumVar(&cf.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
-
-	migrateCmd := app.Command("migrate", "Migrates a config file from an older version to the newest version. Outputs to stdout by default.")
-	migrateCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
-
-	legacyProxyFlag := ""
-
-	dbCmd := app.Command("db", "Execute database commands through tsh.")
-	dbCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").StringVar(&cf.ProxyServer)
-	// We're migrating from --proxy to --proxy-server so this flag is hidden
-	// but still supported.
-	// TODO(strideynet): DELETE IN 17.0.0
-	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().Envar(proxyServerEnvVar).StringVar(&legacyProxyFlag)
-	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
-	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
-	dbRemaining := config.RemainingArgs(dbCmd.Arg(
-		"args",
-		"Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.",
-	))
-
-	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
-	proxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Envar(proxyServerEnvVar).StringVar(&cf.ProxyServer)
-	// We're migrating from --proxy to --proxy-server so this flag is hidden
-	// but still supported.
-	// TODO(strideynet): DELETE IN 17.0.0
-	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Hidden().StringVar(&legacyProxyFlag)
-	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
-	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
-	proxyRemaining := config.RemainingArgs(proxyCmd.Arg(
-		"args",
-		"Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.",
-	))
-
-	sshProxyCmd := app.Command("ssh-proxy-command", "An OpenSSH/PuTTY proxy command").Hidden()
-	sshProxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
-	sshProxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
-	sshProxyCmd.Flag("user", "The remote user name for the connection").Required().StringVar(&cf.User)
-	sshProxyCmd.Flag("host", "The remote host to connect to").Required().StringVar(&cf.Host)
-	sshProxyCmd.Flag("port", "The remote port to connect on.").StringVar(&cf.Port)
-	sshProxyCmd.Flag("proxy-server", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.ProxyServer)
-	sshProxyCmd.Flag("tls-routing", "Whether the Teleport cluster has tls routing enabled.").Required().BoolVar(&cf.TLSRoutingEnabled)
-	sshProxyCmd.Flag("connection-upgrade", "Whether the Teleport cluster requires an ALPN connection upgrade.").Required().BoolVar(&cf.ConnectionUpgradeRequired)
-	sshProxyCmd.Flag("proxy-templates", "The path to a file containing proxy templates to be evaluated.").StringVar(&cf.TSHConfigPath)
-	sshProxyCmd.Flag("resume", "Enable SSH connection resumption").BoolVar(&cf.EnableResumption)
-
-	sshMultiplexProxyCmd := app.Command("ssh-multiplexer-proxy-command", "An OpenSSH compatible ProxyCommand which connects to a long-lived tbot running the ssh-multiplexer service").Hidden()
-	var sshMultiplexSocket string
-	var sshMultiplexData string
-	sshMultiplexProxyCmd.Arg("path", "Path to the listener socket.").Required().StringVar(&sshMultiplexSocket)
-	sshMultiplexProxyCmd.Arg("data", "Connection target.").Required().StringVar(&sshMultiplexData)
-
-	kubeCmd := app.Command("kube", "Kubernetes helpers").Hidden()
-	kubeCredentialsCmd := kubeCmd.Command("credentials", "Get credentials for kubectl access").Hidden()
-	kubeCredentialsCmd.Flag("destination-dir", "The destination directory with which to generate Kubernetes credentials").Required().StringVar(&cf.DestinationDir)
 
 	spiffeInspectPath := ""
 	spiffeInspectCmd := app.Command("spiffe-inspect", "Inspects a SPIFFE Workload API endpoint to ensure it is working correctly.")
@@ -202,34 +160,17 @@ func Run(args []string, stdout io.Writer) error {
 	}
 	// Logging must be configured as early as possible to ensure all log
 	// message are formatted correctly.
-	if err := setupLogger(cf.Debug, cf.LogFormat); err != nil {
+	if err := setupLogger(globalCfg.Debug, globalCfg.LogFormat); err != nil {
 		return trace.Wrap(err, "setting up logger")
 	}
 
-	if legacyProxyFlag != "" {
-		cf.ProxyServer = legacyProxyFlag
-		log.WarnContext(
-			ctx,
-			"The --proxy flag is deprecated and will be removed in v17.0.0. Use --proxy-server instead",
-		)
-	}
-
-	// Remaining args are stored directly to a []string rather than written to
-	// a shared ref like most other kingpin args, so we'll need to manually
-	// move them to the remaining args field.
-	if len(*dbRemaining) > 0 {
-		cf.RemainingArgs = *dbRemaining
-	} else if len(*proxyRemaining) > 0 {
-		cf.RemainingArgs = *proxyRemaining
-	}
-
-	if cf.Trace {
+	if globalCfg.Trace {
 		log.InfoContext(
 			ctx,
 			"Initializing tracing provider. Traces will be exported",
-			"trace_exporter", cf.TraceExporter,
+			"trace_exporter", globalCfg.TraceExporter,
 		)
-		tp, err := initializeTracing(ctx, cf.TraceExporter)
+		tp, err := initializeTracing(ctx, globalCfg.TraceExporter)
 		if err != nil {
 			return trace.Wrap(err, "initializing tracing")
 		}
@@ -292,11 +233,8 @@ func Run(args []string, stdout io.Writer) error {
 		defer runtimetrace.Stop()
 	}
 
-	// Some commands do not need the full context of the config, so we'll
-	// run these first.
+	// Manually attempt to run all old-style commands.
 	switch command {
-	case migrateCmd.FullCommand():
-		return onMigrate(ctx, cf, stdout)
 	case versionCmd.FullCommand():
 		return onVersion()
 	case spiffeInspectCmd.FullCommand():
@@ -306,22 +244,10 @@ func Run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return trace.Wrap(err, "querying TPM")
 		}
-		tpm.PrintQuery(query, cf.Debug, os.Stdout)
+		tpm.PrintQuery(query, globalCfg.Debug, os.Stdout)
 		return nil
-	case sshProxyCmd.FullCommand():
-		return onSSHProxyCommand(ctx, &cf)
-	case sshMultiplexProxyCmd.FullCommand():
-		return onSSHMultiplexProxyCommand(ctx, sshMultiplexSocket, sshMultiplexData)
 	case installSystemdCmdStr:
-		return installSystemdCmdFn(ctx, log, cf.ConfigPath, os.Executable, os.Stdout)
-	case initCmd.FullCommand():
-		return onInit(&cf)
-	case dbCmd.FullCommand():
-		return onDBCommand(&cf)
-	case proxyCmd.FullCommand():
-		return onProxyCommand(ctx, &cf)
-	case kubeCredentialsCmd.FullCommand():
-		return onKubeCredentialsCommand(ctx, &cf)
+		return installSystemdCmdFn(ctx, log, globalCfg.ConfigPath, os.Executable, os.Stdout)
 	}
 
 	// Attempt to run each new-style command.
@@ -339,9 +265,9 @@ func Run(args []string, stdout io.Writer) error {
 
 // buildConfigAndStart returns a MutatorAction that will generate a config and
 // run `onStart` with the result.
-func buildConfigAndStart(ctx context.Context, configPath string) cli.MutatorAction {
+func buildConfigAndStart(ctx context.Context, globals *cli.GlobalArgs) cli.MutatorAction {
 	return func(mutator cli.ConfigMutator) error {
-		cfg, err := cli.LoadConfigWithMutator(configPath, mutator)
+		cfg, err := cli.LoadConfigWithMutators(globals, mutator)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -352,7 +278,7 @@ func buildConfigAndStart(ctx context.Context, configPath string) cli.MutatorActi
 
 // buildConfigAndConfigure returns a MutatorAction that will generate a config
 // and run `onConfigure` with the result.
-func buildConfigAndConfigure(ctx context.Context, configPath string, outPath string, stdout io.Writer) cli.MutatorAction {
+func buildConfigAndConfigure(ctx context.Context, outPath string, stdout io.Writer) cli.MutatorAction {
 	return func(mutator cli.ConfigMutator) error {
 		cfg, err := cli.BaseConfigWithMutator(mutator)
 		if err != nil {
@@ -434,17 +360,18 @@ func onConfigure(
 
 func onMigrate(
 	ctx context.Context,
-	cf config.CLIConf,
+	globalCfg *cli.GlobalArgs,
+	migrateCmd *cli.MigrateCommand,
 	stdout io.Writer,
 ) error {
-	if cf.ConfigPath == "" {
+	if globalCfg.ConfigPath == "" {
 		return trace.BadParameter("source config file must be provided with -c")
 	}
 
 	out := stdout
-	outPath := cf.ConfigureOutput
+	outPath := migrateCmd.ConfigureOutput
 	if outPath != "" {
-		if outPath == cf.ConfigPath {
+		if outPath == globalCfg.ConfigPath {
 			return trace.BadParameter("migrated config output path should not be the same as the source config path")
 		}
 
@@ -458,7 +385,7 @@ func onMigrate(
 
 	// We do not want to load an existing configuration file as this will cause
 	// it to be merged with the provided flags and defaults.
-	cfg, err := config.ReadConfigFromFile(cf.ConfigPath, true)
+	cfg, err := config.ReadConfigFromFile(globalCfg.ConfigPath, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -20,6 +20,7 @@ package cli
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/teleport"
@@ -29,33 +30,22 @@ import (
 )
 
 const (
-	authServerEnvVar  = "TELEPORT_AUTH_SERVER"
-	tokenEnvVar       = "TELEPORT_BOT_TOKEN"
-	proxyServerEnvVar = "TELEPORT_PROXY"
+	AuthServerEnvVar  = "TELEPORT_AUTH_SERVER"
+	TokenEnvVar       = "TELEPORT_BOT_TOKEN"
+	ProxyServerEnvVar = "TELEPORT_PROXY"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 
-type globalArgs struct {
-	FIPS bool
-
-	// These properties are not applied to the config.
-
-	ConfigPath string
-	Debug      bool
+// CommandRunner defines a contract for `TryRun` that allows commands to
+// either execute (possibly returning an error), or pass execution to the next
+// command candidate.
+type CommandRunner interface {
+	TryRun(cmd string) (match bool, err error)
 }
 
-func (g *globalArgs) ApplyConfig(cfg *config.BotConfig) error {
-	if g.FIPS {
-		cfg.FIPS = g.FIPS
-	}
-
-	if g.Debug {
-		cfg.Debug = g.Debug
-	}
-
-	return nil
-}
+// MutatorAction is an action that is called by a config mutator-style command.
+type MutatorAction func(mutator ConfigMutator) error
 
 // genericMutatorHandler supplies a generic `TryRun` that works for all commands
 // that - broadly - load config, mutate that config, and run an action. It's
@@ -88,38 +78,90 @@ func (g *genericMutatorHandler) TryRun(cmd string) (match bool, err error) {
 	return true, trace.Wrap(err)
 }
 
-// CommandRunner defines a contract for `TryRun` that allows commands to
-// either execute (possibly returning an error), or pass execution to the next
-// command candidate.
-type CommandRunner interface {
-	TryRun(cmd string) (match bool, err error)
-}
-
 // ConfigMutator is an interface that can apply changes to a BotConfig.
 type ConfigMutator interface {
 	ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error
 }
 
-// LoadConfigWithMutator builds a config from an optional config file and a CLI
+// genericExecutorHandler is a helper that can be embedded to provide a simpler
+// TryRun implementation that just runs a function. These functions can be
+// passed in while building the CLI to more easily glue behaviors together, or
+// specified directly.
+type genericExecutorHandler[T any] struct {
+	cmd  *kingpin.CmdClause
+	args *T
+
+	// actions is a list of functions to run when `TryRun` matches the `cmd`.
+	// Generally at most one action should be exposed to the top level glue in
+	// main, but commands might want to inject some handler logic for e.g.
+	// flag migrations.
+	actions []func(*T) error
+}
+
+// newGenericExecutorHandler creates a genericExecutorHandler with the given
+// command and action to execute when that command is matched.
+func newGenericExecutorHandler[T any](cmd *kingpin.CmdClause, args *T, actions ...func(*T) error) *genericExecutorHandler[T] {
+	return &genericExecutorHandler[T]{
+		cmd:     cmd,
+		args:    args,
+		actions: actions,
+	}
+}
+
+func (e *genericExecutorHandler[T]) TryRun(cmd string) (match bool, err error) {
+	switch cmd {
+	case e.cmd.FullCommand():
+		for _, action := range e.actions {
+			err = action(e.args)
+			if err != nil {
+				break
+			}
+		}
+	default:
+		return false, nil
+	}
+
+	return true, trace.Wrap(err)
+}
+
+func applyMutators(l *slog.Logger, cfg *config.BotConfig, mutators ...ConfigMutator) error {
+	for _, mutator := range mutators {
+		if err := mutator.ApplyConfig(cfg, l); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// LoadConfigWithMutators builds a config from an optional config file and a CLI
 // mutator. If an empty path is provided, an empty base config is used. The CLI
-// mutator may override or append to the loaded configuration, if any.
-// `CheckAndSetDefaults()` will be called on the end result.
-func LoadConfigWithMutator(filePath string, mutator ConfigMutator) (*config.BotConfig, error) {
+// mutator may override or append to the loaded configuration, if any. The
+// GlobalArgs will be applied as a mutator, and `CheckAndSetDefaults()` will be
+// called on the end result.
+func LoadConfigWithMutators(globals *GlobalArgs, mutators ...ConfigMutator) (*config.BotConfig, error) {
 	var cfg *config.BotConfig
 	var err error
 
-	if filePath != "" {
-		cfg, err = config.ReadConfigFromFile(filePath, false)
+	if globals.staticConfigYAML != "" {
+		cfg, err = config.ReadConfig(strings.NewReader(globals.staticConfigYAML), false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if globals.ConfigPath != "" {
+		cfg, err = config.ReadConfigFromFile(globals.ConfigPath, false)
 
 		if err != nil {
-			return nil, trace.Wrap(err, "loading bot config from path %s", filePath)
+			return nil, trace.Wrap(err, "loading bot config from path %s", globals.ConfigPath)
 		}
 	} else {
 		cfg = &config.BotConfig{}
 	}
 
-	l := log.With("config_path", filePath)
-	if err := mutator.ApplyConfig(cfg, l); err != nil {
+	mutatorsWithGlobals := append([]ConfigMutator{globals}, mutators...)
+
+	l := log.With("config_path", globals.ConfigPath)
+	if err := applyMutators(l, cfg, mutatorsWithGlobals...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -144,4 +186,28 @@ func BaseConfigWithMutator(mutator ConfigMutator) (*config.BotConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+// RemainingArgsList is a custom kingpin parser that consumes all remaining
+// arguments.
+type RemainingArgsList []string
+
+func (r *RemainingArgsList) Set(value string) error {
+	*r = append(*r, value)
+	return nil
+}
+
+func (r *RemainingArgsList) String() string {
+	return strings.Join([]string(*r), " ")
+}
+
+func (r *RemainingArgsList) IsCumulative() bool {
+	return true
+}
+
+// RemainingArgs returns a list of remaining arguments for the given command.
+func RemainingArgs(s kingpin.Settings) (target *[]string) {
+	target = new([]string)
+	s.SetValue((*RemainingArgsList)(target))
+	return
 }

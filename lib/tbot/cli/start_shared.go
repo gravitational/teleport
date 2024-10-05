@@ -29,7 +29,6 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -38,16 +37,14 @@ import (
 type sharedStartArgs struct {
 	ProxyServer     string
 	JoinMethod      string
-	Insecure        bool
 	Token           string
 	CAPins          []string
 	CertificateTTL  time.Duration
 	RenewalInterval time.Duration
 	Storage         string
 
-	LogFormat string
-	Oneshot   bool
-	DiagAddr  string
+	Oneshot  bool
+	DiagAddr string
 }
 
 // newSharedStartArgs initializes shared arguments on the given parent command.
@@ -59,39 +56,24 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
 
-	cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&args.ProxyServer)
-	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&args.Token)
+	cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(ProxyServerEnvVar).StringVar(&args.ProxyServer)
+	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
 	cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&args.RenewalInterval)
-	cmd.Flag("insecure", "Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.").BoolVar(&args.Insecure)
 	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, config.SupportedJoinMethods...)
 	cmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
-	cmd.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
-		Default(utils.LogFormatText).
-		EnumVar(&args.LogFormat, utils.LogFormatJSON, utils.LogFormatText)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
 
 	return args
 }
 
 func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) error {
-	// TODO: Weird flags that need to be addressed:
-	// - Debug
-	// - FIPS
-	// - Insecure
+	// Note: Debug, FIPS, and Insecure are included from globals.
 
 	if s.Oneshot {
 		cfg.Oneshot = true
-	}
-
-	// TODO: in previous versions, `insecure` is handled _after_
-	// BotConfig.CheckAndSetDefaults(). This flag is checked and setting it here
-	// *will* cause a behavioral change, so make sure the new behavior is sane.
-	// (It is unclear why this was done.)
-	if s.Insecure {
-		cfg.Insecure = true
 	}
 
 	if s.ProxyServer != "" {

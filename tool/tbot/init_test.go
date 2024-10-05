@@ -30,9 +30,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
@@ -113,10 +115,23 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 }
 
 // testConfigFromString parses a YAML config file from a string.
-func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
-	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
+func testConfigFromString(t *testing.T, yamlStr string) *config.BotConfig {
+	// Load YAML to validate syntax.
+	cfg, err := config.ReadConfig(strings.NewReader(yamlStr), false)
 	require.NoError(t, err)
 	require.NoError(t, cfg.CheckAndSetDefaults())
+
+	// Reencode as a string
+	out := &strings.Builder{}
+	enc := yaml.NewEncoder(out)
+	enc.SetIndent(2)
+	err = enc.Encode(cfg)
+	require.NoError(t, err)
+
+	// Load and return the static config
+	globalArgs := cli.NewGlobalArgsWithStaticConfig(out.String())
+	cfg, err = cli.LoadConfigWithMutators(globalArgs)
+	require.NoError(t, err)
 
 	return cfg
 }

@@ -109,11 +109,11 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction) *Comma
 		action: action,
 		cmd:    parentCmd.Command("legacy", "Start with either a config file or a legacy output").Default(),
 	}
-	c.cmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(authServerEnvVar).StringVar(&c.AuthServer)
+	c.cmd.Flag("auth-server", "Address of the Teleport Auth Server. Prefer using --proxy-server where possible.").Short('a').Envar(AuthServerEnvVar).StringVar(&c.AuthServer)
 	c.cmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&c.DataDir)
 	c.cmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&c.DestinationDir)
-	c.cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(proxyServerEnvVar).StringVar(&c.ProxyServer)
-	c.cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&c.Token)
+	c.cmd.Flag("proxy-server", "Address of the Teleport Proxy Server.").Envar(ProxyServerEnvVar).StringVar(&c.ProxyServer)
+	c.cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&c.Token)
 	c.cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&c.CAPins)
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
@@ -144,10 +144,6 @@ func (c *CommandStartLegacy) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 	// - Debug
 	// - FIPS
 	// - Insecure
-
-	// if c.Debug {
-	// 	cfg.Debug = true
-	// }
 
 	if c.Oneshot {
 		cfg.Oneshot = true
@@ -273,6 +269,3 @@ func (c *CommandStartLegacy) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) 
 
 	return nil
 }
-
-// MutatorAction is an action that is called by a config mutator-style command.
-type MutatorAction func(mutator ConfigMutator) error

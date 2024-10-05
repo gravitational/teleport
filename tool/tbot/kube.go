@@ -33,6 +33,7 @@ import (
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -65,8 +66,11 @@ func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time)
 	return data, nil
 }
 
-func onKubeCredentialsCommand(ctx context.Context, cf *config.CLIConf) error {
-	cfg, err := config.FromCLIConf(cf)
+func onKubeCredentialsCommand(
+	ctx context.Context, globalCfg *cli.GlobalArgs,
+	kubeCredentialsCmd *cli.KubeCredentialsCommand,
+) error {
+	cfg, err := cli.LoadConfigWithMutators(globalCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
