@@ -223,64 +223,111 @@ describe('arrayObjectIsEqual correctly compares', () => {
 });
 
 describe('equalsDeep', () => {
-  it('compares primitive values', () => {
-    expect(equalsDeep(1, 2)).toBe(false);
-    expect(equalsDeep(2, 2)).toBe(true);
+  describe.each([false, true])('with ignoreUndefined=%s', ignoreUndefined => {
+    it('compares primitive values', () => {
+      expect(equalsDeep(1, 2, ignoreUndefined)).toBe(false);
+      expect(equalsDeep(2, 2, ignoreUndefined)).toBe(true);
+    });
+
+    it('compares simple objects', () => {
+      expect(equalsDeep({}, {}, ignoreUndefined)).toBe(true);
+      expect(
+        equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' }, ignoreUndefined)
+      ).toBe(false);
+      expect(
+        equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' }, ignoreUndefined)
+      ).toBe(true);
+    });
+
+    it('compares complex objects', () => {
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 5, d: [2, { e: 'f' }] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [5, { e: 'f' }] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }, 3] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'z' }] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', z: 1, d: [2, { e: 'f' }] },
+          ignoreUndefined
+        )
+      ).toBe(false);
+
+      expect(
+        equalsDeep(
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          { a: 'b', c: 1, d: [2, { e: 'f' }] },
+          ignoreUndefined
+        )
+      ).toBe(true);
+    });
   });
 
-  it('compares simple objects', () => {
-    expect(equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' })).toBe(false);
-    expect(equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' })).toBe(true);
+  it("doesn't ignore undefined values", () => {
+    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 })).toBe(false);
+    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 })).toBe(false);
+    expect(equalsDeep({}, { a: undefined })).toBe(false);
+    // Corner case: The same number of fields.
+    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(
+      false
+    );
+    // And the same thing, but in the deep.
+    expect(
+      equalsDeep({ a: { b: undefined, c: 1 } }, { a: { c: 1, d: undefined } })
+    ).toBe(false);
   });
 
-  it('compares complex objects', () => {
+  it('ignores undefined values if requested', () => {
+    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 }, true)).toBe(true);
+    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 }, true)).toBe(true);
+    expect(equalsDeep({}, { a: undefined }, true)).toBe(true);
+    // Corner case: The same number of fields.
+    expect(
+      equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined }, true)
+    ).toBe(true);
+    // And the same thing, but in the deep.
     expect(
       equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 5, d: [2, { e: 'f' }] }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 1, d: [5, { e: 'f' }] }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 1, d: [2, { e: 'f' }, 3] }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 1, d: [2, { e: 'z' }] }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
-        { a: 'b', c: 1, d: [2, { e: 'f' }] }
-      )
-    ).toBe(false);
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', z: 1, d: [2, { e: 'f' }] }
-      )
-    ).toBe(false);
-
-    expect(
-      equalsDeep(
-        { a: 'b', c: 1, d: [2, { e: 'f' }] },
-        { a: 'b', c: 1, d: [2, { e: 'f' }] }
+        { a: { b: undefined, c: 1 } },
+        { a: { c: 1, d: undefined } },
+        true
       )
     ).toBe(true);
   });

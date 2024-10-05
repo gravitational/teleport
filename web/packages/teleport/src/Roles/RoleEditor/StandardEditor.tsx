@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonIcon, Flex, H3 } from 'design';
+import { Box, ButtonIcon, Flex, H3, LabelInput, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -36,10 +36,15 @@ import {
   StandardEditorModel,
   AccessSpecKind,
   AccessSpec,
+  ServerAccessSpec,
+  KubernetesAccessSpec,
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { LabelsInput } from 'teleport/components/LabelsInput';
+import { Label } from 'teleport/components/LabelsInput/LabelsInput';
+import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 
 type StandardEditorProps = {
   originalRole: RoleWithYaml;
@@ -50,6 +55,10 @@ type StandardEditorProps = {
   onChange?(s: StandardEditorModel): void;
 };
 
+/**
+ * A structured editor that represents a role with a series of UI controls, as
+ * opposed to a YAML text editor.
+ */
 export const StandardEditor = ({
   originalRole,
   standardEditorModel,
@@ -92,37 +101,37 @@ export const StandardEditor = ({
    * attempt, the only thing left to do is to set the `requiresReset` flag.
    */
   function resetForStandardEditor() {
-    onChange({
-      ...standardEditorModel,
-      isDirty: true,
-      roleModel: {
-        ...standardEditorModel.roleModel,
-        requiresReset: false,
-      },
+    handleChange({
+      ...standardEditorModel.roleModel,
+      requiresReset: false,
     });
   }
 
   function addAccessSpec(kind: AccessSpecKind) {
-    onChange({
-      ...standardEditorModel,
-      isDirty: true,
-      roleModel: {
-        ...standardEditorModel.roleModel,
-        accessSpecs: [...standardEditorModel.roleModel.accessSpecs, { kind }],
-      },
+    handleChange({
+      ...standardEditorModel.roleModel,
+      accessSpecs: [
+        ...standardEditorModel.roleModel.accessSpecs,
+        { kind, labels: [], logins: [] },
+      ],
     });
   }
 
   function removeAccessSpec(kind: AccessSpecKind) {
-    onChange({
-      ...standardEditorModel,
-      isDirty: true,
-      roleModel: {
-        ...standardEditorModel.roleModel,
-        accessSpecs: standardEditorModel.roleModel.accessSpecs.filter(
-          s => s.kind !== kind
-        ),
-      },
+    handleChange({
+      ...standardEditorModel.roleModel,
+      accessSpecs: standardEditorModel.roleModel.accessSpecs.filter(
+        s => s.kind !== kind
+      ),
+    });
+  }
+
+  function setAccessSpec(value: AccessSpec) {
+    handleChange({
+      ...standardEditorModel.roleModel,
+      accessSpecs: standardEditorModel.roleModel.accessSpecs.map(original =>
+        original.kind === value.kind ? value : original
+      ),
     });
   }
 
@@ -144,9 +153,11 @@ export const StandardEditor = ({
                 onChange={metadata => handleChange({ ...roleModel, metadata })}
               />
               {roleModel.accessSpecs.map(spec => (
-                <SpecSection
+                <AccessSpecSection
                   key={spec.kind}
-                  spec={spec}
+                  value={spec}
+                  isProcessing={isProcessing}
+                  onChange={value => setAccessSpec(value)}
                   onRemove={() => removeAccessSpec(spec.kind)}
                 />
               ))}
@@ -171,12 +182,12 @@ export const StandardEditor = ({
                   buttonProps={{
                     size: 'medium',
                     fill: 'filled',
-                    disabled: allowedSpecKinds.length === 0,
+                    disabled: isProcessing || allowedSpecKinds.length === 0,
                   }}
                 >
                   {allowedSpecKinds.map(kind => (
                     <MenuItem key={kind} onClick={() => addAccessSpec(kind)}>
-                      {specSectionTitles[kind]}
+                      {specSections[kind].title}
                     </MenuItem>
                   ))}
                 </MenuButton>
@@ -199,18 +210,21 @@ export const StandardEditor = ({
   );
 };
 
+type SectionProps<T> = {
+  value: T;
+  isProcessing: boolean;
+  onChange?(value: T): void;
+};
+
 const MetadataSection = ({
   value,
   isProcessing,
   onChange,
-}: {
-  value: MetadataModel;
-  isProcessing: boolean;
-  onChange: (m: MetadataModel) => void;
-}) => (
+}: SectionProps<MetadataModel>) => (
   <Section
     title="Role Metadata"
     tooltip="Basic information about the role resource"
+    isProcessing={isProcessing}
   >
     <FieldInput
       label="Role Name"
@@ -235,16 +249,22 @@ const MetadataSection = ({
   </Section>
 );
 
+/**
+ * A wrapper for editor section. Its responsibility is rendering a header,
+ * expanding, collapsing, and removing the section.
+ */
 const Section = ({
   title,
   tooltip,
   children,
   removable,
+  isProcessing,
   onRemove,
 }: React.PropsWithChildren<{
   title: string;
-  tooltip?: string;
+  tooltip: string;
   removable?: boolean;
+  isProcessing: boolean;
   onRemove?(): void;
 }>) => {
   const theme = useTheme();
@@ -274,7 +294,11 @@ const Section = ({
             borderColor={theme.colors.interactive.tonal.neutral[0].background}
           >
             <HoverTooltip tipContent="Remove section">
-              <ButtonIcon aria-label="Remove section" onClick={onRemove}>
+              <ButtonIcon
+                aria-label="Remove section"
+                disabled={isProcessing}
+                onClick={onRemove}
+              >
                 <Icon.Trash
                   size="small"
                   color={
@@ -308,25 +332,89 @@ const Section = ({
  */
 const allAccessSpecKinds: AccessSpecKind[] = ['kube_cluster', 'node'];
 
-const specSectionTitles: Record<AccessSpecKind, string> = {
-  kube_cluster: 'Kubernetes',
-  node: 'Servers',
+/** Maps access specification kind to UI component configuration. */
+const specSections: Record<
+  AccessSpecKind,
+  {
+    title: string;
+    tooltip: string;
+    component: React.ComponentType<SectionProps<unknown>>;
+  }
+> = {
+  kube_cluster: {
+    title: 'Kubernetes',
+    tooltip: 'Configures access to Kubernetes clusters',
+    component: KubernetesAccessSpecSection,
+  },
+  node: {
+    title: 'Servers',
+    tooltip: 'Configures access to SSH servers',
+    component: ServerAccessSpecSection,
+  },
 };
 
-const SpecSection = <T extends AccessSpec>({
-  spec,
+/**
+ * A generic access spec section. Details are rendered by components from the
+ * `specSections` map.
+ */
+const AccessSpecSection = <T extends AccessSpec>({
+  value,
+  isProcessing,
+  onChange,
   onRemove,
-}: {
-  spec: T;
-  onChange?(value: T): void;
+}: SectionProps<T> & {
   onRemove?(): void;
-}) => (
-  <Section
-    title={specSectionTitles[spec.kind]}
-    removable
-    onRemove={onRemove}
-  ></Section>
-);
+}) => {
+  const { component: Body, title, tooltip } = specSections[value.kind];
+  return (
+    <Section
+      title={title}
+      removable
+      onRemove={onRemove}
+      tooltip={tooltip}
+      isProcessing={isProcessing}
+    >
+      <Body value={value} isProcessing={isProcessing} onChange={onChange} />
+    </Section>
+  );
+};
+
+export function ServerAccessSpecSection({
+  value,
+  isProcessing,
+  onChange,
+}: SectionProps<ServerAccessSpec>) {
+  return (
+    <>
+      <Text typography="body3" mb={1}>
+        Labels
+      </Text>
+      <LabelsInput
+        disableBtns={isProcessing}
+        labels={value.labels}
+        setLabels={labels => onChange?.({ ...value, labels })}
+      />
+      <FieldSelectCreatable
+        isMulti
+        label="Logins"
+        isDisabled={isProcessing}
+        formatCreateLabel={label => `Login: ${label}`}
+        components={{
+          DropdownIndicator: null,
+        }}
+        value={value.logins}
+        onChange={logins => onChange?.({ ...value, logins })}
+        mt={3}
+        mb={0}
+      />
+    </>
+  );
+}
+
+function KubernetesAccessSpecSection(_: SectionProps<KubernetesAccessSpec>) {
+  // TODO(bl-nero): add the Kubernetes section
+  return null;
+}
 
 export const EditorWrapper = styled(Box)<{ mute?: boolean }>`
   opacity: ${p => (p.mute ? 0.4 : 1)};

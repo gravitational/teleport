@@ -1,14 +1,18 @@
 import { render, screen, userEvent } from 'design/utils/testing';
 import React, { useState } from 'react';
-import { StandardEditor } from './StandardEditor';
+import { ServerAccessSpecSection, StandardEditor } from './StandardEditor';
 import {
   newRole,
+  RoleEditorModel,
   roleToRoleEditorModel,
+  ServerAccessSpec,
   StandardEditorModel,
 } from './standardmodel';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { within } from '@testing-library/react';
+import Validation from 'shared/components/Validation';
+import selectEvent from 'react-select-event';
 
 const TestStandardEditor = () => {
   const ctx = createTeleportContext();
@@ -77,3 +81,55 @@ const getAllSectionNames = () =>
 
 const getSectionByName = (name: string) =>
   screen.getByRole('heading', { level: 3, name }).closest('section');
+
+const TestServerAccessSpecsSection = ({
+  onChange,
+}: {
+  onChange(spec: ServerAccessSpec): void;
+}) => {
+  const [model, setModel] = useState<ServerAccessSpec>({
+    kind: 'node',
+    labels: [],
+    logins: [],
+  });
+  return (
+    <Validation>
+      <ServerAccessSpecSection
+        value={model}
+        onChange={spec => {
+          setModel(spec);
+          onChange(spec);
+        }}
+      />
+    </Validation>
+  );
+};
+
+test('editing server access specs', async () => {
+  const user = userEvent.setup();
+  const onChange = jest.fn();
+  render(<TestServerAccessSpecsSection onChange={onChange} />);
+  await user.click(screen.getByRole('button', { name: 'Add a Label' }));
+  await user.type(screen.getByPlaceholderText('label key'), 'some-key');
+  await user.type(screen.getByPlaceholderText('label value'), 'some-value');
+  await selectEvent.create(screen.getByLabelText('Logins'), 'root', {
+    createOptionText: 'Login: root',
+  });
+  await selectEvent.create(screen.getByLabelText('Logins'), 'some-user', {
+    createOptionText: 'Login: some-user',
+  });
+
+  expect(onChange).toHaveBeenLastCalledWith({
+    kind: 'node',
+    labels: [{ name: 'some-key', value: 'some-value' }],
+    logins: [newOptionFor('root'), newOptionFor('some-user')],
+  } as ServerAccessSpec);
+});
+
+const newOptionFor = (value: string) => ({
+  label: value,
+  value,
+  // This one is silently added by React Select to all newly created options.
+  // Surprise!
+  __isNew__: true,
+});

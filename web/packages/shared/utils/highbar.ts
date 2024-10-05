@@ -68,9 +68,16 @@ export function arrayObjectIsEqual(arr1: unknown[], arr2: unknown[]): boolean {
   );
 }
 
-/** Recursively compares two values. */
-export function equalsDeep(val1: unknown, val2: unknown) {
-  if (!isObject(val1)) {
+/**
+ * Recursively compares two values. If `ignoreUndefined` is set to `true`,
+ * treats fields set to `undefined` as equal to fields that don't exist at all.
+ */
+export function equalsDeep(
+  val1: unknown,
+  val2: unknown,
+  ignoreUndefined?: boolean
+) {
+  if (!isObject(val1) || !isObject(val2)) {
     return val1 === val2;
   }
 
@@ -78,23 +85,34 @@ export function equalsDeep(val1: unknown, val2: unknown) {
     return arrayObjectIsEqual(val1, val2);
   }
 
-  if (Object.keys(val1).length) {
-    if (Object.keys(val1).length !== Object.keys(val2).length) {
+  const obj1 = ignoreUndefined ? onlyDefined(val1) : val1;
+  const obj2 = ignoreUndefined ? onlyDefined(val2) : val2;
+
+  if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+    return false;
+  }
+  return Object.keys(obj1).every(key => {
+    // This check prevents a false positive where lengths of objects are the
+    // same, because there are equal numbers of undefined fields on both
+    // compared objects, but it just so happens that only differences are
+    // between undefined and missing fields.
+    if (!Object.hasOwn(obj2, key)) {
       return false;
     }
-    return Object.keys(val1).every(key => {
-      return equalsDeep(val1[key], val2[key]);
-    });
-  } else {
-    return true;
-  }
+    return equalsDeep(obj1[key], obj2[key], ignoreUndefined);
+  });
+}
+
+/** Returns an object with undefined fields filtered out. */
+function onlyDefined(obj: object): object {
+  return Object.fromEntries(Object.entries(obj).filter(([_, val]) => !!val));
 }
 
 export function isInteger(checkVal: any): boolean {
   return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
 }
 
-export function isObject(checkVal: unknown): boolean {
+export function isObject(checkVal: unknown): checkVal is object {
   const type = typeof checkVal;
   return checkVal != null && (type == 'object' || type == 'function');
 }
