@@ -795,8 +795,9 @@ func TestApplyConfig(t *testing.T) {
 			Labels:    map[string]string{types.OriginLabel: types.OriginConfigFile},
 		},
 		Spec: types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOptional,
+			Type:          constants.Local,
+			SecondFactor:  constants.SecondFactorOptional,
+			SecondFactors: types.SecondFactorsFromLegacySecondFactor(constants.SecondFactorOptional, true),
 			Webauthn: &types.Webauthn{
 				RPID: "goteleport.com",
 				AttestationAllowedCAs: []string{
