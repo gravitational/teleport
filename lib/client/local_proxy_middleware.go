@@ -21,8 +21,6 @@ package client
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -35,9 +33,9 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -392,7 +390,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 		return cert, nil
 	}
 
-	certKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	certKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,7 +404,7 @@ func (r *LocalCertGenerator) generateCert(host string) (*tls.Certificate, error)
 	subject.CommonName = host
 
 	certPem, err := certAuthority.GenerateCertificate(tlsca.CertificateRequest{
-		PublicKey: &certKey.PublicKey,
+		PublicKey: certKey.Public(),
 		Subject:   subject,
 		NotAfter:  certAuthority.Cert.NotAfter,
 		DNSNames:  []string{host},
