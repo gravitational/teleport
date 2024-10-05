@@ -325,16 +325,11 @@ func (c *AuthPreferenceV2) GetSecondFactor() constants.SecondFactorType {
 	}
 
 	// If SecondFactor isn't set, try to convert the new SecondFactors field.
-	return LegacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
+	return legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 }
 
-// SetSecondFactor sets the type of second factor.
-func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
-	c.Spec.SecondFactor = s
-}
-
-// LegacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
-func LegacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
+// legacySecondFactorFromSecondFactors returns a suitable legacy second factor for the given list of second factors.
+func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) constants.SecondFactorType {
 	hasOTP := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_OTP)
 	hasWebAuthn := slices.Contains(secondFactors, SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN)
 
@@ -348,6 +343,16 @@ func LegacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) const
 	default:
 		return constants.SecondFactorOff
 	}
+}
+
+// SetSecondFactor sets the type of second factor.
+func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
+	c.Spec.SecondFactor = s
+
+	// SecondFactors takes precedence, so if SecondFactor is being set we should
+	// unsetSecondFactors here. SecondFactors will still be derived from SecondFactor
+	// configuration and set by CheckAndSetDefaults.
+	c.Spec.SecondFactors = nil
 }
 
 // GetSecondFactors gets a list of supported second factors.
@@ -786,7 +791,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	case c.Spec.AllowPasswordless == nil:
 		c.Spec.AllowPasswordless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowPasswordless.Value:
-		return trace.BadParameter("missing required webauthn configuration for passwordless=true")
+		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
 	}
 
 	// Set/validate AllowHeadless. We need Webauthn first to do this properly.
@@ -794,7 +799,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	case c.Spec.AllowHeadless == nil:
 		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
 	case !hasWebauthn && c.Spec.AllowHeadless.Value:
-		return trace.BadParameter("missing required webauthn configuration for headless=true")
+		return trace.BadParameter("missing required Webauthn configuration for headless=true")
 	}
 
 	// Validate connector name for type=local.
@@ -870,7 +875,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 // String represents a human readable version of authentication settings.
 func (c *AuthPreferenceV2) String() string {
-	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactors=%q)", c.Spec.Type, c.GetSecondFactors())
+	return fmt.Sprintf("AuthPreference(Type=%q,SecondFactor=%q)", c.Spec.Type, c.GetSecondFactor())
 }
 
 // Clone returns a copy of the AuthPreference resource.
