@@ -5,19 +5,6 @@ import { Link as ReactRouterLink } from 'react-router-dom';
 import { Text, Link, Flex, Box, H2 } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
-import oktaIcon from 'design/assets/images/icons/okta.svg';
-import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
-import serviceNowIcon from 'design/assets/images/icons/servicenow.svg';
-import slackIcon from 'design/assets/images/icons/slack.svg';
-import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
-import emailIcon from 'design/assets/images/icons/email.svg';
-import jiraIcon from 'design/assets/images/icons/jira.svg';
-import discordIcon from 'design/assets/images/icons/discord.svg';
-import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
-import msteamsIcon from 'design/assets/images/icons/msteams.svg';
-import JamfIcon from 'design/assets/images/icons/jamf.svg';
-import entraIdIcon from 'design/assets/images/icons/entra-id.svg';
-import datadogIcon from 'design/assets/images/icons/datadog.svg';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelect } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
@@ -53,7 +40,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'slack',
     isOAuth: true,
     name: 'Slack',
-    icon: slackIcon,
+    icon: 'slack',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-slack/',
     fullName: 'Slack access request notifications',
     cloudHostable: true,
@@ -153,7 +140,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'okta',
     name: 'Okta',
-    icon: oktaIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
+    icon: 'okta',
     url: 'https://goteleport.com/docs/application-access/okta/guide/',
     cloudHostable: true,
     selfHostable: true,
@@ -395,7 +382,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'opsgenie',
     name: 'Opsgenie',
-    icon: opsgenieIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
+    icon: 'opsgenie',
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
     cloudHostable: true,
     selfHostable: true,
@@ -510,7 +497,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'jamf',
     name: 'Jamf',
-    icon: JamfIcon,
+    icon: 'jamf',
     url: 'https://goteleport.com/docs/access-controls/device-trust/jamf-integration/?scope=enterprise',
     cloudHostable: true,
     selfHostable: false,
@@ -632,7 +619,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'servicenow',
     name: 'ServiceNow',
-    icon: serviceNowIcon,
+    icon: 'servicenow',
     url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/',
     cloudHostable: true,
     selfHostable: true,
@@ -779,7 +766,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'jira',
     name: 'Jira',
     fullName: 'Jira access request management',
-    icon: jiraIcon,
+    icon: 'jira',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-jira',
     cloudHostable: true,
     selfHostable: true,
@@ -977,7 +964,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'pagerduty',
     name: 'PagerDuty',
-    icon: pagerdutyIcon,
+    icon: 'pagerduty',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
     fullName: 'PagerDuty access request management',
     cloudHostable: true,
@@ -1108,7 +1095,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'email',
     name: 'Email',
-    icon: emailIcon,
+    icon: 'email',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-email/',
     cloudHostable: false,
     selfHostable: true,
@@ -1117,7 +1104,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     type: 'discord',
     name: 'Discord',
     fullName: 'Discord access request notifications',
-    icon: discordIcon,
+    icon: 'discord',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-discord/',
     cloudHostable: true,
     selfHostable: false,
@@ -1190,7 +1177,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'mattermost',
     name: 'Mattermost',
-    icon: mattermostIcon,
+    icon: 'mattermost',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-mattermost/',
     fullName: 'Mattermost access request notifications',
     cloudHostable: true,
@@ -1339,7 +1326,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'msteams',
     name: 'Microsoft Teams',
-    icon: msteamsIcon,
+    icon: 'microsoftteams',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/',
     cloudHostable: false,
     selfHostable: true,
@@ -1347,7 +1334,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'entra-id',
     name: 'Microsoft Entra ID',
-    icon: entraIdIcon,
+    icon: 'entraid',
     url: '',
     fullName: 'Entra ID directory synchronization',
     cloudHostable: true,
@@ -1438,7 +1425,7 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
   {
     type: 'datadog',
     name: 'Datadog',
-    icon: datadogIcon,
+    icon: 'datadog',
     url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-datadog/',
     fullName: 'Datadog Incident Management',
     cloudHostable: true,

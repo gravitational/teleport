@@ -4,6 +4,7 @@ import { Attempt } from 'shared/hooks/useAttemptNext';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
 import { PluginKind } from 'teleport/services/integrations';
+import { ResourceIconName } from 'design/ResourceIcon';
 
 /**
  * View describes the UI for a single configuration
@@ -33,7 +34,7 @@ export type View = BaseView<{
 export type PluginBase = {
   type: PluginKind;
   name: string;
-  icon: string;
+  icon: ResourceIconName;
   url: string;
 
   // isOAuth describes a plugin that are authenticated

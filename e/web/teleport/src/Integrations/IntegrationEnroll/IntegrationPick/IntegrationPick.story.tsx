@@ -22,7 +22,13 @@ const onboardSupportPluginKinds: PluginKind[] = [
   'okta',
   'opsgenie',
   'jamf',
+  'servicenow',
+  'jira',
+  'pagerduty',
+  'discord',
+  'mattermost',
   'entra-id',
+  'datadog',
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
