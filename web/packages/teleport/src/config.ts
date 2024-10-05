@@ -374,7 +374,7 @@ const cfg = {
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
 
     gcpWorkforceConfigurePath:
-      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
