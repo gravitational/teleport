@@ -67,7 +67,7 @@ export function newRole(): Role {
     spec: {
       allow: {},
       deny: {},
-      options: defaultOptions,
+      options: defaultOptions(),
     },
     version: roleVersion,
   };
@@ -105,7 +105,7 @@ export function roleToRoleEditorModel(
         isEmpty(sRest) &&
         isEmpty(allow) &&
         isEmpty(deny) &&
-        equalsDeep(options, defaultOptions)
+        equalsDeep(options, defaultOptions())
       ),
   };
 }
@@ -133,7 +133,7 @@ export function roleEditorModelToRole(roleModel: RoleEditorModel): Role {
     spec: {
       allow: {},
       deny: {},
-      options: defaultOptions,
+      options: defaultOptions(),
     },
     version,
   };

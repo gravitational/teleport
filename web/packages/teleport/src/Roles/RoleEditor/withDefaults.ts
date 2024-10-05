@@ -56,27 +56,30 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
 
 const optionsWithDefaults = (
   options?: DeepPartial<RoleOptions>
-): RoleOptions => ({
-  ...defaultOptions,
-  ...options,
+): RoleOptions => {
+  const defaults = defaultOptions();
+  return {
+    ...defaults,
+    ...options,
 
-  idp: {
-    ...defaultOptions.idp,
-    ...options?.idp,
+    idp: {
+      ...defaults.idp,
+      ...options?.idp,
 
-    saml: {
-      ...defaultOptions.idp.saml,
-      ...options?.idp?.saml,
+      saml: {
+        ...defaults.idp.saml,
+        ...options?.idp?.saml,
+      },
     },
-  },
 
-  record_session: {
-    ...defaultOptions.record_session,
-    ...options?.record_session,
-  },
-});
+    record_session: {
+      ...defaults.record_session,
+      ...options?.record_session,
+    },
+  };
+};
 
-export const defaultOptions: RoleOptions = freezeDeep({
+export const defaultOptions = (): RoleOptions => ({
   cert_format: 'standard',
   create_db_user: false,
   create_desktop_user: false,

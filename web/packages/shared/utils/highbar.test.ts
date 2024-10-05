@@ -16,12 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  arrayObjectIsEqual,
-  equalsDeep,
-  freezeDeep,
-  mergeDeep,
-} from './highbar';
+import { arrayObjectIsEqual, equalsDeep, mergeDeep } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -227,39 +222,17 @@ describe('arrayObjectIsEqual correctly compares', () => {
   });
 });
 
-describe('freezeDeep', () => {
-  it('freezes an empty object', () => {
-    const obj: { foo?: any } = freezeDeep({});
-    expect(() => (obj.foo = 'bar')).toThrow();
-  });
-  it('freezes a flat object', () => {
-    const obj = freezeDeep({ foo: 'bar' });
-    expect(() => (obj.foo = '123')).toThrow();
-  });
-  it('freezes a deep object', () => {
-    const obj = freezeDeep({ foo: { bar: 'baz' } });
-    expect(() => (obj.foo = { bar: '123' })).toThrow();
-    expect(() => (obj.foo.bar = '123')).toThrow();
-  });
-  it('freezes arrays', () => {
-    const obj = freezeDeep({ foo: ['bar'] });
-    expect(() => obj.foo.push('123')).toThrow();
-  });
-  it('returns the argument', () => {
-    const obj = {};
-    expect(freezeDeep(obj)).toBe(obj);
-  });
-});
-
 describe('equalsDeep', () => {
   it('compares primitive values', () => {
     expect(equalsDeep(1, 2)).toBe(false);
     expect(equalsDeep(2, 2)).toBe(true);
   });
+
   it('compares simple objects', () => {
     expect(equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' })).toBe(false);
     expect(equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' })).toBe(true);
   });
+
   it('compares complex objects', () => {
     expect(
       equalsDeep(
@@ -310,5 +283,45 @@ describe('equalsDeep', () => {
         { a: 'b', c: 1, d: [2, { e: 'f' }] }
       )
     ).toBe(true);
+  });
+
+  // A "real-world" example.
+  it('compares role options', () => {
+    const makeOptions = () => ({
+      cert_format: 'standard',
+      create_db_user: false,
+      create_desktop_user: false,
+      desktop_clipboard: true,
+      desktop_directory_sharing: true,
+      enhanced_recording: ['command', 'network'],
+      forward_agent: false,
+      idp: {
+        saml: {
+          enabled: true,
+        },
+      },
+      max_session_ttl: '30h0m0s',
+      pin_source_ip: false,
+      port_forwarding: true,
+      record_session: {
+        default: 'best_effort',
+        desktop: true,
+      },
+      ssh_file_copy: true,
+    });
+
+    expect(equalsDeep(makeOptions(), makeOptions())).toBe(true);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        idp: { saml: { enabled: false } },
+      })
+    ).toBe(false);
+    expect(
+      equalsDeep(makeOptions(), {
+        ...makeOptions(),
+        unknown_option: 'foo',
+      })
+    ).toBe(false);
   });
 });

@@ -209,7 +209,7 @@ test('saving a new role', async () => {
       spec: {
         allow: {},
         deny: {},
-        options: defaultOptions,
+        options: defaultOptions(),
       },
       version: 'v7',
     },
