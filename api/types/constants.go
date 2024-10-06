@@ -1247,7 +1247,11 @@ var RequestableResourceKinds = []string{
 	KindSAMLIdPServiceProvider,
 }
 
-// KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
+// KubernetesResourcesKinds lists the supported Kubernetes resource kinds. This
+// is for the latest version of Role resources; roles whose version is set to
+// v6 or prior only support [KindKubePod].
+// This list needs to be kept in sync with `kubernetesResourceKindOptions` in
+// `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
@@ -1296,6 +1300,8 @@ const (
 )
 
 // KubernetesVerbs lists the supported Kubernetes verbs.
+// This list needs to be kept in sync with `kubernetesResourceVerbOptions` in
+// `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`.
 var KubernetesVerbs = []string{
 	Wildcard,
 	KubeVerbGet,

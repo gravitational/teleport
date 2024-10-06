@@ -3304,8 +3304,9 @@ message DatabasePermission {
 
 // KubernetesResource is the Kubernetes resource identifier.
 message KubernetesResource {
-  // Kind specifies the Kubernetes Resource type.
-  // At the moment only "pod" is supported.
+  // Kind specifies the Kubernetes Resource type. See
+  // `KubernetesResourcesKinds` in `api/types/constants.go` for the list of
+  // supported values.
   string Kind = 1 [(gogoproto.jsontag) = "kind,omitempty"];
   // Namespace is the resource namespace.
   // It supports wildcards.
