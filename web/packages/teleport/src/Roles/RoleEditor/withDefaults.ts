@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { freezeDeep, mergeDeep } from 'shared/utils/highbar';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import { Role, RoleOptions } from 'teleport/services/resources';
 
