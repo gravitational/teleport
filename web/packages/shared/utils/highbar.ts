@@ -105,7 +105,7 @@ export function equalsDeep(
 
 /** Returns an object with undefined fields filtered out. */
 function onlyDefined(obj: object): object {
-  return Object.fromEntries(Object.entries(obj).filter(([_, val]) => !!val));
+  return Object.fromEntries(Object.entries(obj).filter(entry => !!entry[1]));
 }
 
 export function isInteger(checkVal: any): boolean {

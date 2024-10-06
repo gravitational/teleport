@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { mergeDeep } from 'shared/utils/highbar';
-
 import { Role, RoleOptions } from 'teleport/services/resources';
 
 export type DeepPartial<T> = {
@@ -53,44 +51,6 @@ export const withDefaults = (role: DeepPartial<Role>): Role => ({
     options: optionsWithDefaults(role.spec?.options),
   },
 });
-
-export const withDefaults2 = (role: DeepPartial<Role>): Role =>
-  mergeDeep(
-    {
-      kind: 'role',
-      version: '',
-      metadata: {
-        name: '',
-      },
-      spec: {
-        allow: {},
-        deny: {},
-        options: {
-          cert_format: 'standard',
-          create_db_user: false,
-          create_desktop_user: false,
-          desktop_clipboard: true,
-          desktop_directory_sharing: true,
-          enhanced_recording: ['command', 'network'],
-          forward_agent: false,
-          idp: {
-            saml: {
-              enabled: true,
-            },
-          },
-          max_session_ttl: '30h0m0s',
-          pin_source_ip: false,
-          port_forwarding: true,
-          record_session: {
-            default: 'best_effort',
-            desktop: true,
-          },
-          ssh_file_copy: true,
-        },
-      },
-    },
-    role
-  );
 
 const optionsWithDefaults = (
   options?: DeepPartial<RoleOptions>

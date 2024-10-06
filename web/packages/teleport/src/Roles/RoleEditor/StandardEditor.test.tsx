@@ -1,18 +1,20 @@
 import { render, screen, userEvent } from 'design/utils/testing';
 import React, { useState } from 'react';
-import { ServerAccessSpecSection, StandardEditor } from './StandardEditor';
+
+import { within } from '@testing-library/react';
+import Validation from 'shared/components/Validation';
+import selectEvent from 'react-select-event';
+
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
 import {
   newRole,
-  RoleEditorModel,
   roleToRoleEditorModel,
   ServerAccessSpec,
   StandardEditorModel,
 } from './standardmodel';
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { within } from '@testing-library/react';
-import Validation from 'shared/components/Validation';
-import selectEvent from 'react-select-event';
+import { ServerAccessSpecSection, StandardEditor } from './StandardEditor';
 
 const TestStandardEditor = () => {
   const ctx = createTeleportContext();
@@ -34,7 +36,6 @@ const TestStandardEditor = () => {
 
 test('adding and removing sections', async () => {
   const user = userEvent.setup();
-  const ctx = createTeleportContext();
   render(<TestStandardEditor />);
   expect(getAllSectionNames()).toEqual(['Role Metadata']);
 
@@ -80,6 +81,8 @@ const getAllSectionNames = () =>
   screen.queryAllByRole('heading', { level: 3 }).map(m => m.textContent);
 
 const getSectionByName = (name: string) =>
+  // There's no better way to do it, unfortunately.
+  // eslint-disable-next-line testing-library/no-node-access
   screen.getByRole('heading', { level: 3, name }).closest('section');
 
 const TestServerAccessSpecsSection = ({
@@ -96,6 +99,7 @@ const TestServerAccessSpecsSection = ({
     <Validation>
       <ServerAccessSpecSection
         value={model}
+        isProcessing={false}
         onChange={spec => {
           setModel(spec);
           onChange(spec);

@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonIcon, Flex, H3, LabelInput, Text } from 'design';
+import { Box, ButtonIcon, Flex, H3, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -26,7 +26,13 @@ import * as Icon from 'design/Icon';
 import { HoverTooltip, ToolTipInfo } from 'shared/components/ToolTip';
 import styled, { useTheme } from 'styled-components';
 
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+
+import { FieldSelectCreatable } from 'shared/components/FieldSelect';
+
 import { Role, RoleWithYaml } from 'teleport/services/resources';
+
+import { LabelsInput } from 'teleport/components/LabelsInput';
 
 import {
   roleEditorModelToRole,
@@ -37,14 +43,9 @@ import {
   AccessSpecKind,
   AccessSpec,
   ServerAccessSpec,
-  KubernetesAccessSpec,
 } from './standardmodel';
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
-import { LabelsInput } from 'teleport/components/LabelsInput';
-import { Label } from 'teleport/components/LabelsInput/LabelsInput';
-import { FieldSelectCreatable } from 'shared/components/FieldSelect';
 
 type StandardEditorProps = {
   originalRole: RoleWithYaml;
@@ -411,7 +412,7 @@ export function ServerAccessSpecSection({
   );
 }
 
-function KubernetesAccessSpecSection(_: SectionProps<KubernetesAccessSpec>) {
+function KubernetesAccessSpecSection() {
   // TODO(bl-nero): add the Kubernetes section
   return null;
 }

@@ -1,11 +1,11 @@
-import { mergeDeep } from 'shared/utils/highbar';
+import { Role } from 'teleport/services/resources';
+
 import {
   RoleEditorModel,
   roleEditorModelToRole,
   roleToRoleEditorModel,
 } from './standardmodel';
-import { DeepPartial, withDefaults } from './withDefaults';
-import { Role } from 'teleport/services/resources';
+import { withDefaults } from './withDefaults';
 
 const minimalRole = () =>
   withDefaults({ metadata: { name: 'foobar' }, version: 'v7' });

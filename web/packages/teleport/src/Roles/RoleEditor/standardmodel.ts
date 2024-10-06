@@ -18,11 +18,13 @@
 
 import { equalsDeep } from 'shared/utils/highbar';
 
+import { Option } from 'shared/components/Select';
+
 import { Labels, Role, RoleConditions } from 'teleport/services/resources';
 
-import { defaultOptions } from './withDefaults';
 import { Label } from 'teleport/components/LabelsInput/LabelsInput';
-import { Option } from 'shared/components/Select';
+
+import { defaultOptions } from './withDefaults';
 
 export type StandardEditorModel = {
   roleModel: RoleEditorModel;
@@ -67,7 +69,7 @@ type AccessSpecBase<T extends AccessSpecKind> = {
   kind: T;
 };
 
-export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'> & {};
+export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'>;
 
 export type ServerAccessSpec = AccessSpecBase<'node'> & {
   labels: Label[];
