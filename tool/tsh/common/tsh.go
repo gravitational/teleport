@@ -1442,9 +1442,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case login.FullCommand():
 		err = onLogin(&cf)
 	case logout.FullCommand():
-		if err := refuseArgs(logout.FullCommand(), args); err != nil {
-			return trace.Wrap(err)
-		}
 		err = onLogout(&cf)
 	case show.FullCommand():
 		err = onShow(&cf)
@@ -4393,19 +4390,6 @@ func parseCertificateCompatibilityFlag(compatibility string, certificateFormat s
 	default:
 		return "", trace.BadParameter("--compat or --cert-format must be specified")
 	}
-}
-
-// refuseArgs helper makes sure that 'args' (list of CLI arguments)
-// does not contain anything other than command
-func refuseArgs(command string, args []string) error {
-	for _, arg := range args {
-		if arg == command || strings.HasPrefix(arg, "-") {
-			continue
-		} else {
-			return trace.BadParameter("unexpected argument: %s", arg)
-		}
-	}
-	return nil
 }
 
 // flattenIdentity reads an identity file and flattens it into a tsh profile on disk.
