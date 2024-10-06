@@ -294,7 +294,16 @@ function RoleEditorAdapter({
       borderColor={theme.colors.interactive.tonal.neutral[0].background}
       width="800px"
     >
-      {convertAttempt.status === 'processing' && <Indicator />}
+      {convertAttempt.status === 'processing' && (
+        <Flex
+          flexDirection="column"
+          alignItems="center"
+          justifyContent="center"
+          flex="1"
+        >
+          <Indicator />
+        </Flex>
+      )}
       {convertAttempt.status === 'error' && (
         <Danger>{convertAttempt.statusText}</Danger>
       )}
