@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { freezeDeep } from 'shared/utils/highbar';
-
 import { Role, RoleOptions } from 'teleport/services/resources';
 
 export type DeepPartial<T> = {
