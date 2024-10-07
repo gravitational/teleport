@@ -105,22 +105,19 @@ const isIamRoleNameValid = roleName => {
   );
 };
 
-const requiredIamRoleName: Rule = value => () => {
-  if (!value) {
-    return {
-      valid: false,
-      message: 'IAM role name required',
-    };
-  }
-
-  if (value.length > 64) {
+/**
+ * @param name validAwsIAMRoleName verifies if the given value is a
+ * valid AWS IAM role name.
+ */
+const validAwsIAMRoleName = (name: string): ValidationResult => {
+  if (name.length > 64) {
     return {
       valid: false,
       message: 'name should be <= 64 characters',
     };
   }
 
-  if (!isIamRoleNameValid(value)) {
+  if (!isIamRoleNameValid(name)) {
     return {
       valid: false,
       message: 'name can only contain characters @ = , . + - and alphanumerics',
@@ -130,6 +127,23 @@ const requiredIamRoleName: Rule = value => () => {
   return {
     valid: true,
   };
+};
+
+/**
+ * requiredIamRoleName is a required field and checks for a
+ * value which should also be a valid AWS IAM role name.
+ * @param name is a role name.
+ * @returns ValidationResult
+ */
+const requiredIamRoleName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM role name required',
+    };
+  }
+
+  return validAwsIAMRoleName(name);
 };
 
 /**
@@ -260,4 +274,5 @@ export {
   requiredEmailLike,
   requiredAll,
   requiredMatchingRoleNameAndRoleArn,
+  validAwsIAMRoleName,
 };
