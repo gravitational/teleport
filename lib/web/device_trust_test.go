@@ -71,6 +71,16 @@ func TestHandler_DeviceWebConfirm(t *testing.T) {
 			redirectURI:        "https://example.com",
 			expectedRedirectTo: "/web",
 		},
+		{
+			name:               "with relative path",
+			redirectURI:        "/custom/path",
+			expectedRedirectTo: "/web/custom/path",
+		},
+		{
+			name:               "with web prefix already",
+			redirectURI:        "/web/existing/path",
+			expectedRedirectTo: "/web/existing/path",
+		},
 	}
 
 	for _, test := range tests {
@@ -168,76 +178,4 @@ func (f *fakeDevicesClient) resetConfirmRequests() []*devicepb.ConfirmDeviceWebA
 	f.confirmDeviceRequests = nil
 
 	return reqs
-}
-
-func TestHandler_GetRedirectURL(t *testing.T) {
-	h := &Handler{}
-
-	tests := []struct {
-		name           string
-		redirectURI    string
-		expectedURL    string
-		expectedErrMsg string
-	}{
-		{
-			name:        "no redirect_uri",
-			redirectURI: "",
-			expectedURL: "/web",
-		},
-		{
-			name:        "with redirect_uri",
-			redirectURI: "https://example.com/web/custom/path",
-			expectedURL: "/web/custom/path",
-		},
-		{
-			name:        "with app access redirect_uri",
-			redirectURI: "https://example.com/web/launch/myapp.example.com",
-			expectedURL: "/web/launch/myapp.example.com",
-		},
-		{
-			name:           "with invalid redirect_uri",
-			redirectURI:    "://invalid",
-			expectedURL:    "/web",
-			expectedErrMsg: "parse \"://invalid\": missing protocol scheme",
-		},
-		{
-			name:        "with external redirect_uri",
-			redirectURI: "https://example.com/path",
-			expectedURL: "/web/path",
-		},
-		{
-			name:        "with empty path redirect_uri",
-			redirectURI: "https://example.com",
-			expectedURL: "/web",
-		},
-		{
-			name:        "with relative path",
-			redirectURI: "/custom/path",
-			expectedURL: "/web/custom/path",
-		},
-		{
-			name:        "with web prefix already",
-			redirectURI: "/web/existing/path",
-			expectedURL: "/web/existing/path",
-		},
-		{
-			name:        "with completely invalid URI",
-			redirectURI: "not a URI at all",
-			expectedURL: "/web/not a URI at all",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := h.getRedirectURL(tt.redirectURI)
-			assert.Equal(t, tt.expectedURL, result)
-
-			if tt.expectedErrMsg != "" {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErrMsg)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }

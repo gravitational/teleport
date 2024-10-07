@@ -97,13 +97,15 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 // getRedirectURL tries to parse the given redirectURI. It will always return a redirect url
 // even if the parse fails (in case of failture, the returned string is "/web")
 func (h *Handler) getRedirectURL(redirectURI string) (string, error) {
+	const basePath = "/web"
+
 	if redirectURI == "" {
-		return "/web", nil
+		return basePath, nil
 	}
 
 	parsedURL, err := url.Parse(redirectURI)
 	if err != nil {
-		return "/web", trace.Wrap(err)
+		return basePath, trace.Wrap(err)
 	}
 
 	cleanPath := path.Clean(parsedURL.Path)
@@ -115,8 +117,8 @@ func (h *Handler) getRedirectURL(redirectURI string) (string, error) {
 	}
 
 	// Prepend "/web" only if it's not already present
-	if !strings.HasPrefix(cleanPath, "/web") {
-		return path.Join("/web", cleanPath), nil
+	if !strings.HasPrefix(cleanPath, basePath) {
+		return path.Join(basePath, cleanPath), nil
 	}
 	return cleanPath, nil
 }
