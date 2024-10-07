@@ -709,9 +709,27 @@ message InstanceSpecV1 {
   // ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
   string ExternalUpgraderVersion = 8 [(gogoproto.jsontag) = "ext_upgrader_version,omitempty"];
 
-  // SystemClockDifference stores information about the system clock difference with auth service.
-  int64 SystemClockDifference = 9 [
-    (gogoproto.jsontag) = "system_clock_difference,omitempty",
+  // LastMeasurement stores information about the latest measurement between services.
+  SystemClockMeasurement LastMeasurement = 9;
+}
+
+// SystemClockMeasurement represents the measurement state of the systems clock difference.
+message SystemClockMeasurement {
+  // LocalClock is the time of the auth service.
+  google.protobuf.Timestamp LocalClock = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "local_clock,omitempty"
+  ];
+  // SystemClock is the time of the remote service.
+  google.protobuf.Timestamp SystemClock = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "system_clock,omitempty"
+  ];
+  // RequestDuration stores information about the request duration between auth and remote service.
+  int64 RequestDuration = 3 [
+    (gogoproto.jsontag) = "request_duration",
     (gogoproto.casttype) = "time.Duration"
   ];
 }

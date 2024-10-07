@@ -456,9 +456,9 @@ type instanceStateTracker struct {
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
 
-	// systemClockDifference is the last observed clock difference for this instance, might be used for
-	// next heartbeat for result propagation and caching.
-	systemClockDifference time.Duration
+	// pingResponse stores information about last system clock request to propagate this data in the
+	// next heartbeat request.
+	pingResponse pingResponse
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
@@ -534,7 +534,11 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.Upstream
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
-		SystemClockDifference:   i.systemClockDifference,
+		LastMeasurement: &types.SystemClockMeasurement{
+			LocalClock:      i.pingResponse.localClock,
+			SystemClock:     i.pingResponse.systemClock,
+			RequestDuration: i.pingResponse.reqDuration,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -625,6 +629,7 @@ type pingRequest struct {
 type pingResponse struct {
 	reqDuration time.Duration
 	systemClock time.Time
+	localClock  time.Time
 	err         error
 }
 
