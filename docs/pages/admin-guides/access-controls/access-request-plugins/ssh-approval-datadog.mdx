@@ -39,7 +39,7 @@ This guide will explain how to set up Teleport's Access Request plugin for Datad
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/10. Create Datadog team
+## Step 1/9. Create Datadog team
 
 To demonstrate the Datadog Incident Management plugin, create a team in Datadog.
 In the Datadog web UI, navigate to the **Teams** tab and click on **New Team** to
@@ -48,24 +48,24 @@ create a new Datadog team. Name it "Teleport Access".
 We will configure the Datadog Incident Management plugin to route certain access
 requests to the "Teleport Access" team.
 
-## Step 2/10. Define RBAC resources
+## Step 2/9. Define RBAC resources
 
 Before you set up the Datadog Incident Management plugin, you will need to enable
 Role Access Requests in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 3/10. Install the Teleport Datadog Incident Management plugin
+## Step 3/9. Install the Teleport Datadog Incident Management plugin
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="datadog"!)
 
-## Step 4/10. Create a user and role for the plugin
+## Step 4/9. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac-with-friendly-name.mdx!)
 
 (!/docs/pages/includes/plugins/rbac-impersonate.mdx!)
 
-## Step 5/10. Export the access plugin identity
+## Step 5/9. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -81,7 +81,7 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 6/10. Generate Datadog credentials
+## Step 6/9. Generate Datadog credentials
 
 The Access Request plugin for Datadog receives Access Request events from the Teleport
 Auth Service, formats them into Datadog incidents, and sends them to the Datadog
@@ -113,7 +113,7 @@ to create a new Application key. Copy the Application key to paste in a later st
 
 ![Datadog dashboard for Application Keys](../../../../img/enterprise/plugins/datadog/dashboard-application-keys.png)
 
-## Step 7/10. Configure the Teleport Datadog Incident Management plugin
+## Step 7/9. Configure the Teleport Datadog Incident Management plugin
 
 At this point, the Teleport Datadog Incident Management plugin has the credentials
 it needs to communicate with your Teleport cluster and the Datadog API. In this step,
@@ -268,7 +268,7 @@ roleToRecipients:
 </TabItem>
 </Tabs>
 
-## Step 8/10. Test your Datadog Incident Management plugin
+## Step 8/9. Test your Datadog Incident Management plugin
 
 Once Teleport is running and the plugin is configured, you can now run the plugin
 and test the workflow.
@@ -360,101 +360,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 9/10. Configure Automatic approvals
-
-To enable access request automatic approvals, you will need to set up an on-call
-schedule for your Datadog team. Navigate to **On-Call -> Teams** and click on
-**Set Up Team** to set up an on-call schedule for the "Teleport Access" team.
-
-Then, configure the Teleport `editor-requester` role and add the `datadog_auto_approvals`
-annotation. This annotation expects a list of Datadog team handle names that allow
-access request automatic approvals for that team. Add the "teleport-access" team
-to the annotation.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: editor-requester
-spec:
-  allow:
-    request:
-      annotations:
-        datadog_auto_approvals:
-        - teleport-access
-      roles: ['editor']
-      thresholds:
-        - approve: 1
-          deny: 1
-```
-
-You will also need to configure the `access-plugin` role to allow the role to
-review requests for the `editor` role.
-
-```yaml
-kind: role
-version: v5
-metadata:
-  name: access-plugin
-spec:
-  allow:
-    rules:
-      - resources: ['access_request']
-        verbs: ['list', 'read']
-      - resources: ['access_plugin_data']
-        verbs: ['update']
-
-      # In order to provide access list review reminders, permissions to list and read access lists
-      # are necessary. This is currently only supported for a subset of plugins.
-      - resources: ['access_list']
-        verbs: ['list', 'read']
-
-      # Optional: To display logins permitted by roles, the plugin also needs
-      # permission to read the role resource.
-      - resources: ['role']
-        verbs: ['read']
-
-    # Optional: To display user-friendly names in resource-based Access
-    # Requests instead of resource IDs, the plugin also needs permission
-    # to list the resources being requested. Include this along with the
-    # list-access-request-resources role definition.
-    review_requests:
-      preview_as_roles:
-        - list-access-request-resources
-      roles: ['editor']
-      where: 'contains(request.system_annotations["datadog_auto_approvals"], "teleport-access")
-```
-
-The `allow.review_requests.roles` field is allowing the plugin to only review requests
-for the `editor` role. The role is further restricted to only reviewing requests
-that contain the annotation `datadog_auto_approvals` with a value of `teleport-access`.
-
-You will need to refresh the access plugin identity after modifying the role.
-
-### Trigger an auto-approval
-
-To trigger an auto-approval, login to Teleport as the current on-call user in Datadog
-and create an Access Request for the `editor` role.
-
-You will see a log similar to the following on your Datadog Incident Management
-plugin host:
-
-```
-INFO   Successfully submitted a request approval
-datadog_user_email:myuser@example.com datadog_user_name:My User
-request_id:00000000-0000-0000-0000-000000000000 request_op:put
-request_state:PENDING datadog/app.go:511
-```
-
-You Access Request will appear as `APPROVED`:
-```code
-$ tsh requests ls
-ID                                   User               Roles     Created (UTC)       Status
------------------------------------- ------------------ --------- ------------------- --------
-00000000-0000-0000-0000-000000000000 myuser@example.com editor    12 Aug 22 18:30 UTC APPROVED
-```
-
-## Step 10/10. Set up systemd
+## Step 9/9. Set up systemd
 
 This section is only relevant if you are running the Teleport Datadog Incident Management
 plugin on a Linux host.
