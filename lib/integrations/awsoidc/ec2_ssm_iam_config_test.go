@@ -238,16 +238,16 @@ func TestEC2SSMIAMConfigOutput(t *testing.T) {
 	ctx := context.Background()
 	var buf bytes.Buffer
 	req := EC2SSMIAMConfigureRequest{
-		Region:                        "us-east-1",
-		IntegrationRole:               "integrationrole",
-		SSMDocumentName:               "MyDoc",
-		ProxyPublicURL:                "https://proxy.example.com",
-		ClusterName:                   "my-cluster",
-		IntegrationName:               "my-integration",
-		AccountID:                     "123456789012",
-		AutoConfirm:                   true,
-		stdout:                        &buf,
-		insecureSkipNameRandomization: true,
+		Region:                               "us-east-1",
+		IntegrationRole:                      "integrationrole",
+		SSMDocumentName:                      "MyDoc",
+		ProxyPublicURL:                       "https://proxy.example.com",
+		ClusterName:                          "my-cluster",
+		IntegrationName:                      "my-integration",
+		AccountID:                            "123456789012",
+		AutoConfirm:                          true,
+		stdout:                               &buf,
+		insecureSkipInstallPathRandomization: true,
 	}
 
 	clt := mockEC2SSMIAMConfigClient{
