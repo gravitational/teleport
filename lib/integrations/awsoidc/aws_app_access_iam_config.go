@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -45,6 +46,9 @@ type AWSAppAccessConfigureRequest struct {
 	// IntegrationRoleAWSAppAccessPolicy is the Policy Name that is created to allow access to call AWS APIs.
 	// Defaults to AWSAppAccess
 	IntegrationRoleAWSAppAccessPolicy string
+
+	// AccountID is the AWS Account ID.
+	AccountID string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -66,8 +70,14 @@ func (r *AWSAppAccessConfigureRequest) CheckAndSetDefaults() error {
 
 // AWSAppAccessConfigureClient describes the required methods to create the IAM Policies required for AWS App Access.
 type AWSAppAccessConfigureClient interface {
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
+}
+
+type defaultAWSAppAccessConfigureClient struct {
+	*iam.Client
+	CallerIdentityGetter
 }
 
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
@@ -89,7 +99,10 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 		cfg.Region = " "
 	}
 
-	return iam.NewFromConfig(cfg), nil
+	return &defaultAWSAppAccessConfigureClient{
+		Client:               iam.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
+	}, nil
 }
 
 // ConfigureAWSAppAccess set ups the roles required for AWS App Access.
@@ -100,6 +113,10 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 //   - iam:PutRolePolicy
 func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureClient, req AWSAppAccessConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := CheckAccountID(ctx, awsClient, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

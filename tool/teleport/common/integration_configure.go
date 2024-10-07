@@ -53,6 +53,7 @@ func onIntegrationConfDeployService(ctx context.Context, params config.Integrati
 	}
 
 	confReq := awsoidc.DeployServiceIAMConfigureRequest{
+		AccountID:       params.AccountID,
 		Cluster:         params.Cluster,
 		IntegrationName: params.Name,
 		Region:          params.Region,
@@ -66,7 +67,7 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	iamClient, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
+	clt, err := awsoidc.NewEICEIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -74,8 +75,9 @@ func onIntegrationConfEICEIAM(ctx context.Context, params config.IntegrationConf
 	confReq := awsoidc.EICEIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
 	}
-	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, iamClient, confReq))
+	return trace.Wrap(awsoidc.ConfigureEICEIAM(ctx, clt, confReq))
 }
 
 func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationConfEC2SSMIAM) error {
@@ -94,6 +96,7 @@ func onIntegrationConfEC2SSMIAM(ctx context.Context, params config.IntegrationCo
 		ProxyPublicURL:  params.ProxyPublicURL,
 		ClusterName:     params.ClusterName,
 		IntegrationName: params.IntegrationName,
+		AccountID:       params.AccountID,
 	}
 	return trace.Wrap(awsoidc.ConfigureEC2SSM(ctx, awsClt, confReq))
 }
@@ -109,6 +112,7 @@ func onIntegrationConfAWSAppAccessIAM(ctx context.Context, params config.Integra
 
 	confReq := awsoidc.AWSAppAccessConfigureRequest{
 		IntegrationRole: params.RoleName,
+		AccountID:       params.AccountID,
 	}
 	return trace.Wrap(awsoidc.ConfigureAWSAppAccess(ctx, iamClient, confReq))
 }
@@ -125,6 +129,7 @@ func onIntegrationConfEKSIAM(ctx context.Context, params config.IntegrationConfE
 	confReq := awsoidc.EKSIAMConfigureRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
 	}
 	return trace.Wrap(awsoidc.ConfigureEKSIAM(ctx, iamClient, confReq))
 }
@@ -146,6 +151,7 @@ func onIntegrationConfAWSOIDCIdP(ctx context.Context, clf config.CommandLineFlag
 		IntegrationName:    clf.IntegrationConfAWSOIDCIdPArguments.Name,
 		IntegrationRole:    clf.IntegrationConfAWSOIDCIdPArguments.Role,
 		ProxyPublicAddress: clf.IntegrationConfAWSOIDCIdPArguments.ProxyPublicURL,
+		AutoConfirm:        clf.IntegrationConfAWSOIDCIdPArguments.AutoConfirm,
 	}
 	return trace.Wrap(awsoidc.ConfigureIdPIAM(ctx, iamClient, confReq))
 }
@@ -155,22 +161,17 @@ func onIntegrationConfListDatabasesIAM(ctx context.Context, params config.Integr
 	// LogLevel at this point is set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	if params.Region == "" {
-		return trace.BadParameter("region is required")
-	}
-
-	cfg, err := awsConfig.LoadDefaultConfig(ctx, awsConfig.WithRegion(params.Region))
+	clt, err := awsoidc.NewListDatabasesIAMConfigureClient(ctx, params.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	iamClient := iam.NewFromConfig(cfg)
-
 	confReq := awsoidc.ConfigureIAMListDatabasesRequest{
 		Region:          params.Region,
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
 	}
-	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, iamClient, confReq))
+	return trace.Wrap(awsoidc.ConfigureListDatabasesIAM(ctx, clt, confReq))
 }
 
 func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.ExternalAuditStorageConfiguration) error {
@@ -178,6 +179,15 @@ func onIntegrationConfExternalAuditCmd(ctx context.Context, params easconfig.Ext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if params.AccountID != "" {
+		stsClient := sts.NewFromConfig(cfg)
+		err = awsoidc.CheckAccountID(ctx, stsClient, params.AccountID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if params.Bootstrap {
 		err = externalauditstorage.BootstrapInfra(ctx, externalauditstorage.BootstrapInfraParams{
 			Athena: athena.NewFromConfig(cfg),
@@ -211,15 +221,16 @@ func onIntegrationConfAccessGraphAWSSync(ctx context.Context, params config.Inte
 	// Ensure we print output to the user. LogLevel at this point was set to Error.
 	utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
 
-	iamClient, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
+	clt, err := awsoidc.NewAccessGraphIAMConfigureClient(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	confReq := awsoidc.AccessGraphAWSIAMConfigureRequest{
 		IntegrationRole: params.Role,
+		AccountID:       params.AccountID,
 	}
-	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, iamClient, confReq))
+	return trace.Wrap(awsoidc.ConfigureAccessGraphSyncIAM(ctx, clt, confReq))
 }
 
 func onIntegrationConfAzureOIDCCmd(ctx context.Context, params config.IntegrationConfAzureOIDC) error {

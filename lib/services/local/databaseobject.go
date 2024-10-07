@@ -72,12 +72,12 @@ const (
 	databaseObjectPrefix = "databaseObjectPrefix"
 )
 
-func NewDatabaseObjectService(backend backend.Backend) (*DatabaseObjectService, error) {
+func NewDatabaseObjectService(b backend.Backend) (*DatabaseObjectService, error) {
 	service, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*dbobjectv1.DatabaseObject]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindDatabaseObject,
-			BackendPrefix: databaseObjectPrefix,
+			BackendPrefix: backend.NewKey(databaseObjectPrefix),
 			//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
 			MarshalFunc: services.FastMarshalProtoResourceDeprecated[*dbobjectv1.DatabaseObject],
 			//nolint:staticcheck // SA1019. Using this unmarshaler for json compatibility.

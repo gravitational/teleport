@@ -33,6 +33,7 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 	baseReq := func() AccessGraphAWSIAMConfigureRequest {
 		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole: "integrationrole",
+			AccountID:       "123456789012",
 		}
 	}
 
@@ -49,9 +50,9 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 			expected: AccessGraphAWSIAMConfigureRequest{
 				IntegrationRole:          "integrationrole",
 				IntegrationRoleTAGPolicy: "AccessGraphSyncAccess",
+				AccountID:                "123456789012",
 			},
 		},
-
 		{
 			name: "missing integration role",
 			req: func() AccessGraphAWSIAMConfigureRequest {
@@ -60,6 +61,19 @@ func TestAccessGraphIAMConfigReqDefaults(t *testing.T) {
 				return req
 			},
 			errCheck: badParameterCheck,
+		},
+		{
+			name: "missing account id is ok",
+			req: func() AccessGraphAWSIAMConfigureRequest {
+				req := baseReq()
+				req.AccountID = ""
+				return req
+			},
+			errCheck: require.NoError,
+			expected: AccessGraphAWSIAMConfigureRequest{
+				IntegrationRole:          "integrationrole",
+				IntegrationRoleTAGPolicy: "AccessGraphSyncAccess",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -80,11 +94,13 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 	baseReq := func() AccessGraphAWSIAMConfigureRequest {
 		return AccessGraphAWSIAMConfigureRequest{
 			IntegrationRole: "integrationrole",
+			AccountID:       "123456789012",
 		}
 	}
 
 	for _, tt := range []struct {
 		name              string
+		mockAccountID     string
 		mockExistingRoles []string
 		req               func() AccessGraphAWSIAMConfigureRequest
 		errCheck          require.ErrorAssertionFunc
@@ -92,19 +108,29 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 		{
 			name:              "valid",
 			req:               baseReq,
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{"integrationrole"},
 			errCheck:          require.NoError,
 		},
 		{
 			name:              "integration role does not exist",
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{},
 			req:               baseReq,
 			errCheck:          notFoundCheck,
 		},
+		{
+			name:              "account does not match expected account",
+			req:               baseReq,
+			mockAccountID:     "222222222222",
+			mockExistingRoles: []string{"integrationrole"},
+			errCheck:          badParameterCheck,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockAccessGraphAWSAMConfigClient{
-				existingRoles: tt.mockExistingRoles,
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureAccessGraphSyncIAM(ctx, &clt, tt.req())
@@ -114,6 +140,7 @@ func TestAccessGraphAWSIAMConfig(t *testing.T) {
 }
 
 type mockAccessGraphAWSAMConfigClient struct {
+	CallerIdentityGetter
 	existingRoles []string
 }
 

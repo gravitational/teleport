@@ -200,7 +200,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		t.Cleanup(func() {
 			os.RemoveAll(testHome)
 		})
-		require.NoError(t, err)
+		require.ErrorIs(t, err, os.ErrExist)
 		require.NoFileExists(t, "/tmp/ignoreme")
 	})
 }
@@ -657,6 +657,21 @@ func TestRootStaticHostUsers(t *testing.T) {
 			},
 		},
 	})
+	goodLoginWithShell := utils.GenerateLocalUsername(t)
+	goodUserWithShell := userprovisioning.NewStaticHostUser(goodLoginWithShell, &userprovisioningpb.StaticHostUserSpec{
+		Matchers: []*userprovisioningpb.Matcher{
+			{
+				NodeLabels: []*labelv1.Label{
+					{
+						Name:   "foo",
+						Values: []string{"bar"},
+					},
+				},
+				Groups:       groups,
+				DefaultShell: "bash",
+			},
+		},
+	})
 	nonMatchingLogin := utils.GenerateLocalUsername(t)
 	nonMatchingUser := userprovisioning.NewStaticHostUser(nonMatchingLogin, &userprovisioningpb.StaticHostUserSpec{
 		Matchers: []*userprovisioningpb.Matcher{
@@ -691,24 +706,25 @@ func TestRootStaticHostUsers(t *testing.T) {
 	})
 
 	clt := instance.Process.GetAuthServer()
-	for _, hostUser := range []*userprovisioningpb.StaticHostUser{goodUser, nonMatchingUser, conflictingUser} {
+	for _, hostUser := range []*userprovisioningpb.StaticHostUser{goodUser, goodUserWithShell, nonMatchingUser, conflictingUser} {
 		_, err := clt.UpsertStaticHostUser(context.Background(), hostUser)
 		require.NoError(t, err)
 	}
 	t.Cleanup(func() { cleanupUsersAndGroups([]string{goodLogin, nonMatchingLogin, conflictingLogin}, groups) })
 
 	// Test that a node picks up new host users from the cache.
-	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, nonMatchingLogin, conflictingLogin, groups)
+	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
 	cleanupUsersAndGroups([]string{goodLogin, nonMatchingLogin, conflictingLogin}, groups)
 
 	require.NoError(t, instance.StopNodes())
 	_, err = instance.StartNode(nodeCfg)
 	require.NoError(t, err)
 	// Test that a new node picks up existing host users on startup.
-	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, nonMatchingLogin, conflictingLogin, groups)
+	testStaticHostUsers(t, nodeCfg.HostUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin, groups)
 
 	// Check that a deleted resource doesn't affect the host user.
 	require.NoError(t, clt.DeleteStaticHostUser(context.Background(), goodLogin))
+	require.NoError(t, clt.DeleteStaticHostUser(context.Background(), goodLoginWithShell))
 	var lookupErr error
 	var homeDirErr error
 	var sudoerErr error
@@ -722,7 +738,7 @@ func TestRootStaticHostUsers(t *testing.T) {
 		lookupErr, homeDirErr, sudoerErr)
 }
 
-func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, nonMatchingLogin, conflictingLogin string, groups []string) {
+func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, goodLoginWithShell, nonMatchingLogin, conflictingLogin string, groups []string) {
 	t.Cleanup(func() {
 		os.Remove(sudoersPath(goodLogin, nodeUUID))
 	})
@@ -746,6 +762,9 @@ func testStaticHostUsers(t *testing.T, nodeUUID, goodLogin, nonMatchingLogin, co
 		assert.Contains(collect, userGroups, types.TeleportStaticGroup)
 		// Check that the sudoers file was created.
 		assert.FileExists(collect, sudoersPath(goodLogin, nodeUUID))
+		userShells, err := getUserShells("/etc/passwd")
+		assert.NoError(collect, err)
+		assert.Equal(collect, "/usr/bin/bash", userShells[goodLoginWithShell])
 	}, 10*time.Second, time.Second)
 
 	// Check that the nonmatching and conflicting users were not created.

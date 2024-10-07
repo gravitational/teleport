@@ -71,6 +71,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
+				"awsAccountID":    []string{"123456789012"},
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"myRole"},
 				"taskRole":        []string{"taskRole"},
@@ -82,11 +83,13 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 				`--name=myintegration ` +
 				`--aws-region=us-east-1 ` +
 				`--role=myRole ` +
-				`--task-role=taskRole`,
+				`--task-role=taskRole ` +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
+				"awsAccountID":    []string{"123456789012"},
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"Test+1=2,3.4@5-6_7"},
 				"taskRole":        []string{"taskRole"},
@@ -98,11 +101,13 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 				`--name=myintegration ` +
 				`--aws-region=us-east-1 ` +
 				`--role=Test\+1=2,3.4\@5-6_7 ` +
-				`--task-role=taskRole`,
+				`--task-role=taskRole ` +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "missing aws-region",
 			reqQuery: url.Values{
+				"awsAccountID":    []string{"123456789012"},
 				"role":            []string{"myRole"},
 				"taskRole":        []string{"taskRole"},
 				"integrationName": []string{"myintegration"},
@@ -112,6 +117,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 		{
 			name: "missing role",
 			reqQuery: url.Values{
+				"awsAccountID":    []string{"123456789012"},
 				"awsRegion":       []string{"us-east-1"},
 				"taskRole":        []string{"taskRole"},
 				"integrationName": []string{"myintegration"},
@@ -121,6 +127,7 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 		{
 			name: "missing task role",
 			reqQuery: url.Values{
+				"awsAccountID":    []string{"123456789012"},
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"role"},
 				"integrationName": []string{"myintegration"},
@@ -130,19 +137,20 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 		{
 			name: "missing integration name",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"role"},
-				"taskRole":  []string{"taskRole"},
+				"awsAccountID": []string{"123456789012"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"role"},
+				"taskRole":     []string{"taskRole"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "trying to inject escape sequence into query params",
+			name: "missing account id",
 			reqQuery: url.Values{
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"role"},
 				"taskRole":        []string{"taskRole"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
+				"integrationName": []string{"myintegration"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -194,44 +202,59 @@ func TestBuildEICEConfigureIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"myRole"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eice-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=myRole",
+				"--role=myRole " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"Test+1=2,3.4@5-6_7"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"Test+1=2,3.4@5-6_7"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eice-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test\\+1=2,3.4\\@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "missing aws-region",
 			reqQuery: url.Values{
-				"role": []string{"myRole"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
+				"awsRegion":    []string{"us-east-1"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "trying to inject escape sequence into query params",
 			reqQuery: url.Values{
-				"awsRegion": []string{"'; rm -rf /tmp/dir; echo '"},
-				"role":      []string{"role"},
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -289,6 +312,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 				"role":            []string{"myRole"},
 				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
 				"integrationName": []string{"my-integration"},
+				"awsAccountID":    []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
@@ -297,7 +321,8 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
 				"--proxy-public-url=" + proxyPublicURL + " " +
 				"--cluster=localhost " +
-				"--name=my-integration",
+				"--name=my-integration " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "valid with symbols in role",
@@ -306,6 +331,7 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 				"role":            []string{"Test+1=2,3.4@5-6_7"},
 				"ssmDocument":     []string{"TeleportDiscoveryInstallerTest"},
 				"integrationName": []string{"my-integration"},
+				"awsAccountID":    []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure ec2-ssm-iam " +
@@ -314,38 +340,52 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 				"--ssm-document-name=TeleportDiscoveryInstallerTest " +
 				"--proxy-public-url=" + proxyPublicURL + " " +
 				"--cluster=localhost " +
-				"--name=my-integration",
+				"--name=my-integration " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "missing aws-region",
 			reqQuery: url.Values{
-				"role":        []string{"myRole"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"role":         []string{"myRole"},
+				"ssmDocument":  []string{"TeleportDiscoveryInstallerTest"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"us-east-1"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":    []string{"us-east-1"},
+				"ssmDocument":  []string{"TeleportDiscoveryInstallerTest"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing ssm document",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"myRole"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion":   []string{"us-east-1"},
+				"role":        []string{"myRole"},
+				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "trying to inject escape sequence into query params",
 			reqQuery: url.Values{
-				"awsRegion":   []string{"'; rm -rf /tmp/dir; echo '"},
-				"role":        []string{"role"},
-				"ssmDocument": []string{"TeleportDiscoveryInstallerTest"},
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"ssmDocument":  []string{"TeleportDiscoveryInstallerTest"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -472,44 +512,59 @@ func TestBuildEKSConfigureIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"myRole"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eks-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=myRole",
+				"--role=myRole " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"Test+1=2,3.4@5-6_7"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"Test+1=2,3.4@5-6_7"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure eks-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test\\+1=2,3.4\\@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "missing aws-region",
 			reqQuery: url.Values{
-				"role": []string{"myRole"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
+				"awsRegion":    []string{"us-east-1"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "trying to inject escape sequence into query params",
 			reqQuery: url.Values{
-				"awsRegion": []string{"'; rm -rf /tmp/dir; echo '"},
-				"role":      []string{"role"},
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
@@ -647,17 +702,6 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 			},
 			errCheck: isBadParamErrFn,
 		},
-		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"awsRegion":       []string{"us-east-1"},
-				"role":            []string{"role"},
-				"integrationName": []string{"'; rm -rf /tmp/dir; echo '"},
-				"s3Bucket":        []string{"my-bucket"},
-				"s3Prefix":        []string{"prefix"},
-			},
-			errCheck: isBadParamErrFn,
-		},
 	}
 
 	for _, tc := range tests {
@@ -706,44 +750,59 @@ func TestBuildListDatabasesConfigureIAMScript(t *testing.T) {
 		{
 			name: "valid",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"myRole"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure listdatabases-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=myRole",
+				"--role=myRole " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "valid with symbols in role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
-				"role":      []string{"Test+1=2,3.4@5-6_7"},
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"Test+1=2,3.4@5-6_7"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure listdatabases-iam " +
 				"--aws-region=us-east-1 " +
-				"--role=Test\\+1=2,3.4\\@5-6_7",
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-account-id=123456789012",
 		},
 		{
 			name: "missing aws-region",
 			reqQuery: url.Values{
-				"role": []string{"myRole"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing role",
 			reqQuery: url.Values{
-				"awsRegion": []string{"us-east-1"},
+				"awsRegion":    []string{"us-east-1"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "trying to inject escape sequence into query params",
 			reqQuery: url.Values{
-				"awsRegion": []string{"'; rm -rf /tmp/dir; echo '"},
-				"role":      []string{"role"},
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"awsAccountID": []string{"123456789012"},
 			},
 			errCheck: isBadParamErrFn,
 		},

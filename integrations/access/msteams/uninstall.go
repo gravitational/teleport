@@ -33,7 +33,7 @@ func Uninstall(ctx context.Context, configPath string) error {
 
 	var errs []error
 	for _, recipient := range c.Recipients.GetAllRawRecipients() {
-		_, isChannel := checkChannelURL(recipient)
+		_, isChannel := b.checkChannelURL(recipient)
 		if !isChannel {
 			errs = append(errs, b.UninstallAppForUser(ctx, recipient))
 		}

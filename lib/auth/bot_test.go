@@ -39,7 +39,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -670,10 +669,11 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 		nil /* clock */)
 	require.NoError(t, err)
 
+	log := utils.NewSlogLoggerForTests()
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
-		Log:                   logrus.StandardLogger(),
+		Log:                   log,
 		InsecureSkipTLSVerify: true,
 		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(tlsConfig.RootCAs),
 	})
@@ -683,7 +683,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 		TLS:         tlsConfig,
 		SSH:         sshConfig,
 		AuthServers: []utils.NetAddr{*addr},
-		Log:         logrus.StandardLogger(),
+		Log:         log,
 		Insecure:    true,
 		ProxyDialer: dialer,
 		DialOpts: []grpc.DialOption{

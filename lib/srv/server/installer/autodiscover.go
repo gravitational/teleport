@@ -28,7 +28,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -538,8 +538,8 @@ func fetchNodeAutoDiscoverLabels(ctx context.Context, imdsClient imds.Client) (m
 }
 
 // buildAbsoluteFilePath creates the absolute file path
-func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(filepath string) string {
-	return path.Join(ani.fsRootPrefix, filepath)
+func (ani *AutoDiscoverNodeInstaller) buildAbsoluteFilePath(path string) string {
+	return filepath.Join(ani.fsRootPrefix, path)
 }
 
 // linuxDistribution reads the current file system to detect the Linux Distro and Version of the current system.

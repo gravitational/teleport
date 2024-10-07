@@ -20,7 +20,7 @@ package tbot
 
 import (
 	"context"
-	"crypto/rsa"
+	"crypto"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -34,7 +34,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -95,7 +95,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 	jitter := retryutils.NewJitter()
 	var res *machineidv1pb.SignX509SVIDsResponse
-	var privateKey *rsa.PrivateKey
+	var privateKey crypto.Signer
 	var failures int
 	firstRun := make(chan struct{}, 1)
 	firstRun <- struct{}{}
@@ -160,7 +160,7 @@ func (s *SPIFFESVIDOutputService) Run(ctx context.Context) error {
 
 func (s *SPIFFESVIDOutputService) requestSVID(
 	ctx context.Context,
-) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"SPIFFESVIDOutputService/requestSVID",
@@ -208,7 +208,7 @@ func (s *SPIFFESVIDOutputService) render(
 	ctx context.Context,
 	bundleSet *spiffe.BundleSet,
 	res *machineidv1pb.SignX509SVIDsResponse,
-	privateKey *rsa.PrivateKey,
+	privateKey crypto.Signer,
 ) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -287,13 +287,15 @@ func generateSVID(
 	clt *authclient.Client,
 	reqs []config.SVIDRequest,
 	ttl time.Duration,
-) (*machineidv1pb.SignX509SVIDsResponse, *rsa.PrivateKey, error) {
+) (*machineidv1pb.SignX509SVIDsResponse, crypto.Signer, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"generateSVID",
 	)
 	defer span.End()
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := cryptosuites.GenerateKey(ctx,
+		cryptosuites.GetCurrentSuiteFromAuthPreference(clt),
+		cryptosuites.BotSVID)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
@@ -68,6 +69,8 @@ type EC2SSMIAMConfigureRequest struct {
 	// IntegrationName is the Teleport AWS OIDC Integration name.
 	// Used for resource tagging.
 	IntegrationName string
+	// AccountID is the AWS Account ID.
+	AccountID string
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -105,6 +108,8 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // EC2SSMConfigureClient describes the required methods to create the IAM Policies and SSM Document required for installing Teleport in EC2 instances.
 type EC2SSMConfigureClient interface {
+	CallerIdentityGetter
+
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 
@@ -115,6 +120,7 @@ type EC2SSMConfigureClient interface {
 type defaultEC2SSMConfigureClient struct {
 	*iam.Client
 	ssmClient *ssm.Client
+	CallerIdentityGetter
 }
 
 // CreateDocument creates a Amazon Web Services Systems Manager (SSM document).
@@ -134,8 +140,9 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 	}
 
 	return &defaultEC2SSMConfigureClient{
-		Client:    iam.NewFromConfig(cfg),
-		ssmClient: ssm.NewFromConfig(cfg),
+		Client:               iam.NewFromConfig(cfg),
+		ssmClient:            ssm.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -157,6 +164,10 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 // This SSM Document downloads and runs the Teleport Installer Script, which installs teleport in the target EC2 instance.
 func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMIAMConfigureRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

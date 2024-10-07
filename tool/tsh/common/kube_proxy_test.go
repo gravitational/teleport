@@ -27,7 +27,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -50,7 +50,7 @@ import (
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	// Set default kubeconfig to a non-exist file to avoid loading other things.
-	t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 	// Test "tsh proxy kube root-cluster1".
 	t.Run("with kube cluster arg", func(t *testing.T) {

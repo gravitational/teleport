@@ -36,19 +36,19 @@ const (
 	autoUpdateVersionPrefix = "auto_update_version"
 )
 
-// AutoupdateService is responsible for managing auto update configuration and version.
-type AutoupdateService struct {
+// AutoUpdateService is responsible for managing AutoUpdateConfig and AutoUpdateVersion singleton resources.
+type AutoUpdateService struct {
 	config  *generic.ServiceWrapper[*autoupdate.AutoUpdateConfig]
 	version *generic.ServiceWrapper[*autoupdate.AutoUpdateVersion]
 }
 
-// NewAutoupdateService returns a new AutoupdateService.
-func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
+// NewAutoUpdateService returns a new AutoUpdateService.
+func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	config, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateConfig]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateConfig,
-			BackendPrefix: autoUpdateConfigPrefix,
+			BackendPrefix: backend.NewKey(autoUpdateConfigPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateConfig],
 			ValidateFunc:  update.ValidateAutoUpdateConfig,
@@ -61,9 +61,9 @@ func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 	}
 	version, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateVersion]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateVersion,
-			BackendPrefix: autoUpdateVersionPrefix,
+			BackendPrefix: backend.NewKey(autoUpdateVersionPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateVersion],
 			ValidateFunc:  update.ValidateAutoUpdateVersion,
@@ -75,14 +75,14 @@ func NewAutoupdateService(backend backend.Backend) (*AutoupdateService, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &AutoupdateService{
+	return &AutoUpdateService{
 		config:  config,
 		version: version,
 	}, nil
 }
 
-// CreateAutoUpdateConfig creates an auto update configuration singleton.
-func (s *AutoupdateService) CreateAutoUpdateConfig(
+// CreateAutoUpdateConfig creates the AutoUpdateConfig singleton resource.
+func (s *AutoUpdateService) CreateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -90,8 +90,8 @@ func (s *AutoupdateService) CreateAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateConfig updates an auto update configuration singleton.
-func (s *AutoupdateService) UpdateAutoUpdateConfig(
+// UpdateAutoUpdateConfig updates the AutoUpdateConfig singleton resource.
+func (s *AutoUpdateService) UpdateAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -99,8 +99,8 @@ func (s *AutoupdateService) UpdateAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateConfig sets an auto update configuration.
-func (s *AutoupdateService) UpsertAutoUpdateConfig(
+// UpsertAutoUpdateConfig sets the AutoUpdateConfig singleton resource.
+func (s *AutoUpdateService) UpsertAutoUpdateConfig(
 	ctx context.Context,
 	c *autoupdate.AutoUpdateConfig,
 ) (*autoupdate.AutoUpdateConfig, error) {
@@ -108,19 +108,19 @@ func (s *AutoupdateService) UpsertAutoUpdateConfig(
 	return config, trace.Wrap(err)
 }
 
-// GetAutoUpdateConfig gets the auto update configuration from the backend.
-func (s *AutoupdateService) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
+// GetAutoUpdateConfig gets the AutoUpdateConfig singleton resource.
+func (s *AutoUpdateService) GetAutoUpdateConfig(ctx context.Context) (*autoupdate.AutoUpdateConfig, error) {
 	config, err := s.config.GetResource(ctx, types.MetaNameAutoUpdateConfig)
 	return config, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateConfig deletes the auto update configuration from the backend.
-func (s *AutoupdateService) DeleteAutoUpdateConfig(ctx context.Context) error {
+// DeleteAutoUpdateConfig deletes the AutoUpdateConfig singleton resource.
+func (s *AutoUpdateService) DeleteAutoUpdateConfig(ctx context.Context) error {
 	return trace.Wrap(s.config.DeleteResource(ctx, types.MetaNameAutoUpdateConfig))
 }
 
-// CreateAutoUpdateVersion creates an autoupdate version resource.
-func (s *AutoupdateService) CreateAutoUpdateVersion(
+// CreateAutoUpdateVersion creates the AutoUpdateVersion singleton resource.
+func (s *AutoUpdateService) CreateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -128,8 +128,8 @@ func (s *AutoupdateService) CreateAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// UpdateAutoUpdateVersion updates an autoupdate version resource.
-func (s *AutoupdateService) UpdateAutoUpdateVersion(
+// UpdateAutoUpdateVersion updates the AutoUpdateVersion singleton resource.
+func (s *AutoUpdateService) UpdateAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -137,8 +137,8 @@ func (s *AutoupdateService) UpdateAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// UpsertAutoUpdateVersion sets autoupdate version resource.
-func (s *AutoupdateService) UpsertAutoUpdateVersion(
+// UpsertAutoUpdateVersion sets the AutoUpdateVersion singleton resource.
+func (s *AutoUpdateService) UpsertAutoUpdateVersion(
 	ctx context.Context,
 	v *autoupdate.AutoUpdateVersion,
 ) (*autoupdate.AutoUpdateVersion, error) {
@@ -146,13 +146,13 @@ func (s *AutoupdateService) UpsertAutoUpdateVersion(
 	return version, trace.Wrap(err)
 }
 
-// GetAutoUpdateVersion gets the auto update version from the backend.
-func (s *AutoupdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
+// GetAutoUpdateVersion gets the AutoUpdateVersion singleton resource.
+func (s *AutoUpdateService) GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error) {
 	version, err := s.version.GetResource(ctx, types.MetaNameAutoUpdateVersion)
 	return version, trace.Wrap(err)
 }
 
-// DeleteAutoUpdateVersion deletes the auto update version from the backend.
-func (s *AutoupdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
+// DeleteAutoUpdateVersion deletes the AutoUpdateVersion singleton resource.
+func (s *AutoUpdateService) DeleteAutoUpdateVersion(ctx context.Context) error {
 	return trace.Wrap(s.version.DeleteResource(ctx, types.MetaNameAutoUpdateVersion))
 }

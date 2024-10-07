@@ -48,12 +48,17 @@ type certAuthorityGetter interface {
 
 // GenerateKnownHosts generates a known_hosts file for the provided cluster
 // names and proxy hosts.
+//
+// It produces:
+//   - A main known_hosts file that includes all the clusters, with each
+//     cluster's CA limited to the wildcard of the cluster's domain name.
+//   - A known_hosts file per cluster that will match any hostname.
 func GenerateKnownHosts(
 	ctx context.Context,
 	bot certAuthorityGetter,
 	clusterNames []string,
 	proxyHosts string,
-) (string, error) {
+) (string, map[string]string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
 		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
@@ -61,26 +66,41 @@ func GenerateKnownHosts(
 			DomainName: cn,
 		}, false)
 		if err != nil {
-			return "", trace.Wrap(err)
+			return "", nil, trace.Wrap(err)
 		}
 		certAuthorities = append(certAuthorities, ca)
 	}
 
+	perCluster := make(map[string]string)
 	var sb strings.Builder
 	for _, auth := range authclient.AuthoritiesToTrustedCerts(certAuthorities) {
 		pubKeys, err := auth.SSHCertPublicKeys()
 		if err != nil {
-			return "", trace.Wrap(err)
+			return "", nil, trace.Wrap(err)
 		}
 
+		var perClusterSB strings.Builder
+		fmt.Fprintf(
+			&perClusterSB,
+			"# Cluster specific known_hosts generated for cluster '%s'\n",
+			auth.ClusterName,
+		)
 		for _, pubKey := range pubKeys {
 			bytes := ssh.MarshalAuthorizedKey(pubKey)
 			fmt.Fprintf(&sb,
 				"@cert-authority %s,%s,*.%s %s type=host\n",
-				proxyHosts, auth.ClusterName, auth.ClusterName, strings.TrimSpace(string(bytes)),
+				proxyHosts,
+				auth.ClusterName,
+				auth.ClusterName,
+				strings.TrimSpace(string(bytes)),
+			)
+			fmt.Fprintf(&perClusterSB,
+				"@cert-authority * %s type=host\n",
+				strings.TrimSpace(string(bytes)),
 			)
 		}
+		perCluster[auth.ClusterName] = perClusterSB.String()
 	}
 
-	return sb.String(), nil
+	return sb.String(), perCluster, nil
 }

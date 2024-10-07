@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -276,6 +277,8 @@ type CommandLineFlags struct {
 type IntegrationConfAccessGraphAWSSync struct {
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAzureOIDC contains the arguments of
@@ -307,6 +310,8 @@ type IntegrationConfDeployServiceIAM struct {
 	Role string
 	// TaskRole is the AWS Role to be used by the deployed service.
 	TaskRole string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEICEIAM contains the arguments of
@@ -316,6 +321,8 @@ type IntegrationConfEICEIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAWSAppAccessIAM contains the arguments of
@@ -323,6 +330,8 @@ type IntegrationConfEICEIAM struct {
 type IntegrationConfAWSAppAccessIAM struct {
 	// RoleName is the AWS Role associated with the Integration
 	RoleName string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEC2SSMIAM contains the arguments of
@@ -345,6 +354,8 @@ type IntegrationConfEC2SSMIAM struct {
 	// IntegrationName is the Teleport AWS OIDC Integration name.
 	// Used for resource tagging.
 	IntegrationName string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfEKSIAM contains the arguments of
@@ -354,6 +365,8 @@ type IntegrationConfEKSIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // IntegrationConfAWSOIDCIdP contains the arguments of
@@ -368,6 +381,8 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
@@ -377,6 +392,8 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -754,6 +771,8 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
+	// We'll want to deduplicate the logic next time we refactor the logging setup
 	logger := log.StandardLogger()
 
 	var w io.Writer
@@ -2531,6 +2550,20 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				!cfg.Auth.SessionRecordingConfig.GetProxyChecksHostKeys() {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
+		}
+	}
+
+	if cfg.Auth.Preference.Origin() != types.OriginDefaults {
+		// Only check the signature algorithm suite if the auth preference was
+		// actually set in the config file. If it wasn't set and the default is
+		// used, the algorithm suite will be overwritten in initializeAuthPreference
+		// based on the FIPS and HSM settings, and any already persisted auth preference.
+		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
+			FIPS:          clf.FIPS,
+			UsingHSMOrKMS: cfg.Auth.KeyStore != (servicecfg.KeystoreConfig{}),
+			Cloud:         modules.GetModules().Features().Cloud,
+		}); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

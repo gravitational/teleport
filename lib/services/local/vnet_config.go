@@ -44,12 +44,12 @@ type VnetConfigService struct {
 }
 
 // NewVnetConfigService returns a new VnetConfig storage service.
-func NewVnetConfigService(backend backend.Backend) (*VnetConfigService, error) {
+func NewVnetConfigService(b backend.Backend) (*VnetConfigService, error) {
 	svc, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*vnet.VnetConfig]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindVnetConfig,
-			BackendPrefix: vnetConfigPrefix,
+			BackendPrefix: backend.NewKey(vnetConfigPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*vnet.VnetConfig],
 			UnmarshalFunc: services.UnmarshalProtoResource[*vnet.VnetConfig],
 			ValidateFunc:  validateVnetConfig,

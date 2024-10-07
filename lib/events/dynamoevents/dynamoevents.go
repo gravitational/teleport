@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"math"
 	"net/http"
@@ -46,11 +47,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -205,8 +207,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 
 // Log is a dynamo-db backed storage of events
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
+	// logger is emits log messages
+	logger *slog.Logger
 	// Config is a backend configuration
 	Config
 	svc *dynamodb.Client
@@ -259,10 +261,8 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
-	})
-	l.Info("Initializing event backend.")
+	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
+	l.InfoContext(ctx, "Initializing event backend.")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -312,7 +312,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	b := &Log{
-		Entry:  l,
+		logger: l,
 		Config: cfg,
 		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
 	}
@@ -500,8 +500,7 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
 		return trace.BadParameter(err.Error())
 	}
-	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
-	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
@@ -518,7 +517,7 @@ func (l *Log) handleConditionError(ctx context.Context, err error, sessionID str
 	if err := l.putAuditEvent(context.WithValue(ctx, conflictHandledContextKey, true), sessionID, in); err != nil {
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}).Debug("Event index overwritten")
+	l.logger.InfoContext(ctx, "Event index overwritten.", "event_id", in.GetID(), "event_type", in.GetType())
 	return nil
 }
 
@@ -576,10 +575,11 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			l.
-				WithError(err).
-				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
-				Error("Conflict on event session_id and event_index")
+			l.logger.ErrorContext(ctx, "Conflict on event session_id and event_index",
+				"error", err,
+				"event_type", in.GetType(),
+				"session_id", sessionID,
+				"event_index", in.GetIndex())
 			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
 		}
 
@@ -702,6 +702,14 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 	return eventArr, lastKey, nil
 }
 
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
+}
+
 // ByTimeAndIndex sorts events by time
 // and if there are several session events with the same session by event index.
 type byTimeAndIndex []apievents.AuditEvent
@@ -820,15 +828,15 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	logger := l.WithFields(log.Fields{
-		"From":      fromUTC,
-		"To":        toUTC,
-		"Namespace": namespace,
-		"Filter":    filter,
-		"Limit":     limit,
-		"StartKey":  startKey,
-		"Order":     order,
-	})
+	logger := l.logger.With(
+		"from", fromUTC,
+		"to", toUTC,
+		"namespace", namespace,
+		"filter", filter,
+		"limit", limit,
+		"start_key", startKey,
+		"order", order,
+	)
 
 	ef := eventsFetcher{
 		log:        logger,
@@ -1112,14 +1120,14 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Waiting until table %q is created", tableName)
+	l.logger.InfoContext(ctx, "Waiting until table is created", "table", tableName)
 	waiter := dynamodb.NewTableExistsWaiter(l.svc)
 	err = waiter.Wait(ctx,
 		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
 		10*time.Minute,
 	)
 	if err == nil {
-		log.Infof("Table %q has been created", tableName)
+		l.logger.InfoContext(ctx, "Table has been created", "table", tableName)
 	}
 
 	return trace.Wrap(err)
@@ -1239,7 +1247,7 @@ type query interface {
 }
 
 type eventsFetcher struct {
-	log *log.Entry
+	log *slog.Logger
 	api query
 
 	totalSize  int
@@ -1380,12 +1388,12 @@ dateLoop:
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			l.log.WithFields(log.Fields{
-				"duration": time.Since(start),
-				"items":    len(out.Items),
-				"forward":  l.forward,
-				"iterator": l.checkpoint.Iterator,
-			}).Debugf("Query completed.")
+			l.log.DebugContext(ctx, "Query completed.",
+				"duration", time.Since(start),
+				"items", len(out.Items),
+				"forward", l.forward,
+				"iterator", l.checkpoint.Iterator,
+			)
 
 			hasLeft := func() bool {
 				return i+1 != len(l.dates)
@@ -1461,12 +1469,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l.log.WithFields(log.Fields{
-		"duration": time.Since(start),
-		"items":    len(out.Items),
-		"forward":  l.forward,
-		"iterator": l.checkpoint.Iterator,
-	}).Debugf("Query completed.")
+	l.log.DebugContext(ctx, "Query completed.",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"forward", l.forward,
+		"iterator", l.checkpoint.Iterator,
+	)
 
 	result, limitReached, err := l.processQueryOutput(out, nil)
 	if err != nil {
