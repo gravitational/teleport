@@ -16,57 +16,142 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Indicator, Box, Alert, Button, Link } from 'design';
+import React, { ComponentType, useCallback, useState } from 'react';
+import { Alert, Box, Button, Indicator, Link } from 'design';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import { useTeleport } from 'teleport';
+import { ExcludeUserField, User } from 'teleport/services/user';
+import { storageService } from 'teleport/services/storageService';
+import cfg from 'teleport/config';
+import auth from 'teleport/services/auth';
 
-import UserList from './UserList';
-import UserAddEdit from './UserAddEdit';
-import UserDelete from './UserDelete';
 import UserReset from './UserReset';
-import useUsers, { State, UsersContainerProps } from './useUsers';
+import UserDelete from './UserDelete';
+import UserAddEdit from './UserAddEdit';
+import UserList from './UserList';
 
-export function UsersContainer(props: UsersContainerProps) {
-  const state = useUsers(props);
-  return <Users {...state} />;
+interface InviteCollaboratorsProps {
+  onClose: (users?: User[]) => void;
+  open: boolean;
 }
 
-export function Users(props: State) {
-  const {
-    attempt,
-    users,
-    fetchRoles,
-    operation,
-    onStartCreate,
-    onStartDelete,
-    onStartEdit,
-    onStartReset,
-    showMauInfo,
-    onDismissUsersMauNotice,
-    onClose,
-    onCreate,
-    onUpdate,
-    onDelete,
-    onReset,
-    onStartInviteCollaborators,
-    onInviteCollaboratorsClose,
-    inviteCollaboratorsOpen,
-    InviteCollaborators,
-    EmailPasswordReset,
-    onEmailPasswordResetClose,
-  } = props;
+interface EmailPasswordResetProps {
+  onClose: () => void;
+  username: string;
+}
+
+interface UsersProps {
+  inviteCollaboratorsComponent?: ComponentType<InviteCollaboratorsProps>;
+  emailPasswordResetComponent?: ComponentType<EmailPasswordResetProps>;
+}
+
+enum OperationType {
+  None,
+  Create,
+  InviteCollaborators,
+  Edit,
+  Delete,
+  Reset,
+}
+
+interface OperationWithUser {
+  type:
+    | OperationType.Create
+    | OperationType.Edit
+    | OperationType.Delete
+    | OperationType.Reset
+    | OperationType.InviteCollaborators;
+  user: User;
+}
+
+interface OperationWithoutUser {
+  type: OperationType.None;
+}
+
+type Operation = OperationWithUser | OperationWithoutUser;
+
+export function Users(props: UsersProps) {
+  const ctx = useTeleport();
+
+  const queryClient = useQueryClient();
+
+  const [operation, setOperation] = useState<Operation>({
+    type: OperationType.None,
+  });
+
+  const [inviteCollaboratorsOpen, setInviteCollaboratorsOpen] = useState(false);
+
+  const { error, data, isPending, isError, isSuccess } = useQuery<
+    User[],
+    Error
+  >({
+    queryKey: ['users'],
+    queryFn: ({ signal }) => ctx.userService.fetchUsers(signal),
+  });
+
+  const onStartCreate = useCallback(() => {
+    setOperation({ type: OperationType.Create, user: { name: '', roles: [] } });
+  }, []);
+
+  const onStartEdit = useCallback((user: User) => {
+    setOperation({ type: OperationType.Edit, user });
+  }, []);
+
+  const onStartDelete = useCallback((user: User) => {
+    setOperation({ type: OperationType.Delete, user });
+  }, []);
+
+  const onStartReset = useCallback((user: User) => {
+    setOperation({ type: OperationType.Reset, user });
+  }, []);
+
+  const onStartInviteCollaborators = useCallback((user: User) => {
+    setOperation({ type: OperationType.InviteCollaborators, user });
+    setInviteCollaboratorsOpen(true);
+  }, []);
+
+  const onClose = useCallback(() => {
+    setOperation({ type: OperationType.None });
+  }, []);
+
+  const onDismissUsersMauNotice = useCallback(() => {
+    storageService.setUsersMAUAcknowledged();
+  }, []);
+
+  const onInviteCollaboratorsClose = useCallback(
+    (newUsers?: User[]) => {
+      if (newUsers && newUsers.length > 0) {
+        queryClient.setQueryData(['users'], (users: User[]) => [
+          ...newUsers,
+          ...users,
+        ]);
+      }
+
+      setInviteCollaboratorsOpen(false);
+      setOperation({ type: OperationType.None });
+    },
+    [queryClient]
+  );
+
+  const showMauInfo =
+    ctx.getFeatureFlags().billing &&
+    cfg.isUsageBasedBilling &&
+    !storageService.getUsersMauAcknowledged();
+
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Users</FeatureHeaderTitle>
-        {attempt.isSuccess && (
+        {isSuccess && (
           <>
-            {!InviteCollaborators && (
+            {!props.inviteCollaboratorsComponent && (
               <Button
                 intent="primary"
                 fill="border"
@@ -77,7 +162,7 @@ export function Users(props: State) {
                 Create New User
               </Button>
             )}
-            {InviteCollaborators && (
+            {props.inviteCollaboratorsComponent && (
               <Button
                 intent="primary"
                 fill="border"
@@ -95,7 +180,7 @@ export function Users(props: State) {
           </>
         )}
       </FeatureHeader>
-      {attempt.isProcessing && (
+      {isPending && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -134,51 +219,176 @@ export function Users(props: State) {
           .
         </Alert>
       )}
-      {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}
-      {attempt.isSuccess && (
+      {isError && <Alert kind="danger" children={error.message} />}
+      {isSuccess && (
         <UserList
-          users={users}
+          users={data}
           onEdit={onStartEdit}
           onDelete={onStartDelete}
           onReset={onStartReset}
         />
       )}
-      {(operation.type === 'create' || operation.type === 'edit') && (
-        <UserAddEdit
-          isNew={operation.type === 'create'}
-          fetchRoles={fetchRoles}
+      {operation.type !== OperationType.None && (
+        <UserOperations
+          emailPasswordResetComponent={props.emailPasswordResetComponent}
+          operation={operation}
           onClose={onClose}
-          onCreate={onCreate}
-          onUpdate={onUpdate}
-          user={operation.user}
         />
       )}
-      {operation.type === 'delete' && (
-        <UserDelete
-          onClose={onClose}
-          onDelete={onDelete}
-          username={operation.user.name}
-        />
-      )}
-      {operation.type === 'reset' && !EmailPasswordReset && (
-        <UserReset
-          onClose={onClose}
-          onReset={onReset}
-          username={operation.user.name}
-        />
-      )}
-      {operation.type === 'reset' && EmailPasswordReset && (
-        <EmailPasswordReset
-          onClose={onEmailPasswordResetClose}
-          username={operation.user.name}
-        />
-      )}
-      {InviteCollaborators && (
-        <InviteCollaborators
+      {props.inviteCollaboratorsComponent && (
+        <props.inviteCollaboratorsComponent
           open={inviteCollaboratorsOpen}
           onClose={onInviteCollaboratorsClose}
         />
       )}
     </FeatureBox>
+  );
+}
+
+interface UserOperationsProps {
+  operation: OperationWithUser;
+  onClose: () => void;
+  emailPasswordResetComponent: ComponentType<EmailPasswordResetProps> | null;
+}
+
+function UserOperations(props: UserOperationsProps) {
+  if (
+    props.operation.type === OperationType.Create ||
+    props.operation.type === OperationType.Edit
+  ) {
+    return <CreateOrEditUser {...props} />;
+  }
+
+  if (props.operation.type === OperationType.Delete) {
+    return <DeleteUser {...props} />;
+  }
+
+  if (props.operation.type === OperationType.Reset) {
+    if (props.emailPasswordResetComponent) {
+      return (
+        <props.emailPasswordResetComponent
+          onClose={props.onClose}
+          username={props.operation.user.name}
+        />
+      );
+    }
+
+    return <ResetUser {...props} />;
+  }
+
+  return null;
+}
+
+function CreateOrEditUser(props: UserOperationsProps) {
+  const ctx = useTeleport();
+
+  const queryClient = useQueryClient();
+
+  const create = useMutation({
+    mutationFn: async (user: User) => {
+      const webauthnResponse =
+        await auth.getWebauthnResponseForAdminAction(true);
+
+      const createdUser = await ctx.userService.createUser(
+        user,
+        ExcludeUserField.Traits,
+        webauthnResponse
+      );
+
+      const token = ctx.userService.createResetPasswordToken(
+        user.name,
+        'invite',
+        webauthnResponse
+      );
+
+      return { user: createdUser, token };
+    },
+    onSuccess({ user }) {
+      queryClient.setQueryData(['users'], (users: User[]) => [user, ...users]);
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: (user: User) =>
+      ctx.userService.updateUser(user, ExcludeUserField.Traits),
+    onSuccess(user) {
+      queryClient.setQueryData(['users'], (users: User[]) => [
+        user,
+        ...users.filter(u => u.name !== user.name),
+      ]);
+    },
+  });
+
+  const onCreate = useCallback(
+    async (user: User) => {
+      const { token } = await create.mutateAsync(user);
+
+      return token;
+    },
+    [create]
+  );
+  const onUpdate = useCallback(
+    (user: User) => update.mutateAsync(user),
+    [update]
+  );
+
+  return (
+    <UserAddEdit
+      isNew={props.operation.type === OperationType.Create}
+      onClose={props.onClose}
+      onCreate={onCreate}
+      onUpdate={onUpdate}
+      user={props.operation.user}
+    />
+  );
+}
+
+function DeleteUser(props: UserOperationsProps) {
+  const ctx = useTeleport();
+
+  const queryClient = useQueryClient();
+
+  const deleteUser = useMutation({
+    mutationFn: (name: string) => ctx.userService.deleteUser(name),
+    onSuccess(_, name) {
+      queryClient.setQueryData(['users'], (users: User[]) =>
+        users.filter(u => u.name !== name)
+      );
+    },
+  });
+
+  const onDelete = useCallback(
+    (name: string) => deleteUser.mutateAsync(name),
+    [deleteUser]
+  );
+
+  return (
+    <UserDelete
+      onClose={props.onClose}
+      onDelete={onDelete}
+      username={props.operation.user.name}
+    />
+  );
+}
+
+function ResetUser(props: UserOperationsProps) {
+  const ctx = useTeleport();
+
+  const resetPassword = useMutation({
+    mutationFn: (name: string) =>
+      ctx.userService.createResetPasswordToken(name, 'password'),
+  });
+
+  const onReset = useCallback(
+    (name: string) => resetPassword.mutateAsync(name),
+    [resetPassword]
+  );
+
+  return (
+    <UserReset
+      onClose={props.onClose}
+      onReset={onReset}
+      username={props.operation.user.name}
+    />
   );
 }

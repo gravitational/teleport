@@ -59,8 +59,8 @@ const service = {
     return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
-  fetchUsers() {
-    return api.get(cfg.getUsersUrl()).then(makeUsers);
+  fetchUsers(signal?: AbortSignal) {
+    return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
   },
 
   /**

@@ -18,217 +18,177 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { render, screen, userEvent } from 'design/utils/testing';
+import {
+  render,
+  screen,
+  testQueryClient,
+  userEvent,
+} from 'design/utils/testing';
 
-import { ContextProvider } from 'teleport';
+import { fireEvent, within } from '@testing-library/react';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
+import { server } from 'teleport/test/handlers/server';
+import { errorGetUsers, successGetUsers } from 'teleport/test/handlers/users';
+import cfg from 'teleport/config';
+import { storageService } from 'teleport/services/storageService';
 
 import { Users } from './Users';
-import { State } from './useUsers';
 
-describe('invite collaborators integration', () => {
+function MockInviteCollaborators() {
+  return <div data-testid="invite-collaborators">Invite Collaborators</div>;
+}
+
+beforeEach(() => server.listen());
+afterEach(() => {
+  server.resetHandlers();
+
+  return testQueryClient.resetQueries();
+});
+afterAll(() => server.close());
+
+test('displays the Create New User button when not configured', async () => {
+  server.use(successGetUsers([]));
+
   const ctx = createTeleportContext();
 
-  let props: State;
-  beforeEach(() => {
-    props = {
-      attempt: {
-        message: 'success',
-        isSuccess: true,
-        isProcessing: false,
-        isFailed: false,
-      },
-      users: [],
-      fetchRoles: async () => [],
-      operation: { type: 'invite-collaborators' },
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Users />
+      </ContextProvider>
+    </MemoryRouter>
+  );
 
-      onStartCreate: () => undefined,
-      onStartDelete: () => undefined,
-      onStartEdit: () => undefined,
-      onStartReset: () => undefined,
-      onStartInviteCollaborators: () => undefined,
-      onClose: () => undefined,
-      onDelete: () => undefined,
-      onCreate: () => undefined,
-      onUpdate: () => undefined,
-      onReset: () => undefined,
-      onInviteCollaboratorsClose: () => undefined,
-      InviteCollaborators: null,
-      inviteCollaboratorsOpen: false,
-      onEmailPasswordResetClose: () => undefined,
-      EmailPasswordReset: null,
-      showMauInfo: false,
-      onDismissUsersMauNotice: () => null,
-    };
-  });
+  await screen.findByPlaceholderText('Search...');
 
-  test('displays the Create New User button when not configured', async () => {
-    render(
-      <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
-      </MemoryRouter>
-    );
+  expect(screen.getByText('Create New User')).toBeInTheDocument();
+  expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
+});
 
-    expect(screen.getByText('Create New User')).toBeInTheDocument();
-    expect(screen.queryByText('Enroll Users')).not.toBeInTheDocument();
-  });
+test('displays the Enroll Users button when configured', async () => {
+  server.use(successGetUsers([]));
 
-  test('displays the Enroll Users button when configured', async () => {
-    const startMock = jest.fn();
-    props = {
-      ...props,
-      InviteCollaborators: () => (
-        <div data-testid="invite-collaborators">Invite Collaborators</div>
-      ),
-      onStartInviteCollaborators: startMock,
-    };
+  const ctx = createTeleportContext();
 
-    render(
-      <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
-      </MemoryRouter>
-    );
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Users inviteCollaboratorsComponent={MockInviteCollaborators} />
+      </ContextProvider>
+    </MemoryRouter>
+  );
 
-    const enrollButton = screen.getByText('Enroll Users');
-    expect(enrollButton).toBeInTheDocument();
-    expect(screen.queryByText('Create New User')).not.toBeInTheDocument();
+  await screen.findByPlaceholderText('Search...');
 
-    enrollButton.click();
-    expect(startMock.mock.calls).toHaveLength(1);
+  const enrollButton = screen.getByText('Enroll Users');
 
-    // This will display regardless since the dialog display is managed by the
-    // dialog itself, and our mock above is trivial, but we can make sure it
-    // renders.
-    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
-  });
+  expect(enrollButton).toBeInTheDocument();
+  expect(screen.queryByText('Create New User')).not.toBeInTheDocument();
+
+  fireEvent.click(enrollButton);
+
+  expect(screen.getByTestId('invite-collaborators')).toBeVisible();
 });
 
 test('Users not equal to MAU Notice', async () => {
-  const ctx = createTeleportContext();
-  let props: State;
+  server.use(successGetUsers([]));
 
-  props = {
-    attempt: {
-      message: 'success',
-      isSuccess: true,
-      isProcessing: false,
-      isFailed: false,
-    },
-    users: [],
-    fetchRoles: async () => [],
-    operation: { type: 'invite-collaborators' },
-    onStartCreate: () => undefined,
-    onStartDelete: () => undefined,
-    onStartEdit: () => undefined,
-    onStartReset: () => undefined,
-    onStartInviteCollaborators: () => undefined,
-    onClose: () => undefined,
-    onDelete: () => undefined,
-    onCreate: () => undefined,
-    onUpdate: () => undefined,
-    onReset: () => undefined,
-    onInviteCollaboratorsClose: () => undefined,
-    InviteCollaborators: null,
-    inviteCollaboratorsOpen: false,
-    onEmailPasswordResetClose: () => undefined,
-    EmailPasswordReset: null,
-    showMauInfo: true,
-    onDismissUsersMauNotice: jest.fn(),
-  };
+  const ctx = createTeleportContext();
+
+  const flags = ctx.getFeatureFlags();
+
+  jest.spyOn(ctx, 'getFeatureFlags').mockImplementation(() => {
+    return {
+      ...flags,
+      billing: true,
+    };
+  });
+
+  jest
+    .spyOn(storageService, 'getUsersMauAcknowledged')
+    .mockImplementation(() => false);
+
+  const originalIsUsageBasedBilling = cfg.isUsageBasedBilling;
+
+  cfg.isUsageBasedBilling = true;
 
   const user = userEvent.setup();
 
   render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
-        <Users {...props} />
+        <Users />
       </ContextProvider>
     </MemoryRouter>
   );
 
   expect(screen.getByTestId('users-not-mau-alert')).toBeInTheDocument();
+
   await user.click(screen.getByRole('button', { name: 'Dismiss' }));
-  expect(props.onDismissUsersMauNotice).toHaveBeenCalled();
+
   expect(screen.queryByTestId('users-not-mau-alert')).not.toBeInTheDocument();
+
+  cfg.isUsageBasedBilling = originalIsUsageBasedBilling;
 });
 
-describe('email password reset integration', () => {
+test('displays the traditional reset UI when not configured', async () => {
+  server.use(
+    successGetUsers([
+      {
+        authType: 'local',
+        name: 'test',
+        roles: ['admin'],
+        isBot: false,
+      },
+    ])
+  );
+
   const ctx = createTeleportContext();
 
-  let props: State;
-  beforeEach(() => {
-    props = {
-      attempt: {
-        message: 'success',
-        isSuccess: true,
-        isProcessing: false,
-        isFailed: false,
-      },
-      users: [],
-      fetchRoles: () => Promise.resolve([]),
-      operation: {
-        type: 'reset',
-        user: { name: 'alice@example.com', roles: ['foo'] },
-      },
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Users />
+      </ContextProvider>
+    </MemoryRouter>
+  );
 
-      onStartCreate: () => undefined,
-      onStartDelete: () => undefined,
-      onStartEdit: () => undefined,
-      onStartReset: () => undefined,
-      onStartInviteCollaborators: () => undefined,
-      onClose: () => undefined,
-      onDelete: () => undefined,
-      onCreate: () => undefined,
-      onUpdate: () => undefined,
-      onReset: () => undefined,
-      onInviteCollaboratorsClose: () => undefined,
-      InviteCollaborators: null,
-      inviteCollaboratorsOpen: false,
-      onEmailPasswordResetClose: () => undefined,
-      EmailPasswordReset: null,
-      showMauInfo: false,
-      onDismissUsersMauNotice: () => null,
-    };
+  await screen.findByPlaceholderText('Search...');
+
+  const table = screen.queryByRole('table');
+
+  expect(table).toBeInTheDocument();
+
+  const rows = within(table).getAllByRole('row');
+
+  const optionsButton = within(rows[1]).getByRole('button', {
+    name: 'Options',
   });
 
-  test('displays the traditional reset UI when not configured', async () => {
-    render(
-      <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
-      </MemoryRouter>
-    );
+  fireEvent.click(optionsButton);
 
-    expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
-    expect(screen.queryByText('New Reset UI')).not.toBeInTheDocument();
-  });
+  const editButton = screen.queryByText('Reset Authentication...');
 
-  test('displays the email-based UI when configured', async () => {
-    props = {
-      ...props,
-      InviteCollaborators: () => (
-        <div data-testid="new-reset-ui">New Reset UI</div>
-      ),
-    };
+  fireEvent.click(editButton);
 
-    render(
-      <MemoryRouter>
-        <ContextProvider ctx={ctx}>
-          <Users {...props} />
-        </ContextProvider>
-      </MemoryRouter>
-    );
+  expect(screen.getByText('Reset User Authentication?')).toBeInTheDocument();
+  expect(screen.queryByText('New Reset UI')).not.toBeInTheDocument();
+});
 
-    expect(screen.getByText('New Reset UI')).toBeInTheDocument();
+test('displays an error if the request fails', async () => {
+  server.use(errorGetUsers('An error occurred'));
 
-    // This will display regardless since the dialog display is managed by the
-    // dialog itself, and our mock above is trivial, but we can make sure it
-    // renders.
-    expect(screen.getByTestId('new-reset-ui')).toBeInTheDocument();
-  });
+  const ctx = createTeleportContext();
+
+  render(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Users />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByText('An error occurred')).toBeInTheDocument();
 });

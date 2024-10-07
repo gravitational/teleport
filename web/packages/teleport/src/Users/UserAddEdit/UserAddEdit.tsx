@@ -16,19 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { ButtonPrimary, ButtonSecondary, Alert, Box } from 'design';
+import React, { useCallback } from 'react';
+import { Alert, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import Dialog, {
-  DialogHeader,
-  DialogTitle,
   DialogContent,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from 'design/Dialog';
 import Validation from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
+
+import { useTeleport } from 'teleport';
 
 import UserTokenLink from './../UserTokenLink';
 import useDialog, { Props } from './useDialog';
@@ -41,11 +43,21 @@ export default function Container(props: Props) {
 }
 
 export function UserAddEdit(props: ReturnType<typeof useDialog>) {
+  const ctx = useTeleport();
+
+  const fetchRoles = useCallback(async (search: string) => {
+    const { items } = await ctx.resourceService.fetchRoles({
+      search,
+      limit: 50,
+    });
+
+    return items.map(r => r.name);
+  }, []);
+
   const {
     onChangeName,
     onChangeRoles,
     onClose,
-    fetchRoles,
     setConfiguredTraits,
     attempt,
     name,

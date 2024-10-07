@@ -19,54 +19,24 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { StoryObj } from '@storybook/react';
+
+import { delay } from 'msw';
+
+import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
+import {
+  errorGetUsers,
+  handleGetUsers,
+  successGetUsers,
+} from 'teleport/test/handlers/users';
+import cfg from 'teleport/config';
+
 import { Users } from './Users';
 
 export default {
   title: 'Teleport/Users',
-};
-
-export const Processing = () => {
-  const attempt = {
-    isProcessing: true,
-    isFailed: false,
-    isSuccess: false,
-    message: '',
-  };
-  return (
-    <MemoryRouter>
-      <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
-  );
-};
-
-export const Loaded = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} />
-    </MemoryRouter>
-  );
-};
-
-export const UsersNotEqualMauNotice = () => {
-  return (
-    <MemoryRouter>
-      <Users {...sample} showMauInfo={true} />
-    </MemoryRouter>
-  );
-};
-
-export const Failed = () => {
-  const attempt = {
-    isProcessing: false,
-    isFailed: true,
-    isSuccess: false,
-    message: 'some error message',
-  };
-  return (
-    <MemoryRouter>
-      <Users {...sample} attempt={attempt} />
-    </MemoryRouter>
-  );
 };
 
 const users = [
@@ -115,38 +85,80 @@ const users = [
   },
 ];
 
-const roles = ['admin', 'testrole'];
-
-const sample = {
-  attempt: {
-    isProcessing: false,
-    isFailed: false,
-    isSuccess: true,
-    message: '',
+export const Processing: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [handleGetUsers(async () => await delay('infinite'))],
+    },
   },
-  users: users,
-  fetchRoles: async (input: string) => roles.filter(r => r.includes(input)),
-  operation: {
-    type: 'none',
-    user: null,
-  } as any,
-  inviteCollaboratorsOpen: false,
-  emailPasswordResetOpen: false,
-  onStartCreate: () => null,
-  onStartDelete: () => null,
-  onStartEdit: () => null,
-  onStartReset: () => null,
-  onStartInviteCollaborators: () => null,
-  onStartEmailResetPassword: () => null,
-  onClose: () => null,
-  onCreate: () => null,
-  onDelete: () => null,
-  onUpdate: () => null,
-  onReset: () => null,
-  onInviteCollaboratorsClose: () => null,
-  InviteCollaborators: null,
-  onEmailPasswordResetClose: () => null,
-  EmailPasswordReset: null,
-  showMauInfo: false,
-  onDismissUsersMauNotice: () => null,
+  render() {
+    const ctx = createTeleportContext();
+
+    return (
+      <ContextProvider ctx={ctx}>
+        <MemoryRouter>
+          <Users />
+        </MemoryRouter>
+      </ContextProvider>
+    );
+  },
+};
+
+export const Loaded: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [successGetUsers(users)],
+    },
+  },
+  render() {
+    const ctx = createTeleportContext();
+
+    return (
+      <ContextProvider ctx={ctx}>
+        <MemoryRouter>
+          <Users />
+        </MemoryRouter>
+      </ContextProvider>
+    );
+  },
+};
+
+export const UsersNotEqualMauNotice: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [successGetUsers(users)],
+    },
+  },
+  render() {
+    cfg.isUsageBasedBilling = true;
+
+    const ctx = createTeleportContext();
+
+    return (
+      <ContextProvider ctx={ctx}>
+        <MemoryRouter>
+          <Users />
+        </MemoryRouter>
+      </ContextProvider>
+    );
+  },
+};
+
+export const Failed: StoryObj = {
+  parameters: {
+    msw: {
+      handlers: [errorGetUsers('Something went wrong')],
+    },
+  },
+  render() {
+    const ctx = createTeleportContext();
+
+    return (
+      <ContextProvider ctx={ctx}>
+        <MemoryRouter>
+          <Users />
+        </MemoryRouter>
+      </ContextProvider>
+    );
+  },
 };
