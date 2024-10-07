@@ -61,6 +61,7 @@ type IdPIAMConfigureRequest struct {
 	IntegrationRole string
 
 	// IntegrationPolicyPreset is the name of a policy preset to be applied to the IntegrationRole.
+	// Optional. If empty, no policy is assigned to the newly created IAM Role.
 	IntegrationPolicyPreset PolicyPreset
 
 	// ProxyPublicAddress is the URL to use as provider URL.
