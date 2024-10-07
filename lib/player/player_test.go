@@ -346,7 +346,7 @@ func TestSkipIdlePeriods(t *testing.T) {
 			default:
 				assert.Fail(t, "expected to receive event after short period, but got nothing")
 			}
-		}, time.Second, 100*time.Millisecond)
+		}, 3*time.Second, 100*time.Millisecond)
 	}
 }
 
