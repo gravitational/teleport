@@ -46,7 +46,7 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 			}
 
 			context.AfterFunc(ctx, rd.Close)
-			return &sso.MFACeremony{Ceremony: sso.NewCLICeremony(rd, nil /*init*/)}, nil
+			return sso.NewCLIMFACeremony(rd), nil
 		},
 	}
 }
