@@ -78,9 +78,9 @@ func NewAutoUpdateService(b backend.Backend) (*AutoUpdateService, error) {
 	}
 	plan, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*autoupdate.AutoUpdateAgentPlan]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAutoUpdateAgentPlan,
-			BackendPrefix: autoUpdateAgentPlanPrefix,
+			BackendPrefix: backend.NewKey(autoUpdateAgentPlanPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
 			UnmarshalFunc: services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentPlan],
 			ValidateFunc:  update.ValidateAutoUpdateAgentPlan,
