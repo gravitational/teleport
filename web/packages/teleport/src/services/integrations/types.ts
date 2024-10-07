@@ -378,7 +378,7 @@ export type AwsOidcDeployServiceRequest = {
  * to the AWS IAM role created for the OIDC integration.
  */
 export enum AwsOidcPolicyPreset {
-  Unspecified = 'unspecified',
+  Unspecified = '',
   AwsIdentityCenter = 'aws-identity-center',
 }
 

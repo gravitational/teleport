@@ -626,14 +626,13 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"integrationName": []string{"myintegration"},
 				"s3Bucket":        []string{"my-bucket"},
 				"s3Prefix":        []string{"prefix"},
-				"policyPreset":    []string{"unspecified"},
+				"policyPreset":    []string{""},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				"--policy-preset=unspecified " +
 				`--s3-bucket-uri=s3://my-bucket/prefix ` +
 				"--s3-jwks-base64=" + jwksBase64,
 		},
@@ -643,14 +642,12 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"awsRegion":       []string{"us-east-1"},
 				"role":            []string{"myRole"},
 				"integrationName": []string{"myintegration"},
-				"policyPreset":    []string{"unspecified"},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=myRole " +
-				"--policy-preset=unspecified " +
 				"--proxy-public-url=" + proxyPublicURL.String(),
 		},
 		{
@@ -661,14 +658,12 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 				"integrationName": []string{"myintegration"},
 				"s3Bucket":        []string{"my-bucket"},
 				"s3Prefix":        []string{"prefix"},
-				"policyPreset":    []string{""},
 			},
 			errCheck: require.NoError,
 			expectedTeleportArgs: "integration configure awsoidc-idp " +
 				"--cluster=localhost " +
 				"--name=myintegration " +
 				"--role=Test\\+1=2,3.4\\@5-6_7 " +
-				"--policy-preset= " +
 				`--s3-bucket-uri=s3://my-bucket/prefix ` +
 				"--s3-jwks-base64=" + jwksBase64,
 		},

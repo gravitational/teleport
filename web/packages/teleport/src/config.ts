@@ -35,7 +35,11 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-import type { PluginKind, Regions, AwsOidcPolicyPreset } from './services/integrations';
+import type {
+  PluginKind,
+  Regions,
+  AwsOidcPolicyPreset,
+} from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
 
@@ -306,7 +310,7 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
     awsConfigureIamScriptDeployServicePath:
       '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
@@ -542,7 +546,10 @@ const cfg = {
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
     const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    return cfg.baseUrl + generatePath(path, { ...p });
+    return (
+      cfg.baseUrl +
+      generatePath(path, { ...p, policyPreset: p.policyPreset || undefined })
+    );
   },
 
   getDbScriptUrl(token: string) {

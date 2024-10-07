@@ -48,7 +48,7 @@ test('getAwsOidcConfigureIdpScriptUrl formatting, without s3 fields', async () =
   };
   const base =
     'http://localhost/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?';
-  const expected = `integrationName=int-name&role=role-arn&policyPreset=unspecified`;
+  const expected = `integrationName=int-name&role=role-arn&policyPreset=`;
   expect(cfg.getAwsOidcConfigureIdpScriptUrl(params)).toBe(
     `${base}${expected}`
   );

@@ -93,7 +93,7 @@ type PolicyPreset string
 
 const (
 	// PolicyPresetUnspecified specifies no preset policy to apply.
-	PolicyPresetUnspecified PolicyPreset = "unspecified"
+	PolicyPresetUnspecified PolicyPreset = ""
 	// PolicyPresetAWSIdentityCenter specifies poicy required for the AWS identity center integration.
 	PolicyPresetAWSIdentityCenter PolicyPreset = "aws-identity-center"
 )
@@ -107,7 +107,7 @@ var ErrAWSOIDCInvalidPolicyPreset = &trace.BadParameterError{
 // ValidatePolicyPreset validates if a given policy preset is supported or not.
 func ValidatePolicyPreset(input PolicyPreset) error {
 	switch input {
-	case "", PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
+	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
 		return nil
 	default:
 		return ErrAWSOIDCInvalidPolicyPreset
@@ -145,8 +145,6 @@ func (r *IdPIAMConfigureRequest) CheckAndSetDefaults() error {
 	r.ownershipTags = tags.DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
 
 	switch r.IntegrationPolicyPreset {
-	case "":
-		r.IntegrationPolicyPreset = PolicyPresetUnspecified
 	case PolicyPresetUnspecified, PolicyPresetAWSIdentityCenter:
 	default:
 		return ErrAWSOIDCInvalidPolicyPreset
