@@ -179,7 +179,7 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accessLists, g.accessLists)
+	accessListHierarchy, err := accesslists.NewHierarchy(ctx, accessLists, g.accessLists, g.accessLists)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -189,22 +189,20 @@ func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, 
 
 	for _, accessList := range accessLists {
 		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
-		if membershipKind, err := accessListHierarchy.IsAccessListMember(user, accessList.GetName()); err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
+		if membershipKind, err := accessListHierarchy.IsAccessListMember(ctx, user, accessList.GetName()); err == nil && membershipKind != accesslists.MembershipOrOwnershipTypeNone {
 			inheritedRoles, inheritedTraits := g.grantRolesAndTraits(accessList.Spec.Grants, state, membershipKind)
 			allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
 			for k, values := range inheritedTraits {
 				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
-
 		}
 		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
-		if ownershipType, err := accessListHierarchy.IsAccessListOwner(user, accessList.GetName()); err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
+		if ownershipType, err := accessListHierarchy.IsAccessListOwner(ctx, user, accessList.GetName()); err == nil && ownershipType != accesslists.MembershipOrOwnershipTypeNone {
 			inheritedRoles, inheritedTraits := g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state, ownershipType)
 			allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
 			for k, values := range inheritedTraits {
 				allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 			}
-
 		}
 	}
 

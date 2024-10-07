@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // RelationshipKind represents the type of relationship: member or owner.
@@ -26,7 +27,7 @@ const (
 	MembershipOrOwnershipTypeInherited
 )
 
-type MembersGetter interface {
+type MembersAndLocksGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
@@ -50,6 +51,7 @@ type HierarchyNode struct {
 
 type Hierarchy struct {
 	Nodes map[string]*HierarchyNode
+	Locks services.LockGetter
 }
 
 // NewHierarchy creates a new tree-like structure of AccessLists and their relationships, including Members and Owners.
@@ -58,8 +60,11 @@ type Hierarchy struct {
 //
 // It returns a Hierarchy struct, useful for querying the validity of Membership and Ownership changes, and for determining
 // a User's Membership or Ownership status for an AccessList, including inherited relationships.
-func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, membersGetter MembersGetter) (*Hierarchy, error) {
-	h := &Hierarchy{Nodes: make(map[string]*HierarchyNode)}
+func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, membersGetter MembersAndLocksGetter, locksGetter services.LockGetter) (*Hierarchy, error) {
+	h := &Hierarchy{
+		Nodes: make(map[string]*HierarchyNode),
+		Locks: locksGetter,
+	}
 
 	for _, al := range accessLists {
 		h.Nodes[al.GetName()] = &HierarchyNode{
@@ -117,7 +122,7 @@ func NewHierarchy(ctx context.Context, accessLists []*accesslist.AccessList, mem
 	return h, nil
 }
 
-func loadAllMembersForList(ctx context.Context, accessListName string, membersGetter MembersGetter) ([]*accesslist.AccessListMember, error) {
+func loadAllMembersForList(ctx context.Context, accessListName string, membersGetter MembersAndLocksGetter) ([]*accesslist.AccessListMember, error) {
 	var allMembers []*accesslist.AccessListMember
 	pageToken := ""
 	for {
@@ -354,8 +359,22 @@ func (h *Hierarchy) ValidateAccessListWithMembers(accessList *accesslist.AccessL
 }
 
 // IsAccessListOwner determines if a User is a valid Owner of an existing or new AccessList,
-// including via inheritance.
-func (h *Hierarchy) IsAccessListOwner(user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+// including via inheritance. If User has any inForce Locks, it will return an error.
+func (h *Hierarchy) IsAccessListOwner(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+	// Allow for Locks to be nil when not provided in constructor.
+	if h.Locks != nil {
+		locks, err := h.Locks.GetLocks(ctx, true, types.LockTarget{
+			User: user.GetName(),
+		})
+		if err != nil {
+			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+		}
+
+		if len(locks) > 0 {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+		}
+	}
+
 	node, exists := h.Nodes[accessListName]
 	if !exists {
 		return MembershipOrOwnershipTypeNone, trace.NotFound("Access List '%s' not found", accessListName)
@@ -372,7 +391,7 @@ func (h *Hierarchy) IsAccessListOwner(user types.User, accessListName string) (M
 
 	// Check inherited ownership
 	visited := make(map[string]struct{})
-	isOwner, err := h.isInheritedOwner(user, node, visited)
+	isOwner, err := h.isInheritedOwner(ctx, user, node, visited)
 	if err != nil {
 		return MembershipOrOwnershipTypeNone, trace.Wrap(err)
 	}
@@ -386,14 +405,14 @@ func (h *Hierarchy) IsAccessListOwner(user types.User, accessListName string) (M
 	return MembershipOrOwnershipTypeNone, nil
 }
 
-func (h *Hierarchy) isInheritedOwner(user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
+func (h *Hierarchy) isInheritedOwner(ctx context.Context, user types.User, node *HierarchyNode, visited map[string]struct{}) (bool, error) {
 	if _, ok := visited[node.AccessList.GetName()]; ok {
 		return false, nil
 	}
 	visited[node.AccessList.GetName()] = struct{}{}
 	for _, ownerList := range node.OwnerLists {
 		// Check if identity is a member of ownerList
-		memberType, err := h.IsAccessListMember(user, ownerList.AccessList.GetName())
+		memberType, err := h.IsAccessListMember(ctx, user, ownerList.AccessList.GetName())
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -405,7 +424,7 @@ func (h *Hierarchy) isInheritedOwner(user types.User, node *HierarchyNode, visit
 			return true, nil
 		}
 		// Recurse into ownerList's owners
-		isOwner, err := h.isInheritedOwner(user, ownerList, visited)
+		isOwner, err := h.isInheritedOwner(ctx, user, ownerList, visited)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
@@ -417,8 +436,22 @@ func (h *Hierarchy) isInheritedOwner(user types.User, node *HierarchyNode, visit
 }
 
 // IsAccessListMember determines if a User is a valid Member of an existing AccessList,
-// including via inheritance.
-func (h *Hierarchy) IsAccessListMember(user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+// including via inheritance. If User has any inForce Locks, it will return an error.
+func (h *Hierarchy) IsAccessListMember(ctx context.Context, user types.User, accessListName string) (MembershipOrOwnershipType, error) {
+	// Allow for Locks to be nil when not provided in constructor.
+	if h.Locks != nil {
+		locks, err := h.Locks.GetLocks(ctx, true, types.LockTarget{
+			User: user.GetName(),
+		})
+		if err != nil {
+			return MembershipOrOwnershipTypeNone, trace.Wrap(err)
+		}
+
+		if len(locks) > 0 {
+			return MembershipOrOwnershipTypeNone, trace.AccessDenied("User '%s' is currently locked", user.GetName())
+		}
+	}
+
 	node, exists := h.Nodes[accessListName]
 	if !exists {
 		return MembershipOrOwnershipTypeNone, trace.NotFound("Access List '%s' not found", accessListName)

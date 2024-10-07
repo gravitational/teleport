@@ -28,6 +28,24 @@ func (m *mockMembersGetter) ListAccessListMembers(ctx context.Context, accessLis
 	return members, "", nil
 }
 
+type mockLocksGetter struct {
+	targets map[string][]types.Lock
+}
+
+func (m *mockLocksGetter) GetLock(ctx context.Context, name string) (types.Lock, error) {
+	panic("not implemented")
+}
+
+func (m *mockLocksGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
+	var locks []types.Lock
+	for _, target := range targets {
+		for _, lock := range m.targets[target.User] {
+			locks = append(locks, lock)
+		}
+	}
+	return locks, nil
+}
+
 const (
 	ownerUser  = "ownerUser"
 	ownerUser2 = "ownerUser2"
@@ -58,6 +76,9 @@ func TestNewAccessListHierarchy(t *testing.T) {
 		MembershipKind: accesslist.MembershipKindList,
 	})
 
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
 	membersGetter := &mockMembersGetter{
 		members: map[string][]*accesslist.AccessListMember{
 			acl1.GetName(): {acl1m1},
@@ -69,7 +90,7 @@ func TestNewAccessListHierarchy(t *testing.T) {
 	}
 
 	// Hierarchy should be built successfully.
-	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5}, membersGetter)
+	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5}, membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	// Test IsDescendant
@@ -140,9 +161,12 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 			acl12.GetName(): {},
 		},
 	}
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
 
 	// Should create successfully.
-	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter)
+	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	// Validation should fail due to max depth.
@@ -153,7 +177,7 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 	membersGetter.members[acl11.GetName()] = []*accesslist.AccessListMember{acl11m1}
 
 	// After 'creating' the member that links acl6 to acl7, validation should fail as max depth is 11 (acl1 -> acl12).
-	hierarchy, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter)
+	hierarchy, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4, acl5, acl6, acl7, acl8, acl9, acl10, acl11, acl12}, membersGetter, locksGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acl12.Spec.Title, acl11.Spec.Title, accesslist.MaxAllowedDepth))
 }
@@ -175,6 +199,9 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 		members = append(members, member)
 	}
 
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
 	membersGetter := &mockMembersGetter{
 		members: map[string][]*accesslist.AccessListMember{
 			rootAcl.GetName(): {},
@@ -185,7 +212,7 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Should create successfully, as acl-0 -> acl-10 is a valid hierarchy of depth 10.
-	hierarchy, err := NewHierarchy(context.Background(), append([]*accesslist.AccessList{rootAcl}, nestedAcls...), membersGetter)
+	hierarchy, err := NewHierarchy(context.Background(), append([]*accesslist.AccessList{rootAcl}, nestedAcls...), membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
@@ -226,7 +253,7 @@ func TestAccessListValidateWithMembers(t *testing.T) {
 	}
 
 	// Should create successfully, as both hierarchies are valid.
-	hierarchy, err = NewHierarchy(context.Background(), append(nestedAcls1, nestedAcls2...), membersGetter)
+	hierarchy, err = NewHierarchy(context.Background(), append(nestedAcls1, nestedAcls2...), membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	nestedAcls1Last := nestedAcls1[len(nestedAcls1)-1]
@@ -251,6 +278,9 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	// acl3 -> acl1
 	acl3m1 := newAccessListMember(t, acl3.GetName(), acl1.GetName(), accesslist.MembershipKindList, clock)
 
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
 	membersGetter := &mockMembersGetter{
 		members: map[string][]*accesslist.AccessListMember{
 			acl1.GetName(): {acl1m1},
@@ -260,7 +290,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	}
 
 	// Hierarchy should be built successfully.
-	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3}, membersGetter)
+	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3}, membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	// Circular references should not be allowed.
@@ -271,7 +301,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	membersGetter.members[acl3.GetName()] = []*accesslist.AccessListMember{acl3m1}
 
 	// After 'creating' the member that links acl3 to acl1, validation should fail due to circular reference.
-	_, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3}, membersGetter)
+	_, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3}, membersGetter, locksGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title))
 
@@ -296,7 +326,7 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 		},
 	}
 
-	_, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl4, acl5}, membersGetter)
+	_, err = NewHierarchy(context.Background(), []*accesslist.AccessList{acl4, acl5}, membersGetter, locksGetter)
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
 }
@@ -322,6 +352,9 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 		MembershipKind: accesslist.MembershipKindList,
 	})
 
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
 	membersGetter := &mockMembersGetter{
 		members: map[string][]*accesslist.AccessListMember{
 			acl1.GetName(): {acl1m1, acl1m2},
@@ -332,14 +365,14 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	}
 
 	// Hierarchy should be built successfully.
-	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4}, membersGetter)
+	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1, acl2, acl3, acl4}, membersGetter, locksGetter)
 	require.NoError(t, err)
 
 	// User which does not meet acl1's Membership requirements.
 	stubUserNoRequires, err := types.NewUser(member1)
 	require.NoError(t, err)
 
-	ownershipType, err := hierarchy.IsAccessListOwner(stubUserNoRequires, acl4.GetName())
+	ownershipType, err := hierarchy.IsAccessListOwner(context.Background(), stubUserNoRequires, acl4.GetName())
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", member1, acl1.Spec.Title))
 	// Should not have inherited ownership due to missing OwnershipRequires.
@@ -354,7 +387,7 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	})
 	stubUserMeetsMemberRequires.SetRoles([]string{"mrole1", "mrole2"})
 
-	ownershipType, err = hierarchy.IsAccessListOwner(stubUserMeetsMemberRequires, acl4.GetName())
+	ownershipType, err = hierarchy.IsAccessListOwner(context.Background(), stubUserMeetsMemberRequires, acl4.GetName())
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", member1, acl4.Spec.Title))
 	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
@@ -370,16 +403,60 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	})
 	stubUserMeetsAllRequires.SetRoles([]string{"mrole1", "mrole2", "orole1", "orole2"})
 
-	ownershipType, err = hierarchy.IsAccessListOwner(stubUserMeetsAllRequires, acl4.GetName())
+	ownershipType, err = hierarchy.IsAccessListOwner(context.Background(), stubUserMeetsAllRequires, acl4.GetName())
 	require.NoError(t, err)
 	// Should have inherited ownership from acl1's inclusion in acl4's Owners.
 	require.Equal(t, MembershipOrOwnershipTypeInherited, ownershipType)
 
 	stubUserMeetsAllRequires.SetName(member2)
-	ownershipType, err = hierarchy.IsAccessListOwner(stubUserMeetsAllRequires, acl4.GetName())
+	ownershipType, err = hierarchy.IsAccessListOwner(context.Background(), stubUserMeetsAllRequires, acl4.GetName())
 	require.NoError(t, err)
 	// Should not have ownership.
 	require.Equal(t, MembershipOrOwnershipTypeNone, ownershipType)
+}
+
+func TestAccessListIsMember(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	acl1 := newAccessList(t, "1", clock)
+	acl1m1 := newAccessListMember(t, acl1.GetName(), member1, accesslist.MembershipKindUser, clock)
+
+	locksGetter := &mockLocksGetter{
+		targets: map[string][]types.Lock{},
+	}
+	membersGetter := &mockMembersGetter{
+		members: map[string][]*accesslist.AccessListMember{
+			acl1.GetName(): {acl1m1},
+		},
+	}
+
+	hierarchy, err := NewHierarchy(context.Background(), []*accesslist.AccessList{acl1}, membersGetter, locksGetter)
+	require.NoError(t, err)
+
+	stubMember1, err := types.NewUser(member1)
+	require.NoError(t, err)
+	stubMember1.SetTraits(map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+	stubMember1.SetRoles([]string{"mrole1", "mrole2"})
+
+	membershipType, err := hierarchy.IsAccessListMember(context.Background(), stubMember1, acl1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, MembershipOrOwnershipTypeExplicit, membershipType)
+
+	// When user is Locked, should not be considered a Member.
+	lock, err := types.NewLock("user-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: member1,
+		},
+	})
+	require.NoError(t, err)
+	locksGetter.targets[member1] = []types.Lock{lock}
+
+	membershipType, err = hierarchy.IsAccessListMember(context.Background(), stubMember1, acl1.GetName())
+	require.ErrorIs(t, err, trace.AccessDenied("User '%s' is currently locked", member1))
+	require.Equal(t, MembershipOrOwnershipTypeNone, membershipType)
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock) *accesslist.AccessList {
