@@ -349,10 +349,8 @@ func legacySecondFactorFromSecondFactors(secondFactors []SecondFactorType) const
 func (c *AuthPreferenceV2) SetSecondFactor(s constants.SecondFactorType) {
 	c.Spec.SecondFactor = s
 
-	// SecondFactors takes precedence, so if SecondFactor is being set we should
-	// unsetSecondFactors here. SecondFactors will still be derived from SecondFactor
-	// configuration and set by CheckAndSetDefaults.
-	c.Spec.SecondFactors = nil
+	// Set SecondFactors from SecondFactor.
+	c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
 }
 
 // GetSecondFactors gets a list of supported second factors.
@@ -362,18 +360,15 @@ func (c *AuthPreferenceV2) GetSecondFactors() []SecondFactorType {
 	}
 
 	// If SecondFactors isn't set, try to convert the old SecondFactor field.
-	return SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+	return SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
 }
 
 // SecondFactorsFromLegacySecondFactor returns the list of SecondFactorTypes supported by the given second factor type.
-func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthnConfigured bool) []SecondFactorType {
+func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType) []SecondFactorType {
 	switch sf {
 	case constants.SecondFactorOff:
 		return nil
 	case constants.SecondFactorOptional, constants.SecondFactorOn:
-		if !webauthnConfigured {
-			return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
-		}
 		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN, SecondFactorType_SECOND_FACTOR_TYPE_OTP}
 	case constants.SecondFactorOTP:
 		return []SecondFactorType{SecondFactorType_SECOND_FACTOR_TYPE_OTP}
@@ -391,6 +386,9 @@ func SecondFactorsFromLegacySecondFactor(sf constants.SecondFactorType, webauthn
 // SetSecondFactors sets the list of supported second factors.
 func (c *AuthPreferenceV2) SetSecondFactors(s []SecondFactorType) {
 	c.Spec.SecondFactors = s
+
+	// Set SecondFactor from SecondFactors.
+	c.Spec.SecondFactor = legacySecondFactorFromSecondFactors(c.Spec.SecondFactors)
 }
 
 // GetPreferredLocalMFA returns a server-side hint for clients to pick an MFA
@@ -771,7 +769,7 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 
 	// If SecondFactors isn't set, set from legacy SecondFactor.
 	if len(c.Spec.SecondFactors) == 0 {
-		c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor, c.Spec.Webauthn != nil)
+		c.Spec.SecondFactors = SecondFactorsFromLegacySecondFactor(c.Spec.SecondFactor)
 	}
 
 	// Validate expected fields for webauthn.
