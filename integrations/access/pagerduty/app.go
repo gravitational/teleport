@@ -78,7 +78,7 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
-	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+	amrhConf := accessmonitoring.RuleHandlerConfig{
 		Client:     conf.Client,
 		PluginType: types.PluginTypePagerDuty,
 		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
@@ -88,7 +88,11 @@ func NewApp(conf Config) (*App, error) {
 				Kind: common.RecipientKindSchedule,
 			}, nil
 		},
-	})
+	}
+	if conf.OnAccessMonitoringRuleCacheUpdateCallback != nil {
+		amrhConf.OnCacheUpdateCallback = conf.OnAccessMonitoringRuleCacheUpdateCallback
+	}
+	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(amrhConf)
 	app.mainJob = lib.NewServiceJob(app.run)
 
 	return app, nil

@@ -47,6 +47,10 @@ type Config struct {
 	// TeleportUser is the name of the Teleport user that will act
 	// as the access request approver
 	TeleportUser string
+
+	// OnAccessMonitoringRuleCacheUpdateCallback is used for checking when
+	// the Rule cache is updated in tests
+	OnAccessMonitoringRuleCacheUpdateCallback func(name string) error
 }
 
 type PagerdutyConfig struct {
