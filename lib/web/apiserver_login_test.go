@@ -667,6 +667,7 @@ func configureClusterForMFA(t *testing.T, env *webPack, spec *types.AuthPreferen
 
 // TestCreateSSHCert tests the login endpoint /webapi/ssh/certs with different
 // options for subject SSH and TLS keys.
+// TODO(Joerger): DELETE IN v18.0.0 when 2fa-less login endpoint is deprecated.
 func TestCreateSSHCert(t *testing.T) {
 	t.Parallel()
 
@@ -754,7 +755,6 @@ func TestCreateSSHCert(t *testing.T) {
 			validateSSHLoginResponse(t, resp.Bytes(), tc.expectSubjectSSHPub, tc.expectSubjectTLSPub)
 		})
 	}
-
 }
 
 func validateSSHLoginResponse(t *testing.T, resp []byte, expectedSubjectSSHPub ssh.PublicKey, expectedSubjectTLSPub crypto.PublicKey) *authclient.SSHLoginResponse {

@@ -113,7 +113,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 
 // DeployServiceIAMConfigureClient describes the required methods to create the IAM Roles/Policies required for the DeployService action.
 type DeployServiceIAMConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 
 	// CreateRole creates a new IAM Role.
 	CreateRole(ctx context.Context, params *iam.CreateRoleInput, optFns ...func(*iam.Options)) (*iam.CreateRoleOutput, error)
@@ -124,7 +124,7 @@ type DeployServiceIAMConfigureClient interface {
 
 type defaultDeployServiceIAMConfigureClient struct {
 	*iam.Client
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 // NewDeployServiceIAMConfigureClient creates a new DeployServiceIAMConfigureClient.
@@ -140,7 +140,7 @@ func NewDeployServiceIAMConfigureClient(ctx context.Context, region string) (Dep
 
 	return &defaultDeployServiceIAMConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -169,7 +169,7 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 			return trace.Wrap(err)
 		}
 		req.AccountID = aws.ToString(callerIdentity.Account)
-	} else if err := checkAccountID(ctx, clt, req.AccountID); err != nil {
+	} else if err := CheckAccountID(ctx, clt, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -55,12 +55,12 @@ type AccessListService struct {
 // NewAccessListService creates a new AccessListService. This is a simple, cache focused
 // backend service that doesn't perform any of the validation that the main backend service
 // does.
-func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
+func NewAccessListService(b backend.Backend) (*AccessListService, error) {
 	service, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessList]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListMaxPageSize,
 		ResourceKind:  types.KindAccessList,
-		BackendPrefix: accessListPrefix,
+		BackendPrefix: backend.NewKey(accessListPrefix),
 		MarshalFunc:   services.MarshalAccessList,
 		UnmarshalFunc: services.UnmarshalAccessList,
 	})
@@ -69,10 +69,10 @@ func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	}
 
 	memberService, err := generic.NewService(&generic.ServiceConfig[*accesslist.AccessListMember]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListMemberMaxPageSize,
 		ResourceKind:  types.KindAccessListMember,
-		BackendPrefix: accessListMemberPrefix,
+		BackendPrefix: backend.NewKey(accessListMemberPrefix),
 		MarshalFunc:   services.MarshalAccessListMember,
 		UnmarshalFunc: services.UnmarshalAccessListMember,
 	})
@@ -81,10 +81,10 @@ func NewAccessListService(backend backend.Backend) (*AccessListService, error) {
 	}
 
 	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     accessListReviewMaxPageSize,
 		ResourceKind:  types.KindAccessListReview,
-		BackendPrefix: accessListReviewPrefix,
+		BackendPrefix: backend.NewKey(accessListReviewPrefix),
 		MarshalFunc:   services.MarshalAccessListReview,
 		UnmarshalFunc: services.UnmarshalAccessListReview,
 	})

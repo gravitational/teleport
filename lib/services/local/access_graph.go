@@ -46,12 +46,12 @@ type AccessGraphSecretsService struct {
 // This service in Teleport is used to keep track of secrets found in Teleport
 // Nodes and on enrolled devices. Currently, it only stores secrets related with
 // SSH Keys. Future implementations might extend them.
-func NewAccessGraphSecretsService(backend backend.Backend) (*AccessGraphSecretsService, error) {
+func NewAccessGraphSecretsService(b backend.Backend) (*AccessGraphSecretsService, error) {
 	authorizedKeysSvc, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*accessgraphsecretspb.AuthorizedKey]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAccessGraphSecretAuthorizedKey,
-			BackendPrefix: authorizedKeysPrefix,
+			BackendPrefix: backend.NewKey(authorizedKeysPrefix),
 			MarshalFunc:   services.MarshalAccessGraphAuthorizedKey,
 			UnmarshalFunc: services.UnmarshalAccessGraphAuthorizedKey,
 		})
@@ -61,9 +61,9 @@ func NewAccessGraphSecretsService(backend backend.Backend) (*AccessGraphSecretsS
 
 	privateKeysSvc, err := generic.NewServiceWrapper(
 		generic.ServiceWrapperConfig[*accessgraphsecretspb.PrivateKey]{
-			Backend:       backend,
+			Backend:       b,
 			ResourceKind:  types.KindAccessGraphSecretPrivateKey,
-			BackendPrefix: privateKeysPrefix,
+			BackendPrefix: backend.NewKey(privateKeysPrefix),
 			MarshalFunc:   services.MarshalAccessGraphPrivateKey,
 			UnmarshalFunc: services.UnmarshalAccessGraphPrivateKey,
 		})

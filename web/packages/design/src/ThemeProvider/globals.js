@@ -40,7 +40,7 @@ const GlobalStyle = createGlobalStyle`
   input {
     accent-color: ${props => props.theme.colors.brand};
 
-    ::placeholder {
+    &::placeholder {
       color: ${props => props.theme.colors.text.muted};
     }
   }

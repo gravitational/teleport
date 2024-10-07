@@ -70,14 +70,14 @@ func (r *AWSAppAccessConfigureRequest) CheckAndSetDefaults() error {
 
 // AWSAppAccessConfigureClient describes the required methods to create the IAM Policies required for AWS App Access.
 type AWSAppAccessConfigureClient interface {
-	callerIdentityGetter
+	CallerIdentityGetter
 	// PutRolePolicy creates or replaces a Policy by its name in a IAM Role.
 	PutRolePolicy(ctx context.Context, params *iam.PutRolePolicyInput, optFns ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error)
 }
 
 type defaultAWSAppAccessConfigureClient struct {
 	*iam.Client
-	callerIdentityGetter
+	CallerIdentityGetter
 }
 
 // NewAWSAppAccessConfigureClient creates a new AWSAppAccessConfigureClient.
@@ -101,7 +101,7 @@ func NewAWSAppAccessConfigureClient(ctx context.Context) (AWSAppAccessConfigureC
 
 	return &defaultAWSAppAccessConfigureClient{
 		Client:               iam.NewFromConfig(cfg),
-		callerIdentityGetter: sts.NewFromConfig(cfg),
+		CallerIdentityGetter: sts.NewFromConfig(cfg),
 	}, nil
 }
 
@@ -116,7 +116,7 @@ func ConfigureAWSAppAccess(ctx context.Context, awsClient AWSAppAccessConfigureC
 		return trace.Wrap(err)
 	}
 
-	if err := checkAccountID(ctx, awsClient, req.AccountID); err != nil {
+	if err := CheckAccountID(ctx, awsClient, req.AccountID); err != nil {
 		return trace.Wrap(err)
 	}
 

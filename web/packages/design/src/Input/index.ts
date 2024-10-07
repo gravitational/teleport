@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Popover, { StyledPopover } from './Popover';
-
-export default Popover;
-export { StyledPopover };
+import Input from './Input';
+export { type InputSize, type InputType, type InputMode } from './Input';
+export default Input;

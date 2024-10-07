@@ -19,6 +19,7 @@
 package awsoidc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -55,4 +56,43 @@ func TestCheckAndSetDefaults(t *testing.T) {
 		}).CheckAndSetDefaults()
 		require.NoError(t, err)
 	})
+}
+
+func TestCheckAccountID(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc            string
+		clt             CallerIdentityGetter
+		accountID       string
+		wantErrContains string
+	}{
+		{
+			desc:      "caller identity matches expected account ID",
+			clt:       mockSTSClient{accountID: "123456789012"},
+			accountID: "123456789012",
+		},
+		{
+			desc: "empty expected account ID is always valid",
+			clt:  mockSTSClient{accountID: "123456789012"},
+		},
+		{
+			desc:            "caller identity does not match expected account ID",
+			clt:             mockSTSClient{accountID: "123456789012"},
+			accountID:       "222222222222",
+			wantErrContains: "expected account ID 222222222222 but current account ID is 123456789012",
+		},
+	}
+
+	ctx := context.Background()
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := CheckAccountID(ctx, test.clt, test.accountID)
+			if test.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }

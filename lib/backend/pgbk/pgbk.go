@@ -452,7 +452,8 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 		).Query(func(rows pgx.Rows) error {
 			var err error
 			items, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (backend.Item, error) {
-				var key, value []byte
+				var key backend.Key
+				var value []byte
 				var expires time.Time
 				var revision revision
 				if err := row.Scan(&key, &value, (*zeronull.Timestamptz)(&expires), &revision); err != nil {

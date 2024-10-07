@@ -45,7 +45,7 @@ func NewStaticHostUserService(bk backend.Backend) (*StaticHostUserService, error
 		generic.ServiceWrapperConfig[*userprovisioningpb.StaticHostUser]{
 			Backend:       bk,
 			ResourceKind:  types.KindStaticHostUser,
-			BackendPrefix: staticHostUserPrefix,
+			BackendPrefix: backend.NewKey(staticHostUserPrefix),
 			MarshalFunc:   services.MarshalProtoResource[*userprovisioningpb.StaticHostUser],
 			UnmarshalFunc: services.UnmarshalProtoResource[*userprovisioningpb.StaticHostUser],
 			ValidateFunc:  services.ValidateStaticHostUser,

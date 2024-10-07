@@ -6339,6 +6339,8 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, nil
 	}
 
+	licenseExpiry := modules.GetModules().LicenseExpiry()
+
 	return proto.PingResponse{
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
@@ -6347,6 +6349,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		LicenseExpiry:           &licenseExpiry,
 	}, nil
 }
 

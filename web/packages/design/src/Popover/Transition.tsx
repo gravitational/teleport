@@ -16,17 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 
-import { render, theme } from 'design/utils/testing';
-
-import Input from './Input';
-
-describe('design/Input', () => {
-  it('respects hasError prop', () => {
-    let { container } = render(<Input hasError={true} />);
-    expect(container.firstChild).toHaveStyle({
-      'border-color': theme.colors.error.main,
-    });
-  });
-});
+export function Transition({
+  onEntering,
+  children,
+}: React.PropsWithChildren<{
+  onEntering: () => void;
+}>) {
+  // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
+  // It's especially noticeable on Safari.
+  useLayoutEffect(() => {
+    onEntering();
+  }, []);
+  return children;
+}
