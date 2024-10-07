@@ -20,6 +20,7 @@ package awsactions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
@@ -56,7 +58,20 @@ func CreateDocument(
 		Content:        aws.String(content),
 		Tags:           tags.ToSSMTags(),
 	}
-	details, err := formatDetails(input)
+	type createDocumentInput struct {
+		// PolicyDocument shadows the input's field of the same name
+		// to marshal the doc content as unescaped JSON or text.
+		Content any
+		*ssm.CreateDocumentInput
+	}
+	unmarshaledContent, err := unmarshalDocumentContent(content, docFormat)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	details, err := formatDetails(createDocumentInput{
+		Content:             unmarshaledContent,
+		CreateDocumentInput: input,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,4 +98,20 @@ func CreateDocument(
 	}
 	action, err := provisioning.NewAction(config)
 	return action, trace.Wrap(err)
+}
+
+func unmarshalDocumentContent(content string, docFormat ssmtypes.DocumentFormat) (any, error) {
+	var structuredOutput map[string]any
+	switch docFormat {
+	case ssmtypes.DocumentFormatJson:
+		json.Unmarshal([]byte(content), &structuredOutput)
+	case ssmtypes.DocumentFormatYaml:
+		yaml.Unmarshal([]byte(content), &structuredOutput)
+	case ssmtypes.DocumentFormatText:
+		return content, nil
+	default:
+		return nil, trace.BadParameter("unknown document format %q", docFormat)
+	}
+
+	return structuredOutput, nil
 }
