@@ -38,7 +38,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -75,6 +74,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -3988,58 +3988,40 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error)
 
-// TODO(atburke): DELETE in v17.0.0
-func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
-	switch proxyVersion.Major {
-	case 15:
-		return !proxyVersion.LessThan(*semver.New("15.2.5"))
-	case 14:
-		return !proxyVersion.LessThan(*semver.New("14.3.17"))
-	case 13:
-		return !proxyVersion.LessThan(*semver.New("13.4.22"))
-	default:
-		return proxyVersion.Major > 15
-	}
-}
-
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success
 // page and the resulting login session will be captured and returned.
-func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, protocol string) SSHLoginFunc {
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
 	return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
 		if tc.MockSSOLogin != nil {
 			// sso login response is being mocked for testing purposes
-			return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
+			return tc.MockSSOLogin(ctx, connectorID, priv, connectorType)
 		}
 
-		sshLogin, err := tc.NewSSHLogin(priv)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
+		// Set SAMLSingleLogoutEnabled from server settings.
 		pr, err := tc.Ping(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		proxyVersion := semver.New(pr.ServerVersion)
-
-		if protocol == constants.SAML && pr.Auth.SAML != nil {
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
 			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
 		}
 
-		// ask the CA (via proxy) to sign our public key:
-		response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-			SSHLogin:                      sshLogin,
-			ConnectorID:                   connectorID,
-			ConnectorName:                 connectorName,
-			Protocol:                      protocol,
-			BindAddr:                      tc.BindAddr,
-			CallbackAddr:                  tc.CallbackAddr,
-			Browser:                       tc.Browser,
-			PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-			ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-		}, nil)
-		return response, trace.Wrap(err)
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(priv, connectorID, connectorType))
+
+		resp, err := ssoCeremony.Run(ctx)
+		return resp, trace.Wrap(err)
 	}
 }
 
@@ -4066,7 +4048,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
