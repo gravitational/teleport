@@ -30,12 +30,15 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // TestHostCredentialsHttpFallback tests that HostCredentials requests (/v1/webapi/host/credentials/)
@@ -153,7 +156,12 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 
 	tc, err := client.NewClient(cfg)
 	require.NoError(t, err)
-	keyRing, err := client.GenerateRSAKeyRing()
+
+	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(userKey.Public())
+	require.NoError(t, err)
+	tlsPub, err := keys.MarshalPublicKey(userKey.Public())
 	require.NoError(t, err)
 
 	// customPromptCalled is a flag to ensure the custom prompt was indeed called
@@ -213,7 +221,8 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		req := client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         tc.WebProxyAddr,
-				PubKey:            keyRing.PrivateKey.MarshalSSHPublicKey(),
+				SSHPubKey:         ssh.MarshalAuthorizedKey(sshPub),
+				TLSPubKey:         tlsPub,
 				TTL:               tc.KeyTTL,
 				Insecure:          tc.InsecureSkipVerify,
 				Compatibility:     tc.CertificateFormat,

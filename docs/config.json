@@ -29,9 +29,13 @@
               "slug": "/upgrading/overview/"
             },
             {
-                "title": "Set up Automatic Agent Updates",
-                "slug": "/upgrading/automatic-agent-updates/"
-            }
+              "title": "Set up Automatic Agent Updates",
+              "slug": "/upgrading/automatic-agent-updates/"
+            },
+            {
+              "title": "Upgrading Reference",
+              "slug": "/upgrading/upgrading-reference/"
+	    }
           ]
         },
         {
@@ -117,7 +121,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.22.0"
+      "version": "1.24.4"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -128,7 +132,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "16.2.0",
+      "version": "16.4.2",
       "major_version": "16",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1043,7 +1047,7 @@
     },
     {
       "source": "/machine-id/deployment/spacelift/",
-      "destination": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
       "permanent": true
     },
     {
@@ -2568,12 +2572,37 @@
     },
     {
       "source": "/upgrading/reference/",
-      "destination": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
+      "permanent": true
+    },
+    {
+      "source": "/upgrading/upgrading/",
+      "destination": "/upgrading/upgrading-reference/",
       "permanent": true
     },
     {
       "source": "/choose-an-edition/teleport-enterprise/introduction/",
       "destination": "/admin-guides/deploy-a-cluster/deploy-a-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/",
+      "destination": "/enroll-resources/desktop-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/",
+      "destination": "/enroll-resources/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

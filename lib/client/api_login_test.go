@@ -21,6 +21,8 @@ package client_test
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/ed25519"
 	"encoding/base32"
 	"encoding/pem"
 	"errors"
@@ -308,11 +310,12 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Disable MFA. It makes testing easier.
 	ctx := context.Background()
 	authServer := sa.Auth.GetAuthServer()
-	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
-	require.NoError(t, err, "NewAuthPreference failed")
+	authPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err, "GetAuthPreference failed")
+	authPref.SetType(constants.Local)
+	authPref.SetSecondFactor(constants.SecondFactorOff)
+	authPref.SetAllowPasswordless(false)
+	authPref.SetAllowHeadless(false)
 	_, err = authServer.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err, "UpsertAuthPreference failed")
 
@@ -339,6 +342,10 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Login the current user and fetch a valid pair of certificates.
 	keyRing, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
+
+	// Sanity check we're generating EC keys.
+	assert.IsType(t, ed25519.PrivateKey{}, keyRing.SSHPrivateKey.Signer)
+	assert.IsType(t, &ecdsa.PrivateKey{}, keyRing.TLSPrivateKey.Signer)
 
 	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, keyRing)
 	require.NoError(t, err, "Connecting to the root cluster failed")
@@ -392,8 +399,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
 			},
-			// TODO(nklaassen): split SSH private key from TLS key.
-			SSHSigner: keyRing.PrivateKey,
+			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
@@ -468,7 +474,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			Certs: &devicepb.UserCertificates{
 				SshAuthorizedKey: keyRing.Cert,
 			},
-			SSHSigner: keyRing.PrivateKey,
+			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
@@ -537,6 +543,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
 	})
 	require.NoError(t, err)
 	cfg.Auth.BootstrapResources = []types.Resource{role, user}

@@ -23,7 +23,7 @@ import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Node } from 'teleport/services/nodes';
 import { ResourceLabel, ResourceFilter } from 'teleport/services/agents';
-import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
+import { ServersideSearchPanelWithPageIndicator } from 'teleport/components/ServersideSearchPanel';
 
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
@@ -85,14 +85,13 @@ function NodeList(props: Props) {
         sort: params.sort,
         setSort,
         serversideSearchPanel: (
-          <ServersideSearchPanel
+          <ServersideSearchPanelWithPageIndicator
             pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
             disabled={fetchStatus === 'loading'}
-            bigInputSize={true}
           />
         ),
       }}

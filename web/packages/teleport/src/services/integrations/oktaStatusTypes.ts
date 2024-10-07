@@ -36,13 +36,11 @@ export enum PluginOktaSyncStatusCode {
   Error = 2,
 }
 
+/**
+ * Contains statistics about the various sub-services in the Okta
+ * integration
+ */
 export type PluginStatusOkta = {
-  orgUrl: string;
-  accessListSyncEnabled: boolean;
-  details?: PluginOktaDetails;
-};
-
-export type PluginOktaDetails = {
   ssoDetails?: OktaSsoDetails;
   appGroupSyncDetails?: OktaAppGroupSyncDetails;
   usersSyncDetails?: OktaUserSyncDetails;
@@ -92,7 +90,6 @@ export type OktaAccessListSyncDetails = {
   numGroups: number;
   appFilters: string[];
   groupFilters: string[];
-  defaultOwners: string[];
   /**
    * Error contains a textual description of the reason the last synchronization
    * failed. Only valid when StatusCode is OKTA_PLUGIN_SYNC_STATUS_CODE_ERROR.

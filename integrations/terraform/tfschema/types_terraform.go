@@ -2370,6 +2370,11 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 						},
 						"create_desktop_user": GenSchemaBoolOption(ctx),
 						"create_host_user":    GenSchemaBoolOption(ctx),
+						"create_host_user_default_shell": {
+							Description: "CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
 						"create_host_user_mode": {
 							Description: "CreateHostUserMode allows users to be automatically created on a host when not set to off. 0 is \"unspecified\"; 1 is \"off\"; 2 is \"drop\" (removed for v15 and above), 3 is \"keep\"; 4 is \"insecure-drop\".",
 							Optional:    true,
@@ -2644,11 +2649,18 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Optional:    true,
 		},
 		"status": {
-			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"password_state": {
-				Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
-				Optional:    true,
-				Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-			}}),
+			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+				"mfa_weakest_device": {
+					Description: "mfa_weakest_device reflects what the system knows about the user's weakest MFA device. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED.",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+				"password_state": {
+					Description: "password_state reflects what the system knows about the user's password. Note that this is a \"best effort\" property, in that it can be UNSPECIFIED for users who were created before this property was introduced and didn't perform any password-related activity since then. See RFD 0159 for details. Do NOT use this value for authentication purposes!",
+					Optional:    true,
+					Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
+				},
+			}),
 			Description: "",
 			Optional:    true,
 		},
@@ -2813,6 +2825,37 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 					Description: "",
 					Optional:    true,
 					Type:        DurationType{},
+				},
+				"mfa": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"acr_values": {
+							Description: "AcrValues are Authentication Context Class Reference values. The meaning of the ACR value is context-specific and varies for identity providers. Some identity providers support MFA specific contexts, such Okta with its \"phr\" (phishing-resistant) ACR.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_id": {
+							Description: "ClientID is the OIDC OAuth app client ID.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"client_secret": {
+							Description: "ClientSecret is the OIDC OAuth app client secret.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"enabled": {
+							Description: "Enabled specified whether this OIDC connector supports MFA checks. Defaults to false.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"prompt": {
+							Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
+					Optional:    true,
 				},
 				"prompt": {
 					Description: "Prompt is an optional OIDC prompt. An empty string omits prompt. If not specified, it defaults to select_account for backwards compatibility.",
@@ -3015,6 +3058,27 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+				},
+				"mfa": {
+					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+						"enabled": {
+							Description: "Enabled specified whether this SAML connector supports MFA checks. Defaults to false.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+						},
+						"entity_descriptor": {
+							Description: "EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"entity_descriptor_url": {
+							Description: "EntityDescriptorUrl is a URL that supplies a configuration XML.",
+							Optional:    true,
+							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+					}),
+					Description: "MFASettings contains settings to enable SSO MFA checks through this auth connector.",
+					Optional:    true,
 				},
 				"provider": {
 					Description: "Provider is the external identity provider.",
@@ -15851,6 +15915,23 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.CreateHostUserDefaultShell = t
+											}
+										}
+									}
 								}
 							}
 						}
@@ -20607,6 +20688,28 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 											v.Value = time.Duration(obj.MFAVerificationInterval)
 											v.Unknown = false
 											tf.Attrs["mfa_verification_interval"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["create_host_user_default_shell"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell"})
+										} else {
+											v, ok := tf.Attrs["create_host_user_default_shell"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"RoleV6.Spec.Options.CreateHostUserDefaultShell", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Options.CreateHostUserDefaultShell", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.CreateHostUserDefaultShell) == ""
+											}
+											v.Value = string(obj.CreateHostUserDefaultShell)
+											v.Unknown = false
+											tf.Attrs["create_host_user_default_shell"] = v
 										}
 									}
 								}
@@ -27485,6 +27588,23 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
+					{
+						a, ok := tf.Attrs["mfa_weakest_device"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"UserV2.Status.mfa_weakest_device"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"UserV2.Status.mfa_weakest_device", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+							} else {
+								var t github_com_gravitational_teleport_api_types.MFADeviceKind
+								if !v.Null && !v.Unknown {
+									t = github_com_gravitational_teleport_api_types.MFADeviceKind(v.Value)
+								}
+								obj.MfaWeakestDevice = t
+							}
+						}
+					}
 				}
 			}
 		}
@@ -28318,6 +28438,28 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							tf.Attrs["password_state"] = v
 						}
 					}
+					{
+						t, ok := tf.AttrTypes["mfa_weakest_device"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"UserV2.Status.mfa_weakest_device"})
+						} else {
+							v, ok := tf.Attrs["mfa_weakest_device"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+							if !ok {
+								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+								if err != nil {
+									diags.Append(attrWriteGeneralError{"UserV2.Status.mfa_weakest_device", err})
+								}
+								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
+								if !ok {
+									diags.Append(attrWriteConversionFailureDiag{"UserV2.Status.mfa_weakest_device", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
+								}
+								v.Null = int64(obj.MfaWeakestDevice) == 0
+							}
+							v.Value = int64(obj.MfaWeakestDevice)
+							v.Unknown = false
+							tf.Attrs["mfa_weakest_device"] = v
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["status"] = v
@@ -28938,6 +29080,109 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 														}
 													}
 												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["mfa"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.MFASettings = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.MFASettings = &github_com_gravitational_teleport_api_types.OIDCConnectorMFASettings{}
+									obj := obj.MFASettings
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["client_id"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.client_id"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ClientId = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["client_secret"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.client_secret"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.ClientSecret = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["acr_values"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.acr_values"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.acr_values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.AcrValues = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["prompt"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Spec.MFASettings.prompt"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.Prompt = t
 											}
 										}
 									}
@@ -29888,6 +30133,148 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 							}
 						}
 					}
+					{
+						a, ok := tf.AttrTypes["mfa"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["mfa"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.MFASettings == nil {
+									v.Null = true
+								} else {
+									obj := obj.MFASettings
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["client_id"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.client_id"})
+										} else {
+											v, ok := tf.Attrs["client_id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.client_id", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.client_id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ClientId) == ""
+											}
+											v.Value = string(obj.ClientId)
+											v.Unknown = false
+											tf.Attrs["client_id"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["client_secret"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.client_secret"})
+										} else {
+											v, ok := tf.Attrs["client_secret"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.client_secret", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.client_secret", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.ClientSecret) == ""
+											}
+											v.Value = string(obj.ClientSecret)
+											v.Unknown = false
+											tf.Attrs["client_secret"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["acr_values"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.acr_values"})
+										} else {
+											v, ok := tf.Attrs["acr_values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.acr_values", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.acr_values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.AcrValues) == ""
+											}
+											v.Value = string(obj.AcrValues)
+											v.Unknown = false
+											tf.Attrs["acr_values"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["prompt"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Spec.MFASettings.prompt"})
+										} else {
+											v, ok := tf.Attrs["prompt"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Spec.MFASettings.prompt", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Spec.MFASettings.prompt", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.Prompt) == ""
+											}
+											v.Value = string(obj.Prompt)
+											v.Unknown = false
+											tf.Attrs["prompt"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["mfa"] = v
+							}
+						}
+					}
 				}
 				v.Unknown = false
 				tf.Attrs["spec"] = v
@@ -30560,6 +30947,75 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 									t = string(v.Value)
 								}
 								obj.SingleLogoutURL = t
+							}
+						}
+					}
+					{
+						a, ok := tf.Attrs["mfa"]
+						if !ok {
+							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.MFASettings"})
+						} else {
+							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+							if !ok {
+								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
+							} else {
+								obj.MFASettings = nil
+								if !v.Null && !v.Unknown {
+									tf := v
+									obj.MFASettings = &github_com_gravitational_teleport_api_types.SAMLConnectorMFASettings{}
+									obj := obj.MFASettings
+									{
+										a, ok := tf.Attrs["enabled"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.MFASettings.enabled"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+											} else {
+												var t bool
+												if !v.Null && !v.Unknown {
+													t = bool(v.Value)
+												}
+												obj.Enabled = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["entity_descriptor"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.EntityDescriptor = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["entity_descriptor_url"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor_url"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											} else {
+												var t string
+												if !v.Null && !v.Unknown {
+													t = string(v.Value)
+												}
+												obj.EntityDescriptorUrl = t
+											}
+										}
+									}
+								}
 							}
 						}
 					}
@@ -31568,6 +32024,104 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							v.Value = string(obj.SingleLogoutURL)
 							v.Unknown = false
 							tf.Attrs["single_logout_url"] = v
+						}
+					}
+					{
+						a, ok := tf.AttrTypes["mfa"]
+						if !ok {
+							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.MFASettings"})
+						} else {
+							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+							if !ok {
+								diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
+							} else {
+								v, ok := tf.Attrs["mfa"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+								if !ok {
+									v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+										AttrTypes: o.AttrTypes,
+										Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+									}
+								} else {
+									if v.Attrs == nil {
+										v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+									}
+								}
+								if obj.MFASettings == nil {
+									v.Null = true
+								} else {
+									obj := obj.MFASettings
+									tf := &v
+									{
+										t, ok := tf.AttrTypes["enabled"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.MFASettings.enabled"})
+										} else {
+											v, ok := tf.Attrs["enabled"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.MFASettings.enabled", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.enabled", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+												}
+												v.Null = bool(obj.Enabled) == false
+											}
+											v.Value = bool(obj.Enabled)
+											v.Unknown = false
+											tf.Attrs["enabled"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["entity_descriptor"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor"})
+										} else {
+											v, ok := tf.Attrs["entity_descriptor"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.EntityDescriptor) == ""
+											}
+											v.Value = string(obj.EntityDescriptor)
+											v.Unknown = false
+											tf.Attrs["entity_descriptor"] = v
+										}
+									}
+									{
+										t, ok := tf.AttrTypes["entity_descriptor_url"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor_url"})
+										} else {
+											v, ok := tf.Attrs["entity_descriptor_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+											if !ok {
+												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+												if err != nil {
+													diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor_url", err})
+												}
+												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+												if !ok {
+													diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Spec.MFASettings.entity_descriptor_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
+												v.Null = string(obj.EntityDescriptorUrl) == ""
+											}
+											v.Value = string(obj.EntityDescriptorUrl)
+											v.Unknown = false
+											tf.Attrs["entity_descriptor_url"] = v
+										}
+									}
+								}
+								v.Unknown = false
+								tf.Attrs["mfa"] = v
+							}
 						}
 					}
 				}

@@ -313,7 +313,7 @@ func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config
 
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: ks.credentials.TLSCert,
-		ClientKeyData:         ks.credentials.PrivateKey.PrivateKeyPEM(),
+		ClientKeyData:         ks.credentials.TLSPrivateKey.PrivateKeyPEM(),
 	}
 
 	// Last, create a context linking the cluster to the auth info.

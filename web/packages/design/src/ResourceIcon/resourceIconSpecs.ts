@@ -106,6 +106,7 @@ export const resourceIconSpecs = {
   eks: forAllThemes(i.eks),
   elastic: forAllThemes(i.elastic),
   email: { dark: i.emailDark, light: i.emailLight },
+  entraid: forAllThemes(i.entraid),
   eventbrite: forAllThemes(i.eventbrite),
   excalidraw: forAllThemes(i.excalidraw),
 

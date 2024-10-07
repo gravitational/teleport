@@ -54,7 +54,7 @@ const mockDbLabels = [{ name: 'env', value: 'prod' }];
 
 const integrationName = 'aws-oidc-integration';
 const region: Regions = 'us-east-2';
-const awsoidcRoleArn = 'role-arn';
+const awsoidcRoleName = 'role-arn';
 
 const mockAwsRdsDb: AwsRdsDatabase = {
   engine: 'postgres',
@@ -74,7 +74,7 @@ const mocKIntegration: Integration = {
   name: integrationName,
   resourceType: 'integration',
   spec: {
-    roleArn: `doncare/${awsoidcRoleArn}`,
+    roleArn: `arn:aws:iam::123456789012:role/${awsoidcRoleName}`,
     issuerS3Bucket: '',
     issuerS3Prefix: '',
   },

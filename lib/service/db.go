@@ -164,6 +164,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentDatabase),
 		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
+		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)

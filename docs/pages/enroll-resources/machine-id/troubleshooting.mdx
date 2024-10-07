@@ -262,15 +262,14 @@ granted:
 $ tctl get role/machine-id-db
 ```
 
-If the role is missing database permissions, it can be modified:
+If the role is missing database permissions, it can be modified in your text
+editor:
+
 ```code
-## save the role to a local file
-$ tctl get role/machine-id-db > db-role.yaml
-## edit the role as necessary
-$ nano db-role.yaml
-## replace the existing role with the modified copy
-$ tctl create -f db-role.yaml
+$ tctl edit role/machine-id-db
 ```
+
+Edit the role, then save and close the file to apply your changes.
 
 <Notice type="note">
 By default, outputs (like `/opt/machine-id`) are granted all roles provided

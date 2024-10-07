@@ -504,7 +504,7 @@ function getMockedContexts(withAutoDiscovery = false) {
         name: 'test-oidc',
         resourceType: 'integration',
         spec: {
-          roleArn: 'arn-123',
+          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
           issuerS3Bucket: '',
           issuerS3Prefix: '',
         },

@@ -72,12 +72,13 @@ type Backend interface {
 
 // ServiceConfig contain dependencies required to create a [Service].
 type ServiceConfig struct {
-	Cache         Cache
-	Backend       Backend
-	Authorizer    authz.Authorizer
-	Emitter       apievents.Emitter
-	AccessGraph   AccessGraphConfig
-	ReadOnlyCache ReadOnlyCache
+	Cache                         Cache
+	Backend                       Backend
+	Authorizer                    authz.Authorizer
+	Emitter                       apievents.Emitter
+	AccessGraph                   AccessGraphConfig
+	ReadOnlyCache                 ReadOnlyCache
+	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -99,12 +100,13 @@ type AccessGraphConfig struct {
 type Service struct {
 	clusterconfigpb.UnimplementedClusterConfigServiceServer
 
-	cache         Cache
-	backend       Backend
-	authorizer    authz.Authorizer
-	emitter       apievents.Emitter
-	accessGraph   AccessGraphConfig
-	readOnlyCache ReadOnlyCache
+	cache                         Cache
+	backend                       Backend
+	authorizer                    authz.Authorizer
+	emitter                       apievents.Emitter
+	accessGraph                   AccessGraphConfig
+	readOnlyCache                 ReadOnlyCache
+	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -130,7 +132,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ReadOnlyCache = readOnlyCache
 	}
 
-	return &Service{cache: cfg.Cache, backend: cfg.Backend, authorizer: cfg.Authorizer, emitter: cfg.Emitter, accessGraph: cfg.AccessGraph, readOnlyCache: cfg.ReadOnlyCache}, nil
+	return &Service{
+		cache:                         cfg.Cache,
+		backend:                       cfg.Backend,
+		authorizer:                    cfg.Authorizer,
+		emitter:                       cfg.Emitter,
+		accessGraph:                   cfg.AccessGraph,
+		readOnlyCache:                 cfg.ReadOnlyCache,
+		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
+	}, nil
 }
 
 // GetAuthPreference returns the locally cached auth preference.
@@ -176,6 +186,10 @@ func (s *Service) CreateAuthPreference(ctx context.Context, p types.AuthPreferen
 	}
 
 	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := p.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -227,6 +241,10 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -293,6 +311,10 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		return nil, trace.Wrap(err)
 	}
 
+	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req.AuthPreference.SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
@@ -347,6 +369,7 @@ func (s *Service) ResetAuthPreference(ctx context.Context, _ *clusterconfigpb.Re
 	}
 
 	defaultPreference := types.DefaultAuthPreference()
+	defaultPreference.SetDefaultSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams)
 	newSecondFactor := defaultPreference.GetSecondFactor()
 	const iterationLimit = 3
 	// Attempt a few iterations in case the conditional update fails

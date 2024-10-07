@@ -572,6 +572,7 @@ enum IntegrationEnrollKind {
   INTEGRATION_ENROLL_KIND_MACHINE_ID_ANSIBLE = 17;
   INTEGRATION_ENROLL_KIND_SERVICENOW = 18;
   INTEGRATION_ENROLL_KIND_ENTRA_ID = 19;
+  INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT = 20;
 }
 
 // IntegrationEnrollMetadata contains common metadata
@@ -667,6 +668,41 @@ message TAGExecuteQueryEvent {
   bool is_success = 3;
 }
 
+// AccessGraphAWSScanEvent is emitted when the Access Graph
+// AWS scan is enabled.
+message AccessGraphAWSScanEvent {
+  // total_ec2_instances is the total amount of EC2 instances found in the AWS scan.
+  uint64 total_ec2_instances = 1;
+  // total_users is the total amount of users found in the AWS scan.
+  uint64 total_users = 2;
+  // total_groups is the total amount of groups found in the AWS scan.
+  uint64 total_groups = 3;
+  // total_roles is the total amount of roles found in the AWS scan.
+  uint64 total_roles = 4;
+  // total_policies is the total amount of policies found in the AWS scan.
+  uint64 total_policies = 5;
+  // total_eks_clusters is the total amount of EKS clusters found in the AWS scan.
+  uint64 total_eks_clusters = 6;
+  // total_rds_instances is the total amount of RDS instances found in the AWS scan.
+  uint64 total_rds_instances = 7;
+  // total_s3_buckets is the total amount of S3 buckets found in the AWS scan.
+  uint64 total_s3_buckets = 8;
+  // total_saml_providers is the total amount of SAML providers found in the AWS scan.
+  uint64 total_saml_providers = 9;
+  // total_oidc_providers is the total amount of OIDC providers found in the AWS scan.
+  uint64 total_oidc_providers = 10;
+  // total_accounts is the total amount of accounts synchronized in the AWS scan.
+  uint64 total_accounts = 11;
+}
+
+// UIAccessGraphCrownJewelDiffViewEvent is emitted when a user reviews the output of a Crown Jewel access path dff.
+message UIAccessGraphCrownJewelDiffViewEvent {
+  // affected_resource_source is the source of the affected resource.
+  string affected_resource_source = 1;
+  // affected_resource_type is the type of the affected resource.
+  string affected_resource_type = 2;
+}
+
 // SecurityReportGetResultEvent is emitted when the user requests a security report.
 message SecurityReportGetResultEvent {
   // name is the name of the security report.
@@ -747,6 +783,8 @@ message UsageEventOneOf {
     UIDiscoverCreateDiscoveryConfigEvent ui_discover_create_discovery_config = 55;
     UIDiscoverKubeEKSEnrollEvent ui_discover_kube_eks_enroll_event = 56;
     UIDiscoverCreateAppServerEvent ui_discover_create_app_server_event = 57;
+    AccessGraphAWSScanEvent access_graph_aws_scan_event = 58;
+    UIAccessGraphCrownJewelDiffViewEvent ui_access_graph_crown_jewel_diff_view = 59;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

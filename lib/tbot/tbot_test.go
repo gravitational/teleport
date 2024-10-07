@@ -21,7 +21,9 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
 	"fmt"
 	"log/slog"
 	"net"
@@ -46,6 +48,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -371,6 +374,9 @@ func TestBot(t *testing.T) {
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
 		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// ECDSA key.
+		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
@@ -416,6 +422,12 @@ func TestBot(t *testing.T) {
 		require.Equal(t, databaseName, route.Database)
 		require.Equal(t, databaseUsername, route.Username)
 		require.Equal(t, "mysql", route.Protocol)
+		// Sanity check we generated an RSA key.
+		keyBytes, err := dbOutput.GetDestination().Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		key, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+		require.IsType(t, &rsa.PublicKey{}, key.Public())
 	})
 
 	t.Run("output: database discovered name", func(t *testing.T) {
@@ -436,6 +448,9 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// Ed25519 key.
+		require.Equal(t, ssh.KeyAlgoED25519, hostKey.PublicKey().Type())
 		testData := []byte("test-data")
 		signedTestData, err := hostKey.Sign(rand.Reader, testData)
 		require.NoError(t, err)
@@ -956,8 +971,8 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
-	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
-	tmpDir := path.Join(os.TempDir(), t.Name())
+	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
+	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
 	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {

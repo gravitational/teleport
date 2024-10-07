@@ -108,6 +108,12 @@ type OIDCConnector interface {
 	GetMaxAge() (time.Duration, bool)
 	// GetClientRedirectSettings returns the client redirect settings.
 	GetClientRedirectSettings() *SSOClientRedirectSettings
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() OIDCConnectorMFASettings
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
 }
 
 // NewOIDCConnector returns a new OIDCConnector based off a name and OIDCConnectorSpecV3.
@@ -202,6 +208,9 @@ func (o *OIDCConnectorV3) WithoutSecrets() Resource {
 
 	o2.SetClientSecret("")
 	o2.SetGoogleServiceAccount("")
+	if o2.Spec.MFASettings != nil {
+		o2.Spec.MFASettings.ClientSecret = ""
+	}
 
 	return &o2
 }
@@ -494,6 +503,34 @@ func (o *OIDCConnectorV3) GetClientRedirectSettings() *SSOClientRedirectSettings
 		return nil
 	}
 	return o.Spec.ClientRedirectSettings
+}
+
+// GetMFASettings returns the connector's MFA settings.
+func (o *OIDCConnectorV3) GetMFASettings() OIDCConnectorMFASettings {
+	if o.Spec.MFASettings == nil {
+		return OIDCConnectorMFASettings{
+			Enabled: false,
+		}
+	}
+	return *o.Spec.MFASettings
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *OIDCConnectorV3) IsMFAEnabled() bool {
+	return o.GetMFASettings().Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *OIDCConnectorV3) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.ClientID = o.Spec.MFASettings.ClientId
+	o.Spec.ClientSecret = o.Spec.MFASettings.ClientSecret
+	o.Spec.ACR = o.Spec.MFASettings.AcrValues
+	o.Spec.Prompt = o.Spec.MFASettings.Prompt
+	return nil
 }
 
 // Check returns nil if all parameters are great, err otherwise

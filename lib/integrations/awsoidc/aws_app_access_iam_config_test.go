@@ -33,6 +33,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 	baseReq := func() AWSAppAccessConfigureRequest {
 		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
+			AccountID:       "123456789012",
 		}
 	}
 
@@ -47,6 +48,7 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 			req:      baseReq,
 			errCheck: require.NoError,
 			expected: AWSAppAccessConfigureRequest{
+				AccountID:                         "123456789012",
 				IntegrationRole:                   "integrationrole",
 				IntegrationRoleAWSAppAccessPolicy: "AWSAppAccess",
 			},
@@ -59,6 +61,19 @@ func TestAWSAppAccessConfigReqDefaults(t *testing.T) {
 				return req
 			},
 			errCheck: badParameterCheck,
+		},
+		{
+			name: "missing account id is ok",
+			req: func() AWSAppAccessConfigureRequest {
+				req := baseReq()
+				req.AccountID = ""
+				return req
+			},
+			expected: AWSAppAccessConfigureRequest{
+				IntegrationRole:                   "integrationrole",
+				IntegrationRoleAWSAppAccessPolicy: "AWSAppAccess",
+			},
+			errCheck: require.NoError,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -79,11 +94,13 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	baseReq := func() AWSAppAccessConfigureRequest {
 		return AWSAppAccessConfigureRequest{
 			IntegrationRole: "integrationrole",
+			AccountID:       "123456789012",
 		}
 	}
 
 	for _, tt := range []struct {
 		name              string
+		mockAccountID     string
 		mockExistingRoles []string
 		req               func() AWSAppAccessConfigureRequest
 		errCheck          require.ErrorAssertionFunc
@@ -91,19 +108,29 @@ func TestAWSAppAccessConfig(t *testing.T) {
 		{
 			name:              "valid",
 			req:               baseReq,
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{"integrationrole"},
 			errCheck:          require.NoError,
 		},
 		{
 			name:              "integration role does not exist",
+			mockAccountID:     "123456789012",
 			mockExistingRoles: []string{},
 			req:               baseReq,
 			errCheck:          notFoundCheck,
 		},
+		{
+			name:              "account does not match expected account",
+			req:               baseReq,
+			mockAccountID:     "222222222222",
+			mockExistingRoles: []string{"integrationrole"},
+			errCheck:          badParameterCheck,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			awsClient := &mockAWSAppAccessConfigClient{
-				existingRoles: tt.mockExistingRoles,
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				existingRoles:        tt.mockExistingRoles,
 			}
 
 			err := ConfigureAWSAppAccess(ctx, awsClient, tt.req())
@@ -113,6 +140,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 }
 
 type mockAWSAppAccessConfigClient struct {
+	CallerIdentityGetter
 	existingRoles []string
 }
 

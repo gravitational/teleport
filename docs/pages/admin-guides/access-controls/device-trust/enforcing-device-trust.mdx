@@ -35,6 +35,12 @@ by the `device_trust_mode` authentication setting:
 
 (!docs/pages/includes/device-trust/prereqs.mdx!)
 
+- We expect your Teleport cluster to be on version 13.3.6 and above, which has
+  the preset `require-trusted-device` role. The preset `require-trusted-device`
+  role does not enforce the use of a trusted device for
+  [Apps](#app-access-support) or [Desktops](#desktop-access-support).  Refer to
+  their corresponding sections for instructions.
+
 ## Role-based trusted device enforcement
 
 Role-based configuration enforces trusted device access at the role level. It
@@ -42,15 +48,10 @@ can be configured with the `spec.options.device_trust_mode` option and
 applies to the resources in its `allow` rules. It
 works similarly to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
-<Admonition type="warning" title="require-trusted-device role">
-  The preset `require-trusted-device` role does not enforce the use of a trusted
-  device for [Apps](#app-access-support) or [Desktops](#desktop-access-support).
-  Refer to their corresponding sections for instructions.
-</Admonition>
-
-The role below exemplifies trusted device enforcement for DB, K8s and SSH.
-Alternatively, you may set options.device_trust_mode=required on an existing
-role for similar effects.
+To enforce authenticated device checks for a specific role when a user accesses
+databases, Kubernetes clusters, and servers with Teleport, update the role with
+the `device_trust_mode` field assigned to `"required"`. The following example
+updates the preset `require-trusted-device` role:
 
 ```yaml
 kind: role

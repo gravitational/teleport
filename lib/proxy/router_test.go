@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
@@ -652,7 +652,7 @@ func TestRouter_DialHost(t *testing.T) {
 		return nil, nil
 	}
 	createSigner := func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
-		key, err := native.GeneratePrivateKey()
+		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 		if err != nil {
 			return nil, err
 		}

@@ -155,6 +155,7 @@ func TestAuth_RegisterUsingToken_Terraform(t *testing.T) {
 							ProjectName:      "example-project",
 						},
 					},
+					Hostname: "terraform.example.com",
 				},
 			},
 			request: newRequest(validIDToken),

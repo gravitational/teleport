@@ -1,5 +1,4 @@
-/*
- * Teleport
+/** Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,10 +18,11 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -431,8 +431,15 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.StaticHostUserUpdate{}
 	case StaticHostUserDeleteEvent:
 		e = &events.StaticHostUserDelete{}
+
+	case CrownJewelCreateEvent:
+		e = &events.CrownJewelCreate{}
+	case CrownJewelUpdateEvent:
+		e = &events.CrownJewelUpdate{}
+	case CrownJewelDeleteEvent:
+		e = &events.CrownJewelDelete{}
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
+		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)

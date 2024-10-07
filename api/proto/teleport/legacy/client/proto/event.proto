@@ -19,6 +19,7 @@ package proto;
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
+import "teleport/autoupdate/v1/autoupdate_agent_plan.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -31,6 +32,7 @@ import "teleport/notifications/v1/notifications.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
+import "teleport/usertasks/v1/user_tasks.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
 
@@ -184,5 +186,9 @@ message Event {
     teleport.autoupdate.v1.AutoUpdateVersion AutoUpdateVersion = 65;
     // StaticHostUserV2 is a resource for static host users.
     teleport.userprovisioning.v2.StaticHostUser StaticHostUserV2 = 66;
+    // UserTask is a resource for user task.
+    teleport.usertasks.v1.UserTask UserTask = 67;
+    // AutoUpdateAgentPlan is a resource for planning agent automatic updates.
+    teleport.autoupdate.v1.AutoUpdateAgentPlan AutoUpdateAgentPlan = 68;
   }
 }

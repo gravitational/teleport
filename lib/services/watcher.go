@@ -1429,21 +1429,21 @@ func (k *kubeServerCollector) processEventsAndUpdateCurrent(ctx context.Context,
 			continue
 		}
 
-		server, ok := event.Resource.(types.KubeServer)
-		if !ok {
-			k.Log.Warnf("Unexpected resource type %T.", event.Resource)
-			continue
-		}
-
 		switch event.Type {
 		case types.OpDelete:
 			key := kubeServersKey{
 				// On delete events, the server description is populated with the host ID.
-				hostID:       server.GetMetadata().Description,
-				resourceName: server.GetName(),
+				hostID:       event.Resource.GetMetadata().Description,
+				resourceName: event.Resource.GetName(),
 			}
 			delete(k.current, key)
 		case types.OpPut:
+			server, ok := event.Resource.(types.KubeServer)
+			if !ok {
+				k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+				continue
+			}
+
 			key := kubeServersKey{
 				hostID:       server.GetHostID(),
 				resourceName: server.GetName(),
