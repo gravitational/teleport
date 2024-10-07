@@ -91,7 +91,7 @@ func getOrGenerateYubiKeyPrivateKey(ctx context.Context, requiredKeyPolicy Priva
 	}
 
 	// If the program has already retrieved and cached this key, return it.
-	if key, ok := cachedKeys[pivSlot]; ok {
+	if key, ok := cachedKeys[pivSlot]; ok && key.GetPrivateKeyPolicy() == requiredKeyPolicy {
 		return key, nil
 	}
 
