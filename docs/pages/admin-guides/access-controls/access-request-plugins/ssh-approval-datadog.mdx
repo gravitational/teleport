@@ -3,16 +3,17 @@ title: Access Requests with Datadog Incident Management
 description: How to set up Teleport's Datadog Incident Management plugin for privilege elevation approvals.
 ---
 
+## How it works
+
 With Teleport's Datadog Incident Management integration, engineers can access the
-infrastructure they need to resolve incidents quickly-without longstanding admin
+infrastructure they need to resolve incidents without longstanding admin
 permissions that can become a vector for attacks.
 
 Teleport's Datadog Incident Management integration allows you to treat Teleport
 Role Access Requests as Datadog incidents, notify the appropriate on-call team,
-and approve or deny the requests via Teleport. You can also configure the plugin
-to approve Role Access Requests automatically for select on-call users.
+and approve or deny the requests via Teleport.
 
-<Details title="This integration is hosted on Teleport Cloud" open={false}>
+<Details title="This integration is hosted on Teleport Enterprise (Cloud)" open={false}>
 
 (!docs/pages/includes/plugins/enroll.mdx name="the Datadog Incident Management integration"!)
 
@@ -46,9 +47,6 @@ create a new Datadog team. Name it "Teleport Access".
 
 We will configure the Datadog Incident Management plugin to route certain access
 requests to the "Teleport Access" team.
-
-For users that are on-call for the "Teleport Access" team, we will configure the
-Datadog Incident Management plugin to approve Access Requests automatically.
 
 ## Step 2/10. Define RBAC resources
 
@@ -168,6 +166,10 @@ The Slack plugin uses this section to connect to your Teleport cluster:
 
 **`[datadog]`**
 
+`api_endpoint`: Specifies the desired Datadog API endpoint. See
+[`https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site`](https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site),
+for available Datadog regions.
+
 `api_key`: Open [`https://app.datadoghq.com/organization-settings/api-keys`](https://app.datadoghq.com/organization-settings/api-keys),
 find the "Teleport Access" API key you created earlier and copy the key into this
 field.
@@ -175,6 +177,8 @@ field.
 `application_key`: Open [`https://app.datadoghq.com/organization-settings/application-keys`](https://app.datadoghq.com/organization-settings/application-keys),
 find the "Teleport Access" Application key you created for your service account
 and copy the key into this field.
+
+`severity`: Specifies the Datadog incident severity.
 
 **`[role_to_recipients]`**
 
@@ -191,7 +195,7 @@ Here is an example of a `role_to_recipients` map:
 [role_to_recipients]
 "*" = ["admin-team"]
 "dev" = ["dev-team", "admin-team"]
-"dba" = "user@example.com"
+"dba" = ["user@example.com"]
 ```
 </TabItem>
 <TabItem label="Helm Chart">
@@ -212,9 +216,9 @@ roleToRecipients:
 </Tabs>
 
 In the `role_to_recipients` map, each key is the name of a Teleport role. Each
-value configures the Datadog users or teams to notify. The value can be a single
-string or an array of strings. Each string must be either the name of a Datadog team
-or the email address of a Datadog user.
+value configures the Datadog users or teams to notify. The value accepts an
+array of strings. Each string must be either the name of a Datadog team or the
+email address of a Datadog user.
 
 The `role_to_recipients` map must also include an entry for `"*"`, which the
 plugin looks up if no other entry matches a given role name. In the example
