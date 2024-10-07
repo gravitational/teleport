@@ -155,6 +155,7 @@ linters-settings:
           - "!$test"
           - '**/tool/tbot/**'
           - '**/lib/client/**'
+          - '**integrations/**'
         deny:
           - pkg: github.com/gravitational/teleport/lib/devicetrust/authn$
             desc: '"devicetrust/authn" requires CGO on darwin'
@@ -178,6 +179,8 @@ linters-settings:
             desc: '"lib/srv/uacc" requires CGO'
           - pkg: github.com/gravitational/teleport/lib/cgroup
             desc: '"lib/cgroup" requires CGO'
+          - pkg: github.com/gravitational/teleport/lib/config
+            desc: '"lib/config" requires CGO via "lib/pam" and "lib/backend/lite"'
   errorlint:
     comparison: true
     asserts: true
