@@ -47,7 +47,7 @@ import {
 import { EditorSaveCancelButton } from './Shared';
 import { RequiresResetToStandard } from './RequiresResetToStandard';
 
-type StandardEditorProps = {
+export type StandardEditorProps = {
   originalRole: RoleWithYaml;
   standardEditorModel: StandardEditorModel;
   isProcessing?: boolean;
@@ -272,20 +272,39 @@ const Section = ({
   const [expanded, setExpanded] = useState(true);
   const ExpandIcon = expanded ? Icon.Minus : Icon.Plus;
   const expandTooltip = expanded ? 'Collapse' : 'Expand';
+
+  const handleExpand = (e: React.MouseEvent) => {
+    // Don't let <summary> handle the event, we'll do it ourselves to keep
+    // track of the state.
+    e.preventDefault();
+    setExpanded(expanded => !expanded);
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    // Don't let <summary> handle the event.
+    e.stopPropagation();
+    onRemove?.();
+  };
+
   return (
     <Box
-      as="section"
+      as="details"
+      open={expanded}
       border={1}
       borderColor={theme.colors.interactive.tonal.neutral[0].background}
       borderRadius={2}
     >
-      <Flex height="56px" alignItems="center" ml={3} mr={2}>
-        <Flex
-          flex="1"
-          gap={2}
-          css={'cursor: pointer'}
-          onClick={() => setExpanded(e => !e)}
-        >
+      <Flex
+        as="summary"
+        height="56px"
+        alignItems="center"
+        ml={3}
+        mr={3}
+        css={'cursor: pointer'}
+        onClick={handleExpand}
+      >
+        {/* TODO(bl-nero): Show validation result in the summary. */}
+        <Flex flex="1" gap={2}>
           <H3>{title}</H3>
           {tooltip && <ToolTipInfo>{tooltip}</ToolTipInfo>}
         </Flex>
@@ -298,7 +317,7 @@ const Section = ({
               <ButtonIcon
                 aria-label="Remove section"
                 disabled={isProcessing}
-                onClick={onRemove}
+                onClick={handleRemove}
               >
                 <Icon.Trash
                   size="small"
@@ -311,19 +330,12 @@ const Section = ({
           </Box>
         )}
         <HoverTooltip tipContent={expandTooltip}>
-          <ButtonIcon
-            aria-label={expandTooltip}
-            onClick={() => setExpanded(e => !e)}
-          >
-            <ExpandIcon size="small" color={theme.colors.text.muted} />
-          </ButtonIcon>
+          <ExpandIcon size="small" color={theme.colors.text.muted} ml={2} />
         </HoverTooltip>
       </Flex>
-      {expanded && (
-        <Box px={3} pb={3}>
-          {children}
-        </Box>
-      )}
+      <Box px={3} pb={3}>
+        {children}
+      </Box>
     </Box>
   );
 };

@@ -14,9 +14,13 @@ import {
   ServerAccessSpec,
   StandardEditorModel,
 } from './standardmodel';
-import { ServerAccessSpecSection, StandardEditor } from './StandardEditor';
+import {
+  ServerAccessSpecSection,
+  StandardEditor,
+  StandardEditorProps,
+} from './StandardEditor';
 
-const TestStandardEditor = () => {
+const TestStandardEditor = (props: Partial<StandardEditorProps>) => {
   const ctx = createTeleportContext();
   const [model, setModel] = useState<StandardEditorModel>({
     roleModel: roleToRoleEditorModel(newRole()),
@@ -29,6 +33,7 @@ const TestStandardEditor = () => {
         standardEditorModel={model}
         isProcessing={false}
         onChange={setModel}
+        {...props}
       />
     </TeleportContextProvider>
   );
@@ -74,6 +79,24 @@ test('adding and removing sections', async () => {
   expect(getAllSectionNames()).toEqual(['Role Metadata']);
 });
 
+test('collapsed sections still apply validation', async () => {
+  const user = userEvent.setup();
+  const onSave = jest.fn();
+  render(<TestStandardEditor onSave={onSave} />);
+  // Intentionally cause a validation error.
+  await user.clear(screen.getByLabelText('Role Name'));
+  // Collapse the section.
+  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(onSave).not.toHaveBeenCalled();
+
+  // Expand the section, make it valid.
+  await user.click(screen.getByRole('heading', { name: 'Role Metadata' }));
+  await user.type(screen.getByLabelText('Role Name'), 'foo');
+  await user.click(screen.getByRole('button', { name: 'Create Role' }));
+  expect(onSave).toHaveBeenCalled();
+});
+
 const getAllMenuItemNames = () =>
   screen.queryAllByRole('menuitem').map(m => m.textContent);
 
@@ -83,7 +106,7 @@ const getAllSectionNames = () =>
 const getSectionByName = (name: string) =>
   // There's no better way to do it, unfortunately.
   // eslint-disable-next-line testing-library/no-node-access
-  screen.getByRole('heading', { level: 3, name }).closest('section');
+  screen.getByRole('heading', { level: 3, name }).closest('details');
 
 const TestServerAccessSpecsSection = ({
   onChange,
@@ -126,14 +149,9 @@ test('editing server access specs', async () => {
   expect(onChange).toHaveBeenLastCalledWith({
     kind: 'node',
     labels: [{ name: 'some-key', value: 'some-value' }],
-    logins: [newOptionFor('root'), newOptionFor('some-user')],
+    logins: [
+      expect.objectContaining({ label: 'root', value: 'root' }),
+      expect.objectContaining({ label: 'some-user', value: 'some-user' }),
+    ],
   } as ServerAccessSpec);
-});
-
-const newOptionFor = (value: string) => ({
-  label: value,
-  value,
-  // This one is silently added by React Select to all newly created options.
-  // Surprise!
-  __isNew__: true,
 });

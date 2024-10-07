@@ -57,8 +57,13 @@ export type MetadataModel = {
   revision?: string;
 };
 
+/** A model for access specifications section. */
 export type AccessSpec = KubernetesAccessSpec | ServerAccessSpec;
 
+/**
+ * A base for all access specification section models. Contains a type
+ * discriminator field.
+ */
 type AccessSpecBase<T extends AccessSpecKind> = {
   /**
    * Determines kind of resource that is accessed using this spec. Intended to
@@ -69,14 +74,16 @@ type AccessSpecBase<T extends AccessSpecKind> = {
   kind: T;
 };
 
+export type AccessSpecKind = 'node' | 'kube_cluster';
+
+/** Model for the Kubernetes access specification section. */
 export type KubernetesAccessSpec = AccessSpecBase<'kube_cluster'>;
 
+/** Model for the server access specification section. */
 export type ServerAccessSpec = AccessSpecBase<'node'> & {
   labels: Label[];
   logins: readonly Option[];
 };
-
-export type AccessSpecKind = AccessSpec['kind'];
 
 const roleVersion = 'v7';
 
@@ -228,9 +235,7 @@ export function hasModifiedFields(
   updated: RoleEditorModel,
   originalRole: Role
 ) {
-  return !equalsDeep(
-    roleEditorModelToRole(updated),
-    originalRole,
-    true /* ignoreUndefined */
-  );
+  return !equalsDeep(roleEditorModelToRole(updated), originalRole, {
+    ignoreUndefined: true,
+  });
 }

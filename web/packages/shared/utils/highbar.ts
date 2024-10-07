@@ -61,32 +61,46 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
 }
 
 /** Recursively compares two arrays. */
-export function arrayObjectIsEqual(arr1: unknown[], arr2: unknown[]): boolean {
+export function arrayObjectIsEqual(
+  arr1: unknown[],
+  arr2: unknown[],
+  options?: {
+    /**
+     * If `true`, treats fields set to `undefined` as equal to fields that
+     * don't exist at all. Doesn't apply to the array itself, but recursively
+     * to its elements.
+     */
+    ignoreUndefined?: boolean;
+  }
+): boolean {
   return (
     arr1.length === arr2.length &&
-    arr1.every((obj, idx) => equalsDeep(obj, arr2[idx]))
+    arr1.every((obj, idx) => equalsDeep(obj, arr2[idx], options))
   );
 }
 
-/**
- * Recursively compares two values. If `ignoreUndefined` is set to `true`,
- * treats fields set to `undefined` as equal to fields that don't exist at all.
- */
+/** Recursively compares two values. */
 export function equalsDeep(
   val1: unknown,
   val2: unknown,
-  ignoreUndefined?: boolean
+  options?: {
+    /**
+     * If `true`, treats fields set to `undefined` as equal to fields that
+     * don't exist at all.
+     */
+    ignoreUndefined?: boolean;
+  }
 ) {
   if (!isObject(val1) || !isObject(val2)) {
     return val1 === val2;
   }
 
   if (Array.isArray(val1) && Array.isArray(val2)) {
-    return arrayObjectIsEqual(val1, val2);
+    return arrayObjectIsEqual(val1, val2, options);
   }
 
-  const obj1 = ignoreUndefined ? onlyDefined(val1) : val1;
-  const obj2 = ignoreUndefined ? onlyDefined(val2) : val2;
+  const obj1 = options?.ignoreUndefined ? onlyDefined(val1) : val1;
+  const obj2 = options?.ignoreUndefined ? onlyDefined(val2) : val2;
 
   if (Object.keys(obj1).length !== Object.keys(obj2).length) {
     return false;
@@ -99,13 +113,15 @@ export function equalsDeep(
     if (!Object.hasOwn(obj2, key)) {
       return false;
     }
-    return equalsDeep(obj1[key], obj2[key], ignoreUndefined);
+    return equalsDeep(obj1[key], obj2[key], options);
   });
 }
 
 /** Returns an object with undefined fields filtered out. */
 function onlyDefined(obj: object): object {
-  return Object.fromEntries(Object.entries(obj).filter(entry => !!entry[1]));
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  );
 }
 
 export function isInteger(checkVal: any): boolean {

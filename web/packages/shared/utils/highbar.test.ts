@@ -225,18 +225,23 @@ describe('arrayObjectIsEqual correctly compares', () => {
 describe('equalsDeep', () => {
   describe.each([false, true])('with ignoreUndefined=%s', ignoreUndefined => {
     it('compares primitive values', () => {
-      expect(equalsDeep(1, 2, ignoreUndefined)).toBe(false);
-      expect(equalsDeep(2, 2, ignoreUndefined)).toBe(true);
+      expect(equalsDeep(1, 2, { ignoreUndefined })).toBe(false);
+      expect(equalsDeep(2, 2, { ignoreUndefined })).toBe(true);
     });
 
     it('compares simple objects', () => {
-      expect(equalsDeep({}, {}, ignoreUndefined)).toBe(true);
+      expect(equalsDeep({}, {}, { ignoreUndefined })).toBe(true);
       expect(
-        equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' }, ignoreUndefined)
+        equalsDeep({ a: 'b', c: 4 }, { c: 5, a: 'b' }, { ignoreUndefined })
       ).toBe(false);
       expect(
-        equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' }, ignoreUndefined)
+        equalsDeep({ a: 'b', c: 4 }, { c: 4, a: 'b' }, { ignoreUndefined })
       ).toBe(true);
+
+      // Corner case: falsy values
+      expect(
+        equalsDeep({}, { a: 0, b: false, c: '' }, { ignoreUndefined })
+      ).toBe(false);
     });
 
     it('compares complex objects', () => {
@@ -244,49 +249,49 @@ describe('equalsDeep', () => {
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 5, d: [2, { e: 'f' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 1, d: [5, { e: 'f' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 1, d: [2, { e: 'f' }, 3] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 1, d: [2, { e: 'z' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 1, d: [2, { e: 'f' }], g: 'h' },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [{ e: 'f' }, 2] },
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
       expect(
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', z: 1, d: [2, { e: 'f' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(false);
 
@@ -294,42 +299,44 @@ describe('equalsDeep', () => {
         equalsDeep(
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
           { a: 'b', c: 1, d: [2, { e: 'f' }] },
-          ignoreUndefined
+          { ignoreUndefined }
         )
       ).toBe(true);
     });
   });
 
-  it("doesn't ignore undefined values", () => {
-    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 })).toBe(false);
-    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 })).toBe(false);
-    expect(equalsDeep({}, { a: undefined })).toBe(false);
-    // Corner case: The same number of fields.
-    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(
-      false
-    );
-    // And the same thing, but in the deep.
-    expect(
-      equalsDeep({ a: { b: undefined, c: 1 } }, { a: { c: 1, d: undefined } })
-    ).toBe(false);
-  });
+  it.each`
+    options                       | result
+    ${undefined}                  | ${false}
+    ${{ ignoreUndefined: false }} | ${false}
+    ${{ ignoreUndefined: true }}  | ${true}
+  `('returns $result for options set to $options', ({ options, result }) => {
+    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 }, options)).toBe(result);
+    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 }, options)).toBe(result);
+    expect(equalsDeep({}, { a: undefined }, options)).toBe(result);
 
-  it('ignores undefined values if requested', () => {
-    expect(equalsDeep({ a: undefined, b: 1 }, { b: 1 }, true)).toBe(true);
-    expect(equalsDeep({ b: 1 }, { a: undefined, b: 1 }, true)).toBe(true);
-    expect(equalsDeep({}, { a: undefined }, true)).toBe(true);
     // Corner case: The same number of fields.
     expect(
-      equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined }, true)
-    ).toBe(true);
+      equalsDeep({ a: undefined, b: 1 }, { b: 1, c: undefined }, options)
+    ).toBe(result);
+
     // And the same thing, but in the deep.
     expect(
       equalsDeep(
         { a: { b: undefined, c: 1 } },
         { a: { c: 1, d: undefined } },
-        true
+        options
       )
-    ).toBe(true);
+    ).toBe(result);
+
+    // Crossing an array.
+    expect(
+      equalsDeep(
+        { a: [{ b: undefined, c: 1 }] },
+        { a: [{ c: 1, d: undefined }] },
+        options
+      )
+    ).toBe(result);
   });
 
   // A "real-world" example.
