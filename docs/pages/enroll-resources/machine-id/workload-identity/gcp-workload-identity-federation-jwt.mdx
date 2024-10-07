@@ -239,11 +239,80 @@ outputs:
         file_name: gcp-jwt
 ```
 
+Replace:
+
+- `123456789000` with your GCP project number.
+- `workload-id-pool` with the name of your Workload Identity Federation pool.
+- `workload-id-oidc` with the name of your Workload Identity Federation provider.
+
 Restart your `tbot` service to apply the new configuration. You should see a
 file created at `/opt/workload-identity/gcp-jwt` containing the JWT.
 
 ## Step 4/4. Configure GCP CLIs and SDKs
 
+Finally, you need to create a configuration file to configure the GCP CLIs and
+SDKs to authenticate using Workload Identity. This configuration file will
+specify the path to the JWT file that `tbot` is writing and will specify which
+Workload Identity Federation pool and provider to use.
+
+You can generate this configuration file using the `gcloud` CLI:
+
+```code
+$ gcloud iam workload-identity-pools create-cred-config \
+    projects/123456789000/locations/global/workloadIdentityPools/workload-id-pool/providers/workload-id-oidc \
+    --output-file=gcp-workload-identity.json \
+    --credential-source-file=/opt/workload-identity/gcp-jwt \
+    --credential-source-type=text
+```
+
+Replace:
+
+- `123456789000` with your GCP project number.
+- `workload-id-pool` with the name of your Workload Identity Federation pool.
+- `workload-id-oidc` with the name of your Workload Identity Federation provider.
+- `/opt/workload-identity/gcp-jwt` with the path to the JWT file that `tbot` is
+  writing.
+
+The command should have created a file called `gcp-workload-identity.json` in
+the current directory.
+
+### `gcloud` CLI
+
+To configure the `gcloud` CLI to authenticate using Workload Identity, you use
+the `gcloud auth login` command and specify the path to the configuration file
+that you have just created:
+
+```code
+$ gcloud auth login --cred-file gcp-workload-identity.json
+```
+
+You can now test authenticating to the GCP Storage API. Create a file which
+you can upload to your bucket:
+
+```code
+$ echo "Hello, World!" > hello.txt
+```
+
+Now, use the `gcloud` CLI to upload this file to your bucket:
+
+```code
+$ gcloud storage cp hello.txt gs://example
+```
+
+If everything is configured correctly, you should see this file uploaded to your
+bucket. Inspecting the audit logs on GCP should indicate that the request was
+authenticated using Workload Identity and specify the SPIFFE ID of the workload
+that made the request.
+
+### GCP SDKs
+
+To configure the GCP SDKs to authenticate using Workload Identity, you need to
+set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of the
+configuration file that you have just created:
+
+```code
+$ export GOOGLE_APPLICATION_CREDENTIALS=gcp-workload-identity.json
+```
 
 ## Next steps
 
