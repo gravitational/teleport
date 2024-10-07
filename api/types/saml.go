@@ -436,7 +436,7 @@ func (o *SAMLConnectorV2) WithMFASettings() error {
 
 // GetForceAuthn returns ForceAuthn
 func (o *SAMLConnectorV2) GetForceAuthn() bool {
-	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_NO
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
 // setStaticFields sets static resource header and metadata fields.
