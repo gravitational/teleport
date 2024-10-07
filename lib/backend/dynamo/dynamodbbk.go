@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -214,10 +213,12 @@ const (
 
 	// hashKeyKey is a name of the hash key
 	hashKeyKey = "HashKey"
+)
 
+var (
 	// keyPrefix is a prefix that is added to every dynamodb key
 	// for backwards compatibility
-	keyPrefix = "teleport"
+	keyPrefix = backend.KeyFromString("teleport")
 )
 
 // GetName is a part of backend API and it returns DynamoDB backend type
@@ -497,10 +498,10 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 
 // GetRange returns range of elements
 func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, limit int) (*backend.GetResult, error) {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
 	if limit <= 0 {
@@ -564,10 +565,10 @@ const (
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
-	if len(startKey) == 0 {
+	if startKey.IsZero() {
 		return trace.BadParameter("missing parameter startKey")
 	}
-	if len(endKey) == 0 {
+	if endKey.IsZero() {
 		return trace.BadParameter("missing parameter endKey")
 	}
 	// keep fetching and deleting until no records left,
@@ -631,10 +632,10 @@ func (b *Backend) Get(ctx context.Context, key backend.Key) (*backend.Item, erro
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
 func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
-	if len(expected.Key) == 0 {
+	if expected.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if len(replaceWith.Key) == 0 {
+	if replaceWith.Key.IsZero() {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
 	if expected.Key.Compare(replaceWith.Key) != 0 {
@@ -755,7 +756,7 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if len(lease.Key) == 0 {
+	if lease.Key.IsZero() {
 		return trace.BadParameter("lease is missing key")
 	}
 	input := &dynamodb.UpdateItemInput{
@@ -999,12 +1000,12 @@ const (
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
 // with previous implementation of DynamoDB backend
 func prependPrefix(key backend.Key) string {
-	return keyPrefix + string(key)
+	return keyPrefix.AppendKey(key).String()
 }
 
 // trimPrefix removes leading 'teleport' from the key
 func trimPrefix(key string) backend.Key {
-	return backend.Key(strings.TrimPrefix(key, keyPrefix))
+	return backend.KeyFromString(key).TrimPrefix(keyPrefix)
 }
 
 // create is a helper that writes a key/value pair in Dynamo with a given expiration.
@@ -1111,21 +1112,21 @@ func (b *Backend) getKey(ctx context.Context, key backend.Key) (*record, error) 
 	if err != nil {
 		// we deliberately use a "generic" trace error here, since we don't want
 		// callers to make assumptions about the nature of the failure.
-		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", string(key))
+		return nil, trace.WrapWithMessage(err, "failed to get %q (dynamo error)", key.String())
 	}
 	if len(out.Item) == 0 {
-		return nil, trace.NotFound("%q is not found", string(key))
+		return nil, trace.NotFound("%q is not found", key.String())
 	}
 	var r record
 	if err := attributevalue.UnmarshalMap(out.Item, &r); err != nil {
-		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", string(key))
+		return nil, trace.WrapWithMessage(err, "failed to unmarshal dynamo item %q", key.String())
 	}
 	// Check if key expired, if expired delete it
 	if r.isExpired(b.clock.Now()) {
 		if err := b.deleteKeyIfExpired(ctx, key); err != nil {
 			b.logger.WarnContext(ctx, "Failed deleting expired key", "key", key, "error", err)
 		}
-		return nil, trace.NotFound("%q is not found", key)
+		return nil, trace.NotFound("%q is not found", key.String())
 	}
 	return &r, nil
 }
