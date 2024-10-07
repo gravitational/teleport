@@ -25,18 +25,12 @@ import (
 )
 
 func TestKey(t *testing.T) {
-
-	k1 := backend.Key("test")
-	k2 := backend.NewKey("test")
-	k3 := backend.ExactKey("test")
+	k1 := backend.NewKey("test")
+	k2 := backend.ExactKey("test")
 
 	assert.NotEqual(t, k1, k2)
-	assert.NotEqual(t, k2, k3)
-	assert.NotEqual(t, k1, k3)
-
-	assert.Equal(t, "test", k1.String())
-	assert.Equal(t, "/test", k2.String())
-	assert.Equal(t, "/test/", k3.String())
+	assert.Equal(t, "/test", k1.String())
+	assert.Equal(t, "/test/", k2.String())
 }
 
 func TestKeyString(t *testing.T) {
@@ -80,8 +74,8 @@ func TestKeyString(t *testing.T) {
 		},
 		{
 			name:     "noend key",
-			key:      backend.Key{0},
-			expected: "\x00",
+			key:      backend.RangeEnd(backend.NewKey("\xFF")),
+			expected: "0",
 		},
 	}
 
@@ -97,7 +91,7 @@ func TestKeyComponents(t *testing.T) {
 	tests := []struct {
 		name     string
 		key      backend.Key
-		expected [][]byte
+		expected []string
 	}{
 		{
 			name: "default value has zero components",
@@ -109,22 +103,22 @@ func TestKeyComponents(t *testing.T) {
 		{
 			name:     "empty exact key has empty component",
 			key:      backend.ExactKey(),
-			expected: [][]byte{{}},
+			expected: []string{""},
 		},
 		{
 			name:     "single value key has a component",
 			key:      backend.NewKey("alpha"),
-			expected: [][]byte{[]byte("alpha")},
+			expected: []string{"alpha"},
 		},
 		{
 			name:     "multiple components",
 			key:      backend.NewKey("foo", "bar", "baz"),
-			expected: [][]byte{[]byte("foo"), []byte("bar"), []byte("baz")},
+			expected: []string{"foo", "bar", "baz"},
 		},
 		{
 			name:     "key without separator",
-			key:      backend.Key("testing"),
-			expected: [][]byte{[]byte("testing")},
+			key:      backend.ExactKey("foo", "bar", "baz"),
+			expected: []string{"foo", "bar", "baz", ""},
 		},
 	}
 
@@ -241,6 +235,7 @@ func TestKeyHasSuffix(t *testing.T) {
 		})
 	}
 }
+
 func TestKeyHasPrefix(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -395,7 +390,7 @@ func TestKeyTrimPrefix(t *testing.T) {
 	}
 }
 
-func TestKeyPrependPrefix(t *testing.T) {
+func TestKeyPrependKey(t *testing.T) {
 	tests := []struct {
 		name     string
 		key      backend.Key
@@ -403,26 +398,95 @@ func TestKeyPrependPrefix(t *testing.T) {
 		expected backend.Key
 	}{
 		{
-			name:     "empty prefix is noop",
+			name:     "empty prepend is noop",
 			key:      backend.NewKey("a", "b"),
 			expected: backend.NewKey("a", "b"),
 		},
 		{
-			name:     "empty key is prefixed",
+			name:     "empty key is prepended",
 			prefix:   backend.NewKey("a", "b"),
 			expected: backend.NewKey("a", "b"),
 		},
 		{
-			name:     "prefix applied",
+			name:     "all with leading separators",
 			key:      backend.NewKey("a", "b"),
 			prefix:   backend.NewKey("1", "2"),
 			expected: backend.NewKey("1", "2", "a", "b"),
 		},
+		{
+			name:     "all without leading separators",
+			key:      backend.KeyFromString("a/b"),
+			prefix:   backend.KeyFromString("1/2"),
+			expected: backend.KeyFromString("1/2/a/b"),
+		},
+		{
+			name:     "base without leading separators",
+			key:      backend.KeyFromString("a/b"),
+			prefix:   backend.NewKey("1", "2"),
+			expected: backend.KeyFromString("/1/2/a/b"),
+		},
+		{
+			name:     "base with leading separators",
+			key:      backend.NewKey("a", "b"),
+			prefix:   backend.KeyFromString("1/2"),
+			expected: backend.KeyFromString("1/2/a/b"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			prefixed := test.key.PrependKey(test.prefix)
+			assert.Equal(t, test.expected, prefixed)
+		})
+	}
+}
+
+func TestKeyAppendKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      backend.Key
+		suffix   backend.Key
+		expected backend.Key
+	}{
+		{
+			name:     "empty append is noop",
+			key:      backend.NewKey("a", "b"),
+			expected: backend.NewKey("a", "b"),
+		},
+		{
+			name:     "empty key is appended",
+			suffix:   backend.NewKey("a", "b"),
+			expected: backend.NewKey("a", "b"),
+		},
+		{
+			name:     "all with leading separators",
+			key:      backend.NewKey("a", "b"),
+			suffix:   backend.NewKey("1", "2"),
+			expected: backend.NewKey("a", "b", "1", "2"),
+		},
+		{
+			name:     "all without leading separators",
+			key:      backend.KeyFromString("a/b"),
+			suffix:   backend.KeyFromString("1/2"),
+			expected: backend.KeyFromString("a/b/1/2"),
+		},
+		{
+			name:     "prefix without leading separators",
+			key:      backend.KeyFromString("a/b"),
+			suffix:   backend.NewKey("1", "2"),
+			expected: backend.KeyFromString("a/b/1/2"),
+		},
+		{
+			name:     "suffix with no leading separators",
+			key:      backend.NewKey("a", "b"),
+			suffix:   backend.KeyFromString("1/2"),
+			expected: backend.KeyFromString("/a/b/1/2"),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			prefixed := test.key.PrependPrefix(test.prefix)
-			assert.Equal(t, test.expected, prefixed)
+			appended := test.key.AppendKey(test.suffix)
+			assert.Equal(t, test.expected, appended)
 		})
 	}
 }

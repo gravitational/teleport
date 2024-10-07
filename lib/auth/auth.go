@@ -372,12 +372,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Logger = slog.With(teleport.ComponentKey, teleport.ComponentAuth)
 	}
 
-	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
-		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	limiter := limiter.NewConnectionsLimiter(defaults.LimiterMaxConcurrentSignatures)
 
 	keystoreOpts := &keystore.Options{
 		HostUUID:             cfg.HostUUID,
@@ -3903,6 +3898,12 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
+
+		// SSO users can always login through their SSO provider.
+		if u.GetUserType() == types.UserTypeSSO {
+			return true, nil
+		}
+
 		if u.GetPasswordState() != types.PasswordState_PASSWORD_STATE_SET {
 			return false, nil
 		}
@@ -6333,6 +6334,8 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{}, nil
 	}
 
+	licenseExpiry := modules.GetModules().LicenseExpiry()
+
 	return proto.PingResponse{
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
@@ -6341,6 +6344,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
+		LicenseExpiry:           &licenseExpiry,
 	}, nil
 }
 

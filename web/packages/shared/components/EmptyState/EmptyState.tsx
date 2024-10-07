@@ -55,7 +55,7 @@ export const FeatureContainer = styled(Flex)`
   @media (max-width: 1302px) {
     --feature-slider-width: 372px;
     --feature-width: 372px;
-    --feature-height: 112px;
+    --feature-height: 120px;
     --feature-preview-scale: scale(0.7);
     --feature-text-display: inline;
   }

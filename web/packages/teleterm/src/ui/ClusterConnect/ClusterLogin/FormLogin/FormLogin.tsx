@@ -272,11 +272,6 @@ export type Props = types.AuthSettings & {
   onAbort(): void;
   onLoginWithSso(provider: types.AuthProvider): void;
   onLoginWithPasswordless(): void;
-  onLogin(
-    username: string,
-    password: string,
-    token: string,
-    auth2fa: types.Auth2faType
-  ): void;
+  onLogin(username: string, password: string): void;
   autoFocus?: boolean;
 };

@@ -28,7 +28,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -142,7 +141,7 @@ func (c *Cluster) reissueDBCerts(ctx context.Context, clusterClient *client.Clus
 		AccessRequests: c.status.ActiveRequests.AccessRequests,
 		RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 		TTL:            c.clusterClient.KeyTTL,
-	}, c.clusterClient.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("database", routeToDatabase.ServiceName)))
+	})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

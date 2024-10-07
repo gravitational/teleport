@@ -129,7 +129,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			awsClient := &mockAWSAppAccessConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -140,7 +140,7 @@ func TestAWSAppAccessConfig(t *testing.T) {
 }
 
 type mockAWSAppAccessConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

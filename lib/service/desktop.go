@@ -194,10 +194,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return tlsCopy, nil
 	}
 
-	connLimiter, err := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	connLimiter := limiter.NewConnectionsLimiter(cfg.WindowsDesktop.ConnLimiter.MaxConnections)
+
 	var publicAddr string
 	switch {
 	case useTunnel:

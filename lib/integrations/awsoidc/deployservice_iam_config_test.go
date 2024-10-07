@@ -206,7 +206,7 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockDeployServiceIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -217,7 +217,7 @@ func TestDeployServiceIAMConfig(t *testing.T) {
 }
 
 type mockDeployServiceIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 
