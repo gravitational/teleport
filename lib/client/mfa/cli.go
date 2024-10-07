@@ -326,21 +326,6 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 }
 
 func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	if err := c.cfg.SSOMFACeremony.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mfaToken, err := c.cfg.SSOMFACeremony.GetCallbackMFAToken(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_SSO{
-			SSO: &proto.SSOResponse{
-				RequestId: chal.SSOChallenge.RequestId,
-				Token:     mfaToken,
-			},
-		},
-	}, nil
+	resp, err := c.cfg.SSOMFACeremony.Run(ctx, chal)
+	return resp, trace.Wrap(err)
 }
