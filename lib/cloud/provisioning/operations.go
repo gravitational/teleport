@@ -220,7 +220,6 @@ var operationPlanTemplate = template.Must(template.New("plan").
 func getPromptQuestion(config OperationConfig) string {
 	if len(config.Actions) > 1 {
 		return fmt.Sprintf("Do you want %q to perform these actions?", config.Name)
-	} else {
-		return fmt.Sprintf("Do you want %q to perform this action?", config.Name)
 	}
+	return fmt.Sprintf("Do you want %q to perform this action?", config.Name)
 }
