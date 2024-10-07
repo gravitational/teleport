@@ -40,8 +40,7 @@ type Ceremony struct {
 // SSOMFACeremony is an SSO MFA ceremony.
 type SSOMFACeremony interface {
 	GetClientCallbackURL() string
-	HandleRedirect(ctx context.Context, redirectURL string) error
-	GetCallbackMFAToken(ctx context.Context) (string, error)
+	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 }
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
@@ -67,6 +66,8 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("mfa challenge scope must be specified")
 	}
 
+	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
+	// request to request an SSO challenge in addition to other challenges.
 	if c.SSOMFACeremonyConstructor != nil {
 		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
 		if err != nil {
