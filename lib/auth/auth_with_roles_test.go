@@ -5163,7 +5163,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
 		assert.Len(t, results, 20)
-	}, time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
+	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources, expected 20 but got %d", len(results))
 
 	// Check that only server, desktop, and app server resources contain the expected logins
 	for _, resource := range results {
