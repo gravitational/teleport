@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "datadog.fullname" . }}
+  {{- with .Values.annotations.config }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "datadog.labels" . | nindent 4 }}
+data:
+  teleport-datadog.toml: |
+    [teleport]
+    addr = "{{ .Values.teleport.address }}"
+    identity = "/var/lib/teleport/plugins/datadog/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    refresh_identity = true
+
+    [datadog]
+    apiKey = "/var/lib/teleport/plugins/datadog/datadog-api-key"
+    applicationKey = "/var/lib/teleport/plugins/datadog/datadog-application-key"
+
+    [role_to_recipients]
+    {{- range $role, $recipients := .Values.roleToRecipients }}
+    {{ $role | toJson }} = {{ $recipients | toJson }}
+    {{- end }}
+
+    [log]
+    output = "{{ .Values.log.output }}"
+    severity = "{{ .Values.log.severity }}"
