@@ -5102,7 +5102,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		awsApp, err := types.NewAppServerV3(types.Metadata{Name: name}, types.AppServerSpecV3{
 			HostID:   strconv.Itoa(i),
-			Hostname: "1.2.3.4",
+			Hostname: "example.com",
 			App: &types.AppV3{
 				Metadata: types.Metadata{Name: fmt.Sprintf("name-%d", i)},
 				Spec: types.AppSpecV3{
