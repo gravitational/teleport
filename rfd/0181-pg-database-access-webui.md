@@ -162,7 +162,7 @@ Supported list of commands and output examples:
   ```
 
 
-##### Limitations/Unpported commands
+##### Limitations/Unsupported commands
 
 Teleport PostgreSQL interactive shell will not be a complete feature pair with
 `psql`. Those limitations will be due to security measures or the shell's
@@ -285,7 +285,7 @@ type DatabaseSessionRequest struct {
   DatabaseName string `json:"db_name"`
   // DatabaseUser is the database user used on the session.
   DatabaseUser string `json:"db_user"`
-  // DatabaseRoles are ratabase roles that will be attached to the user when connecting to the database.
+  // DatabaseRoles are database roles that will be attached to the user when connecting to the database.
   DatabaseRoles []string `json:"db_roles"`
 }
 ```
@@ -347,7 +347,7 @@ This will simplify the protocol interaction and cover most use cases.
 
 The `pgconn.PgConn` will be started during the REPL initialization process.
 
-Query cancelation won't be covered in the initial version. The executions will
+Query cancellation won't be covered in the initial version. The executions will
 use the session context, meaning that if the session is closed, the queries will
 get canceled.
 
