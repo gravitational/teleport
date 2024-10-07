@@ -19,8 +19,19 @@ addr = "example.com:3025"
 # root_cas = "/var/lib/teleport/plugins/datadog/auth.cas"   # Teleport CA certs
 
 [datadog]
-api_key = "XXXX-XXXX-XXXX-0001"         # Datadog API Key
-application_key = "XXXX-XXXX-XXXX-0002" # Datadog Application Key
+# Datadog API Endpoint specifies the Datadog API endpoint.
+# See documentation for supported Datadog Sites: https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site.
+# Make sure to specify the "api.*" subdomain.
+api_endpoint = "https://api.datadoghq.com"
+
+# Datadog API Key accepts a key value or a filepath if the value starts with a '/'.
+api_key = "api_key"
+
+# Datadog Application Key accepts a key value or a filepath if the value starts with a '/'.
+application_key = "application_key"
+
+# Datadog Severity specivies the severity level of incidents.
+severity = "SEV-3"
 
 [role_to_recipients]
 # Map roles to recipients.
