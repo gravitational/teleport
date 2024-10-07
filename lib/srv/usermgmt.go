@@ -242,105 +242,34 @@ func (u *HostSudoersManagement) RemoveSudoers(name string) error {
 // unmanagedUserErr is returned when attempting to modify or interact with a user that is not managed by Teleport.
 var unmanagedUserErr = errors.New("user not managed by teleport")
 
-func (u *HostUserManagement) updateUser(name string, ui services.HostUsersInfo) error {
+func (u *HostUserManagement) updateUser(hostUser HostUser, ui services.HostUsersInfo) error {
 	ctx := u.ctx
 	log := u.log.With(
-		"host_username", name,
+		"host_username", hostUser.Name,
 		"mode", ui.Mode,
-		"uid", ui.UID,
-		"gid", ui.GID,
+		"uid", hostUser.UID,
+		"gid", hostUser.GID,
 	)
 
-	log.DebugContext(ctx, "Attempting to update host user")
-	existingUser, err := u.backend.Lookup(name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	currentGroups := make(map[string]struct{}, len(ui.Groups))
-	groupIDs, err := u.backend.UserGIDs(existingUser)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, groupID := range groupIDs {
-		group, err := u.backend.LookupGroupByID(groupID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		currentGroups[group.Name] = struct{}{}
-	}
-
-	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
-	// the teleport-keep group
-	migrateKeepUser := slices.Contains(ui.Groups, types.TeleportKeepGroup)
-
-	_, hasDropGroup := currentGroups[types.TeleportDropGroup]
-	_, hasKeepGroup := currentGroups[types.TeleportKeepGroup]
-	if !hasDropGroup && !hasKeepGroup && !migrateKeepUser {
-		return trace.Errorf("%q %w", name, unmanagedUserErr)
-	}
-
-	switch ui.Mode {
-	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
-		ui.Groups = append(ui.Groups, types.TeleportDropGroup)
-	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
 		if !hasKeepGroup {
-			home, err := u.backend.GetDefaultHomeDirectory(name)
+			home, err := u.backend.GetDefaultHomeDirectory(hostUser.Name)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
 			log.DebugContext(ctx, "Creating home directory", "home_path", home)
-			err = u.backend.CreateHomeDirectory(home, existingUser.Uid, existingUser.Gid)
+			err = u.backend.CreateHomeDirectory(home, hostUser.UID, hostUser.GID)
 			if err != nil && !os.IsExist(err) {
 				return trace.Wrap(err)
 			}
 		}
-
-		// no need to duplicate the group if it's already there
-		if !migrateKeepUser {
-			ui.Groups = append(ui.Groups, types.TeleportKeepGroup)
-		}
 	}
 
-	finalGroups := make(map[string]struct{}, len(ui.Groups))
-	for _, group := range ui.Groups {
-		finalGroups[group] = struct{}{}
-	}
-
-	primaryGroup, err := u.backend.LookupGroupByID(existingUser.Gid)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	finalGroups[primaryGroup.Name] = struct{}{}
-
-	if !maps.Equal(currentGroups, finalGroups) {
-		// no need to do these allocations unless we're actually going to log them
-		if log.Enabled(ctx, slog.LevelDebug) {
-			current := make([]string, 0, len(currentGroups))
-			for group := range currentGroups {
-				current = append(current, group)
-			}
-
-			final := make([]string, 0, len(finalGroups))
-			for group := range finalGroups {
-				final = append(final, group)
-			}
-
-			slices.Sort(current)
-			slices.Sort(final)
-			log.DebugContext(ctx, "Setting user groups", "before", current, "after", final)
-		}
-
-		return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
-			return trace.Wrap(u.backend.SetUserGroups(name, ui.Groups))
-		}))
-	}
-
-	log.DebugContext(ctx, "Successfully updated existing host user")
-	return nil
+	return trace.Wrap(u.doWithUserLock(func(_ types.SemaphoreLease) error {
+		return trace.Wrap(u.backend.SetUserGroups(hostUser.Name, ui.Groups))
+	}))
 }
 
 func (u *HostUserManagement) resolveGID(username string, groups []string, gid string) (string, error) {
@@ -377,14 +306,12 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 	)
 
 	log.DebugContext(u.ctx, "Attempting to create host user", "gid", ui.GID)
-	var err error
 
+	var err error
 	var home string
+
 	switch ui.Mode {
-	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
-		ui.Groups = append(ui.Groups, types.TeleportDropGroup)
 	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
-		ui.Groups = append(ui.Groups, types.TeleportKeepGroup)
 		home, err = u.backend.GetDefaultHomeDirectory(name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -442,49 +369,47 @@ func (u *HostUserManagement) ensureGroupsExist(groups ...string) error {
 	return trace.NewAggregate(errs...)
 }
 
+// A HostUser represents all of the fields pertaining to an existing user on a host, including their group membership.
+type HostUser struct {
+	Name   string
+	UID    string
+	GID    string
+	Home   string
+	Groups map[string]struct{}
+}
+
 // UpsertUser creates a temporary Teleport user in the TeleportDropGroup
 func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
-	log := u.log.With("host_username", name)
+	log := u.log.With(
+		"host_username", name,
+		"mode", ui.Mode,
+		"uid", ui.UID,
+		"gid", ui.GID,
+	)
 
-	// allow for explicit assignment of teleport-keep group in order to facilitate migrating KEEP users that existed before we added
-	// the teleport-keep group
-	hasKeepGroup := slices.Contains(ui.Groups, types.TeleportKeepGroup)
-	migrateKeepUser := hasKeepGroup && ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP
-
-	log.DebugContext(u.ctx, "Attempting to upsert host user", "migrate_keep_user", migrateKeepUser)
-
-	if hasKeepGroup && !migrateKeepUser {
-		log.WarnContext(u.ctx, "Explicit assignment of 'teleport-keep' group is only possible in 'keep' mode")
+	log.DebugContext(u.ctx, "Attempting to upsert host user")
+	hostUser, err := u.getHostUser(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	groupSet := make(map[string]struct{}, len(ui.Groups))
-	groups := make([]string, 0, len(ui.Groups))
-	for _, group := range ui.Groups {
-		// the TeleportDropGroup is managed automatically and should not be allowed direct assignment
-		if group == types.TeleportDropGroup {
-			continue
+	log.DebugContext(u.ctx, "Resolving groups for user")
+	groups, err := ResolveGroups(log, hostUser, ui)
+	if err != nil {
+		if errors.Is(err, unmanagedUserErr) {
+			log.DebugContext(u.ctx, "Aborting host user creation, can't update unmanaged user unless explicitly migrating.",
+				"login", name)
 		}
 
-		if !migrateKeepUser && group == types.TeleportKeepGroup {
-			continue
-		}
-
-		if _, ok := groupSet[group]; !ok {
-			groupSet[group] = struct{}{}
-			groups = append(groups, group)
-		}
-	}
-	ui.Groups = groups
-
-	log.DebugContext(u.ctx, "Ensuring teleport host groups exist")
-	if err := u.ensureGroupsExist(types.TeleportDropGroup, types.TeleportKeepGroup); err != nil {
-		return nil, trace.WrapWithMessage(err, "creating teleport system groups")
+		return nil, trace.Wrap(err)
 	}
 
 	log.DebugContext(u.ctx, "Ensuring configured host groups exist", "groups", groups)
 	if err := u.ensureGroupsExist(groups...); err != nil {
-		return nil, trace.WrapWithMessage(err, "creating configured groups")
+		return nil, trace.Wrap(err)
 	}
+
+	ui.Groups = groups
 
 	var closer io.Closer
 	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP {
@@ -495,12 +420,16 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		}
 	}
 
-	if err := u.updateUser(name, ui); err != nil {
-		if !errors.Is(err, user.UnknownUserError(name)) {
+	if hostUser == nil {
+		if err := u.createUser(name, ui); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := u.createUser(name, ui); err != nil {
+		return closer, nil
+	}
+
+	if groups != nil {
+		if err := u.updateUser(*hostUser, ui); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -523,6 +452,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				Max:  time.Minute,
 			},
 		})
+
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -675,4 +605,110 @@ func (u *HostUserManagement) UserExists(username string) error {
 
 func (u *HostUserManagement) SetHostUserDeletionGrace(d time.Duration) {
 	u.userGrace = d
+}
+
+func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
+	usr, err := u.backend.Lookup(username)
+	if err != nil {
+		if errors.Is(err, user.UnknownUserError(username)) {
+			return nil, nil
+		}
+
+		return nil, trace.WrapWithMessage(err, "looking up host user")
+	}
+
+	gids, err := u.backend.UserGIDs(usr)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "getting host user group IDs")
+	}
+
+	groups := make(map[string]struct{})
+	var groupErrs []error
+	for _, gid := range gids {
+		if gid == usr.Gid {
+			// we skip the primary group because we don't need it for reconciliation
+			continue
+		}
+		group, err := u.backend.LookupGroupByID(gid)
+		if err != nil {
+			groupErrs = append(groupErrs, err)
+		}
+
+		groups[group.Name] = struct{}{}
+	}
+
+	return &HostUser{
+		Name:   username,
+		UID:    usr.Uid,
+		Home:   usr.HomeDir,
+		Groups: groups,
+	}, trace.NewAggregate(groupErrs...)
+}
+
+func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui services.HostUsersInfo) ([]string, error) {
+	// converting to a map since we need deduplication and arbitrary lookups
+	groups := make(map[string]struct{}, len(ui.Groups))
+	for _, group := range ui.Groups {
+		groups[group] = struct{}{}
+	}
+
+	// because teleport-keep migration requires adding the group to host_groups, we need to note that before wiping the teleport system groups
+	_, hasExplicitKeepGroup := groups[types.TeleportKeepGroup]
+
+	// only one teleport system group should be resolved for a given user, so we remove any of them that might occur within the configured host
+	// groups since we'll compute the correct group below
+	delete(groups, types.TeleportKeepGroup)
+	delete(groups, types.TeleportDropGroup)
+
+	// if we assign a teleport group, it will always coincide with the mode we're currently in, so we can compute it right away
+	teleportGroup := ""
+	switch ui.Mode {
+	case types.CreateHostUserMode_HOST_USER_MODE_INSECURE_DROP:
+		teleportGroup = types.TeleportDropGroup
+	case types.CreateHostUserMode_HOST_USER_MODE_KEEP:
+		teleportGroup = types.TeleportKeepGroup
+	}
+
+	log := logger.With("teleport_group", teleportGroup)
+	var currentGroups []string
+	if hostUser != nil {
+		// for existing user group reconciliation, there are 3 possible end states:
+		// 1. We do nothing due to failure modes
+		// 2. We reconcile an existing managed user
+		// 3. We migrate an existing unmanaged user
+		// functionally, there's no difference between 2 and 3 so if we check against all failure modes we can handle all other cases at once
+		_, hasDropGroup := hostUser.Groups[types.TeleportDropGroup]
+		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
+
+		migrateKeepUser := hasExplicitKeepGroup && ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP
+
+		managedUser := hasKeepGroup || hasDropGroup
+
+		if !(managedUser || migrateKeepUser) {
+			return nil, trace.Wrap(unmanagedUserErr)
+		}
+
+		groups[teleportGroup] = struct{}{}
+		// if there's no change, we don't need to return any new group state
+		if maps.Equal(groups, hostUser.Groups) {
+			return nil, nil
+		}
+
+		for group := range hostUser.Groups {
+			currentGroups = append(currentGroups, group)
+		}
+	}
+
+	// if we make it this far for existing users, or if this is a brand new user, the group assignments are always the same
+	groups[teleportGroup] = struct{}{}
+	groupSlice := make([]string, 0, len(groups))
+	for group := range groups {
+		groupSlice = append(groupSlice, group)
+	}
+
+	slices.Sort(groupSlice)
+	slices.Sort(currentGroups)
+
+	log.InfoContext(context.Background(), "Resolved user groups", "before", currentGroups, "after", groupSlice)
+	return groupSlice, nil
 }
