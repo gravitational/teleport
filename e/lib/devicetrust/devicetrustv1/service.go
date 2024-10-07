@@ -32,11 +32,9 @@ import (
 	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -218,21 +216,25 @@ func New(params ServiceParams) (*Service, error) {
 
 	rateLimiter := params.Limiter
 	if rateLimiter == nil {
-		var err error
-		rateLimiter, err = limiter.NewRateLimiter(limiter.Config{
-			Rates: []limiter.Rate{
-				{
-					Period:  libdefaults.LimiterPeriod,
-					Average: libdefaults.LimiterAverage,
-					Burst:   libdefaults.LimiterBurst,
-				},
-			},
-			MaxConnections:   libdefaults.LimiterMaxConnections,
-			MaxNumberOfUsers: libdefaults.LimiterMaxConcurrentUsers,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		// TODO(zmb3): re-enable this logic after teleport's limiter
+		// no longer depends on gravitational/oxy
+		rateLimiter = nopLimiter{}
+
+		// var err error
+		// rateLimiter, err = limiter.NewRateLimiter(limiter.Config{
+		// 	Rates: []limiter.Rate{
+		// 		{
+		// 			Period:  libdefaults.LimiterPeriod,
+		// 			Average: libdefaults.LimiterAverage,
+		// 			Burst:   libdefaults.LimiterBurst,
+		// 		},
+		// 	},
+		// 	MaxConnections:   libdefaults.LimiterMaxConnections,
+		// 	MaxNumberOfUsers: libdefaults.LimiterMaxConcurrentUsers,
+		// })
+		// if err != nil {
+		// 	return nil, trace.Wrap(err)
+		// }
 	}
 
 	return &Service{
@@ -246,6 +248,10 @@ func New(params ServiceParams) (*Service, error) {
 		storage:     params.Storage,
 	}, nil
 }
+
+type nopLimiter struct{}
+
+func (nopLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error { return nil }
 
 func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRequest) (*devicepb.Device, error) {
 	var verbs []string
