@@ -23,8 +23,23 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLockKey(t *testing.T) {
+	t.Run("empty parts", func(t *testing.T) {
+		key := lockKey()
+		assert.Equal(t, ".locks", key.String())
+		assert.Equal(t, [][]byte{[]byte(".locks")}, key.Components())
+	})
+
+	t.Run("with parts", func(t *testing.T) {
+		key := lockKey("test", "llama")
+		assert.Equal(t, ".locks/test/llama", key.String())
+		assert.Equal(t, [][]byte{[]byte(".locks"), []byte("test"), []byte("llama")}, key.Components())
+	})
+}
 
 func TestLockConfiguration_CheckAndSetDefaults(t *testing.T) {
 	type mockBackend struct {
