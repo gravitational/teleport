@@ -21,7 +21,6 @@ package oracle
 import (
 	"bytes"
 	"crypto"
-	"crypto/x509"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -87,12 +86,7 @@ func createClientWallet(signer crypto.Signer, certPem []byte, password string, w
 }
 
 func createJKSWallet(signer crypto.Signer, certPEM, caPEM []byte, password string) ([]byte, error) {
-	// unwrap *keys.PrivateKey if necessary.
-	if pk, ok := signer.(*keys.PrivateKey); ok {
-		signer = pk.Signer
-	}
-
-	privateKey, err := x509.MarshalPKCS8PrivateKey(signer)
+	privateKey, err := keys.MarshalSoftwarePrivateKeyPKCS8DER(signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
