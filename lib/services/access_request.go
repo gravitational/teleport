@@ -58,6 +58,8 @@ const (
 	// requestTTL is the TTL for an access request, i.e. the amount of time that
 	// the access request can be reviewed. Defaults to 1 week.
 	requestTTL = 7 * day
+
+	InvalidKubernetesKindAccessRequest = "Not allowed to request Kubernetes resource kind"
 )
 
 // ValidateAccessRequest validates the AccessRequest and sets default values
@@ -1297,12 +1299,12 @@ func enforceKubernetesRequestModes(requestedResourceIDs []types.ResourceID, requ
 
 	for _, id := range requestedResourceIDs {
 		if id.Kind == types.KindKubernetesCluster {
-			return trace.BadParameter("Not allowed to request Kubernetes resource kind %q. Allowed kinds: %v.", types.KindKubernetesCluster, slices.Collect(maps.Keys(allowedKindsLookup)))
+			return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, types.KindKubernetesCluster, slices.Collect(maps.Keys(allowedKindsLookup)))
 		}
 		// Filter for kube resources.
 		if slices.Contains(types.KubernetesResourcesKinds, id.Kind) {
 			if _, found := allowedKindsLookup[id.Kind]; !found {
-				return trace.BadParameter("Not allowed to request Kubernetes resource kind %q. Allowed kinds: %v.", id.Kind, slices.Collect(maps.Keys(allowedKindsLookup)))
+				return trace.BadParameter("%s %q. Allowed kinds: %v.", InvalidKubernetesKindAccessRequest, id.Kind, slices.Collect(maps.Keys(allowedKindsLookup)))
 			}
 		}
 	}

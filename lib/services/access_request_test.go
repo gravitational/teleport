@@ -2571,7 +2571,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 		"request-mode-namespace": {
 			Options: types.RoleOptions{
 				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.KubernetesResource{
+					KubernetesResources: []types.RequestModeKubernetesResource{
 						{Kind: types.KindKubeNamespace},
 					},
 				},
@@ -2581,7 +2581,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 		"request-mode-wildcard": {
 			Options: types.RoleOptions{
 				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.KubernetesResource{
+					KubernetesResources: []types.RequestModeKubernetesResource{
 						{Kind: types.Wildcard},
 					},
 				},
@@ -2591,7 +2591,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 		"request-mode-pods": {
 			Options: types.RoleOptions{
 				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.KubernetesResource{
+					KubernetesResources: []types.RequestModeKubernetesResource{
 						{Kind: types.KindKubePod},
 					},
 				},
@@ -2720,7 +2720,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			err = validator.Validate(context.Background(), req, identity)
 			if tc.wantErr {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "Not allowed to request Kubernetes resource")
+				require.Contains(t, err.Error(), InvalidKubernetesKindAccessRequest)
 			} else {
 				require.NoError(t, err)
 			}
