@@ -120,7 +120,7 @@ export function SelectSubnetIds({
   return (
     <>
       <Flex alignItems="center" gap={1} mb={2}>
-        <Subtitle3>Select Subnets</Subtitle3>
+        <Subtitle3>Select ECS Subnets</Subtitle3>
         <ToolTipInfo>
           <Text>
             A subnet has an outbound internet route if it has a route to an
@@ -130,9 +130,9 @@ export function SelectSubnetIds({
       </Flex>
 
       <Text mb={2}>
-        Select subnets to assign to the Fargate service that will be running the
-        Teleport Database Service. All of the subnets you select must have an
-        outbound internet route and a local route to the database subnets.
+        Select ECS subnets to assign to the Fargate service that will be running
+        the Teleport Database Service. All of the subnets you select must have
+        an outbound internet route and a local route to the database subnets.
       </Text>
       {attempt.status === 'failed' && (
         <>
