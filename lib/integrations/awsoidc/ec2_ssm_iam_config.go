@@ -73,7 +73,6 @@ type EC2SSMIAMConfigureRequest struct {
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
 	AutoConfirm bool
-
 	// stdout is used to override stdout output in tests.
 	stdout io.Writer
 	// insecureSkipInstallPathRandomization is set to true under output test to
