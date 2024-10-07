@@ -16,7 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Popover, { StyledPopover } from './Popover';
+import React, { useLayoutEffect } from 'react';
 
-export default Popover;
-export { StyledPopover };
+export function Transition({
+  onEntering,
+  children,
+}: React.PropsWithChildren<{
+  onEntering: () => void;
+}>) {
+  // Note: useLayoutEffect to prevent flickering improperly positioned popovers.
+  // It's especially noticeable on Safari.
+  useLayoutEffect(() => {
+    onEntering();
+  }, []);
+  return children;
+}

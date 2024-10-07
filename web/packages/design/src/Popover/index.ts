@@ -16,22 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import ReactDOM from 'react-dom';
+import Popover from './Popover';
+export {
+  StyledPopover,
+  type Origin,
+  type HorizontalOrigin,
+  type VerticalOrigin,
+  type GrowDirections,
+  type Position as Orientation,
+} from './Popover';
 
-class Transition extends React.Component {
-  componentDidMount() {
-    const node = ReactDOM.findDOMNode(this);
-    this.props.onEntering(node);
-  }
-
-  render() {
-    const { children, ...childProps } = this.props;
-    delete childProps.onEntering;
-
-    const child = React.Children.only(children);
-    return React.cloneElement(child, childProps);
-  }
-}
-
-export default Transition;
+export default Popover;
