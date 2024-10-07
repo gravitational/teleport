@@ -116,7 +116,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockListDatabasesIAMConfigClient{
-				callerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
+				CallerIdentityGetter: mockSTSClient{accountID: tt.mockAccountID},
 				existingRoles:        tt.mockExistingRoles,
 			}
 
@@ -127,7 +127,7 @@ func TestListDatabasesIAMConfig(t *testing.T) {
 }
 
 type mockListDatabasesIAMConfigClient struct {
-	callerIdentityGetter
+	CallerIdentityGetter
 	existingRoles []string
 }
 

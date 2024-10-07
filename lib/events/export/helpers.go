@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,22 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import ReactDOM from 'react-dom';
+package export
 
-class Transition extends React.Component {
-  componentDidMount() {
-    const node = ReactDOM.findDOMNode(this);
-    this.props.onEntering(node);
-  }
+import "time"
 
-  render() {
-    const { children, ...childProps } = this.props;
-    delete childProps.onEntering;
-
-    const child = React.Children.only(children);
-    return React.cloneElement(child, childProps);
-  }
+// normalizeDate normalizes a timestamp to the beginning of the day in UTC.
+func normalizeDate(t time.Time) time.Time {
+	t = t.UTC()
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 }
-
-export default Transition;

@@ -231,6 +231,9 @@ $ gcloud kms keys list --keyring "<Var name="teleport-keyring"/>" --location <Va
 Try logging in to the cluster with a Teleport user to make sure that new
 certificates can be signed without error.
 
+`tctl status` should also show `GCP KMS` as the `storage` method for all
+Certificate Authority keys.
+
 ## Migrating an existing cluster
 
 If you have an existing Teleport cluster it will have already created software

@@ -219,22 +219,21 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		Username: name + ".test",
 		Groups:   []string{string(role)},
 	})
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-	}
-	tlsConf.ClientCAs = x509.NewCertPool()
-	tlsConf.ClientCAs.AddCert(clientCA.Cert)
-
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	clientCAs := x509.NewCertPool()
+	clientCAs.AddCert(clientCA.Cert)
 
 	config := ServerConfig{
-		Listener:      listener,
-		TLSConfig:     tlsConf,
 		ClusterDialer: &mockClusterDialer{},
-		service:       &mockProxyService{},
-		ClusterName:   "test",
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &tlsCert, nil
+		},
+		GetClientCAs: func(*tls.ClientHelloInfo) (*x509.CertPool, error) {
+			return clientCAs, nil
+		},
+
+		service: &mockProxyService{},
 	}
+
 	for _, option := range options {
 		option(&config)
 	}
@@ -242,21 +241,24 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	server, err := NewServer(config)
 	require.NoError(t, err)
 
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	go server.Serve(listener)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
 	ts, err := types.NewServer(
 		name, types.KindProxy,
 		types.ServerSpecV2{PeerAddr: listener.Addr().String()},
 	)
 	require.NoError(t, err)
 
-	go server.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream frameStream) {
-	err := stream.Send([]byte("ping"))
+func sendMsg(t *testing.T, stream net.Conn) {
+	_, err := stream.Write([]byte("ping"))
 	require.NoError(t, err)
 }
