@@ -411,11 +411,6 @@ func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsD
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// ListDynamicWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListDynamicWindowsDesktops(ctx context.Context, req types.ListDynamicWindowsDesktopsRequest) (*types.ListDynamicWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
 // ListWindowsDesktopServices not implemented: can only be called locally.
 func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)

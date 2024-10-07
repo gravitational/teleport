@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"io"
 	"log/slog"
 	"net"
@@ -57,7 +58,6 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
-	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
 	"github.com/gravitational/teleport/api/client/secreport"
 	statichostuserclient "github.com/gravitational/teleport/api/client/statichostuser"
@@ -75,6 +75,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -2658,6 +2659,10 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 	return decodedEvents, response.LastKey, nil
 }
 
+func (c *Client) DynamicDesktopClient() *dynamicwindows.Client {
+	return dynamicwindows.NewClient(dynamicwindowsv1.NewDynamicWindowsServiceClient(c.conn))
+}
+
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) ClusterConfigClient() clusterconfigpb.ClusterConfigServiceClient {
@@ -3639,78 +3644,6 @@ func (c *Client) DeleteWindowsDesktop(ctx context.Context, hostID, name string) 
 // DeleteAllWindowsDesktops removes all registered windows desktop hosts.
 func (c *Client) DeleteAllWindowsDesktops(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllWindowsDesktops(ctx, &emptypb.Empty{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetDynamicWindowsDesktop returns registered windows desktop hosts by name.
-func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error) {
-	resp, err := c.grpc.GetDynamicWindowsDesktop(ctx, &authpb.GetDynamicWindowsDesktopRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp.Desktop, nil
-}
-
-// GetDynamicWindowsDesktops returns all registered dynamic Windows desktops.
-func (c *Client) GetDynamicWindowsDesktops(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
-	resp, err := c.grpc.GetDynamicWindowsDesktops(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	desktops := make([]types.DynamicWindowsDesktop, 0, len(resp.GetDesktops()))
-	for _, desktop := range resp.GetDesktops() {
-		desktops = append(desktops, desktop)
-	}
-	return desktops, nil
-}
-
-// CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
-func (c *Client) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
-	if !ok {
-		return trace.BadParameter("invalid type %T", desktop)
-	}
-	_, err := c.grpc.CreateDynamicWindowsDesktop(ctx, d)
-	return trace.Wrap(err)
-}
-
-// UpdateDynamicWindowsDesktop updates an existing dynamic Windows desktop.
-func (c *Client) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
-	if !ok {
-		return trace.BadParameter("invalid type %T", desktop)
-	}
-	_, err := c.grpc.UpdateDynamicWindowsDesktop(ctx, d)
-	return trace.Wrap(err)
-}
-
-// UpsertDynamicWindowsDesktop updates a dynamic Windows desktop resource, creating it if it doesn't exist.
-func (c *Client) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	d, ok := desktop.(*types.DynamicWindowsDesktopV1)
-	if !ok {
-		return trace.BadParameter("invalid type %T", desktop)
-	}
-	_, err := c.grpc.UpsertDynamicWindowsDesktop(ctx, d)
-	return trace.Wrap(err)
-}
-
-// DeleteDynamicWindowsDesktop removes the specified dynamic Windows desktop.
-func (c *Client) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteDynamicWindowsDesktop(ctx, &proto.DeleteDynamicWindowsDesktopRequest{
-		Name: name,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteAllDynamicWindowsDesktops removes all registered windows desktop hosts.
-func (c *Client) DeleteAllDynamicWindowsDesktops(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllDynamicWindowsDesktops(ctx, &emptypb.Empty{})
 	if err != nil {
 		return trace.Wrap(err)
 	}

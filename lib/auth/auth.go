@@ -247,6 +247,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.DynamicWindowsDesktops == nil {
+		cfg.DynamicWindowsDesktops = local.NewDynamicWindowsDesktopService(cfg.Backend)
+	}
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
@@ -437,6 +440,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		AuditLogSessionStreamer:   cfg.AuditLog,
 		Events:                    cfg.Events,
 		WindowsDesktops:           cfg.WindowsDesktops,
+		DynamicWindowsDesktops:    cfg.DynamicWindowsDesktops,
 		SAMLIdPServiceProviders:   cfg.SAMLIdPServiceProviders,
 		UserGroups:                cfg.UserGroups,
 		SessionTrackerService:     cfg.SessionTrackerService,
@@ -637,6 +641,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
@@ -5642,40 +5647,6 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	})
 
 	return lease, nil
-}
-
-func (a *Server) DeleteDynamicWindowsDesktop(ctx context.Context, name string) error {
-	if err := a.Services.DeleteDynamicWindowsDesktop(ctx, name); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// CreateDynamicWindowsDesktop implements [services.DynamicWindowsDesktops] by delegating to
-// [Server.Services].
-func (a *Server) CreateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	if err := a.Services.CreateDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpdateDynamicWindowsDesktop implements [services.DynamicWindowsDesktops] by delegating to
-// [Server.Services].
-func (a *Server) UpdateDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	if err := a.Services.UpdateDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// UpsertDynamicWindowsDesktop implements [services.DynamicWindowsDesktops] by delegating to
-// [Server.Services].
-func (a *Server) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) error {
-	if err := a.Services.UpsertDynamicWindowsDesktop(ctx, desktop); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
