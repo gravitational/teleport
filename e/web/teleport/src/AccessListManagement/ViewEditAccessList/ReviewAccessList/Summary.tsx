@@ -150,9 +150,8 @@ export function ReviewAudit({
         value={reviewNotes}
         onChange={e => setReviewNotes(e.target.value)}
         resizable={true}
-        readOnly={disabled}
+        readonly={disabled}
         textAreaCss={`
-                font-size: 14px;
                 height: 95px;
                 width: 500px;
                 `}

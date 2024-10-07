@@ -171,7 +171,6 @@ export function EnrollNewMembers({
               label="Reason for Enrolling (Optional)"
               value={reason}
               onChange={e => setReason(e.target.value)}
-              fontSize={2}
             />
           </DialogContent>
           <DialogFooter>
