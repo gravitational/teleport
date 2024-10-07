@@ -3466,6 +3466,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
+		types.KindAutoUpdateAgentPlan:     types.Resource153ToLegacy(newAutoUpdateAgentPlan(t)),
 		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
 	}
 
