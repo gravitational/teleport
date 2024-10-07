@@ -1,4 +1,4 @@
-"access-graph-aws-iam" will perform the following actions:
+"access-graph-aws-iam" will perform the following action:
 
 Attach an inline IAM policy named "AccessGraphSyncAccess" to IAM role "integrationrole".
 PutRolePolicy: {

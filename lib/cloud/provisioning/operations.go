@@ -163,8 +163,7 @@ func Run(ctx context.Context, config OperationConfig) error {
 	}
 
 	if !config.AutoConfirm {
-		question := fmt.Sprintf("Do you want %q to perform these actions?", config.Name)
-		ok, err := prompt.Confirmation(ctx, config.Output, prompt.Stdin(), question)
+		ok, err := prompt.Confirmation(ctx, config.Output, prompt.Stdin(), getPromptQuestion(config))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -208,12 +207,20 @@ var operationPlanTemplate = template.Must(template.New("plan").
 		"addOne": func(x int) int { return x + 1 },
 	}).
 	Parse(`
-{{- printf "%q" .config.Name }} will perform the following actions:
+{{- printf "%q" .config.Name }} will perform the following {{ if .showStepNumbers }}actions{{ else }}action{{ end }}:
 
 {{ $global := . }}
 {{- range $index, $action := .config.Actions }}
-{{- if $global.showStepNumbers }}{{ $index | addOne }}. {{ end -}}{{$action.GetSummary}}.
+{{- if $global.showStepNumbers }}{{ addOne $index }}. {{ end -}}{{$action.GetSummary}}.
 {{$action.GetName}}: {{$action.GetDetails}}
 
 {{end -}}
 `))
+
+func getPromptQuestion(config OperationConfig) string {
+	if len(config.Actions) > 1 {
+		return fmt.Sprintf("Do you want %q to perform these actions?", config.Name)
+	} else {
+		return fmt.Sprintf("Do you want %q to perform this action?", config.Name)
+	}
+}
