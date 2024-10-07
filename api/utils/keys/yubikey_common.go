@@ -19,6 +19,28 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// HardwareKeyPrompt provides methods to interact with a YubiKey hardware key.
+type HardwareKeyPrompt interface {
+	// AskPIN prompts the user for a PIN.
+	AskPIN(ctx context.Context, message string) (string, error)
+	// Touch prompts the user to touch the hardware key.
+	Touch(ctx context.Context) error
+	// ChangePIN asks for a new PIN.
+	// If the PUK has a default value, it should ask for the new value for it.
+	// It is up to the implementer how the validation is handled.
+	// For example, CLI prompt can ask for a valid PIN/PUK in a loop, a GUI
+	// prompt can use the frontend validation.
+	ChangePIN(ctx context.Context) (*PINAndPUK, error)
+	// ConfirmSlotOverwrite asks the user if the slot's private key and certificate can be overridden.
+	ConfirmSlotOverwrite(ctx context.Context, message string) (bool, error)
+}
+
+type PINAndPUK struct {
+	PIN        string
+	PUK        string
+	PUKChanged bool
+}
+
 // GetYubiKeyPrivateKey attempt to retrieve a YubiKey private key matching the given hardware key policy
 // from the given slot. If slot is unspecified, the default slot for the given key policy will be used.
 // If the slot is empty, a new private key matching the given policy will be generated in the slot.
@@ -26,8 +48,8 @@ import (
 //   - hardware_key_touch: 9c
 //   - hardware_key_pin: 9d
 //   - hardware_key_touch_pin: 9e
-func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot) (*PrivateKey, error) {
-	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot)
+func GetYubiKeyPrivateKey(ctx context.Context, policy PrivateKeyPolicy, slot PIVSlot, customPrompt HardwareKeyPrompt) (*PrivateKey, error) {
+	priv, err := getOrGenerateYubiKeyPrivateKey(ctx, policy, slot, customPrompt)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a YubiKey private key")
 	}
