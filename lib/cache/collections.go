@@ -810,7 +810,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				cache: c,
 				watch: watch,
 			}
-			collections.byKind[resourceKind] = collections.autoUpdateVersions
+			collections.byKind[resourceKind] = collections.autoUpdateAgentPlans
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
