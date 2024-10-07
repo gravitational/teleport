@@ -331,6 +331,7 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 	// single connection, use a lock to queue through signature requests one at a time.
 	y.signMux.Lock()
 	defer y.signMux.Unlock()
+	ctx, cancel := context.WithCancelCause(ctx)
 
 	// Lock the connection for the entire duration of the sign process.
 	// Without this, the connection will be released after releaseConnectionDelay,
@@ -351,7 +352,12 @@ func (y *YubiKeyPrivateKey) sign(ctx context.Context, rand io.Reader, digest []b
 			select {
 			case <-touchPromptDelayTimer.C:
 				// Prompt for touch after a delay, in case the function succeeds without touch due to a cached touch.
-				y.prompt.Touch(ctx)
+				err := y.prompt.Touch(ctx)
+				if err != nil {
+					// Cancel the entire function when an error occurs.
+					// This is typically used for aborting the prompt.
+					cancel(trace.Wrap(err))
+				}
 				return
 			case <-ctx.Done():
 				// touch cached, skip prompt.
