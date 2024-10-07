@@ -1092,7 +1092,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 	}
 
 	if a.SecondFactor != "" {
-		secondFactors := types.SecondFactorsFromLegacySecondFactor(a.SecondFactor, w != nil || u != nil)
+		secondFactors := types.SecondFactorsFromLegacySecondFactor(a.SecondFactor)
 		var secondFactorStrings []string
 		for _, sf := range secondFactors {
 			secondFactorStrings = append(secondFactorStrings, sf.ToString())

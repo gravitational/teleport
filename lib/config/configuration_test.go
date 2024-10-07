@@ -797,7 +797,7 @@ func TestApplyConfig(t *testing.T) {
 		Spec: types.AuthPreferenceSpecV2{
 			Type:          constants.Local,
 			SecondFactor:  constants.SecondFactorOptional,
-			SecondFactors: types.SecondFactorsFromLegacySecondFactor(constants.SecondFactorOptional, true),
+			SecondFactors: types.SecondFactorsFromLegacySecondFactor(constants.SecondFactorOptional),
 			Webauthn: &types.Webauthn{
 				RPID: "goteleport.com",
 				AttestationAllowedCAs: []string{
