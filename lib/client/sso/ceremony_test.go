@@ -28,9 +28,8 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client/sso"
@@ -86,6 +85,7 @@ func TestCLICeremony(t *testing.T) {
 
 		resp, err := http.Get(string(clickableURL))
 		require.NoError(t, err)
+		defer resp.Body.Close()
 
 		// User should be redirected to success screen.
 		body, err := io.ReadAll(resp.Body)

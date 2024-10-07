@@ -39,7 +39,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -3990,20 +3989,6 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
 type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.SSHLoginResponse, error)
-
-// TODO(atburke): DELETE in v17.0.0
-func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
-	switch proxyVersion.Major {
-	case 15:
-		return !proxyVersion.LessThan(*semver.New("15.2.5"))
-	case 14:
-		return !proxyVersion.LessThan(*semver.New("14.3.17"))
-	case 13:
-		return !proxyVersion.LessThan(*semver.New("13.4.22"))
-	default:
-		return proxyVersion.Major > 15
-	}
-}
 
 // SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
 // for the user to authenticate through SSO. On completion they will be redirected to a success

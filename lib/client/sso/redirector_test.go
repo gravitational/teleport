@@ -81,7 +81,8 @@ func TestRedirector(t *testing.T) {
 			},
 			expectRedirect: sso.LoginSuccessRedirectURL,
 			assertErr:      require.NoError,
-		}, {
+		},
+		{
 			name: "NOK no login response",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// No response or error encoded.
@@ -89,7 +90,8 @@ func TestRedirector(t *testing.T) {
 			},
 			expectRedirect: sso.LoginFailedRedirectURL,
 			assertErr:      require.Error,
-		}, {
+		},
+		{
 			name: "NOK server error",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Encode a login error in the client callback URL.
@@ -99,7 +101,8 @@ func TestRedirector(t *testing.T) {
 			assertErr: func(t require.TestingT, err error, v ...interface{}) {
 				require.ErrorContains(t, err, "login failed", "expected login failed error but got %v", err)
 			},
-		}, {
+		},
+		{
 			name: "NOK indirect server failure",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// The client may redirect straight to the proxy if the client callback is misformed
@@ -130,7 +133,8 @@ func TestRedirector(t *testing.T) {
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKey, policy)
 			},
-		}, {
+		},
+		{
 			name: "OK close redirect failed hardware_key_touch login",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Encode a private key policy error in the client callback URL.
@@ -143,7 +147,8 @@ func TestRedirector(t *testing.T) {
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouch, policy)
 			},
-		}, {
+		},
+		{
 			name: "OK terminal redirect on failed hardware_key_pin login",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Encode a private key policy error in the client callback URL.
@@ -156,7 +161,8 @@ func TestRedirector(t *testing.T) {
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyPIN, policy)
 			},
-		}, {
+		},
+		{
 			name: "OK terminal redirect on failed hardware_key_touch_and_pin login",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				// Encode a private key policy error in the client callback URL.
@@ -169,7 +175,8 @@ func TestRedirector(t *testing.T) {
 				require.NoError(t, err, "expected private key policy error but got %v", err)
 				require.Equal(t, keys.PrivateKeyPolicyHardwareKeyTouchAndPIN, policy)
 			},
-		}, {
+		},
+		{
 			name: "OK success redirect on success with hardware_key",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
@@ -177,7 +184,8 @@ func TestRedirector(t *testing.T) {
 			privateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
 			expectRedirect:   sso.LoginSuccessRedirectURL,
 			assertErr:        require.NoError,
-		}, {
+		},
+		{
 			name: "OK success redirect on success with hardware_key_pin",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
@@ -185,7 +193,8 @@ func TestRedirector(t *testing.T) {
 			privateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyPIN,
 			expectRedirect:   sso.LoginSuccessRedirectURL,
 			assertErr:        require.NoError,
-		}, {
+		},
+		{
 			name: "OK terminal redirect on success with hardware_key_touch",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
@@ -193,7 +202,8 @@ func TestRedirector(t *testing.T) {
 			privateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 			expectRedirect:   sso.LoginTerminalRedirectURL,
 			assertErr:        require.NoError,
-		}, {
+		},
+		{
 			name: "OK terminal redirect on success with hardware_key_touch_and_pin",
 			idpHandler: func(w http.ResponseWriter, r *http.Request) {
 				http.Redirect(w, r, successResponseURL.String(), http.StatusPermanentRedirect)
@@ -214,6 +224,8 @@ func TestRedirector(t *testing.T) {
 			// We should be redirected to the sso success page.
 			resp, err := http.Get(mockIdPServer.URL)
 			require.NoError(t, err)
+			defer resp.Body.Close()
+
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectRedirect, string(body))

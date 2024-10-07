@@ -201,7 +201,7 @@ func NewRedirector(config RedirectorConfig) (*Redirector, error) {
 // startServer starts an http server to handle the sso client callback.
 func (rd *Redirector) startServer() error {
 	if rd.BindAddr != "" {
-		slog.Debug("Binding to provided bind address.", "addr", rd.BindAddr)
+		slog.DebugContext(context.Background(), "Binding to provided bind address.", "addr", rd.BindAddr)
 		listener, err := net.Listen("tcp", rd.BindAddr)
 		if err != nil {
 			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
@@ -313,7 +313,7 @@ func OpenURLInBrowser(browser string, URL string) error {
 
 // WaitForResponse waits for a response from the callback handler.
 func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.SSHLoginResponse, error) {
-	slog.InfoContext(ctx, "Waiting for response", "callback url", rd.server.URL)
+	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.server.URL)
 	select {
 	case err := <-rd.ErrorC():
 		slog.DebugContext(ctx, "Got an error", "err", err)
