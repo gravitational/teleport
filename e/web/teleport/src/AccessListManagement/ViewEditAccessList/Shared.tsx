@@ -2,8 +2,10 @@ import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 import { Flex, ButtonSecondary, ButtonIcon, Box } from 'design';
 import { Cell } from 'design/DataTable';
-import { Pencil, Warning } from 'design/Icon';
+import { Pencil } from 'design/Icon';
 import { Option } from 'shared/components/Select';
+
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
 import {
   AccessListMember,
@@ -12,7 +14,6 @@ import {
 } from 'e-teleport/services/accessmanagement';
 
 import {
-  ToolTipText,
   matchRoles,
   matchTraits,
   UserOption,
@@ -61,13 +62,11 @@ export const UserRevokeButtonCell = ({
     <Cell align="right">
       <Flex alignItems="center" justifyContent="flex-end">
         {!hideIneligibleReason && ineligibleReason && (
-          <ToolTipText
-            tipContent={
-              <div css={{ maxWidth: '220px' }}>{ineligibleReason}</div>
-            }
-          >
-            <Warning color="warning.active" mr={3} />
-          </ToolTipText>
+          <Box mr={3}>
+            <ToolTipInfo kind="warning" position="left">
+              {ineligibleReason}
+            </ToolTipInfo>
+          </Box>
         )}
         <ButtonSecondary
           textTransform="none"

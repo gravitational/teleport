@@ -37,6 +37,7 @@ export const EditorHeader = ({
         {!isCreating && (
           <Flex>
             <HoverTooltip
+              position="bottom"
               tipContent={
                 hasDeleteAccess
                   ? 'Delete'

@@ -1,8 +1,9 @@
-import React, { useState, PropsWithChildren } from 'react';
 import styled from 'styled-components';
-import { Popover, Text, Label } from 'design';
+import { Label } from 'design';
 import { Option } from 'shared/components/Select';
 import { AllUserTraits, User } from 'teleport/services/user';
+
+import { Theme } from 'design/theme/themes/types';
 
 // HybridUserOption
 //
@@ -20,71 +21,30 @@ export type HybridUserOption = Option<User | string>;
 export type UserOption = Option<User>;
 export type EditKind = 'Member' | 'Owner' | 'Grants' | 'OwnerGrants';
 
-// TODO(lisa): move this to 'shared/ToolTip' package
-// and refactor ToolTipInfo with this.
-export const ToolTipText: React.FC<
-  PropsWithChildren<{
-    tipContent: React.ReactElement;
-    fontSize?: number;
-  }>
-> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
+/**
+ * Inverses the color scheme if required. Using the slightly muted foreground
+ * as a background is a bit icky, but I see no better choice.
+ */
+const inverseLabel = ({
+  theme,
+  inverse,
+}: {
+  theme: Theme;
+  inverse?: boolean;
+}) =>
+  inverse
+    ? {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.text.slightlyMuted,
+      }
+    : {};
 
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <span
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-      >
-        {children}
-      </span>
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
-`;
-
-export const TruncatingLabel = styled(Label)`
+export const TruncatingLabel = styled(Label)<{ inverse?: boolean }>`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 160px;
+  ${inverseLabel}
 `;
 
 export function matchRoles(

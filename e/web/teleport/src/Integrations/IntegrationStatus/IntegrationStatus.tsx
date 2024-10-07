@@ -115,7 +115,7 @@ const FeatureContainer: React.FC<PropsWithChildren<FeatureContainerProps>> = ({
     <FeatureBox css={{ maxWidth: '1400px', paddingTop: '16px' }}>
       <Flex alignItems="center" justifyContent="space-between" mb={3}>
         <Flex alignItems="center">
-          <HoverTooltip tipContent="Back to Integrations">
+          <HoverTooltip position="bottom" tipContent="Back to Integrations">
             <ButtonIcon as={Link} to={cfg.routes.integrations} mr={2}>
               <ArrowLeft size="medium" />
             </ButtonIcon>

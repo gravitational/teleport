@@ -74,6 +74,7 @@ export default function Workflow() {
               <>{ViewRulesButton}</>
             ) : (
               <HoverTooltip
+                position="bottom"
                 tipContent={
                   'You do not have access to read/list Notification Routing Rules'
                 }

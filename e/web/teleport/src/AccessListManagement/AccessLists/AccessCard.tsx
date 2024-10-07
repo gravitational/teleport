@@ -4,7 +4,9 @@ import styled from 'styled-components';
 import { Flex, Box, Text } from 'design';
 import { User } from 'design/Icon';
 
-import { ToolTipText, TruncatingLabel } from '../Shared/Shared';
+import { HoverTooltip } from 'shared/components/ToolTip';
+
+import { TruncatingLabel } from '../Shared/Shared';
 import { OktaBadge } from '../Shared/OktaBadge';
 
 import { AccessListWithModifiedGrants } from './AccessLists';
@@ -110,11 +112,16 @@ const renderRolesAndTraits = ({
     return (
       <Flex flexWrap="wrap" alignItems="baseline">
         {truncatedLabels}
-        <ToolTipText tipContent={<>{otherLabels}</>}>
-          <Text typography="body4" color="text.muted">
-            +{otherLabels.length} more
-          </Text>
-        </ToolTipText>
+        <HoverTooltip
+          position="bottom"
+          tipContent={otherLabels.map(label =>
+            // Labels in the tip content need to be rendered in inverse colors,
+            // or they will be illegible.
+            React.cloneElement(label, { inverse: true })
+          )}
+        >
+          <Text typography="body4">+{otherLabels.length} more</Text>
+        </HoverTooltip>
       </Flex>
     );
   }

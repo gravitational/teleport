@@ -159,7 +159,10 @@ export const NotificationRoutingRulesDialog = ({
         >
           <Flex alignItems="center" mb={3} justifyContent="space-between">
             <Flex alignItems="center" mr={3}>
-              <HoverTooltip tipContent="Back to Access Requests">
+              <HoverTooltip
+                position="bottom"
+                tipContent="Back to Access Requests"
+              >
                 <ButtonIcon onClick={onClose} mr={2} ml={'-8px'}>
                   <Cross size="medium" />
                 </ButtonIcon>
@@ -168,6 +171,7 @@ export const NotificationRoutingRulesDialog = ({
             </Flex>
             {fetchPluginsAttempt.status === 'success' && (
               <HoverTooltip
+                position="bottom"
                 tipContent={
                   hasAmRuleCreateAccess
                     ? null
