@@ -44,7 +44,6 @@ func PutRolePolicy(
 	roleName string,
 	policy *awslib.PolicyDocument,
 ) (*provisioning.Action, error) {
-
 	policyJSON, err := policy.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err)

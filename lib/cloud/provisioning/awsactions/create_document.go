@@ -49,7 +49,6 @@ func CreateDocument(
 	docFormat ssmtypes.DocumentFormat,
 	tags tags.AWSTags,
 ) (*provisioning.Action, error) {
-
 	input := &ssm.CreateDocumentInput{
 		Name:           aws.String(name),
 		DocumentType:   docType,

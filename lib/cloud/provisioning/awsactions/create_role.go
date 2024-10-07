@@ -77,7 +77,6 @@ func CreateRole(
 	trustPolicy *awslib.PolicyDocument,
 	tags tags.AWSTags,
 ) (*provisioning.Action, error) {
-
 	trustPolicyJSON, err := trustPolicy.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err)
