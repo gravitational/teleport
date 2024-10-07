@@ -430,6 +430,12 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
 
+	ruleName := "test-pagerduty-amr"
+	lastRuleUpdated := ""
+	s.appConfig.OnAccessMonitoringRuleCacheUpdateCallback = func(name string) error {
+		lastRuleUpdated = ruleName
+		return nil
+	}
 	s.startApp()
 
 	_, err := s.ClientByName(integration.RulerUserName).
@@ -438,7 +444,7 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
 			Metadata: &v1.Metadata{
-				Name: "test-pagerduty-amr",
+				Name: ruleName,
 			},
 			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 				Subjects:  []string{types.KindAccessRequest},
@@ -454,26 +460,29 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	assert.NoError(t, err)
 
 	// Incident creation may happen before plugins Access Monitoring Rule cache
-	// has been updated with new rule. Retry until the new rule starts applying.
+	// has been updated with new rule. Retry until the new cache picks up the rule.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		// Test execution: create an access request
-		req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
-
-		// Validate the incident has been created in Pagerduty and its ID is stored
-		// in the plugin_data.
-		hasIncidentID := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
-			return data.IncidentID != ""
-		})
-
-		incident, err := s.fakePagerduty.CheckNewIncident(ctx)
-		assert.NoError(t, err, "no new incidents stored")
-		assert.Equal(t, incident.ID, hasIncidentID.IncidentID)
-
-		assert.Equal(t, pagerduty.PdIncidentKeyPrefix+"/"+req.GetName(), incident.IncidentKey)
-		assert.Equal(t, "triggered", incident.Status)
-
-		assert.Equal(t, s.pdNotifyService2.ID, hasIncidentID.ServiceID)
+		require.Equal(t, lastRuleUpdated, ruleName)
 	}, 10*time.Second, time.Second, "new access monitoring rule did not begin applying")
+
+	// Test execution: create an access request
+	req := s.CreateAccessRequest(ctx, integration.RequesterOSSUserName, nil)
+
+	// Validate the incident has been created in Pagerduty and its ID is stored
+	// in the plugin_data.
+	hasIncidentID := s.checkPluginData(ctx, req.GetName(), func(data pagerduty.PluginData) bool {
+		return data.IncidentID != ""
+	})
+
+	incident, err := s.fakePagerduty.CheckNewIncident(ctx)
+	assert.NoError(t, err, "no new incidents stored")
+	assert.Equal(t, incident.ID, hasIncidentID.IncidentID)
+
+	assert.Equal(t, pagerduty.PdIncidentKeyPrefix+"/"+req.GetName(), incident.IncidentKey)
+	assert.Equal(t, "triggered", incident.Status)
+
+	assert.Equal(t, s.pdNotifyService2.ID, hasIncidentID.ServiceID)
+
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-pagerduty-amr"))
 }

@@ -48,6 +48,7 @@ type RuleHandler struct {
 	pluginName string
 
 	fetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
+	onCacheUpdateCallback  func(name string) error
 }
 
 // RuleMap is a concurrent map for access monitoring rules.
@@ -65,6 +66,8 @@ type RuleHandlerConfig struct {
 
 	// FetchRecipientCallback is a callback that maps recipient strings to plugin Recipients.
 	FetchRecipientCallback func(ctx context.Context, recipient string) (*common.Recipient, error)
+	// OnCacheUpdateCallback is a callback that is called when a rule in the cache is created or updated.
+	OnCacheUpdateCallback func(name string) error
 }
 
 // NewRuleHandler returns a new RuleHandler.
@@ -77,6 +80,7 @@ func NewRuleHandler(conf RuleHandlerConfig) *RuleHandler {
 		pluginType:             conf.PluginType,
 		pluginName:             conf.PluginName,
 		fetchRecipientCallback: conf.FetchRecipientCallback,
+		onCacheUpdateCallback:  conf.OnCacheUpdateCallback,
 	}
 }
 
@@ -93,6 +97,9 @@ func (amrh *RuleHandler) InitAccessMonitoringRulesCache(ctx context.Context) err
 			continue
 		}
 		amrh.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+		if amrh.onCacheUpdateCallback != nil {
+			amrh.onCacheUpdateCallback(amr.GetMetadata().Name)
+		}
 	}
 	return nil
 }
@@ -123,6 +130,9 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 			return nil
 		}
 		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
+		if amrh.onCacheUpdateCallback != nil {
+			amrh.onCacheUpdateCallback(req.Metadata.Name)
+		}
 		return nil
 	case types.OpDelete:
 		delete(amrh.accessMonitoringRules.rules, event.Resource.GetName())
