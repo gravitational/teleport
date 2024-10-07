@@ -1800,8 +1800,8 @@ rustup-install-target-toolchain: rustup-set-version
 # the specified branch.
 #
 # usage: make changelog
-# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=13.2.0
-# usage: BASE_BRANCH=branch/v13 BASE_TAG=13.2.0 make changelog
+# usage: make changelog BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0
+# usage: BASE_BRANCH=branch/v13 BASE_TAG=v13.2.0 make changelog
 #
 # BASE_BRANCH and BASE_TAG will be automatically determined if not specified.
 CHANGELOG = github.com/gravitational/shared-workflows/tools/changelog@latest
