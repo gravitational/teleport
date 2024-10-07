@@ -500,17 +500,21 @@ func (s *SPIFFEWorkloadAPIService) authenticateClient(
 	}
 
 	authInfo, ok := p.AuthInfo.(uds.AuthInfo)
-	if !ok || authInfo.Creds == nil || authInfo.Creds.PID == 0 {
-		// This could be innocent - for example, if they are connecting via TCP
-		// we don't expect to see any UDS credentials.
-		//
-		// This can also occur if the caller is calling from another process
-		// namespace.
-		//
-		// TODO(noah): We should probably consider skipping all of this code
-		// if we know that the listener is TCP and not UDS, so we can make this
-		// a bit noisier.
-		log.DebugContext(ctx, "Did not detect UDS credentials, will not complete workload attestation")
+	// We expect Creds to be nil/unset if the client is connecting via TCP and
+	// therefore there is no workload attestation that can be completed.
+	if !ok || authInfo.Creds == nil {
+		return log, workloadattest.Attestation{}, nil
+	}
+
+	// For a UDS, sometimes we are unable to determine the PID of the calling
+	// workload. This can happen if the caller is calling from another process
+	// namespace. In this case, Creds will be non-nil but the PID will be 0.
+	//
+	// We should fail softly here as there could be SVIDs that do not require
+	// workload attestation.
+	if authInfo.Creds.PID == 0 {
+		log.DebugContext(
+			ctx, "Failed to determine the PID of the calling workload. TBot may be running in a different process namespace to the workload. Workload attestation will not be completed.")
 		return log, workloadattest.Attestation{}, nil
 	}
 
