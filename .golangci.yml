@@ -155,7 +155,8 @@ linters-settings:
           - "!$test"
           - '**/tool/tbot/**'
           - '**/lib/client/**'
-          - '**integrations/**'
+          - '!**/lib/integrations/**'
+          - '**/integrations/**'
         deny:
           - pkg: github.com/gravitational/teleport/lib/bpf
             desc: '"lib/bpf" requires CGO'
