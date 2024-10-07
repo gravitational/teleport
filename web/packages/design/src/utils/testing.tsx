@@ -18,25 +18,38 @@
 
 import React from 'react';
 import {
-  render as testingRender,
   act,
   fireEvent,
-  waitFor,
-  screen,
-  prettyDOM,
   getByTestId,
+  prettyDOM,
+  render as testingRender,
+  screen,
+  waitFor,
   waitForElementToBeRemoved,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter as Router } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ThemeProvider from 'design/ThemeProvider';
 import { darkTheme } from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
 function Providers({ children }: { children: React.ReactElement }) {
-  return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>
+    </QueryClientProvider>
+  );
 }
 
 function render(ui: React.ReactElement<any>, options?: RenderOptions) {

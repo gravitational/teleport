@@ -30,6 +30,7 @@ import { UserContextProvider } from '../packages/teleport/src/User';
 import { Preview } from '@storybook/react';
 import { Theme } from '../packages/design/src/theme/themes/types';
 import { initialize, mswLoader } from 'msw-storybook-addon';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 initialize();
 
@@ -82,6 +83,15 @@ function UserDecorator(props: PropsWithChildren<UserDecoratorProps>) {
   return props.children;
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false, // if it's important to retry, the individual useQuery should set it
+    },
+  },
+});
+
 const preview: Preview = {
   args: {
     userContext: false,
@@ -97,11 +107,13 @@ const preview: Preview = {
   loaders: [mswLoader],
   decorators: [
     (Story, meta) => (
-      <UserDecorator userContext={meta.args.userContext}>
-        <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
-          <Story />
-        </ThemeDecorator>
-      </UserDecorator>
+      <QueryClientProvider client={queryClient}>
+        <UserDecorator userContext={meta.args.userContext}>
+          <ThemeDecorator theme={meta.globals.theme} title={meta.title}>
+            <Story />
+          </ThemeDecorator>
+        </UserDecorator>
+      </QueryClientProvider>
     ),
   ],
   globalTypes: {
