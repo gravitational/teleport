@@ -19,11 +19,11 @@
 package peer
 
 import (
+	"log/slog"
 	"net"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -34,7 +34,7 @@ import (
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
 	clusterDialer ClusterDialer
-	log           logrus.FieldLogger
+	log           *slog.Logger
 }
 
 // DialNode opens a bidirectional stream to the requested node.
@@ -54,12 +54,12 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.BadParameter("invalid dial request: source and destination must not be nil")
 	}
 
-	log := s.log.WithFields(logrus.Fields{
-		"node": dial.NodeID,
-		"src":  dial.Source.Addr,
-		"dst":  dial.Destination.Addr,
-	})
-	log.Debugf("Dial request from peer.")
+	log := s.log.With(
+		"node", dial.NodeID,
+		"src", dial.Source.Addr,
+		"dst", dial.Destination.Addr,
+	)
+	log.DebugContext(stream.Context(), "Dial request from peer.")
 
 	_, clusterName, err := splitServerID(dial.NodeID)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 
 	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
 	sent, received := streamConn.Stat()
-	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
+	log.DebugContext(stream.Context(), "Closing dial request from peer.", "sent", sent, "received", received)
 	return trace.Wrap(err)
 }
 

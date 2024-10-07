@@ -21,12 +21,12 @@ package peer
 import (
 	"crypto/tls"
 	"errors"
+	"log/slog"
 	"math"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -50,7 +50,7 @@ type ServerConfig struct {
 	Listener      net.Listener
 	TLSConfig     *tls.Config
 	ClusterDialer ClusterDialer
-	Log           logrus.FieldLogger
+	Log           *slog.Logger
 	ClusterName   string
 
 	// getConfigForClient gets the client tls config.
@@ -65,9 +65,9 @@ type ServerConfig struct {
 // checkAndSetDefaults checks and sets default values
 func (c *ServerConfig) checkAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
 	}
-	c.Log = c.Log.WithField(
+	c.Log = c.Log.With(
 		teleport.ComponentKey,
 		teleport.Component(teleport.ComponentProxy, "peer"),
 	)
