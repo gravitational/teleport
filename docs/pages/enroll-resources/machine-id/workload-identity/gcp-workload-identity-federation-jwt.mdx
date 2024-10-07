@@ -29,12 +29,12 @@ This implementation differs from using the Teleport Application Service to prote
 GCP APIs in a few ways:
 
 - Requests to GCP are not proxied through the Teleport Proxy Service, meaning
-reduced latency but also less visibility, as these requests will not be
-recorded in Teleport's audit log.
-- Workload ID works with any GCP client, including the command-line tool but also
-their SDKs
+  reduced latency but also less visibility, as these requests will not be
+  recorded in Teleport's audit log.
+- Workload Identity works with any GCP client, including the command-line tool
+  but also their SDKs.
 - Using the Teleport Application Service to access GCP does not work with Machine ID
-and therefore cannot be used when a machine needs to authenticate with AWS.
+  and therefore cannot be used when a machine needs to authenticate with AWS.
 
 ## Prerequisites
 
@@ -59,10 +59,10 @@ If you have already deployed Teleport Workload Identity, then you will already
 have a SPIFFE ID structure in place. If you have not, then you will need to
 decide on a structure for your SPIFFE IDs.
 
-If you are only using Teleport Workload ID with GCP Workload Identity Federation,
-you may structure your SPIFFE IDs so that they explicitly specify the GCP service
-account they are allowed to assume. However, it often makes more sense to name
-the workload or person that will use the SPIFFE ID. See the
+If you are only using Teleport Workload Identity with GCP Workload Identity
+Federation, you may structure your SPIFFE IDs so that they explicitly specify
+the GCP service account they are allowed to assume. However, it often makes more
+sense to name the workload or person that will use the SPIFFE ID. See the
 [best practices guide](./best-practices.mdx) for further advice.
 
 ## Step 1/4. Configure GCP
@@ -177,6 +177,8 @@ $ gcloud storage buckets add-iam-policy-binding gs://example --member=$MEMBER --
 Now we need to configure Teleport to allow a JWT to be issued containing the
 SPIFFE ID we have chosen.
 
+Create `role.yaml` with the following content:
+
 ```yaml
 kind: role
 version: v6
@@ -191,7 +193,13 @@ spec:
 Replace:
 
 - `my-workload-gcp` with a descriptive name for the role.
-- `/my-workload` with the path part of the SPIFFE ID you have chosen.
+- `/svc/example-service` with the path part of the SPIFFE ID you have chosen.
+
+Apply this role to your Teleport cluster using `tctl`:
+
+```code
+$ tctl create -f role.yaml
+```
 
 You now need to assign this role to the bot:
 
@@ -199,10 +207,11 @@ You now need to assign this role to the bot:
 $ tctl bots update my-bot --add-roles my-workload-gcp
 ```
 
-## Step 3/4. Issue Workload ID certificates
+## Step 3/4. Issue Workload Identity JWTs
 
-For machines, the `tbot` service can be used to issue and renew SPIFFE SVIDs
-as a background process.
+You'll now configure `tbot` to issue and renew the short-lived JWT SVIDs for
+your workload. It'll write the JWT as a file on disk, where you can then
+configure GCP clients and SDKs to read it.
 
 Before configuring this, you'll need to determine the correct audience to
 request in the JWT SVIDs. This is specific to the Workload Identity Federation
@@ -230,7 +239,11 @@ outputs:
         file_name: gcp-jwt
 ```
 
-Restart your `tbot` service to apply the new configuration.
+Restart your `tbot` service to apply the new configuration. You should see a
+file created at `/opt/workload-identity/gcp-jwt` containing the JWT.
+
+## Step 4/4. Configure GCP CLIs and SDKs
+
 
 ## Next steps
 
