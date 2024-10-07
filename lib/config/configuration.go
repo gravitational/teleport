@@ -380,6 +380,8 @@ type IntegrationConfAWSOIDCIdP struct {
 	// ProxyPublicURL is the IdP Issuer URL (Teleport Proxy Public Address).
 	// Eg, https://<tenant>.teleport.sh
 	ProxyPublicURL string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
 }
 
 // IntegrationConfListDatabasesIAM contains the arguments of
