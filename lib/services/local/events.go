@@ -99,6 +99,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAutoUpdateConfigParser()
 		case types.KindAutoUpdateVersion:
 			parser = newAutoUpdateVersionParser()
+		case types.KindAutoUpdateAgentPlan:
+			parser = newAutoUpdateAgentPlanParser()
 		case types.KindNamespace:
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
@@ -802,6 +804,41 @@ func (p *autoUpdateVersionParser) parse(event backend.Event) (types.Resource, er
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(autoUpdateVersion), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAutoUpdateAgentPlanParser() *autoUpdateAgentPlanParser {
+	return &autoUpdateAgentPlanParser{
+		baseParser: newBaseParser(backend.NewKey(autoUpdateAgentPlanPrefix)),
+	}
+}
+
+type autoUpdateAgentPlanParser struct {
+	baseParser
+}
+
+func (p *autoUpdateAgentPlanParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return &types.ResourceHeader{
+			Kind:    types.KindAutoUpdateAgentPlan,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      types.MetaNameAutoUpdateAgentPlan,
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		autoUpdateAgentPlan, err := services.UnmarshalProtoResource[*autoupdate.AutoUpdateAgentPlan](event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(autoUpdateAgentPlan), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
