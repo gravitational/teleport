@@ -258,6 +258,7 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 	}
 	sudoers := HostSudoersManagement{
 		backend: backend,
+		log:     utils.NewSlogLoggerForTests(),
 	}
 
 	closer, err := users.UpsertUser("bob", services.HostUsersInfo{
