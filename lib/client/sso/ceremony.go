@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 )
 
@@ -62,30 +63,55 @@ func NewCLICeremony(rd *Redirector, init CeremonyInit) *Ceremony {
 	}
 }
 
+// Ceremony is a customizable SSO MFA ceremony.
 type MFACeremony struct {
-	*Ceremony
+	clientCallbackURL   string
+	HandleRedirect      func(ctx context.Context, redirectURL string) error
+	GetCallbackMFAToken func(ctx context.Context) (string, error)
 }
 
-// GetClientCallbackURL returns the SSO client callback URL.
-func (c *MFACeremony) GetClientCallbackURL() string {
-	return c.clientCallbackURL
+// GetClientCallbackURL returns the client callback URL.
+func (m *MFACeremony) GetClientCallbackURL() string {
+	return m.clientCallbackURL
 }
 
-// HandleRedirect handles redirect.
-func (c *MFACeremony) HandleRedirect(ctx context.Context, redirectURL string) error {
-	return c.Ceremony.HandleRedirect(ctx, redirectURL)
-}
+// Run the SSO MFA ceremony.
+func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if err := m.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-// GetCallbackMFAResponse returns an SSO MFA auth response once the callback is complete.
-func (c *MFACeremony) GetCallbackMFAToken(ctx context.Context) (string, error) {
-	loginResp, err := c.GetCallbackResponse(ctx)
+	mfaToken, err := m.GetCallbackMFAToken(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if loginResp.MFAToken == "" {
-		return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
-	}
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: chal.SSOChallenge.RequestId,
+				Token:     mfaToken,
+			},
+		},
+	}, nil
+}
 
-	return loginResp.MFAToken, nil
+// NewCLIMFACeremony creates a new CLI SSO ceremony from the given redirector.
+func NewCLIMFACeremony(rd *Redirector) *MFACeremony {
+	return &MFACeremony{
+		clientCallbackURL: rd.ClientCallbackURL,
+		HandleRedirect:    rd.OpenRedirect,
+		GetCallbackMFAToken: func(ctx context.Context) (string, error) {
+			loginResp, err := rd.WaitForResponse(ctx)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+
+			if loginResp.MFAToken == "" {
+				return "", trace.BadParameter("login response for SSO MFA flow missing MFA token")
+			}
+
+			return loginResp.MFAToken, nil
+		},
+	}
 }
