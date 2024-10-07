@@ -59,7 +59,7 @@ func RemoveWithSuffix(dir, suffix, skipName string) error {
 	return trace.Wrap(err)
 }
 
-func replaceZip(toolsDir string, archivePath string, hash string, apps []string) error {
+func replaceZip(toolsDir string, archivePath string, extractDir string, apps []string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -74,10 +74,6 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tempDir, err := os.MkdirTemp(toolsDir, hash)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	for _, zipFile := range zipReader.File {
 		// Skip over any files in the archive that are not defined apps.
@@ -87,37 +83,36 @@ func replaceZip(toolsDir string, archivePath string, hash string, apps []string)
 			continue
 		}
 		// Verify that we have enough space for uncompressed zipFile.
-		if err := checkFreeSpace(tempDir, zipFile.UncompressedSize64); err != nil {
+		if err := checkFreeSpace(extractDir, zipFile.UncompressedSize64); err != nil {
 			return trace.NewAggregate(err, f.Close())
 		}
 
-		file, err := zipFile.Open()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer file.Close()
+		if err := func(zipFile *zip.File) error {
+			file, err := zipFile.Open()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer file.Close()
 
-		dest := filepath.Join(tempDir, zipFile.Name)
-		destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer destFile.Close()
+			dest := filepath.Join(extractDir, zipFile.Name)
+			destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer destFile.Close()
 
-		if _, err := io.Copy(destFile, file); err != nil {
-			return trace.Wrap(err)
-		}
-		appPath := filepath.Join(toolsDir, zipFile.Name)
-		if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
-			return trace.Wrap(err)
-		}
-		if err := os.Symlink(dest, appPath); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := destFile.Close(); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := file.Close(); err != nil {
+			if _, err := io.Copy(destFile, file); err != nil {
+				return trace.Wrap(err)
+			}
+			appPath := filepath.Join(toolsDir, zipFile.Name)
+			if err := os.Remove(appPath); err != nil && !os.IsNotExist(err) {
+				return trace.Wrap(err)
+			}
+			if err := os.Symlink(dest, appPath); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}(zipFile); err != nil {
 			return trace.Wrap(err)
 		}
 	}

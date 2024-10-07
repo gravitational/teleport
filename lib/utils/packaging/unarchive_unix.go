@@ -38,18 +38,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ReplaceToolsBinaries un-archives package from tools directory and replaces defined apps by symlinks.
-func ReplaceToolsBinaries(toolsDir string, archivePath string, hash string, apps []string) error {
+// ReplaceToolsBinaries extracts the package into `extractDir` and replaces the specified
+// applications with symlinks in the tool's directory.
+func ReplaceToolsBinaries(toolsDir string, archivePath string, extractDir string, apps []string) error {
 	switch runtime.GOOS {
 	case "darwin":
-		return replacePkg(toolsDir, archivePath, hash, apps)
+		return replacePkg(toolsDir, archivePath, extractDir, apps)
 	default:
-		return replaceTarGz(toolsDir, archivePath, apps)
+		return replaceTarGz(toolsDir, archivePath, extractDir, apps)
 	}
 }
 
-func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
-	tempDir := renameio.TempDir(toolsDir)
+func replaceTarGz(toolsDir string, archivePath string, extractDir string, apps []string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -76,28 +76,28 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 			continue
 		}
 		// Verify that we have enough space for uncompressed file.
-		if err := checkFreeSpace(tempDir, uint64(header.Size)); err != nil {
+		if err := checkFreeSpace(extractDir, uint64(header.Size)); err != nil {
 			return trace.Wrap(err)
 		}
 
-		dest := filepath.Join(toolsDir, strings.TrimPrefix(header.Name, "teleport/"))
-		t, err := renameio.TempFile(tempDir, dest)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := os.Chmod(t.Name(), 0o755); err != nil {
-			_ = t.Cleanup()
-			return trace.Wrap(err)
-		}
-		if _, err := io.Copy(t, tarReader); err != nil {
-			_ = t.Cleanup()
-			return trace.Wrap(err)
-		}
-		if err := t.CloseAtomicallyReplace(); err != nil {
-			_ = t.Cleanup()
-			return trace.Wrap(err)
-		}
-		if err := t.Cleanup(); err != nil {
+		if err = func(header *tar.Header) error {
+			dest := filepath.Join(toolsDir, strings.TrimPrefix(header.Name, "teleport/"))
+			tempFile, err := renameio.TempFile(extractDir, dest)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer tempFile.Cleanup()
+			if err := os.Chmod(tempFile.Name(), 0o755); err != nil {
+				return trace.Wrap(err)
+			}
+			if _, err := io.Copy(tempFile, tarReader); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := tempFile.CloseAtomicallyReplace(); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}(header); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -105,7 +105,7 @@ func replaceTarGz(toolsDir string, archivePath string, apps []string) error {
 	return trace.Wrap(gzipReader.Close())
 }
 
-func replacePkg(toolsDir string, archivePath string, hash string, apps []string) error {
+func replacePkg(toolsDir string, archivePath string, extractDir string, apps []string) error {
 	// Use "pkgutil" from the filesystem to expand the archive. In theory .pkg
 	// files are xz archives, however it's still safer to use "pkgutil" in-case
 	// Apple makes non-standard changes to the format.
@@ -115,14 +115,13 @@ func replacePkg(toolsDir string, archivePath string, hash string, apps []string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	expandPath := filepath.Join(toolsDir, hash+"-pkg")
-	out, err := exec.Command(pkgutil, "--expand-full", archivePath, expandPath).Output()
+	out, err := exec.Command(pkgutil, "--expand-full", archivePath, extractDir).Output()
 	if err != nil {
 		slog.DebugContext(context.Background(), "failed to run pkgutil:", "output", out)
 		return trace.Wrap(err)
 	}
 
-	err = filepath.Walk(expandPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(extractDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}

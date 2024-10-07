@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
-// TestPackaging verifies unarchiving of all supported teleport package formats.
+// TestPackaging verifies un-archiving of all supported teleport package formats.
 func TestPackaging(t *testing.T) {
 	script := "#!/bin/sh\necho test"
 
@@ -42,7 +42,11 @@ func TestPackaging(t *testing.T) {
 	toolsDir, err := os.MkdirTemp(os.TempDir(), "dest")
 	require.NoError(t, err)
 
+	extractDir, err := os.MkdirTemp(toolsDir, "extract")
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(extractDir))
 		require.NoError(t, os.RemoveAll(sourceDir))
 		require.NoError(t, os.RemoveAll(toolsDir))
 	})
@@ -57,7 +61,7 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceTarGz(toolsDir, archivePath, []string{"tsh", "tctl"})
+		err = replaceTarGz(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
@@ -76,7 +80,7 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replacePkg(toolsDir, archivePath, "hash", []string{"tsh", "tctl"})
+		err = replacePkg(toolsDir, archivePath, filepath.Join(extractDir, "apps"), []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")
@@ -92,7 +96,7 @@ func TestPackaging(t *testing.T) {
 		require.NoError(t, err)
 		require.FileExists(t, archivePath, "archive not created")
 
-		err = replaceZip(toolsDir, archivePath, "hash", []string{"tsh", "tctl"})
+		err = replaceZip(toolsDir, archivePath, extractDir, []string{"tsh", "tctl"})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(toolsDir, "tsh"), "script not created")
 		assert.FileExists(t, filepath.Join(toolsDir, "tctl"), "script not created")

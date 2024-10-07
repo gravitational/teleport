@@ -22,7 +22,9 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +34,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CompressDirToZipFile compresses directory into a `.zip` format.
+// CompressDirToZipFile compresses a directory into `.zip` format,
+// preserving the relative file path structure of the source directory.
 func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
@@ -41,7 +44,9 @@ func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 	defer func() {
 		_ = archive.Close()
 		if err != nil {
-			_ = os.Remove(destPath)
+			if err := os.Remove(destPath); err != nil {
+				slog.ErrorContext(context.Background(), "failed to remove archive", "error", err)
+			}
 		}
 	}()
 
@@ -77,7 +82,8 @@ func CompressDirToZipFile(sourcePath, destPath string) (err error) {
 	return nil
 }
 
-// CompressDirToTarGzFile compresses directory into a `.tar.gz` format.
+// CompressDirToTarGzFile compresses a directory into .tar.gz format,
+// preserving the relative file path structure of the source directory.
 func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
 	archive, err := os.Create(destPath)
 	if err != nil {
@@ -86,7 +92,9 @@ func CompressDirToTarGzFile(sourcePath, destPath string) (err error) {
 	defer func() {
 		_ = archive.Close()
 		if err != nil {
-			_ = os.Remove(destPath)
+			if err := os.Remove(destPath); err != nil {
+				slog.ErrorContext(context.Background(), "failed to remove archive", "error", err)
+			}
 		}
 	}()
 	gzipWriter := gzip.NewWriter(archive)
