@@ -76,9 +76,9 @@ type EC2SSMIAMConfigureRequest struct {
 
 	// stdout is used to override stdout output in tests.
 	stdout io.Writer
-	// insecureSkipNameRandomization is set to true under output test to produce
-	// consistent output.
-	insecureSkipNameRandomization bool
+	// insecureSkipInstallPathRandomization is set to true under output test to
+	// produce consistent output.
+	insecureSkipInstallPathRandomization bool
 }
 
 // CheckAndSetDefaults ensures the required fields are present.
@@ -183,7 +183,9 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 		return trace.Wrap(err)
 	}
 
-	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL, req.insecureSkipNameRandomization)
+	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
+		awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
+	)
 	tags := tags.DefaultResourceCreationTags(req.ClusterName, req.IntegrationName)
 	createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
 	if err != nil {
