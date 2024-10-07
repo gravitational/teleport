@@ -84,7 +84,10 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 
 	redirectTo, err := h.getRedirectURL(redirectURI)
 	if err != nil {
-		h.log.Debugf("unable to parse redirectURI %s", redirectURI)
+		h.log.
+			WithError(err).
+			WithField("redirect_uri", redirectURI).
+			Debug("Unable to parse redirectURI")
 	}
 	http.Redirect(w, r, redirectTo, http.StatusSeeOther)
 

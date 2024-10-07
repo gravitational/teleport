@@ -2054,7 +2054,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 			if err == nil {
 				return redirectPath
 			}
-			h.log.Debug("could not build redirect path: %v", err)
+			logger.WithError(err).Debug("Could not build redirect path")
 		}
 		return res.ClientRedirectURL
 	}
