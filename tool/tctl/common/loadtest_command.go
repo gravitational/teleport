@@ -34,13 +34,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -92,7 +92,7 @@ func (c *LoadtestCommand) Initialize(app *kingpin.Application, config *servicecf
 
 	c.auditEvents = loadtest.Command("export-audit-events", "Bulk export audit events").Hidden()
 	c.auditEvents.Flag("date", "Date to dump events for").StringVar(&c.date)
-	c.auditEvents.Flag("cursor", "Cursor to start from").StringVar(&c.cursor)
+	c.auditEvents.Flag("cursor", "Specify an optional cursor directory").StringVar(&c.cursor)
 }
 
 // TryRun takes the CLI command as an argument (like "loadtest node-heartbeats") and executes it.
@@ -338,6 +338,9 @@ Outer:
 }
 
 func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Client) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	date := time.Now()
 	if c.date != "" {
 		var err error
@@ -350,6 +353,8 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 	outch := make(chan *auditlogpb.ExportEventUnstructured, 1024)
 	defer close(outch)
 
+	var eventsProcessed atomic.Uint64
+
 	go func() {
 		for event := range outch {
 			s, err := utils.FastMarshal(event.Event.Unstructured)
@@ -357,97 +362,78 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 				panic(err)
 			}
 			fmt.Println(string(s))
+			eventsProcessed.Add(1)
 		}
 	}()
 
-	chunksProcessed := make(map[string]struct{})
+	exportFn := func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+		select {
+		case outch <- event:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	}
 
-Outer:
-	for {
-		chunks := client.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
-			Date: timestamppb.New(date),
+	var cursor *export.Cursor
+	if c.cursor != "" {
+		var err error
+		cursor, err = export.NewCursor(export.CursorConfig{
+			Dir: c.cursor,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
-	Chunks:
-		for chunks.Next() {
-			if _, ok := chunksProcessed[chunks.Item().Chunk]; ok {
-				log.WithFields(log.Fields{
-					"date":  date.Format(time.DateOnly),
-					"chunk": chunks.Item().Chunk,
-				}).Info("skipping already processed chunk")
-				continue Chunks
-			}
+	var state export.ExporterState
+	if cursor != nil {
+		state = cursor.GetState()
+	}
 
-			var cursor string
-		ProcessChunk:
+	exporter, err := export.NewExporter(export.ExporterConfig{
+		Client:        client,
+		StartDate:     date,
+		PreviousState: state,
+		Export:        exportFn,
+		Concurrency:   3,
+		BacklogSize:   1,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer exporter.Close()
+
+	if cursor != nil {
+		go func() {
+			syncTicker := time.NewTicker(time.Millisecond * 666)
+			defer syncTicker.Stop()
+
 			for {
-
-				eventStream := client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
-					Date:   timestamppb.New(date),
-					Chunk:  chunks.Item().Chunk,
-					Cursor: cursor,
-				})
-
-			Events:
-				for eventStream.Next() {
-					cursor = eventStream.Item().Cursor
-					select {
-					case outch <- eventStream.Item():
-						continue Events
-					default:
-						log.Warn("backpressure in event stream")
-					}
-
-					select {
-					case outch <- eventStream.Item():
-					case <-ctx.Done():
-						return nil
-					}
+				select {
+				case <-ctx.Done():
+					return
+				case <-syncTicker.C:
+					cursor.Sync(exporter.GetState())
 				}
-
-				if err := eventStream.Done(); err != nil {
-					log.WithFields(log.Fields{
-						"date":  date.Format(time.DateOnly),
-						"chunk": chunks.Item().Chunk,
-						"error": err,
-					}).Error("event stream failed, will attempt to reestablish")
-					continue ProcessChunk
-				}
-
-				chunksProcessed[chunks.Item().Chunk] = struct{}{}
-				break ProcessChunk
 			}
-		}
+		}()
+	}
 
-		if err := chunks.Done(); err != nil {
-			log.WithFields(log.Fields{
-				"date":  date.Format(time.DateOnly),
-				"error": err,
-			}).Error("event chunk stream failed, will attempt to reestablish")
-			continue Outer
-		}
+	logTicker := time.NewTicker(time.Minute)
 
-		nextDate := date.AddDate(0, 0, 1)
-		if nextDate.After(time.Now()) {
-			delay := utils.SeventhJitter(time.Second * 7)
-			log.WithFields(log.Fields{
-				"date":  date.Format(time.DateOnly),
-				"delay": delay,
-			}).Info("finished processing known event chunks for current date, will re-poll after delay")
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return nil
-			}
-			continue Outer
+	var prevEventsProcessed uint64
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-logTicker.C:
+			processed := eventsProcessed.Load()
+			slog.InfoContext(ctx, "event processing", "total", processed, "per_minute", processed-prevEventsProcessed)
+			prevEventsProcessed = processed
+		case <-exporter.Done():
+			return trace.Errorf("exporter exited unexpected with state: %+v", exporter.GetState())
 		}
-
-		log.WithFields(log.Fields{
-			"date": date.Format(time.DateOnly),
-			"next": nextDate.Format(time.DateOnly),
-		}).Info("finished processing known event chunks for historical date, moving to next")
-		date = nextDate
-		clear(chunksProcessed)
 	}
 }
 
