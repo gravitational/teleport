@@ -1,6 +1,6 @@
-/*
+/**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,6 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Modal from './Modal';
-export { type BackdropProps, type Props } from './Modal';
-export default Modal;
+import { Info } from 'design/Alert/Alert';
+import { ButtonSecondary, Text } from 'design';
+
+export const RequiresResetToStandard = ({ reset }: { reset(): void }) => (
+  <Info>
+    <Text>
+      Some fields were not readable by the standard editor. To continue editing,
+      go back to YAML editor or reset the affected fields to standard settings.
+    </Text>
+    <ButtonSecondary size="large" my={2} onClick={reset}>
+      Reset to Standard Settings
+    </ButtonSecondary>
+  </Info>
+);

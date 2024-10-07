@@ -16,6 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Modal from './Modal';
-export { type BackdropProps, type Props } from './Modal';
-export default Modal;
+import Popover from './Popover';
+export {
+  StyledPopover,
+  type Origin,
+  type HorizontalOrigin,
+  type VerticalOrigin,
+  type GrowDirections,
+  type Position as Orientation,
+} from './Popover';
+
+export default Popover;
